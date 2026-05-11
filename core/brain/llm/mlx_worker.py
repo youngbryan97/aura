@@ -600,7 +600,7 @@ def _mlx_worker_loop(
     heartbeat = HeartbeatThread(ipc_writer)
     heartbeat.start()
 
-    watchdog = JobWatchdog(timeout=180.0)  # [RESILIENCE] Raised from 90s. Recurrent depth 2x loops on 32B can take 120s+ for prompt eval.
+    watchdog = JobWatchdog(timeout=360.0)  # Align with the protected foreground solver envelope.
     watchdog.start()
 
     try:

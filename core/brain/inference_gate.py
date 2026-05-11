@@ -34,6 +34,10 @@ from core.brain.llm.model_registry import (
     FALLBACK_ENDPOINT,
     PRIMARY_ENDPOINT,
 )
+from core.conversation.response_reliability import (
+    assess_user_facing_reply,
+    conversation_reliability_system_block,
+)
 from core.runtime.desktop_boot_safety import desktop_safe_boot_enabled
 from core.runtime.structured_input import analyze_prompt_shape
 from core.utils.deadlines import Deadline, get_deadline
@@ -732,8 +736,10 @@ class InferenceGate:
 
                 try:
                     self._extend_startup_quiet_window(20.0)
-                    # [STABILITY v56] Background prewarm needs full 180s timeout, not 60s.
-                    await self.ensure_foreground_ready(timeout=180.0)
+                    # Background prewarm needs the same generous load budget
+                    # as foreground chat so it does not half-warm then strand
+                    # the next user turn in recovery.
+                    await self.ensure_foreground_ready(timeout=300.0)
                     logger.info("✅ Deferred cortex prewarm completed.")
                     return
                 except Exception as exc:
@@ -1260,7 +1266,10 @@ class InferenceGate:
         if is_background or requested_tier == "tertiary":
             return 60.0
         if deep_handoff or requested_tier == "secondary":
-            return 240.0
+            return 360.0 if cls._origin_is_user_facing(origin) else 240.0
+
+        if cls._origin_is_user_facing(origin):
+            return 300.0
 
         # Adaptive: check if cortex is warm and responsive.
         base = 150.0
@@ -1367,13 +1376,20 @@ class InferenceGate:
             # Explicit solver turns are rare and intentional. Give the 72B
             # lane most of the foreground budget so load + first-token latency
             # do not force a fallback before deep reasoning can complete.
-            primary_budget = min(210.0, max(150.0, total_timeout * 0.90))
+            if total_timeout >= 300.0:
+                primary_budget = min(total_timeout - 20.0, max(240.0, total_timeout * 0.92))
+            else:
+                primary_budget = min(210.0, max(150.0, total_timeout * 0.90))
         elif requested_tier == "tertiary":
             primary_budget = min(60.0, total_timeout * 0.7)
         else:
             # Give cortex 80% of the total budget so the 32B model has
-            # real headroom. On a 150s total that's 120s primary + 30s fallback.
-            primary_budget = min(120.0, max(60.0, total_timeout * 0.80))
+            # real headroom. On an API-protected 300s turn, preserve the heavy
+            # lane instead of silently dropping it after the old 120s cap.
+            if total_timeout >= 240.0:
+                primary_budget = min(total_timeout - 20.0, max(210.0, total_timeout * 0.90))
+            else:
+                primary_budget = min(150.0, max(60.0, total_timeout * 0.85))
 
         fallback_budget = max(5.0, total_timeout - primary_budget)
         return primary_budget, fallback_budget
@@ -1419,18 +1435,19 @@ class InferenceGate:
             from core.brain.llm.model_registry import ACTIVE_MODEL, get_runtime_model_path
 
             primary_client = get_mlx_client(model_path=str(get_runtime_model_path(ACTIVE_MODEL)))
-            # [STABILITY v57] Increased timeout from 60.0s to 180.0s. 60s is insufficient
-            # for a full 32B model to swap back into Metal memory after a 72B deep handoff.
+            # Give the conversational 32B lane enough time to swap back after
+            # a 72B deep handoff; otherwise the next ordinary turn inherits a
+            # preventable "cortex warming" failure.
             await asyncio.wait_for(
                 primary_client.warmup(
                     foreground_request=True,
                     skip_swap_cooldown=True,
                 ),
-                timeout=180.0,
+                timeout=300.0,
             )
             logger.info("♻️ Restored %s after deep handoff.", PRIMARY_ENDPOINT)
         except asyncio.TimeoutError:
-            logger.error("⚠️ Failed to restore %s after deep handoff: warmup timed out (180s)", PRIMARY_ENDPOINT)
+            logger.error("⚠️ Failed to restore %s after deep handoff: warmup timed out (300s)", PRIMARY_ENDPOINT)
             # Schedule deferred recovery so next request doesn't hit dead cortex
             self._schedule_background_cortex_prewarm(delay=5.0)
         except Exception as exc:
@@ -1520,6 +1537,16 @@ class InferenceGate:
 
         if success and text and text.strip():
             cleaned = text.strip()
+            if foreground_request or self._origin_is_user_facing(origin):
+                assessment = assess_user_facing_reply(prompt, cleaned)
+                if assessment.retryable:
+                    logger.warning(
+                        "🛡️ %s produced an unsafe user-facing draft (%s, len=%d). Treating it as failed generation.",
+                        label,
+                        ",".join(assessment.reasons) or "unknown",
+                        len(cleaned),
+                    )
+                    return None
             logger.info("✅ %s response received (len=%d)", label, len(cleaned))
             return self._strip_silence(cleaned)
         return None
@@ -1540,8 +1567,9 @@ class InferenceGate:
                         self._mlx_client.warmup(),
                         name="InferenceGate.cortex_prewarm",
                     )
-                    # [STABILITY v56] Eager boot warmup needs full 180s timeout, not 75s.
-                    await asyncio.wait_for(asyncio.shield(self._prewarm_task), timeout=180.0)
+                    # Eager boot warmup gets the same load budget as the
+                    # foreground lane to avoid starting chat half-initialized.
+                    await asyncio.wait_for(asyncio.shield(self._prewarm_task), timeout=300.0)
                     self._extend_startup_quiet_window(5.0)
                     logger.info("✅ InferenceGate ONLINE (Cortex fully warmed).")
                 except Exception as warmup_err:
@@ -3087,9 +3115,18 @@ class InferenceGate:
                 record_degradation('inference_gate', _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
 
+        prompt_user_facing = bool(
+            not is_background
+            and (
+                self._origin_is_user_facing(origin)
+                or explicit_foreground
+                or purpose in {"reply", "expression", "chat", "conversation", "user_response"}
+            )
+        )
+
         # ── Architecture Self-Awareness: inject relevant subsystem context ──────
         # Only for user-facing requests that mention architecture/code keywords.
-        if not is_background and self._origin_is_user_facing(origin):
+        if prompt_user_facing:
             try:
                 import re as _re
                 _arch_triggers = _re.compile(
@@ -3106,6 +3143,10 @@ class InferenceGate:
                 record_degradation('inference_gate', _ae)
                 record_degradation('inference_gate', _ae)
                 logger.debug("ArchIndex injection skipped: %s", _ae)
+            system_prompt = (
+                f"{system_prompt}\n\n"
+                f"{conversation_reliability_system_block(prompt)}"
+            )
         history = context.get("history", [])
         use_rich_context = bool(context.get("rich_context", self._should_use_rich_context(
             origin,
@@ -3114,7 +3155,19 @@ class InferenceGate:
             is_background=is_background,
         )))
         if provided_messages is not None:
-            messages = provided_messages
+            messages = [dict(msg) for msg in provided_messages if isinstance(msg, dict)]
+            if prompt_user_facing:
+                reliability_block = conversation_reliability_system_block(prompt)
+                inserted = False
+                for msg in messages:
+                    if str(msg.get("role", "") or "").strip().lower() == "system":
+                        content = str(msg.get("content", "") or "")
+                        if "USER-FACING CONVERSATION RELIABILITY CONTRACT" not in content:
+                            msg["content"] = f"{content.rstrip()}\n\n{reliability_block}".strip()
+                        inserted = True
+                        break
+                if not inserted:
+                    messages.insert(0, {"role": "system", "content": reliability_block})
         else:
             messages = (
                 self._build_messages(prompt, system_prompt, history)

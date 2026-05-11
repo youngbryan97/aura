@@ -23,7 +23,7 @@ def test_ui_obfuscation():
         else:
             print("❌ Failure: Skill display is static (or luck).")
             
-    except Exception as e:
+    except (RuntimeError, ValueError, TypeError, AttributeError, requests.RequestException) as e:
         print(f"❌ Error: {e}")
 
 def test_cognitive_loop_fix():
@@ -38,7 +38,7 @@ def test_cognitive_loop_fix():
             print("✅ Success: Server is healthy.")
         else:
             print("❌ Failure: Server is unhealthy.")
-    except Exception as e:
+    except (RuntimeError, ValueError, TypeError, AttributeError, requests.RequestException) as e:
         print(f"❌ Error: {e}")
 
 def test_file_upload():
@@ -50,7 +50,7 @@ def test_file_upload():
             print(f"✅ Success: File uploaded (Status: {res.status_code})")
         else:
             print(f"❌ Failure: Upload failed (Status: {res.status_code})")
-    except Exception as e:
+    except (RuntimeError, ValueError, TypeError, AttributeError, requests.RequestException) as e:
         print(f"❌ Error: {e}")
 
 if __name__ == "__main__":

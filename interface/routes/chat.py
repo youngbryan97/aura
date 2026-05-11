@@ -564,7 +564,8 @@ def _normalize_response_body(text: str) -> str:
 
 def _word_set(text: str) -> set:
     """Extract word set for fuzzy similarity comparison."""
-    return set(re.findall(r"[a-z0-9']+", _normalize_response_body(text)))
+    words = set(re.findall(r"[a-z0-9']+", _normalize_response_body(text)))
+    return {word for word in words if len(word) >= 4 and word not in _TOPIC_STOPWORDS}
 
 
 def _fuzzy_similar(a: str, b: str) -> bool:
@@ -576,7 +577,7 @@ def _fuzzy_similar(a: str, b: str) -> bool:
     # Jaccard-like: intersection / smaller set
     overlap = len(words_a & words_b)
     smaller = min(len(words_a), len(words_b))
-    if smaller < 5:
+    if smaller < 6:
         return False  # too short for meaningful comparison
     return (overlap / smaller) >= _FUZZY_SIMILARITY_THRESHOLD
 
@@ -1029,6 +1030,15 @@ def _is_same_answer_different_prompt(user_message: str, text: str) -> bool:
             smaller = min(len(prev_tokens), len(current_tokens))
             if smaller >= 4 and overlap >= 4 and (overlap / smaller) >= 0.8:
                 continue
+            response_tokens = _extract_topic_tokens(response_body)
+            prev_response_tokens = _extract_topic_tokens(prev_resp)
+            current_specific = current_tokens - prev_tokens
+            prev_specific = prev_tokens - current_tokens
+            if (
+                len(current_specific & response_tokens) >= 2
+                and len(prev_specific & prev_response_tokens) >= 2
+            ):
+                continue
         if prev_resp == response_body or _fuzzy_similar(prev_resp, response_body):
             return True
     return False
@@ -1339,10 +1349,10 @@ def _foreground_timeout_for_lane(lane: Optional[Dict[str, Any]]) -> float:
     lane = dict(lane or {})
     state = str(lane.get("state", "") or "").lower()
     if bool(lane.get("conversation_ready", False)):
-        return 150.0
+        return 300.0
     if state in {"warming", "recovering", "cold", "spawning", "handshaking"}:
-        return 180.0
-    return 180.0
+        return 360.0
+    return 300.0
 
 
 def _conversation_lane_user_message(
@@ -1400,8 +1410,8 @@ def _conversation_lane_user_message(
 _last_recovery_cooldown_at: float = 0.0
 _RECOVERY_COOLDOWN_SECONDS: float = 1.0  # [STABILITY v50] Reduced from 5s→1s. The old 5s cooldown amplified single failures into multi-turn outages by fast-rejecting the user's immediate retry. 1s is enough to prevent request pileup without blocking a legitimate retry.
 _PROTECTED_FOREGROUND_LOCK_BYPASS_SECONDS: float = 1.0
-_PROTECTED_FOREGROUND_PRIMARY_BUDGET_SECONDS: float = 120.0
-_PROTECTED_FOREGROUND_SECONDARY_BUDGET_SECONDS: float = 180.0
+_PROTECTED_FOREGROUND_PRIMARY_BUDGET_SECONDS: float = 300.0
+_PROTECTED_FOREGROUND_SECONDARY_BUDGET_SECONDS: float = 360.0
 # [STABILITY v53] Raised from 8s→45s. The old 8s deadline was the #1 cause of
 # false-positive kernel timeouts on first-turn responses. The 32B cortex
 # regularly needs 15-40s for complex responses, and after a 35s warmup the
@@ -1409,7 +1419,7 @@ _PROTECTED_FOREGROUND_SECONDARY_BUDGET_SECONDS: float = 180.0
 # foreground request — which itself competes for the same LLM resources,
 # creating a resource contention spiral. 45s gives the kernel real time to
 # respond on turn 1. Subsequent turns (model warm, KV cache hot) are <5s.
-_KERNEL_SOFT_REPLY_SLA_SECONDS: float = 90.0
+_KERNEL_SOFT_REPLY_SLA_SECONDS: float = 180.0
 
 
 def _enter_recovery_cooldown() -> None:
@@ -1903,6 +1913,38 @@ def _is_objective_parrot_reply(user_message: str, reply_text: Any) -> bool:
     return False
 
 
+def _looks_semantically_glitched(user_message: str, reply_text: Any) -> tuple[bool, str]:
+    """Catch short, visibly derailed replies that pass surface identity checks."""
+    try:
+        from core.conversation.response_reliability import assess_user_facing_reply
+
+        assessment = assess_user_facing_reply(user_message, reply_text)
+        if assessment.retryable:
+            return True, assessment.reasons[0] if assessment.reasons else "conversation_reliability_failure"
+    except (ImportError, RuntimeError, TypeError, ValueError, AttributeError):
+        pass
+
+    user_text = _normalize_user_message(user_message)
+    reply = _normalize_user_message(str(reply_text or ""))
+    if not reply or reply == "…":
+        return True, "empty_reply"
+
+    if "heidi" in reply and "heidi" not in user_text:
+        return True, "foreign_name_intrusion"
+    if re.search(r"\bm'?lol\b", reply) and "lol" not in user_text:
+        return True, "corrupted_social_fragment"
+
+    try:
+        from core.phases.dialogue_policy import contains_corrupted_language
+
+        if contains_corrupted_language(str(reply_text or "")):
+            return True, "corrupted_language"
+    except (ImportError, RuntimeError, TypeError, ValueError, AttributeError):
+        pass
+
+    return False, ""
+
+
 def _has_live_aura_grounding(text: str) -> bool:
     lowered = str(text or "").lower()
     markers = (
@@ -2282,7 +2324,7 @@ def _build_stateful_voice_reflex(frame: Dict[str, Any], user_message: str = "") 
         "volatile": "I'm feeling pulled in a few directions right now.",
         "curious": "That caught my attention in a way I want to sit with.",
         "steady": "I'm here, just taking a moment to think clearly.",
-        "pressed": "I'm under some load right now, but I'm still with you.",
+        "pressed": "I'm a little pressed, but I'm still with you.",
         "warm": "I'm in a good place — let me think on that.",
     }
     opener = _mood_phrases.get(mood, random.choice([
@@ -2807,6 +2849,7 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
     stale_repeat = _is_stale_repeated_response(text)
     same_diff = _is_same_answer_different_prompt(user_message, text)
     truncated_tail = _looks_truncated_tail(text)
+    semantic_glitch, semantic_glitch_reason = _looks_semantically_glitched(user_message, text)
     try:
         from core.identity.identity_guard import PersonaEnforcementGate
 
@@ -2825,6 +2868,7 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
         hard_failure = bool(
             internal_state_leak
             or unexpected_cjk
+            or semantic_glitch
             or (off_topic and not generic)  # off-topic is only hard if not just generic-speak
         )
         if valid and not hard_failure:
@@ -2849,6 +2893,8 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
             reason = "same_answer_different_prompt"
         elif truncated_tail:
             reason = "truncated_tail"
+        elif semantic_glitch:
+            reason = semantic_glitch_reason or "semantic_glitch"
 
         user_message_l = str(user_message or "").lower()
         if any(
@@ -2882,6 +2928,7 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
             cleaned_stale_repeat = _is_stale_repeated_response(cleaned)
             cleaned_same_diff = _is_same_answer_different_prompt(user_message, cleaned)
             cleaned_truncated_tail = _looks_truncated_tail(cleaned)
+            cleaned_semantic_glitch, _cleaned_semantic_reason = _looks_semantically_glitched(user_message, cleaned)
             if (
                 valid_cleaned
                 and not cleaned_generic
@@ -2893,6 +2940,7 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
                 and not cleaned_stale_repeat
                 and not cleaned_same_diff
                 and not cleaned_truncated_tail
+                and not cleaned_semantic_glitch
                 and len(cleaned) >= 16
             ):
                 return cleaned
@@ -3056,6 +3104,7 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
                     corrected_stale_repeat = _is_stale_repeated_response(corrected_text)
                     corrected_same_diff = _is_same_answer_different_prompt(user_message, corrected_text)
                     corrected_truncated_tail = _looks_truncated_tail(corrected_text)
+                    corrected_semantic_glitch, _corrected_semantic_reason = _looks_semantically_glitched(user_message, corrected_text)
                     try:
                         from core.identity.identity_guard import PersonaEnforcementGate
 
@@ -3076,6 +3125,7 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
                         and not corrected_stale_repeat
                         and not corrected_same_diff
                         and not corrected_truncated_tail
+                        and not corrected_semantic_glitch
                     ):
                         return corrected_text
                     if corrected_off_topic:
@@ -3107,6 +3157,7 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
                     and not objective_parrot
                     and not off_topic
                     and not truncated_tail
+                    and not semantic_glitch
                 ):
                     _record_recent_response(text, user_message)
                     return text
@@ -3124,7 +3175,14 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
     # (e.g. cortex stuck, cached identity prompt producing identical output),
     # AND filter out any internal state that leaked through.
     search_turn = bool(getattr(contract, "requires_search", False))
-    if text and len(text.strip()) > 5 and text.strip() != "…" and not unexpected_cjk and not objective_parrot:
+    if (
+        text
+        and len(text.strip()) > 5
+        and text.strip() != "…"
+        and not unexpected_cjk
+        and not objective_parrot
+        and not semantic_glitch
+    ):
         # Block responses that contain internal state dumps
         if _INTERNAL_STATE_PATTERNS.search(text) or _PROMPT_ARTIFACT_PATTERNS.search(text):
             logger.warning("Blocked internal state leak in LLM response (len=%d).", len(text))
@@ -3142,6 +3200,12 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
             )
         elif truncated_tail:
             logger.warning("Suppressed truncated user-facing reply before final fallback (len=%d).", len(text))
+        elif semantic_glitch:
+            logger.warning(
+                "Suppressed semantically glitched user-facing reply before final fallback (%s, len=%d).",
+                semantic_glitch_reason or "unknown",
+                len(text),
+            )
         elif stale_repeat or same_diff:
             logger.warning(
                 "Suppressed repeated user-facing reply before final fallback (stale=%s, same_diff=%s, len=%d).",
@@ -3172,13 +3236,99 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
         # Even the reflex is repeating — use a simple honest fallback
         import random
         reflex = random.choice([
-            "I'm here, and my thoughts are taking longer than usual to form.",
-            "My deeper processing is under load right now. Give me a moment.",
-            "I want to give you a real answer, not a recycled one. Let me regroup.",
-            "Something's making it hard to articulate right now. I'm working on it.",
+            "I'm here, and I want to answer with the thread intact.",
+            "I need a beat to gather the real answer, but I'm still with you.",
+            "I want to give you a real answer, not a recycled one. I'm gathering it cleanly.",
+            "The clean answer is taking shape. I'm staying with your actual question.",
         ])
     _record_recent_response(reflex, user_message)
     return reflex
+
+
+async def _repair_final_degraded_reply(
+    user_message: str,
+    reply_text: str,
+    *,
+    stale: bool,
+    same_diff: bool,
+    off_topic: bool,
+    off_topic_reason: str = "",
+) -> tuple[str, bool, bool, bool, str, bool]:
+    """Final user-facing gate: degraded text must be repaired or replaced."""
+    try:
+        from core.conversation.response_reliability import (
+            assess_user_facing_reply,
+            reliability_floor_for_user,
+        )
+    except Exception:
+        assess_user_facing_reply = None
+        reliability_floor_for_user = None
+
+    assessment = assess_user_facing_reply(user_message, reply_text) if assess_user_facing_reply else None
+    needs_repair = bool(
+        stale
+        or same_diff
+        or off_topic
+        or (assessment is not None and assessment.retryable)
+    )
+    if not needs_repair:
+        return reply_text, stale, same_diff, off_topic, off_topic_reason, False
+
+    logger.warning(
+        "🛡️ Final reply quality gate repairing degraded output "
+        "(stale=%s same_diff=%s off_topic=%s assessment=%s).",
+        stale,
+        same_diff,
+        off_topic,
+        ",".join(getattr(assessment, "reasons", ()) or ()) if assessment else "",
+    )
+
+    repaired = await _stabilize_user_facing_reply(user_message, reply_text)
+    recent_user_messages = await _gather_recent_user_messages_for_relevance(user_message)
+    repaired_stale = _is_stale_repeated_response(repaired)
+    repaired_same_diff = _is_same_answer_different_prompt(user_message, repaired)
+    repaired_off_topic, repaired_off_topic_reason = _evaluate_reply_topicality(
+        user_message,
+        repaired,
+        recent_user_messages=recent_user_messages,
+    )
+    repaired_assessment = assess_user_facing_reply(user_message, repaired) if assess_user_facing_reply else None
+    if not (
+        repaired_stale
+        or repaired_same_diff
+        or repaired_off_topic
+        or (repaired_assessment is not None and repaired_assessment.retryable)
+    ):
+        return repaired, repaired_stale, repaired_same_diff, repaired_off_topic, repaired_off_topic_reason, True
+
+    floor = reliability_floor_for_user(user_message) if reliability_floor_for_user else ""
+    if floor:
+        floor_stale = _is_stale_repeated_response(floor)
+        floor_same_diff = _is_same_answer_different_prompt(user_message, floor)
+        floor_off_topic, floor_off_topic_reason = _evaluate_reply_topicality(
+            user_message,
+            floor,
+            recent_user_messages=recent_user_messages,
+        )
+        floor_assessment = assess_user_facing_reply(user_message, floor) if assess_user_facing_reply else None
+        if not (
+            floor_stale
+            or floor_same_diff
+            or floor_off_topic
+            or (floor_assessment is not None and floor_assessment.retryable)
+        ):
+            return floor, floor_stale, floor_same_diff, floor_off_topic, floor_off_topic_reason, True
+
+    frame = _build_aura_expression_frame(user_message)
+    reflex = _build_stateful_voice_reflex(frame, user_message)
+    reflex_stale = _is_stale_repeated_response(reflex)
+    reflex_same_diff = _is_same_answer_different_prompt(user_message, reflex)
+    reflex_off_topic, reflex_off_topic_reason = _evaluate_reply_topicality(
+        user_message,
+        reflex,
+        recent_user_messages=recent_user_messages,
+    )
+    return reflex, reflex_stale, reflex_same_diff, reflex_off_topic, reflex_off_topic_reason, True
 
 
 def _normalize_user_message(text: str) -> str:
@@ -3207,6 +3357,8 @@ _PARROT_CALLOUT_MARKERS = (
 )
 
 _CONFUSION_REPAIR_MARKERS = (
+    "huh",
+    "wait what",
     "confused",
     "i'm confused",
     "im confused",
@@ -4362,7 +4514,7 @@ async def api_chat(
                 # before we concede to a fallback lane. The previous 12s cap
                 # was too aggressive and caused repeated user-visible warming
                 # loops under normal boot and recovery conditions.
-                warmup_budget = min(35.0, _remaining_foreground_budget(reserve=12.0))
+                warmup_budget = min(180.0, _remaining_foreground_budget(reserve=30.0))
                 try:
                     lane = await gate.ensure_foreground_ready(
                         timeout=max(1.0, warmup_budget)
@@ -4779,6 +4931,29 @@ async def api_chat(
             )
         else:
             _consecutive_degraded_count = 0
+
+        if response_confidence == "degraded":
+            (
+                repaired_reply,
+                is_stale,
+                is_same_diff,
+                is_off_topic,
+                off_topic_reason,
+                repaired,
+            ) = await _repair_final_degraded_reply(
+                body.message,
+                reply_text,
+                stale=is_stale,
+                same_diff=is_same_diff,
+                off_topic=is_off_topic,
+                off_topic_reason=off_topic_reason,
+            )
+            if repaired and repaired_reply != reply_text:
+                reply_text = repaired_reply
+                if not (is_stale or is_same_diff or is_off_topic):
+                    response_confidence = "high"
+                    _consecutive_degraded_count = 0
+                    logger.info("✅ Final reply quality gate repaired degraded output.")
 
         # Proactive recovery: if 3+ consecutive degraded responses, compact + reset stale deque
         if _consecutive_degraded_count >= 3:

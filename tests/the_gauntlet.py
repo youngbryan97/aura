@@ -65,7 +65,7 @@ class TheGauntlet:
                     user_name=f"User_{i%5}"
                 )
                 return True
-            except Exception as e:
+            except (RuntimeError, ValueError, TypeError, AttributeError, OSError) as e:
                 logger.error(f"Cycle {i} failed: {e}")
                 return False
 
@@ -91,7 +91,7 @@ class TheGauntlet:
                     domain="stress_test"
                 )
                 if exp_id: success += 1
-            except Exception as e:
+            except (RuntimeError, ValueError, TypeError, AttributeError, OSError) as e:
                 logger.error(f"Memory injection {i} failed: {e}")
 
         elapsed = time.time() - start
@@ -111,7 +111,7 @@ class TheGauntlet:
                 await self.guard.check_permission(PermissionType.MIC, force=True)
                 success += 1
                 await asyncio.sleep(0.01)
-            except Exception as e:
+            except (RuntimeError, ValueError, TypeError, AttributeError, OSError) as e:
                 logger.error(f"Hardware toggle {i} failed: {e}")
 
         self.results["hardware"]["success"] = success

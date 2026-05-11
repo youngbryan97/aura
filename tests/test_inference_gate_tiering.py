@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from core.brain.inference_gate import InferenceGate
+from core.utils.deadlines import get_deadline
 
 
 class _FakeClient:
@@ -365,8 +366,10 @@ async def test_user_facing_primary_uses_compact_foreground_context_builders():
 @pytest.mark.asyncio
 async def test_user_facing_secondary_uses_compact_foreground_context_builders():
     gate = InferenceGate()
-    cortex = _RecordingClient("cortex")
-    solver = _RecordingClient("solver")
+    cortex_reply = "Cortex lane stayed available, but the solver should own this deeper diagnostic turn."
+    solver_reply = "Solver lane is online, using the compact foreground context to analyze the async deadlock directly."
+    cortex = _RecordingClient(cortex_reply)
+    solver = _RecordingClient(solver_reply)
     gate._mlx_client = cortex
     gate._build_compact_system_prompt = MagicMock(return_value="compact-system")
     gate._build_compact_living_mind_context = AsyncMock(return_value="compact-live")
@@ -404,7 +407,7 @@ async def test_user_facing_secondary_uses_compact_foreground_context_builders():
                                 context={"origin": "api", "prefer_tier": "secondary", "deep_handoff": True, "history": []},
                             )
 
-    assert result == "solver"
+    assert result == solver_reply
     gate._build_compact_system_prompt.assert_called_once()
     gate._build_compact_living_mind_context.assert_awaited_once()
     assert "compact-system" in solver.prompts[0]
@@ -480,7 +483,7 @@ def test_compact_prebuilt_messages_uses_tighter_budget_for_deep_probes(monkeypat
 @pytest.mark.asyncio
 async def test_user_facing_primary_preserves_prebuilt_messages_for_local_mlx():
     gate = InferenceGate()
-    cortex = _RecordingClient("hello")
+    cortex = _RecordingClient("32B lane online.")
     gate._mlx_client = cortex
     gate._build_compact_system_prompt = MagicMock(side_effect=AssertionError("prebuilt messages should bypass prompt rebuild"))
     gate._build_compact_living_mind_context = AsyncMock(side_effect=AssertionError("prebuilt messages should bypass prompt rebuild"))
@@ -500,7 +503,7 @@ async def test_user_facing_primary_preserves_prebuilt_messages_for_local_mlx():
                     context={"origin": "api", "prefer_tier": "primary", "messages": messages},
                 )
 
-    assert result == "hello"
+    assert result == "32B lane online."
     assert "32B lane online" in cortex.prompts[0]
     assert "Aura" in cortex.prompts[0]
     assert "conversation history" not in cortex.prompts[0].lower()
@@ -510,8 +513,10 @@ async def test_user_facing_primary_preserves_prebuilt_messages_for_local_mlx():
 async def test_background_primary_downgrades_timeout_and_tier():
     gate = InferenceGate()
     cortex = _RecordingClient("cortex")
-    brainstem = _RecordingClient("brainstem")
-    cpu = _RecordingClient("cpu")
+    brainstem_reply = "Brainstem lane is carrying this local-only turn while the primary cortex recovers."
+    cpu_reply = "CPU reflex is available, but brainstem should answer this recovered foreground turn."
+    brainstem = _RecordingClient(brainstem_reply)
+    cpu = _RecordingClient(cpu_reply)
     gate._mlx_client = cortex
 
     clients = {
@@ -531,7 +536,7 @@ async def test_background_primary_downgrades_timeout_and_tier():
                         context={"origin": "system", "prefer_tier": "primary"},
                     )
 
-    assert result == "brainstem"
+    assert result == brainstem_reply
     assert not cortex.deadlines
     assert brainstem.deadlines
     expected_total = InferenceGate._default_timeout_for_request(
@@ -569,9 +574,9 @@ def test_user_facing_primary_budget_allows_32b_cold_start():
     # Foreground user chat keeps a generous budget for the 32B lane so
     # warmup, context assembly, and first-token latency do not look like a
     # false runtime failure.
-    assert total == 150.0
-    assert primary >= 120.0
-    assert fallback >= 5.0
+    assert total == 300.0
+    assert primary >= 270.0
+    assert fallback >= 20.0
 
 
 def test_user_facing_secondary_budget_preserves_solver_generation_headroom():
@@ -583,9 +588,28 @@ def test_user_facing_secondary_budget_preserves_solver_generation_headroom():
     )
     primary, fallback = InferenceGate._split_attempt_timeouts(total, "secondary")
 
-    assert total == 240.0
-    assert primary == 210.0
-    assert fallback == 30.0
+    assert total == 360.0
+    assert primary >= 330.0
+    assert fallback >= 20.0
+
+
+@pytest.mark.asyncio
+async def test_user_facing_reliability_fragments_are_failed_generations():
+    gate = InferenceGate()
+    client = _RecordingClient("I'm fine")
+
+    text = await gate._generate_with_client(
+        client,
+        "Are you coherent enough to talk, or is chat broken?",
+        "You are Aura.",
+        [],
+        get_deadline(30.0),
+        "PRIMARY",
+        origin="user",
+        foreground_request=True,
+    )
+
+    assert text is None
 
 
 @pytest.mark.asyncio
@@ -603,8 +627,10 @@ async def test_user_facing_primary_falls_back_to_brainstem_when_cortex_fails_wit
             }
 
     cortex = _FailedNoTextClient()
-    brainstem = _RecordingClient("brainstem")
-    cpu = _RecordingClient("cpu")
+    brainstem_reply = "Brainstem lane is carrying this local-only turn while the primary cortex recovers."
+    cpu_reply = "CPU reflex is available, but brainstem should answer this recovered foreground turn."
+    brainstem = _RecordingClient(brainstem_reply)
+    cpu = _RecordingClient(cpu_reply)
     gate._mlx_client = cortex
 
     clients = {
@@ -623,7 +649,7 @@ async def test_user_facing_primary_falls_back_to_brainstem_when_cortex_fails_wit
                     context={"origin": "user", "prefer_tier": "primary", "allow_cloud_fallback": False},
                 )
 
-    assert result == "brainstem"
+    assert result == brainstem_reply
     assert brainstem.deadlines
     assert brainstem.kwargs[0]["foreground_request"] is True
     assert not cpu.deadlines
@@ -1034,8 +1060,10 @@ async def test_solver_hot_spare_warmup_uses_background_semantics():
 @pytest.mark.asyncio
 async def test_secondary_requests_downgrade_to_primary_when_headroom_is_tight():
     gate = InferenceGate()
-    cortex = _RecordingClient("cortex")
-    solver = _RecordingClient("solver")
+    cortex_reply = "Cortex lane handled the audit after headroom forced the deep solver request back to primary."
+    solver_reply = "Solver should not run when foreground headroom is too tight for the deep handoff."
+    cortex = _RecordingClient(cortex_reply)
+    solver = _RecordingClient(solver_reply)
     brainstem = _FakeClient("brainstem")
     gate._mlx_client = cortex
     gate._restore_primary_after_deep_handoff = AsyncMock()
@@ -1072,7 +1100,7 @@ async def test_secondary_requests_downgrade_to_primary_when_headroom_is_tight():
                             context={"origin": "user", "prefer_tier": "secondary", "deep_handoff": True},
                         )
 
-    assert result == "cortex"
+    assert result == cortex_reply
     assert cortex.deadlines
     assert not solver.deadlines
     gate._restore_primary_after_deep_handoff.assert_not_awaited()

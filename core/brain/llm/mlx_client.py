@@ -383,6 +383,13 @@ def _cancel_shared_future(future: Optional[SharedFuture]) -> None:
         return
     if future_loop.is_closed():
         return
+    try:
+        running_loop = asyncio.get_running_loop()
+    except RuntimeError:
+        running_loop = None
+    if running_loop is future_loop:
+        future.cancel()
+        return
 
     def _canceller() -> None:
         if not future.done():
@@ -1070,11 +1077,11 @@ class MLXLocalClient:
                 if foreground_request:
                     sla = self._first_token_sla(foreground_request=True)
                     if holder_age > sla:
-                        # [RESILIENCE] Check heartbeats before killing.
-                        # If the worker is still alive (heartbeats <30s old),
-                        # cancel the in-flight future but do NOT reboot the
-                        # worker.  This lets the caller cascade to fallback
-                        # while keeping the cortex warm for the next turn.
+                        # Check heartbeats before deciding whether the lane
+                        # should be marked failed. Even with fresh heartbeats,
+                        # abandoning a foreground generation means its late
+                        # text is unsafe for later turns, so recycle the
+                        # worker cleanly instead of keeping it warm.
                         heartbeat_age = time.time() - self._last_heartbeat if self._last_heartbeat > 0 else 999.0
                         if heartbeat_age > 30.0:
                             logger.error(
@@ -1086,9 +1093,10 @@ class MLXLocalClient:
                         else:
                             logger.warning(
                                 "🛡️ [MLX] Holder %s slow (age=%.1fs > sla=%.1fs) but heartbeat fresh (%.1fs ago). "
-                                "Cancelling generation but keeping cortex alive.",
+                                "Cancelling generation and scheduling a clean recycle so stale text cannot bleed into the next turn.",
                                 holder, holder_age, sla, heartbeat_age,
                             )
+                            self._deferred_reboot_reason = "recoverable_foreground_preemption_slow_holder"
                         try:
                             stuck_future = self._current_gen_future
                             if stuck_future is not None:
@@ -1324,7 +1332,14 @@ class MLXLocalClient:
                         self._mark_progress()
                         _set_shared_future_result(future, res)
                         continue
-                    if self._current_gen_future and not self._current_gen_future.done():
+                    # A generation can finish after the caller has already
+                    # abandoned it and started another turn. Never hand a
+                    # response with an old request id to the current future.
+                    if (
+                        self._current_gen_future
+                        and not self._current_gen_future.done()
+                        and (not req_id or req_id == self._current_request_id)
+                    ):
                         self._mark_progress()
                         _set_shared_future_result(self._current_gen_future, res)
                         continue
@@ -1350,7 +1365,11 @@ class MLXLocalClient:
                         self._mark_progress()
                         _set_shared_future_result(future, res)
                         continue
-                    if self._current_gen_future and not self._current_gen_future.done():
+                    if (
+                        self._current_gen_future
+                        and not self._current_gen_future.done()
+                        and (not req_id or req_id == self._current_request_id)
+                    ):
                         self._mark_progress()
                         _set_shared_future_result(self._current_gen_future, res)
                         continue
@@ -1819,6 +1838,7 @@ class MLXLocalClient:
                         foreground_request=foreground_request,
                     )
                     self._deferred_reboot_reason = "worker_died_during_generation"
+                    _cancel_shared_future(future)
                     return None
 
                 request_started_at = self._current_request_started_at
@@ -1853,20 +1873,21 @@ class MLXLocalClient:
                         severity="error",
                         foreground_request=foreground_request,
                     )
-                    # [RESILIENCE] Only reboot if the worker is truly dead.
-                    # If heartbeats are still arriving, the worker is alive
-                    # but slow (e.g. complex prompt eval with recurrent depth).
-                    # Return None so the caller can cascade to fallback, but
-                    # keep the cortex alive for the NEXT request.
+                    # If we abandon a foreground generation, its eventual
+                    # output must never survive into the next turn. Fresh
+                    # heartbeats mean this is recoverable, not that the warm
+                    # lane is safe to keep carrying an orphaned request.
                     heartbeat_age = time.time() - self._last_heartbeat if self._last_heartbeat > 0 else 999.0
                     if heartbeat_age > 30.0:
                         self._deferred_reboot_reason = "first_token_sla_exceeded"
                     else:
-                        logger.info(
+                        logger.warning(
                             "🛡️ [MLX] Cortex still sending heartbeats (%.1fs ago). "
-                            "NOT rebooting — keeping warm for next request.",
+                            "Recycling after this abandoned foreground request so late text cannot bleed into the next turn.",
                             heartbeat_age,
                         )
+                        self._deferred_reboot_reason = "recoverable_first_token_sla_exceeded"
+                    _cancel_shared_future(future)
                     return None
 
                 last_token_progress = max(self._last_token_progress_at, self._current_first_token_at)
@@ -1888,20 +1909,20 @@ class MLXLocalClient:
                         severity="error",
                         foreground_request=foreground_request,
                     )
-                    # [RESILIENCE] Same principle: if heartbeats arrive, the
-                    # Metal GPU is alive and the worker is processing.  A stall
-                    # between tokens can happen during recurrent-depth cache
-                    # snapshot/restore or Metal shader recompilation.  Do NOT
-                    # kill the worker if it's still phoning home.
+                    # Same principle as the first-token SLA: fresh heartbeats
+                    # keep this recoverable, but the abandoned generation must
+                    # be isolated from future foreground turns.
                     heartbeat_age = time.time() - self._last_heartbeat if self._last_heartbeat > 0 else 999.0
                     if heartbeat_age > 30.0:
                         self._deferred_reboot_reason = "token_progress_stalled"
                     else:
-                        logger.info(
+                        logger.warning(
                             "🛡️ [MLX] Cortex still sending heartbeats (%.1fs ago). "
-                            "NOT rebooting — keeping warm for next request.",
+                            "Recycling after this abandoned foreground request so late text cannot bleed into the next turn.",
                             heartbeat_age,
                         )
+                        self._deferred_reboot_reason = "recoverable_token_progress_stalled"
+                    _cancel_shared_future(future)
                     return None
 
                 last_progress = max(self._last_heartbeat, self._last_progress_at, self._last_ready_at)
@@ -1915,6 +1936,7 @@ class MLXLocalClient:
                         foreground_request=foreground_request,
                     )
                     self._deferred_reboot_reason = "heartbeat_stalled_during_generation"
+                    _cancel_shared_future(future)
                     return None
 
     async def generate_text_async(self, prompt: str, **kwargs) -> Optional[str]:
@@ -2095,6 +2117,12 @@ class MLXLocalClient:
             foreground_request=foreground_request,
         )
         if not acquired:
+            _deferred_reboot = self._deferred_reboot_reason
+            self._deferred_reboot_reason = None
+            if _deferred_reboot:
+                recoverable = str(_deferred_reboot).startswith("recoverable_")
+                reboot_reason = str(_deferred_reboot).removeprefix("recoverable_")
+                await self.reboot_worker(reason=reboot_reason, mark_failed=not recoverable)
             return None
         try:
             if foreground_request:
@@ -2407,6 +2435,7 @@ class MLXLocalClient:
         except asyncio.TimeoutError:
             logger.error("🛑 [MLX] Generation deadline reached for %s.", os.path.basename(self.model_path))
             self._pending_generations.pop(req_id, None)
+            _cancel_shared_future(fut)
             self._record_degraded_event(
                 "generation_deadline_reached",
                 detail=os.path.basename(self.model_path),
@@ -2415,6 +2444,12 @@ class MLXLocalClient:
             )
             if self._worker_unhealthy(stale_after=self._stale_after(during_generation=True)):
                 self._deferred_reboot_reason = "generation_timeout_unhealthy"
+            elif foreground_request:
+                self._deferred_reboot_reason = "recoverable_generation_deadline_reached"
+                logger.warning(
+                    "⏳ [MLX] Deadline reached while worker still looks healthy; recycling foreground lane "
+                    "so abandoned text cannot block or bleed into the next turn."
+                )
             else:
                 logger.warning("⏳ [MLX] Deadline reached but worker still looks healthy; leaving lane warm.")
             return None

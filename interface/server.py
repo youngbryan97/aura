@@ -784,11 +784,12 @@ async def websocket_endpoint(ws: WebSocket):
                                 from core.kernel.kernel_interface import KernelInterface
                                 ki = KernelInterface.get_instance()
                                 if ki.is_ready():
-                                    # [STABILITY v53] Match HTTP timeout (180s) — was 120s,
-                                    # causing WS to timeout while HTTP still succeeding.
+                                    # Match the foreground HTTP budget so the
+                                    # websocket does not disconnect while the
+                                    # heavy local reasoning lane is still alive.
                                     reply = await asyncio.wait_for(
                                         ki.process(user_content, origin="ws", priority=True),
-                                        timeout=180.0,
+                                        timeout=360.0,
                                     )
                                 else:
                                     from core.event_bus import get_event_bus

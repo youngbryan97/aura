@@ -26,7 +26,7 @@ def test_self_repair():
         else:
             logger.error(f"  ❌ FAILED: Unexpected result: {result}")
             
-    except Exception as e:
+    except (RuntimeError, ValueError, TypeError, AttributeError, ImportError) as e:
         logger.error(f"  ❌ FAILED: Exception raised: {e}")
 
 def test_web_search():
@@ -48,7 +48,7 @@ def test_web_search():
         else:
              logger.error(f"  ❌ FAILED: Unexpected query extraction: '{query}'")
              
-    except Exception as e:
+    except (RuntimeError, ValueError, TypeError, AttributeError, ImportError) as e:
         logger.error(f"  ❌ FAILED: Exception raised: {e}")
 
 def test_inter_agent_comm():
@@ -58,7 +58,7 @@ def test_inter_agent_comm():
         skill = InterAgentCommSkill()
         logger.info("  ✅ PASSED: Initialized without import errors.")
         
-    except Exception as e:
+    except (RuntimeError, ValueError, TypeError, AttributeError, ImportError) as e:
         logger.error(f"  ❌ FAILED: Exception raised: {e}")
 
 if __name__ == "__main__":

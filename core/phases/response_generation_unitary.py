@@ -162,10 +162,8 @@ class UnitaryResponsePhase(Phase):
         if not is_user_facing:
             return 15.0
         if deep_handoff or model_tier == "secondary":
-            return 120.0
-        # [STABILITY v54] Primary tier — 240s. With 64k context caps,
-        # prompt evaluation can take 120s+ on M5 silicon.
-        return 240.0
+            return 360.0
+        return 300.0
 
     @staticmethod
     def _recent_router_history(state: AuraState, limit: int = 6) -> list[dict]:

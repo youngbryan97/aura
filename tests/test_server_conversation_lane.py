@@ -16,13 +16,13 @@ def _reset_recovery_cooldown():
     try:
         from interface.routes import chat as chat_routes
         chat_routes._last_recovery_cooldown_at = 0.0
-    except Exception:
+    except (ImportError, AttributeError):
         pass
     yield
     try:
         from interface.routes import chat as chat_routes
         chat_routes._last_recovery_cooldown_at = 0.0
-    except Exception:
+    except (ImportError, AttributeError):
         pass
 
 
@@ -32,14 +32,14 @@ def _reset_conversation_log():
         from interface.routes import chat as chat_routes
 
         chat_routes._conversation_log.clear()
-    except Exception:
+    except (ImportError, AttributeError):
         pass
     yield
     try:
         from interface.routes import chat as chat_routes
 
         chat_routes._conversation_log.clear()
-    except Exception:
+    except (ImportError, AttributeError):
         pass
 
 
@@ -54,9 +54,9 @@ def _mock_orch(**kwargs):
 def test_foreground_timeout_for_cold_or_recovering_lane():
     from interface import server as server_module
 
-    assert server_module._foreground_timeout_for_lane({"conversation_ready": False, "state": "cold"}) == 180.0
-    assert server_module._foreground_timeout_for_lane({"conversation_ready": False, "state": "recovering"}) == 180.0
-    assert server_module._foreground_timeout_for_lane({"conversation_ready": True, "state": "ready"}) == 150.0
+    assert server_module._foreground_timeout_for_lane({"conversation_ready": False, "state": "cold"}) == 360.0
+    assert server_module._foreground_timeout_for_lane({"conversation_ready": False, "state": "recovering"}) == 360.0
+    assert server_module._foreground_timeout_for_lane({"conversation_ready": True, "state": "ready"}) == 300.0
 
 
 @pytest.mark.asyncio
@@ -436,6 +436,42 @@ async def test_stabilize_user_facing_reply_clarifies_confusion_callout(monkeypat
 
     assert result.startswith("Let me say it cleanly:")
     assert "wasn't being clear" in result
+
+
+@pytest.mark.asyncio
+async def test_stabilize_user_facing_reply_blocks_semantic_glitch(monkeypatch):
+    from interface.routes import chat as chat_routes
+
+    class _PassingGate:
+        def validate_output(self, _text, enforce_supervision=False):
+            return True, "ok", 1.0
+
+        def sanitize(self, text):
+            return text
+
+    monkeypatch.setattr(chat_routes, "_resolve_live_aura_state", lambda: None)
+    monkeypatch.setattr(chat_routes, "_build_grounded_introspection_reply", lambda _msg: "")
+    monkeypatch.setattr(chat_routes, "_apply_aura_voice_shaping", lambda text: str(text))
+    monkeypatch.setattr(chat_routes, "_has_unexpected_cjk", lambda _msg, _text: False)
+    monkeypatch.setattr(chat_routes, "_record_recent_response", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(chat_routes, "_is_stale_repeated_response", lambda _text: False)
+    monkeypatch.setattr(
+        "core.identity.identity_guard.PersonaEnforcementGate",
+        lambda: _PassingGate(),
+    )
+    monkeypatch.setattr(
+        chat_routes.ServiceContainer,
+        "get",
+        staticmethod(lambda _name, default=None: default),
+    )
+
+    result = await chat_routes._stabilize_user_facing_reply(
+        "Huh?",
+        "Heidi. That's the thing to do.",
+    )
+
+    assert result.startswith("Let me say it cleanly:")
+    assert "Heidi" not in result
 
 
 @pytest.mark.asyncio

@@ -8,6 +8,11 @@ import operator
 import re
 from typing import Any, Dict, List, Optional
 
+from core.conversation.response_reliability import (
+    assess_user_facing_reply,
+    reliability_floor_for_user,
+)
+
 logger = logging.getLogger("Aura.Conversation")
 
 # === SOVEREIGN IDENTITY LOCK (v5.5 — Persistent Essence) ===
@@ -256,6 +261,11 @@ def stabilize_user_facing_response(text: str, user_message: str = "") -> str:
     """Shared final cleanup for user-visible conversational text."""
     cleaned = strip_role_artifacts(text)
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    assessment = assess_user_facing_reply(user_message, cleaned)
+    if assessment.retryable:
+        floor = reliability_floor_for_user(user_message)
+        if floor:
+            return floor
     low_signal = bool(_LOW_SIGNAL_REPLY_RE.fullmatch(cleaned or ""))
     broken_lane = bool(_BROKEN_LANE_REPLY_RE.search(cleaned or ""))
     corrupted_language = False

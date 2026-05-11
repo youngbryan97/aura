@@ -12,6 +12,7 @@ decay so a pathological feedback signal cannot drive them to extremes.
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 import threading
 import time
@@ -19,6 +20,8 @@ from pathlib import Path
 from typing import Dict, Mapping, Optional
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 
 DEFAULT_MOODS = (
@@ -133,7 +136,7 @@ class AdaptiveMoodCoefficients:
                 self._weights[mood] = vec
                 self._bias[mood] = float(bias)
                 self._updates[mood] = int(updates)
-            except Exception:
+            except (json.JSONDecodeError, TypeError, ValueError):
                 continue
 
     def _save(self, mood: str) -> None:
@@ -142,26 +145,22 @@ class AdaptiveMoodCoefficients:
         w = {ch: float(val) for ch, val in zip(self.chemicals, self._weights[mood])}
         bias = float(self._bias[mood])
         updates = int(self._updates[mood])
-        
-        def _do_write():
-            try:
-                with sqlite3.connect(self._db_path, timeout=5.0) as conn:
-                    conn.execute(
-                        """
-                        INSERT INTO adaptive_mood_weights (mood, weights, bias, updates, updated_at)
-                        VALUES (?, ?, ?, ?, ?)
-                        ON CONFLICT(mood) DO UPDATE SET
-                            weights = excluded.weights,
-                            bias = excluded.bias,
-                            updates = excluded.updates,
-                            updated_at = excluded.updated_at
-                        """,
-                        (mood, json.dumps(w, sort_keys=True), bias, updates, time.time()),
-                    )
-            except Exception:
-                pass
-
-        threading.Thread(target=_do_write, daemon=True).start()
+        try:
+            with sqlite3.connect(self._db_path, timeout=5.0) as conn:
+                conn.execute(
+                    """
+                    INSERT INTO adaptive_mood_weights (mood, weights, bias, updates, updated_at)
+                    VALUES (?, ?, ?, ?, ?)
+                    ON CONFLICT(mood) DO UPDATE SET
+                        weights = excluded.weights,
+                        bias = excluded.bias,
+                        updates = excluded.updates,
+                        updated_at = excluded.updated_at
+                    """,
+                    (mood, json.dumps(w, sort_keys=True), bias, updates, time.time()),
+                )
+        except sqlite3.Error as exc:
+            logger.warning("Adaptive mood persistence failed for %s: %s", mood, exc)
 
     def predict(self, chemicals: Mapping[str, float]) -> Dict[str, float]:
         """Current mood prediction from chemistry — the learned formula."""
@@ -246,7 +245,7 @@ def get_adaptive_mood(db_path: Optional[str | Path] = None) -> AdaptiveMoodCoeff
                 try:
                     from core.config import config
                     db_path = Path(config.paths.data_dir) / "adaptive_mood.sqlite3"
-                except Exception:
+                except (AttributeError, ImportError, OSError):
                     db_path = Path.home() / ".aura" / "adaptive_mood.sqlite3"
             _singleton = AdaptiveMoodCoefficients(db_path=db_path)
         return _singleton

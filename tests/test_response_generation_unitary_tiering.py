@@ -23,6 +23,19 @@ def test_background_unitary_response_timeout_is_short():
     ) == 15.0
 
 
+def test_user_facing_unitary_response_timeout_matches_foreground_lane():
+    assert UnitaryResponsePhase._timeout_for_request(
+        is_user_facing=True,
+        model_tier="primary",
+        deep_handoff=False,
+    ) == 300.0
+    assert UnitaryResponsePhase._timeout_for_request(
+        is_user_facing=True,
+        model_tier="secondary",
+        deep_handoff=True,
+    ) == 360.0
+
+
 def test_compact_router_prompt_does_not_embed_objective_labels_for_ordinary_chat():
     state = AuraState()
     state.cognition.current_origin = "api"

@@ -20,7 +20,10 @@ class _Router:
 
     async def think(self, **kwargs):
         self.calls.append(kwargs)
-        return "Thermal-safe response."
+        return (
+            "Thermal-safe response: I am keeping the architectural audit grounded, "
+            "reducing the local load, and preserving the conversation thread."
+        )
 
 
 @pytest.mark.asyncio
@@ -31,7 +34,7 @@ async def test_response_generation_downshifts_on_thermal_pressure(monkeypatch):
     state.cognition.current_mode = CognitiveMode.DELIBERATE
     state.response_modifiers["model_tier"] = "secondary"
     state.response_modifiers["deep_handoff"] = True
-    state.soma.hardware["temperature"] = 86.0
+    state.soma.hardware["temperature"] = 96.0
     state.soma.hardware["cpu_usage"] = 63.0
 
     router = _Router()

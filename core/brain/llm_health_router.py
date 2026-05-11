@@ -702,10 +702,30 @@ class HealthAwareLLMRouter:
             text = result.get("text", "") if isinstance(result, dict) else str(result)
             # GUARD: Never call .strip() on None
             if text is None:
+                if (
+                    isinstance(result, dict)
+                    and str(result.get("error", "") or "").strip() == "client_returned_no_text"
+                    and not self._is_background_request(
+                        origin=str(kwargs.get("origin", "") or "").lower(),
+                        purpose=str(kwargs.get("purpose", "") or "").lower(),
+                        explicit_background=bool(kwargs.get("is_background", False)),
+                    )
+                ):
+                    return "I lost the reply lane for a moment. Ask that again and I'll answer cleanly."
                 return None
             stripped = text.strip()
             if stripped:
                 return stripped
+            if (
+                isinstance(result, dict)
+                and str(result.get("error", "") or "").strip() == "client_returned_no_text"
+                and not self._is_background_request(
+                    origin=str(kwargs.get("origin", "") or "").lower(),
+                    purpose=str(kwargs.get("purpose", "") or "").lower(),
+                    explicit_background=bool(kwargs.get("is_background", False)),
+                )
+            ):
+                return "I lost the reply lane for a moment. Ask that again and I'll answer cleanly."
             # [STABILITY v55] Don't mask failures with robot responses.
             # Return None so the caller can retry or fallback properly.
             return None

@@ -237,8 +237,8 @@ class AuraKernel:
         if phase_name in {"UnitaryResponsePhase", "ResponseGenerationPhase"}:
             response_modifiers = getattr(self.state, "response_modifiers", {}) if self.state else {}
             if bool(response_modifiers.get("deep_handoff", False)):
-                return 180.0
-            return 120.0
+                return 360.0
+            return 300.0
         if phase_name == "GodModeToolPhase":
             return 20.0
         if phase_name in {

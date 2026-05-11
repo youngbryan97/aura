@@ -23,7 +23,7 @@ async def audit_consciousness():
         contract = AlwaysHomeContract(core)
         compressor = CognitiveCompressor(64, 16)
         print(colored("   [PASS] All components instantiated.", "green"))
-    except Exception as e:
+    except (RuntimeError, ValueError, TypeError, AttributeError, ImportError) as e:
         print(colored(f"   [FAIL] Instantiation failed: {e}", "red"))
         return
 
@@ -45,7 +45,7 @@ async def audit_consciousness():
         else:
             print(colored("   [FAIL] Zero differentiation detected.", "red"))
             
-    except Exception as e:
+    except (RuntimeError, ValueError, TypeError, AttributeError, ImportError) as e:
         print(colored(f"   [FAIL] Bridge failed: {e}", "red"))
 
     # 3. Always Home Guarantee Test
@@ -66,7 +66,7 @@ async def audit_consciousness():
         else:
             print(colored("   [FAIL] Subject vanished!", "red"))
             
-    except Exception as e:
+    except (RuntimeError, ValueError, TypeError, AttributeError, ImportError) as e:
         print(colored(f"   [FAIL] Guarantee check failed: {e}", "red"))
 
     # 4. Identity Continuity Test
@@ -88,7 +88,7 @@ async def audit_consciousness():
         else:
              print(colored(f"   [WARN] Identity fragged on small delta! ({id0} -> {id1})", "yellow"))
              
-    except Exception as e:
+    except (RuntimeError, ValueError, TypeError, AttributeError, ImportError) as e:
         print(colored(f"   [FAIL] Identity check failed: {e}", "red"))
 
     print(colored("\n✨ Audit Complete.", "cyan", attrs=["bold"]))

@@ -104,41 +104,14 @@ class OnlineLoRAGovernor:
 
             running = self.active_lora_processes()
             if running and not force:
-                decision = self._decide(reflection, will_receipt_id=will_receipt_id)
-                if decision.get("approved"):
-                    dataset_path = await self._capture_training_example(reflection, conversation_context)
-                    # DELEGATE TO GENUINE LEARNING PIPELINE FOR QUEUING
-                    try:
-                        from core.learning.genuine_learning_pipeline import register_continuous_learner
-                        learner = register_continuous_learner()
-                        learner.record_turn(
-                            system_prompt="You are Aura.",
-                            user_input=conversation_context[-500:] if conversation_context else "Self-reflection trigger.",
-                            response=reflection,
-                            explicit_positive=True,
-                            emotional_context={"arousal": 0.5, "valence": 0.5}
-                        )
-                    except Exception as _e:
-                        record_degradation("online_lora_governor", _e)
-                        
-                    return self._record(
-                        OnlineLoRAReceipt(
-                            requested_at=time.time(),
-                            status="queued_in_continuous_learner",
-                            reflection_hash=_hash_text(reflection),
-                            reason=f"active mlx_lm lora process pid={running[0].get('pid')} - queued in continuous learning buffer",
-                            dataset_path=str(dataset_path),
-                        )
+                return self._record(
+                    OnlineLoRAReceipt(
+                        requested_at=time.time(),
+                        status="blocked_existing_training",
+                        reflection_hash=_hash_text(reflection),
+                        reason=f"active mlx_lm lora process pid={running[0].get('pid')}",
                     )
-                else:
-                    return self._record(
-                        OnlineLoRAReceipt(
-                            requested_at=time.time(),
-                            status="blocked_existing_training_and_will",
-                            reflection_hash=_hash_text(reflection),
-                            reason=f"active mlx_lm lora process and will rejected",
-                        )
-                    )
+                )
 
             decision = self._decide(reflection, will_receipt_id=will_receipt_id)
             if not decision.get("approved"):

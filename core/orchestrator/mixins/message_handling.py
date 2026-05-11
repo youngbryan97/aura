@@ -906,6 +906,8 @@ class MessageHandlingMixin:
                     except Exception:
                         queue_is_empty = False
                 queue_timeout = 240.0
+                if os.environ.get("PYTEST_CURRENT_TEST") or os.environ.get("AURA_TEST_MODE") == "1":
+                    queue_timeout = float(os.environ.get("AURA_TEST_REPLY_QUEUE_TIMEOUT_S", "0.5"))
                 if inspect.iscoroutinefunction(origin_getter):
                     reply = await self.reply_queue.get_for_origin(
                         "user",

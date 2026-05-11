@@ -381,6 +381,60 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(result)
         self.assertEqual(client._deferred_reboot_reason, "token_progress_stalled")
 
+    async def test_generation_waiter_recycles_fresh_heartbeat_token_stall(self):
+        client = MLXLocalClient(model_path="/tmp/Qwen2.5-32B-Instruct-8bit")
+        proc = MagicMock()
+        proc.is_alive.return_value = True
+        client._process = proc
+        client._init_done = True
+        client._set_lane_state("ready")
+        req_id = "req-fresh-stall"
+        future = asyncio.get_running_loop().create_future()
+        client._pending_generations[req_id] = future
+        client._current_request_id = req_id
+        client._current_request_started_at = 100.0
+        client._current_first_token_at = 105.0
+        client._last_token_progress_at = 105.0
+        now = 105.0 + client._token_stall_after(foreground_request=True) + 1.0
+        client._last_heartbeat = now - 0.5
+
+        with patch("core.brain.llm.mlx_client.asyncio.wait_for", side_effect=asyncio.TimeoutError):
+            with patch("core.brain.llm.mlx_client.time.time", return_value=now):
+                result = await client._wait_for_generation_result(
+                    req_id,
+                    future,
+                    get_deadline(30.0),
+                    foreground_request=True,
+                )
+
+        self.assertIsNone(result)
+        self.assertEqual(client._deferred_reboot_reason, "recoverable_token_progress_stalled")
+        self.assertTrue(future.cancelled())
+
+    async def test_listener_drops_late_generation_for_previous_request(self):
+        import core.brain.llm.mlx_client as mlx_module
+
+        client = MLXLocalClient(model_path="/tmp/Qwen2.5-32B-Instruct-8bit")
+        current_future = mlx_module._new_shared_future()
+        client._current_gen_future = current_future
+        client._current_request_id = "new-req"
+
+        listener = asyncio.create_task(client._response_listener_loop())
+        try:
+            client._res_q.put({
+                "status": "ok",
+                "action": "generate",
+                "id": "old-req",
+                "text": "late stale answer",
+            })
+            await asyncio.sleep(0.25)
+        finally:
+            listener.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await listener
+
+        self.assertFalse(current_future.done())
+
     async def test_warmup_precompile_accepts_empty_text_as_successful_compile(self):
         client = MLXLocalClient(model_path="/tmp/Qwen2.5-32B-Instruct-8bit")
         client._warmup_in_flight = True

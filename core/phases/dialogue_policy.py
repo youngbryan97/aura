@@ -145,6 +145,9 @@ _KNOWN_CORRUPT_TOKENS = {
     "xublcate",
     "ingediate",
     "evocer",
+    "brolen",
+    "thlought",
+    "lllot",
 }
 
 

@@ -9,6 +9,8 @@ from pathlib import Path
 
 import pytest
 
+_CLEANUP_TIMEOUT_S = 2.0
+
 # Ensure the project root is on sys.path so `core.*` imports work
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
@@ -64,13 +66,16 @@ def service_container():
             return None
         try:
             hook = getattr(instance, hook_name)
-        except Exception:
+        except (AttributeError, RuntimeError, TypeError):
             return None
         return hook if callable(hook) else None
 
     def _finish_cleanup(result):
         if inspect.isawaitable(result):
-            asyncio.run(result)
+            async def _bounded_cleanup():
+                await asyncio.wait_for(result, timeout=_CLEANUP_TIMEOUT_S)
+
+            asyncio.run(_bounded_cleanup())
 
     def _close_service_instances():
         seen = set()
@@ -86,7 +91,7 @@ def service_container():
                     continue
                 try:
                     _finish_cleanup(method())
-                except Exception:
+                except (RuntimeError, OSError, ValueError, TypeError, TimeoutError):
                     pass
 
             db = getattr(instance, "_db", None)
@@ -94,7 +99,7 @@ def service_container():
             if db_close is not None:
                 try:
                     _finish_cleanup(db_close())
-                except Exception:
+                except (RuntimeError, OSError, ValueError, TypeError, TimeoutError):
                     pass
     
     ServiceContainer.clear()
@@ -108,7 +113,7 @@ def service_container():
         from core.utils.task_tracker import get_task_tracker, task_tracker
         asyncio.run(get_task_tracker().shutdown(timeout=1.0))
         asyncio.run(task_tracker.shutdown(timeout=1.0))
-    except Exception:
+    except (ImportError, RuntimeError, TimeoutError):
         pass
 
     try:
@@ -117,7 +122,7 @@ def service_container():
         hygiene = get_runtime_hygiene()
         asyncio.run(hygiene.stop())
         hygiene.reset_state()
-    except Exception:
+    except (ImportError, RuntimeError, TimeoutError, AttributeError):
         pass
 
     _close_service_instances()
@@ -160,7 +165,7 @@ def _cleanup_runtime_hygiene_after_test():
         hygiene = get_runtime_hygiene()
         asyncio.run(hygiene.stop())
         hygiene.reset_state()
-    except Exception:
+    except (ImportError, RuntimeError, TimeoutError, AttributeError):
         pass
 
 
@@ -175,7 +180,7 @@ def pytest_sessionfinish(session, exitstatus):
         from core.bus.local_pipe_bus import LocalPipeBus
 
         LocalPipeBus.shutdown_executor()
-    except Exception:
+    except (ImportError, RuntimeError, AttributeError):
         pass
 
 
@@ -205,21 +210,21 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
         from core.utils.executor import shutdown_executors
 
         shutdown_executors()
-    except Exception:
+    except (ImportError, RuntimeError, AttributeError):
         pass
 
     try:
         from core.consciousness.hierarchical_phi import get_hierarchical_phi
 
         get_hierarchical_phi().shutdown()
-    except Exception:
+    except (ImportError, RuntimeError, AttributeError):
         pass
 
     try:
         from core.container import ServiceContainer
 
         asyncio.run(ServiceContainer.shutdown())
-    except Exception:
+    except (ImportError, RuntimeError, TimeoutError, AttributeError):
         pass
 
 @pytest.fixture

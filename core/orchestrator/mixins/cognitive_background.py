@@ -50,7 +50,7 @@ class CognitiveBackgroundMixin:
                     msg for msg in self.conversation_history
                     if isinstance(msg, dict) and msg.get("timestamp", time.time()) > cutoff
                 ] or self.conversation_history[-20:]  # Keep at least 20
-            except Exception as e:
+            except (KeyError, TypeError, ValueError) as e:
                 record_degradation('cognitive_background', e)
                 capture_and_log(e, {'module': __name__})
             
@@ -121,9 +121,33 @@ class CognitiveBackgroundMixin:
                     else:
                         curiosity_task.add_done_callback(_bg_task_exception_handler)
 
+            try:
+                from core.container import ServiceContainer
 
+                belief_engine = ServiceContainer.get("belief_revision_engine", default=None)
+                update_belief = getattr(belief_engine, "update_belief_from_conversation", None)
+                if callable(update_belief):
+                    world_context = self._get_world_context() if hasattr(self, "_get_world_context") else {}
+                    belief_result = update_belief(
+                        message=original_msg,
+                        response=response,
+                        world_context=world_context,
+                    )
+                    if inspect.isawaitable(belief_result):
+                        try:
+                            belief_task = tracker.create_task(
+                                belief_result,
+                                name="cognitive_background.belief_revision",
+                            )
+                        except RuntimeError:
+                            _dispose_awaitable(belief_result)
+                        else:
+                            belief_task.add_done_callback(_bg_task_exception_handler)
+            except (AttributeError, RuntimeError, TypeError, ValueError) as e:
+                record_degradation('cognitive_background', e)
+                logger.debug("Background belief revision setup failed: %s", e)
 
-        except Exception as e:
+        except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as e:
             record_degradation('cognitive_background', e)
             if learn_coro is not None:
                 _dispose_awaitable(learn_coro)

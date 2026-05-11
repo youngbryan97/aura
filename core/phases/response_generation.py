@@ -10,6 +10,10 @@ from core.brain.llm.context_assembler import ContextAssembler
 from core.phases.dialogue_policy import enforce_dialogue_contract
 from core.phases.executive_guard import get_executive_guard
 from core.phases.response_contract import build_response_contract
+from core.conversation.response_reliability import (
+    assess_user_facing_reply,
+    conversation_reliability_system_block,
+)
 from core.runtime.conversation_support import (
     record_shared_ground_callbacks,
     update_conversational_intelligence,
@@ -38,13 +42,8 @@ class ResponseGenerationPhase(BasePhase):
         if is_background:
             return 10.0
         if deep_handoff:
-            return 135.0
-        # [STABILITY v55] Raised from 75s → 135s.  The 32B cortex on M5
-        # regularly takes 60-90s for prompt-eval on 3-5k token prompts
-        # with recurrent depth.  75s left zero headroom and was the
-        # single biggest cause of kernel-level PHASE_TIMEOUT, which
-        # cascaded into "My cognitive process timed out" dead responses.
-        return 135.0
+            return 360.0
+        return 300.0
 
     async def execute(self, state: AuraState, objective: str | None = None, **kwargs) -> AuraState:
         """
@@ -137,6 +136,12 @@ class ResponseGenerationPhase(BasePhase):
             state.response_modifiers["response_contract"] = contract.to_dict()
             if contract.reason != "ordinary_dialogue" and messages and messages[0].get("role") == "system":
                 messages[0]["content"] = f"{messages[0]['content']}\n\n{contract.to_prompt_block().strip()}"
+            if not is_background:
+                reliability_block = conversation_reliability_system_block(objective)
+                if messages and messages[0].get("role") == "system":
+                    messages[0]["content"] = f"{messages[0]['content']}\n\n{reliability_block}"
+                else:
+                    messages.insert(0, {"role": "system", "content": reliability_block})
             
             # Causal World Model Context Injection
             causal_model = self.container.get("causal_world_model", default=None)
@@ -267,6 +272,15 @@ class ResponseGenerationPhase(BasePhase):
             if response_text is None:
                 logger.debug("💭 ResponseGeneration: LLM returned None. Skipping this tick.")
                 return state
+            if not is_background:
+                reliability = assess_user_facing_reply(objective, response_text)
+                if reliability.retryable:
+                    logger.warning(
+                        "🛡️ ResponseGeneration rejected unsafe user-facing draft (%s, len=%d).",
+                        ",".join(reliability.reasons) or "unknown",
+                        len(str(response_text or "")),
+                    )
+                    return state
             
             # 4. Defensive Hardening: JSON Repair & Proactive Extraction
             content = response_text
