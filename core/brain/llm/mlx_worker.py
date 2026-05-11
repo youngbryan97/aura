@@ -870,13 +870,14 @@ def _mlx_worker_loop(
                                     token_count += 1
                                     progress_now = time.time()
                                     
+                                    tokens.append(response.token)
                                     # Snag the prompt cache from the response if supported to save for next turn
                                     if (
                                         prompt_cache_lru is not None
                                         and hasattr(response, "prompt_cache")
                                         and response.prompt_cache is not None
                                     ):
-                                        prompt_cache_lru.insert_cache(model_key, tokens + [response.token], response.prompt_cache)
+                                        prompt_cache_lru.insert_cache(model_key, list(tokens), response.prompt_cache)
                                     
                                     current_response += response.text
                                     current_response = _strip_leading_chatml_prefix(current_response)

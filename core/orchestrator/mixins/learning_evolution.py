@@ -85,7 +85,7 @@ class LearningEvolutionMixin:
 
                     # [Phase 41] Quota Protection: Skip extraction if Gemini is already backed off
                     # and we don't have local backups available.
-                    router = self.get_container().get("llm_router", default=None)
+                    router = ServiceContainer.get("llm_router", default=None)
                     if router:
                         # Check if PRIMARY models (Gemini) are rate-limited
                         is_gemini_limited = any(
@@ -197,7 +197,7 @@ class LearningEvolutionMixin:
         # Invokes via Mycelial rooted_flow for full observability.
         # Falls back to direct invocation if Mycelium is unavailable.
         logger.info("🌀 META-EVOLUTION: Autonomous cycle starting...")
-        self._emit_telemetry("MetaEvolution", "Autonomous evolution cycle triggered", level="info")
+        self._emit_telemetry("MetaEvolution", "Autonomous evolution cycle triggered")
         try:
             mycelium = ServiceContainer.get("mycelial_network", default=None)
             meta_evo = ServiceContainer.get("meta_evolution", default=None)

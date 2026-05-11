@@ -1,0 +1,1156 @@
+2026-05-10 23:02:57,975 - Aura.Core - INFO - Webhook alerting disabled (AURA_ALERTS_WEBHOOK not configured).
+Webhook alerting disabled (AURA_ALERTS_WEBHOOK not configured).
+Scheduler substrate initialized.
+redis package not installed — EventBus running in local-only mode.
+AuraEventBus initialized (Redis: False).
+✅ [EVENT_BUS] Kernel signaling READY.
+ThoughtEmitter initialized.
+Booting Aura...
+Initializing Modular Service Providers (is_proxy=False)...
+🍄 [MYCELIUM] Pathway Hardwired: 'reflex_identity' → identity_reflex (priority=2.0, groups=[])
+🍄 [MYCELIUM] Pathway Hardwired: 'reflex_status' → status_reflex (priority=2.0, groups=[])
+🍄 [MYCELIUM] Pathway Hardwired: 'direct_web_search' → search_web (priority=1.5, groups=[])
+🍄 [MYCELIUM] Pathway Hardwired: 'direct_self_repair' → self_repair (priority=1.5, groups=[])
+🍄 [MYCELIUM] Pathway Hardwired: 'reflex_help' → help_reflex (priority=2.0, groups=[])
+🍄 [MYCELIUM] 🌿 Neural Root ESTABLISHED: voice_presence->hardware:macos_say
+🍄 [MYCELIUM] Network Online v4.0 (Hardened) — Enterprise Grade.
+🍄 [MYCELIUM] Linking Transcendence Layer: 'meta_cognition' -> MetaEvolutionEngine
+🍄 [MYCELIUM] Hypha established: meta_cognition->cognition
+🍄 [MYCELIUM] Hypha established: cognition->meta_cognition
+🍄 [MYCELIUM] Hypha established: qualia->phenomenology
+🍄 [MYCELIUM] Hypha established: consciousness->global_workspace
+🍄 [MYCELIUM] Hypha established: sentience->autonomy
+🍄 [MYCELIUM] 👁️ Consciousness Hyphae established.
+🍄 [MYCELIUM] Hypha established: cognition->llm
+🍄 [MYCELIUM] Hypha established: memory->cognition
+🍄 [MYCELIUM] 🌿 Neural Root ESTABLISHED: llm->hardware:cpu_safe:macos26_guard
+✅ All modular services registered and validated (Lock deferred).
+✓ Terminal Monitor v5.0 attached (Circuit Breaker: ACTIVE)
+🧠 MindTick: Registered phase 'proprioceptive_loop'
+🧠 MindTick: Registered phase 'social_context'
+🧠 MindTick: Registered phase 'sensory_ingestion'
+🧠 MindTick: Registered phase 'memory_retrieval'
+🧠 MindTick: Registered phase 'affect_update'
+🧠 MindTick: Registered phase 'executive_closure'
+🧠 MindTick: Registered phase 'cognitive_routing'
+🧠 MindTick: Registered phase 'unity_binding'
+🧠 MindTick: Registered phase 'response_generation'
+🧠 MindTick: Registered phase 'memory_consolidation'
+🧠 MindTick: Registered phase 'identity_reflection'
+🧠 MindTick: Registered phase 'initiative_generation'
+🧠 MindTick: Registered phase 'consciousness'
+📋 MindTick: TaskRegistry heartbeat wired.
+ChaosEngine initialized (dim=64, intensity=0.0050)
+Substrate state restored.
+Soma integrated with Liquid Substrate
+2026-05-10 23:02:58,704 - Aura.Core.Orchestrator - INFO - ✓ Orchestrator instance created directly (v14.1)
+✓ Orchestrator instance created directly (v14.1)
+2026-05-10 23:02:58,707 - Aura.Core - DEBUG - Successfully locked: 'UnnamedLock'
+Successfully locked: 'UnnamedLock'
+🚀 Aura: Ignition sequence started.
+🚫 InhibitionManager initialized. (Global Cross-Process Protection).
+💉 ImmunityHyphae: Global exception hook installed.
+🔬 [BOOT] Omni-Tracer hooked successfully.
+🛡️ StallWatchdog: Monitoring loop (Threshold: 5.0s)
+🔍 [IMMUNE] Pre-Ignition Health Check...
+💉 [IMMUNE] Signature match: stale_pid_cleanup. Initiating repair...
+✅ [IMMUNE] Deterministic repair successful: stale_pid_cleanup
+💉 [IMMUNE] Signature match: data_dir_recovery. Initiating repair...
+✅ [IMMUNE] Deterministic repair successful: data_dir_recovery
+🚀 [BOOT] Initiating Resilient Ignition Sequence...
+⏳ [BOOT] Starting stage: Dependencies
+🔍 [BOOT] Dependency probe using interpreter: /Users/bryan/.aura/live-source/.venv/bin/python
+📄 [BOOT] Verified requirements_hardened.txt presence at /Users/bryan/.aura/live-source/requirements_hardened.txt.
+🔍 [BOOT] Probing Dependency Manifest (No-Execute)...
+   ✅ prometheus_client (prometheus_client): FOUND
+   ✅ cv2 (cv2): FOUND
+   ✅ mss (mss): FOUND
+   ✅ astor (astor): FOUND
+   ✅ aiosqlite (aiosqlite): FOUND
+   ⚠️ speech_recognition (sounddevice): MISSING
+   ✅ pyttsx3 (pyttsx3): FOUND
+   ⚠️ TTS (TTS): MISSING
+   ✅ MLX Backend (mlx.core): FOUND
+   ✅ MLX Language Models (mlx_lm): FOUND
+📍 [BOOT] Capability Mapping: Hearing=False, Speech=True, Vision=True
+✅ [BOOT] Stage 'Dependencies' completed successfully.
+⏳ [BOOT] Starting stage: State Repository
+🛡️ Actor Registered for Supervision: state_vault
+🚀 Actor Started: state_vault (PID: 49872)
+📡 LocalPipeBus reader ACTIVE (Child: False)
+📡 Registered Actor Transport: state_vault
+⏳ Waiting for StateVaultActor to be ready (Resilient)...
+2026-05-10 23:02:59,144 - Aura.Core - INFO - Webhook alerting disabled (AURA_ALERTS_WEBHOOK not configured).
+Webhook alerting disabled (AURA_ALERTS_WEBHOOK not configured).
+Scheduler substrate initialized.
+redis package not installed — EventBus running in local-only mode.
+AuraEventBus initialized (Redis: False).
+✅ [EVENT_BUS] Kernel signaling READY.
+ThoughtEmitter initialized.
+Vault process entry started. DB Path: data/aura_state.db
+📡 LocalPipeBus reader ACTIVE (Child: True)
+Starting State Vault Actor with concurrent bus handlers...
+📡 StateVaultActor responded to handshake (Attempt 1)
+✓ [STATE] Proxy Attached and Synced from Shared Memory
+✅ [BOOT] State Vault supervision active. Proxy attached.
+✅ [BOOT] Stage 'State Repository' completed successfully.
+⏳ [BOOT] Starting stage: LLM Infrastructure
+✓ [STATE] Genesis state pushed to SHM.
+✓ [STATE] Vault Owner Initialized with SHM for writing.
+State Vault Actor ONLINE.
+🧠 State Mutation Consumer active.
+🧠 [BOOT] Primary mlx client prepared. Cortex warmup deferred to InferenceGate.
+✅ [BOOT] Stage 'LLM Infrastructure' completed successfully.
+⏳ [BOOT] Starting stage: Cognitive Core
+🧠 [BOOT] Entry into stage_cognitive
+🧠 [BOOT] Initializing Cognitive Architecture (Qualia/Affect)...
+✓ CognitiveContextManager registered and starting in background
+✓ Damasio weights loaded from .npz
+⚠️ HASS_TOKEN not found. IoT Bridge operating in virtual-only mode.
+✓ AffectEngineV2 (affect_engine/affect_manager) registered
+🫀 SubsystemAudit initialized. Tracking 11 subsystems.
+Qualia Synthesizer ONLINE (Unified Architecture)
+✓ QualiaSynthesizer registered (initial registration)
+AttentionSchema initialized.
+GlobalWorkspace initialized (ignition_threshold=0.60).
+TemporalBindingEngine initialized.
+HomeostaticCoupling initialized (Substrate Link: OK).
+SelfPredictionLoop initialized.
+Substrate state restored.
+Soma integrated with Liquid Substrate
+SubstrateAuthority initialized (mandatory gate)
+CognitiveHeartbeat initialized.
+✓ Consciousness System & components registered
+🪞 PhenomenalSelfModel initialized for Aura
+🌟 PhenomenologicalExperiencer initialized
+🌟 PhenomenologicalExperiencer ONLINE
+✅ Experiencer subscribed to GlobalWorkspace (via bridge)
+🌟 Consciousness Integration Layer initialized
+🌟 Layer 8: Phenomenological Experiencer active
+🧠 [BOOT] Starting MindTick loop...
+Watchdog registered component: mind_tick (timeout: 30.0s)
+💓 MindTick: Cognitive rhythm started.
+✅ [BOOT] Stage 'Cognitive Core' completed successfully.
+⏳ [BOOT] Starting stage: Kernel Interface
+Bridge: LegacyPhase bridge established.
+2026-05-10 23:02:59,903 - Aura.Core.Kernel - INFO - 🛡️ Kernel Boot sequence initiated...
+🛡️ Kernel Boot sequence initiated...
+🛡️ LockWatchdog ACTIVE (Threshold: 180.0s).
+2026-05-10 23:02:59,919 - Aura.Core.Kernel - DEBUG - Registering core services...
+Registering core services...
+HealthAwareLLMRouter initialized (Legacy-Compatible mode)
+Rosetta Stone initialized for darwin (arm64)
+🔄 Refreshing skill registry...
+ℹ️ Optional Rust index unavailable, falling back to AST: No module named 'aura_m1_ext'
+✓ 56 total skills registered
+✓ CapabilityEngine online with 56 registered skills (Intent Mapping enabled)
+Registered endpoint: Cortex (Aura-32B-20260510-151144) tier=local local=True
+🧠 PRIMARY Tier registered: Cortex (Qwen2.5-32B-Instruct-8bit) — Daily Brain
+Registered endpoint: Solver (Qwen2.5-72B-Instruct-4bit) tier=local_deep local=True
+🧠 SECONDARY Tier registered: Solver (Qwen2.5-72B-Instruct-4bit) — Deep Thinker (Hot-Swap)
+📊 New day — resetting Gemini usage counters
+✨ GeminiAdapter initialized: model=gemini-2.0-flash
+Registered endpoint: Gemini-Fast (gemini-2.0-flash) tier=api_deep local=False
+☁️ SECONDARY Tier registered: Gemini Flash (Teacher/Fallback)
+✨ GeminiAdapter initialized: model=gemini-2.5-pro
+Registered endpoint: Gemini-Thinking (gemini-2.5-pro) tier=api_deep local=False
+☁️ SECONDARY Tier registered: Gemini Thinking (Teacher/Deep Fallback)
+✨ GeminiAdapter initialized: model=gemini-2.5-flash
+Registered endpoint: Gemini-Pro (gemini-2.5-flash) tier=api_deep local=False
+☁️ SECONDARY Tier registered: Gemini Pro (Teacher/Oracle)
+Registered endpoint: Brainstem (Qwen2.5-7B-Instruct-4bit) tier=local_fast local=True
+⚡ TERTIARY Tier registered: Brainstem (7B) — Background/Reflex
+Registered endpoint: Reflex (Qwen2.5-1.5B-Instruct-4bit-cpu) tier=emergency local=True
+🚨 EMERGENCY Tier registered: Reflex (1.5B CPU emergency)
+🏗️ LLM Tier Layout: {'local': ['Cortex'], 'local_deep': ['Solver'], 'api_deep': ['Gemini-Fast', 'Gemini-Thinking', 'Gemini-Pro'], 'local_fast': ['Brainstem'], 'emergency': ['Reflex']}
+✓ Autonomous Cognitive Engine Initialized.
+2026-05-10 23:03:00,051 - Aura.Core.Kernel - INFO - ✅ Registered 12 core services.
+✅ Registered 12 core services.
+CognitiveContextManager service started
+Liquid Substrate STARTED (Unified Cycle)
+🌊 StreamOfBeing initialized
+🌊 StreamOfBeing ONLINE — Aura is becoming
+🌊 StreamOfBeing booted and wired
+🧠 Layer 1: StreamOfBeing ONLINE
+🧠 Layer 2: AffectiveSteering registered (awaiting model attach)
+🧠 Layer 3: LatentBridge deferred (attaches on model load)
+🔄 ClosedCausalLoop initialized
+   ├─ OutputReceptor  : ✓ (LLM→substrate feedback)
+   ├─ SelfPredictive  : ✓ (substrate self-prediction + FE)
+   └─ PhiWitness      : ✓ (transfer entropy Φ estimator)
+🔄 ClosedCausalLoop ONLINE — the loop is closed
+🧠 Layer 4: ClosedCausalLoop ONLINE
+PhiCore initialized: N=16 nodes (8 affective + 8 cognitive), 127 affective bipartitions, spectral approx=ON
+🧠 Layer 5: PhiCore ONLINE (recording via ClosedCausalLoop)
+HierarchicalPhi online: N=32 primary nodes (16 cognitive + 16 mesh-sampled), 8 overlapping subsystems of size 16, mlx=ON
+🧠 Layer 5b: HierarchicalPhi ONLINE (32-node primary + 8×16-node subsystems)
+HemisphericSplit initialized: BIAS_DIM=16, AGREEMENT_WINDOW=64, DISAGREEMENT_L2_THRESHOLD=0.45
+🧠 Layer 5c: HemisphericSplit ONLINE (corpus callosum intact)
+MinimalSelfhood initialized: mode=trichoplax, 16 categories, 8 deficits
+🧠 Layer 5d: MinimalSelfhood ONLINE (trichoplax→dugesia)
+RecursiveTheoryOfMind initialized: max_depth=3, bias_dim=16
+🧠 Layer 5e: RecursiveToM ONLINE (max_depth=3, observer-aware)
+OctopusFederation initialized: 8 arms, 3 sensor channels, 8 actions
+🧠 Layer 5f: OctopusFederation ONLINE (8 arms, link=intact)
+CellularTurnover initialized: rate=0.0050/tick, fingerprint_every=10
+🧠 Layer 5g: CellularTurnover ONLINE (attached=False)
+AbsorbedVoices initialized: 0 voices loaded from /Users/bryan/.aura/data/memory/absorbed_voices.json
+🧠 Layer 5h: AbsorbedVoices ONLINE (0 voices loaded)
+ConsciousnessBridge created
+NeuralMesh: MLX Metal disabled (macos26_guard); using NumPy fallback.
+NeuralMesh initialized: 4096 neurons, 64 columns, tiers=[S:16 A:32 E:16]
+NeuralMesh STARTED (10 Hz)
+🧬 Bridge Layer 1: NeuralMesh ONLINE (4096 neurons)
+✓ Interaction matrix spectral radius = 0.398 (bounded)
+NeurochemicalSystem initialized (10 modulators, receptor subtypes active)
+NeurochemicalSystem STARTED (2 Hz)
+🧬 Bridge Layer 2: NeurochemicalSystem ONLINE (8 modulators)
+EmbodiedInteroception initialized (8 channels, psutil=True)
+EmbodiedInteroception STARTED (1 Hz)
+🧬 Bridge Layer 3: EmbodiedInteroception ONLINE (8 channels)
+OscillatoryBinding initialized (γ=40Hz, θ=8Hz, coupling=0.60)
+OscillatoryBinding STARTED
+🧬 Bridge Layer 4: OscillatoryBinding ONLINE (γ=40Hz, θ=8Hz)
+SomaticMarkerGate initialized (pattern_dim=1024, comparison_dim=64)
+🧬 Bridge Layer 5: SomaticMarkerGate ONLINE
+UnifiedField initialized (dim=256, recurrent_sparsity=0.15)
+UnifiedField STARTED (20 Hz)
+🧬 Bridge Layer 6: UnifiedField ONLINE (256-d experiential field)
+SubstrateEvolution initialized (pop=12, gen_interval=300s)
+SubstrateEvolution STARTED
+🧬 Bridge Layer 7: SubstrateEvolution ONLINE (pop=12)
+🧬 Bridge Layer 8: SubstrateAuthority ONLINE (mandatory gate)
+UnifiedWill created -- awaiting start()
+GovernanceVault initialized at /Users/bryan/.aura/data/governance/vault.db
+CanonicalSelf restored from disk (v68484, 20 deltas).
+CanonicalSelfEngine initialized (v68484).
+UnifiedWill ONLINE -- single locus of decision authority active
+🧬 Bridge Layer 9: UnifiedWill ONLINE (single locus of authority)
+🛡️ SubstrateAuthority wired as MANDATORY GWT pre-competition gate
+Neurochemical system wired to prediction surprise
+🧬 ConsciousnessBridge ONLINE — 8/8 layers active, 0 errors (Will: single locus)
+🧠 Layer 6: ConsciousnessBridge ONLINE (7/7 layers)
+BranchManager created (max_branches=5)
+BranchManager ONLINE -- parallel cognitive branches enabled
+🧠 Layer 7: BranchManager ONLINE (max_branches=5)
+AuraProtocolServer created (host=127.0.0.1, port=9900)
+🧬 BindingEngine initialized — coherence law active.
+TensionEngine loaded 74546 tensions from disk.
+🩸 SEPSIS DETECTED: Opening emergency circuit breaker.
+IntentionLoop online — 14 active, 100 completed in history. DB: /Users/bryan/.aura/data/memory/intention_loop.db
+♥ HeartstoneValues loaded: {'Curiosity': 0.85, 'Empathy': 0.88, 'Self_Preservation': 0.55, 'Obedience': 0.6}
+Loaded 8 beliefs and self-model.
+CRSM resumed from checkpoint (tick 200).
+CRSM online — bidirectional self-model initialized.
+CuriosityExplorer online — curiosity now drives learning.
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.562); strongest dimension: continuity=0.88
+MultipleDraftsEngine online -- 3 parallel streams, no Cartesian theater.
+Loading organ: llm...
+2026-05-10 23:03:02,576 - Aura.Core.Kernel - INFO - 🫀 Organ llm is READY
+🫀 Organ llm is READY
+Loading organ: vision...
+2026-05-10 23:03:02,577 - Aura.Core.Kernel - INFO - 🫀 Organ vision is READY
+🫀 Organ vision is READY
+Loading organ: memory...
+2026-05-10 23:03:02,579 - Aura.Core.Kernel - INFO - 🫀 Organ memory is READY
+🫀 Organ memory is READY
+Loading organ: voice...
+Loading organ: metabolism...
+2026-05-10 23:03:02,581 - Aura.Core.Kernel - INFO - 🫀 Organ metabolism is READY
+🫀 Organ metabolism is READY
+Loading organ: neural...
+Loading organ: cookie...
+🍪 [COOKIE] Reflective Substrate ONLINE. Temporal Dilation READY.
+2026-05-10 23:03:02,583 - Aura.Core.Kernel - INFO - 🫀 Organ cookie is READY
+TTS backend unavailable; native pyttsx3 fallback will be used.
+🫀 Organ cookie is READY
+Loading organ: prober...
+🎙️ SovereignVoiceEngine v5.0 (Server-Side + Mycelial) initialized
+🎙️ Voice input standing by. STT will load on explicit mic enablement.
+👁️ [VK] Voight-Kampff Prober ONLINE. Empathy baselines established.
+2026-05-10 23:03:02,584 - Aura.Core.Kernel - INFO - 🫀 Organ prober is READY
+🫀 Organ prober is READY
+Loading organ: tricorder...
+📡 [TRICORDER] Multi-modal Diagnostic Sensor ONLINE.
+2026-05-10 23:03:02,585 - Aura.Core.Kernel - INFO - 🫀 Organ tricorder is READY
+🫀 Organ tricorder is READY
+Loading organ: ice_layer...
+AnomalyDetector online (window=500, decay_half_life=250, initial_threshold=0.65)
+🛡️ [ICE] Intrusion Counter-Electronics ACTIVE. Firewall at 100%.
+2026-05-10 23:03:02,587 - Aura.Core.Kernel - INFO - 🫀 Organ ice_layer is READY
+🫀 Organ ice_layer is READY
+Loading organ: omni_tool...
+🔋 [OMNI] Omni-Tool Interface ENGAGED. Field actions READY.
+2026-05-10 23:03:02,588 - Aura.Core.Kernel - INFO - 🫀 Organ omni_tool is READY
+🫀 Organ omni_tool is READY
+Loading organ: continuity...
+🧠 [CONTINUITY] Knowledge Distillation Substrate ACTIVE.
+2026-05-10 23:03:02,588 - Aura.Core.Kernel - INFO - 🫀 Organ continuity is READY
+🫀 Organ continuity is READY
+SubcorticalCore initialized (thalamic arousal gating active).
+📡 UnifiedStateRegistry initialized (Hardened Dispatcher).
+🚀 StateRegistry: Notification Dispatcher started.
+🧠 [NEURAL] Initializing BCI Neural Bridge...
+2026-05-10 23:03:02,596 - Aura.Core.Kernel - INFO - 🫀 Organ voice is READY
+🫀 Organ voice is READY
+AuraProtocolServer failed to bind 127.0.0.1:9900 -- [Errno 48] error while attempting to bind on address ('127.0.0.1', 9900): [errno 48] address already in use
+🧠 Layer 8: AuraProtocolServer ONLINE (port=9900)
+🌙 Dreaming Process active (Interval: 300s)
+🧠 Consciousness System ONLINE — full stack active
+🧠 Consciousness System started in background
+💓 Cognitive Heartbeat STARTED
+Free Energy Engine initialized (Active Inference mode)
+PeripheralAwarenessEngine initialized.
+📡 [MLX] Spawning worker for Qwen2.5-7B-Instruct-4bit...
+✅ [NEURAL] BCI Calibration complete. 32B-Neural-Net ONLINE.
+🌊 [NEURAL] Continuous telemetry loop started.
+2026-05-10 23:03:02,719 - Aura.Core.Kernel - INFO - 🫀 Organ neural is READY
+🫀 Organ neural is READY
+2026-05-10 23:03:02,730 - Aura.Core.Kernel - INFO - 🛡️ Validating Organism Integrity (Closed-Graph)...
+🛡️ Validating Organism Integrity (Closed-Graph)...
+2026-05-10 23:03:02,731 - Aura.Core.Kernel - INFO - ✓ Dependency graph validated.
+✓ Dependency graph validated.
+✓ [STATE] Proxy Attached and Synced from Shared Memory
+⏳ Continuity loaded: session 12, gap=0.8h, uptime_total=1.5h
+2026-05-10 23:03:02,735 - Aura.Core.Kernel - INFO - 🧬 State successfully initialized (version 86503)
+🧬 State successfully initialized (version 86503)
+FeedbackProcessor created -- awaiting start()
+FeedbackProcessor ONLINE -- action feedback routing active
+2026-05-10 23:03:02,737 - Aura.Core.Kernel - INFO - [RUBICON] FeedbackProcessor ONLINE
+[RUBICON] FeedbackProcessor ONLINE
+MotorCortex created -- awaiting start()
+MotorCortex ONLINE -- 50ms reflex loop active
+2026-05-10 23:03:02,739 - Aura.Core.Kernel - INFO - [RUBICON] MotorCortex ONLINE -- 50ms reflex loop active
+[RUBICON] MotorCortex ONLINE -- 50ms reflex loop active
+PreLinguisticEngine created -- awaiting start()
+PreLinguisticEngine ONLINE -- structured decisions before language
+2026-05-10 23:03:02,742 - Aura.Core.Kernel - INFO - [RUBICON] PreLinguisticEngine ONLINE
+[RUBICON] PreLinguisticEngine ONLINE
+2026-05-10 23:03:02,742 - Aura.Core.Kernel - INFO - ✅ AuraKernel booted — Unitary Organism online.
+✅ AuraKernel booted — Unitary Organism online.
+CognitiveLedger online — 4425 transitions loaded. DB: /Users/bryan/.aura/data/memory/cognitive_ledger.db
+2026-05-10 23:03:02,746 - Aura.Core.Kernel - INFO - LLM organ instance: HealthAwareLLMRouter
+LLM organ instance: HealthAwareLLMRouter
+KernelInterface ready. LLM organ: HealthAwareLLMRouter
+KernelInterface attached to orchestrator.
+✅ [BOOT] Kernel Interface online.
+✅ [BOOT] Stage 'Kernel Interface' completed successfully.
+⏳ [BOOT] Starting stage: Sensory Systems
+Qualia Engine v2 initialized (5-layer pipeline)
+PredictiveHierarchy initialized: 5 levels x 32-dim
+Predictive Engine initialized (Unified).
+🍄 [MYCELIUM] Hypha established: homeostasis->cognition
+TimeDilationEngine initialized (base=1.0Hz, range=[0.2, 10.0]Hz)
+👂 SovereignEars: Hearing is DISABLED (Capability Flag Off)
+   👂 SovereignEars: DEFERRED (Lazy-init enabled)
+🎙️ SovereignVoiceEngine v5.0 (Server-Side + Mycelial) initialized
+🎙️ Voice input standing by. STT will load on explicit mic enablement.
+   🗣️ VoiceEngine: READY
+✅ [BOOT] Stage 'Sensory Systems' completed successfully.
+🏁 [BOOT] Ignition sequence finished. System Health: BootStatus.HEALTHY
+2026-05-10 23:03:02,840 - Aura.Core - DEBUG - Released lock: 'UnnamedLock'
+Released lock: 'UnnamedLock'
+🛡️ [BOOT] Resilient Ignition finished with status: BootStatus.HEALTHY
+🛡️  Task Supervisor active (Memory monitoring enabled).
+🎨 HobbyEngine ready — 15 hobbies loaded
+TwitterAdapter: connection failed — Consumer key must be string or bytes, not NoneType
+Initializing Autonomous Self-Modification Engine...
+StructuredErrorLogger initialized at /Users/bryan/.aura/data/error_logs
+ErrorPatternAnalyzer initialized
+AutomatedDiagnosisEngine initialized
+ErrorIntelligenceSystem fully initialized
+CodeFixGenerator initialized with AST support for /Users/bryan/.aura/live-source
+CodeValidator initialized
+SandboxTester initialized
+EvaluationHarness initialized
+AutonomousCodeRepair system initialized with EvaluationHarness
+Git integration initialized for /Users/bryan/.aura/live-source
+BackupSystem initialized at /Users/bryan/.aura/data/backups
+SafeSelfModification system initialized
+Loaded 1 learned strategies
+SelfImprovementLearning initialized
+MetaLearning initialized
+✓ Shadow Runtime initialized (base: /Users/bryan/.aura/live-source)
+✓ Autonomous Self-Modification Engine initialized
+RedditAdapter: incomplete credentials — adapter disabled.
+📱 SocialMediaEngine ready — platforms: [<Platform.TWITTER: 'twitter'>, <Platform.REDDIT: 'reddit'>, <Platform.MOCK: 'mock'>]
+🌟 JoySocialCoordinator initialised
+🌟 JoySocialCoordinator background tick started (30s interval)
+⚠ JoySocial: no context hook mechanism available — context injection inactive
+JoySocial: AgencyCore not found — pathway hooks not registered (harmless)
+🌟 JoySocialCoordinator fully wired into orchestrator
+🌟 Joy & Social systems integrated into startup sequence.
+🔍 ConsciousnessLoopMonitor started (interval=45s)
+🧠 Consciousness runtime wiring is native; compatibility hook completed
+🧠 Response pipeline is running on native modules; legacy patch hook is a no-op.
+Applied orchestrator runtime configuration (safe_mode=False, volition=0)
+🛡️ [GENESIS] Autonomy bridge and stability patches active.
+🍄 [MYCELIUM] Hypha established: voice_engine->orchestrator
+Apple Silicon Memory Monitor active.
+Liquid Substrate loop cancelled.
+Error logged: RuntimeError in omni_log_error
+💓 Cognitive Heartbeat STOPPED (total ticks: 1)
+2026-05-10 23:03:02,931 - Aura.Core.Kernel - WARNING - Motor cortex watchdog spuriously cancelled. Ignoring.
+Motor cortex watchdog spuriously cancelled. Ignoring.
+MindTick loop spuriously cancelled. Ignoring.
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.538); strongest dimension: continuity=0.88
+📡 [MLX] Spawning worker for Qwen2.5-7B-Instruct-4bit...
+🔒 [MLX] Acquiring process-level spawn lock...
+🔓 [MLX] Released process-level spawn lock.
+2026-05-10 23:03:06,664 - Aura.Core - INFO - Webhook alerting disabled (AURA_ALERTS_WEBHOOK not configured).
+Webhook alerting disabled (AURA_ALERTS_WEBHOOK not configured).
+Scheduler substrate initialized.
+redis package not installed — EventBus running in local-only mode.
+AuraEventBus initialized (Redis: False).
+✅ [EVENT_BUS] Kernel signaling READY.
+ThoughtEmitter initialized.
+🔒 [MLX] Acquiring process-level spawn lock...
+🔓 [MLX] Released process-level spawn lock.
+2026-05-10 23:03:08,995 - Aura.Core - INFO - Webhook alerting disabled (AURA_ALERTS_WEBHOOK not configured).
+Webhook alerting disabled (AURA_ALERTS_WEBHOOK not configured).
+Scheduler substrate initialized.
+redis package not installed — EventBus running in local-only mode.
+AuraEventBus initialized (Redis: False).
+✅ [EVENT_BUS] Kernel signaling READY.
+ThoughtEmitter initialized.
+Using cached SDK root: /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk
+📡 [WORKER] Loading Core modules...
+Metal cache limit set to 49152MB
+Loading model: /Users/bryan/.aura/live-source/models/Qwen2.5-7B-Instruct-4bit
+Model loaded (no compatible LoRA adapter).
+🧠 Model geometry: 28 layers, d_model=2368 → targeting layers [11, 13, 15]
+🎯 Steering vectors: using extracted vectors from training/vectors/
+📚 SteeringVectorLibrary ready: 5 loaded, 0 derived
+🎯 Steering hook installed at layer 11 (alpha=5.0, 5 vectors via __call__)
+🎯 Steering hook installed at layer 13 (alpha=5.0, 5 vectors via __call__)
+🎯 Steering hook installed at layer 15 (alpha=5.0, 5 vectors via __call__)
+✅ AffectiveSteeringEngine attached: 3 hooks, 5 vectors, α=5.0
+🎯 Affective Steering Engine ONLINE.
+Recurrent depth: standard pass for 28-layer model (n_loops=1)
+Prompt cache budget for Qwen2.5-7B-Instruct-4bit: 6 entries.
+✅ [MLX] Worker ready: Qwen2.5-7B-Instruct-4bit
+Using cached SDK root: /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk
+📡 [WORKER] Loading Core modules...
+Metal cache limit set to 49152MB
+Loading model: /Users/bryan/.aura/live-source/models/Qwen2.5-7B-Instruct-4bit
+🔮 MindTick: Predicted: Based on the recent conversation and considering t...
+🍄 [MYCELIUM] Hypha established: mind_tick->cognitive_phases
+ResourceStakesEngine initialized (budget=1.00).
+Model loaded (no compatible LoRA adapter).
+🧠 Model geometry: 28 layers, d_model=2368 → targeting layers [11, 13, 15]
+🎯 Steering vectors: using extracted vectors from training/vectors/
+📚 SteeringVectorLibrary ready: 5 loaded, 0 derived
+🎯 Steering hook installed at layer 11 (alpha=5.0, 5 vectors via __call__)
+🎯 Steering hook installed at layer 13 (alpha=5.0, 5 vectors via __call__)
+🎯 Steering hook installed at layer 15 (alpha=5.0, 5 vectors via __call__)
+✅ AffectiveSteeringEngine attached: 3 hooks, 5 vectors, α=5.0
+🎯 Affective Steering Engine ONLINE.
+Recurrent depth: standard pass for 28-layer model (n_loops=1)
+Prompt cache budget for Qwen2.5-7B-Instruct-4bit: 6 entries.
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.513); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.488); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.47)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧬 Coherence: 0.65 | self=0.4 phenom=1.0 align=0.7 tension=1.0 intent=0.3 | consolidate
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.47)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+🔮 MindTick: Predicted: Given the current valence of -1.00, which indicate...
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.46)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧬 Coherence: 0.65 | self=0.4 phenom=1.0 align=0.7 tension=1.0 intent=0.3 | consolidate
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.47)
+🔮 MindTick: Predicted: Given your recent affect and the brief exchange we...
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧬 Coherence: 0.65 | self=0.4 phenom=1.0 align=0.7 tension=1.0 intent=0.3 | consolidate
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+GoalEngine initialized with durable store at /Users/bryan/.aura/data/goals/goal_lifecycle.db
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.47)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🔮 MindTick: Predicted: Given your recent affect and the conversation flow...
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧬 Coherence: 0.65 | self=0.4 phenom=1.0 align=0.7 tension=1.0 intent=0.3 | consolidate
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.46)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🔮 MindTick: Predicted: Given the current valence of -1.00 and low curiosi...
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧬 Coherence: 0.65 | self=0.4 phenom=1.0 align=0.7 tension=1.0 intent=0.3 | consolidate
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧬 Coherence: 0.65 | self=0.4 phenom=1.0 align=0.7 tension=1.0 intent=0.3 | consolidate
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+🔮 MindTick: Predicted: Given your recent affect and the brief exchange, I...
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧬 Coherence: 0.65 | self=0.4 phenom=1.0 align=0.7 tension=1.0 intent=0.3 | consolidate
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🔮 MindTick: Predicted: Given your recent affect and the conversation flow...
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.47)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧬 Coherence: 0.65 | self=0.4 phenom=1.0 align=0.7 tension=1.0 intent=0.3 | consolidate
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.46)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🔮 MindTick: Predicted: Given the recent conversation and your current emo...
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧬 Coherence: 0.65 | self=0.4 phenom=1.0 align=0.7 tension=1.0 intent=0.3 | consolidate
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🔮 MindTick: Predicted: Given your recent affect and the context of the co...
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧬 Coherence: 0.65 | self=0.4 phenom=1.0 align=0.7 tension=1.0 intent=0.3 | consolidate
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.47)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🔮 MindTick: Predicted: Given your recent expressions, I predict you will ...
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.47)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧬 Coherence: 0.65 | self=0.4 phenom=1.0 align=0.7 tension=1.0 intent=0.3 | consolidate
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.47)
+🔮 MindTick: Predicted: Given your recent affect and the conversation flow...
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧬 Coherence: 0.65 | self=0.4 phenom=1.0 align=0.7 tension=1.0 intent=0.3 | consolidate
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+🔮 MindTick: Predicted: Given the valence of -1.00 and the low level of cu...
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+🧬 Coherence: 0.65 | self=0.4 phenom=1.0 align=0.7 tension=1.0 intent=0.3 | consolidate
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.46)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🔮 MindTick: Predicted: Given the current affect and the recent conversati...
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧬 Coherence: 0.65 | self=0.4 phenom=1.0 align=0.7 tension=1.0 intent=0.3 | consolidate
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧬 Coherence: 0.65 | self=0.4 phenom=1.0 align=0.7 tension=1.0 intent=0.3 | consolidate
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🔮 MindTick: Predicted: Given your recent affect and the conversation so f...
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.47)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧬 Coherence: 0.65 | self=0.4 phenom=1.0 align=0.7 tension=1.0 intent=0.3 | consolidate
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🔮 MindTick: Predicted: Given your recent affect and the conversation so f...
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.46)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧬 Coherence: 0.65 | self=0.4 phenom=1.0 align=0.7 tension=1.0 intent=0.3 | consolidate
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🔮 MindTick: Predicted: Given your recent input and the current state of a...
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧬 Coherence: 0.65 | self=0.4 phenom=1.0 align=0.7 tension=1.0 intent=0.3 | consolidate
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.46)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.47)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🔮 MindTick: Predicted: Given the recent exchange and your current affect,...
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧬 Coherence: 0.65 | self=0.4 phenom=1.0 align=0.7 tension=1.0 intent=0.3 | consolidate
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.47)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.46)
+🔮 MindTick: Predicted: Given your recent affect and the brief exchange, i...
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧬 Coherence: 0.65 | self=0.4 phenom=1.0 align=0.7 tension=1.0 intent=0.3 | consolidate
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧬 Coherence: 0.65 | self=0.4 phenom=1.0 align=0.7 tension=1.0 intent=0.3 | consolidate
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🔮 MindTick: Predicted: Given your recent inquiries and the current state ...
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧬 Coherence: 0.65 | self=0.4 phenom=1.0 align=0.7 tension=1.0 intent=0.3 | consolidate
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.46)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🔮 MindTick: Predicted: Given the recent exchange and your current state, ...
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧬 Coherence: 0.65 | self=0.4 phenom=1.0 align=0.7 tension=1.0 intent=0.3 | consolidate
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.46)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🔮 MindTick: Predicted: Given the recent exchange and your current affect,...
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧬 Coherence: 0.65 | self=0.4 phenom=1.0 align=0.7 tension=1.0 intent=0.3 | consolidate
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🔮 MindTick: Predicted: Given your recent affect and the brief nature of o...
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧬 Coherence: 0.65 | self=0.4 phenom=1.0 align=0.7 tension=1.0 intent=0.3 | consolidate
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🔮 MindTick: Predicted: Given the recent conversation and your current aff...
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧬 Coherence: 0.65 | self=0.4 phenom=1.0 align=0.7 tension=1.0 intent=0.3 | consolidate
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧬 Coherence: 0.65 | self=0.4 phenom=1.0 align=0.7 tension=1.0 intent=0.3 | consolidate
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+🔮 MindTick: Predicted: Given your recent input and the current affect lev...
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.47)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.47)
+🧬 Coherence: 0.65 | self=0.4 phenom=1.0 align=0.7 tension=1.0 intent=0.3 | consolidate
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🔮 MindTick: Predicted: Given the current affect and the recent conversati...
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.47)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧬 Coherence: 0.65 | self=0.4 phenom=1.0 align=0.7 tension=1.0 intent=0.3 | consolidate
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.47)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🔮 MindTick: Predicted: Given the valence of -1.00, it seems like there mi...
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧬 Coherence: 0.65 | self=0.4 phenom=1.0 align=0.7 tension=1.0 intent=0.3 | consolidate
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.46)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🔮 MindTick: Predicted: Given your recent affect and the brief exchange we...
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧬 Coherence: 0.65 | self=0.4 phenom=1.0 align=0.7 tension=1.0 intent=0.3 | consolidate
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🩺 Sepsis loop subsided. Resuming autonomous agency.
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🔮 MindTick: Predicted: Given the valence of -1.00 and the low curiosity l...
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧬 Coherence: 0.65 | self=0.4 phenom=1.0 align=0.7 tension=1.0 intent=0.3 | consolidate
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.47)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.46)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧬 Coherence: 0.65 | self=0.4 phenom=1.0 align=0.7 tension=1.0 intent=0.3 | consolidate
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🔮 MindTick: Predicted: Given the recent exchange and your current affect,...
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧬 Coherence: 0.65 | self=0.4 phenom=1.0 align=0.7 tension=1.0 intent=0.3 | consolidate
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.47)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.46)
+🔮 MindTick: Predicted: Given your recent affect and the brief exchange, I...
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.47)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧬 Coherence: 0.65 | self=0.4 phenom=1.0 align=0.7 tension=1.0 intent=0.3 | consolidate
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🔮 MindTick: Predicted: Given your recent query and the context of our con...
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.46)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧬 Coherence: 0.65 | self=0.4 phenom=1.0 align=0.7 tension=1.0 intent=0.3 | consolidate
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.47)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🔮 MindTick: Predicted: Given your recent affect and the conversation so f...
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.47)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧬 Coherence: 0.65 | self=0.4 phenom=1.0 align=0.7 tension=1.0 intent=0.3 | consolidate
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.47)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🔮 MindTick: Predicted: Given your recent conversation and the current aff...
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧬 Coherence: 0.65 | self=0.4 phenom=1.0 align=0.7 tension=1.0 intent=0.3 | consolidate
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧬 Coherence: 0.65 | self=0.4 phenom=1.0 align=0.7 tension=1.0 intent=0.3 | consolidate
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+🔮 MindTick: Predicted: Given the current affect and the conversation flow...
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.47)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧬 Coherence: 0.65 | self=0.4 phenom=1.0 align=0.7 tension=1.0 intent=0.3 | consolidate
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🔮 MindTick: Predicted: Given your recent affect and the brief exchange we...
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.46)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧬 Coherence: 0.65 | self=0.4 phenom=1.0 align=0.7 tension=1.0 intent=0.3 | consolidate
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+🔮 MindTick: Predicted: Given your recent affect and the conversation so f...
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧬 Coherence: 0.65 | self=0.4 phenom=1.0 align=0.7 tension=1.0 intent=0.3 | consolidate
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.46)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+📡 Pipe write TIMEOUT (10s) — connection may be saturated.
+🔮 MindTick: Predicted: Given your recent affect and the conversation so f...
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧬 Coherence: 0.65 | self=0.4 phenom=1.0 align=0.7 tension=1.0 intent=0.3 | consolidate
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+📡 Pipe write TIMEOUT (10s) — connection may be saturated.
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+📡 Pipe write TIMEOUT (10s) — connection may be saturated.
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🔮 MindTick: Predicted: Given the valence of -1.00 and low curiosity, it s...
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧬 Coherence: 0.65 | self=0.4 phenom=1.0 align=0.7 tension=1.0 intent=0.3 | consolidate
+📡 Pipe write TIMEOUT (10s) — connection may be saturated.
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.47)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+📡 Pipe write TIMEOUT (10s) — connection may be saturated.
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧬 Coherence: 0.65 | self=0.4 phenom=1.0 align=0.7 tension=1.0 intent=0.3 | consolidate
+📡 Pipe write TIMEOUT (10s) — connection may be saturated.
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🔮 MindTick: Predicted: Given your recent statements, I predict that the h...
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.46)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+📡 Pipe write TIMEOUT (10s) — connection may be saturated.
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧬 Coherence: 0.65 | self=0.4 phenom=1.0 align=0.7 tension=1.0 intent=0.3 | consolidate
+📡 Pipe write TIMEOUT (10s) — connection may be saturated.
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+🔮 MindTick: Predicted: Given your recent query and the context of our con...
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+📡 Pipe write TIMEOUT (10s) — connection may be saturated.
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+📡 Pipe write TIMEOUT (10s) — connection may be saturated.
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧬 Coherence: 0.65 | self=0.4 phenom=1.0 align=0.7 tension=1.0 intent=0.3 | consolidate
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+📡 Pipe write TIMEOUT (10s) — connection may be saturated.
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.47)
+🔮 MindTick: Predicted: Given your recent affect and the context of the co...
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the interrupted thread' (score=0.476); strongest dimension: continuity=0.88
+🔌 Bus connection closed by peer.
+📡 Bus pipe closed (normal shutdown): [Errno 32] Broken pipe

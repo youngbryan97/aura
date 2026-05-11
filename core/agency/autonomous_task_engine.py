@@ -824,6 +824,9 @@ Respond ONLY with a JSON array, no other text:
                 timeout=30.0,
             )
 
+            if not raw:
+                raise ValueError("LLM returned empty or None response")
+
             # Extract JSON from response
             start_idx = raw.find("[")
             end_idx   = raw.rfind("]") + 1

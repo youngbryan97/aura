@@ -121,24 +121,7 @@ class CognitiveBackgroundMixin:
                     else:
                         curiosity_task.add_done_callback(_bg_task_exception_handler)
 
-            # Phase 26: Belief Revision Engine
-            from core.container import ServiceContainer
-            belief_engine = ServiceContainer.get("belief_revision_engine", default=None)
-            if belief_engine:
-                belief_coro = belief_engine.update_belief_from_conversation(
-                    user_input=original_msg,
-                    aura_response=response,
-                    context={"world_state": self._get_world_context()}
-                )
-                try:
-                    belief_task = tracker.create_task(
-                        belief_coro,
-                        name="cognitive_background.belief_revision",
-                    )
-                except RuntimeError:
-                    _dispose_awaitable(belief_coro)
-                else:
-                    belief_task.add_done_callback(_bg_task_exception_handler)
+
 
         except Exception as e:
             record_degradation('cognitive_background', e)

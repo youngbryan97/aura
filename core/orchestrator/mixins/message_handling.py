@@ -905,19 +905,8 @@ class MessageHandlingMixin:
                         queue_is_empty = bool(empty_fn())
                     except Exception:
                         queue_is_empty = False
-                queue_timeout = 2.0 if queue_is_empty else 125.0
+                queue_timeout = 240.0
                 if inspect.iscoroutinefunction(origin_getter):
-                    if queue_is_empty and not self.is_busy:
-                        error_message = "No reply produced"
-                        logger.warning(
-                            "No reply queued after processing message: %s",
-                            message[:50],
-                        )
-                        return {
-                            "ok": False,
-                            "error": error_message,
-                            "response": {"error": error_message},
-                        }
                     reply = await self.reply_queue.get_for_origin(
                         "user",
                         session_id=session_id,

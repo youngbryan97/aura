@@ -913,11 +913,11 @@ class UnifiedWill:
         if ownership_confidence < 0.45:
             constraints.append(f"ownership_ambiguity: confidence={ownership_confidence:.3f}")
 
-        if domain in {ActionDomain.SEMANTIC_WEIGHT_UPDATE, ActionDomain.STATE_MUTATION} and unity_level != "coherent":
+        if domain in {ActionDomain.SEMANTIC_WEIGHT_UPDATE, ActionDomain.STATE_MUTATION} and unity_level not in {"coherent", "strained"}:
             if catatonia_relief and domain == ActionDomain.STATE_MUTATION:
                 constraints.append(f"unity_repair_relief:{unity_level}")
             else:
-                reasons.append(f"unity_block: {domain.value} requires coherent unity (current={unity_level})")
+                reasons.append(f"unity_block: {domain.value} requires coherent or strained unity (current={unity_level})")
                 return WillOutcome.REFUSE, "; ".join(reasons), constraints
 
         if domain == ActionDomain.MEMORY_WRITE and memory_commit_mode in {"qualified", "conflicted", "repair_only"}:

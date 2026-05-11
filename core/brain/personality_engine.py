@@ -616,7 +616,7 @@ class PersonalityEngine:
             if action['type'] == 'reflect':
                 self.internal_monologue.append(action['action'])
                 if len(self.internal_monologue) > 5:
-                    self.internal_monologue.pop(0)
+                    self.internal_monologue.popleft()
 
     def persist(self):
         """Save evolved traits and emotional baselines to disk."""
@@ -782,9 +782,15 @@ class PersonalityEngine:
                 if isinstance(item, str):
                     item = self.filter_response(item)
                     item = self.apply_lexical_style(item)
+                    if not item:
+                        logger.debug("PersonalityEngine: Suppressing empty filtered response.")
+                        return
                 elif isinstance(item, dict) and 'message' in item:
                     item['message'] = self.filter_response(item['message'])
                     item['message'] = self.apply_lexical_style(item['message'])
+                    if not item['message']:
+                        logger.debug("PersonalityEngine: Suppressing empty filtered message in dict.")
+                        return
                 return original_put(item)
             orchestrator.reply_queue.put_nowait = filtered_put
             logger.info("   [✓] Output filter active")
