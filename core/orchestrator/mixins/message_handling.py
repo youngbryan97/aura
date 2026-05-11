@@ -513,11 +513,13 @@ class MessageHandlingMixin:
                     return await self._process_user_input_core(message, origin)
             except asyncio.TimeoutError:
                 logger.error("⌛ Priority processing TIMEOUT for: %s...", message[:50])
-                return "I was deep in thought and took too long. Please try again."
+                # [STABILITY v55] Return empty so chat.py can retry/escalate.
+                return ""
             except Exception as e:
                 record_degradation('message_handling', e)
                 logger.error("❌ Priority processing FAILED: %s", e)
-                return f"A cognitive fault occurred: {str(e)}"
+                # [STABILITY v55] Return empty so chat.py can retry/escalate.
+                return ""
 
     async def _process_user_input_unlocked(
         self,
@@ -617,7 +619,8 @@ class MessageHandlingMixin:
             # return a safe fallback instead of crashing on NoneType.generate().
             if self._inference_gate is None:
                 logger.error("🛑 InferenceGate is None after ensure_ready(). Cannot process user message.")
-                return "I'm still waking up — inference engine isn't ready yet."
+                # [STABILITY v55] Return empty instead of robot message
+                return ""
 
             current_task = asyncio.current_task()
             self._current_thought_task = current_task
