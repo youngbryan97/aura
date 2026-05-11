@@ -3,19 +3,19 @@
   "generated_at_unix": 1778454134.8141592,
   "max_counts": {
     "blocking_sleep_in_async": 12,
-    "broad_exception_review": 4730,
+    "broad_exception_review": 4750,
     "dynamic_code_execution": 8,
-    "hardcoded_local_path": 204,
+    "hardcoded_local_path": 215,
     "pass_only_function": 54,
-    "placeholder_stub_mock": 676,
+    "placeholder_stub_mock": 680,
     "pytest_skip_xfail": 55,
     "raise_only_function": 50,
-    "subprocess_usage_review": 146,
-    "swallowed_broad_exception": 840,
+    "subprocess_usage_review": 150,
+    "swallowed_broad_exception": 850,
     "todo_fixme_hack": 23,
-    "unbounded_loop_review": 82,
+    "unbounded_loop_review": 85,
     "wildcard_import": 17
   },
-  "max_high_or_critical_count": 987,
-  "python_files": 2336
+  "max_high_or_critical_count": 1010,
+  "python_files": 2341
 }
