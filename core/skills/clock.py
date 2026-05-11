@@ -12,7 +12,7 @@ class ClockSkill(BaseSkill):
 
     def match(self, goal: Dict[str, Any]) -> bool:
         obj = goal.get("objective", "").lower()
-        time_keywords = ["time", "date", "clock", "what day", "today", "hour", "minute"]
+        time_keywords = ["what time", "current time", "the time", "what date", "current date", "what day", "clock", "hour", "minute"]
         return any(kw in obj for kw in time_keywords)
 
     async def execute(self, goal: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:

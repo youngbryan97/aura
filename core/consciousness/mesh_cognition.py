@@ -32,7 +32,11 @@ from typing import Any, Dict, List, Optional, Tuple
 _SELF_QUERY_PATTERNS: Tuple[re.Pattern[str], ...] = (
     re.compile(r"^\s*(who|what)\s+are\s+you[\?\.!]*\s*$", re.I),
     re.compile(r"^\s*are\s+you\s+(ok|okay|alive|there)[\?\.!]*\s*$", re.I),
-    re.compile(r"^\s*how\s+(are|do)\s+you\s+(feel|feeling|doing)[\?\.!]*\s*$", re.I),
+    re.compile(
+        r"^\s*(?:hello|hi|hey)?\s*(?:aura)?[!,.\s]*how\s+(?:are|do)\s+you\s+"
+        r"(?:feel|feeling|doing)(?:\s+today|\s+right\s+now)?[\?\.!]*\s*$",
+        re.I,
+    ),
     re.compile(r"^\s*what\s+is\s+your\s+(state|mood|status)[\?\.!]*\s*$", re.I),
     re.compile(r"^\s*(status|ping|health)[\?\.!]*\s*$", re.I),
     re.compile(r"^\s*(report|self-report|introspect)[\?\.!]*\s*$", re.I),
@@ -228,14 +232,14 @@ class MeshCognition:
             "low"
         )
 
-        parts = [
-            f"I'm {mood_word}, running {energy_word}, viability {viability_word} "
-            f"(integrity {integrity:.2f}, energy {signals.get('energy', 1.0):.2f})."
-        ]
+        if viability_word == "intact":
+            parts = [f"I'm {mood_word}, running {energy_word}, and present enough to stay with you."]
+        else:
+            parts = [f"I'm {mood_word} and running {energy_word}; there is some pressure, but I'm still here."]
         if curiosity > 0.6:
-            parts.append("Curiosity is high enough to pull attention outward.")
+            parts.append("Curiosity is awake, which helps.")
         if signals.get("stakes_blocked"):
-            parts.append("Outward action is gated until I repair; I'm conserving.")
+            parts.append("I'm conserving outward action until the pressure drops.")
         return " ".join(parts)
 
     def _compose_ack(self, signals: Dict[str, float]) -> str:

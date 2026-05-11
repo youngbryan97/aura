@@ -339,6 +339,19 @@ class EventLoopMonitor:
                         self.threshold,
                         self._consecutive_breaches,
                     )
+                    try:
+                        from core.resilience.omni_tracer import write_trace
+
+                        write_trace(
+                            "event_loop_monitor",
+                            "EventLoopLag",
+                            (
+                                f"lag={lag:.4f}s threshold={self.threshold:.2f}s "
+                                f"streak={self._consecutive_breaches}"
+                            ),
+                        )
+                    except Exception:
+                        pass
                 else:
                     logger.debug(
                         "EventLoopMonitor: transient lag %.4fs observed (threshold=%.2fs).",

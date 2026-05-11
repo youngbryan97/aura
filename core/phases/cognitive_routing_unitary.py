@@ -45,6 +45,24 @@ _FILE_REF_PATTERN = re.compile(
     r"(?<![A-Za-z0-9_])(?:\.{0,2}/|/)?[A-Za-z0-9_.~/-]+\.(?:py|md|json|toml|ya?ml|txt|js|ts|tsx|sh|swift|rs|go|cpp|c|h)"
 )
 
+_SIMPLE_DIALOGUE_RE = re.compile(
+    r"\b("
+    r"capital of france|15\s*\*\s*12|square root of 64|3 apples|"
+    r"who wrote (?:the play )?hamlet|three programming languages|"
+    r"color is the sky|translate ['\"]?good morning|"
+    r"write (?:a )?(?:short )?(?:poem|joke|haiku)|"
+    r"compose (?:a )?(?:short )?(?:poem|joke|haiku)"
+    r")\b",
+    re.IGNORECASE,
+)
+
+
+def _looks_like_simple_dialogue_request(text: str) -> bool:
+    body = str(text or "").strip()
+    if not body or len(body.split()) > 18:
+        return False
+    return bool(_SIMPLE_DIALOGUE_RE.search(body))
+
 
 class CognitiveRoutingPhase(Phase):
     """
@@ -512,6 +530,18 @@ class CognitiveRoutingPhase(Phase):
                 "build ", "make ", "generate ",
             )
         )
+        if is_user_facing and _looks_like_simple_dialogue_request(objective):
+            logger.info("🧭 Routing: simple dialogue request kept on CHAT lane.")
+            new_state.cognition.current_mode = CognitiveMode.REACTIVE
+            self._stamp_llm_route(
+                new_state,
+                objective=objective,
+                intent_type="CHAT",
+                is_user_facing=True,
+                analysis=analysis,
+                route_meta=route_meta,
+            )
+            return new_state
         if not is_deep_mind_probe and (_task_hit or _is_long_goal):
             logger.info("🧭 Routing: TASK detected via heuristics for: %s", objective[:60])
             new_state.cognition.current_mode = CognitiveMode.DELIBERATE

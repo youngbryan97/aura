@@ -601,16 +601,19 @@ class OrchestratorBootMixin(
                     record_degradation('boot', e)
                     logger.error(f"🛑 Failed to init Meta-Cognition Shard: {e}")
 
-                try:
-                    from core.resilience.healing_swarm import HealingSwarmService
-                    healer = HealingSwarmService(self)
-                    healer.start()
-                    ServiceContainer.register_instance("healing_swarm", healer)
-                    self.healing_service = healer
-                    logger.info("🛡️ Healing Swarm Service initialized and started.")
-                except Exception as e:
-                    record_degradation('boot', e)
-                    logger.error(f"🛑 Failed to init Healing Swarm: {e}")
+                if os.getenv("AURA_FOREGROUND_ONLY", "0").lower() in {"1", "true", "yes", "on"} or os.getenv("AURA_ENABLE_SELF_HEALING", "1").lower() in {"0", "false", "no", "off"}:
+                    logger.info("Healing Swarm disabled for foreground-only boot.")
+                else:
+                    try:
+                        from core.resilience.healing_swarm import HealingSwarmService
+                        healer = HealingSwarmService(self)
+                        healer.start()
+                        ServiceContainer.register_instance("healing_swarm", healer)
+                        self.healing_service = healer
+                        logger.info("🛡️ Healing Swarm Service initialized and started.")
+                    except Exception as e:
+                        record_degradation('boot', e)
+                        logger.error(f"🛑 Failed to init Healing Swarm: {e}")
                 
                 self.hotfix_engine = HotfixEngine(self)
                 ServiceContainer.register_instance("hotfix_engine", self.hotfix_engine)

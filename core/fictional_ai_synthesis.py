@@ -888,6 +888,7 @@ def register_all_fictional_engines(orchestrator=None) -> Dict[str, Any]:
 
     engines: Dict[str, Any] = {}
     tracker = get_task_tracker()
+    foreground_only = os.getenv("AURA_FOREGROUND_ONLY", "0").strip().lower() in {"1", "true", "yes", "on"}
 
     engines["jarvis"] = ProactiveAnticipationEngine(orchestrator=orchestrator)
     ServiceContainer.register_instance(ServiceNames.JARVIS, engines["jarvis"])
@@ -906,6 +907,10 @@ def register_all_fictional_engines(orchestrator=None) -> Dict[str, Any]:
 
     engines["mist"] = TemporalDilationScheduler(orchestrator=orchestrator)
     ServiceContainer.register_instance(ServiceNames.MIST, engines["mist"])
+
+    if foreground_only:
+        logger.info("✅ Fictional AI engines registered without background loops (foreground-only boot).")
+        return engines
 
     # FIXED: Supervised task creation — tasks tracked and named
     async def _safe_start(name: str, coro):

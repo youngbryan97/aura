@@ -792,6 +792,20 @@ class ReActLoop:
 
         yield {"type": "status", "content": f"Aura is analyzing: {query[:30]}..."}
 
+        try:
+            from core.synthesis import stabilize_user_facing_response
+
+            floor_reply = stabilize_user_facing_response("", query)
+        except Exception:
+            floor_reply = ""
+        if floor_reply and len(str(query or "").split()) <= 18:
+            logger.debug("ReAct: Simple foreground floor detected, bypassing reasoning loop")
+            trace.final_answer = floor_reply
+            trace.terminated_reason = "simple_foreground_floor"
+            trace.elapsed_ms = (time.time() - start_time) * 1000
+            yield {"type": "final", "content": floor_reply, "total_steps": 0, "trace": trace}
+            return
+
         # Fast path: trivial queries skip the loop
         if self._is_simple_query(query) and allow_simple_query_bypass(query, context):
             logger.debug("ReAct: Simple query detected, bypassing reasoning loop")

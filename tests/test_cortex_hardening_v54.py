@@ -129,7 +129,8 @@ class TestRecoveryResponseNoEcho(unittest.TestCase):
     def test_returns_actionable_message(self):
         from core.brain.inference_gate import InferenceGate
         response = InferenceGate._user_facing_recovery_response("hello")
-        self.assertIn("again", response.lower())  # should suggest retry
+        self.assertNotIn("try again", response.lower())
+        self.assertNotIn("send your message again", response.lower())
         self.assertTrue(len(response) > 20)
 
 

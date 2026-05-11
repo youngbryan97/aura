@@ -51,7 +51,9 @@ def _get_system_context() -> Dict[str, Any]:
         return {"pid": os.getpid()}
 
 def _omni_writer_loop():
+    global _OMNI_BUFFER
     while not _OMNI_STOP:
+        batch = []
         try:
             with _OMNI_LOCK:
                 if not _OMNI_BUFFER:
@@ -61,7 +63,7 @@ def _omni_writer_loop():
                     batch = _OMNI_BUFFER
                     _OMNI_BUFFER = []
                     
-            if not locals().get("batch"):
+            if not batch:
                 time.sleep(0.5)
                 continue
             

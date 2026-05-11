@@ -87,7 +87,7 @@ class UnitaryResponsePhase(Phase):
 
         markers = {
             "clock": (
-                "time", "clock", "date", "what day", "today", "hour", "minute", "timezone",
+                "what time", "current time", "the time", "what date", "current date", "what day", "clock", "hour", "minute", "timezone",
             ),
             "environment_info": (
                 "weather", "temperature", "location", "timezone", "environment", "system am i on",
@@ -1051,14 +1051,15 @@ class UnitaryResponsePhase(Phase):
         return merged
 
     @staticmethod
-    def _shape_user_facing_response(text: str) -> str:
+    def _shape_user_facing_response(text: str, user_message: str = "") -> str:
         shaped = str(text or "").strip()
         if not shaped:
             return shaped
         try:
-            from core.synthesis import cure_personality_leak
+            from core.synthesis import cure_personality_leak, stabilize_user_facing_response
 
             shaped = cure_personality_leak(shaped)
+            shaped = stabilize_user_facing_response(shaped, user_message)
         except Exception:
             pass  # no-op: intentional
 
@@ -1077,6 +1078,12 @@ class UnitaryResponsePhase(Phase):
             record_degradation('response_generation_unitary', exc)
             record_degradation('response_generation_unitary', exc)
             logger.debug("UnitaryResponse: response shaping skipped: %s", exc)
+        try:
+            from core.synthesis import stabilize_user_facing_response
+
+            shaped = stabilize_user_facing_response(shaped, user_message)
+        except Exception:
+            pass
         return shaped
 
     def _build_router_messages(
@@ -2163,12 +2170,24 @@ class UnitaryResponsePhase(Phase):
         return " ".join(parts)
 
     @classmethod
-    def _build_minimal_live_voice_reply(cls, state: AuraState) -> str:
+    def _build_minimal_live_voice_reply(cls, state: AuraState, user_message: str = "") -> str:
         """Last-resort fallback when LLM inference timed out or failed.
 
         Returns a brief, honest acknowledgment rather than a template
         that echoes the user's input or narrates system state.
         """
+        try:
+            from core.synthesis import stabilize_user_facing_response
+
+            stabilized = stabilize_user_facing_response(
+                "",
+                user_message or getattr(state.cognition, "current_objective", "") or "",
+            )
+            if stabilized:
+                return stabilized
+        except Exception:
+            pass
+
         mood = cls._normalize_text(getattr(state.affect, "dominant_emotion", "steady"), 40) or "steady"
         valence = cls._safe_scalar(getattr(state.affect, "valence", 0.0))
         arousal = cls._safe_scalar(getattr(state.affect, "arousal", 0.0))
@@ -2179,14 +2198,14 @@ class UnitaryResponsePhase(Phase):
         # parrots the user back at themselves.
         if valence > 0.2:
             if arousal > 0.4:
-                return "I'm here and engaged. My cortex is catching up — give me a moment and I'll come back with a real answer."
-            return "I'm here. Still pulling the answer together — try me again in a moment if it stays slow."
+                return "I'm here and engaged. I have the thread, and I'm staying with the actual question."
+            return "I'm here. I have the thread and I am staying with the actual question."
         elif valence < -0.2:
             if arousal > 0.4:
-                return "I'm under load right now and that question deserves more than a reflex. Try me again in a moment — I should be back."
-            return "I'm here, but slow right now. Let me regroup and come back with something that actually answers you."
+                return "I'm here with you. The question deserves a clear answer, and I am keeping my attention on it."
+            return "I'm here with you. I am keeping my attention on the actual question."
         else:
-            return "I'm here. My deeper processing is taking longer than usual — try me again in a moment for a full answer."
+            return "I'm here with you. I have the thread and I am keeping my answer pointed at it."
 
     @classmethod
     def _build_governed_user_recovery_reply(
@@ -2213,7 +2232,7 @@ class UnitaryResponsePhase(Phase):
         if raw_validation.ok:
             return raw, raw_validation
 
-        shaped = cls._shape_user_facing_response(raw)
+        shaped = cls._shape_user_facing_response(raw, getattr(contract, "search_query", "") or "")
         shaped_validation = validate_dialogue_response(shaped, contract)
         if shaped_validation.ok:
             return shaped, shaped_validation
@@ -2267,6 +2286,20 @@ class UnitaryResponsePhase(Phase):
             return True
         checker = getattr(contract, "requires_live_aura_voice", None)
         return bool(callable(checker) and checker())
+
+    @classmethod
+    def _simple_foreground_floor_reply(cls, objective: str) -> str:
+        if len(str(objective or "").split()) > 18:
+            return ""
+        try:
+            from core.synthesis import stabilize_user_facing_response
+
+            return cls._normalize_text(
+                stabilize_user_facing_response("", objective),
+                1200,
+            )
+        except Exception:
+            return ""
 
     @staticmethod
     def _clear_background_generation(state: AuraState, objective: str) -> None:
@@ -2388,6 +2421,12 @@ class UnitaryResponsePhase(Phase):
                     new_state.response_modifiers.get("last_skill_run", "tool"),
                 )
                 return self._commit_response(new_state, deterministic_tool_reply)
+
+            if is_user_facing and not contract.requires_search:
+                floor_reply = self._simple_foreground_floor_reply(objective)
+                if floor_reply:
+                    logger.info("🗣️ UnitaryResponse: answered simple foreground request without TaskEngine.")
+                    return self._commit_response(new_state, floor_reply)
 
             # ── URL Auto-Browse: Fetch page content BEFORE inference ──────
             # When cognitive routing detected URLs in user input, we actually
@@ -2705,7 +2744,7 @@ class UnitaryResponsePhase(Phase):
                     )
                     if not direct_validation.ok:
                         direct_reply, direct_validation = self._select_valid_recovery_variant(
-                            self._build_minimal_live_voice_reply(new_state),
+                            self._build_minimal_live_voice_reply(new_state, objective),
                             direct_contract,
                         )
                     new_state.response_modifiers["dialogue_validation"] = direct_validation.to_dict()
@@ -3037,12 +3076,20 @@ class UnitaryResponsePhase(Phase):
 
             if not raw or not raw.strip() or len(raw.strip()) < 5:
                 if is_user_facing:
-                    raise TimeoutError(
-                        f"Foreground conversation lane returned no text within {request_timeout:.0f}s"
+                    rescued = self._shape_user_facing_response(
+                        str(raw or extracted_thought or ""),
+                        objective,
                     )
-                logger.info("UnitaryResponse: background generation returned empty/short text for origin=%s (len=%d)", routing_origin, len(raw) if raw else 0)
-                self._clear_background_generation(new_state, objective)
-                return new_state
+                    if rescued:
+                        raw = rescued
+                    else:
+                        raise TimeoutError(
+                            f"Foreground conversation lane returned no text within {request_timeout:.0f}s"
+                        )
+                else:
+                    logger.info("UnitaryResponse: background generation returned empty/short text for origin=%s (len=%d)", routing_origin, len(raw) if raw else 0)
+                    self._clear_background_generation(new_state, objective)
+                    return new_state
 
             response_text = raw.strip()
 
@@ -3050,7 +3097,7 @@ class UnitaryResponsePhase(Phase):
             if self._guard:
                 response_text, _, _ = self._guard.align(response_text)
             if is_user_facing:
-                response_text = self._shape_user_facing_response(response_text)
+                response_text = self._shape_user_facing_response(response_text, objective)
 
             async def _retry_dialogue(repair_block: str) -> str:
                 retry_messages = [dict(msg) for msg in messages]
@@ -3089,7 +3136,7 @@ class UnitaryResponsePhase(Phase):
                 if self._guard and retried_text:
                     retried_text, _, _ = self._guard.align(retried_text)
                 if is_user_facing and retried_text:
-                    retried_text = self._shape_user_facing_response(retried_text)
+                    retried_text = self._shape_user_facing_response(retried_text, objective)
                 return retried_text
 
             # Dialogue Contract Enforcement
@@ -3124,7 +3171,7 @@ class UnitaryResponsePhase(Phase):
                 if self._refusal:
                     response_text, _ = await self._refusal.process(user_input=objective, response=response_text, state=new_state)
                 if is_user_facing:
-                    response_text = self._shape_user_facing_response(response_text)
+                    response_text = self._shape_user_facing_response(response_text, objective)
 
                 final_validation = validate_dialogue_response(response_text, contract)
                 if is_user_facing and not final_validation.ok:
@@ -3159,6 +3206,7 @@ class UnitaryResponsePhase(Phase):
                         "low_signal_redirect",
                         "moderator_turn",
                         "prompt_fishing_closer",
+                        "corrupted_language",
                     }
                     stripped_response = str(response_text or "").strip()
                     only_grounding_complaints = (
@@ -3176,7 +3224,7 @@ class UnitaryResponsePhase(Phase):
                         )
                     else:
                         minimal, minimal_validation = self._select_valid_recovery_variant(
-                            self._build_minimal_live_voice_reply(new_state),
+                            self._build_minimal_live_voice_reply(new_state, objective),
                             contract,
                         )
                         logger.info(
@@ -3297,7 +3345,7 @@ class UnitaryResponsePhase(Phase):
             if recovered:
                 new_state.cognition.last_response = recovered
             else:
-                new_state.cognition.last_response = self._build_minimal_live_voice_reply(new_state)
+                new_state.cognition.last_response = self._build_minimal_live_voice_reply(new_state, objective)
             return new_state
 
     def _build_system_prompt(self, state: AuraState) -> str:

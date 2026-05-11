@@ -50,6 +50,8 @@ _USER_FACING_ORIGINS = frozenset({
     "websocket",
     "direct",
     "external",
+    "audit",
+    "simulate",
     "embodied_motor_reflex",
     "embodied",
     "reflex",
@@ -115,11 +117,29 @@ class InferenceGate:
         # The prompt may contain system prompts, stale conversation history from
         # memory retrieval, or fragments from previous sessions. Echoing it back
         # fabricates hallucinated statements the user never made.
+        try:
+            from core.synthesis import stabilize_user_facing_response
+
+            direct = stabilize_user_facing_response("", prompt)
+            if direct:
+                return direct
+        except Exception:
+            pass
         return (
-            "My reasoning engine hit a transient issue on this turn. "
-            "I'm recovering in the background — send your message again "
-            "and I should respond properly."
+            "I kept the turn. My local cortex hit turbulence, and I'm rebuilding the answer "
+            "without dropping the conversation."
         )
+
+    @staticmethod
+    def _stabilize_user_facing_text(text: str, prompt: str, *, is_user_facing: bool) -> str:
+        if not is_user_facing:
+            return str(text or "").strip()
+        try:
+            from core.synthesis import stabilize_user_facing_response
+
+            return stabilize_user_facing_response(str(text or ""), prompt)
+        except Exception:
+            return str(text or "").strip()
 
     @staticmethod
     def _log_task_exception(task: asyncio.Task) -> None:
@@ -2488,7 +2508,11 @@ class InferenceGate:
                 mesh_decision = get_mesh_cognition().decide(prompt, state=mesh_state)
                 if mesh_decision.handled:
                     context["mesh_cognition"] = mesh_decision.as_dict()
-                    return mesh_decision.response
+                    return self._stabilize_user_facing_text(
+                        mesh_decision.response,
+                        prompt,
+                        is_user_facing=True,
+                    )
             except Exception as _mesh_exc:  # pragma: no cover - defensive
                 logger.debug("Mesh-only path declined: %s", _mesh_exc)
 
@@ -3220,7 +3244,11 @@ class InferenceGate:
                                 **morpho_kwargs,
                             )
                     if text:
-                        return text
+                        return self._stabilize_user_facing_text(
+                            text,
+                            prompt,
+                            is_user_facing=_is_user_facing,
+                        )
 
                     # ── CORTEX RETRY: For user-facing requests, retry the primary model
                     # The stall detector reboots the worker, so we wait for recovery.
@@ -3272,7 +3300,11 @@ class InferenceGate:
                                 )
                             if text:
                                 logger.info("✅ %s retry %d succeeded (len=%d)", local_label, retry_attempt, len(text))
-                                return text
+                                return self._stabilize_user_facing_text(
+                                    text,
+                                    prompt,
+                                    is_user_facing=_is_user_facing,
+                                )
                                 
                         logger.warning("🧠 %s all retries failed.", local_label)
                         # For user-facing requests, skip brainstem — go straight to cloud
@@ -3333,7 +3365,11 @@ class InferenceGate:
                     if brainstem_text:
                         if fallback_label == PRIMARY_ENDPOINT:
                             primary_restored_inline = True
-                        return brainstem_text
+                        return self._stabilize_user_facing_text(
+                            brainstem_text,
+                            prompt,
+                            is_user_facing=_is_user_facing,
+                        )
                     logger.warning("🧠 Local fallback returned no text.")
                 finally:
                     if restore_primary and not primary_restored_inline:
@@ -3382,7 +3418,11 @@ class InferenceGate:
                         logger.info("🆘 [REFLEX] 1.5B CPU model produced response. Cortex recovery in background.")
                         if not self._cortex_recovery_in_progress:
                             get_task_tracker().create_task(self._ensure_cortex_recovery())
-                        return reflex_text
+                        return self._stabilize_user_facing_text(
+                            reflex_text,
+                            prompt,
+                            is_user_facing=True,
+                        )
             except Exception as reflex_err:
                 record_degradation('inference_gate', reflex_err)
                 record_degradation('inference_gate', reflex_err)
@@ -3494,7 +3534,11 @@ class InferenceGate:
                         record_degradation('inference_gate', exc)
                         record_degradation('inference_gate', exc)
                         logger.debug("Cloud output notification skipped: %s", exc)
-                    return result.strip()
+                    return self._stabilize_user_facing_text(
+                        result.strip(),
+                        prompt,
+                        is_user_facing=_is_user_facing,
+                    )
             
             # Try HealthRouter as secondary cloud path (also PII-scrubbed)
             router = ServiceContainer.get("llm_router", default=None)
@@ -3513,7 +3557,11 @@ class InferenceGate:
                         record_degradation('inference_gate', exc)
                         record_degradation('inference_gate', exc)
                         logger.debug("Router output notification skipped: %s", exc)
-                    return result.strip()
+                    return self._stabilize_user_facing_text(
+                        result.strip(),
+                        prompt,
+                        is_user_facing=_is_user_facing,
+                    )
         except Exception as cloud_err:
             record_degradation('inference_gate', cloud_err)
             record_degradation('inference_gate', cloud_err)

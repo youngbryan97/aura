@@ -15,7 +15,7 @@ from core.runtime.conversation_support import (
     update_conversational_intelligence,
 )
 from core.runtime import background_policy, response_policy
-from core.synthesis import strip_meta_commentary
+from core.synthesis import stabilize_user_facing_response, strip_meta_commentary
 
 from ..state.aura_state import AuraState, CognitiveMode
 from . import BasePhase
@@ -503,5 +503,9 @@ class ResponseGenerationPhase(BasePhase):
         
         # Apply aggressive centralized scrubbing
         text = strip_meta_commentary(text)
+        text = stabilize_user_facing_response(
+            text,
+            getattr(getattr(state, "cognition", None), "current_objective", "") or "",
+        )
         
         return (mumbling + text.strip()).strip()

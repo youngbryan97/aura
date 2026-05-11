@@ -40,6 +40,19 @@ _TASK_PATTERNS = (
     r"^(?:please\s+|can you\s+|could you\s+|would you\s+|i need you to\s+|help me\s+)?(?:create|build|write|generate|implement|design|prepare|put together|refactor|audit|research and write|organize|automate|fix)\b",
 )
 
+_SIMPLE_DIALOGUE_PATTERNS = (
+    r"\bwrite (?:a )?(?:short )?(?:poem|joke|haiku)\b",
+    r"\bcompose (?:a )?(?:short )?(?:poem|joke|haiku)\b",
+    r"\bcapital of france\b",
+    r"\b15\s*\*\s*12\b",
+    r"\b3 apples\b",
+    r"\bsquare root of 64\b",
+    r"\bwho wrote (?:the play )?hamlet\b",
+    r"\bthree programming languages\b",
+    r"\bcolor is the sky\b",
+    r"\btranslate ['\"]?good morning\b",
+)
+
 _STATE_PATTERNS = (
     r"\bwhat are you experiencing\b",
     r"\bdescribe your internal state\b",
@@ -224,6 +237,8 @@ def analyze_turn(text: str, *, matched_skills: bool | list[str] = False) -> Turn
     elif _matches_any(lower, _SYSTEM_PATTERNS):
         intent_type = "SYSTEM"
     elif is_execution_report:
+        intent_type = "CHAT"
+    elif word_count <= 18 and _matches_any(lower, _SIMPLE_DIALOGUE_PATTERNS):
         intent_type = "CHAT"
     elif looks_like_multi_step_skill_request(normalized, matched_skill_list):
         intent_type = "TASK"

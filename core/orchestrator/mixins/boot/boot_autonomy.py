@@ -1,11 +1,23 @@
 from core.runtime.errors import record_degradation
 import asyncio
 import logging
+import os
 from typing import Any, Optional
 
 from core.container import ServiceContainer
 
 logger = logging.getLogger(__name__)
+
+
+def _env_flag(name: str, default: bool = False) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _foreground_only_runtime() -> bool:
+    return _env_flag("AURA_FOREGROUND_ONLY", False)
 
 
 class BootAutonomyMixin:
@@ -107,6 +119,9 @@ class BootAutonomyMixin:
 
     async def _init_evolution_orchestrator(self):
         """Initialize the Singularity Path Evolution Orchestrator."""
+        if _foreground_only_runtime() or not _env_flag("AURA_ENABLE_EVOLUTION_ORCHESTRATOR", True):
+            logger.info("Evolution Orchestrator disabled for foreground-only boot.")
+            return
         try:
             from core.evolution.evolution_orchestrator import get_evolution_orchestrator
             evo = get_evolution_orchestrator()
@@ -118,6 +133,9 @@ class BootAutonomyMixin:
 
     async def _init_singularity_loops(self):
         """Initialize the closed-loop evolutionary wiring."""
+        if _foreground_only_runtime() or not _env_flag("AURA_ENABLE_SINGULARITY_LOOPS", True):
+            logger.info("Singularity loops disabled for foreground-only boot.")
+            return
         try:
             from core.evolution.singularity_loops import get_singularity_loops
             loops = get_singularity_loops()
@@ -495,14 +513,17 @@ class BootAutonomyMixin:
             logger.error("RefusalEngine init failed: %s", e)
 
         # AutonomousSelfModification — Will-authorized self-modification
-        try:
-            from core.autonomy.self_modification import get_autonomous_self_modification
-            asm = get_autonomous_self_modification()
-            await asm.start()
-            logger.info("🧬 AutonomousSelfModification online — Will-gated evolution active.")
-        except Exception as e:
-            record_degradation('boot_autonomy', e)
-            logger.error("AutonomousSelfModification init failed: %s", e)
+        if _foreground_only_runtime() or not _env_flag("AURA_ENABLE_AUTONOMOUS_SELF_MODIFICATION", True):
+            logger.info("AutonomousSelfModification disabled for foreground-only boot.")
+        else:
+            try:
+                from core.autonomy.self_modification import get_autonomous_self_modification
+                asm = get_autonomous_self_modification()
+                await asm.start()
+                logger.info("🧬 AutonomousSelfModification online — Will-gated evolution active.")
+            except Exception as e:
+                record_degradation('boot_autonomy', e)
+                logger.error("AutonomousSelfModification init failed: %s", e)
 
         # ScarFormation — behavioral scars from critical experiences
         try:
@@ -545,15 +566,18 @@ class BootAutonomyMixin:
             logger.error("STaR Reasoner init failed: %s", e)
 
         # ReimplementationLab — register but DON'T start (gated by memory/Zenith)
-        try:
-            from core.self_improvement.reimplementation_lab import ReimplementationLab
-            from core.config import config
-            lab = ReimplementationLab(project_root=str(config.paths.project_root))
-            ServiceContainer.register_instance("reimplementation_lab", lab, required=False)
-            logger.info("🔬 ReimplementationLab REGISTERED (gated — awaiting resource clearance)")
-        except Exception as e:
-            record_degradation('boot_autonomy', e)
-            logger.error("ReimplementationLab registration failed: %s", e)
+        if _foreground_only_runtime() or not _env_flag("AURA_REGISTER_REIMPLEMENTATION_LAB", True):
+            logger.info("ReimplementationLab disabled for foreground-only boot.")
+        else:
+            try:
+                from core.self_improvement.reimplementation_lab import ReimplementationLab
+                from core.config import config
+                lab = ReimplementationLab(project_root=str(config.paths.project_root))
+                ServiceContainer.register_instance("reimplementation_lab", lab, required=False)
+                logger.info("🔬 ReimplementationLab REGISTERED (gated — awaiting resource clearance)")
+            except Exception as e:
+                record_degradation('boot_autonomy', e)
+                logger.error("ReimplementationLab registration failed: %s", e)
 
         # ContinuousSimulatorLoop — register but DON'T start (gated by memory)
         try:
@@ -602,6 +626,15 @@ class BootAutonomyMixin:
     async def _init_proactive_systems(self):
         """Initialize curiosity, proactive communication, and belief sync with granular error boundaries."""
         logger.info("🛠️ _init_proactive_systems starting")
+        if _foreground_only_runtime() or not _env_flag("AURA_ENABLE_PROACTIVE_SYSTEMS", True):
+            logger.info("Proactive systems disabled for foreground-only boot.")
+            ServiceContainer.register_instance("proactive_comm", None, required=False)
+            ServiceContainer.register_instance("sensory_motor_cortex", None, required=False)
+            ServiceContainer.register_instance("autonomous_initiative_loop", None, required=False)
+            ServiceContainer.register_instance("conversational_momentum_engine", None, required=False)
+            self.proactive_comm = None
+            self.research_cycle = None
+            return
 
         # We need the tracker for starting async tasks
         from core.utils.task_tracker import get_task_tracker
@@ -628,14 +661,18 @@ class BootAutonomyMixin:
             logger.error("Failed to apply Presence Patch: %s", e)
 
         # 🔬 Research Cycle Daemon — autonomous knowledge pursuit during idle
-        try:
-            from core.autonomy.research_cycle import start_research_daemon
-            self.research_cycle = await start_research_daemon(self)
-            logger.info("🔬 Research Cycle daemon activated.")
-        except Exception as e:
-            record_degradation('boot_autonomy', e)
-            logger.error("Research Cycle init failed: %s", e)
+        if _foreground_only_runtime() or not _env_flag("AURA_ENABLE_RESEARCH_CYCLE", True):
+            logger.info("Research Cycle disabled for foreground-only boot.")
             self.research_cycle = None
+        else:
+            try:
+                from core.autonomy.research_cycle import start_research_daemon
+                self.research_cycle = await start_research_daemon(self)
+                logger.info("🔬 Research Cycle daemon activated.")
+            except Exception as e:
+                record_degradation('boot_autonomy', e)
+                logger.error("Research Cycle init failed: %s", e)
+                self.research_cycle = None
 
         logger.info("🛠️ _init_proactive_systems complete")
 
@@ -697,6 +734,12 @@ class BootAutonomyMixin:
 
     async def _init_sensory_motor_integration_subsystem(self, tracker):
         """Initialize Sensory-Motor Integration components."""
+        if _foreground_only_runtime() or not _env_flag("AURA_ENABLE_SENSORIMOTOR_GROUNDING", True):
+            logger.info("Sensory-Motor Integration disabled for foreground-only boot.")
+            ServiceContainer.register_instance("sensory_motor_cortex", None, required=False)
+            ServiceContainer.register_instance("autonomous_initiative_loop", None, required=False)
+            ServiceContainer.register_instance("conversational_momentum_engine", None, required=False)
+            return
         try:
             from core.autonomous_initiative_loop import AutonomousInitiativeLoop
             from core.conversational_momentum_engine import (

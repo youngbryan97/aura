@@ -50,6 +50,17 @@ logger = logging.getLogger("Aura.Core.Orchestrator")
 from core.brain.llm.continuous_substrate import ContinuousSubstrate
 
 
+def _env_flag(name: str, default: bool = False) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _foreground_only_runtime() -> bool:
+    return _env_flag("AURA_FOREGROUND_ONLY", False)
+
+
 # Phase 2: Supervisor & Registry
 from core.supervisor.tree import get_tree, ActorSpec
 from core.supervisor.registry import get_task_registry, TaskStatus
@@ -552,19 +563,20 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
             logger.info("🚩 [ORCHESTRATOR] Sensory Actor started.")
                 
             # --- Live Multimodal Vision Start ---
-            try:
-                from core.config import config
-            # Redundant local import removed
-                from core.senses.continuous_vision import ContinuousSensoryBuffer
-                
-                vision_buffer = ContinuousSensoryBuffer(data_dir=config.paths.data_dir)
-                ServiceContainer.register_instance("continuous_vision", vision_buffer)
-                vision_buffer.start()
-                logger.info("👁️ Continuous Sensory Buffer registered and started.")
-            except Exception as e:
-                record_degradation('main', e)
-                record_degradation('main', e)
-                logger.error("Failed to start Continuous Sensory Buffer: %s", e)
+            if _foreground_only_runtime() or not _env_flag("AURA_ENABLE_PROACTIVE_VISION", True):
+                logger.info("Continuous Sensory Buffer disabled for foreground-only boot.")
+            else:
+                try:
+                    from core.senses.continuous_vision import ContinuousSensoryBuffer
+
+                    vision_buffer = ContinuousSensoryBuffer(data_dir=config.paths.data_dir)
+                    ServiceContainer.register_instance("continuous_vision", vision_buffer)
+                    vision_buffer.start()
+                    logger.info("👁️ Continuous Sensory Buffer registered and started.")
+                except Exception as e:
+                    record_degradation('main', e)
+                    record_degradation('main', e)
+                    logger.error("Failed to start Continuous Sensory Buffer: %s", e)
             if hasattr(self, 'belief_sync') and self.belief_sync:
                 await asyncio.wait_for(self.belief_sync.start(), timeout=15.0)
             if hasattr(self, 'attention_summarizer') and self.attention_summarizer:
@@ -912,7 +924,10 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                 ServiceContainer.register_instance("circadian", _circadian)
                 ServiceContainer.register_instance("experience_consolidator", _consolidator)
                 # Start consolidation background loop
-                self._fire_and_forget(_consolidator.start(), name="orchestrator.experience_consolidator.start")
+                if _foreground_only_runtime():
+                    logger.info("ExperienceConsolidator background loop disabled for foreground-only boot.")
+                else:
+                    self._fire_and_forget(_consolidator.start(), name="orchestrator.experience_consolidator.start")
                 logger.info("🌱 Substrate layer online (CRSMLoraBridge + CircadianEngine + ExperienceConsolidator)")
             except Exception as _e:
                 record_degradation('main', _e)
@@ -940,12 +955,14 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                 self.brainstem = None
 
             # Start Background Loops
-            if hasattr(self, 'consciousness') and self.consciousness:
+            if not _foreground_only_runtime() and hasattr(self, 'consciousness') and self.consciousness:
                 res = self.consciousness.start()
                 if res and inspect.isawaitable(res):
                     await asyncio.wait_for(res, timeout=15.0)
                 logger.info("✓ Consciousness stream activated")
-            if hasattr(self, 'curiosity') and self.curiosity:
+            elif _foreground_only_runtime():
+                logger.info("Consciousness/curiosity background loops disabled for foreground-only boot.")
+            if not _foreground_only_runtime() and hasattr(self, 'curiosity') and self.curiosity:
                 if hasattr(self.curiosity, 'start'):
                      res = self.curiosity.start()
                      if res and inspect.isawaitable(res):
@@ -954,7 +971,10 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
             
             # Start Aegis Sentinel (Phase XXIII)
             from core.utils.task_tracker import get_task_tracker
-            get_task_tracker().track_task(self._aegis_sentinel())
+            if _foreground_only_runtime():
+                logger.info("Aegis Sentinel disabled for foreground-only boot.")
+            else:
+                get_task_tracker().track_task(self._aegis_sentinel())
             
             # Start Proactive Communication (v4.3)
             if hasattr(self, 'proactive_comm') and self.proactive_comm:
@@ -965,11 +985,11 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                 logger.info("✓ Proactive Communication loop started")
             
             # Start Narrative Engine (v11.0)
-            if hasattr(self, 'narrative_engine') and self.narrative_engine:
+            if not _foreground_only_runtime() and hasattr(self, 'narrative_engine') and self.narrative_engine:
                 await asyncio.wait_for(self.narrative_engine.start(), timeout=15.0)
             
             # Start Agency Core background tasks
-            if hasattr(self, 'agency_core') and self.agency_core:
+            if not _foreground_only_runtime() and hasattr(self, 'agency_core') and self.agency_core:
                 await asyncio.wait_for(self.agency_core.initialize(), timeout=15.0)
             
             # Start Sovereign Ears
@@ -1072,7 +1092,8 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                     logger.info("✓ Event Loop Monitor active (reused from hardening)")
                 else:
                     from core.utils.concurrency import EventLoopMonitor
-                    self._event_loop_monitor = EventLoopMonitor(threshold=0.25, interval=1.0)
+                    loop_lag_threshold = 1.0 if _foreground_only_runtime() else 0.25
+                    self._event_loop_monitor = EventLoopMonitor(threshold=loop_lag_threshold, interval=1.0)
                     self._event_loop_monitor.start()
                     logger.info("✓ Event Loop Monitor active")
             except Exception as el_err:
@@ -1083,12 +1104,20 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
             # ---------------------------------------------------------
             # HARDENING: Register Periodic Metabolic/Substrate Tasks
             # ---------------------------------------------------------
-            await asyncio.wait_for(self._register_scheduled_tasks(), timeout=10.0)
-            # [STABILITY FIX] scheduler.start() is a continuous loop. Must run in background.
-            self._fire_and_forget(scheduler.start(), name="orchestrator.scheduler.start")
+            if _foreground_only_runtime():
+                logger.info("Scheduler background tasks disabled for foreground-only boot.")
+            else:
+                await asyncio.wait_for(self._register_scheduled_tasks(), timeout=10.0)
+                # [STABILITY FIX] scheduler.start() is a continuous loop. Must run in background.
+                self._fire_and_forget(scheduler.start(), name="orchestrator.scheduler.start")
 
             # 🧠 [PEER MODE] Evolution 1: MindTick / cognitive_loop becomes the PRIMARY heartbeat
-            if hasattr(self, 'mind_tick') and self.mind_tick and not config.skeletal_mode:
+            if (
+                not _foreground_only_runtime()
+                and hasattr(self, 'mind_tick')
+                and self.mind_tick
+                and not config.skeletal_mode
+            ):
                 # [STABILITY FIX] mind_tick.start() is a continuous loop. Must run in background.
                 self._fire_and_forget(self.mind_tick.start(), name="orchestrator.mind_tick.start")
                 logger.info("🧠 Peer Mode: MindTick elevated as primary sovereign thread")
@@ -1159,6 +1188,8 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                         logger.info("🛠️ Peer Mode: Sovereign self-modification loop active")
                     else:
                         logger.info("🛠️ Peer Mode: Sovereign self-modification loop suppressed by Executive: %s", self_mod_reason)
+            elif _foreground_only_runtime():
+                logger.info("Peer Mode background loops disabled for foreground-only boot.")
             elif config.skeletal_mode:
                 logger.info("💀 Skeletal Mode: High-CPU autonomous subsystems (MindTick, Swarm, Self-Mod) bypassed.")
 

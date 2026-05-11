@@ -44,6 +44,13 @@ _DIR.mkdir(parents=True, exist_ok=True)
 _LEDGER = _DIR / "events.jsonl"
 
 
+def _env_flag(name: str, default: bool = False) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on", "enabled"}
+
+
 @dataclass
 class WatchEntry:
     name: str
@@ -120,7 +127,33 @@ class SelfHealing:
             age = now - w.last_heartbeat_at
             if age <= w.expected_interval_s * 2.5:
                 continue
+            if self._foreground_runtime_busy():
+                w.last_heartbeat_at = now
+                self._append_record(
+                    {
+                        "when": now,
+                        "name": w.name,
+                        "stale_for_s": age,
+                        "result": "deferred_foreground_busy",
+                    }
+                )
+                continue
             await self._heal(w, age)
+
+    def _foreground_runtime_busy(self) -> bool:
+        try:
+            from core.container import ServiceContainer
+
+            orch = ServiceContainer.get("orchestrator", default=None) or ServiceContainer.get("aura_runtime", default=None)
+            if orch is None:
+                return False
+            status = getattr(orch, "status", None)
+            if not bool(getattr(status, "is_processing", False)):
+                return False
+            return not bool(getattr(orch, "_current_task_is_autonomous", False))
+        except Exception as exc:
+            record_degradation("self_healing", exc)
+            return False
 
     async def _heal(self, w: WatchEntry, age: float) -> None:
         record = {
@@ -132,7 +165,7 @@ class SelfHealing:
         try:
             if w.restarts >= 3:
                 module_path = self._module_path_for_watch(w)
-                if module_path:
+                if module_path and _env_flag("AURA_ENABLE_DEEP_REPAIR", False):
                     logger.warning("Deep repair triggered for %s (%s)", w.name, module_path)
                     scheduled = self.schedule_deep_repair(
                         module_path,
@@ -144,7 +177,15 @@ class SelfHealing:
                     w.restarts = 0
                     w.last_heartbeat_at = time.time()
                 else:
-                    record["result"] = "deep_repair_failed_no_module_path"
+                    record["result"] = (
+                        "deep_repair_disabled"
+                        if module_path
+                        else "deep_repair_failed_no_module_path"
+                    )
+                    w.restarts = 0
+                    w.last_heartbeat_at = time.time()
+                    self._append_record(record)
+                    return
 
             if record.get("result") not in (
                 "deep_repair_scheduled",

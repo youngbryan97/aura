@@ -23,6 +23,55 @@ import re
 
 logger = logging.getLogger("MLXWorker")
 
+_CORRUPT_LANGUAGE_MARKERS = re.compile(
+    r"\b(?:xublcate|ingediate|evocer)\b",
+    re.IGNORECASE,
+)
+
+
+def _safe_float(value: Any, default: float) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _safe_int(value: Any, default: int) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _contains_corrupted_language(text: str) -> bool:
+    try:
+        from core.phases.dialogue_policy import contains_corrupted_language
+
+        return contains_corrupted_language(text)
+    except Exception:
+        return bool(_CORRUPT_LANGUAGE_MARKERS.search(str(text or "")))
+
+
+def _prepare_clean_retry_kwargs(kwargs: dict[str, Any], *, structured: bool = False) -> None:
+    """Reset sampling after a corrupt/looping draft instead of amplifying it."""
+    kwargs.pop("sampler", None)
+    if structured:
+        kwargs["temperature"] = 0.0
+        kwargs["top_p"] = 1.0
+    else:
+        kwargs["temperature"] = min(_safe_float(kwargs.get("temperature"), 0.7), 0.35)
+        kwargs["top_p"] = min(_safe_float(kwargs.get("top_p"), 0.9), 0.85)
+        kwargs["min_p"] = max(_safe_float(kwargs.get("min_p"), 0.0), 0.03)
+    kwargs["repetition_penalty"] = max(
+        _safe_float(kwargs.get("repetition_penalty"), 1.1),
+        1.18,
+    )
+    kwargs["repetition_context_size"] = max(
+        _safe_int(kwargs.get("repetition_context_size"), 64),
+        96,
+    )
+
+
 def _sanitize_telemetry_leakage(text: str) -> Optional[str]:
     """Strip leaked internal telemetry labels and paths that occasionally 
     slip out from the LoRA fine-tune weights during specific topics.
@@ -52,6 +101,10 @@ def _sanitize_telemetry_leakage(text: str) -> Optional[str]:
     # 3) Extreme numeric sequences. If a single word/number has more than 20 digits, it's a hallucination.
     if re.search(r'\d{20,}', text):
         return None
+
+    # 4) Corrupted lexical output is a model-state failure, not a usable answer.
+    if _contains_corrupted_language(text):
+        return None
             
     return text
 
@@ -71,6 +124,37 @@ def _strip_leading_chatml_prefix(text: str) -> str:
                 cleaned = cleaned[len(prefix):].lstrip("\n")
                 changed = True
     return cleaned
+
+
+_ROLE_CONTINUATION_RE = re.compile(
+    r"(?is)(?<=\S)(?:\s+|<\|im_end\|>\s*|<\|im_start\|>\s*)"
+    r"(?:User|Human|System|Assistant)\s*[:：]?.*$"
+)
+_LEADING_GENERATION_ROLE_RE = re.compile(
+    r"^\s*(?:User|Human|Assistant|Aura|System)\s*[:：]?\s*",
+    re.IGNORECASE,
+)
+_USER_CONTINUATION_NO_COLON_RE = re.compile(
+    r"(?is)(?<=\S)\s+(?:User|Human)\s+"
+    r"(?=(?:what|who|when|where|why|how|can|could|would|if|i\b|you\b|"
+    r"yes\b|no\b|tell\b|translate\b|name\b|write\b|hello\b|hi\b|[\"'0-9])).*$"
+)
+_ROLE_SUFFIX_RE = re.compile(r"(?is)_user\b.*$")
+
+
+def _truncate_role_continuation(text: str) -> tuple[str, bool]:
+    """Clip generation when the model starts simulating another chat turn."""
+    cleaned = _strip_leading_chatml_prefix(str(text or ""))
+    for _ in range(2):
+        stripped = _LEADING_GENERATION_ROLE_RE.sub("", cleaned).lstrip()
+        if stripped == cleaned:
+            break
+        cleaned = stripped
+    original = cleaned
+    cleaned = _ROLE_CONTINUATION_RE.sub("", cleaned)
+    cleaned = _USER_CONTINUATION_NO_COLON_RE.sub("", cleaned)
+    cleaned = _ROLE_SUFFIX_RE.sub("", cleaned)
+    return cleaned.strip(), cleaned != original
 
 
 def _should_emit_generation_progress(
@@ -771,7 +855,13 @@ def _mlx_worker_loop(
                 if logits_processors:
                     kwargs["logits_processors"] = logits_processors
                 
-                stop_sequences = ["<|im_end|>", "<|im_start|>", "<|im_start|>user", "<|im_start|>system", "<|im_start|>assistant", "User:", "Assistant:"]
+                stop_sequences = [
+                    "<|im_end|>", "<|im_start|>", "<|im_start|>user",
+                    "<|im_start|>system", "<|im_start|>assistant",
+                    "User:", "\nUser", "Human:", "Assistant:",
+                    "Aura:", "\nAura:",
+                ]
+
                 
                 try:
                     from mlx_lm.generate import stream_generate
@@ -880,7 +970,7 @@ def _mlx_worker_loop(
                                         prompt_cache_lru.insert_cache(model_key, list(tokens), response.prompt_cache)
                                     
                                     current_response += response.text
-                                    current_response = _strip_leading_chatml_prefix(current_response)
+                                    current_response, role_continuation_hit = _truncate_role_continuation(current_response)
 
                                     # ── Sentinel: feed every token ────────────────────
                                     if sentinel is not None:
@@ -929,7 +1019,7 @@ def _mlx_worker_loop(
                                         logger.warning("🏁 [WORKER] Hard token limit (8192) reached. Truncating.")
                                         break
 
-                                    stop_hit = False
+                                    stop_hit = role_continuation_hit
                                     for stop in stop_sequences:
                                         stop_index = current_response.find(stop)
                                         if stop_index > 0:
@@ -958,16 +1048,7 @@ def _mlx_worker_loop(
                                         logger.warning(f"⚠️ [WORKER] Retrying generation cleanly after loop abort (attempt {internal_attempt + 1})...")
                                         if prompt_cache_lru is not None: prompt_cache_lru.clear()
                                         if mx and device != "cpu": _clear_mlx_cache(mx)
-                                        
-                                        # Bump parameters slightly to escape the generative rut
-                                        # [v58] Rebuild sampler instead of raw temperature kwarg (new mlx_lm API)
-                                        try:
-                                            from mlx_lm.sample_utils import make_sampler
-                                            _old_temp = kwargs.pop("temperature", 0.7)
-                                            _new_temp = min(1.0, _old_temp + 0.1)
-                                            kwargs["sampler"] = make_sampler(temp=_new_temp, top_p=1.0)
-                                        except ImportError:
-                                            kwargs["temperature"] = min(1.0, kwargs.get("temperature", 0.7) + 0.1)
+                                        _prepare_clean_retry_kwargs(kwargs, structured=bool(schema))
                                         if "logits_processors" in kwargs:
                                             # We just recreate the logit processors if they exist so it catches the loop
                                             pass
@@ -1017,12 +1098,11 @@ def _mlx_worker_loop(
                             except (AttributeError, RuntimeError) as exc:
                                 logger.debug("Prompt cache clear failed after sanitizer retry: %s", exc)
                             if mx and device != "cpu": _clear_mlx_cache(mx)
-                            
-                            kwargs["temperature"] = min(1.0, kwargs.get("temperature", 0.7) + 0.1)
+                            _prepare_clean_retry_kwargs(kwargs, structured=bool(schema))
                             continue
                         else:
-                            logger.error("🚨 [WORKER] Out of retries for hallucination. Falling back to reflex message.")
-                            sanitized_text = "I experienced a minor cognitive routing fault while processing that. Can you rephrase it?"
+                            logger.error("🚨 [WORKER] Out of retries for hallucination. Returning empty text for caller-side recovery.")
+                            sanitized_text = ""
                             
                     response_text = sanitized_text
                     
@@ -1093,7 +1173,12 @@ def _mlx_worker_loop(
                 if logits_processors:
                     kwargs["logits_processors"] = logits_processors
 
-                stop_sequences = ["<|im_end|>", "<|im_start|>", "<|im_start|>user", "<|im_start|>system", "<|im_start|>assistant", "User:", "Assistant:"]
+                stop_sequences = [
+                    "<|im_end|>", "<|im_start|>", "<|im_start|>user",
+                    "<|im_start|>system", "<|im_start|>assistant",
+                    "User:", "\nUser", "Human:", "Assistant:",
+                    "Aura:", "\nAura:",
+                ]
                 
                 try:
                     from mlx_lm.generate import stream_generate
@@ -1141,7 +1226,7 @@ def _mlx_worker_loop(
                                 token_count += 1
                                 token_text = response.text
                                 full_text += token_text
-                                full_text = _strip_leading_chatml_prefix(full_text)
+                                full_text, role_continuation_hit = _truncate_role_continuation(full_text)
 
                                 # ── Sentinel: mid-stream intervention ─────
                                 if stream_sentinel is not None:
@@ -1197,7 +1282,7 @@ def _mlx_worker_loop(
                                     logger.warning("🏁 [WORKER] Hard token limit (8192) reached. Truncating.")
                                     break
 
-                                stop_hit = False
+                                stop_hit = role_continuation_hit
                                 for stop in stop_sequences:
                                     stop_index = full_text.find(stop)
                                     if stop_index > 0:

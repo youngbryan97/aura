@@ -32,6 +32,12 @@ class OutputFormatterMixin:
         """Personality-driven output filtering (Aura v10.0)."""
         if not text:
             return ""
+        try:
+            from core.synthesis import stabilize_user_facing_response
+
+            text = stabilize_user_facing_response(text)
+        except Exception:
+            pass
 
         # Identity Flux Guard: Neutralize assistant-speak
         banned_phrases = {
@@ -60,6 +66,12 @@ class OutputFormatterMixin:
                     styled = pe.apply_lexical_style(text)
                     if isinstance(styled, str):
                         text = styled
+                try:
+                    from core.synthesis import stabilize_user_facing_response
+
+                    text = stabilize_user_facing_response(text)
+                except Exception:
+                    pass
                 return text
                 if inspect.isawaitable(filtered):
                     _dispose_awaitable(filtered)

@@ -124,7 +124,9 @@ class VoicePresence:
             self._tts = DummyTTS()
             
         self._running = False
-        self._voice_enabled = True
+        self._voice_enabled = os.environ.get("AURA_VOICE_SILENT", "0") != "1"
+        if not self._voice_enabled:
+            logger.info("🔊 VoicePresence: Muted (AURA_VOICE_SILENT=1)")
 
     async def start(self) -> None:
         self._running = True

@@ -59,6 +59,9 @@ class ContinuousSensoryBuffer:
 
     def start(self):
         """Starts the background rolling capture loop."""
+        if os.getenv("AURA_HEADLESS", "0").strip().lower() in {"1", "true", "yes", "on"} or os.getenv("AURA_ENABLE_PROACTIVE_VISION", "1").strip().lower() in {"0", "false", "no", "off"}:
+            logger.info("👁️ Continuous Sensory Buffer disabled by headless/foreground configuration.")
+            return
         if not self._is_active:
             if self._mss_module is None and not self.camera_enabled:
                 logger.warning("👁️ Continuous Sensory Buffer not started: no capture backends are available.")

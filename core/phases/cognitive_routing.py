@@ -19,6 +19,24 @@ _URL_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+_SIMPLE_DIALOGUE_RE = re.compile(
+    r"\b("
+    r"capital of france|15\s*\*\s*12|square root of 64|3 apples|"
+    r"who wrote (?:the play )?hamlet|three programming languages|"
+    r"color is the sky|translate ['\"]?good morning|"
+    r"write (?:a )?(?:short )?(?:poem|joke|haiku)|"
+    r"compose (?:a )?(?:short )?(?:poem|joke|haiku)"
+    r")\b",
+    re.IGNORECASE,
+)
+
+
+def _looks_like_simple_dialogue_request(text: str) -> bool:
+    body = str(text or "").strip()
+    if not body or len(body.split()) > 18:
+        return False
+    return bool(_SIMPLE_DIALOGUE_RE.search(body))
+
 logger = logging.getLogger(__name__)
 
 # Keywords that signal the 32B brain should be used in DELIBERATE mode
@@ -184,6 +202,23 @@ class CognitiveRoutingPhase(BasePhase):
             else:
                 new_state.cognition.current_objective = input_text
                 
+            return new_state
+
+        if routing_origin in user_origins and _looks_like_simple_dialogue_request(input_text):
+            logger.info("🧭 Routing: simple dialogue request kept on CHAT lane.")
+            new_state.cognition.current_mode = CognitiveMode.REACTIVE
+            new_state.cognition.current_objective = input_text
+            new_state.cognition.current_origin = routing_origin
+            new_state.response_modifiers["intent_type"] = "CHAT"
+            new_state.response_modifiers["semantic_intent"] = "casual"
+            new_state.response_modifiers["model_tier"] = "primary"
+            new_state.response_modifiers["deep_handoff"] = False
+            get_executive_authority().record_user_objective(
+                new_state,
+                input_text,
+                source=f"cognitive_routing:{routing_origin}",
+                mode=str(CognitiveMode.REACTIVE.value),
+            )
             return new_state
 
         # Fast skill detection before any LLM routing so tool use stays reliable

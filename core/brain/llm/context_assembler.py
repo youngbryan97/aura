@@ -111,7 +111,7 @@ class ContextAssembler:
             logger.debug("ContextAssembler skill relevance detection skipped for %s: %s", resolved_skill, exc)
 
         markers = {
-            "clock": ("time", "clock", "date", "what day", "today", "hour", "minute", "timezone"),
+            "clock": ("what time", "current time", "the time", "what date", "current date", "what day", "clock", "hour", "minute", "timezone"),
             "environment_info": ("weather", "temperature", "location", "timezone", "environment"),
             "memory_ops": ("remember", "memory", "don't forget", "make note", "what do you remember", "what do you know about me"),
             "system_proprioception": ("system status", "your status", "your health", "cpu", "ram", "memory usage", "running smoothly"),

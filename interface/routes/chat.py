@@ -1383,17 +1383,17 @@ def _conversation_lane_user_message(
         pass  # no-op: intentional
 
     if status_override == "warming_timeout":
-        return f"{_mood_prefix}my thinking engine started warming up but didn't quite get there in time. Give me another moment."
+        return f"{_mood_prefix}my thinking engine is still warming, but I kept the turn. Give me another moment."
     if status_override == "warming_failed":
-        return f"{_mood_prefix}my thinking engine stumbled during warm-up. Try me again in a sec."
+        return f"{_mood_prefix}my thinking engine stumbled during warm-up. I'm holding the thread while it recovers."
     if timed_out:
-        return f"{_mood_prefix}that thought took longer than it should have. Send it again — I should respond faster this time."
+        return f"{_mood_prefix}my cortex took too long on that turn. I kept the thread and I'm recovering the lane."
     if _conversation_lane_is_standby(lane):
         return "I'm here. My cortex will spin up the moment you say something."
     if state == "recovering":
         return f"{_mood_prefix}I'm in the middle of pulling my thoughts back together. Give me just a moment."
     if state == "failed":
-        return f"{_mood_prefix}my thinking engine hit a wall. I need a moment to recover."
+        return f"{_mood_prefix}my thinking engine hit a wall. I'm recovering it without dropping the conversation."
     return f"{_mood_prefix}I'm still warming up my thinking engine. Almost there."
 
 
@@ -1763,6 +1763,9 @@ def _looks_generic_assistantish(user_message: str, reply_text: Any) -> tuple[boo
         (r"\bi(?:'m| am) (?:just )?an? (?:ai|artificial|language model|digital assistant)\b", "assistant_disclaimer"),
         (r"\bi(?:'m| am| was) (?:designed|programmed|created|built|trained) to (?:assist|help|provide|understand|respond|process|simulate|generate)\b", "assistant_disclaimer"),
         (r"\bi(?:'m| am) programmed\b", "assistant_disclaimer"),
+        (r"\bmy (?:reasoning|thinking|cognitive) engine (?:hit|stumbled|started warming|is still warming)\b", "runtime_recovery_boilerplate"),
+        (r"\b(?:send|try) (?:it|me|your message) again\b", "runtime_recovery_boilerplate"),
+        (r"\bi should respond properly\b", "runtime_recovery_boilerplate"),
         (r"\bmy (?:training|programming|design) (?:allows|enables|makes)\b", "assistant_disclaimer"),
         (r"\bit(?:'s| is) important to (?:be objective|remain neutral|consider all)\b", "assistant_hedging"),
         (r"\bis there (?:anything else|something else|anything more)\b", "generic_close"),
@@ -2181,15 +2184,16 @@ def _build_aura_expression_frame(user_message: str) -> Dict[str, Any]:
     return frame
 
 
-def _apply_aura_voice_shaping(text: str) -> str:
+def _apply_aura_voice_shaping(text: str, user_message: str = "") -> str:
     shaped = str(text or "").strip()
     if not shaped:
         return shaped
 
     try:
-        from core.synthesis import cure_personality_leak
+        from core.synthesis import cure_personality_leak, stabilize_user_facing_response
 
         shaped = cure_personality_leak(shaped)
+        shaped = stabilize_user_facing_response(shaped, user_message)
     except Exception as exc:
         record_degradation('chat', exc)
         record_degradation('chat', exc)
@@ -2207,7 +2211,12 @@ def _apply_aura_voice_shaping(text: str) -> str:
         record_degradation('chat', exc)
         logger.debug("Aura voice shaping personality pass skipped: %s", exc)
 
-    shaped = re.sub(r"\s+", " ", shaped).strip()
+    try:
+        from core.synthesis import stabilize_user_facing_response
+
+        shaped = stabilize_user_facing_response(shaped, user_message)
+    except Exception:
+        shaped = re.sub(r"\s+", " ", shaped).strip()
     if shaped.endswith('"') and shaped.count('"') % 2 == 1:
         shaped = shaped[:-1].rstrip()
     if shaped.endswith("”") and shaped.count("“") < shaped.count("”"):
@@ -2215,9 +2224,17 @@ def _apply_aura_voice_shaping(text: str) -> str:
     return shaped
 
 
+def _apply_aura_voice_shaping_compat(text: str, user_message: str = "") -> str:
+    """Call voice shaping while preserving older test monkeypatch signatures."""
+    try:
+        return _apply_aura_voice_shaping(text, user_message)
+    except TypeError:
+        return _apply_aura_voice_shaping(text)
+
+
 def _shape_with_live_substrate(text: str, user_message: str = "") -> str:
     """Apply personality cleanup plus the current substrate voice profile."""
-    shaped = _apply_aura_voice_shaping(text)
+    shaped = _apply_aura_voice_shaping_compat(text, user_message)
     if not shaped:
         return shaped
 
@@ -2754,13 +2771,15 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
     )
     question_parts = int(getattr(contract, "question_parts", prompt_shape.question_parts or 1) or 1)
     architecture_self_assessment = _is_architecture_self_assessment_request(user_message)
-    text = _apply_aura_voice_shaping(
-        _strip_unexpected_cjk_artifacts(user_message, str(reply_text or "").strip() or "…")
+    text = _apply_aura_voice_shaping_compat(
+        _strip_unexpected_cjk_artifacts(user_message, str(reply_text or "").strip() or "…"),
+        user_message,
     )
     repair_override = _maybe_build_conversation_repair_override(user_message, text)
     if repair_override:
-        text = _apply_aura_voice_shaping(
-            _strip_unexpected_cjk_artifacts(user_message, repair_override)
+        text = _apply_aura_voice_shaping_compat(
+            _strip_unexpected_cjk_artifacts(user_message, repair_override),
+            user_message,
         )
     grounded = _build_grounded_introspection_reply(user_message)
     grounded_traceability = await _build_grounded_traceability_reply(user_message)
@@ -2846,7 +2865,7 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
 
         cleaned = gate.sanitize(text).replace("[IDENTITY_REDACTED]", "").strip(" .,:;-")
         if cleaned:
-            cleaned = _apply_aura_voice_shaping(cleaned)
+            cleaned = _apply_aura_voice_shaping_compat(cleaned, user_message)
             valid_cleaned, _reason, _score = gate.validate_output(cleaned, enforce_supervision=False)
             cleaned_generic, _cleaned_reason = _looks_generic_assistantish(user_message, cleaned)
             cleaned_objective_parrot = _is_objective_parrot_reply(user_message, cleaned)
@@ -3020,7 +3039,7 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
                     ),
                     timeout=12.0,
                 )
-                corrected_text = _apply_aura_voice_shaping(str(corrected or "").strip())
+                corrected_text = _apply_aura_voice_shaping_compat(str(corrected or "").strip(), user_message)
                 if corrected_text and len(corrected_text) > 10:
                     corrected_generic, _corrected_reason = _looks_generic_assistantish(user_message, corrected_text)
                     corrected_objective_parrot = _is_objective_parrot_reply(user_message, corrected_text)
@@ -3153,7 +3172,7 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
         # Even the reflex is repeating — use a simple honest fallback
         import random
         reflex = random.choice([
-            "I'm here but my thoughts are taking longer than usual to form. Try me again.",
+            "I'm here, and my thoughts are taking longer than usual to form.",
             "My deeper processing is under load right now. Give me a moment.",
             "I want to give you a real answer, not a recycled one. Let me regroup.",
             "Something's making it hard to articulate right now. I'm working on it.",
@@ -4169,7 +4188,7 @@ async def api_chat(
         except asyncio.TimeoutError:
             return JSONResponse(
                 {
-                    "response": "Hold on — I'm still in the middle of my last thought. Give me a second.",
+                    "response": "Hold on — I'm still finishing the last turn. Give me a second.",
                     "status": "foreground_busy",
                     "conversation_lane": _collect_conversation_lane_status(),
                     "response_confidence": "degraded",

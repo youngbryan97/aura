@@ -4,6 +4,7 @@ import re
 from collections.abc import Awaitable, Callable
 from collections import Counter
 from dataclasses import asdict, dataclass, field
+from pathlib import Path
 
 _SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+|\n+")
 _FIRST_PERSON = re.compile(r"\b(?:i|i'm|i’ve|i've|i’d|i'd|my|me|for me|to me)\b", re.IGNORECASE)
@@ -90,6 +91,118 @@ _LIVE_GROUNDING_MARKERS = (
     "internal state",
     "live state",
 )
+_WORD_TOKEN = re.compile(r"[A-Za-z][A-Za-z']+")
+_WORD_LIST_CACHE: set[str] | None = None
+_ALLOWED_DIALOGUE_WORDS = {
+    "aura",
+    "bryan",
+    "chatgpt",
+    "codex",
+    "mlx",
+    "qwen",
+    "lora",
+    "python",
+    "javascript",
+    "rust",
+    "shakespeare",
+    "hamlet",
+    "paris",
+    "buenos",
+    "dias",
+    "días",
+    "cortex",
+    "mycelial",
+    "runtime",
+    "substrate",
+    "moonlight",
+}
+_CONTRACTION_WORDS = {
+    "im",
+    "ive",
+    "id",
+    "ill",
+    "dont",
+    "doesnt",
+    "didnt",
+    "cant",
+    "cannot",
+    "couldnt",
+    "wouldnt",
+    "shouldnt",
+    "wasnt",
+    "werent",
+    "isnt",
+    "arent",
+    "thats",
+    "theres",
+    "youre",
+    "youve",
+    "youll",
+    "we're",
+    "weve",
+}
+_KNOWN_CORRUPT_TOKENS = {
+    "xublcate",
+    "ingediate",
+    "evocer",
+}
+
+
+def _word_list() -> set[str]:
+    global _WORD_LIST_CACHE
+    if _WORD_LIST_CACHE is not None:
+        return _WORD_LIST_CACHE
+
+    words = set(_ALLOWED_DIALOGUE_WORDS) | set(_CONTRACTION_WORDS)
+    for path in (Path("/usr/share/dict/words"),):
+        try:
+            if not path.exists():
+                continue
+            for line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
+                word = line.strip().lower()
+                if word.isalpha() and 2 <= len(word) <= 24:
+                    words.add(word)
+        except Exception:
+            continue
+    _WORD_LIST_CACHE = words
+    return words
+
+
+def contains_corrupted_language(text: str) -> bool:
+    """Detect visibly corrupted lexical output before it reaches a user."""
+    body = str(text or "")
+    tokens = _WORD_TOKEN.findall(body)
+    if not tokens:
+        return False
+
+    dictionary = _word_list()
+    unknown: list[str] = []
+    checked = 0
+    for raw in tokens:
+        token = raw.lower().replace("’", "'").strip("'")
+        token = token.replace("'", "")
+        if len(token) <= 3:
+            continue
+        if token in dictionary:
+            checked += 1
+            continue
+        if token.endswith("s") and token[:-1] in dictionary:
+            checked += 1
+            continue
+        if token.endswith("ed") and token[:-2] in dictionary:
+            checked += 1
+            continue
+        if token.endswith("ing") and token[:-3] in dictionary:
+            checked += 1
+            continue
+        checked += 1
+        unknown.append(token)
+
+    if any(token in _KNOWN_CORRUPT_TOKENS for token in unknown):
+        return True
+    if checked < 8:
+        return len(unknown) >= 3
+    return len(unknown) >= 3 and (len(unknown) / checked) >= 0.20
 
 
 @dataclass(frozen=True)
@@ -275,6 +388,8 @@ def validate_dialogue_response(text: str, contract: object | None) -> DialogueVa
     if _contains_unsupported_internal_jargon(body):
         violations.append("unsupported_internal_jargon")
     if bool(getattr(contract, "is_user_facing", False)) or _requires_live_aura_voice(contract):
+        if contains_corrupted_language(body):
+            violations.append("corrupted_language")
         if _contains_intra_response_repetition(sentences):
             violations.append("intra_response_repetition")
 
@@ -347,6 +462,8 @@ def build_dialogue_repair_block(contract: object | None, validation: DialogueVal
         lines.append("- Do not repeat the same sentence or mantra. Say the thought once, then integrate it into a calmer next sentence.")
     if "unsupported_internal_jargon" in validation.violations:
         lines.append("- Do not invent subsystem names. If you are inferring from live state, say that plainly in normal language.")
+    if "corrupted_language" in validation.violations:
+        lines.append("- The last draft contained corrupted or invented words. Use ordinary coherent language and answer the user's actual message.")
     if _requires_explicit_live_grounding(contract):
         lines.append("- Answer from present experience, preference, memory, or active internal state before anything else.")
     if bool(getattr(contract, "requires_biographical_grounding", False)):

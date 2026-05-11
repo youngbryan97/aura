@@ -94,6 +94,17 @@ sys.path.insert(0, str(PROJECT_ROOT))
 # QUAL-07: Define logger early so venv injection logging works
 logger = logging.getLogger("Aura.Main")
 
+
+def _env_flag(name: str, default: bool = False) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on", "enabled"}
+
+
+def _foreground_only_runtime() -> bool:
+    return _env_flag("AURA_FOREGROUND_ONLY", False)
+
 # [STABILITY] Force the execution context to the absolute path of the current venv
 # This prevents the "ModuleNotFoundError" when pip is in the venv but the script runs elsewhere.
 VENV_PATH = PROJECT_ROOT / ".venv"
@@ -512,14 +523,17 @@ async def _boot_runtime_orchestrator(
     # Starts bounded cell ecology, metabolism, and organ stabilizer.
     # Must boot after ServiceContainer is populated (bootstrap_aura)
     # and before orchestrator enters long-running loops.
-    try:
-        from core.morphogenesis.integration import start_morphogenesis_runtime
-        await start_morphogenesis_runtime()
-        logger.info("🧬 Morphogenetic self-organization runtime online.")
-    except Exception as morph_exc:
-        record_degradation('aura_main', morph_exc)
-        # Never block boot. Morphogenesis is an adaptive layer, not the boot root.
-        logger.warning("Morphogenetic runtime startup skipped/degraded: %s", morph_exc)
+    if not _foreground_only_runtime() and _env_flag("AURA_ENABLE_MORPHOGENESIS", True):
+        try:
+            from core.morphogenesis.integration import start_morphogenesis_runtime
+            await start_morphogenesis_runtime()
+            logger.info("🧬 Morphogenetic self-organization runtime online.")
+        except Exception as morph_exc:
+            record_degradation('aura_main', morph_exc)
+            # Never block boot. Morphogenesis is an adaptive layer, not the boot root.
+            logger.warning("Morphogenetic runtime startup skipped/degraded: %s", morph_exc)
+    else:
+        logger.info("🧬 Morphogenetic runtime disabled for foreground-only boot.")
 
     await orchestrator.start()
 
@@ -540,31 +554,35 @@ async def _boot_runtime_orchestrator(
     # All four subsystems live in core/ and are independent of the
     # orchestrator's existing lifecycle. We start them here so they are
     # active for the same lifetime as the orchestrator.
-    try:
-        from core.organism.viability import get_viability
-        await get_viability().start(interval=5.0)
-        ServiceContainer.register_instance("viability", get_viability(), required=False)
-    except Exception as exc:
-        record_degradation('aura_main', exc)
-        logger.warning("viability engine start failed: %s", exc)
+    if not _foreground_only_runtime() and _env_flag("AURA_ENABLE_VIABILITY", True):
+        try:
+            from core.organism.viability import get_viability
+            await get_viability().start(interval=5.0)
+            ServiceContainer.register_instance("viability", get_viability(), required=False)
+        except Exception as exc:
+            record_degradation('aura_main', exc)
+            logger.warning("viability engine start failed: %s", exc)
 
-    try:
-        from core.runtime.self_healing import get_healer
-        healer = get_healer()
-        # Watch the orchestrator main loop; the orchestrator is expected
-        # to call `healer.heartbeat("orchestrator")` on every tick. If
-        # the heartbeat goes stale by 2.5x its expected interval, the
-        # healer asks the orchestrator to restart_async() (no-op if
-        # the method isn't defined — falls back to ServiceContainer).
-        healer.watch("orchestrator", expected_interval_s=15.0, container_key="orchestrator")
-        healer.watch("agency_bus",   expected_interval_s=30.0, container_key="agency_bus")
-        healer.watch("phi_core",     expected_interval_s=30.0, container_key="phi_core")
-        healer.watch("memory_facade", expected_interval_s=60.0, container_key="memory_facade")
-        await healer.start(interval=5.0)
-        ServiceContainer.register_instance("self_healing", healer, required=False)
-    except Exception as exc:
-        record_degradation('aura_main', exc)
-        logger.warning("self-healing watcher start failed: %s", exc)
+    if not _foreground_only_runtime() and _env_flag("AURA_ENABLE_SELF_HEALING", True):
+        try:
+            from core.runtime.self_healing import get_healer
+            healer = get_healer()
+            # Watch the orchestrator main loop; the orchestrator is expected
+            # to call `healer.heartbeat("orchestrator")` on every tick. If
+            # the heartbeat goes stale by 2.5x its expected interval, the
+            # healer asks the orchestrator to restart_async() (no-op if
+            # the method isn't defined — falls back to ServiceContainer).
+            healer.watch("orchestrator", expected_interval_s=15.0, container_key="orchestrator")
+            healer.watch("agency_bus",   expected_interval_s=30.0, container_key="agency_bus")
+            healer.watch("phi_core",     expected_interval_s=30.0, container_key="phi_core")
+            healer.watch("memory_facade", expected_interval_s=60.0, container_key="memory_facade")
+            await healer.start(interval=5.0)
+            ServiceContainer.register_instance("self_healing", healer, required=False)
+        except Exception as exc:
+            record_degradation('aura_main', exc)
+            logger.warning("self-healing watcher start failed: %s", exc)
+    else:
+        logger.info("Self-healing watcher disabled for foreground-only boot.")
 
     try:
         from core.runtime.boot_phases import get_boot_phases
@@ -580,36 +598,41 @@ async def _boot_runtime_orchestrator(
         record_degradation('aura_main', exc)
         logger.debug("boot phases hook skipped: %s", exc)
 
-    try:
-        from core.runtime.performance_guard import get_guard
-        await get_guard().start(interval=5.0)
-        ServiceContainer.register_instance("performance_guard", get_guard(), required=False)
-    except Exception as exc:
-        record_degradation('aura_main', exc)
-        logger.debug("performance guard start skipped: %s", exc)
+    if not _foreground_only_runtime() and _env_flag("AURA_ENABLE_PERFORMANCE_GUARD", True):
+        try:
+            from core.runtime.performance_guard import get_guard
+            await get_guard().start(interval=5.0)
+            ServiceContainer.register_instance("performance_guard", get_guard(), required=False)
+        except Exception as exc:
+            record_degradation('aura_main', exc)
+            logger.debug("performance guard start skipped: %s", exc)
 
-    try:
-        from core.goals.default_goals import seed_default_autonomy_goals
+    if not _foreground_only_runtime() and _env_flag("AURA_SEED_AUTONOMY_GOALS", True):
+        try:
+            from core.goals.default_goals import seed_default_autonomy_goals
 
-        goal_engine = ServiceContainer.get("goal_engine", default=None)
-        seeded = await seed_default_autonomy_goals(goal_engine)
-        if seeded:
-            logger.info("🎯 Seeded %d durable autonomy goals.", len(seeded))
-    except Exception as exc:
-        record_degradation("aura_main", exc)
-        logger.warning("Default autonomy goal seeding failed: %s", exc)
+            goal_engine = ServiceContainer.get("goal_engine", default=None)
+            seeded = await seed_default_autonomy_goals(goal_engine)
+            if seeded:
+                logger.info("🎯 Seeded %d durable autonomy goals.", len(seeded))
+        except Exception as exc:
+            record_degradation("aura_main", exc)
+            logger.warning("Default autonomy goal seeding failed: %s", exc)
 
-    try:
-        from core.runtime.autonomy_conductor import start_default_conductor
-        from core.runtime.overt_action_loop import get_overt_action_loop
+    if not _foreground_only_runtime() and _env_flag("AURA_ENABLE_AUTONOMY_CONDUCTOR", True):
+        try:
+            from core.runtime.autonomy_conductor import start_default_conductor
+            from core.runtime.overt_action_loop import get_overt_action_loop
 
-        ServiceContainer.register_instance("overt_action_loop", get_overt_action_loop(), required=False)
-        conductor = await start_default_conductor()
-        ServiceContainer.register_instance("autonomy_conductor", conductor, required=False)
-        logger.info("🧭 AutonomyConductor online — proof, validation, and maintenance loops scheduled.")
-    except Exception as exc:
-        record_degradation("aura_main", exc)
-        logger.warning("AutonomyConductor start failed: %s", exc)
+            ServiceContainer.register_instance("overt_action_loop", get_overt_action_loop(), required=False)
+            conductor = await start_default_conductor()
+            ServiceContainer.register_instance("autonomy_conductor", conductor, required=False)
+            logger.info("🧭 AutonomyConductor online — proof, validation, and maintenance loops scheduled.")
+        except Exception as exc:
+            record_degradation("aura_main", exc)
+            logger.warning("AutonomyConductor start failed: %s", exc)
+    else:
+        logger.info("AutonomyConductor disabled for foreground-only boot.")
 
     try:
         from core.adaptation.online_lora_governor import get_online_lora_governor
@@ -619,64 +642,67 @@ async def _boot_runtime_orchestrator(
         record_degradation("aura_main", exc)
         logger.debug("online_lora_governor registration skipped: %s", exc)
 
-    try:
-        from core.brain.llm.sensorimotor_grounding import SensorimotorGroundingBridge
+    if not _foreground_only_runtime() and _env_flag("AURA_ENABLE_SENSORIMOTOR_GROUNDING", True):
+        try:
+            from core.brain.llm.sensorimotor_grounding import SensorimotorGroundingBridge
 
-        substrate = (
-            ServiceContainer.get("continuous_substrate", default=None)
-            or ServiceContainer.get("liquid_state", default=None)
-            or ServiceContainer.get("liquid_substrate", default=None)
-            or getattr(orchestrator, "substrate", None)
-        )
-        if substrate is not None:
-            bridge = SensorimotorGroundingBridge(substrate=substrate)
-            await bridge.start()
-            ServiceContainer.register_instance("sensorimotor_grounding_bridge", bridge, required=False)
-            logger.info("👁️🎙️ Sensorimotor grounding bridge online — substrate receives live sensor observations.")
-    except Exception as exc:
-        record_degradation("aura_main", exc)
-        logger.warning("Sensorimotor grounding bridge start failed: %s", exc)
-
-    try:
-        from core.runtime.activation_audit import get_activation_auditor
-
-        auditor = get_activation_auditor()
-        report = await auditor.audit(orchestrator, reconcile=True)
-        auditor.write_report(report, config.paths.data_dir / "runtime" / "activation_report.json")
-        ServiceContainer.register_instance("activation_auditor", auditor, required=False)
-        if report.missing_required:
-            logger.warning(
-                "Activation audit missing required loops: %s",
-                ", ".join(status.name for status in report.missing_required),
+            substrate = (
+                ServiceContainer.get("continuous_substrate", default=None)
+                or ServiceContainer.get("liquid_state", default=None)
+                or ServiceContainer.get("liquid_substrate", default=None)
+                or getattr(orchestrator, "substrate", None)
             )
-        else:
-            logger.info("Activation audit passed: %.0f%% required loops active.", report.required_active_ratio * 100)
-    except Exception as exc:
-        record_degradation("aura_main", exc)
-        logger.warning("Activation audit failed: %s", exc)
+            if substrate is not None:
+                bridge = SensorimotorGroundingBridge(substrate=substrate)
+                await bridge.start()
+                ServiceContainer.register_instance("sensorimotor_grounding_bridge", bridge, required=False)
+                logger.info("👁️🎙️ Sensorimotor grounding bridge online — substrate receives live sensor observations.")
+        except Exception as exc:
+            record_degradation("aura_main", exc)
+            logger.warning("Sensorimotor grounding bridge start failed: %s", exc)
+
+    if not _foreground_only_runtime() and _env_flag("AURA_ENABLE_ACTIVATION_AUDIT", True):
+        try:
+            from core.runtime.activation_audit import get_activation_auditor
+
+            auditor = get_activation_auditor()
+            report = await auditor.audit(orchestrator, reconcile=True)
+            auditor.write_report(report, config.paths.data_dir / "runtime" / "activation_report.json")
+            ServiceContainer.register_instance("activation_auditor", auditor, required=False)
+            if report.missing_required:
+                logger.warning(
+                    "Activation audit missing required loops: %s",
+                    ", ".join(status.name for status in report.missing_required),
+                )
+            else:
+                logger.info("Activation audit passed: %.0f%% required loops active.", report.required_active_ratio * 100)
+        except Exception as exc:
+            record_degradation("aura_main", exc)
+            logger.warning("Activation audit failed: %s", exc)
 
     # Capture stem-cell snapshots for the load-bearing organs so the
     # immune layer has something to revert to if a future mutation
     # corrupts them. Snapshots are HMAC-signed in
     # ~/.aura/data/stem_cells/.
-    try:
-        from core.resilience.stem_cell import get_registry
-        reg = get_registry()
-        will = ServiceContainer.get("unified_will", default=None) or ServiceContainer.get("will", default=None)
-        if will is not None:
-            reg.register("unified_will")
-            reg.capture("unified_will", will, schema_version="1")
-        from core.agency.agency_orchestrator import get_orchestrator as _get_ao
-        ao = _get_ao()
-        reg.register("agency_orchestrator")
-        reg.capture("agency_orchestrator", ao, schema_version="1")
-        from core.identity.self_object import get_self
-        reg.register("self_object")
-        reg.capture("self_object", get_self().snapshot().continuity_hash, schema_version="1")
-        ServiceContainer.register_instance("stem_cell_registry", reg, required=False)
-    except Exception as exc:
-        record_degradation('aura_main', exc)
-        logger.warning("stem-cell capture at boot failed: %s", exc)
+    if not _foreground_only_runtime() and _env_flag("AURA_ENABLE_STEM_CELL_CAPTURE", True):
+        try:
+            from core.resilience.stem_cell import get_registry
+            reg = get_registry()
+            will = ServiceContainer.get("unified_will", default=None) or ServiceContainer.get("will", default=None)
+            if will is not None:
+                reg.register("unified_will")
+                reg.capture("unified_will", will, schema_version="1")
+            from core.agency.agency_orchestrator import get_orchestrator as _get_ao
+            ao = _get_ao()
+            reg.register("agency_orchestrator")
+            reg.capture("agency_orchestrator", ao, schema_version="1")
+            from core.identity.self_object import get_self
+            reg.register("self_object")
+            reg.capture("self_object", get_self().snapshot().continuity_hash, schema_version="1")
+            ServiceContainer.register_instance("stem_cell_registry", reg, required=False)
+        except Exception as exc:
+            record_degradation('aura_main', exc)
+            logger.warning("stem-cell capture at boot failed: %s", exc)
 
     return orchestrator
 
@@ -737,17 +763,20 @@ def _register_runtime_singletons(orchestrator: Any) -> None:
         logger.debug("orchestrator registration skipped: %s", exc)
 
     try:
-        lab = ServiceContainer.get("reimplementation_lab", default=None)
-        if lab is None:
-            from core.config import config
-            from core.llm.code_generator import LLMCodeGenerator
-            from core.self_improvement.reimplementation_lab import ReimplementationLab
+        if _foreground_only_runtime() or not _env_flag("AURA_REGISTER_REIMPLEMENTATION_LAB", True):
+            lab = None
+        else:
+            lab = ServiceContainer.get("reimplementation_lab", default=None)
+            if lab is None:
+                from core.config import config
+                from core.llm.code_generator import LLMCodeGenerator
+                from core.self_improvement.reimplementation_lab import ReimplementationLab
 
-            lab = ReimplementationLab(
-                project_root=str(config.paths.base_dir),
-                generator=LLMCodeGenerator(prefer_tier="primary"),
-            )
-            ServiceContainer.register_instance("reimplementation_lab", lab, required=False)
+                lab = ReimplementationLab(
+                    project_root=str(config.paths.base_dir),
+                    generator=LLMCodeGenerator(prefer_tier="primary"),
+                )
+                ServiceContainer.register_instance("reimplementation_lab", lab, required=False)
     except Exception as exc:
         record_degradation('aura_main', exc)
         logger.warning("reimplementation_lab boot singleton unavailable: %s", exc)
@@ -772,6 +801,8 @@ def _register_runtime_singletons(orchestrator: Any) -> None:
         logger.warning("agent workspace boot singleton unavailable: %s", exc)
 
     try:
+        if _foreground_only_runtime() or not _env_flag("AURA_REGISTER_ARCHITECTURE_GOVERNOR", True):
+            return
         governor = ServiceContainer.get("architecture_governor", default=None)
         if governor is None:
             from core.architect.config import ASAConfig

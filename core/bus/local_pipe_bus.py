@@ -75,6 +75,8 @@ class LocalPipeBus:
         self._is_running = False
         self._activity_callback: Optional[Callable[[], None]] = None
         self._pipe_broken = False
+        self._write_timeout_count = 0
+        self._write_suppressed_until = 0.0
         self._outbound_shm_segments: Dict[str, Tuple[SharedMemoryTransport, float]] = {}
         self._LIVE_BUSES.add(self)
 
@@ -285,7 +287,11 @@ class LocalPipeBus:
         }
         try:
             # Pre-flight check to avoid BrokenPipeError hangs
-            if self.write_conn.closed or getattr(self, '_pipe_broken', False):
+            if (
+                self.write_conn.closed
+                or getattr(self, '_pipe_broken', False)
+                or time.monotonic() < getattr(self, "_write_suppressed_until", 0.0)
+            ):
                 return  # Already closed — silently skip, no spam
             
             # Fast-fail check if connection is completely broken at the OS level
@@ -303,8 +309,28 @@ class LocalPipeBus:
                 loop.run_in_executor(self._get_executor(), self.write_conn.send, raw_msg),
                 timeout=10.0
             )
+            self._write_timeout_count = 0
         except asyncio.TimeoutError:
-            logger.warning("📡 Pipe write TIMEOUT (10s) — connection may be saturated.")
+            self._write_timeout_count += 1
+            logger.warning(
+                "📡 Pipe write TIMEOUT (10s) — connection may be saturated (streak=%d).",
+                self._write_timeout_count,
+            )
+            if self._write_timeout_count >= 3:
+                self._write_suppressed_until = time.monotonic() + 30.0
+                logger.error(
+                    "📡 Pipe write repeatedly timed out; suppressing fire-and-forget writes for 30s."
+                )
+                try:
+                    from core.resilience.omni_tracer import write_trace
+
+                    write_trace(
+                        "local_pipe_bus",
+                        "PipeWriteSaturation",
+                        f"write timeout streak={self._write_timeout_count}; suppressing writes for 30s",
+                    )
+                except Exception:
+                    pass
         except (BrokenPipeError, EOFError, OSError, ConnectionResetError) as e:
             if not getattr(self, '_pipe_broken', False):
                 self._pipe_broken = True

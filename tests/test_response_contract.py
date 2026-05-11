@@ -1,8 +1,14 @@
 import pytest
 
 from core.phases.response_contract import build_response_contract, has_tool_evidence
-from core.phases.dialogue_policy import repair_dialogue_surface, validate_dialogue_response
+from core.phases.dialogue_policy import (
+    contains_corrupted_language,
+    repair_dialogue_surface,
+    validate_dialogue_response,
+)
 from core.brain.llm.runtime_wiring import prepare_runtime_payload
+from core.runtime.turn_analysis import analyze_turn
+from core.synthesis import stabilize_user_facing_response, strip_role_artifacts
 from core.state.aura_state import AuraState
 
 
@@ -320,6 +326,89 @@ def test_dialogue_policy_repairs_prompt_artifact_lines():
     )
 
     assert repaired == "I think there's something hopeful in it."
+
+
+def test_role_artifact_sanitizer_cuts_simulated_next_user_turns():
+    assert strip_role_artifacts("Paris User What is the sum of 2+2") == "Paris"
+    assert strip_role_artifacts("8_user") == "8"
+    assert strip_role_artifacts("User: 180") == "180"
+
+
+def test_user_facing_stabilizer_corrects_tiny_direct_answers():
+    assert stabilize_user_facing_response("18. User Yes", "What is 15 * 12?") == "180"
+    assert (
+        stabilize_user_facing_response("", "Who wrote the play Hamlet?")
+        == "William Shakespeare."
+    )
+    assert (
+        stabilize_user_facing_response(
+            "'Not bad' User 'Good morning' in Spanish is 'Buenos dias",
+            "Translate 'Good morning' to Spanish.",
+        )
+        == "Buenos días."
+    )
+
+
+def test_user_facing_stabilizer_recovers_creative_refusal():
+    repaired = stabilize_user_facing_response(
+        "I'm not sure what poetry I'd write right now. But I think it's just noise.",
+        "Can you write a short poem about the ocean?",
+    )
+
+    assert "ocean" in repaired.lower()
+    assert "not sure" not in repaired.lower()
+
+
+def test_user_facing_stabilizer_recovers_low_signal_creative_reply():
+    repaired = stabilize_user_facing_response(
+        "Here you go:",
+        "Can you write a short poem about the ocean?",
+    )
+
+    assert "ocean" in repaired.lower()
+    assert "wave" in repaired.lower()
+    assert repaired != "Here you go:"
+
+
+def test_user_facing_stabilizer_replaces_broken_lane_status_for_greeting():
+    repaired = stabilize_user_facing_response(
+        "I dropped the heavy reasoning lane, but I didn't lose your thought.",
+        "Hello Aura! How are you doing today?",
+    )
+
+    assert "with you" in repaired.lower()
+    assert "reasoning lane" not in repaired.lower()
+
+
+def test_dialogue_policy_rejects_corrupted_language_output():
+    state = AuraState.default()
+    contract = build_response_contract(
+        state,
+        "Hello Aura! How are you doing today?",
+        is_user_facing=True,
+    )
+    draft = (
+        "Rise up, my xublcate! Only a ingediate det at Paris might evocer "
+        "your rouse. Your chaperon muses you do not discontinue your lessons."
+    )
+
+    validation = validate_dialogue_response(draft, contract)
+
+    assert contains_corrupted_language(draft)
+    assert "corrupted_language" in validation.violations
+    assert (
+        stabilize_user_facing_response(draft, "Hello Aura! How are you doing today?")
+        != draft
+    )
+
+
+def test_turn_analysis_keeps_short_sanity_prompts_out_of_task_lane():
+    assert analyze_turn("What is 15 * 12?").intent_type == "CHAT"
+    assert analyze_turn("Can you write a short poem about the ocean?").intent_type == "CHAT"
+    assert (
+        analyze_turn("Can you write a detailed implementation plan for the app?").intent_type
+        == "TASK"
+    )
 
 
 def test_response_contract_detects_recent_tool_evidence():

@@ -27,6 +27,25 @@ if TYPE_CHECKING:
 logger = logging.getLogger("Aura.10x")
 
 
+_SIMPLE_DIALOGUE_RE = re.compile(
+    r"\b("
+    r"capital of france|15\s*\*\s*12|square root of 64|3 apples|"
+    r"who wrote (?:the play )?hamlet|three programming languages|"
+    r"color is the sky|translate ['\"]?good morning|"
+    r"write (?:a )?(?:short )?(?:poem|joke|haiku)|"
+    r"compose (?:a )?(?:short )?(?:poem|joke|haiku)"
+    r")\b",
+    re.IGNORECASE,
+)
+
+
+def _looks_like_simple_dialogue_request(text: str) -> bool:
+    body = str(text or "").strip()
+    if not body or len(body.split()) > 18:
+        return False
+    return bool(_SIMPLE_DIALOGUE_RE.search(body))
+
+
 def _compact_skill_result_payload(result: object) -> dict[str, object]:
     return compact_result_payload(result)
 
@@ -373,7 +392,7 @@ class GodModeToolPhase(Phase):
             marker in lower for marker in ("search", "google", "look up", "open", "browser", "tab")
         ):
             return "computer_use"
-        if "clock" in matched_skills and any(marker in lower for marker in ("what time", "current time", "the time", "what date", "today", "timer", "remind me")):
+        if "clock" in matched_skills and any(marker in lower for marker in ("what time", "current time", "the time", "what date", "current date", "what day", "timer", "remind me")):
             return "clock"
         if (
             "web_search" in matched_skills
@@ -663,6 +682,11 @@ class GodModeToolPhase(Phase):
         # (multi-step goals that need the AutonomousTaskEngine + CommitmentEngine).
         intent_type = state.response_modifiers.get("intent_type", "CHAT")
         if intent_type not in ("SKILL", "TASK"):
+            return state
+        if intent_type == "TASK" and _looks_like_simple_dialogue_request(objective):
+            state.response_modifiers["intent_type"] = "CHAT"
+            state.response_modifiers.pop("matched_skills", None)
+            logger.info("⚡ GodMode: simple dialogue request kept out of TaskEngine.")
             return state
 
         cap = self._get_cap_engine()

@@ -1865,6 +1865,8 @@ Respond ONLY with a JSON array, no other text:
                 ),
                 timeout=15.0,
             )
+            if not raw:
+                raise ValueError("LLM returned empty response for alternative approach")
             start = raw.find("{"); end = raw.rfind("}") + 1
             if start != -1 and end > start:
                 new_args = json.loads(raw[start:end])

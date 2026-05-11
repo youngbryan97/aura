@@ -1,5 +1,6 @@
 from core.runtime.errors import record_degradation
 import logging
+import os
 from pathlib import Path
 from typing import Any, Optional
 
@@ -7,6 +8,13 @@ from core.container import ServiceContainer
 from core.config import config
 
 logger = logging.getLogger(__name__)
+
+
+def _env_flag(name: str, default: bool = False) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
 class BootIdentityMixin:
@@ -46,6 +54,10 @@ class BootIdentityMixin:
 
     async def _init_self_modification_engine(self):
         """Initialize the Self-Modification Engine."""
+        if _env_flag("AURA_FOREGROUND_ONLY", False) or not _env_flag("AURA_ENABLE_SELF_MODIFICATION_ENGINE", True):
+            logger.info("Self-Modification Engine disabled for foreground-only boot.")
+            self.self_modifier = None
+            return
         try:
             from core.self_modification.self_modification_engine import (
                 AutonomousSelfModificationEngine,
