@@ -80,23 +80,9 @@ def _sanitize_telemetry_leakage(text: str) -> Optional[str]:
     if not text:
         return text
     
-    # 1) If the text contains more than 4 forward slashes not in a URL, it's a telemetry path hallucination.
-    if text.count('/') > 4 and "http" not in text:
+    # 1) If the text contains more than 15 forward slashes not in a URL, it's a telemetry path hallucination.
+    if text.count('/') > 15 and "http" not in text:
         return None
-        
-    # 2) Strip common telemetry keywords that string together
-    leak_keywords = [
-        "Lattice", "Hue", "Unstable", "Unresolved", "Resolve", "Axiology", 
-        "Refuse", "RustSignal", "EgoResolution", "autonomy", "endorphin",
-        "endorphene", "substrate", "ReticularPurge", "fixation"
-    ]
-    
-    # If the text is overwhelmingly composed of these keywords, fallback
-    word_count = len(text.split())
-    if word_count > 0:
-        leak_matches = sum(1 for k in leak_keywords if k.lower() in text.lower())
-        if leak_matches > 4:
-            return None
             
     # 3) Extreme numeric sequences. If a single word/number has more than 20 digits, it's a hallucination.
     if re.search(r'\d{20,}', text):

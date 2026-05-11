@@ -719,6 +719,7 @@ def _register_runtime_singletons(orchestrator: Any) -> None:
     """
     try:
         from core.container import ServiceContainer
+        from core.adapters.nethack_adapter import NetHackAdapter
     except Exception:
         return
 
@@ -743,6 +744,19 @@ def _register_runtime_singletons(orchestrator: Any) -> None:
     except Exception as exc:
         record_degradation('aura_main', exc)
         logger.debug("shutdown_coordinator registration skipped: %s", exc)
+
+    # ── NetHack Adapter ──
+    try:
+        if not ServiceContainer.has("nethack_adapter"):
+            adapter = NetHackAdapter()
+            # We don't start it here; it will be started by the skill or
+            # a dedicated starter to avoid immediate process spawn on every boot.
+            # Actually, the skill expects it to be ready. Let's register a factory.
+            ServiceContainer.register_instance("nethack_adapter", adapter, required=False)
+            logger.info("🎮 NetHack adapter registered in ServiceContainer.")
+    except Exception as exc:
+        record_degradation('aura_main', exc)
+        logger.warning("nethack_adapter registration failed: %s", exc)
 
     output_gate = getattr(orchestrator, "output_gate", None)
     if output_gate is not None:

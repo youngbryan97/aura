@@ -3125,3 +3125,5 @@ InitiativeArbiter: Selected 'Reconcile continuity gap and re-establish the inter
 📡 Pipe write TIMEOUT (10s) — connection may be saturated.
 🔌 Bus connection closed by peer.
 📡 Bus pipe closed (normal shutdown): [Errno 32] Broken pipe
+/opt/homebrew/Cellar/python@3.12/3.12.13/Frameworks/Python.framework/Versions/3.12/lib/python3.12/multiprocessing/resource_tracker.py:279: UserWarning: resource_tracker: There appear to be 30 leaked semaphore objects to clean up at shutdown
+  warnings.warn('resource_tracker: There appear to be %d '

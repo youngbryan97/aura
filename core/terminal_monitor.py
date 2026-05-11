@@ -161,14 +161,20 @@ class TerminalMonitor:
         
         # Sepsis Detection
         recent_errors = [e for e in self._error_buffer if now - e.timestamp < 60]
+        very_recent_errors = [e for e in self._error_buffer if now - e.timestamp < 15]
+        
         if len(recent_errors) > 10:
             if not self._sepsis_mode:
                 logger.warning("🩸 SEPSIS DETECTED: Opening emergency circuit breaker.")
                 self._sepsis_mode = True
                 self._sepsis_start = now
-        elif self._sepsis_mode and now - self._sepsis_start > 900: # 15 min recovery
-            logger.info("🩺 Sepsis loop subsided. Resuming autonomous agency.")
-            self._sepsis_mode = False
+        elif self._sepsis_mode:
+            if len(very_recent_errors) == 0 and now - self._sepsis_start > 30:
+                logger.info("🩺 Sepsis loop soft-resetting after transient spike subsided.")
+                self._sepsis_mode = False
+            elif now - self._sepsis_start > 900: # 15 min recovery
+                logger.info("🩺 Sepsis loop hard recovery completed. Resuming autonomous agency.")
+                self._sepsis_mode = False
 
         # Ignore patterns
         for pattern in self._ignore_patterns:

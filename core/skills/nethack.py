@@ -85,6 +85,10 @@ class ExecuteNethackActionSkill(BaseSkill):
         adapter = ServiceContainer.get("nethack_adapter", default=None)
         if not adapter:
             return {"ok": False, "error": "No active NetHack session found."}
+        
+        if not adapter.is_alive():
+            logger.info("NetHack process not alive. Starting now...")
+            adapter.start()
 
         action = params.action.strip()
         action_upper = action.upper()

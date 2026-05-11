@@ -97,9 +97,28 @@ class NetHackAdapter:
     def is_alive(self) -> bool:
         return self.child and self.child.isalive()
 
-    def close(self):
+    def stop(self):
+        """Formal stop method for lifecycle management."""
+        logger.info("Stopping NetHack adapter...")
         if self.child:
-            self.child.terminate(force=True)
+            try:
+                if self.child.isalive():
+                    # Try clean quit first if possible?
+                    # For now, just terminate as it's an automated process
+                    self.child.terminate(force=True)
+            except Exception as e:
+                logger.error(f"Error terminating NetHack process: {e}")
+            finally:
+                self.child = None
+        logger.info("NetHack adapter stopped.")
+
+    def shutdown(self):
+        """Alias for stop() to support different cleanup protocols."""
+        self.stop()
+
+    def close(self):
+        """Legacy close method."""
+        self.stop()
 
 if __name__ == "__main__":
     # Basic smoke test

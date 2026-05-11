@@ -72,7 +72,39 @@ def _get_convo_lock(): return _locks.setdefault("convo", asyncio.Lock())
 _conversation_log_lock = _get_convo_lock()
 _session_memory_pins: list[dict] = []
 _MAX_CONVERSATION_LOG_EXCHANGES = 500
-def _get_fg_lock(): return _locks.setdefault("fg", asyncio.Lock())
+class PreemptibleChatLock:
+    def __init__(self):
+        self._lock = asyncio.Lock()
+        self._acquired_at = 0.0
+
+    async def acquire(self):
+        await self._lock.acquire()
+        self._acquired_at = time.time()
+        return True
+
+    def locked(self):
+        return self._lock.locked()
+
+    def release(self):
+        try:
+            if self._lock.locked():
+                self._lock.release()
+        except Exception:
+            pass
+        self._acquired_at = 0.0
+
+    @property
+    def held_duration(self) -> float:
+        if not self._lock.locked() or self._acquired_at == 0.0:
+            return 0.0
+        return time.time() - self._acquired_at
+
+    def force_release(self):
+        logger.warning("🚨 Preempting stuck foreground chat lock!")
+        self._lock = asyncio.Lock()
+        self._acquired_at = 0.0
+
+def _get_fg_lock(): return _locks.setdefault("fg", PreemptibleChatLock())
 _foreground_chat_lock = _get_fg_lock()
 _FOREGROUND_CHAT_BUSY_WAIT_S = 2.0
 
@@ -4338,15 +4370,27 @@ async def api_chat(
             )
             foreground_slot_acquired = True
         except asyncio.TimeoutError:
-            return JSONResponse(
-                {
-                    "response": "I still have the previous turn open. I am not going to fake a new answer over it; the next clean reply should land from the active turn.",
-                    "status": "foreground_busy",
-                    "conversation_lane": _collect_conversation_lane_status(),
-                    "response_confidence": "degraded",
-                },
-                status_code=200,
-            )
+            held = getattr(_foreground_chat_lock, "held_duration", 0.0)
+            if held > 45.0:
+                logger.error(f"🚨 Preempting stuck foreground generation (held {held:.1f}s) to allow new user turn.")
+                if hasattr(_foreground_chat_lock, "force_release"):
+                    _foreground_chat_lock.force_release()
+                try:
+                    await asyncio.wait_for(_foreground_chat_lock.acquire(), timeout=1.0)
+                    foreground_slot_acquired = True
+                except asyncio.TimeoutError:
+                    pass
+            
+            if not foreground_slot_acquired:
+                return JSONResponse(
+                    {
+                        "response": "I still have the previous turn open. I am not going to fake a new answer over it; the next clean reply should land from the active turn.",
+                        "status": "foreground_busy",
+                        "conversation_lane": _collect_conversation_lane_status(),
+                        "response_confidence": "degraded",
+                    },
+                    status_code=200,
+                )
 
         # Notify proactive presence systems; pass content for away-signal detection
         _notify_user_spoke(body.message)
