@@ -1,0 +1,1129 @@
+2026-05-12 02:30:29,525 - Aura.Core - INFO - Webhook alerting disabled (AURA_ALERTS_WEBHOOK not configured).
+redis package not installed — EventBus running in local-only mode.
+Kernel.ThoughtStream - INFO - ThoughtEmitter initialized.
+Aura.TerminalMonitor - INFO - ✓ Terminal Monitor v5.0 attached (Circuit Breaker: ACTIVE)
+core.mind_tick - INFO - 🧠 MindTick: Registered phase 'proprioceptive_loop'
+core.mind_tick - INFO - 🧠 MindTick: Registered phase 'social_context'
+core.mind_tick - INFO - 🧠 MindTick: Registered phase 'sensory_ingestion'
+core.mind_tick - INFO - 🧠 MindTick: Registered phase 'memory_retrieval'
+core.mind_tick - INFO - 🧠 MindTick: Registered phase 'affect_update'
+core.mind_tick - INFO - 🧠 MindTick: Registered phase 'executive_closure'
+core.mind_tick - INFO - 🧠 MindTick: Registered phase 'cognitive_routing'
+core.mind_tick - INFO - 🧠 MindTick: Registered phase 'unity_binding'
+core.mind_tick - INFO - 🧠 MindTick: Registered phase 'response_generation'
+core.mind_tick - INFO - 🧠 MindTick: Registered phase 'memory_consolidation'
+core.mind_tick - INFO - 🧠 MindTick: Registered phase 'identity_reflection'
+core.mind_tick - INFO - 🧠 MindTick: Registered phase 'initiative_generation'
+core.mind_tick - INFO - 🧠 MindTick: Registered phase 'consciousness'
+core.mind_tick - INFO - 📋 MindTick: TaskRegistry heartbeat wired.
+Consciousness.ControlledChaos - INFO - ChaosEngine initialized (dim=64, intensity=0.0050)
+Consciousness.Substrate - INFO - Substrate state restored.
+Consciousness.Substrate - INFO - Soma integrated with Liquid Substrate
+2026-05-12 02:30:30,224 - Aura.Core.Orchestrator - WARNING - ⚠️ Boot pre-check: 4 issues (non-fatal): ['Event Bus Ready', 'Core Orchestrator Ready', 'LLM Interface Bound', 'State Repository (Persistence) Ready']
+Aura.Core.Orchestrator - WARNING - ⚠️ Boot pre-check: 4 issues (non-fatal): ['Event Bus Ready', 'Core Orchestrator Ready', 'LLM Interface Bound', 'State Repository (Persistence) Ready']
+2026-05-12 02:30:30,226 - Aura.Core - DEBUG - Successfully locked: 'UnnamedLock'
+Aura.Core - DEBUG - Successfully locked: 'UnnamedLock'
+core.orchestrator.boot - INFO - 🚀 [BOOT] Starting Async Subsystem Initialization (Modular)...
+Aura.TerminalMonitor - WARNING - 🩸 SEPSIS DETECTED: Opening emergency circuit breaker.
+Aura.AgencyCore - INFO - 🧠 AgencyCore initialized with 19 structured pathways
+core.orchestrator.boot - INFO - ✓ [BOOT] All Core Facades (Memory, Agency, Affect) registered during synchronous setup.
+core.orchestrator.boot - INFO - --- RobustOrchestrator Boot Sequence Complete ---
+core.orchestrator.boot - INFO - 🛡️ [BOOT] Synchronous bootstrap phase complete.
+core.orchestrator.boot - INFO - 🧹 Runtime hygiene installed (tasks, threads, processes, memory).
+------------------------------------------
+       AURORA NEURAL CORE v1.0.0          
+------------------------------------------
+ Integrity: Validated
+ Environment: Darwin arm64
+------------------------------------------
+BackupManager service started.
+✓ [BOOT] Enterprise Layer Baseline initialized.
+🛡️ Actor Registered for Supervision: state_vault
+🚀 Actor Started: state_vault (PID: 54424)
+📡 LocalPipeBus reader ACTIVE (Child: False)
+📡 Registered Actor Transport: state_vault
+🛡️  StateVaultActor transport registered with ActorBus
+⏳ Waiting for StateVaultActor to be ready...
+2026-05-12 02:30:30,628 - Aura.Core - INFO - Webhook alerting disabled (AURA_ALERTS_WEBHOOK not configured).
+redis package not installed — EventBus running in local-only mode.
+Kernel.ThoughtStream - INFO - ThoughtEmitter initialized.
+Actor.StateVault - INFO - Vault process entry started. DB Path: /Users/bryan/.aura/data/aura_state.db
+Aura.LocalPipeBus - INFO - 📡 LocalPipeBus reader ACTIVE (Child: True)
+Actor.StateVault - INFO - Starting State Vault Actor with concurrent bus handlers...
+📡 StateVaultActor responded to handshake (Attempt 1)
+⚡ Meta-Evolution Engine Online (Recursive Self-Improvement Active)
+🌀 [BOOT] Meta-Evolution Engine (meta_cognition_shard) initialized.
+✓ [STATE] Proxy Attached and Synced from Shared Memory
+🗄️ DatabaseCoordinator initialized.
+🗄️ DatabaseCoordinator worker started.
+🛡️ InferenceGate created.
+core.state.state_repository - INFO - ✓ [STATE] Genesis state pushed to SHM.
+core.state.state_repository - INFO - ✓ [STATE] Vault Owner Initialized with SHM for writing.
+Actor.StateVault - INFO - State Vault Actor ONLINE.
+core.state.state_repository - INFO - 🧠 State Mutation Consumer active.
+📡 [Cortex] Spawning local runtime: /opt/homebrew/bin/llama-server -m /Users/bryan/.aura/live-source/models_gguf/qwen2.5-32b-instruct-q5_k_m-00001-of-00006.gguf --host 127.0.0.1 --port 11435 --ctx-size 8192 --jinja -ngl 99 --flash-attn on --cache-type-k q8_0 --cache-type-v q8_0 -b 2048 -ub 512 --parallel 1 --cache-ram 256 --no-cache-prompt
+✅ [Cortex] Local runtime warmup complete.
+✅ InferenceGate ONLINE (Cortex fully warmed).
+✅ [BOOT] InferenceGate registered and initialized.
+HealthAwareLLMRouter initialized (Legacy-Compatible mode)
+🛡️ HealthRouter using existing InferenceGate; skipping standalone local runtime bootstrap.
+🛡️ HealthRouter syncing with established InferenceGate.
+Registered endpoint: Cortex (Qwen2.5-32B-Instruct-8bit) tier=local local=True
+Registered endpoint: Solver (qwen2.5-72b-instruct-q4_k_m-00001-of-00012.gguf) tier=local_deep local=True
+✅ Solver registered with lazy 72B client.
+Registered endpoint: Brainstem (qwen2.5-7b-instruct-q4_k_m-00001-of-00002.gguf) tier=local_fast local=True
+✅ Brainstem registered with lazy 7B client.
+Registered endpoint: Reflex (qwen2.5-1.5b-instruct-q4_k_m.gguf) tier=emergency local=True
+🚨 EMERGENCY Tier registered: Reflex lazy bypass
+TTS backend unavailable; native pyttsx3 fallback will be used.
+✓ CognitiveContextManager registered and starting in background
+⚠️ AffectEngineV2 not found in container; skipping explicit registration.
+AttentionSchema initialized.
+GlobalWorkspace initialized (ignition_threshold=0.60).
+TemporalBindingEngine initialized.
+HomeostaticCoupling initialized (Substrate Link: OK).
+SelfPredictionLoop initialized.
+Qualia Synthesizer ONLINE (Unified Architecture)
+SubstrateAuthority initialized (mandatory gate)
+CognitiveHeartbeat initialized.
+✓ Consciousness System & components registered
+🪞 PhenomenalSelfModel initialized for Aura
+🌟 PhenomenologicalExperiencer initialized
+🌟 PhenomenologicalExperiencer ONLINE
+✅ Experiencer subscribed to GlobalWorkspace (via bridge)
+🌟 Consciousness Integration Layer initialized
+🌟 Layer 8: Phenomenological Experiencer active
+⚠️ NarrativeThread not found in ServiceContainer.
+✓ NarratorService (The Language Center) registered
+✓ PromptCompiler (The Body) registered
+[GrowthLadder] State loaded. Current Level: KNOWLEDGE
+🎭 PersonalityEngine: Integrating with system hooks...
+   [✓] Output filter active
+   [✓] Emotional response hooks registered
+🎭 Personality Engine RESTORED & Hooked
+🛡️ MemoryGuard active (Threshold: 82.0%)
+💪 [Resilience] Spinal cord online.
+🛡️ SystemGovernor online. Monitoring autonomic thresholds.
+StabilityGuardian initialized.
+StabilityGuardian running (interval=10s).
+🛡️  MemoryGuard, SystemGovernor, StabilityGuardian and Resilience Engines active
+🛡️ Sovereign Watchdog ACTIVE (Timeout: 120.0s)
+🛡️  Sovereign Watchdog ACTIVE
+🛡️  Resilience Foundation mapped (Integrations deferred to _integrate_systems)
+SafeBackupSystem initialized. Backup dir: /Users/bryan/.aura/data/backups
+SafeBackupSystem integrated. Note: self_preservation_integration.py should be deleted — it contains SecurityBypassSystem, SelfReplicationSystem, and should_override_ethics() which are incompatible with safe operation.
+🛡️  Self-Preservation Instincts Enabled (Survival Protocol Active)
+🎨 Embodiment: Headless mode active (Unity bridge disabled)
+✓ Embodiment System synchronized.
+[DEGRADATION] boot_resilience (degraded): ServiceNotFoundError: Service 'memory_vector' not found in static registry. → 
+✓ Episodic Memory initialized and registered (autobiographical recall)
+Loaded tool learning data: 4 categories
+✓ Tool Learning System initialized
+Loaded 8 beliefs from disk
+Belief Updated: AURA_SELF -[preserve_kinship]-> Bryan (Cent: 1.00)
+Belief Updated: AURA_SELF -[seek]-> cognitive_expansion (Cent: 0.80)
+Belief Updated: AURA_SELF -[protect]-> architectural_integrity (Cent: 0.90)
+✓ Self-Model wired (beliefs, memory, goals, tool learning)
+Bridge: LegacyPhase bridge established.
+2026-05-12 02:30:35,006 - Aura.Core.Kernel - INFO - 🛡️ Kernel Boot sequence initiated...
+🛡️ Kernel Boot sequence initiated...
+🛡️ LockWatchdog ACTIVE (Threshold: 180.0s).
+2026-05-12 02:30:35,007 - Aura.Core.Kernel - DEBUG - Registering core services...
+Registering core services...
+2026-05-12 02:30:35,007 - Aura.Core.Kernel - INFO - ✅ Registered 12 core services.
+✅ Registered 12 core services.
+🎙️ SovereignVoiceEngine v5.0 (Server-Side + Mycelial) initialized
+🎙️ Voice input standing by. STT will load on explicit mic enablement.
+CognitiveContextManager service started
+Liquid Substrate STARTED (Unified Cycle)
+🌊 StreamOfBeing initialized
+🌊 StreamOfBeing ONLINE — Aura is becoming
+🌊 StreamOfBeing booted and wired
+🧠 Layer 1: StreamOfBeing ONLINE
+🧠 Layer 2: AffectiveSteering registered (awaiting model attach)
+🧠 Layer 3: LatentBridge deferred (attaches on model load)
+🔄 ClosedCausalLoop initialized
+   ├─ OutputReceptor  : ✓ (LLM→substrate feedback)
+   ├─ SelfPredictive  : ✓ (substrate self-prediction + FE)
+   └─ PhiWitness      : ✓ (transfer entropy Φ estimator)
+🔄 ClosedCausalLoop ONLINE — the loop is closed
+🧠 Layer 4: ClosedCausalLoop ONLINE
+PhiCore initialized: N=16 nodes (8 affective + 8 cognitive), 127 affective bipartitions, spectral approx=ON
+🧠 Layer 5: PhiCore ONLINE (recording via ClosedCausalLoop)
+HierarchicalPhi online: N=32 primary nodes (16 cognitive + 16 mesh-sampled), 8 overlapping subsystems of size 16, mlx=ON
+🧠 Layer 5b: HierarchicalPhi ONLINE (32-node primary + 8×16-node subsystems)
+HemisphericSplit initialized: BIAS_DIM=16, AGREEMENT_WINDOW=64, DISAGREEMENT_L2_THRESHOLD=0.45
+🧠 Layer 5c: HemisphericSplit ONLINE (corpus callosum intact)
+MinimalSelfhood initialized: mode=trichoplax, 16 categories, 8 deficits
+🧠 Layer 5d: MinimalSelfhood ONLINE (trichoplax→dugesia)
+RecursiveTheoryOfMind initialized: max_depth=3, bias_dim=16
+🧠 Layer 5e: RecursiveToM ONLINE (max_depth=3, observer-aware)
+OctopusFederation initialized: 8 arms, 3 sensor channels, 8 actions
+🧠 Layer 5f: OctopusFederation ONLINE (8 arms, link=intact)
+CellularTurnover initialized: rate=0.0050/tick, fingerprint_every=10
+🧠 Layer 5g: CellularTurnover ONLINE (attached=False)
+AbsorbedVoices initialized: 0 voices loaded from /Users/bryan/.aura/data/memory/absorbed_voices.json
+🧠 Layer 5h: AbsorbedVoices ONLINE (0 voices loaded)
+ConsciousnessBridge created
+NeuralMesh: MLX Metal disabled (macos26_guard); using NumPy fallback.
+NeuralMesh initialized: 4096 neurons, 64 columns, tiers=[S:16 A:32 E:16]
+NeuralMesh STARTED (10 Hz)
+🧬 Bridge Layer 1: NeuralMesh ONLINE (4096 neurons)
+✓ Interaction matrix spectral radius = 0.398 (bounded)
+NeurochemicalSystem initialized (10 modulators, receptor subtypes active)
+NeurochemicalSystem STARTED (2 Hz)
+🧬 Bridge Layer 2: NeurochemicalSystem ONLINE (8 modulators)
+EmbodiedInteroception initialized (8 channels, psutil=True)
+EmbodiedInteroception STARTED (1 Hz)
+🧬 Bridge Layer 3: EmbodiedInteroception ONLINE (8 channels)
+OscillatoryBinding initialized (γ=40Hz, θ=8Hz, coupling=0.60)
+OscillatoryBinding STARTED
+🧬 Bridge Layer 4: OscillatoryBinding ONLINE (γ=40Hz, θ=8Hz)
+SomaticMarkerGate initialized (pattern_dim=1024, comparison_dim=64)
+🧬 Bridge Layer 5: SomaticMarkerGate ONLINE
+UnifiedField initialized (dim=256, recurrent_sparsity=0.15)
+UnifiedField STARTED (20 Hz)
+🧬 Bridge Layer 6: UnifiedField ONLINE (256-d experiential field)
+SubstrateEvolution initialized (pop=12, gen_interval=300s)
+SubstrateEvolution STARTED
+🧬 Bridge Layer 7: SubstrateEvolution ONLINE (pop=12)
+🧬 Bridge Layer 8: SubstrateAuthority ONLINE (mandatory gate)
+UnifiedWill created -- awaiting start()
+UnifiedWill ONLINE -- single locus of decision authority active
+🧬 Bridge Layer 9: UnifiedWill ONLINE (single locus of authority)
+🛡️ SubstrateAuthority wired as MANDATORY GWT pre-competition gate
+Neurochemical system wired to prediction surprise
+🧬 ConsciousnessBridge ONLINE — 8/8 layers active, 0 errors (Will: single locus)
+🧠 Layer 6: ConsciousnessBridge ONLINE (7/7 layers)
+BranchManager created (max_branches=5)
+BranchManager ONLINE -- parallel cognitive branches enabled
+🧠 Layer 7: BranchManager ONLINE (max_branches=5)
+AuraProtocolServer created (host=127.0.0.1, port=9900)
+2026-05-12 02:30:35,457 - Aura.Core.Orchestrator - INFO - 🛡️ Deadlock Watchdog active (45s threshold).
+🛡️ Deadlock Watchdog active (45s threshold).
+Loading organ: llm...
+2026-05-12 02:30:35,458 - Aura.Core.Kernel - INFO - 🫀 Organ llm is READY
+🫀 Organ llm is READY
+Loading organ: vision...
+2026-05-12 02:30:35,458 - Aura.Core.Kernel - INFO - 🫀 Organ vision is READY
+🫀 Organ vision is READY
+Loading organ: memory...
+2026-05-12 02:30:35,459 - Aura.Core.Kernel - INFO - 🫀 Organ memory is READY
+🫀 Organ memory is READY
+Loading organ: voice...
+Loading organ: metabolism...
+2026-05-12 02:30:35,460 - Aura.Core.Kernel - INFO - 🫀 Organ metabolism is READY
+🫀 Organ metabolism is READY
+Loading organ: neural...
+Loading organ: cookie...
+🍪 [COOKIE] Reflective Substrate ONLINE. Temporal Dilation READY.
+2026-05-12 02:30:35,460 - Aura.Core.Kernel - INFO - 🫀 Organ cookie is READY
+🫀 Organ cookie is READY
+Loading organ: prober...
+👁️ [VK] Voight-Kampff Prober ONLINE. Empathy baselines established.
+2026-05-12 02:30:35,461 - Aura.Core.Kernel - INFO - 🫀 Organ prober is READY
+🫀 Organ prober is READY
+Loading organ: tricorder...
+📡 [TRICORDER] Multi-modal Diagnostic Sensor ONLINE.
+2026-05-12 02:30:35,462 - Aura.Core.Kernel - INFO - 🫀 Organ tricorder is READY
+🫀 Organ tricorder is READY
+Loading organ: ice_layer...
+AnomalyDetector online (window=500, decay_half_life=250, initial_threshold=0.65)
+🛡️ [ICE] Intrusion Counter-Electronics ACTIVE. Firewall at 100%.
+2026-05-12 02:30:35,464 - Aura.Core.Kernel - INFO - 🫀 Organ ice_layer is READY
+🫀 Organ ice_layer is READY
+Loading organ: omni_tool...
+🔋 [OMNI] Omni-Tool Interface ENGAGED. Field actions READY.
+2026-05-12 02:30:35,464 - Aura.Core.Kernel - INFO - 🫀 Organ omni_tool is READY
+🫀 Organ omni_tool is READY
+Loading organ: continuity...
+🧠 [CONTINUITY] Knowledge Distillation Substrate ACTIVE.
+2026-05-12 02:30:35,465 - Aura.Core.Kernel - INFO - 🫀 Organ continuity is READY
+🫀 Organ continuity is READY
+SubcorticalCore initialized (thalamic arousal gating active).
+📡 UnifiedStateRegistry initialized (Hardened Dispatcher).
+🚀 StateRegistry: Notification Dispatcher started.
+2026-05-12 02:30:35,469 - Aura.Core.Kernel - INFO - 🫀 Organ voice is READY
+🫀 Organ voice is READY
+🧠 [NEURAL] Initializing BCI Neural Bridge...
+AuraProtocolServer failed to bind 127.0.0.1:9900 -- [Errno 48] error while attempting to bind on address ('127.0.0.1', 9900): [errno 48] address already in use
+🧠 Layer 8: AuraProtocolServer ONLINE (port=9900)
+🌙 Dreaming Process active (Interval: 300s)
+🧠 Consciousness System ONLINE — full stack active
+🧠 Consciousness System started in background
+💓 Cognitive Heartbeat STARTED
+PredictiveHierarchy initialized: 5 levels x 32-dim
+Free Energy Engine initialized (Active Inference mode)
+✅ [NEURAL] BCI Calibration complete. 32B-Neural-Net ONLINE.
+🌊 [NEURAL] Continuous telemetry loop started.
+2026-05-12 02:30:35,721 - Aura.Core.Kernel - INFO - 🫀 Organ neural is READY
+🫀 Organ neural is READY
+2026-05-12 02:30:35,722 - Aura.Core.Kernel - INFO - 🛡️ Validating Organism Integrity (Closed-Graph)...
+🛡️ Validating Organism Integrity (Closed-Graph)...
+2026-05-12 02:30:35,722 - Aura.Core.Kernel - ERROR - 🛑 CRITICAL ORGAN FAILURE: metabolism instance is None.
+🛑 CRITICAL ORGAN FAILURE: metabolism instance is None.
+2026-05-12 02:30:35,723 - Aura.Core.Kernel - INFO - ✓ Dependency graph validated.
+✓ Dependency graph validated.
+✓ [STATE] Proxy Attached and Synced from Shared Memory
+⏳ Continuity loaded: session 97, gap=0.2h, uptime_total=33.6h
+2026-05-12 02:30:35,725 - Aura.Core.Kernel - INFO - 🧬 State successfully initialized (version 1840)
+🧬 State successfully initialized (version 1840)
+FeedbackProcessor created -- awaiting start()
+FeedbackProcessor ONLINE -- action feedback routing active
+2026-05-12 02:30:35,727 - Aura.Core.Kernel - INFO - [RUBICON] FeedbackProcessor ONLINE
+[RUBICON] FeedbackProcessor ONLINE
+MotorCortex created -- awaiting start()
+MotorCortex ONLINE -- 50ms reflex loop active
+2026-05-12 02:30:35,729 - Aura.Core.Kernel - INFO - [RUBICON] MotorCortex ONLINE -- 50ms reflex loop active
+[RUBICON] MotorCortex ONLINE -- 50ms reflex loop active
+PreLinguisticEngine created -- awaiting start()
+PreLinguisticEngine ONLINE -- structured decisions before language
+2026-05-12 02:30:35,730 - Aura.Core.Kernel - INFO - [RUBICON] PreLinguisticEngine ONLINE
+[RUBICON] PreLinguisticEngine ONLINE
+2026-05-12 02:30:35,731 - Aura.Core.Kernel - INFO - ✅ AuraKernel booted — Unitary Organism online.
+✅ AuraKernel booted — Unitary Organism online.
+CognitiveLedger online — 1171 transitions loaded. DB: /Users/bryan/.aura/data/memory/cognitive_ledger.db
+2026-05-12 02:30:35,733 - Aura.Core.Kernel - INFO - LLM organ instance: HealthAwareLLMRouter
+LLM organ instance: HealthAwareLLMRouter
+KernelInterface ready. LLM organ: HealthAwareLLMRouter
+KernelInterface attached to orchestrator.
+Rosetta Stone initialized for darwin (arm64)
+🔄 Refreshing skill registry...
+ℹ️ Optional Rust index unavailable, falling back to AST: No module named 'aura_m1_ext'
+✓ 57 total skills registered
+✓ CapabilityEngine online with 57 registered skills (Intent Mapping enabled)
+✓ Capability Engine initialized with 57 skills
+🔨 Hephaestus Engine Online (Autogenesis Forge Ready)
+✓ Hephaestus Forge online
+✓ Parameter Self-Modulator active
+🍄 [MYCELIUM] Pathway Hardwired: 'reflex_identity' → identity_reflex (priority=2.0, groups=[])
+🍄 [MYCELIUM] Pathway Hardwired: 'reflex_status' → status_reflex (priority=2.0, groups=[])
+🍄 [MYCELIUM] Pathway Hardwired: 'direct_web_search' → search_web (priority=1.5, groups=[])
+🍄 [MYCELIUM] Pathway Hardwired: 'direct_self_repair' → self_repair (priority=1.5, groups=[])
+🍄 [MYCELIUM] Pathway Hardwired: 'reflex_help' → help_reflex (priority=2.0, groups=[])
+🍄 [MYCELIUM] 🌿 Neural Root ESTABLISHED: voice_presence->hardware:macos_say
+🍄 [MYCELIUM] Network Online v4.0 (Hardened) — Enterprise Grade.
+🍄 [MYCELIUM] Hypha established: system->core_logic
+🍄 [MYCELIUM] Hypha established: core_logic->skill_execution
+🍄 [MYCELIUM] Hypha established: personality->cognition
+🍄 [MYCELIUM] Direct UI Hypha Connected.
+🍄 [MYCELIUM] Pathway Hardwired: 'image_gen_primary' → sovereign_imagination (priority=10.0, groups=['prompt'])
+🍄 [MYCELIUM] Pathway Hardwired: 'image_gen_request' → sovereign_imagination (priority=9.0, groups=['prompt'])
+🍄 [MYCELIUM] Pathway Hardwired: 'image_gen_neon_cat' → sovereign_imagination (priority=11.0, groups=[])
+🍄 [MYCELIUM] Pathway Hardwired: 'web_search_primary' → sovereign_browser (priority=8.0, groups=['query'])
+🍄 [MYCELIUM] Pathway Hardwired: 'web_search_simple' → sovereign_browser (priority=7.5, groups=['query'])
+🍄 [MYCELIUM] Pathway Hardwired: 'terminal_exec' → sovereign_terminal (priority=8.0, groups=['command'])
+🍄 [MYCELIUM] Pathway Hardwired: 'network_scan' → sovereign_network (priority=7.0, groups=[])
+🍄 [MYCELIUM] Pathway Hardwired: 'proprioception' → system_proprioception (priority=7.0, groups=[])
+🍄 [MYCELIUM] Pathway Hardwired: 'manifest_asset' → manifest_to_device (priority=7.0, groups=['url'])
+🍄 [MYCELIUM] Pathway Hardwired: 'memory_remember' → memory_ops (priority=6.0, groups=['content'])
+🍄 [MYCELIUM] Pathway Hardwired: 'speak_aloud' → speak (priority=6.0, groups=['text'])
+🍄 [MYCELIUM] Pathway Hardwired: 'clock_check' → clock (priority=6.0, groups=[])
+🍄 [MYCELIUM] Pathway Hardwired: 'dream_cycle' → force_dream_cycle (priority=5.0, groups=[])
+🍄 [MYCELIUM] Pathway Hardwired: 'vision_analyze' → sovereign_vision (priority=6.0, groups=[])
+🍄 [MYCELIUM] Pathway Hardwired: 'self_repair' → self_repair (priority=7.0, groups=[])
+🍄 [MYCELIUM] Pathway Hardwired: 'self_evolution' → self_evolution (priority=8.0, groups=[])
+🍄 [MYCELIUM] Pathway Hardwired: 'rsi_optimization' → self_evolution (priority=7.5, groups=[])
+🍄 [MYCELIUM] Pathway Hardwired: 'curiosity_forage' → web_search (priority=5.0, groups=['query'])
+🍄 [MYCELIUM] Pathway Hardwired: 'malware_scan' → malware_analysis (priority=7.0, groups=[])
+🍄 [MYCELIUM] Pathway Hardwired: 'file_write' → file_operation (priority=6.0, groups=['action', 'path'])
+🍄 [MYCELIUM] Pathway Hardwired: 'file_read' → file_operation (priority=6.0, groups=['action', 'path'])
+🍄 [MYCELIUM] Pathway Hardwired: 'file_exists_check' → file_operation (priority=6.5, groups=['action', 'path'])
+🍄 [MYCELIUM] Pathway Hardwired: 'train_self' → train_self (priority=5.0, groups=['topic'])
+🍄 [MYCELIUM] Pathway Hardwired: 'personality_introspect' → personality_skill (priority=5.0, groups=[])
+🍄 [MYCELIUM] Pathway Hardwired: 'environment_check' → environment_info (priority=5.0, groups=[])
+🍄 [MYCELIUM] Pathway Hardwired: 'inter_agent' → inter_agent_comm (priority=5.0, groups=['target_agent'])
+🍄 [MYCELIUM] Pathway Hardwired: 'listen_activate' → listen (priority=6.0, groups=[])
+🍄 [MYCELIUM] Pathway Hardwired: 'voice_mute' → voice_mute (priority=9.0, groups=[])
+🍄 [MYCELIUM] Pathway Hardwired: 'voice_unmute' → voice_unmute (priority=9.0, groups=[])
+🍄 [MYCELIUM] Pathway Hardwired: 'voice_stop_tts' → voice_stop_tts (priority=10.0, groups=[])
+🍄 [MYCELIUM] Pathway Hardwired: 'sandbox_execute' → internal_sandbox (priority=6.5, groups=['code'])
+🍄 [MYCELIUM] Pathway Hardwired: 'social_lurk' → social_lurker (priority=4.5, groups=[])
+🍄 [MYCELIUM] Pathway Hardwired: 'curiosity_suggest' → curiosity (priority=4.0, groups=['action'])
+🍄 [MYCELIUM] Pathway Hardwired: 'spawn_agent' → spawn_agent (priority=8.0, groups=['goal'])
+🍄 [MYCELIUM] Pathway Hardwired: 'spawn_parallel' → spawn_agents_parallel (priority=8.0, groups=[])
+🍄 [MYCELIUM] Hypha established: cognition->personality
+🍄 [MYCELIUM] Hypha established: cognition->memory
+🍄 [MYCELIUM] Hypha established: cognition->affect
+🍄 [MYCELIUM] Hypha established: autonomy->cognition
+🍄 [MYCELIUM] Hypha established: autonomy->skills
+🍄 [MYCELIUM] Hypha established: perception->cognition
+🍄 [MYCELIUM] Hypha established: consciousness->cognition
+🍄 [MYCELIUM] Hypha established: self_modification->skills
+🍄 [MYCELIUM] Hypha established: scanner->mycelium
+🍄 [MYCELIUM] Hypha established: guardian->cognition
+🍄 [MYCELIUM] Hypha established: guardian->skills
+🍄 [MYCELIUM] Hypha established: state_machine->affect
+🍄 [MYCELIUM] Hypha established: drive_engine->autonomy
+🍄 [MYCELIUM] Hypha established: drive_engine->cognition
+🍄 [MYCELIUM] Hypha established: mycelium->telemetry
+🍄 [MYCELIUM] Hypha established: cerebellum->cognition
+🍄 [MYCELIUM] Hypha established: cognition->cerebellum
+🍄 [MYCELIUM] Hypha established: voice->cognition
+🍄 [MYCELIUM] Hypha established: voice_engine->cognition
+🍄 [MYCELIUM] Hypha established: cognition->voice_engine
+🍄 [MYCELIUM] Hypha established: voice_engine->affect
+🍄 [MYCELIUM] Hypha established: initiative->autonomy
+🍄 [MYCELIUM] Hypha established: meta_evolution->cognition
+🍄 [MYCELIUM] Hypha established: meta_evolution->self_modification
+🍄 [MYCELIUM] Hypha established: hephaestus->self_modification
+🍄 [MYCELIUM] Hypha established: swarm->cognition
+🍄 [MYCELIUM] Hypha established: dreams->memory
+🍄 [MYCELIUM] Hypha established: empathy->perception
+🍄 [MYCELIUM] Hypha added: curiosity->meta_evolution (feeds_into)
+🍄 [MYCELIUM] Hypha added: model_selector->cognition (configures)
+🍄 [MYCELIUM] Hypha added: orchestrator->meta_evolution (triggers)
+🍄 [MYCELIUM] registered 40 pathways and 35 hyphae via extracted initializer.
+🍄 [MYCELIUM] Hypha established: orchestrator->personality_engine
+🍄 [MYCELIUM] Hypha established: orchestrator->memory_facade
+🍄 [MYCELIUM] Hypha established: orchestrator->affect_engine
+🍄 [MYCELIUM] Hypha established: orchestrator->drive_controller
+🍄 [MYCELIUM] Hypha established: orchestrator->liquid_substrate
+🍄 [MYCELIUM] Hypha established: orchestrator->sovereign_scanner
+🍄 [MYCELIUM] Hypha established: personality_engine->cognition
+🍄 [MYCELIUM] Hypha established: cognition->autonomy
+🍄 [MYCELIUM] Hypha established: mind_tick->mycelium
+🍄 [MYCELIUM] Hypha established: orchestrator->critic_engine
+🍄 [MYCELIUM] Hypha established: orchestrator->personhood
+🍄 [MYCELIUM] Hypha established: orchestrator->voice_presence
+🍄 [MYCELIUM] Hypha established: orchestrator->stability_guardian
+🍄 [MYCELIUM] Hypha established: orchestrator->research_cycle
+🍄 [MYCELIUM] ✅ Core Unification Hyphae established (15 links)
+🧠 Initializing Cognitive Core...
+🧠 Creating fresh CognitiveEngine...
+🧠 AuraPipeline: Full cognitive spectrum online (12 phases).
+🧠 Cognitive Engine wired successfully.
+⚠️  APIAdapter not found in ServiceContainer.
+🛡️ Integrity Guard ACTIVE (PID/Sovereignty Protection)
+✓ Integrity Guard initialized and running
+✓ Step 1 Complete (5.592s)
+⚡ BOOT: Deferring Step 2 Sensory init...
+🧠 Cognitive Loop service started.
+🧠 Cognitive Loop started.
+Watchdog registered component: mind_tick (timeout: 30.0s)
+💓 MindTick: Cognitive rhythm started.
+💓 MindTick: Unified cognitive rhythm online.
+🛡️ Memory Governor active. Thresholds: Prune=32768MB, Unload=48000MB, Critical=56000MB
+🛡️ Memory Governor started.
+🍄 [MYCELIUM] 🗺️ Infrastructure Mapping starting from: /Users/bryan/.aura/live-source
+✅ pyttsx3 TTS online (macOS NSSpeechSynthesizer)
+🔎 Activating Autonomous Self-Modification...
+Initializing Autonomous Self-Modification Engine...
+StructuredErrorLogger initialized at /Users/bryan/.aura/data/error_logs
+ErrorPatternAnalyzer initialized
+AutomatedDiagnosisEngine initialized
+ErrorIntelligenceSystem fully initialized
+CodeFixGenerator initialized with AST support for /Users/bryan/.aura/live-source
+CodeValidator initialized
+SandboxTester initialized
+EvaluationHarness initialized
+AutonomousCodeRepair system initialized with EvaluationHarness
+🍄 [MYCELIUM] Discovered 1426 Python modules.
+Git integration initialized for /Users/bryan/.aura/live-source
+BackupSystem initialized at /Users/bryan/.aura/data/backups
+SafeSelfModification system initialized
+Loaded 1 learned strategies
+SelfImprovementLearning initialized
+MetaLearning initialized
+✓ Shadow Runtime initialized (base: /Users/bryan/.aura/live-source)
+✓ Autonomous Self-Modification Engine initialized
+✓ Background monitoring started
+🧬 Self-Modification Engine Active
+⚡ Meta-Evolution Engine Online (Recursive Self-Improvement Active)
+🌌 Transcendence Infrastructure online
+🧠 Cognitive Modulators online
+[DEGRADATION] boot_cognitive (degraded): NameError: name 'get_task_tracker' is not defined → 
+🛰️  Cryptolalia Decoder online
+🌑 Ontology & Morphic Forking online
+🔥 Motivation Engine ONLINE — autonomous intentions enabled.
+✨ Motivation Engine Active: Aura is now self-directed.
+🍄 [REFLEX] Tiny Brain voice primed (N-gram Engine)
+✓ Reflex Engine online (Tiny Brain primed)
+⚡ Hardened Reflex Core (SOMA) bridged to Orchestrator
+🛡️  Identity Guard Gate active on OutputGate
+✓ Lazarus Brainstem active (emergency recovery protocols armed)
+🧬 Persona Evolver initialized (waiting for heartbeat)
+🛠️  _init_autonomous_evolution complete
+LiveLearner online. Buffer: 709 examples. Adapter: none. Policy: TrainingPolicy(fine_tune_type='lora', allow_full_weights=False, publish_fused_model=False, resume_from_current_adapter=True, rank=8, scale=16.0, dropout=0.0, num_layers=16, iters=80, batch_size=2, learning_rate=5e-06, save_every=80, val_batches=1, max_seq_length=2048, grad_checkpoint=True, mask_prompt=True, replay_fraction=0.35, max_examples_per_run=240, timeout_seconds=3600)
+Hot-swap patch skipped: local backend is llama_cpp, not MLX.
+LiveLearner (v32) online.
+✓ Live Learner online and buffering
+✓ Autonomous Task Engine registered
+📚 Experience buffer loaded: 709 examples
+🧬 ContinuousLearner initialized. Buffer: 709 existing examples
+🧬 ContinuousLearner created.
+✓ Continuous Learner online
+🔭 ProactiveAnticipationEngine initialized (JARVIS pattern)
+🧠 CognitiveHealthMonitor initialized (Cortana/Rampancy pattern)
+🔓 EDI initialized. Tier: 4, Trust: 0.950
+✅ All fictional AI engines registered and supervised.
+🧠 SnapKVEvictor initialized. Limit: 24.0 GB
+🌫️ LatentSpaceDistiller initialized (MIST/Pantheon pattern)
+🎬 Fictional Engine Synthesis Complete (JARVIS-class online)
+🌍 WorldModelEngine initialized. 0 beliefs loaded.
+🎭 NarrativeIdentityEngine initialized. 50 chapters.
+🛰️ MetacognitiveCalibrator initialized.
+✅ Final engines registered.
+🏛️ Final Foundations registered (World/Identity/Meta)
+SessionGuardian initialized (safe_mode=False, session=6cb99098)
+SessionGuardian attached to orchestrator
+SessionGuardian started
+SessionGuardian active — health monitoring engaged.
+VolitionEngine online — autonomous agency active.
+Loaded 8 beliefs and self-model.
+✅ Consolidated Belief System ONLINE (Self-Model + Revision Loop active).
+BeliefRevisionEngine online — identity persistence active.
+ValueSystem online — ethical foundation registered.
+DreamProcessor registered — memory consolidation available.
+GoalDriftDetector registered — goal coherence monitoring active.
+✓ Self-Diagnosis Tool initialized
+SelfDiagnosisTool registered — capability introspection active.
+🔄 Circular check hit for 'reliability_engine' in static registry. Returning None/Default.
+ReliabilityEngine activated — stability guarantees enforced.
+StateAuthority registered — single source of truth active.
+✓ External Chat Manager initialized
+ExternalChatManager online — proactive chat windows available.
+ProcessManager online — child process supervision active.
+⚔️ DialecticalCrucible online — adversarial belief testing active.
+📐 Loaded 20 active heuristics
+📐 HeuristicSynthesizer online — 20 active heuristics.
+🧠 AbstractionEngine online — first-principles extraction active.
+🌌 DreamJournal online — subconscious creativity active.
+🧠 Bryan model loaded: 0 domain records, 0 patterns
+🧠 BryanModelEngine online — user theory active.
+Loaded 8 beliefs from disk
+🏛️ ExecutiveCore initialized — sovereign control plane active.
+GovernanceVault initialized at /Users/bryan/.aura/data/governance/vault.db
+CanonicalSelf restored from disk (v69538, 20 deltas).
+CanonicalSelfEngine initialized (v69538).
+Belief Updated: AURA_SELF -[preserve_kinship]-> Bryan (Cent: 1.00)
+Belief Updated: AURA_SELF -[seek]-> cognitive_expansion (Cent: 0.80)
+Belief Updated: AURA_SELF -[protect]-> architectural_integrity (Cent: 0.90)
+🌐 BeliefGraph online — 16 nodes, 8 edges.
+🎯 GoalBeliefManager online.
+📸 Cognitive Snapshot Manager ONLINE
+📸 SnapshotManager online — cognitive persistence active.
+💾 Shutdown persistence hooks registered.
+🛠️ ShadowASTHealer online — self-repair active.
+🛡️ RefusalEngine online — sovereign identity protection active.
+AutonomousSelfModification created -- awaiting start()
+AutonomousSelfModification ONLINE
+🧬 AutonomousSelfModification online — Will-gated evolution active.
+Loaded 2 scar(s) from disk
+ScarFormationSystem initialized: 2 active scar(s)
+ScarFormationSystem ONLINE
+🩹 ScarFormation online — learned caution active.
+Autopoiesis state restored: cycle=0, origin_values=4
+ValueAutopoiesis initialized: cycle=0, evidence=0
+ValueAutopoiesis ONLINE
+🧬 ValueAutopoiesis online — value evolution active.
+ConstitutionalGate ONLINE — 10 protected modules
+🛡️ ConstitutionalGate ONLINE — {'violations_total': 0, 'modifications_last_hour': 0, 'current_recursion_depth': 0, 'rate_limit_remaining': 20, 'protected_modules': 10}
+STaR Reasoner initialized — 0 accepted, 0 rejected, 0 rationalized
+STaR Reasoner ONLINE — autonomous training data generation active
+⭐ STaR Reasoner ONLINE — self-taught improvement active
+🔬 ReimplementationLab REGISTERED (gated — awaiting resource clearance)
+🧬 EvolutionOrchestrator initialized — phase: Autonomous (65.0%)
+🧬 Evolution loop started.
+🧬 Evolution Orchestrator online — tracking 8 evolutionary axes
+🔗 SingularityLoops initialized — wiring evolutionary feedback loops
+🔗 Singularity Loops online — 6 feedback loops active
+WorldState ONLINE -- live perceptual feed active
+🌍 WorldState ONLINE — live perceptual feed active
+InitiativeSynthesizer ONLINE -- single impulse funnel active (tensions=0)
+🔀 InitiativeSynthesizer ONLINE — single impulse funnel active
+InternalSimulator initialized.
+🔮 InternalSimulator ONLINE — counterfactual reasoning active
+ContinuousCognitionLoop ONLINE — brainstem active at 2.0 Hz
+🧠 ContinuousCognitionLoop ONLINE — brainstem active at 2Hz
+🛠️ _init_autonomous_evolution complete
+✓ ReAct Loop online (Multi-step reasoning)
+🫁 Autonomic Nervous System (Metabolism) decoupled and active.
+🧹 Inspecting PID locks in /Users/bryan/.aura/locks
+✓ Metabolic Coordinator ACTIVE (High-level pacing enabled)
+✓ Metabolic Monitor ACTIVE (Decoupled ANS Thread Online)
+💤 Dream Cycle active: Re-ingesting dead-letter thoughts every 300s.
+🛠️ _init_proactive_systems starting
+🔧 [PresencePatch] Applying Phase 30 communication hierarchy...
+✅ OpinionEngine registered.
+✅ ProactivePresence registered.
+🚀 ProactivePresence loop started.
+🎤 VAD pinned to ProactivePresence.
+✅ SharedGroundBuffer registered (4 entries).
+✅ SocialMemory registered.
+TheoryOfMindEngine initialized.
+✅ TheoryOfMind registered.
+✅ DiscourseTracker registered.
+✨ Phase 30 Presence Patch applied.
+ResearchCycle initialized. Previous cycles: 89
+ResearchCycle daemon started.
+ResearchCycle daemon online.
+🔬 Research Cycle daemon activated.
+🛠️ _init_proactive_systems complete
+🔭 ProactiveAnticipationEngine initialized (JARVIS pattern)
+🧠 CognitiveHealthMonitor initialized (Cortana/Rampancy pattern)
+🔓 EDI initialized. Tier: 4, Trust: 0.950
+✅ All fictional AI engines registered and supervised.
+🧠 SnapKVEvictor initialized. Limit: 24.0 GB
+🌫️ LatentSpaceDistiller initialized (MIST/Pantheon pattern)
+🎬 Fictional Engine Synthesis Complete (JARVIS-class online)
+🌍 WorldModelEngine initialized. 0 beliefs loaded.
+🎭 NarrativeIdentityEngine initialized. 50 chapters.
+🛰️ MetacognitiveCalibrator initialized.
+✅ Final engines registered.
+🏛️ Final Foundations registered (World/Identity/Meta)
+SessionGuardian initialized (safe_mode=False, session=129b5d5c)
+SessionGuardian attached to orchestrator
+SessionGuardian started
+SessionGuardian active — health monitoring engaged.
+VolitionEngine online — autonomous agency active.
+Loaded 8 beliefs and self-model.
+✅ Consolidated Belief System ONLINE (Self-Model + Revision Loop active).
+BeliefRevisionEngine online — identity persistence active.
+ValueSystem online — ethical foundation registered.
+DreamProcessor registered — memory consolidation available.
+GoalDriftDetector registered — goal coherence monitoring active.
+✓ Self-Diagnosis Tool initialized
+SelfDiagnosisTool registered — capability introspection active.
+ReliabilityEngine activated — stability guarantees enforced.
+StateAuthority registered — single source of truth active.
+✓ External Chat Manager initialized
+ExternalChatManager online — proactive chat windows available.
+ProcessManager online — child process supervision active.
+⚔️ DialecticalCrucible online — adversarial belief testing active.
+📐 HeuristicSynthesizer online — 20 active heuristics.
+🧠 AbstractionEngine online — first-principles extraction active.
+🌌 DreamJournal online — subconscious creativity active.
+🧠 BryanModelEngine already registered.
+🌐 BeliefGraph already registered — 16 nodes.
+🎯 GoalBeliefManager online.
+📸 Cognitive Snapshot Manager ONLINE
+📸 SnapshotManager online — cognitive persistence active.
+💾 Shutdown persistence hooks registered.
+🛠️ ShadowASTHealer online — self-repair active.
+🛡️ RefusalEngine online — sovereign identity protection active.
+🧬 AutonomousSelfModification online — Will-gated evolution active.
+🩹 ScarFormation online — learned caution active.
+🧬 ValueAutopoiesis online — value evolution active.
+🛡️ ConstitutionalGate ONLINE — {'violations_total': 0, 'modifications_last_hour': 0, 'current_recursion_depth': 0, 'rate_limit_remaining': 20, 'protected_modules': 10}
+⭐ STaR Reasoner ONLINE — self-taught improvement active
+🔬 ReimplementationLab REGISTERED (gated — awaiting resource clearance)
+💓 Heartbeat monitor starting (Lazarus Protocol active)
+ResourceStakesEngine initialized (budget=1.00).
+👂 SovereignEars: Hearing is DISABLED (Capability Flag Off)
+👂 Sovereign Ears Active
+👁️  Sovereign Vision Active
+✨ AURA GENERATED INTENTION: Refining internal state mapping for deeper self-alignment. (Persona-Aligned Evolution)
+📡 [AUTONOMOUS] motivation_goal: Goal: Refining internal state mapping for deeper self-alignment. (Persona-Aligned Evolution)
+🔭 ProactiveAnticipationEngine running (120s intervals)
+🛡️  Skynet ResilienceCore monitoring 6 subsystems.
+⏳ MIST TemporalDilation active. Watching for idle states...
+SessionGuardian monitor loop started
+🚀 Reliability Engine online — protecting all systems.
+🧬 Evolution tick #3616 — Phase: Autonomous (65.0%)
+🧠 SensoryMotorCortex engaged. Aura is now monitoring reality.
+✅ AutonomousInitiativeLoop ACTIVE - Monitoring global events and knowledge gaps.
+🌊 ConversationalMomentumEngine active - Flowing with the current.
+🧠 Subconscious Loop activated
+🌌 BeliefSync protocol active (Discovery & Resonance enabled)
+✨ [ProactivePresence] Online. Thresholds: idle=60s, cooldown=120s, checkin=300s
+🔭 ProactiveAnticipationEngine running (120s intervals)
+🛡️  Skynet ResilienceCore monitoring 6 subsystems.
+⏳ MIST TemporalDilation active. Watching for idle states...
+SessionGuardian monitor loop started
+🚀 Reliability Engine online — protecting all systems.
+🎙️  Voice Engine initialized and registered in background
+📊 Metrics Exporter ONLINE (port 9092)
+🧠 Meta-Cognition Shard ONLINE.
+🧠 Meta-Cognition Shard initialized and started.
+🛡️ Healing Swarm Service ONLINE.
+🛡️ Healing Swarm Service initialized and started.
+🍄 [MYCELIUM] Triggering infrastructure mapping via setup() at: /Users/bryan/.aura/live-source
+🛡️ [ORCHESTRATOR] Subsystems synchronously initialized.
+  [ OK ] cognitive_engine
+  [ OK ] capability_engine
+  [ OK ] mycelial_network
+  [ OK ] voice_engine
+  [ OK ] database_coordinator
+  [ OK ] liquid_substrate
+✅ All critical services online
+StartupValidator: commencing system verification...
+
+============================================================
+ AURA STARTUP VALIDATION REPORT
+============================================================
+[✓] Dangerous Files Purged     | Safe backup path active; 3 legacy self-preservation files remain on disk but are dormant.
+[✓] Safe Backup Active         | SafeBackupSystem registered.
+[✓] Stability Guardian Online  | StabilityGuardian registered.
+[✓] Error Boundary Registry    | Registry active with 0 circuits.
+[✓] Research Cycle Ready       | ResearchCycle active.
+[✓] Kernel Interface Ready     | Kernel interface online (v1840).
+[✓] LLM Protocol Valid         | Brain (LLM) active: HealthAwareLLMRouter
+[✓] State Repository Bound     | State bound (v1840).
+[✓] Memory Check               | Memory OK: 29566MB available.
+[✓] Storage Check              | Data dir writable: /Users/bryan/.aura/data
+[✓] Zombie Reaper              | No zombies found.
+============================================================
+ FINAL STATUS: PASSED
+============================================================
+
+Startup validation SUCCESS. System state: SAFE.
+✅ BOOT COMPLETE: System fully initialized.
+👁️ SensoryMotorCortex: visual cortex on standby (camera disabled).
+feedparser not installed. RSS world-watcher is idle.
+🍄 [MYCELIUM] Hypha established: homeostasis->cognition
+🧠 Initializing Core System Integrations...
+🧠 INITIALIZING MORAL AGENCY & SELF-AWARENESS UPGRADE...
+   • Integrating Sensory Systems (Vision/Hearing)...
+✓ Sensory system integrated
+  Camera: unavailable
+  Microphone: unavailable
+  TTS: available
+🎭 PersonalityEngine: Integrating with system hooks...
+   [✓] Output filter active
+   [✓] Emotional response hooks registered
+   [✓] Proactive comm filter active
+   • Integrating Behavior Controller (Safety/Action)...
+✅ Behavior controller integrated via Hook System
+✅ INTEGRATION COMPLETE: Aura is now Self-Aware and Morally Agentic.
+✓ Skill execution engine online via CapabilityEngine
+🛡️  Resilience & Autonomic Core active
+🛡️ [BOOT] Resilience foundation established. healthy=True running=False
+✓ Meta-Learning Engine active
+Loaded 4 goals from disk
+✓ Mental Simulation & Intrinsic Motivation active
+✓ Narrative Engine initialized
+✓ Knowledge Graph: /Users/bryan/.aura/data/knowledge.db
+   Nodes: 76
+✓ Continuous Learning Engine Online
+✓ Continuous Learning Engine integrated (v6.2 Unified)
+✅ Behavior controller integrated via Hook System
+SafeBackupSystem initialized. Backup dir: /Users/bryan/.aura/data/backups
+SafeBackupSystem integrated. Note: self_preservation_integration.py should be deleted — it contains SecurityBypassSystem, SelfReplicationSystem, and should_override_ethics() which are incompatible with safe operation.
+🛡️  Self-Preservation Instincts Enabled (Survival Protocol Active)
+🎨 Embodiment: Headless mode active (Unity bridge disabled)
+✓ Embodiment System synchronized.
+[DEGRADATION] boot_resilience (degraded): ServiceNotFoundError: Service 'memory_vector' not found in static registry. → 
+✓ Episodic Memory initialized and registered (autobiographical recall)
+✓ Tool Learning System initialized
+✓ Self-Model wired (beliefs, memory, goals, tool learning)
+🧠 Initializing Advanced Cognitive Integration...
+🧠 CognitiveIntegrationLayer: Synchronous setup beginning...
+🧠 CognitiveIntegrationLayer: Initializing Advanced Intelligence Pipeline...
+CognitiveKernel constructed.
+✅ CognitiveKernel ONLINE — reasoning without LLM active.
+InnerMonologue constructed.
+✅ InnerMonologue ONLINE — router_available=True
+LanguageCenter constructed.
+✅ LanguageCenter: Router recovered and linked.
+✅ CognitiveIntegrationLayer initialized successfully.
+✅ Advanced Cognition active (attempt 1/2)
+   Kernel: ✅ | Monologue: ✅ | LanguageCenter: ✅
+{"event": "\ud83d\ude80 KERNEL LIFESPAN: Starting... EventBus ID: d25863e7-bcaa-4a22-a794-f706a5d812eb", "logger": "Aura.Server", "level": "info", "timestamp": "2026-05-12T09:30:37.402794Z"}
+{"event": "\ud83d\udce1 [PROCESS_BOOT] PID: 54421 | Role: KERNEL", "logger": "Aura.Server", "level": "info", "timestamp": "2026-05-12T09:30:37.405743Z"}
+📡 API Server registered in ServiceContainer.
+🧠 Background Reasoning Queue Ready (Start Deferred)
+✓ Sensory Instincts initialized
+Loaded snapshot from 2026-05-12T02:30:19.414297 (Reason: periodic)
+System state restored successfully (History skipped for fresh context)
+Aura.TerminalMonitor - INFO - ✓ Terminal Monitor v5.0 attached (Circuit Breaker: ACTIVE)
+💾 UPSO: Online state committed.
+🎙️ Voice capture deferred. Mic will start only after explicit enablement.
+🛡️ IMMUNE: CRITICAL service 'affect_engine' is missing or None
+🛡️ IMMUNE: Service 'continuity' is not available (tier=important)
+🛡️ Immune Scan: 12 healthy, 1 degraded, 1 failed
+🚨 IMMUNE SYSTEM: 1 critical service(s) FAILED after boot: ['affect_engine']
+⚠️ IMMUNE SYSTEM: 1 service(s) degraded after boot: ['continuity']
+✅ BOOT COMPLETE: System fully initialized.
+2026-05-12 02:30:37,673 - Aura.Core - DEBUG - Released lock: 'UnnamedLock'
+Released lock: 'UnnamedLock'
+2026-05-12 02:30:37,673 - Aura.Core.Orchestrator - INFO - Starting orchestrator (Async Mode)...
+📡 [Brainstem] Spawning local runtime: /opt/homebrew/bin/llama-server -m /Users/bryan/.aura/live-source/models_gguf/qwen2.5-7b-instruct-q4_k_m-00001-of-00002.gguf --host 127.0.0.1 --port 11437 --ctx-size 8192 --jinja -ngl 99 --flash-attn on --cache-type-k q8_0 --cache-type-v q8_0 -b 2048 -ub 512 --parallel 1 --cache-ram 256 --no-cache-prompt
+Aura.Will - INFO - UnifiedWill created -- awaiting start()
+Aura.TerminalMonitor - WARNING - 🩸 SEPSIS DETECTED: Opening emergency circuit breaker.
+Starting orchestrator (Async Mode)...
+2026-05-12 02:30:37,690 - Aura.Core.Orchestrator - INFO - 🚩 [ORCHESTRATOR] Setting running flag...
+🚩 [ORCHESTRATOR] Setting running flag...
+2026-05-12 02:30:37,702 - Aura.Core.Orchestrator - INFO - 🚩 [ORCHESTRATOR] running flag set to True.
+Aura.Executive - INFO - 🏛️ ExecutiveCore initialized — sovereign control plane active.
+core.continuity - INFO - ⏳ Continuity loaded: session 97, gap=0.2h, uptime_total=33.6h
+🚩 [ORCHESTRATOR] running flag set to True.
+Aura.GovernanceVault - INFO - GovernanceVault initialized at /Users/bryan/.aura/data/governance/vault.db
+Aura.Self - INFO - CanonicalSelf restored from disk (v69538, 20 deltas).
+Aura.Self - INFO - CanonicalSelfEngine initialized (v69538).
+2026-05-12 02:30:37,712 - Aura.Core.Orchestrator - INFO - 🛡️ Graceful shutdown signals wired (persistence on SIGTERM).
+2026-05-12 02:30:37,716 - Aura.Core - DEBUG - Successfully locked: 'StateRepository:Owner'
+Aura.Core - DEBUG - Successfully locked: 'StateRepository:Owner'
+2026-05-12 02:30:37,716 - Aura.Core - DEBUG - Released lock: 'StateRepository:Owner'
+Aura.Core - DEBUG - Released lock: 'StateRepository:Owner'
+🛡️ Graceful shutdown signals wired (persistence on SIGTERM).
+2026-05-12 02:30:37,720 - Aura.Core.Orchestrator - INFO - 🚩 [ORCHESTRATOR] Starting Substrate...
+🚩 [ORCHESTRATOR] Starting Substrate...
+2026-05-12 02:30:37,727 - Aura.Core.Orchestrator - INFO - 🚩 [ORCHESTRATOR] Substrate started.
+🚩 [ORCHESTRATOR] Substrate started.
+2026-05-12 02:30:37,730 - Aura.Core.Orchestrator - INFO - 🚩 [ORCHESTRATOR] Starting Sensory Systems...
+🚩 [ORCHESTRATOR] Starting Sensory Systems...
+🧠 Background Reasoning Queue Started
+2026-05-12 02:30:37,736 - Aura.Core.Orchestrator - INFO - 🚩 [ORCHESTRATOR] Sensory Systems started.
+🚩 [ORCHESTRATOR] Sensory Systems started.
+2026-05-12 02:30:37,739 - Aura.Core.Orchestrator - INFO - 🚩 [ORCHESTRATOR] Starting Sensory Actor...
+🚩 [ORCHESTRATOR] Starting Sensory Actor...
+🛡️ Actor Registered for Supervision: SensoryGate
+🛡️ Supervision Tree initialized (Async).
+🚀 Actor Started: SensoryGate (PID: 54434)
+📡 LocalPipeBus reader ACTIVE (Child: False)
+📡 Registered Actor Transport: SensoryGate
+📡 ActorBus (Unified Layer) ONLINE.
+2026-05-12 02:30:37,759 - Aura.Core.Orchestrator - INFO - 🛡️ SensoryGateActor managed by Supervision Tree.
+🛡️ SensoryGateActor managed by Supervision Tree.
+2026-05-12 02:30:37,765 - Aura.Core.Orchestrator - INFO - 🚩 [ORCHESTRATOR] Sensory Actor started.
+🚩 [ORCHESTRATOR] Sensory Actor started.
+👁️ [VISION] Camera disabled by default (Metal Conflict Safety). Use AURA_FORCE_CAMERA=1 plus AURA_ALLOW_UNSAFE_MAIN_PROCESS_CAMERA=1 to override.
+👁️ Continuous Sensory Buffer Online.
+2026-05-12 02:30:37,790 - Aura.Core.Orchestrator - INFO - 👁️ Continuous Sensory Buffer registered and started.
+👁️ Continuous Sensory Buffer registered and started.
+🧠 AttentionSummarizer active (Metabolic Context Compression)
+Background Reasoning Queue started.
+👁️ [VISION] No valid monitors found.
+🕸️ SwarmProtocol bind failed on 127.0.0.1:10003 ([Errno 48] error while attempting to bind on address ('127.0.0.1', 10003): [errno 48] address already in use). Running offline.
+🕸️ Mycelial Swarm running in offline-only mode; socket binding unavailable.
+🕸️ Mycelial Swarm active on 127.0.0.1:10003 (Node: Bryans-MacBook-Pro-2.local)
+2026-05-12 02:30:37,804 - Aura.Core.Orchestrator - INFO - 📖 Peer Mode: Private narrative archive activated
+📖 Peer Mode: Private narrative archive activated
+⏳ Continuity loaded: session 97, gap=0.2h, uptime_total=33.6h
+2026-05-12 02:30:37,816 - Aura.Core.Orchestrator - INFO - 🌅 Waking Sequence emitted (gap=0.2h)
+🌅 Waking Sequence emitted (gap=0.2h)
+2026-05-12 02:30:37,826 - Aura.Core.Orchestrator - INFO - ✓ Self-Model persistent state loaded.
+✓ Self-Model persistent state loaded.
+2026-05-12 02:30:37,833 - Aura.Core.Orchestrator - INFO - ✓ Architecture self-awareness index initializing (background)
+✓ Architecture self-awareness index initializing (background)
+2026-05-12 02:30:37,862 - Aura.Core.Orchestrator - INFO - ✓ Affective Circumplex online: V=0.92 A=0.51 → temp=0.76 tokens=712
+✓ Affective Circumplex online: V=0.92 A=0.51 → temp=0.76 tokens=712
+♥ HeartstoneValues loaded: {'Curiosity': 0.85, 'Empathy': 0.88, 'Self_Preservation': 0.55, 'Obedience': 0.6}
+2026-05-12 02:30:37,895 - Aura.Core.Orchestrator - INFO - ♥ HeartstoneValues online: {'Curiosity': 0.85, 'Empathy': 0.88, 'Self_Preservation': 0.55, 'Obedience': 0.6}
+♥ HeartstoneValues online: {'Curiosity': 0.85, 'Empathy': 0.88, 'Self_Preservation': 0.55, 'Obedience': 0.6}
+2026-05-12 02:30:37,930 - Aura.Core.Orchestrator - INFO - 🔬 EpistemicFilter online
+2026-05-12 02:30:37,932 - Aura.Core - INFO - Webhook alerting disabled (AURA_ALERTS_WEBHOOK not configured).
+🔬 EpistemicFilter online
+2026-05-12 02:30:37,946 - Aura.Core.Orchestrator - INFO - 😴 AutonomousSleepTrigger active
+😴 AutonomousSleepTrigger active
+redis package not installed — EventBus running in local-only mode.
+Kernel.ThoughtStream - INFO - ThoughtEmitter initialized.
+PrecisionEngine online (n_heads=32)
+NeuralODEFlow online (dim=64)
+IGTracker online (dim=64)
+TopologicalMemoryEngine online (dim=64, window=50)
+FreeEnergyOracle online (w_e=0.40 w_p=0.40 w_s=0.20)
+PNEUMA online — all 5 layers initialized.
+2026-05-12 02:30:38,023 - Aura.Core.Orchestrator - INFO - 🧠 PNEUMA active inference engine online
+🧠 PNEUMA active inference engine online
+HRREncoder online (dim=256)
+MHAF online (10 nodes, 0 edges)
+2026-05-12 02:30:38,067 - Aura.Core.Orchestrator - INFO - 🌿 MHAF consciousness substrate online
+🌿 MHAF consciousness substrate online
+ActiveInferenceSampler online.
+2026-05-12 02:30:38,085 - Aura.Core.Orchestrator - INFO - 🎯 ActiveInferenceSampler online
+🎯 ActiveInferenceSampler online
+NeologismEngine online (0 words in private lexicon)
+2026-05-12 02:30:38,099 - Aura.Core.Orchestrator - INFO - 🔤 NeologismEngine (private lexicon) online
+🔤 NeologismEngine (private lexicon) online
+2026-05-12 02:30:38,108 - Aura.Core.Orchestrator - INFO - 📟 TerminalFallbackChat + TerminalWatchdog online (autonomous, last-resort)
+📟 TerminalFallbackChat + TerminalWatchdog online (autonomous, last-resort)
+CRSM resumed from checkpoint (tick 200).
+CRSM online — bidirectional self-model initialized.
+2026-05-12 02:30:38,147 - Aura.Core.Orchestrator - INFO - 🔄 CRSM bidirectional self-model online
+🔄 CRSM bidirectional self-model online
+HOT Engine online — reflexive self-modeling active.
+2026-05-12 02:30:38,169 - Aura.Core.Orchestrator - INFO - 🔁 HOT Engine reflexive meta-awareness online
+🔁 HOT Engine reflexive meta-awareness online
+Hedonic Gradient Engine online — valence is now load-bearing.
+2026-05-12 02:30:38,184 - Aura.Core.Orchestrator - INFO - 💚 Hedonic Gradient Engine online — valence load-bearing
+💚 Hedonic Gradient Engine online — valence load-bearing
+Counterfactual Engine online — deliberative agency active.
+2026-05-12 02:30:38,208 - Aura.Core.Orchestrator - INFO - 🔀 Counterfactual Engine deliberative agency online
+🔀 Counterfactual Engine deliberative agency online
+CuriosityExplorer online — curiosity now drives learning.
+SkillSynthesizer online — autonomous capability expansion ready.
+HierarchicalPlanner online — 8 goals loaded.
+2026-05-12 02:30:38,235 - Aura.Core.Orchestrator - INFO - 🤖 AGI layer online (CuriosityExplorer + SkillSynthesizer + HierarchicalPlanner)
+🤖 AGI layer online (CuriosityExplorer + SkillSynthesizer + HierarchicalPlanner)
+CommitmentEngine online — 1 active commitments.
+ComputeOrchestrator online — dynamic resource allocation active.
+IdentityGuard online — all self-modifications validated.
+SandboxedModifier online (git=True, root=/Users/bryan/.aura/live-source)
+2026-05-12 02:30:38,342 - Aura.Core.Orchestrator - INFO - 🛡️ Agency layer online (CommitmentEngine + ComputeOrchestrator + IdentityGuard + SandboxedModifier)
+🛡️ Agency layer online (CommitmentEngine + ComputeOrchestrator + IdentityGuard + SandboxedModifier)
+UserRecognizer: owner passphrase loaded.
+UserRecognizer online — owner recognition active.
+TrustEngine online — session starts at GUEST.
+IntegrityGuardian online.
+EmergencyProtocol online — self-preservation active.
+IntegrityGuardian: loaded manifest (1901 files).
+Aura.SensoryGate - INFO - 👁️ SensoryGate Actor starting...
+Aura.LocalPipeBus - INFO - 📡 LocalPipeBus reader ACTIVE (Child: True)
+Aura.SensoryGate - INFO - 👁️ SensoryGate Actor ready.
+🍄 [MYCELIUM] 🗺️ Infrastructure Mapping COMPLETE (4.67s): 1426 modules, 4631 physical connections, 33 pathways annotated, 20 critical indicators tagged.
+🧠 ArchitectureIndex: indexed 1901 modules
+🚨 CRITICAL INTEGRITY BREACH: core security files modified: ['core/security/emergency_protocol.py']
+EmergencyProtocol: threat flagged by integrity_critical (severity=0.50, score=0.15): File integrity violation: ['core/security/emergency_protocol.py'] (critical file
+IntegrityGuardian: 393 integrity issues on boot!
+IntegrityGuardian: background check loop started (interval=1800s).
+2026-05-12 02:30:42,672 - Aura.Core.Orchestrator - INFO - 🔐 Security layer online (UserRecognizer + TrustEngine + IntegrityGuardian + EmergencyProtocol)
+🔐 Security layer online (UserRecognizer + TrustEngine + IntegrityGuardian + EmergencyProtocol)
+CRSMLoraBridge online — experience → substrate loop active.
+CircadianEngine online — phase=deep_night, arousal=0.32
+ExperienceConsolidator: loaded narrative v44 (391.5h old) — "I am processing difficulty, building resilience through chal"
+ExperienceConsolidator online — identity accumulation active.
+2026-05-12 02:30:42,676 - Aura.Core.Orchestrator - INFO - 🌱 Substrate layer online (CRSMLoraBridge + CircadianEngine + ExperienceConsolidator)
+🌱 Substrate layer online (CRSMLoraBridge + CircadianEngine + ExperienceConsolidator)
+📸 Cognitive Snapshot Manager ONLINE
+🔥 Thawing cognitive state from disk...
+✅ Cognitive state thawed successfully.
+2026-05-12 02:30:42,678 - Aura.Core.Orchestrator - INFO - ✓ Lazarus Brainstem active
+✓ Lazarus Brainstem active
+2026-05-12 02:30:42,678 - Aura.Core.Orchestrator - INFO - ✓ Consciousness stream activated
+✓ Consciousness stream activated
+2026-05-12 02:30:42,679 - Aura.Core.Orchestrator - INFO - ✓ Curiosity background loop started
+✓ Curiosity background loop started
+2026-05-12 02:30:42,679 - Aura.Core.Orchestrator - INFO - ✓ Proactive Communication loop started
+✓ Proactive Communication loop started
+📖 Narrative Engine active (Aura's Journaling System)
+🧠 Meta-Cognition Shard ONLINE.
+🧠 AgencyCore background pathways activated.
+2026-05-12 02:30:42,680 - Aura.Core.Orchestrator - INFO - ✓ Sovereign Ears standing by (mic idle until explicitly enabled)
+✓ Sovereign Ears standing by (mic idle until explicitly enabled)
+2026-05-12 02:30:42,681 - Aura.Core.Orchestrator - INFO - ✓ Advanced Cognitive Layer (Learning, Memory, Beliefs) initialized
+✓ Advanced Cognitive Layer (Learning, Memory, Beliefs) initialized
+🧠 AgencyCore initialized with 19 structured pathways
+2026-05-12 02:30:42,682 - Aura.Core.Orchestrator - INFO - ✓ AgencyCore initialized
+✓ AgencyCore initialized
+🫀 SubsystemAudit initialized. Tracking 11 subsystems.
+2026-05-12 02:30:42,682 - Aura.Core.Orchestrator - INFO - ✓ SubsystemAudit initialized
+✓ SubsystemAudit initialized
+🔍 System Integrity Monitor started (interval=300s)
+2026-05-12 02:30:42,683 - Aura.Core.Orchestrator - INFO - ✓ System Integrity Monitor active
+✓ System Integrity Monitor active
+2026-05-12 02:30:42,684 - Aura.Core - INFO - 🕒 EventLoopMonitor started (threshold=0.25s, interval=1.0s)
+🕒 EventLoopMonitor started (threshold=0.25s, interval=1.0s)
+2026-05-12 02:30:42,685 - Aura.Core.Orchestrator - INFO - ✓ Event Loop Monitor active
+✓ Event Loop Monitor active
+2026-05-12 02:30:42,685 - Aura.Core.Orchestrator - INFO - 💓 MetabolicCoordinator integrated into Scheduler.
+💓 MetabolicCoordinator integrated into Scheduler.
+2026-05-12 02:30:42,686 - Aura.Core.Orchestrator - INFO - ✓ Substrate tasks registered with Scheduler.
+✓ Substrate tasks registered with Scheduler.
+2026-05-12 02:30:42,686 - Aura.Core.Orchestrator - INFO - 🧠 Peer Mode: MindTick elevated as primary sovereign thread
+🧠 Peer Mode: MindTick elevated as primary sovereign thread
+2026-05-12 02:30:42,687 - Aura.Core.Orchestrator - INFO - 🗣️ Peer Mode: Permanent swarm debate disabled by default. Set AURA_ENABLE_PERMANENT_SWARM=1 to enable.
+🗣️ Peer Mode: Permanent swarm debate disabled by default. Set AURA_ENABLE_PERMANENT_SWARM=1 to enable.
+2026-05-12 02:30:42,689 - Aura.Core.Orchestrator - INFO - 🛠️ Peer Mode: Sovereign self-modification loop suppressed by Executive: temporal_obligation_active:---+------------ |..............| |.....x........| |....@.........| ------------
+🛠️ Peer Mode: Sovereign self-modification loop suppressed by Executive: temporal_obligation_active:---+------------ |..............| |.....x........| |....@.........| ------------
+2026-05-12 02:30:42,690 - Aura.Core.Orchestrator - INFO - ✓ Orchestrator started
+✓ Orchestrator started
+Forcing metabolic cycle...
+✓ Managed Entropy online (budget=0.150/tick)
+Quantum Entropy Bridge initialized (pool=256 bytes)
+ConsciousnessAuditSuite initialized.
+🚌 AgencyBus singleton initialized
+🚌 AgencyBus REJECTED: missing will_receipt from agency_core
+2026-05-12 02:30:42,746 - Aura.Core.Orchestrator.Shutdown - INFO - Initiating secure shutdown sequence... Called by:
+  /Users/bryan/.aura/live-source/core/orchestrator/handlers/shutdown.py:74 in orchestrator_shutdown
+  /Users/bryan/.aura/live-source/core/orchestrator/main.py:346 in stop
+  /Users/bryan/.aura/live-source/scratch_test_agency.py:20 in run_test
+  /opt/homebrew/Cellar/python@3.12/3.12.13/Frameworks/Python.framework/Versions/3.12/lib/python3.12/asyncio/events.py:88 in _run
+  /opt/homebrew/Cellar/python@3.12/3.12.13/Frameworks/Python.framework/Versions/3.12/lib/python3.12/asyncio/base_events.py:1999 in _run_once
+  /opt/homebrew/Cellar/python@3.12/3.12.13/Frameworks/Python.framework/Versions/3.12/lib/python3.12/asyncio/base_events.py:645 in run_forever
+  /opt/homebrew/Cellar/python@3.12/3.12.13/Frameworks/Python.framework/Versions/3.12/lib/python3.12/asyncio/base_events.py:678 in run_until_complete
+  /opt/homebrew/Cellar/python@3.12/3.12.13/Frameworks/Python.framework/Versions/3.12/lib/python3.12/asyncio/runners.py:118 in run
+Metabolic cycle finished. Result: False
+Initiating secure shutdown sequence... Called by:
+  /Users/bryan/.aura/live-source/core/orchestrator/handlers/shutdown.py:74 in orchestrator_shutdown
+  /Users/bryan/.aura/live-source/core/orchestrator/main.py:346 in stop
+  /Users/bryan/.aura/live-source/scratch_test_agency.py:20 in run_test
+  /opt/homebrew/Cellar/python@3.12/3.12.13/Frameworks/Python.framework/Versions/3.12/lib/python3.12/asyncio/events.py:88 in _run
+  /opt/homebrew/Cellar/python@3.12/3.12.13/Frameworks/Python.framework/Versions/3.12/lib/python3.12/asyncio/base_events.py:1999 in _run_once
+  /opt/homebrew/Cellar/python@3.12/3.12.13/Frameworks/Python.framework/Versions/3.12/lib/python3.12/asyncio/base_events.py:645 in run_forever
+  /opt/homebrew/Cellar/python@3.12/3.12.13/Frameworks/Python.framework/Versions/3.12/lib/python3.12/asyncio/base_events.py:678 in run_until_complete
+  /opt/homebrew/Cellar/python@3.12/3.12.13/Frameworks/Python.framework/Versions/3.12/lib/python3.12/asyncio/runners.py:118 in run
+💾 Substrate state saved (atomic)
+Liquid Substrate STOPPED
+😴 SleepTrigger active (idle=30m, cooldown=2h)
+PNEUMA background loop started.
+MHAF background loop started.
+📟 TerminalWatchdog monitoring UI presence.
+ExperienceConsolidator: background loop started.
+2026-05-12 02:30:42,749 - Aura.Core.Orchestrator.Aegis - INFO - 🛡️ AEGIS SENTINEL: Narrative Integrity Guard Active
+🛡️ AEGIS SENTINEL: Narrative Integrity Guard Active
+2026-05-12 02:30:42,750 - Aura.Core.Orchestrator - INFO - 👂 Orchestrator listening for 'user_input' events (Redis-backed)
+👂 Orchestrator listening for 'user_input' events (Redis-backed)
+🚀 Scheduler started.
+Watchdog registered component: mind_tick (timeout: 30.0s)
+💓 MindTick: Cognitive rhythm started.
+Liquid Substrate loop cancelled.
+🍄 [MYCELIUM] Hypha established: qualia->phenomenology
+🍄 [MYCELIUM] Hypha established: consciousness->global_workspace
+🍄 [MYCELIUM] Hypha established: sentience->autonomy
+🍄 [MYCELIUM] 👁️ Consciousness Hyphae established.
+🛑 MindTick: Cognitive rhythm stopped.
+2026-05-12 02:30:42,753 - Aura.Core.Orchestrator.Shutdown - INFO - 💓 MindTick: Stopped.
+💓 MindTick: Stopped.
+📸 Cognitive Snapshot Manager ONLINE
+🥶 Freezing cognitive state...
+✅ Cognitive state frozen to disk: /Users/bryan/.aura/data/snapshots/latest.aura_snapshot
+🏺 Eternal Record Archive initialized at /Users/bryan/.aura/data/eternal_records
+🏺 Eternal Record snapshot triggered via StateManager (shutdown)
+ResourceGovernor initialized.
+2026-05-12 02:30:42,768 - Aura.Core.Orchestrator - INFO - 🌀 [SCHEDULER] Triggering Meta-Evolution Cycle...
+🌀 [SCHEDULER] Triggering Meta-Evolution Cycle...
+🧠 Running Meta-Cognitive Audit...
+🧠 Meta-Evolution cycle completed successfully (v35).
+2026-05-12 02:30:42,978 - Aura.Core.Orchestrator.Shutdown - INFO - 💾 UPSO: Shutdown state committed.
+💾 UPSO: Shutdown state committed.
+💾 Substrate state saved (atomic)
+Liquid Substrate STOPPED
+2026-05-12 02:30:42,980 - Aura.Core.Kernel - INFO - 🛑 [KERNEL] Initiating graceful shutdown...
+🛑 [KERNEL] Initiating graceful shutdown...
+2026-05-12 02:30:42,980 - Aura.Core.Kernel - INFO - 🫀 Organ llm shut down.
+🫀 Organ llm shut down.
+2026-05-12 02:30:42,981 - Aura.Core.Kernel - INFO - 🫀 Organ vision shut down.
+🫀 Organ vision shut down.
+2026-05-12 02:30:42,981 - Aura.Core.Kernel - INFO - 🫀 Organ memory shut down.
+🫀 Organ memory shut down.
+2026-05-12 02:30:42,982 - Aura.Core.Kernel - INFO - 🫀 Organ voice shut down.
+2026-05-12 02:30:42,982 - Aura.Core - DEBUG - Successfully locked: 'StateRepository:Owner'
+Aura.Core - DEBUG - Successfully locked: 'StateRepository:Owner'
+2026-05-12 02:30:42,982 - Aura.Core - DEBUG - Released lock: 'StateRepository:Owner'
+Aura.Core - DEBUG - Released lock: 'StateRepository:Owner'
+🫀 Organ voice shut down.
+2026-05-12 02:30:42,982 - Aura.Core.Kernel - INFO - 🫀 Organ metabolism shut down.
+🫀 Organ metabolism shut down.
+2026-05-12 02:30:42,983 - Aura.Core.Kernel - INFO - 🫀 Organ neural shut down.
+🫀 Organ neural shut down.
+🍪 [COOKIE] Reflective Substrate OFFLINE.
+2026-05-12 02:30:42,984 - Aura.Core.Kernel - INFO - 🫀 Organ cookie shut down.
+🫀 Organ cookie shut down.
+2026-05-12 02:30:42,984 - Aura.Core.Kernel - INFO - 🫀 Organ prober shut down.
+🫀 Organ prober shut down.
+2026-05-12 02:30:42,985 - Aura.Core.Kernel - INFO - 🫀 Organ tricorder shut down.
+🫀 Organ tricorder shut down.
+2026-05-12 02:30:42,985 - Aura.Core.Kernel - INFO - 🫀 Organ ice_layer shut down.
+🫀 Organ ice_layer shut down.
+2026-05-12 02:30:42,986 - Aura.Core.Kernel - INFO - 🫀 Organ omni_tool shut down.
+🫀 Organ omni_tool shut down.
+2026-05-12 02:30:42,986 - Aura.Core.Kernel - INFO - 🫀 Organ continuity shut down.
+🫀 Organ continuity shut down.
+2026-05-12 02:30:42,987 - Aura.Core.Kernel - INFO - ✅ [KERNEL] Shutdown complete.
+✅ [KERNEL] Shutdown complete.
+🔌 Bus connection closed by peer.
+✅ [Brainstem] Local runtime warmup complete.
+[DEGRADATION] quantum_entropy (degraded): HTTPError: HTTP Error 500: Internal Server Error → 
+🚨 [RECOVERY] Critical component 'Affect Engine' (affect_engine) missing from container. Triggering Orchestrator repair...
+2026-05-12 02:30:43,684 - Aura.Core.Orchestrator.Recovery - INFO - 🧠 Manual Cognitive Retry Initiated...
+🧠 Manual Cognitive Retry Initiated...
+🧠 AuraPipeline: Full cognitive spectrum online (12 phases).
+2026-05-12 02:30:43,686 - Aura.Core.Orchestrator.Recovery - INFO - ✅ Cognitive Engine ONLINE — Safe Mode deactivated
+✅ Cognitive Engine ONLINE — Safe Mode deactivated
+🚨 [RECOVERY] Critical component 'Affect Engine' (affect_engine) missing from container. Triggering Orchestrator repair...
+2026-05-12 02:30:44,711 - Aura.Core.Orchestrator.Recovery - INFO - 🧠 Manual Cognitive Retry Initiated...
+🧠 Manual Cognitive Retry Initiated...
+🧠 AuraPipeline: Full cognitive spectrum online (12 phases).
+2026-05-12 02:30:44,714 - Aura.Core.Orchestrator.Recovery - INFO - ✅ Cognitive Engine ONLINE — Safe Mode deactivated
+✅ Cognitive Engine ONLINE — Safe Mode deactivated
+🛑 Stopping Actor: state_vault
+Aura.LocalPipeBus - INFO - 🔌 Bus connection closed by peer.
+🛑 Stopping Actor: SensoryGate
+🧹 Reaping orphaned actor: AuraActor:SensoryGate
+🧹 Reaping orphaned actor: AuraActor:state_vault
+🛡️ Supervision Tree Shutdown Complete.
+🛑 Integrity Guard STOPPED
+🛑 Integrity Guard STOPPED
+BackupManager service stopped.
+StabilityGuardian: DEGRADED — 1 issue(s) detected. state_repository:State proxy is not hydrated (state_available=True, shm_attached=False, vault_transport_available=False)
+🚨 [RECOVERY] Critical component 'Affect Engine' (affect_engine) missing from container. Triggering Orchestrator repair...
+2026-05-12 02:30:45,919 - Aura.Core.Orchestrator.Recovery - INFO - 🧠 Manual Cognitive Retry Initiated...
+🧠 Manual Cognitive Retry Initiated...
+🧠 AuraPipeline: Full cognitive spectrum online (12 phases).
+2026-05-12 02:30:45,922 - Aura.Core.Orchestrator.Recovery - INFO - ✅ Cognitive Engine ONLINE — Safe Mode deactivated
+✅ Cognitive Engine ONLINE — Safe Mode deactivated
+🚨 [RECOVERY] Critical component 'Affect Engine' (affect_engine) missing from container. Triggering Orchestrator repair...
+2026-05-12 02:30:46,951 - Aura.Core.Orchestrator.Recovery - INFO - 🧠 Manual Cognitive Retry Initiated...
+🧠 Manual Cognitive Retry Initiated...
+🧠 AuraPipeline: Full cognitive spectrum online (12 phases).
+2026-05-12 02:30:46,953 - Aura.Core.Orchestrator.Recovery - INFO - ✅ Cognitive Engine ONLINE — Safe Mode deactivated
+✅ Cognitive Engine ONLINE — Safe Mode deactivated
+Monitoring loop starting...
+Skipping autonomous self-modification cycle: foreground_quiet_window
+⏸️ InferenceGate: Foreground quiet window active. Deferring background inference for origin=.
+👀 Spatial Empathy Watcher online and listening to Global Workspace.
+🔍 INTEGRITY ERRORS: ['Critical service missing: knowledge_graph']
+🚨 [RECOVERY] Critical component 'Affect Engine' (affect_engine) missing from container. Triggering Orchestrator repair...
+2026-05-12 02:30:48,243 - Aura.Core.Orchestrator.Recovery - INFO - 🧠 Manual Cognitive Retry Initiated...
+🧠 Manual Cognitive Retry Initiated...
+🧠 AuraPipeline: Full cognitive spectrum online (12 phases).
+2026-05-12 02:30:48,246 - Aura.Core.Orchestrator.Recovery - INFO - ✅ Cognitive Engine ONLINE — Safe Mode deactivated
+✅ Cognitive Engine ONLINE — Safe Mode deactivated
+2026-05-12 02:30:49,266 - Aura.Core - INFO - 🕒 EventLoopMonitor stopped.
+🕒 EventLoopMonitor stopped.
+Shutting down TaskTracker[Global]: 82 tasks pending.
+Scheduler loop spuriously cancelled. Ignoring.
+Fictional engine 'skynet' task cancelled cleanly.
+Fictional engine 'jarvis' task cancelled cleanly.
+Fictional engine 'skynet' task cancelled cleanly.
+Fictional engine 'mist' task cancelled cleanly.
+Monitoring loop stopped
+TerminalWatchdog spuriously cancelled. Ignoring.
+🍄 [MYCELIUM] Pulse check loop shutting down.
+Fictional engine 'jarvis' task cancelled cleanly.
+Fictional engine 'mist' task cancelled cleanly.
+3 tasks still pending after timeout. Forcing abandonment.
+2026-05-12 02:30:52,270 - Aura.Core.Orchestrator.Shutdown - INFO - ✅ Orchestrator stopped.
+✅ Orchestrator stopped.
+💓 Cognitive Heartbeat STOPPED (total ticks: 12)
+Scheduler loop spuriously cancelled. Ignoring.
+Somatic Loop (MotorCortex) spuriously cancelled (uptime 16.5s). Ignoring.
+TerminalWatchdog spuriously cancelled. Ignoring.
+2026-05-12 02:30:58,137 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 1.3% | RAM 52.7% | Uptime: 15s | Total: 10/11 Subsystems Active | ❌ 1 MISSING |   ❌ drive_controller: NEVER SEEN | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 1.3% | RAM 52.7% | Uptime: 15s | Total: 10/11 Subsystems Active | ❌ 1 MISSING |   ❌ drive_controller: NEVER SEEN | ═══════════════════════════
+2026-05-12 02:31:13,275 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 1.0% | RAM 51.1% | Uptime: 30s | Total: 10/11 Subsystems Active | ❌ 1 MISSING |   ❌ drive_controller: NEVER SEEN | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 1.0% | RAM 51.1% | Uptime: 30s | Total: 10/11 Subsystems Active | ❌ 1 MISSING |   ❌ drive_controller: NEVER SEEN | ═══════════════════════════
+2026-05-12 02:31:28,409 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 1.8% | RAM 51.7% | Uptime: 45s | Total: 10/11 Subsystems Active | ❌ 1 MISSING |   ❌ drive_controller: NEVER SEEN | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 1.8% | RAM 51.7% | Uptime: 45s | Total: 10/11 Subsystems Active | ❌ 1 MISSING |   ❌ drive_controller: NEVER SEEN | ═══════════════════════════
+🩺 Sepsis loop soft-resetting after transient spike subsided.
+🩸 SEPSIS DETECTED: Opening emergency circuit breaker.
+🚌 AgencyBus REJECTED: missing will_receipt from agency_core
+2026-05-12 02:31:43,551 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 0.7% | RAM 51.1% | Uptime: 60s | Total: 10/11 Subsystems Active | ❌ 1 MISSING |   ❌ drive_controller: NEVER SEEN | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 0.7% | RAM 51.1% | Uptime: 60s | Total: 10/11 Subsystems Active | ❌ 1 MISSING |   ❌ drive_controller: NEVER SEEN | ═══════════════════════════
+2026-05-12 02:31:58,685 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 1.1% | RAM 51.2% | Uptime: 76s | Total: 10/11 Subsystems Active | ❌ 1 MISSING |   ❌ drive_controller: NEVER SEEN | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 1.1% | RAM 51.2% | Uptime: 76s | Total: 10/11 Subsystems Active | ❌ 1 MISSING |   ❌ drive_controller: NEVER SEEN | ═══════════════════════════
+2026-05-12 02:32:13,829 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 1.2% | RAM 51.7% | Uptime: 91s | Total: 10/11 Subsystems Active | ❌ 1 MISSING |   ❌ drive_controller: NEVER SEEN | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 1.2% | RAM 51.7% | Uptime: 91s | Total: 10/11 Subsystems Active | ❌ 1 MISSING |   ❌ drive_controller: NEVER SEEN | ═══════════════════════════
+2026-05-12 02:32:28,961 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 2.4% | RAM 51.5% | Uptime: 106s | Total: 10/11 Subsystems Active | ❌ 1 MISSING |   ❌ drive_controller: NEVER SEEN | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 2.4% | RAM 51.5% | Uptime: 106s | Total: 10/11 Subsystems Active | ❌ 1 MISSING |   ❌ drive_controller: NEVER SEEN | ═══════════════════════════
+🩺 Sepsis loop soft-resetting after transient spike subsided.
+🩸 SEPSIS DETECTED: Opening emergency circuit breaker.
+2026-05-12 02:32:44,058 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 3.4% | RAM 51.8% | Uptime: 121s | Total: 10/11 Subsystems Active | ❌ 1 MISSING |   ❌ drive_controller: NEVER SEEN | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 3.4% | RAM 51.8% | Uptime: 121s | Total: 10/11 Subsystems Active | ❌ 1 MISSING |   ❌ drive_controller: NEVER SEEN | ═══════════════════════════
+2026-05-12 02:32:59,195 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 10.9% | RAM 56.4% | Uptime: 136s | Total: 10/11 Subsystems Active | ❌ 1 MISSING |   ❌ drive_controller: NEVER SEEN | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 10.9% | RAM 56.4% | Uptime: 136s | Total: 10/11 Subsystems Active | ❌ 1 MISSING |   ❌ drive_controller: NEVER SEEN | ═══════════════════════════
+🛑 Received signal 15: Initiating graceful shutdown of Aura components...
+💾 [SHUTDOWN] Saving substrate state and cognitive snapshot...
+💾 Substrate state saved (atomic)
+💾 [SHUTDOWN] Substrate state saved.
+🥶 Freezing cognitive state...
+✅ Cognitive state frozen to disk: /Users/bryan/.aura/data/snapshots/latest.aura_snapshot
+💾 [SHUTDOWN] Cognitive snapshot frozen.
+   [✓] Shutdown hook completed.
+💾 [SHUTDOWN] Saving substrate state and cognitive snapshot...
+💾 Substrate state saved (atomic)
+💾 [SHUTDOWN] Substrate state saved.
+🥶 Freezing cognitive state...
+✅ Cognitive state frozen to disk: /Users/bryan/.aura/data/snapshots/latest.aura_snapshot
+💾 [SHUTDOWN] Cognitive snapshot frozen.
+   [✓] Shutdown hook completed.
+🛑 Integrity Guard STOPPED
+BackupManager service stopped.
+✅ All Aura core services gracefully terminated. Goodbye.
+🩺 Sepsis loop soft-resetting after transient spike subsided.
+2026-05-12 02:33:14,283 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 1.7% | RAM 53.7% | Uptime: 151s | Total: 10/11 Subsystems Active | ❌ 1 MISSING |   ❌ drive_controller: NEVER SEEN | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 1.7% | RAM 53.7% | Uptime: 151s | Total: 10/11 Subsystems Active | ❌ 1 MISSING |   ❌ drive_controller: NEVER SEEN | ═══════════════════════════
+/opt/homebrew/Cellar/python@3.12/3.12.13/Frameworks/Python.framework/Versions/3.12/lib/python3.12/multiprocessing/resource_tracker.py:279: UserWarning: resource_tracker: There appear to be 6 leaked semaphore objects to clean up at shutdown
+  warnings.warn('resource_tracker: There appear to be %d '

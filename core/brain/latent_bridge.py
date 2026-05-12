@@ -155,7 +155,7 @@ class InferenceParams:
 
 def compute_inference_params(
     *,
-    base_max_tokens: int = 768,
+    base_max_tokens: int = 1536,
     base_temperature: float = 0.7,
     foreground: bool = True,
 ) -> InferenceParams:
@@ -268,7 +268,7 @@ def compute_inference_params(
     )
 
 
-def current_inference_params(*, base_max_tokens: int = 768, base_temperature: float = 0.7, foreground: bool = True) -> Dict[str, Any]:
+def current_inference_params(*, base_max_tokens: int = 1536, base_temperature: float = 0.7, foreground: bool = True) -> Dict[str, Any]:
     """Convenience wrapper used by inference clients. Returns a plain dict
     so callers don't take a hard import dependency on this module's
     dataclasses.

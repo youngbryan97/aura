@@ -874,7 +874,10 @@ class MLXLocalClient:
             return full_timeout, False
 
         reserve = 5.0 if foreground_request else 2.0
-        scoped_timeout = max(0.25, remaining - reserve)
+        # [STABILITY v57] Increased minimum from 0.25 to 10.0 for fallbacks.
+        # Background fallbacks were being killed after 3s because their budget
+        # was too tight to even start the worker.
+        scoped_timeout = max(10.0 if not foreground_request else 5.0, remaining - reserve)
         return min(full_timeout, scoped_timeout), scoped_timeout < full_timeout
 
     def get_lane_status(self) -> Dict[str, Any]:

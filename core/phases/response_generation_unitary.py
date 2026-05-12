@@ -2803,19 +2803,10 @@ class UnitaryResponsePhase(Phase):
                 contract,
             )
             use_compact_router_payload = bool(
-                not contract.requires_search
+                not is_user_facing # Only use compact mode for background autonomous pulses
+                and not contract.requires_search
                 and not grounding_evidence_active
                 and (is_deep_probe_objective or not live_grounding_required)
-                and (
-                    is_deep_probe_objective
-                    or not is_user_facing
-                    or contract.reason == "ordinary_dialogue"
-                    or contract.requires_memory_grounding
-                    or contract.requires_state_reflection
-                    or contract.requires_aura_stance
-                    or not contract.tool_evidence_available
-                    or not self._has_recent_grounded_evidence(new_state)
-                )
             )
             # ── CORE DIRECTIVE / SENSORY FEED PROMPT FAST-PATH ──────────
             # General improvement: when the pipeline is processing a programmatic

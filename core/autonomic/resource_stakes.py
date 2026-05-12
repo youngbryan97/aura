@@ -256,7 +256,7 @@ class ResourceStakesLedger:
             return ActionEnvelope(
                 allowed=True,
                 reason="scarcity mode: conserve resources and prioritize self-maintenance",
-                max_tokens=384,
+                max_tokens=640, # Increased from 384
                 effort="low",
                 disabled_capabilities=tuple(sorted(disabled)),
                 viability=viability,
@@ -266,7 +266,7 @@ class ResourceStakesLedger:
             return ActionEnvelope(
                 allowed=True,
                 reason="constrained mode: bounded output and no optional exploration",
-                max_tokens=768,
+                max_tokens=1024, # Increased from 768 to preserve voice
                 effort="normal" if requested_effort != "high" else "normal",
                 disabled_capabilities=tuple(sorted(disabled)),
                 viability=viability,
@@ -274,7 +274,7 @@ class ResourceStakesLedger:
         return ActionEnvelope(
             allowed=True,
             reason="viable",
-            max_tokens=1536 if requested_effort == "high" else 1024,
+            max_tokens=2048 if requested_effort == "high" else 1536, # Restored full range
             effort=requested_effort,
             disabled_capabilities=tuple(sorted(disabled)),
             viability=viability,

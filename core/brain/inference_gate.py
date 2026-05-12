@@ -1302,7 +1302,9 @@ class InferenceGate:
     ) -> bool:
         if is_background:
             return False
-        return not InferenceGate._origin_is_user_facing(origin)
+        # [RESTORED] Always use rich context for user-facing origins to preserve
+        # identity, memory, and persona depth.
+        return True
 
     @classmethod
     def _should_use_compact_foreground_context(
@@ -1388,7 +1390,7 @@ class InferenceGate:
             else:
                 primary_budget = min(150.0, max(60.0, total_timeout * 0.85))
 
-        fallback_budget = max(5.0, total_timeout - primary_budget)
+        fallback_budget = max(15.0, total_timeout - primary_budget)
         return primary_budget, fallback_budget
 
     @asynccontextmanager
@@ -2899,8 +2901,10 @@ class InferenceGate:
                     requested_tier,
                     protected_foreground=protected_foreground_lane,
                 )
-            if not admission_snapshot.get("can_admit", True):
-                max_tokens = min(max_tokens, 768 if requested_tier == "secondary" else 640)
+            # [RESTORED] Removed the artificial cap. Aura maintains her full voice
+            # even when the system is under load. Throttling tokens just creates
+            # "slop" responses and frustrates the user.
+            pass
 
         # ── Resource Stakes: scale token budget by computational survival state ──
         try:
@@ -3429,7 +3433,7 @@ class InferenceGate:
                         timeout=fallback_deadline.remaining or fallback_timeout,
                     ):
                         fallback_max_tokens = (
-                            min(max_tokens, 768)
+                            max_tokens
                             if fallback_label == DEEP_ENDPOINT
                             else min(max_tokens, 384 if requested_tier != "secondary" else 512)
                         )
