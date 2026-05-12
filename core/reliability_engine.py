@@ -36,9 +36,14 @@ class ReliabilityEngine:
         self._shutdown = asyncio.Event()
         self._tasks: list[asyncio.Task] = []
         self._on_degrade_callbacks: list[Callable] = []
+        self._started = False
 
     async def start(self):
         """Register and start monitoring every critical service."""
+        if self._started and any(not task.done() for task in self._tasks):
+            return
+        self._started = True
+        self._shutdown.clear()
         logger.info("🚀 Reliability Engine online — protecting all systems.")
 
         # Auto-register known services
@@ -129,6 +134,7 @@ class ReliabilityEngine:
         for t in self._tasks:
             if not t.done():
                 t.cancel()
+        self._started = False
         logger.info("Reliability Engine shut down cleanly.")
 
 # Singleton registration

@@ -400,10 +400,16 @@ class OrchestratorBootMixin(
 
                 # --- PHASE 4: Identity & Self-Model ---
                 from core.self_model import SelfModel
+                from core.brain.identity import IdentityService
 
                 self.self_model = await SelfModel.load()
                 ServiceContainer.register_instance("self_model", self.self_model)
                 ServiceContainer.register_instance("identity", self.self_model)
+                identity_service = ServiceContainer.get("identity_service", default=None)
+                if identity_service is None:
+                    identity_service = IdentityService()
+                    ServiceContainer.register_instance("identity_service", identity_service)
+                self.identity_service = identity_service
 
                 await self._init_identity_systems()
 

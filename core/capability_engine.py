@@ -83,10 +83,22 @@ _INTERNAL_ONLY_SKILLS = frozenset(
         # dedicated environment or autonomy layers, but should not leak into
         # the general registered tool catalog until they satisfy that surface.
         "branching_futures",
-        "email_adapter",
         "manim_renderer",
         "mcp_client",
-        "reddit_adapter",
+    }
+)
+
+_HEAVY_BACKGROUND_SKILLS = frozenset(
+    {
+        "auto_refactor",
+        "coding_skill",
+        "self_improvement",
+        "self_repair",
+        "self_modify",
+        "shadow_ast_healer",
+        "skill_evolution",
+        "test_generator",
+        "train_self",
     }
 )
 
@@ -1749,6 +1761,61 @@ class CapabilityEngine(AuraBaseModule):
                 float(getattr(meta, "timeout_seconds", 30) or 30),
                 float(getattr(skill_instance, "timeout_seconds", 30) or 30),
             )
+            background_preflight_deferred = False
+            if skill_name == "sovereign_network" and exec_source not in {"user", "api", "chat", "desktop", "voice", "web"}:
+                try:
+                    mode = str(exec_params.get("mode", "status") or "status").strip().lower()
+                    if mode in {"recon", "scan", "audit", "discovery"}:
+                        from core.runtime.background_policy import background_activity_reason
+
+                        reason = background_activity_reason(
+                            ctx.get("orchestrator"),
+                            min_idle_seconds=1800.0,
+                            max_memory_percent=72.0,
+                            max_failure_pressure=0.20,
+                            require_conversation_ready=False,
+                        )
+                        if reason:
+                            background_preflight_deferred = True
+                            result = {
+                                "ok": False,
+                                "status": "deferred",
+                                "reason": reason,
+                                "message": (
+                                    f"Network {mode} deferred while foreground conversation is protected ({reason})."
+                                ),
+                            }
+                except Exception as policy_exc:
+                    record_degradation('capability_engine', policy_exc)
+                    self.logger.debug("Background network preflight skipped: %s", policy_exc)
+            if (
+                not background_preflight_deferred
+                and skill_name in _HEAVY_BACKGROUND_SKILLS
+                and exec_source not in {"user", "api", "chat", "desktop", "voice", "web"}
+            ):
+                try:
+                    from core.runtime.background_policy import background_activity_reason
+
+                    reason = background_activity_reason(
+                        ctx.get("orchestrator"),
+                        min_idle_seconds=600.0,
+                        max_memory_percent=70.0,
+                        max_failure_pressure=0.20,
+                        require_conversation_ready=False,
+                    )
+                    if reason:
+                        background_preflight_deferred = True
+                        result = {
+                            "ok": False,
+                            "status": "deferred",
+                            "reason": reason,
+                            "message": (
+                                f"Background {skill_name} deferred while live conversation resources are protected ({reason})."
+                            ),
+                        }
+                except Exception as policy_exc:
+                    record_degradation('capability_engine', policy_exc)
+                    self.logger.debug("Heavy background preflight skipped: %s", policy_exc)
             constrained_timeout = ctx.get("timeout_s")
             try:
                 constrained_timeout = float(constrained_timeout)
@@ -1762,7 +1829,9 @@ class CapabilityEngine(AuraBaseModule):
                 async def resilient_call():
                     return await self._execute_with_retry(skill_instance, skill_name, exec_params, ctx)
 
-                if tool_handle is not None:
+                if background_preflight_deferred:
+                    pass
+                elif tool_handle is not None:
                     from core.governance_context import governed_scope
 
                     async with governed_scope(tool_handle.decision):

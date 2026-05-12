@@ -4,6 +4,7 @@ import asyncio
 import logging
 import multiprocessing
 import os
+import signal
 import time
 from typing import Any, Dict, Optional
 
@@ -173,6 +174,10 @@ class SensoryGateActor:
 
 def start_sensory_gate(connection, *args, **kwargs):
     """Process entry point."""
+    try:
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+    except Exception:
+        pass
     # Set up logging for the child process
     logging.basicConfig(
         level=logging.INFO,

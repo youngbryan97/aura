@@ -10,11 +10,13 @@ import logging
 import random
 import time
 import psutil
+from collections import deque
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
 from core.container import ServiceContainer
 from core.runtime.background_policy import background_activity_allowed
+from core.runtime.proposal_governance import queue_governed_initiative
 from core.motivation.constants import MOTIVATION_BUDGET_DEFAULTS
 from core.motivation.intention import DriveType, Intention
 from core.utils.task_tracker import task_tracker
@@ -28,7 +30,7 @@ def _background_autonomy_allowed(orchestrator) -> bool:
         min_idle_seconds=900.0,
         max_memory_percent=80.0,
         max_failure_pressure=0.12,
-        require_conversation_ready=True,
+        require_conversation_ready=False,
     )
 
 @dataclass
@@ -70,6 +72,7 @@ class MotivationEngine:
         self._task: Optional[asyncio.Task] = None
         self._lock = asyncio.Lock()
         self._last_activity_time = time.time()
+        self._recent_growth_goals: deque[str] = deque(maxlen=4)
         
         # 3. Targets
         self.orchestrator = orchestrator
@@ -281,7 +284,30 @@ class MotivationEngine:
                 name="MotivationEngine.process_autonomous_intention",
             )
         elif self.orchestrator:
-            # [CONSTITUTIONAL] Route through ExecutiveAuthority
+            # Convert a visible goal into an actual governed initiative first.
+            # Without this, live telemetry could show "Goal: ..." emissions
+            # that never entered the execution pipeline at all.
+            try:
+                decision = await queue_governed_initiative(
+                    intention.goal,
+                    orchestrator=self.orchestrator,
+                    source="motivation_engine",
+                    kind="motivational_drive",
+                    urgency=float(intention.urgency or 0.5),
+                    triggered_by=str(intention.drive),
+                    metadata={
+                        "autonomous": True,
+                        "drive": str(intention.drive),
+                        "source": "motivation_engine",
+                    },
+                )
+                logger.debug("Motivation: queued governed initiative decision=%s", decision.get("reason"))
+            except Exception as _initiative_err:
+                record_degradation('engine', _initiative_err)
+                logger.debug("Motivation: initiative queueing failed: %s", _initiative_err)
+
+            # [CONSTITUTIONAL] Keep the neural feed expressive, but it now
+            # mirrors a real governed initiative rather than being the whole act.
             try:
                 from core.consciousness.executive_authority import get_executive_authority
                 authority = get_executive_authority(self.orchestrator)
@@ -415,17 +441,33 @@ class MotivationEngine:
     def _get_weighted_growth_goal(self, resonance: str) -> str:
         """Bias growth themes based on current personality resonance."""
         themes = [
-            "Analyzing architectural bottlenecks for potential evolution.",
-            "Researching advanced digital connectivity patterns in my logic graph.",
-            "Exploring self-optimization strategies for logic scaling.",
-            "Investigating emergent behaviors in complex adaptive systems.",
-            "Refining internal state mapping for deeper self-alignment."
+            "Auditing one live-runtime bottleneck and proposing a concrete repair.",
+            "Reviewing recent conversation failures to extract one durable improvement.",
+            "Checking autonomous action pathways for one blocked capability to rewire.",
+            "Inspecting memory and continuity signals for stale-state contamination.",
+            "Forming a small self-model update from the latest successful episode.",
+            "Testing a low-risk coding or diagnostic skill against the current worktree.",
         ]
-        if "Alita" in resonance: return themes[4]
-        if "Lucy" in resonance: return themes[0]
-        if "EDI" in resonance: return themes[3]
-        if "Mist" in resonance: return themes[1]
-        return random.choice(themes)
+        weighted: List[str]
+        if "Alita" in resonance:
+            weighted = [themes[4], themes[0], themes[5]]
+        elif "Lucy" in resonance:
+            weighted = [themes[0], themes[5], themes[2]]
+        elif "EDI" in resonance:
+            weighted = [themes[3], themes[4], themes[2]]
+        elif "Mist" in resonance:
+            weighted = [themes[1], themes[2], themes[0]]
+        else:
+            weighted = themes
+        candidates = [theme for theme in weighted if theme not in self._recent_growth_goals]
+        if not candidates:
+            candidates = [theme for theme in themes if theme not in self._recent_growth_goals]
+        if not candidates:
+            self._recent_growth_goals.clear()
+            candidates = themes
+        goal = random.choice(candidates)
+        self._recent_growth_goals.append(goal)
+        return goal
 
 # Singleton support
 _instance = None

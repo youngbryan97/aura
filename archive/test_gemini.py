@@ -1,9 +1,12 @@
 import asyncio
 import json
+import os
 import httpx
 
 async def test_key():
-    api_key = "AIzaSyA6CN8JyzjmAobyYGke1M6_eG0ZGGnorbM"
+    api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise RuntimeError("Set GOOGLE_API_KEY or GEMINI_API_KEY before running this archived smoke test.")
     model = "gemini-2.5-flash"
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
     

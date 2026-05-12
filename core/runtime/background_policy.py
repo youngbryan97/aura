@@ -143,6 +143,26 @@ def _last_user_interaction_time(orchestrator: Any = None) -> float:
     return 0.0
 
 
+def _foreground_activity_reason() -> str:
+    try:
+        from core.container import ServiceContainer
+
+        gate = ServiceContainer.get("inference_gate", default=None)
+        if gate and hasattr(gate, "get_conversation_status"):
+            lane = dict(gate.get_conversation_status() or {})
+            if bool(lane.get("foreground_owned")) or int(lane.get("active_generations", 0) or 0) > 0:
+                return "foreground_generation_active"
+            if bool(lane.get("kernel_lock_held")):
+                return "foreground_kernel_lock"
+            request_age = float(lane.get("request_age_s", 0.0) or 0.0)
+            if request_age > 0.0 and str(lane.get("foreground_owner") or "").strip():
+                return "foreground_request_active"
+    except Exception as _exc:
+        record_degradation('background_policy', _exc)
+        logger.debug("Suppressed Exception: %s", _exc)
+    return ""
+
+
 def background_activity_reason(
     orchestrator: Any = None,
     *,
@@ -151,6 +171,7 @@ def background_activity_reason(
     max_memory_percent: float | None = None,
     max_failure_pressure: float | None = None,
     require_conversation_ready: bool | None = None,
+    allow_no_user_anchor: bool = False,
 ) -> str:
     if profile is not None:
         if min_idle_seconds is None:
@@ -171,6 +192,10 @@ def background_activity_reason(
 
     now = time.time()
 
+    foreground_reason = _foreground_activity_reason()
+    if foreground_reason:
+        return foreground_reason
+
     orch = orchestrator
     if orch is not None:
         if bool(getattr(orch, "is_busy", False)):
@@ -185,8 +210,9 @@ def background_activity_reason(
 
         last_user = _last_user_interaction_time(orch)
         if last_user <= 0.0:
-            return "no_user_anchor"
-        if (now - last_user) < min_idle_seconds:
+            if not allow_no_user_anchor:
+                return "no_user_anchor"
+        elif (now - last_user) < min_idle_seconds:
             return f"recent_user_{int(now - last_user)}"
 
     try:
@@ -230,6 +256,7 @@ def background_activity_allowed(
     max_memory_percent: float | None = None,
     max_failure_pressure: float | None = None,
     require_conversation_ready: bool | None = None,
+    allow_no_user_anchor: bool = False,
 ) -> bool:
     return not background_activity_reason(
         orchestrator,
@@ -238,4 +265,5 @@ def background_activity_allowed(
         max_memory_percent=max_memory_percent,
         max_failure_pressure=max_failure_pressure,
         require_conversation_ready=require_conversation_ready,
+        allow_no_user_anchor=allow_no_user_anchor,
     )

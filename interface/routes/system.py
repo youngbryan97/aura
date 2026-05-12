@@ -735,6 +735,13 @@ async def api_health(request: Request):
     _agency_score = (_energy_raw * 0.4 + _curiosity_raw * 0.4 + (30.0 if _thinking else 0.0))
     _agency_score = min(100.0, max(0.0, _agency_score))
 
+    scratchpad_engine = ServiceContainer.get("scratchpad_engine", default=None)
+    subconscious_loop = ServiceContainer.get("subconscious_loop", default=None)
+    subconscious_active = bool(
+        subconscious_loop is not None
+        and getattr(subconscious_loop, "_running", False)
+    )
+
     cortex = {
         "agency":    float(int(_agency_score * 10)) / 10.0,
         "curiosity": float(int(float(ls_data.get("curiosity", 0)) * 10)) / 10.0,
@@ -745,9 +752,9 @@ async def api_health(request: Request):
         "goals":     orch_status.get("stats", {}).get("goals_processed", 0),
         "autonomy":  config.security.aura_full_autonomy,
         "stealth":   config.security.enable_stealth_mode,
-        "scratchpad": ServiceContainer.get("scratchpad_engine", default=None) is not None,
+        "scratchpad": scratchpad_engine is not None,
         "forge":      ServiceContainer.get("hephaestus_engine", default=None) is not None,
-        "subconscious": "dreaming" if getattr(orch, "boredom", 0) > 45 else "idle",
+        "subconscious": "dreaming" if subconscious_active and getattr(orch, "boredom", 0) > 45 else ("awake" if subconscious_active else "idle"),
         "unity":      ServiceContainer.get("soma", default=None) is not None,
         "p_core_usage": float(int(p_core * 10)) / 10.0,
         "singularity_factor": float(int(transcendence_data.get("meta_evolution", {}).get("acceleration_factor", 1.0) * 100)) / 100.0,
@@ -838,7 +845,7 @@ async def api_health(request: Request):
     # ── Resilience Status ──
     resilience_data: dict[str, Any] = {"circuit_breakers": {}, "snapshot": "unknown", "llm_tier": "unknown"}
     try:
-        voice = ServiceContainer.get("voice_pipeline", default=None)
+        voice = ServiceContainer.get("voice_engine", default=None)
         if voice:
             for attr_name in ("_stt_breaker", "_tts_breaker"):
                 breaker = getattr(voice, attr_name, None)

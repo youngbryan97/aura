@@ -24,7 +24,7 @@ def _background_curiosity_allowed() -> bool:
         min_idle_seconds=900.0,
         max_memory_percent=80.0,
         max_failure_pressure=0.12,
-        require_conversation_ready=True,
+        require_conversation_ready=False,
     )
 
 class MotivationUpdatePhase(Phase):

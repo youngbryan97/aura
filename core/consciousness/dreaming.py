@@ -36,7 +36,10 @@ class DreamingProcess:
     def identity(self):
         if not self._identity:
             try:
-                self._identity = ServiceContainer.get("identity", default=None)
+                self._identity = (
+                    ServiceContainer.get("identity_service", default=None)
+                    or ServiceContainer.get("identity", default=None)
+                )
             except Exception as exc:
                 record_degradation('dreaming', exc)
                 logger.debug("Failed to resolve identity service: %s", exc)

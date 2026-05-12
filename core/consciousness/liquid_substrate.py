@@ -613,6 +613,9 @@ class LiquidSubstrate:
 
 
     async def _recurrent_self_model(self, dt: float):
+        await asyncio.to_thread(self._recurrent_self_model_sync, dt)
+
+    def _recurrent_self_model_sync(self, dt: float):
         """Recurrent Self-Model Loop — enforces self-referential processing.
 
         Blends the current state with a stored prior state, creating a
@@ -667,6 +670,9 @@ class LiquidSubstrate:
             logger.debug("RIIU Φ computation skipped: %s", e)
 
     async def _apply_plasticity(self):
+        await asyncio.to_thread(self._apply_plasticity_sync)
+
+    def _apply_plasticity_sync(self):
         """Reward-modulated STDP + Hebbian learning.
 
         Two learning signals are combined:

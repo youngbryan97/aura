@@ -161,24 +161,33 @@ def measure_doctor_bundle_p95_ms(samples: int = 10, warmup: int = 2) -> float:
     """Bundle is heavy and variance-prone; warm up to amortize the
     first-call import+init cost (~10× steady-state), then sample p95."""
     from core.runtime.diagnostics_bundle import build_bundle
+    from core.runtime.receipts import get_receipt_store, reset_receipt_store
 
     with tempfile.TemporaryDirectory() as tmp:
-        for i in range(warmup):
-            out = Path(tmp) / f"warmup_{i}.tar.gz"
-            ws = Path(tmp) / f"warmup_ws_{i}"
-            info = build_bundle(output_path=out, workspace=ws)
-            assert info["ok"] is True
+        # The doctor bundle inspects the durable receipt store. Benchmarking
+        # against a real user profile makes the SLO depend on how long Aura has
+        # been running, so isolate the measurement with a fresh temp store.
+        reset_receipt_store()
+        get_receipt_store(Path(tmp) / "receipts")
+        try:
+            for i in range(warmup):
+                out = Path(tmp) / f"warmup_{i}.tar.gz"
+                ws = Path(tmp) / f"warmup_ws_{i}"
+                info = build_bundle(output_path=out, workspace=ws)
+                assert info["ok"] is True
 
-        latencies = []
-        for i in range(samples):
-            out = Path(tmp) / f"bundle_{i}.tar.gz"
-            ws = Path(tmp) / f"ws_{i}"
-            t0 = time.perf_counter()
-            info = build_bundle(output_path=out, workspace=ws)
-            t1 = time.perf_counter()
-            assert info["ok"] is True
-            latencies.append((t1 - t0) * 1000.0)
-        return _percentile(latencies, 95.0)
+            latencies = []
+            for i in range(samples):
+                out = Path(tmp) / f"bundle_{i}.tar.gz"
+                ws = Path(tmp) / f"ws_{i}"
+                t0 = time.perf_counter()
+                info = build_bundle(output_path=out, workspace=ws)
+                t1 = time.perf_counter()
+                assert info["ok"] is True
+                latencies.append((t1 - t0) * 1000.0)
+            return _percentile(latencies, 95.0)
+        finally:
+            reset_receipt_store()
 
 
 # ---------------------------------------------------------------------------

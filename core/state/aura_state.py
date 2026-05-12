@@ -43,6 +43,12 @@ _SPECULATIVE_AUTONOMY_PREFIXES: Final[tuple[str, ...]] = (
     "exploring self-optimization strategies for logic scaling",
     "investigating emergent behaviors in complex adaptive systems",
     "refining internal state mapping for deeper self-alignment",
+    "auditing one live-runtime bottleneck",
+    "reviewing recent conversation failures",
+    "checking autonomous action pathways",
+    "inspecting memory and continuity signals",
+    "forming a small self-model update",
+    "testing a low-risk coding or diagnostic skill",
     "spend some time rating horror movie logic",
 )
 _BACKGROUND_PROCESSING_PREFIXES: Final[tuple[str, ...]] = (

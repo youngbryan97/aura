@@ -4,6 +4,7 @@ import logging
 import time
 import os
 import json
+import signal
 import traceback
 from multiprocessing import Process, Pipe
 from types import SimpleNamespace
@@ -179,6 +180,10 @@ class StateVaultActor:
 
 def vault_process_entry(db_path: str, pipe):
     """Entry point for the vault process."""
+    try:
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+    except Exception:
+        pass
     # Force basic logging to stderr so it shows up in main logs even if setup fails
     import sys
     logging.basicConfig(level=logging.DEBUG, stream=sys.stderr, 

@@ -229,9 +229,27 @@ class QuantumEntropyBridge:
                 logger.warning("ANU QRNG API returned non-success: %s", data)
 
         except Exception as e:
-            record_degradation('quantum_entropy', e)
             self._api_failures += 1
-            logger.debug("ANU QRNG API unavailable (using OS fallback): %s", e)
+            try:
+                import urllib.error
+
+                external_entropy_unavailable = isinstance(
+                    e,
+                    (
+                        urllib.error.HTTPError,
+                        urllib.error.URLError,
+                        TimeoutError,
+                        OSError,
+                    ),
+                )
+            except Exception:
+                external_entropy_unavailable = isinstance(e, (TimeoutError, OSError))
+
+            if external_entropy_unavailable:
+                logger.info("ANU QRNG API unavailable; using OS entropy fallback (%s)", e)
+            else:
+                record_degradation('quantum_entropy', e)
+                logger.debug("ANU QRNG API refill failed unexpectedly: %s", e)
             self._seed_fallback_pool(min(256, self._pool_size))
 
 

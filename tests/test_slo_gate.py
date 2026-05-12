@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from slo.check import compare
+from slo.measure import measure_doctor_bundle_p95_ms
 
 
 def _baseline(slos, hard_limits=None):
@@ -126,3 +127,36 @@ def test_repository_baseline_covers_known_slos():
         "doctor_bundle_p95_ms",
     }
     assert set(payload["slos"].keys()) == expected
+
+
+def test_doctor_bundle_measurement_uses_isolated_receipt_store(monkeypatch):
+    import core.runtime.diagnostics_bundle as diagnostics_bundle
+    import core.runtime.receipts as receipts
+
+    resets = []
+    store_roots = []
+    bundle_calls = []
+
+    def fake_reset_receipt_store():
+        resets.append("reset")
+
+    def fake_get_receipt_store(root=None):
+        store_roots.append(Path(root) if root is not None else None)
+        return object()
+
+    def fake_build_bundle(*, output_path=None, workspace=None):
+        bundle_calls.append((output_path, workspace))
+        return {"ok": True}
+
+    monkeypatch.setattr(receipts, "reset_receipt_store", fake_reset_receipt_store)
+    monkeypatch.setattr(receipts, "get_receipt_store", fake_get_receipt_store)
+    monkeypatch.setattr(diagnostics_bundle, "build_bundle", fake_build_bundle)
+
+    measured = measure_doctor_bundle_p95_ms(samples=1, warmup=1)
+
+    assert measured >= 0.0
+    assert len(bundle_calls) == 2
+    assert len(resets) == 2
+    assert len(store_roots) == 1
+    assert store_roots[0] is not None
+    assert store_roots[0].name == "receipts"

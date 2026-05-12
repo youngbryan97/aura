@@ -17,6 +17,7 @@ from collections import deque
 from collections.abc import Callable, Iterable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
+from threading import RLock
 from typing import Any
 
 from core.runtime.atomic_writer import AtomicWriteError, atomic_write_json, read_json_envelope
@@ -246,41 +247,46 @@ class ContinuousExperienceStream:
         self._episodes: dict[str, ExperienceEpisode] = {}
         self._scene_counter = 0
         self._compounding_report = CompoundingErrorReport(False)
+        self._lock = RLock()
         if self.persist_path and self.persist_path.exists():
             self.load()
 
     @property
     def frames(self) -> list[ExperienceFrame]:
-        return list(self._frames)
+        with self._lock:
+            return list(self._frames)
 
     @property
     def current_frame(self) -> ExperienceFrame | None:
-        return self._frames[-1] if self._frames else None
+        with self._lock:
+            return self._frames[-1] if self._frames else None
 
     @property
     def compounding_report(self) -> CompoundingErrorReport:
-        return self._compounding_report
+        with self._lock:
+            return self._compounding_report
 
     def append_frame(self, frame: ExperienceFrame) -> ExperienceFrame:
-        previous = self.current_frame
-        sequence = previous.sequence + 1 if previous else 1
-        if frame.scene_id:
-            scene_id = frame.scene_id
-        elif previous:
-            scene_id = self._scene_for(previous, frame)
-        else:
-            scene_id = self._next_scene_id()
-        frame_id = frame.frame_id or f"exp_{int(frame.timestamp * 1000)}_{sequence}"
-        committed = ExperienceFrame.from_dict({**frame.to_dict(), "frame_id": frame_id})
-        committed = committed.with_hashes(
-            sequence=sequence,
-            scene_id=scene_id,
-            previous_hash=previous.frame_hash if previous else "",
-        )
-        self._frames.append(committed)
-        self._episode_for(committed).add(committed)
-        self._compounding_report = self._detect_compounding_errors()
-        self.enforce_retention()
+        with self._lock:
+            previous = self._frames[-1] if self._frames else None
+            sequence = previous.sequence + 1 if previous else 1
+            if frame.scene_id:
+                scene_id = frame.scene_id
+            elif previous:
+                scene_id = self._scene_for(previous, frame)
+            else:
+                scene_id = self._next_scene_id()
+            frame_id = frame.frame_id or f"exp_{int(frame.timestamp * 1000)}_{sequence}"
+            committed = ExperienceFrame.from_dict({**frame.to_dict(), "frame_id": frame_id})
+            committed = committed.with_hashes(
+                sequence=sequence,
+                scene_id=scene_id,
+                previous_hash=previous.frame_hash if previous else "",
+            )
+            self._frames.append(committed)
+            self._episode_for(committed).add(committed)
+            self._compounding_report = self._detect_compounding_errors_locked()
+            self._enforce_retention_locked()
         if self.autosave:
             self.save()
         return committed
@@ -391,12 +397,15 @@ class ContinuousExperienceStream:
 
     def learning_context(self, *, target_domain: str = "", tags: Iterable[str] = ()) -> dict[str, Any]:
         lessons = self.transfer_lessons(target_domain=target_domain, tags=tags)
+        with self._lock:
+            current = self._frames[-1] if self._frames else None
+            report = self._compounding_report
         return {
-            "current_frame": self.current_frame.to_dict(redacted=True) if self.current_frame else None,
-            "compounding_error": self._compounding_report.to_dict(),
+            "current_frame": current.to_dict(redacted=True) if current else None,
+            "compounding_error": report.to_dict(),
             "transfer_lessons": lessons,
-            "safe_to_act": not self._compounding_report.active,
-            "recommended_mode": self._compounding_report.recommended_mode,
+            "safe_to_act": not report.active,
+            "recommended_mode": report.recommended_mode,
         }
 
     def transfer_lessons(self, *, target_domain: str = "", tags: Iterable[str] = ()) -> list[dict[str, Any]]:
@@ -404,7 +413,9 @@ class ContinuousExperienceStream:
         if target_domain:
             wanted.add(str(target_domain))
         lessons: list[dict[str, Any]] = []
-        for frame in reversed(self._frames):
+        with self._lock:
+            frames = list(self._frames)
+        for frame in reversed(frames):
             frame_tags = set(frame.transfer_tags)
             if not frame.lesson and not frame.repair_reasons:
                 continue
@@ -426,22 +437,27 @@ class ContinuousExperienceStream:
         return lessons
 
     def export_reel(self, *, limit: int = PUBLIC_REEL_LIMIT, redacted: bool = True) -> dict[str, Any]:
-        frames = list(self._frames)[-max(1, int(limit)) :]
+        with self._lock:
+            all_frames = list(self._frames)
+            current = all_frames[-1] if all_frames else None
+            report = self._compounding_report
+        frames = all_frames[-max(1, int(limit)) :]
         return {
             "schema_version": STREAM_SCHEMA_VERSION,
-            "frame_count": len(self._frames),
-            "latest_hash": self.current_frame.frame_hash if self.current_frame else "",
-            "compounding_error": self._compounding_report.to_dict(),
+            "frame_count": len(all_frames),
+            "latest_hash": current.frame_hash if current else "",
+            "compounding_error": report.to_dict(),
             "frames": [frame.to_dict(redacted=redacted) for frame in frames],
         }
 
     def delete_where(self, predicate: Callable[[ExperienceFrame], bool]) -> int:
-        retained = [frame for frame in self._frames if not predicate(frame)]
-        removed = len(self._frames) - len(retained)
-        if not removed:
-            return 0
-        self._frames = deque(retained, maxlen=self.max_frames)
-        self._rebuild_after_deletion()
+        with self._lock:
+            retained = [frame for frame in list(self._frames) if not predicate(frame)]
+            removed = len(self._frames) - len(retained)
+            if not removed:
+                return 0
+            self._frames = deque(retained, maxlen=self.max_frames)
+            self._rebuild_after_deletion_locked()
         if self.autosave:
             self.save()
         return removed
@@ -450,6 +466,10 @@ class ContinuousExperienceStream:
         return self.delete_where(lambda frame: frame.privacy_tier == privacy_tier)
 
     def enforce_retention(self, *, now: float | None = None) -> int:
+        with self._lock:
+            return self._enforce_retention_locked(now=now)
+
+    def _enforce_retention_locked(self, *, now: float | None = None) -> int:
         now = time.time() if now is None else float(now)
 
         def expired(frame: ExperienceFrame) -> bool:
@@ -458,16 +478,18 @@ class ContinuousExperienceStream:
                 return age > self.private_retention_s
             return age > self.standard_retention_s
 
-        retained = [frame for frame in self._frames if not expired(frame)]
+        retained = [frame for frame in list(self._frames) if not expired(frame)]
         removed = len(self._frames) - len(retained)
         if removed:
             self._frames = deque(retained, maxlen=self.max_frames)
-            self._rebuild_after_deletion()
+            self._rebuild_after_deletion_locked()
         return removed
 
     def validate_replay(self) -> dict[str, Any]:
         previous_hash = ""
-        for frame in self._frames:
+        with self._lock:
+            frames = list(self._frames)
+        for frame in frames:
             expected = frame.with_hashes(
                 sequence=frame.sequence,
                 scene_id=frame.scene_id,
@@ -488,20 +510,21 @@ class ContinuousExperienceStream:
             previous_hash = frame.frame_hash
         return {
             "valid": True,
-            "frame_count": len(self._frames),
+            "frame_count": len(frames),
             "latest_hash": previous_hash,
         }
 
     def save(self) -> None:
         if not self.persist_path:
             return
-        payload = {
-            "frames": [frame.to_dict() for frame in self._frames],
-            "episodes": [episode.to_dict() for episode in self._episodes.values()],
-            "scene_counter": self._scene_counter,
-            "compounding_report": self._compounding_report.to_dict(),
-            "saved_at": time.time(),
-        }
+        with self._lock:
+            payload = {
+                "frames": [frame.to_dict() for frame in list(self._frames)],
+                "episodes": [episode.to_dict() for episode in list(self._episodes.values())],
+                "scene_counter": self._scene_counter,
+                "compounding_report": self._compounding_report.to_dict(),
+                "saved_at": time.time(),
+            }
         try:
             atomic_write_json(
                 self.persist_path,
@@ -534,22 +557,23 @@ class ContinuousExperienceStream:
             for item in list(payload.get("frames") or [])
             if isinstance(item, dict)
         ]
-        self._frames = deque(frames[-self.max_frames :], maxlen=self.max_frames)
-        self._episodes = {
-            str(item.get("scene_id")): ExperienceEpisode.from_dict(item)
-            for item in list(payload.get("episodes") or [])
-            if isinstance(item, dict) and item.get("scene_id")
-        }
-        self._scene_counter = int(payload.get("scene_counter", 0) or 0)
-        report = payload.get("compounding_report") or {}
-        self._compounding_report = CompoundingErrorReport(
-            active=bool(report.get("active", False)),
-            severity=_clamp(report.get("severity", 0.0)),
-            reasons=_as_tuple(report.get("reasons")),
-            recommended_mode=str(report.get("recommended_mode") or "continue"),
-            affected_frame_ids=_as_tuple(report.get("affected_frame_ids")),
-            transfer_tags=_as_tuple(report.get("transfer_tags")),
-        )
+        with self._lock:
+            self._frames = deque(frames[-self.max_frames :], maxlen=self.max_frames)
+            self._episodes = {
+                str(item.get("scene_id")): ExperienceEpisode.from_dict(item)
+                for item in list(payload.get("episodes") or [])
+                if isinstance(item, dict) and item.get("scene_id")
+            }
+            self._scene_counter = int(payload.get("scene_counter", 0) or 0)
+            report = payload.get("compounding_report") or {}
+            self._compounding_report = CompoundingErrorReport(
+                active=bool(report.get("active", False)),
+                severity=_clamp(report.get("severity", 0.0)),
+                reasons=_as_tuple(report.get("reasons")),
+                recommended_mode=str(report.get("recommended_mode") or "continue"),
+                affected_frame_ids=_as_tuple(report.get("affected_frame_ids")),
+                transfer_tags=_as_tuple(report.get("transfer_tags")),
+            )
 
     def _next_scene_id(self) -> str:
         self._scene_counter += 1
@@ -580,6 +604,10 @@ class ContinuousExperienceStream:
         return episode
 
     def _detect_compounding_errors(self) -> CompoundingErrorReport:
+        with self._lock:
+            return self._detect_compounding_errors_locked()
+
+    def _detect_compounding_errors_locked(self) -> CompoundingErrorReport:
         recent = list(self._frames)[-6:]
         if len(recent) < 3:
             return CompoundingErrorReport(False)
@@ -637,7 +665,11 @@ class ContinuousExperienceStream:
         return ""
 
     def _rebuild_after_deletion(self) -> None:
-        raw_frames = [frame.to_dict() for frame in self._frames]
+        with self._lock:
+            self._rebuild_after_deletion_locked()
+
+    def _rebuild_after_deletion_locked(self) -> None:
+        raw_frames = [frame.to_dict() for frame in list(self._frames)]
         self._frames = deque(maxlen=self.max_frames)
         self._episodes = {}
         self._scene_counter = 0

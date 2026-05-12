@@ -32,7 +32,12 @@ class BootIdentityMixin:
         try:
             from core.fictional_ai_synthesis import register_all_fictional_engines
 
-            self.fictional_engines = register_all_fictional_engines(orchestrator=self)
+            existing_engines = getattr(self, "fictional_engines", None)
+            if existing_engines:
+                self.fictional_engines = existing_engines
+                logger.info("🎬 Fictional engines already registered; reusing supervised instances.")
+            else:
+                self.fictional_engines = register_all_fictional_engines(orchestrator=self)
 
             from core.self_modification.shadow_ast_healer import ShadowASTHealer
             from core.memory.snap_kv_evictor import SnapKVEvictor

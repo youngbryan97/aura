@@ -233,7 +233,11 @@ class RedditAdapterSkill(BaseSkill):
 
             # Need to login
             logger.info("🔐 Logging into Reddit...")
-            username, password = self._get_creds()
+            try:
+                username, password = self._get_creds()
+            except RuntimeError as creds_exc:
+                logger.info("RedditAdapter idle: credentials are not configured.")
+                return False
 
             await browser.browse("https://www.reddit.com/login/")
             await asyncio.sleep(3)
@@ -275,11 +279,17 @@ class RedditAdapterSkill(BaseSkill):
                     return False
 
             except Exception as login_exc:
+                if "captcha" in str(login_exc).lower() or "recaptcha" in str(login_exc).lower():
+                    logger.info("Reddit inbox login unavailable: CAPTCHA present.")
+                    return False
                 record_degradation('reddit_adapter', login_exc)
                 logger.warning("Reddit login interaction failed: %s", login_exc)
                 return False
 
         except Exception as e:
+            if "credentials not found" in str(e).lower() or "captcha" in str(e).lower() or "recaptcha" in str(e).lower():
+                logger.info("Reddit login unavailable: %s", type(e).__name__)
+                return False
             record_degradation('reddit_adapter', e)
             logger.error("Login check failed: %s", e)
             return False
@@ -608,7 +618,12 @@ class RedditAdapterSkill(BaseSkill):
     async def _handle_check_inbox(self, browser: PhantomBrowser, params: RedditInput) -> Dict[str, Any]:
         """Check Reddit inbox/notifications."""
         if not await self._ensure_logged_in(browser):
-            return {"ok": False, "error": "Reddit login failed."}
+            return {
+                "ok": True,
+                "status": "login_unavailable",
+                "content": "",
+                "message": "Reddit inbox unavailable; login required or CAPTCHA present.",
+            }
 
         if not await browser.browse("https://www.reddit.com/message/inbox/"):
             return {"ok": False, "error": "Failed to load inbox."}

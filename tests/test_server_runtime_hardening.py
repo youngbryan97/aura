@@ -1719,6 +1719,29 @@ async def test_motivation_engine_tracks_autonomous_intention(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_motivation_engine_queues_governed_initiative_when_cognitive_sink_missing(monkeypatch):
+    queued = AsyncMock(return_value={"action": "queued", "reason": "initiative_queued"})
+    release_expression = AsyncMock()
+
+    engine = MotivationEngine(orchestrator=SimpleNamespace(stats={}))
+    engine.cognitive = None
+
+    monkeypatch.setattr("core.motivation.engine.queue_governed_initiative", queued)
+    monkeypatch.setattr(
+        "core.consciousness.executive_authority.get_executive_authority",
+        lambda *_args, **_kwargs: SimpleNamespace(release_expression=release_expression),
+    )
+
+    intention = Intention(DriveType.GROWTH, "Find one concrete live-runtime repair target.", urgency=0.7)
+    await engine._dispatch_intention(intention)
+
+    queued.assert_awaited_once()
+    release_expression.assert_awaited_once()
+    assert queued.await_args.kwargs["source"] == "motivation_engine"
+    assert queued.await_args.kwargs["kind"] == "motivational_drive"
+
+
+@pytest.mark.asyncio
 async def test_motivation_update_recovers_social_drive_during_high_energy_conversation(monkeypatch):
     from core.phases.motivation_update import MotivationUpdatePhase
 

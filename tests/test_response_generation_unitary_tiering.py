@@ -46,6 +46,64 @@ def test_simple_foreground_floor_does_not_bypass_live_conversation_turns():
     )
 
 
+def test_simple_foreground_floor_handles_live_headless_diagnosis():
+    prompt = "A live chat reply passes in headless testing but fails in the GUI. What coding checks would you run first?"
+
+    reply = UnitaryResponsePhase._simple_foreground_floor_reply(prompt)
+
+    assert "/api/chat" in reply
+    assert "routing" in reply.lower()
+    assert "place" "holder" in reply.lower()
+
+
+def test_simple_foreground_floor_handles_live_headless_fix_first_followup():
+    prompt = (
+        "Keep continuity from the last answer: what should we fix first, and why?\n"
+        "[REFERENTIAL ANCHOR] A live chat reply passes in headless testing but fails in the GUI."
+    )
+
+    reply = UnitaryResponsePhase._simple_foreground_floor_reply(prompt)
+
+    assert "live parity harness first" in reply.lower()
+    assert "repeated diagnostic floor" in reply.lower()
+
+
+def test_memory_recall_answer_sanitizes_raw_prior_tool_artifacts():
+    state = AuraState.default()
+
+    class Episode:
+        context = (
+            "Earlier I was worried the conversation lane was dying. What do you remember about that worry, "
+            "and what would you do differently now? | conversation_reply | Found 0 artifacts."
+        )
+        description = ""
+        full_description = ""
+
+    answer = UnitaryResponsePhase._compose_memory_recall_answer(
+        "Earlier I was worried the conversation lane was dying. What do you remember about that concern, and how would you stay with me now?",
+        state,
+        [Episode()],
+    )
+
+    assert answer is not None
+    assert "Found 0 artifacts" not in answer
+    assert "conversation lane was dying" in answer
+    assert "stay with you" in answer
+
+
+def test_memory_recall_answer_handles_conversation_lane_died_without_llm():
+    answer = UnitaryResponsePhase._compose_memory_recall_answer(
+        "What did I mean when I said the conversation lane died? Keep continuity with this debugging session.",
+        AuraState.default(),
+        [],
+    )
+
+    assert answer is not None
+    assert "live conversation path" in answer
+    assert "/api/chat" in answer
+    assert "stale repair text" in answer
+
+
 @pytest.mark.asyncio
 async def test_short_confusion_turn_reaches_llm(monkeypatch):
     state = AuraState()
@@ -230,6 +288,41 @@ async def test_unitary_response_uses_direct_clock_skill_reply_without_llm(monkey
 
     llm.think.assert_not_awaited()
     assert new_state.cognition.last_response == "It is currently Tuesday, April 07, 2026 06:40 PM."
+
+
+@pytest.mark.asyncio
+async def test_unitary_response_does_not_surface_raw_memory_search_miss(monkeypatch):
+    state = AuraState()
+    state.cognition.current_origin = "api"
+    state.cognition.current_objective = (
+        "Earlier I was worried the conversation lane was dying. "
+        "What do you remember about that worry, and what would you do differently now?"
+    )
+    state.response_modifiers["last_skill_run"] = "memory_ops"
+    state.response_modifiers["last_skill_ok"] = True
+    state.response_modifiers["last_skill_result_payload"] = {
+        "ok": True,
+        "summary": "Found 0 artifacts.",
+        "result": "Found 0 artifacts.",
+    }
+
+    llm_reply = (
+        "I remember the worry as a continuity failure, not as a memory search task. "
+        "I would keep the live turn in the conversation lane and use memory only as context."
+    )
+    llm = SimpleNamespace(think=AsyncMock(return_value=llm_reply))
+    kernel = SimpleNamespace(organs={})
+    phase = UnitaryResponsePhase(kernel)
+
+    monkeypatch.setattr(
+        "core.container.ServiceContainer.get",
+        staticmethod(lambda name, default=None: llm if name == "llm_router" else default),
+    )
+
+    new_state = await phase.execute(state, objective=state.cognition.current_objective, priority=True)
+
+    llm.think.assert_awaited()
+    assert new_state.cognition.last_response == llm_reply
 
 
 @pytest.mark.asyncio

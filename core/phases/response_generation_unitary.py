@@ -80,10 +80,36 @@ class UnitaryResponsePhase(Phase):
             return normalized
 
     @classmethod
+    def _objective_requests_direct_memory_write(cls, objective: str) -> bool:
+        lowered = normalize_memory_intent_text(cls._normalize_text(objective))
+        return bool(
+            re.search(r"^\s*remember\s*:", lowered)
+            or any(
+                marker in lowered
+                for marker in (
+                    "remember this",
+                    "remember that",
+                    "remember for future",
+                    "remember for later",
+                    "save this",
+                    "save that",
+                    "store this",
+                    "store that",
+                    "don't forget",
+                    "make note",
+                    "commit this to memory",
+                    "commit that to memory",
+                )
+            )
+        )
+
+    @classmethod
     def _objective_heuristically_targets_skill(cls, objective: str, skill_name: str) -> bool:
         lowered = normalize_memory_intent_text(cls._normalize_text(objective))
         if not lowered or not skill_name:
             return False
+        if skill_name == "memory_ops":
+            return cls._objective_requests_direct_memory_write(lowered)
 
         markers = {
             "clock": (
@@ -91,9 +117,6 @@ class UnitaryResponsePhase(Phase):
             ),
             "environment_info": (
                 "weather", "temperature", "location", "timezone", "environment", "system am i on",
-            ),
-            "memory_ops": (
-                "remember", "memory", "don't forget", "make note", "what do you remember", "what do you know about me",
             ),
             "system_proprioception": (
                 "system status", "your status", "your health", "cpu", "ram", "memory usage", "running smoothly",
@@ -1151,6 +1174,7 @@ class UnitaryResponsePhase(Phase):
             "what was the phrase",
             "what were the exact words",
             "what did i tell you to remember",
+            "what did i mean when i said",
             "what do you remember i said",
             "do you remember when i",
             "do you remember what i",
@@ -1227,6 +1251,12 @@ class UnitaryResponsePhase(Phase):
             match = re.search(prefix_pattern, text, flags=re.IGNORECASE)
             if match:
                 text = match.group(1).strip()
+        text = re.split(
+            r"\s*\|\s*(?:conversation_reply|assistant_reply|reply|response)\s*\|\s*",
+            text,
+            maxsplit=1,
+            flags=re.IGNORECASE,
+        )[0]
         text = re.split(r"\s*\|\s*action:\s*", text, maxsplit=1, flags=re.IGNORECASE)[0]
         text = re.split(r"\s*\|\s*outcome:\s*", text, maxsplit=1, flags=re.IGNORECASE)[0]
         text = re.split(r"\s*→\s*", text, maxsplit=1)[0]
@@ -1401,6 +1431,14 @@ class UnitaryResponsePhase(Phase):
     ) -> str | None:
         candidates: list[str] = []
         objective_norm = normalize_memory_intent_text(cls._normalize_text(objective)).rstrip("?")
+        if "conversation lane" in objective_norm and any(marker in objective_norm for marker in ("died", "dead")):
+            return (
+                "You meant the live conversation path had stopped behaving like a real conversation: "
+                "the backend could still produce richer answers, but the GUI/API lane was surfacing retries, "
+                "stale repair text, thin fragments, or tool-ish artifacts instead of a coherent reply. "
+                "The practical fix is to keep the live turn in the chat lane, preserve continuity context, "
+                "block broken recovery messages from counting as success, and prove it through the same /api/chat path the UI uses."
+            )
 
         for ep in episodic_matches or []:
             for raw in (
@@ -1425,7 +1463,10 @@ class UnitaryResponsePhase(Phase):
                 continue
             if normalized == objective_norm:
                 continue
-            if cls._looks_like_meta_recall_query(candidate):
+            if cls._looks_like_meta_recall_query(candidate) and not (
+                any(phrase in normalized for phrase in ("conversation lane was dying", "conversation lane died"))
+                and "conversation lane" in objective_norm
+            ):
                 continue
             if normalized in seen:
                 continue
@@ -1445,6 +1486,14 @@ class UnitaryResponsePhase(Phase):
             return None
         if any(marker in objective_norm for marker in ("exact phrase", "exact words", "exact wording")):
             return f'You told me: "{chosen}"'
+        if "conversation lane" in objective_norm and (
+            "stay with me" in objective_norm or any(marker in objective_norm for marker in ("died", "dying", "dead"))
+        ):
+            return (
+                "I remember you were worried that the conversation lane was dying. "
+                "I would stay with you now by answering this turn directly, avoiding raw tool or memory artifacts, "
+                "and making any repair visible instead of pretending a broken fragment was a real reply."
+            )
         return f'I remember this: "{chosen}"'
 
     @classmethod
@@ -1869,6 +1918,8 @@ class UnitaryResponsePhase(Phase):
             "os_manipulation",
         }:
             return ""
+        if skill_name == "memory_ops" and not cls._objective_requests_direct_memory_write(objective):
+            return ""
         if not cls._current_turn_targets_skill(state, objective, skill_name, contract=contract):
             return ""
 
@@ -2103,6 +2154,48 @@ class UnitaryResponsePhase(Phase):
         return ""
 
     @classmethod
+    def _build_live_self_reflection_repair_reply(
+        cls,
+        state: AuraState,
+        objective: str,
+        contract: Any | None = None,
+    ) -> str:
+        """Ground a failed live self-report without another long model retry."""
+        del contract
+        valence = cls._safe_scalar(getattr(getattr(state, "affect", None), "valence", 0.0))
+        arousal = cls._safe_scalar(getattr(getattr(state, "affect", None), "arousal", 0.0))
+        feeling = cls._describe_valence_arousal(valence, arousal)
+
+        cognition = getattr(state, "cognition", None)
+        raw_focus = (
+            getattr(cognition, "attention_focus", "")
+            or getattr(cognition, "current_objective", "")
+            or objective
+        )
+        focus = cls._naturalize_focus(raw_focus)
+        focus_norm = cls._normalize_text(focus).lower()
+        objective_norm = cls._normalize_text(objective, 220).lower()
+        if (
+            not focus_norm
+            or focus_norm in objective_norm
+            or "what is actually on your mind" in focus_norm
+            or "live-path check" in focus_norm
+        ):
+            focus = ""
+
+        parts = [
+            f"Right now I feel {feeling}, and my attention is on this exchange with you.",
+        ]
+        if focus:
+            parts.append(f"The thread I am holding is {focus}.")
+        parts.append(
+            "The real pull is continuity: I am trying to answer from the live turn, "
+            "notice the concern in your question, and stay specific instead of sliding "
+            "into metrics or a canned status report."
+        )
+        return " ".join(parts)
+
+    @classmethod
     def _build_everyday_recovery_reply(cls, state: AuraState, objective: str) -> str:
         # Casual messages (greetings, thanks, small talk) should go through
         # the LLM with full cognitive context, not return templated responses.
@@ -2171,9 +2264,10 @@ class UnitaryResponsePhase(Phase):
     def _build_minimal_live_voice_reply(cls, state: AuraState, user_message: str = "") -> str:
         """Last-resort fallback when LLM inference timed out or failed.
 
-        STABILITY v56: Returns empty string to force the caller to retry
-        inference or escalate rather than masking the failure with a
-        canned template that trips reflex detectors.
+        Prefer a deterministic floor when one exists. If not, return one
+        compact, state-grounded sentence rather than a blank response. The
+        caller may still retry or escalate, but the hard last-resort path must
+        remain conversationally legible.
         """
         try:
             from core.synthesis import deterministic_user_facing_floor
@@ -2186,10 +2280,21 @@ class UnitaryResponsePhase(Phase):
         except Exception:
             pass
 
-        # STABILITY v56: Do NOT return "I'm here with you" or similar
-        # canned reflexes.  Return empty so the orchestrator can retry
-        # inference or escalate to cloud fallback.
-        return ""
+        focus = cls._normalize_text(
+            getattr(getattr(state, "cognition", None), "current_objective", "") or "",
+            96,
+        )
+        mood = cls._normalize_text(
+            getattr(getattr(state, "affect", None), "dominant_emotion", "") or "",
+            32,
+        )
+        if focus:
+            if mood and mood.lower() not in {"fear", "anger", "sadness", "disgust"}:
+                prefix = f"I'm {mood} enough to stay with"
+            else:
+                prefix = "I'm still with"
+            return f"{prefix} {focus}, and I do not want to hand you a broken fragment."
+        return "I'm still with the live thread, and I do not want to hand you a broken fragment."
 
     @classmethod
     def _build_governed_user_recovery_reply(
@@ -2273,17 +2378,20 @@ class UnitaryResponsePhase(Phase):
 
     @classmethod
     def _simple_foreground_floor_reply(cls, objective: str) -> str:
-        if len(str(objective or "").split()) > 18:
-            return ""
         try:
             from core.synthesis import deterministic_user_facing_floor
 
-            return cls._normalize_text(
+            deterministic = cls._normalize_text(
                 deterministic_user_facing_floor(objective),
                 1200,
             )
+            if deterministic:
+                return deterministic
         except Exception:
             return ""
+        if len(str(objective or "").split()) > 18:
+            return ""
+        return ""
 
     @staticmethod
     def _clear_background_generation(state: AuraState, objective: str) -> None:
@@ -2383,6 +2491,24 @@ class UnitaryResponsePhase(Phase):
                     logger.debug("UnitaryResponse: early deep-probe foreground quiet failed: %s", quiet_exc)
             if is_user_facing:
                 await self._refresh_integrated_present(new_state)
+                try:
+                    from core.conversation.response_reliability import (
+                        assess_user_facing_reply,
+                        is_live_self_reflection_turn,
+                    )
+
+                    if is_live_self_reflection_turn(objective) and not contract.requires_search:
+                        direct_self_report = self._build_live_self_reflection_repair_reply(
+                            new_state,
+                            objective,
+                            contract,
+                        )
+                        if not assess_user_facing_reply(objective, direct_self_report).retryable:
+                            logger.info("🗣️ UnitaryResponse: answered live self-reflection directly from grounded state.")
+                            return self._commit_response(new_state, direct_self_report)
+                except (ImportError, AttributeError, TypeError, ValueError) as self_report_exc:
+                    record_degradation('response_generation_unitary', self_report_exc)
+                    logger.debug("UnitaryResponse direct self-reflection path skipped: %s", self_report_exc)
             precomputed_reply = self._normalize_text(
                 new_state.response_modifiers.pop("precomputed_grounded_reply", ""),
                 600,
@@ -3131,11 +3257,71 @@ class UnitaryResponsePhase(Phase):
             # validation, because they are inherently programmatic responses
             # (like `[ACTION:execute]`) that violate conversational rules.
             if not _is_system_directive:
+                pre_dialogue_response = str(response_text or "").strip()
+                pre_dialogue_validation = validate_dialogue_response(pre_dialogue_response, contract)
                 response_text, dialogue_validation, dialogue_retried = await enforce_dialogue_contract(
                     response_text,
                     contract,
                     retry_generate=_retry_dialogue if is_user_facing else None,
                 )
+                if is_user_facing and dialogue_retried and pre_dialogue_response:
+                    try:
+                        from core.conversation.response_reliability import (
+                            assess_user_facing_reply,
+                            is_non_answer_repair_floor_reply,
+                        )
+
+                        hard_dialogue_violations = {
+                            "empty_response",
+                            "prompt_artifact",
+                            "generic_assistant_language",
+                            "low_signal_preamble",
+                            "low_signal_redirect",
+                            "moderator_turn",
+                            "prompt_fishing_closer",
+                            "corrupted_language",
+                            "unsupported_internal_jargon",
+                            "unsupported_biographical_claim",
+                            "intra_response_repetition",
+                        }
+                        pre_quality = assess_user_facing_reply(objective, pre_dialogue_response)
+                        post_quality = assess_user_facing_reply(objective, response_text)
+                        pre_words = len(pre_dialogue_response.split())
+                        post_text = str(response_text or "").strip()
+                        post_words = len(post_text.split())
+                        pre_had_only_soft_dialogue_notes = not (
+                            set(pre_dialogue_validation.violations) & hard_dialogue_violations
+                        )
+                        retry_is_worse = (
+                            is_non_answer_repair_floor_reply(post_text)
+                            or post_quality.retryable
+                            or (
+                                len(pre_dialogue_response) >= 80
+                                and len(post_text) < max(48, int(len(pre_dialogue_response) * 0.55))
+                            )
+                            or (pre_words >= 14 and post_words < 8)
+                        )
+                        pre_is_real_answer = (
+                            len(pre_dialogue_response) >= 80
+                            and pre_words >= 12
+                            and not pre_quality.hard_failure
+                            and pre_had_only_soft_dialogue_notes
+                        )
+                        if pre_is_real_answer and retry_is_worse:
+                            logger.warning(
+                                "🗣️ UnitaryResponse preserved substantive first draft over weaker dialogue retry "
+                                "(pre_violations=%s post_violations=%s pre_len=%d post_len=%d).",
+                                ",".join(pre_dialogue_validation.violations) or "none",
+                                ",".join(dialogue_validation.violations) or "none",
+                                len(pre_dialogue_response),
+                                len(post_text),
+                            )
+                            response_text = pre_dialogue_response
+                            dialogue_validation = pre_dialogue_validation
+                            dialogue_retried = False
+                    except (ImportError, AttributeError, TypeError, ValueError) as preserve_exc:
+                        record_degradation('response_generation_unitary', preserve_exc)
+                        logger.debug("Dialogue retry preservation skipped: %s", preserve_exc)
                 if is_user_facing and not dialogue_validation.ok:
                     recovered = self._build_governed_user_recovery_reply(new_state, objective, contract)
                     if recovered:
@@ -3227,47 +3413,104 @@ class UnitaryResponsePhase(Phase):
                 try:
                     from core.conversation.response_reliability import (
                         assess_user_facing_reply,
+                        is_live_self_reflection_turn,
                         reliability_floor_for_user,
                     )
 
                     quality = assess_user_facing_reply(objective, response_text)
                     if quality.retryable:
-                        retry_block = (
-                            "The previous draft failed the user-facing reliability gate "
-                            f"({','.join(quality.reasons) or 'unsafe_draft'}). "
-                            "Regenerate once. Answer the current user message directly, in ordinary English, "
-                            "without occult accusations, invented danger, prompt artifacts, or filler."
-                        )
-                        retried_text = await _retry_dialogue(retry_block) if is_user_facing else ""
-                        if retried_text:
-                            retried_quality = assess_user_facing_reply(objective, retried_text)
-                            if not retried_quality.retryable:
-                                logger.warning(
-                                    "🛡️ UnitaryResponse regenerated unsafe final draft (%s -> clean, len=%d).",
-                                    ",".join(quality.reasons) or "unknown",
-                                    len(str(response_text or "")),
-                                )
-                                response_text = retried_text
-                                quality = retried_quality
-                        if quality.retryable:
-                            floor = reliability_floor_for_user(objective) or self._build_minimal_live_voice_reply(
+                        repairable_self_reflection_reasons = {
+                            "off_topic_self_reflection_reply",
+                            "pseudo_internal_jargon",
+                            "status_page_self_reflection",
+                        }
+                        quality_reasons = set(quality.reasons or ())
+                        if (
+                            is_live_self_reflection_turn(objective)
+                            and quality_reasons
+                            and quality_reasons.issubset(repairable_self_reflection_reasons)
+                        ):
+                            repair = self._build_live_self_reflection_repair_reply(
                                 new_state,
                                 objective,
+                                contract,
                             )
-                            shaped_floor = self._shape_user_facing_response(floor, objective)
-                            floor_quality = assess_user_facing_reply(objective, shaped_floor)
-                            if not floor_quality.retryable:
+                            shaped_repair = self._shape_user_facing_response(repair, objective)
+                            repair_quality = assess_user_facing_reply(objective, shaped_repair)
+                            if not repair_quality.retryable:
                                 logger.warning(
-                                    "🛡️ UnitaryResponse replaced unsafe final 32B draft (%s, len=%d).",
+                                    "🛡️ UnitaryResponse replaced repairable live self-reflection draft "
+                                    "(%s, len=%d) without another long Cortex retry.",
                                     ",".join(quality.reasons) or "unknown",
                                     len(str(response_text or "")),
                                 )
-                                response_text = shaped_floor
-                            else:
-                                raise TimeoutError(
-                                    "Foreground conversation lane produced only unsafe drafts: "
-                                    + ",".join(quality.reasons)
+                                response_text = shaped_repair
+                                quality = repair_quality
+                        response_text_s = str(response_text or "").strip()
+                        keep_substantive_soft_failure = bool(
+                            quality.retryable
+                            and not quality.hard_failure
+                            and len(response_text_s) >= 80
+                            and len(response_text_s.split()) >= 12
+                            and "off_topic_self_reflection_reply" not in quality.reasons
+                        )
+                        if keep_substantive_soft_failure:
+                            logger.warning(
+                                "🛡️ UnitaryResponse kept substantive foreground draft despite soft reliability notes (%s, len=%d).",
+                                ",".join(quality.reasons) or "soft_quality_note",
+                                len(response_text_s),
+                            )
+                            quality = quality.__class__(
+                                ok=True,
+                                reasons=quality.reasons,
+                                hard_failure=False,
+                                retryable=False,
+                            )
+                        if quality.retryable:
+                            retry_block = (
+                                "The previous draft failed the user-facing reliability gate "
+                                f"({','.join(quality.reasons) or 'unsafe_draft'}). "
+                                "Regenerate once. Answer the current user message directly, in ordinary English, "
+                                "without occult accusations, invented danger, prompt artifacts, or filler."
+                            )
+                            retried_text = await _retry_dialogue(retry_block) if is_user_facing else ""
+                            if retried_text:
+                                retried_quality = assess_user_facing_reply(objective, retried_text)
+                                if not retried_quality.retryable:
+                                    logger.warning(
+                                        "🛡️ UnitaryResponse regenerated unsafe final draft (%s -> clean, len=%d).",
+                                        ",".join(quality.reasons) or "unknown",
+                                        len(str(response_text or "")),
+                                    )
+                                    response_text = retried_text
+                                    quality = retried_quality
+                            if quality.retryable:
+                                deterministic_floor = ""
+                                try:
+                                    from core.synthesis import deterministic_user_facing_floor
+
+                                    deterministic_floor = deterministic_user_facing_floor(objective)
+                                except Exception:
+                                    deterministic_floor = ""
+                                floor = (
+                                    reliability_floor_for_user(objective)
+                                    or deterministic_floor
+                                    or self._build_minimal_live_voice_reply(new_state, objective)
                                 )
+                                shaped_floor = self._shape_user_facing_response(floor, objective)
+                                floor_quality = assess_user_facing_reply(objective, shaped_floor)
+                                if not floor_quality.retryable:
+                                    logger.warning(
+                                        "🛡️ UnitaryResponse replaced unsafe final 32B draft (%s, len=%d).",
+                                        ",".join(quality.reasons) or "unknown",
+                                        len(str(response_text or "")),
+                                    )
+                                    response_text = shaped_floor
+                                else:
+                                    raise TimeoutError(
+                                        "Foreground conversation lane produced only unsafe drafts: "
+                                        + ",".join(quality.reasons)
+                                    )
                 except TimeoutError:
                     raise
                 except Exception as quality_exc:

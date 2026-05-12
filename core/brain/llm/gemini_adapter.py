@@ -28,6 +28,10 @@ import httpx
 logger = logging.getLogger("Brain.Gemini")
 
 
+class GeminiProviderUnavailable(RuntimeError):
+    """Non-crash provider/configuration failure; local lanes should continue."""
+
+
 class DailyRateLimiter:
     """Tracks per-model daily usage and enforces free-tier limits.
     
@@ -245,7 +249,21 @@ class GeminiAdapter:
         self.timeout = timeout
         self.rate_limiter = rate_limiter or DailyRateLimiter()
         self._client: Optional[httpx.AsyncClient] = None
+        self._disabled_until: float = 0.0
+        self._disabled_reason: str = ""
         logger.info("✨ GeminiAdapter initialized: model=%s", self.model)
+
+    def is_available(self) -> bool:
+        return time.monotonic() >= self._disabled_until
+
+    def availability_reason(self) -> str:
+        if self.is_available():
+            return ""
+        return self._disabled_reason or "gemini_provider_disabled"
+
+    def _mark_provider_unavailable(self, reason: str, cooldown_s: float = 3600.0) -> None:
+        self._disabled_reason = str(reason or "gemini_provider_unavailable")
+        self._disabled_until = time.monotonic() + max(60.0, float(cooldown_s or 3600.0))
     
     def _get_client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
@@ -263,6 +281,7 @@ class GeminiAdapter:
         """Standardized error handling for Gemini API."""
         error_body = await response.aread()
         text = error_body.decode('utf-8', errors='replace')
+        lowered = text.lower()
         
         if response.status_code == 429:
             retry_after = self._parse_retry_after(error_body)
@@ -278,11 +297,19 @@ class GeminiAdapter:
             
             msg = f"🚫 Gemini {self.model}: 429 rate limited, backoff {retry_after:.0f}s"
             logger.warning(msg)
-            raise Exception(msg)
+            raise GeminiProviderUnavailable(msg)
+        elif response.status_code in {401, 403} or any(
+            marker in lowered
+            for marker in ("permission_denied", "api key", "leaked", "api_key_invalid")
+        ):
+            reason = f"Gemini {self.model}: provider_auth_failed_http_{response.status_code}"
+            self._mark_provider_unavailable(reason, cooldown_s=24 * 60 * 60)
+            logger.warning("%s", reason)
+            raise GeminiProviderUnavailable(reason)
         else:
             msg = f"Gemini API error {response.status_code}: {text[:500]}"
-            logger.error(msg)
-            raise Exception(msg)
+            logger.warning(msg)
+            raise GeminiProviderUnavailable(msg)
 
     def _parse_retry_after(self, error_body: bytes) -> float:
         """Extract retry-after duration from a 429 error response."""
@@ -307,10 +334,12 @@ class GeminiAdapter:
     ) -> AsyncIterator[str]:
         """Stream tokens from Gemini — compatible with LLMRouter's race_think_stream."""
         is_background = kwargs.get("is_background", False)
+        if not self.is_available():
+            raise GeminiProviderUnavailable(self.availability_reason())
         if not self.rate_limiter.can_call(self.model, is_background=is_background):
             msg = f"🚫 Gemini {self.model} local rate limited"
             logger.warning(msg)
-            raise Exception(msg)
+            raise GeminiProviderUnavailable(msg)
         
         contents = []
         system_instruction = None
@@ -421,6 +450,8 @@ class GeminiAdapter:
                 
         except httpx.TimeoutException:
             logger.warning("Gemini stream timed out after %.0fs", self.timeout)
+        except GeminiProviderUnavailable as e:
+            logger.warning("Gemini stream unavailable: %s", e)
         except Exception as e:
             record_degradation('gemini_adapter', e)
             logger.error("Gemini stream error: %s", e)
@@ -431,6 +462,8 @@ class GeminiAdapter:
     ) -> Tuple[bool, str, Dict[str, Any]]:
         """Non-streaming call — compatible with LLMRouter's _think_internal fallback."""
         is_background = kwargs.get("is_background", False)
+        if not self.is_available():
+            return False, "", {"error": self.availability_reason()}
         if not self.rate_limiter.can_call(self.model, is_background=is_background):
             logger.warning("🚫 Gemini %s rate limited", self.model)
             return False, "", {"error": "Rate limit reached"}
@@ -528,6 +561,8 @@ class GeminiAdapter:
             if response.status_code != 200:
                 try:
                     await self._handle_error(response)
+                except GeminiProviderUnavailable as e:
+                    return False, "", {"error": str(e)}
                 except Exception as e:
                     record_degradation('gemini_adapter', e)
                     return False, "", {"error": str(e)}

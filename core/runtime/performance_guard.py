@@ -176,7 +176,10 @@ class PerformanceGuard:
             while self._running:
                 # Watcher: emit a periodic report row even if no UI is
                 # contributing samples (so the timeline is continuous).
-                self._persist({"kind": "report", "when": time.time(), **self.report()})
+                await asyncio.to_thread(
+                    self._persist,
+                    {"kind": "report", "when": time.time(), **self.report()},
+                )
                 await asyncio.sleep(interval)
 
         self._task = get_task_tracker().create_task(_loop(), name="PerformanceGuard")

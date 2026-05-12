@@ -134,7 +134,7 @@ def integrate_behavior_control(orchestrator):
                  "description": f"Execute tool {tool_name}"
              }
              context = {"type": "execution_check"}
-             assessment = orchestrator.moral_reasoning.reason_about_action(action_desc, context)
+             assessment = await orchestrator.moral_reasoning.reason_about_action(action_desc, context)
              
              if not assessment.get("is_morally_acceptable"):
                  logger.warning("⚠️ Moral check raised concern: %s", tool_name)

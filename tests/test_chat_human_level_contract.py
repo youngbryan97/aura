@@ -398,3 +398,35 @@ async def test_final_quality_gate_repairs_high_confidence_semantic_glitch(monkey
     assert not is_stale
     assert not is_same
     assert not is_off_topic, reason
+
+
+@pytest.mark.asyncio
+async def test_final_quality_gate_keeps_topical_reply_when_only_same_shape_flag_remains(monkeypatch):
+    from interface.routes import chat as chat_routes
+
+    user = "Are you steady enough to stay with the actual thread now?"
+    reply = (
+        "Yes. I have the thread again, and I can answer you directly instead of "
+        "falling back to a holding-pattern line."
+    )
+
+    async def _fake_stabilize(_user, _reply):
+        return reply
+
+    monkeypatch.setattr(chat_routes, "_stabilize_user_facing_reply", _fake_stabilize)
+    monkeypatch.setattr(chat_routes, "_is_same_answer_different_prompt", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(chat_routes, "_evaluate_reply_topicality", lambda *_args, **_kwargs: (False, ""))
+
+    repaired, is_stale, is_same, is_off_topic, reason, changed = await chat_routes._repair_final_degraded_reply(
+        user,
+        reply,
+        stale=False,
+        same_diff=True,
+        off_topic=False,
+    )
+
+    assert changed
+    assert repaired == reply
+    assert not is_stale
+    assert is_same
+    assert not is_off_topic, reason

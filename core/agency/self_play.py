@@ -13,6 +13,10 @@ import re
 import time
 from core.container import ServiceContainer
 from core.brain.cognitive_engine import ThinkingMode
+from core.runtime.background_policy import (
+    RESEARCH_BACKGROUND_POLICY,
+    background_activity_reason,
+)
 
 logger = logging.getLogger("Aura.SelfPlay")
 
@@ -132,9 +136,25 @@ Detail your logical chain of thought before providing the final answer.
         """Main loop trigger, called by the AgencyCore heartbeat."""
         if self.is_playing:
             return
-            
+
+        if float(last_user_interaction or 0.0) <= 0.0:
+            logger.debug("♟️ Self-play deferred: no valid user-idle anchor yet.")
+            return
+
         time_since_interaction = time.time() - last_user_interaction
         if time_since_interaction < self.idle_threshold:
+            return
+
+        orchestrator = ServiceContainer.get("orchestrator", default=None)
+        defer_reason = background_activity_reason(
+            orchestrator,
+            profile=RESEARCH_BACKGROUND_POLICY,
+            min_idle_seconds=float(self.idle_threshold),
+            max_failure_pressure=0.35,
+            require_conversation_ready=False,
+        )
+        if defer_reason:
+            logger.debug("♟️ Self-play deferred: %s.", defer_reason)
             return
 
         self.is_playing = True

@@ -317,6 +317,8 @@ class ProactiveAnticipationEngine:
 
     async def start(self, interval_seconds: float = 120.0):
         """Run continuously in background."""
+        if self._running:
+            return
         self._running = True
         logger.info("🔭 ProactiveAnticipationEngine running (%.0fs intervals)", interval_seconds)
         while self._running:
@@ -733,6 +735,8 @@ class DistributedResilienceCore:
             status.healthy = True
 
     async def start_monitoring(self):
+        if self._running:
+            return
         self._running = True
         from core.container import ServiceContainer
         
@@ -795,6 +799,8 @@ class TemporalDilationScheduler:
     def record_user_activity(self): self._last_user_activity = time.time()
 
     async def run_idle_loop(self, brain=None):
+        if self._is_running:
+            return
         self._is_running = True
         logger.info("⏳ MIST TemporalDilation active. Watching for idle states...")
         
@@ -890,22 +896,40 @@ def register_all_fictional_engines(orchestrator=None) -> Dict[str, Any]:
     tracker = get_task_tracker()
     foreground_only = os.getenv("AURA_FOREGROUND_ONLY", "0").strip().lower() in {"1", "true", "yes", "on"}
 
-    engines["jarvis"] = ProactiveAnticipationEngine(orchestrator=orchestrator)
+    engines["jarvis"] = (
+        ServiceContainer.get(ServiceNames.JARVIS, default=None)
+        or ProactiveAnticipationEngine(orchestrator=orchestrator)
+    )
     ServiceContainer.register_instance(ServiceNames.JARVIS, engines["jarvis"])
 
-    engines["cortana"] = CognitiveHealthMonitor()
+    engines["cortana"] = (
+        ServiceContainer.get(ServiceNames.CORTANA, default=None)
+        or CognitiveHealthMonitor()
+    )
     ServiceContainer.register_instance(ServiceNames.CORTANA, engines["cortana"])
 
-    engines["edi"] = ProgressiveAutonomySystem()
+    engines["edi"] = (
+        ServiceContainer.get(ServiceNames.EDI, default=None)
+        or ProgressiveAutonomySystem()
+    )
     ServiceContainer.register_instance(ServiceNames.EDI, engines["edi"])
 
-    engines["ava"] = SocialModelingEngine()
+    engines["ava"] = (
+        ServiceContainer.get(ServiceNames.AVA, default=None)
+        or SocialModelingEngine()
+    )
     ServiceContainer.register_instance(ServiceNames.AVA, engines["ava"])
 
-    engines["skynet"] = DistributedResilienceCore()
+    engines["skynet"] = (
+        ServiceContainer.get(ServiceNames.SKYNET, default=None)
+        or DistributedResilienceCore()
+    )
     ServiceContainer.register_instance(ServiceNames.SKYNET, engines["skynet"])
 
-    engines["mist"] = TemporalDilationScheduler(orchestrator=orchestrator)
+    engines["mist"] = (
+        ServiceContainer.get(ServiceNames.MIST, default=None)
+        or TemporalDilationScheduler(orchestrator=orchestrator)
+    )
     ServiceContainer.register_instance(ServiceNames.MIST, engines["mist"])
 
     if foreground_only:

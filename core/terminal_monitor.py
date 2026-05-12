@@ -156,14 +156,32 @@ class TerminalMonitor:
         logging.getLogger().addHandler(handler)
         logger.info("✓ Terminal Monitor v5.0 attached (Circuit Breaker: ACTIVE)")
 
-    def _ingest_error(self, entry: ErrorEntry):
-        now = time.time()
-        
-        # Sepsis Detection
-        recent_errors = [e for e in self._error_buffer if now - e.timestamp < 60]
-        very_recent_errors = [e for e in self._error_buffer if now - e.timestamp < 15]
-        
-        if len(recent_errors) > 10:
+    def _is_sepsis_candidate(self, entry: ErrorEntry) -> bool:
+        """Return true only for failures that should trip the emergency loop.
+
+        Background degradations are allowed to be visible and repairable, but
+        they should not lock down the whole organism. Sepsis is for foreground
+        or crash-grade cascades.
+        """
+        classification = str(entry.metadata.get("classification", "") or "").lower()
+        severity = str(entry.metadata.get("severity", entry.level) or entry.level).lower()
+        if classification:
+            return classification in {"foreground_blocking", "system_crash"} or (
+                severity == "critical" and classification not in {"background_degraded", "non_critical_fallback"}
+            )
+        return entry.level.upper() in {"ERROR", "CRITICAL"}
+
+    def _update_sepsis_state(self, now: float) -> None:
+        sepsis_errors = [
+            e for e in self._error_buffer
+            if now - e.timestamp < 60 and self._is_sepsis_candidate(e)
+        ]
+        very_recent_errors = [
+            e for e in self._error_buffer
+            if now - e.timestamp < 15 and self._is_sepsis_candidate(e)
+        ]
+
+        if len(sepsis_errors) > 10:
             if not self._sepsis_mode:
                 logger.warning("🩸 SEPSIS DETECTED: Opening emergency circuit breaker.")
                 self._sepsis_mode = True
@@ -176,17 +194,23 @@ class TerminalMonitor:
                 logger.info("🩺 Sepsis loop hard recovery completed. Resuming autonomous agency.")
                 self._sepsis_mode = False
 
+    def _ingest_error(self, entry: ErrorEntry):
+        now = time.time()
+
         # Ignore patterns
         for pattern in self._ignore_patterns:
             if re.search(pattern, entry.message, re.IGNORECASE):
+                self._update_sepsis_state(now)
                 return
 
         # Deduplication
         if now - self._seen.get(entry.fingerprint, 0) < 60:
+            self._update_sepsis_state(now)
             return
             
         self._seen[entry.fingerprint] = now
         self._error_buffer.append(entry)
+        self._update_sepsis_state(now)
 
         # ── WORLD STATE INTEGRATION ──────────────────────────────────
         # Feed errors to WorldState so the initiative pipeline can react

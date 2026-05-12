@@ -221,6 +221,28 @@ def test_capability_engine_detects_memory_ops_for_common_remember_typo():
     assert "memory_ops" in matched
 
 
+def test_godmode_keeps_conversational_memory_questions_in_chat_lane():
+    from core.kernel.upgrades_10x import GodModeToolPhase
+
+    chosen = GodModeToolPhase._choose_best_skill(
+        "Earlier I was worried the conversation lane was dying. What do you remember about that worry?",
+        ["memory_ops"],
+    )
+
+    assert chosen == ""
+
+
+def test_godmode_still_dispatches_direct_memory_writes():
+    from core.kernel.upgrades_10x import GodModeToolPhase
+
+    chosen = GodModeToolPhase._choose_best_skill(
+        "Remember for future sessions that my verification codename is glass orchard.",
+        ["memory_ops"],
+    )
+
+    assert chosen == "memory_ops"
+
+
 def test_substrate_authority_constrains_user_memory_write_during_cortisol_crisis():
     authority = SubstrateAuthority()
     authority._get_field_coherence = lambda: 0.8

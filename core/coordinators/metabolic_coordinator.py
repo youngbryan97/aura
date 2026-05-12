@@ -838,7 +838,12 @@ class MetabolicCoordinator:
         if orch.status.cycle_count % 1000 == 0:
             if hasattr(orch, 'memory') and orch.memory:
                 try:
-                    orch.memory.prune_low_salience(threshold_days=14)
+                    prune_result = orch.memory.prune_low_salience(threshold_days=14)
+                    if asyncio.iscoroutine(prune_result):
+                        get_task_tracker().create_task(
+                            prune_result,
+                            name="metabolic.prune_low_salience",
+                        )
                 except Exception as e:
                     record_degradation('metabolic_coordinator', e)
                     record_degradation('metabolic_coordinator', e)

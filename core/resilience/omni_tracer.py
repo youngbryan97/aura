@@ -23,10 +23,34 @@ import os
 import traceback
 import psutil
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 _TRACE_FILE = Path.home() / ".aura" / "run" / "omni_trace.jsonl"
 _OMNI_LOCK = threading.Lock()
+
+
+def _classify_forwarded_log(source: str, message: str, severity: str) -> tuple[str, str]:
+    lowered_source = str(source or "").lower()
+    lowered_message = str(message or "").lower()
+    final_severity = severity or "critical"
+    classification = "system_crash" if final_severity == "critical" else "background_degraded"
+
+    if "brain.gemini" in lowered_source and any(
+        marker in lowered_message
+        for marker in ("permission_denied", "api key", "leaked", " 403", "error 403")
+    ):
+        return "warning", "background_degraded"
+
+    if "generation deadline reached" in lowered_message and "llm.mlx" in lowered_source:
+        return "warning", "foreground_blocking"
+
+    if "local inference paths exhausted" in lowered_message and "aura.inferencegate" in lowered_source:
+        return "warning", "foreground_blocking"
+
+    if "responsegeneration phase timeout" in lowered_message or "unitaryresponsephase timed out" in lowered_message:
+        return "warning", "foreground_blocking"
+
+    return final_severity, classification
 _OMNI_THREAD: threading.Thread | None = None
 _OMNI_STOP = False
 _OMNI_BUFFER = []
@@ -109,13 +133,14 @@ def write_trace(source: str, error_type: str, message: str, trace: str = "", sev
                     final_severity = "warning"
                 else:
                     final_severity = "critical"
+            final_severity, classification = _classify_forwarded_log(source, message, final_severity)
 
             record_degraded_event(
                 subsystem=f"omni_{source}",
                 reason=error_type,
                 detail=f"{message}\n{trace}"[:800], # Keep it concise for the UI
                 severity=final_severity,
-                classification="system_crash" if final_severity == "critical" else "background_degraded",
+                classification=classification,
             )
     except ImportError:
         pass
@@ -156,6 +181,19 @@ def _asyncio_exception_handler(loop, context):
     write_trace("asyncio_handler", error_type, msg, trace)
     loop.default_exception_handler(context)
 
+def _install_loop_handler(loop: asyncio.AbstractEventLoop) -> None:
+    loop.set_exception_handler(_asyncio_exception_handler)
+
+
+def install_asyncio_exception_handler(loop: Optional[asyncio.AbstractEventLoop] = None) -> bool:
+    """Attach the Omni async exception sink to the active loop when available."""
+    try:
+        _install_loop_handler(loop or asyncio.get_running_loop())
+        return True
+    except RuntimeError:
+        return False
+
+
 def hook_omni_tracer():
     global _HOOKED
     if _HOOKED:
@@ -168,11 +206,7 @@ def hook_omni_tracer():
     threading.excepthook = _threading_excepthook
     
     # 3. Asyncio
-    try:
-        loop = asyncio.get_running_loop()
-        loop.set_exception_handler(_asyncio_exception_handler)
-    except RuntimeError:
-        pass # Not in an async context yet, the orchestrator boot can apply it later
+    install_asyncio_exception_handler()
         
     # 4. Global Logging
     root_logger = logging.getLogger()

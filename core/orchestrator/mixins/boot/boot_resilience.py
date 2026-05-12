@@ -145,6 +145,7 @@ class BootResilienceMixin:
 
         self.substrate = LiquidSubstrate()
         ServiceContainer.register_instance("liquid_substrate", self.substrate)
+        ServiceContainer.register_instance("conscious_substrate", self.substrate)
 
         from core.managers.health_monitor import HealthMonitor
         from core.resilience.state_manager import StateManager

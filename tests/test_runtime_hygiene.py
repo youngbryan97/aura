@@ -173,6 +173,29 @@ def test_runtime_hygiene_treats_active_model_growth_as_transient(monkeypatch):
     assert "local model activity" in summary["message"].lower()
 
 
+def test_runtime_hygiene_treats_recent_model_warmup_as_transient(monkeypatch):
+    hygiene = RuntimeHygieneManager()
+    hygiene.model_activity_grace_s = 120.0
+    now = time.time()
+
+    fake_client = SimpleNamespace(
+        get_lane_status=lambda: {
+            "state": "ready",
+            "warmup_in_flight": False,
+            "current_request_started_at": 0.0,
+            "last_ready_at": now - 10.0,
+            "last_progress_at": now - 12.0,
+            "last_transition_at": now - 15.0,
+        }
+    )
+    fake_mlx_module = SimpleNamespace(_CLIENTS={"/tmp/cortex": fake_client})
+    fake_server_module = SimpleNamespace(_SERVER_CLIENTS={})
+    monkeypatch.setitem(sys.modules, "core.brain.llm.mlx_client", fake_mlx_module)
+    monkeypatch.setitem(sys.modules, "core.brain.llm.local_server_client", fake_server_module)
+
+    assert hygiene._active_local_model_activity() == ["cortex:recent"]
+
+
 def test_runtime_hygiene_adopts_late_active_children_before_flagging_rogue_processes():
     class _ChildProc:
         pid = 43210
@@ -198,6 +221,12 @@ def test_runtime_hygiene_adopts_late_active_children_before_flagging_rogue_proce
     assert summary["active_registered"] == 1
     assert summary["active_subprocesses"] == 1
     assert summary["rogue_child_processes"] == 0
+
+
+def test_runtime_hygiene_thread_join_helper_skips_current_thread():
+    current = threading.current_thread()
+
+    RuntimeHygieneManager._join_thread_if_not_current(current, 0.01)
 
 
 @pytest.mark.asyncio

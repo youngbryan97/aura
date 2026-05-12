@@ -109,6 +109,36 @@ class TestQuantumEntropyBridge:
         assert scheduled == [True]
         assert bridge.get_stats()["fallback_reads"] >= 1
 
+    def test_external_entropy_http_failure_is_not_runtime_degradation(self, monkeypatch):
+        import urllib.error
+        import urllib.request
+
+        from core.consciousness import quantum_entropy
+        from core.consciousness.quantum_entropy import QuantumEntropyBridge
+
+        bridge = QuantumEntropyBridge(pool_size=32)
+        bridge._pool.clear()
+
+        def raise_http_error(*_args, **_kwargs):
+            error = urllib.error.HTTPError(
+                url="https://qrng.anu.edu.au/API/jsonI.php",
+                code=500,
+                msg="Internal Server Error",
+                hdrs=None,
+                fp=None,
+            )
+            raise error
+
+        calls = []
+        monkeypatch.setattr(urllib.request, "urlopen", raise_http_error)
+        monkeypatch.setattr(quantum_entropy, "record_degradation", lambda *_args, **_kwargs: calls.append(True))
+
+        bridge._try_refill_blocking()
+
+        assert calls == []
+        assert bridge.get_stats()["api_failures"] == 1
+        assert len(bridge._pool) > 0
+
 # =========================================================================
 # 2. RIIU (IIT Φ Surrogate)
 # =========================================================================

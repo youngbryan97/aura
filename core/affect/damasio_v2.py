@@ -250,15 +250,20 @@ class AffectEngineV2:
                         abs(appraisal.get("v", 0.0)) + abs(appraisal.get("a", 0.0))
                     ) / 2.0 or intensity
                 except Exception as e:
-                    record_degradation('damasio_v2', e)
                     failure_reason = self._classify_appraisal_failure(e)
-                    if failure_reason == "lane_unavailable":
+                    quiet_background_failure = failure_reason in {
+                        "lane_unavailable",
+                        "timeout",
+                        "empty_response",
+                    }
+                    if quiet_background_failure:
                         logger.debug("Affect appraisal skipped because the foreground lane is reserved or unavailable.")
                         appraisal = self._heuristic_appraisal(trigger, context)
                         intensity = (
                             abs(appraisal.get("v", 0.0)) + abs(appraisal.get("a", 0.0))
                         ) / 2.0 or intensity
                     else:
+                        record_degradation('damasio_v2', e)
                         self._llm_failure_count += 1
                         self._last_llm_failure_reason = failure_reason
                         self._llm_backoff_until = time.time() + min(

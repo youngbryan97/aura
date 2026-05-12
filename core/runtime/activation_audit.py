@@ -140,6 +140,13 @@ async def _start_proof_kernel_bridge(orchestrator: Any) -> Any:
     return bridge.status()
 
 
+async def _start_scheduler(orchestrator: Any) -> Any:
+    from core.scheduler import scheduler
+
+    await scheduler.start()
+    return scheduler.get_health()
+
+
 async def _start_lock_watchdog(orchestrator: Any) -> Any:
     from core.container import ServiceContainer
     from core.resilience.lock_watchdog import get_lock_watchdog
@@ -224,8 +231,10 @@ DEFAULT_SPECS: tuple[ActivationSpec, ...] = (
     ),
     ActivationSpec(
         name="scheduler",
-        task_name_contains=("scheduler.start",),
+        task_name_contains=("aura.scheduler.main_loop", "orchestrator.scheduler.start", "scheduler.start"),
         required=True,
+        auto_start=True,
+        starter=_start_scheduler,
         reason="runtime scheduled actions",
     ),
     ActivationSpec(

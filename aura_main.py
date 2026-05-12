@@ -13,22 +13,13 @@ import asyncio
 # Install global task supervision before subsystems spawn background tasks.
 try:
     import core.utils.asyncio_patch  # noqa: F401
-except Exception:
-    pass
+except Exception as exc:
+    record_degradation("aura_main", exc)
 
 import logging
 import os
 
-# Hide Dock Icon for the Main Orchestrator Process on macOS
 import sys
-if sys.platform == "darwin":
-    try:
-        import AppKit
-        # Force the process to be an 'Agent' (no dock icon, no menu bar)
-        # This prevents the duplicate Python icon while the separate GUI process runs.
-        AppKit.NSApp.setActivationPolicy_(2) # 2 = NSApplicationActivationPolicyProhibited (UI-less)
-    except Exception:
-        pass
 
 import shutil
 import signal
@@ -73,9 +64,9 @@ if sys.platform == "darwin":
             os.close(_saved_stderr)
     except ImportError:
         pass
-    except Exception:
+    except Exception as exc:
         # Never let the dylib suppression block boot.
-        pass
+        record_degradation("aura_main", exc)
 
 # Early .env loading — ensures AURA_LOCAL_BACKEND and other env vars are
 # available BEFORE module-level code in model_registry.py reads os.getenv().
@@ -1041,7 +1032,14 @@ async def _wait_for_server_http(url: str, timeout: float = 60.0) -> bool:
     logger.error("❌ API Server health check TIMEOUT after %.1fs", timeout)
     return False
 
-async def run_desktop(port: int):
+def _native_launcher_owns_gui() -> bool:
+    return (
+        os.environ.get("AURA_EXTERNAL_GUI_OWNER", "").strip() == "1"
+        or os.environ.get("AURA_LAUNCHED_FROM_APP", "").strip() == "1"
+    )
+
+
+async def run_desktop(port: int, *, launch_gui: Optional[bool] = None):
     """GUI Mode (Managed Actor Process)"""
     from core.container import ServiceContainer
     from core.supervisor.tree import ActorSpec
@@ -1051,6 +1049,20 @@ async def run_desktop(port: int):
     supervisor = get_supervisor_tree()
     tracker = get_task_tracker()
     
+    if launch_gui is None:
+        launch_gui = not _native_launcher_owns_gui()
+
+    if sys.platform == "darwin":
+        try:
+            import AppKit
+
+            # Keep the kernel process dockless; the launcher or GUI actor owns
+            # the visible desktop surface.
+            app = AppKit.NSApplication.sharedApplication()
+            app.setActivationPolicy_(2)  # NSApplicationActivationPolicyProhibited
+        except Exception as exc:
+            record_degradation("aura_main", exc)
+
     # 1. Start API Server (v21: Server now runs in Kernel)
     # [STABILITY] Start API immediately so port 8000 binds while brain thaws.
     import uvicorn
@@ -1103,9 +1115,13 @@ async def run_desktop(port: int):
         else:
             logger.warning("⚠️ API Server health check timed out after 30s. GUI launch may be degraded.")
         
-        # 3. Start GUI Actor (WebView Only)
-        # On macOS, we use subprocess.Popen instead of multiprocessing to avoid XPC/Cocoa deadlocks
-        if sys.platform == "darwin":
+        # 3. Start GUI Actor (WebView Only). When the native launcher owns
+        # the visible GUI, the runtime stays headless here so one click does
+        # not create two Dock-visible Python/WebView processes.
+        if not launch_gui:
+            pipe = None
+            logger.info("🎨 Desktop runtime launched without child GUI; external launcher owns the window.")
+        elif sys.platform == "darwin":
             logger.info("🎨 Launching GUI via SUBPROCESS for macOS stability...")
             
             async def _gui_reaper_loop():
@@ -1203,10 +1219,11 @@ async def run_desktop(port: int):
         
         # 4. Register GUI in ActorBus
         actor_bus = ServiceContainer.get("actor_bus", default=None)
-        if actor_bus:
+        if actor_bus and launch_gui:
             actor_bus.add_actor("desktop_gui", pipe, is_child=True)
             
-        logger.info("🎨 Desktop GUI Actor launched and supervised (WebView-only mode).")
+        if launch_gui:
+            logger.info("🎨 Desktop GUI Actor launched and supervised (WebView-only mode).")
         
         # Wait on long-lived tasks to prevent premature exit
         # We also wait on the orchestrator's main loop if we created one
@@ -1592,7 +1609,12 @@ def main():
             # For desktop, we'll need a way to bootstrap the loop if uvicorn starts it
             # But Desktop mode in aura_main runs uvicorn in a thread.
             # We should probably bootstrap the main thread for the GUI if it needs it.
-            asyncio.run(run_desktop(args.port))
+            asyncio.run(
+                run_desktop(
+                    args.port,
+                    launch_gui=None,
+                )
+            )
         elif args.gui_window:
             from interface.gui_actor import gui_actor_entry
 

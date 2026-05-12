@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from collections import deque
 from types import SimpleNamespace
 
 from core.consciousness.continuous_experience import (
@@ -62,6 +63,36 @@ def test_unity_runtime_commits_movie_like_experience_frame(tmp_path):
     assert payload["frame_id"].startswith("exp_")
     assert payload["frame_hash"]
     assert payload["safe_to_act"] in {True, False}
+
+
+def test_learning_context_snapshots_frame_deque_before_reversed_iteration():
+    class MutatesOnReversed(deque):
+        def __reversed__(self):
+            iterator = super().__reversed__()
+            first = True
+            for item in iterator:
+                if first:
+                    first = False
+                    self.append(item)
+                yield item
+
+    stream = ContinuousExperienceStream(autosave=False)
+    stream.append_frame(
+        _frame(
+            "prediction mismatch",
+            timestamp=time.time(),
+            lesson="slow down and verify the live lane",
+            transfer_tags=("prediction_mismatch",),
+            surprise=0.8,
+        )
+    )
+    with stream._lock:
+        stream._frames = MutatesOnReversed(stream._frames, maxlen=stream.max_frames)
+
+    context = stream.learning_context(tags=("prediction_mismatch",))
+
+    assert context["transfer_lessons"]
+    assert context["current_frame"]["frame_id"].startswith("exp_")
 
 
 def test_compounding_error_guard_switches_to_observe_stabilize_replay():

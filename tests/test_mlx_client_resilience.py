@@ -4,6 +4,7 @@ import queue
 import threading
 import time
 import unittest
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from core.brain.llm.mlx_client import MLXLocalClient
@@ -16,6 +17,24 @@ from core.utils.deadlines import get_deadline
 
 
 class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
+    async def test_foreground_request_lock_timeout_is_bounded_for_live_chat(self):
+        client = MLXLocalClient(model_path="/tmp/Qwen2.5-32B-Instruct-8bit")
+
+        self.assertEqual(
+            client._request_lock_timeout(deadline=None, foreground_request=True),
+            12.0,
+        )
+
+    async def test_worker_sanitizer_finishes_current_request_for_caller_recovery(self):
+        worker_source = Path("core/brain/llm/mlx_worker.py").read_text(encoding="utf-8")
+        marker = "Hallucination detected by sanitizer."
+        start = worker_source.index(marker)
+        end = worker_source.index('ipc_writer.put({', start)
+        sanitizer_block = worker_source[start:end]
+
+        self.assertIn("Returning empty text for caller-side recovery.", sanitizer_block)
+        self.assertNotIn("continue", sanitizer_block)
+
     async def test_heavy_model_hotswap_reboots_other_heavy_client_before_spawn(self):
         import core.brain.llm.mlx_client as mlx_module
 
@@ -438,6 +457,9 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
     async def test_warmup_precompile_accepts_empty_text_as_successful_compile(self):
         client = MLXLocalClient(model_path="/tmp/Qwen2.5-32B-Instruct-8bit")
         client._warmup_in_flight = True
+        client._process = MagicMock()
+        client._process.is_alive.return_value = True
+        client._init_done = True
 
         with patch.object(client, "_generate_inner", new=AsyncMock(return_value="")):
             await client._run_warmup_precompile(

@@ -1,5 +1,6 @@
 import asyncio
 import unittest
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch, AsyncMock
 import logging
 
@@ -60,6 +61,16 @@ class TestBackgroundTiering(unittest.IsolatedAsyncioTestCase):
             called_ep = mock_call.call_args[0][0]
             self.assertEqual(called_ep.name, "local_fast")
 
+    async def test_originless_primary_request_is_background_unless_purpose_is_user_facing(self):
+        """Internal callers must not become foreground just by requesting primary."""
+        with patch.object(self.router, '_call_endpoint', new_callable=AsyncMock) as mock_call:
+            mock_call.return_value = {"ok": True, "text": "Mocked Response"}
+
+            await self.router.think("quiet internal reflection", prefer_tier="primary")
+
+            called_ep = mock_call.call_args[0][0]
+            self.assertEqual(called_ep.name, "local_fast")
+
     async def test_background_inference_is_suppressed_while_foreground_user_turn_is_active(self):
         """Background jobs should back off instead of contending with an active user reply."""
         mock_orch = MagicMock()
@@ -87,6 +98,28 @@ class TestBackgroundTiering(unittest.IsolatedAsyncioTestCase):
 
         self.assertIsNone(result)
         self.router._call_endpoint.assert_not_called()
+
+    def test_background_policy_blocks_while_foreground_generation_is_active(self):
+        from core.runtime.background_policy import background_activity_reason
+
+        gate = SimpleNamespace(
+            get_conversation_status=lambda: {
+                "foreground_owned": True,
+                "active_generations": 1,
+                "kernel_lock_held": True,
+            }
+        )
+        orch = SimpleNamespace(
+            is_busy=False,
+            _suppress_unsolicited_proactivity_until=0.0,
+            _foreground_user_quiet_until=0.0,
+            _last_user_interaction_time=0.0,
+        )
+
+        with patch("core.container.ServiceContainer.get", lambda name, default=None: gate if name == "inference_gate" else default):
+            reason = background_activity_reason(orch, allow_no_user_anchor=True)
+
+        self.assertEqual(reason, "foreground_generation_active")
 
 if __name__ == "__main__":
     unittest.main()

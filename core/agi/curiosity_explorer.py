@@ -42,7 +42,10 @@ def _background_learning_allowed(orchestrator=None) -> bool:
         min_idle_seconds=900.0,
         max_memory_percent=80.0,
         max_failure_pressure=0.12,
-        require_conversation_ready=True,
+        # Curiosity should keep learning during a chat-lane warmup or recovery
+        # window. The idle, RAM, and failure-pressure guards still prevent it
+        # from competing with a live foreground turn.
+        require_conversation_ready=False,
     )
 
 CURIOSITY_THRESHOLD = 0.45    # minimum curiosity to trigger exploration (lowered from 0.65)

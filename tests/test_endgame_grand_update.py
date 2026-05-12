@@ -245,6 +245,17 @@ def test_activation_auditor_reconciles_safe_custom_loop():
     assert report.statuses[0].reconciled
 
 
+def test_scheduler_activation_spec_matches_live_main_loop_name():
+    from core.runtime.activation_audit import DEFAULT_SPECS
+
+    spec = next(item for item in DEFAULT_SPECS if item.name == "scheduler")
+
+    assert spec.required is True
+    assert spec.auto_start is True
+    assert spec.starter is not None
+    assert "aura.scheduler.main_loop" in spec.task_name_contains
+
+
 def test_caa_validator_reads_existing_vector_artifacts():
     from training.caa_32b_validation import CAA32BValidator
 

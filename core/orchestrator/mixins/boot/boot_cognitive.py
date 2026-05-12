@@ -63,7 +63,19 @@ class BootCognitiveMixin:
             else:
                 logger.warning("⚠️  CognitiveEngine missing or incompatible.")
 
-            # 3. Start API Adapter (LLM Clients)
+            # 3. Bring the recursive scratchpad online with the same engine the
+            # live runtime uses. Several higher-order loops can consult it, and
+            # the HUD should only claim "scratchpad on" when that is true.
+            scratchpad = ServiceContainer.get("scratchpad_engine", default=None)
+            if scratchpad is None and ce is not None:
+                from core.brain.scratchpad import ScratchpadEngine
+
+                scratchpad = ScratchpadEngine(cognitive_engine=ce)
+                ServiceContainer.register_instance("scratchpad_engine", scratchpad)
+            self.scratchpad_engine = scratchpad
+            self._scratchpad_engine = scratchpad
+
+            # 4. Start API Adapter (LLM Clients)
             api_adapter = ServiceContainer.get("api_adapter", default=None)
             if api_adapter:
                 logger.info("🧠 Starting API Adapter (LLM Infrastructure)...")
@@ -322,6 +334,9 @@ class BootCognitiveMixin:
                 self.simulator = MentalSimulator(self.cognitive_engine)
                 self.goal_hierarchy = GoalHierarchy(self.cognitive_engine)
                 self.aesthetic_critic = AestheticCritic(self.cognitive_engine)
+                ServiceContainer.register_instance("goal_hierarchy", self.goal_hierarchy, required=False)
+                ServiceContainer.register_instance("mental_simulator", self.simulator, required=False)
+                ServiceContainer.register_instance("aesthetic_critic", self.aesthetic_critic, required=False)
                 logger.info("✓ Mental Simulation & Intrinsic Motivation active")
         except Exception as e:
             record_degradation('boot_cognitive', e)
@@ -332,7 +347,6 @@ class BootCognitiveMixin:
             from core.brain.narrative_memory import NarrativeEngine
 
             self.narrative_engine = NarrativeEngine(self)
-            from core.container import ServiceContainer
             ServiceContainer.register_instance("narrative_engine", self.narrative_engine)
             logger.info("✓ Narrative Engine initialized")
         except Exception as e:
@@ -431,8 +445,16 @@ class BootCognitiveMixin:
 
             from core.consciousness import ConsciousnessSystem
 
-            consciousness = ConsciousnessSystem(self)
+            consciousness = (
+                ServiceContainer.get("consciousness_system", default=None)
+                or ServiceContainer.get("consciousness", default=None)
+            )
+            if consciousness is None:
+                consciousness = ConsciousnessSystem(self)
+            else:
+                logger.info("✓ Reusing existing Consciousness System instance")
             ServiceContainer.register_instance("consciousness", consciousness)
+            ServiceContainer.register_instance("consciousness_system", consciousness)
             # Individual components are pulled from container or initialized by ConsciousnessSystem
             ServiceContainer.register_instance(
                 "global_workspace", consciousness.global_workspace

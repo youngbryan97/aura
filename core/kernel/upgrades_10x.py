@@ -228,7 +228,7 @@ class TrueEvolutionPhase(Phase):
                         edges[neighbor] += dissonance * 0.01
 
         # 2. Curiosity Triggered Morphic Clone for Deep Exploration
-        if state.affect.curiosity > 0.92 and random.random() < 0.3 and background_activity_allowed(getattr(self.kernel, "orchestrator", None), min_idle_seconds=1800.0, max_memory_percent=76.0, max_failure_pressure=0.05, require_conversation_ready=True):
+        if state.affect.curiosity > 0.92 and random.random() < 0.3 and background_activity_allowed(getattr(self.kernel, "orchestrator", None), min_idle_seconds=1800.0, max_memory_percent=76.0, max_failure_pressure=0.05, require_conversation_ready=False):
             logger.info("🧬 Spawning morphic clone for deep evolution...")
             captured_objective = str(objective)  # capture a scalar, not the state
 
@@ -365,6 +365,50 @@ class GodModeToolPhase(Phase):
         return "godmode_phase"
 
     @staticmethod
+    def _is_direct_memory_write_request(objective: str) -> bool:
+        lower = str(objective or "").lower()
+        return bool(
+            re.search(r"^\s*remember\s*:", lower)
+            or any(
+                marker in lower
+                for marker in (
+                    "remember this",
+                    "remember that",
+                    "remember for future",
+                    "remember for later",
+                    "save this",
+                    "save that",
+                    "store this",
+                    "store that",
+                    "don't forget",
+                    "don’t forget",
+                    "make note",
+                    "commit this to memory",
+                    "commit that to memory",
+                )
+            )
+        )
+
+    @staticmethod
+    def _is_conversational_memory_question(objective: str) -> bool:
+        lower = str(objective or "").lower()
+        if GodModeToolPhase._is_direct_memory_write_request(lower):
+            return False
+        return any(
+            marker in lower
+            for marker in (
+                "what do you remember",
+                "what do you remeber",
+                "do you remember",
+                "what did we talk about",
+                "from our last conversation",
+                "from the previous conversation",
+                "our history",
+                "what do you know about me",
+            )
+        )
+
+    @staticmethod
     def _choose_best_skill(objective: str, matched_skills: List[str]) -> str:
         if not matched_skills:
             return ""
@@ -402,9 +446,12 @@ class GodModeToolPhase(Phase):
             return "web_search"
         if "sovereign_browser" in matched_skills and any(marker in lower for marker in ("open the browser", "open a browser", "open tab", "navigate to", "visit ", "open website", "open webpage")):
             return "sovereign_browser"
-        if "memory_ops" in matched_skills and any(marker in lower for marker in ("remember", "save this", "store this", "don't forget", "make note of")):
+        if "memory_ops" in matched_skills and GodModeToolPhase._is_conversational_memory_question(objective):
+            return ""
+        if "memory_ops" in matched_skills and GodModeToolPhase._is_direct_memory_write_request(objective):
             return "memory_ops"
-        return matched_skills[0]
+        remaining = [skill for skill in matched_skills if skill != "memory_ops"]
+        return remaining[0] if remaining else ""
 
     @staticmethod
     def _extract_search_query(objective: str) -> str:
@@ -750,6 +797,11 @@ class GodModeToolPhase(Phase):
                 return state
 
             skill_name = self._choose_best_skill(objective, matched_skills)
+            if not skill_name:
+                state.response_modifiers.pop("matched_skills", None)
+                state.response_modifiers["intent_type"] = "CHAT"
+                logger.info("⚡ GodMode: matched skill hints resolved to chat for: %s", objective[:60])
+                return state
             logger.info("⚡ GodMode: Dispatching '%s' for: %s", skill_name, objective[:60])
 
             # 4. Extract params

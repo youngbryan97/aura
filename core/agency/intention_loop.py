@@ -42,6 +42,7 @@ class IntentionStatus(str, Enum):
     INTENDED = "intended"
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
+    DEFERRED = "deferred"
     FAILED = "failed"
     ABANDONED = "abandoned"
 
@@ -331,6 +332,28 @@ class IntentionLoop:
 
     # ── OBSERVE: Compare expected vs actual ─────────────────────────────
 
+    @staticmethod
+    def _actual_outcome_is_deferred(actual_outcome: str) -> bool:
+        text = str(actual_outcome or "").lower()
+        return (
+            '"status": "deferred"' in text
+            or "'status': 'deferred'" in text
+            or "status=deferred" in text
+            or "background_deferred:" in text
+            or "deferred while" in text
+        )
+
+    @staticmethod
+    def _actual_outcome_is_success(observation: str, actual_outcome: str) -> bool:
+        text = str(actual_outcome or "").lower()
+        return (
+            str(observation or "").lower() == "tool_succeeded"
+            or '"ok": true' in text
+            or "'ok': true" in text
+            or "status=ok" in text
+            or "completed successfully" in text
+        )
+
     def observe(
         self,
         intention_id: str,
@@ -347,8 +370,16 @@ class IntentionLoop:
             rec.observation = observation
             rec.actual_outcome = actual_outcome
 
-            # Calculate surprise as semantic distance between expected and actual
-            rec.surprise = self._calculate_surprise(rec.expected_outcome, actual_outcome)
+            # Calculate surprise as semantic distance between expected and actual.
+            # A governed deferral is not a contradiction of the intention; it means
+            # runtime policy intentionally postponed the action to protect a higher
+            # priority foreground lane.
+            if self._actual_outcome_is_success(observation, actual_outcome):
+                rec.surprise = 0.0
+            elif self._actual_outcome_is_deferred(actual_outcome):
+                rec.surprise = 0.0
+            else:
+                rec.surprise = self._calculate_surprise(rec.expected_outcome, actual_outcome)
 
         self._persist(rec)
 
@@ -392,6 +423,7 @@ class IntentionLoop:
         tension_created: Optional[str] = None,
         tension_resolved: Optional[str] = None,
         success: bool = True,
+        status: Optional[str | IntentionStatus] = None,
     ) -> None:
         """Close the loop: record revisions and finalize the intention."""
         with self._lock:
@@ -404,7 +436,10 @@ class IntentionLoop:
             rec.self_model_updates = self_model_updates or []
             rec.tension_created = tension_created
             rec.tension_resolved = tension_resolved
-            rec.status = IntentionStatus.COMPLETED if success else IntentionStatus.FAILED
+            if status is not None:
+                rec.status = status if isinstance(status, IntentionStatus) else IntentionStatus(str(status))
+            else:
+                rec.status = IntentionStatus.COMPLETED if success else IntentionStatus.FAILED
             rec.completed_at = time.time()
 
             # Move from active to completed

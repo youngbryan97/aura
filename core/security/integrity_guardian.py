@@ -341,6 +341,16 @@ class IntegrityGuardian:
             data = json.loads(MANIFEST_PATH.read_text())
             files = data.get("files", {})
             stored_sig = data.get("signature", "")
+            stored_revision = str(data.get("source_revision", "") or "")
+            current_revision = self._current_source_revision()
+
+            if current_revision and stored_revision != current_revision:
+                logger.info(
+                    "IntegrityGuardian: source revision changed (%s → %s); rebuilding baseline.",
+                    stored_revision[:12] or "legacy",
+                    current_revision[:12],
+                )
+                return False
 
             # Verify HMAC
             expected_sig = self._sign_manifest(files)
@@ -361,11 +371,47 @@ class IntegrityGuardian:
         try:
             sig = self._sign_manifest(self._manifest)
             self._manifest_hmac = sig
-            data = {"files": self._manifest, "signature": sig, "built_at": time.time()}
+            data = {
+                "files": self._manifest,
+                "signature": sig,
+                "built_at": time.time(),
+                "source_revision": self._current_source_revision(),
+            }
             atomic_write_text(MANIFEST_PATH, json.dumps(data, indent=2))
         except Exception as e:
             record_degradation('integrity_guardian', e)
             logger.debug("Manifest save failed: %s", e)
+
+    @staticmethod
+    def _current_source_revision() -> str:
+        try:
+            git_dir = _BASE_DIR / ".git"
+            if git_dir.is_file():
+                marker = git_dir.read_text(encoding="utf-8", errors="replace").strip()
+                if marker.startswith("gitdir:"):
+                    git_dir = (_BASE_DIR / marker.split(":", 1)[1].strip()).resolve()
+            head_path = git_dir / "HEAD"
+            head = head_path.read_text(encoding="utf-8", errors="replace").strip()
+            if not head.startswith("ref:"):
+                return head
+
+            ref_name = head.split(":", 1)[1].strip()
+            ref_path = git_dir / ref_name
+            if ref_path.exists():
+                return ref_path.read_text(encoding="utf-8", errors="replace").strip()
+
+            packed_refs = git_dir / "packed-refs"
+            if packed_refs.exists():
+                for line in packed_refs.read_text(encoding="utf-8", errors="replace").splitlines():
+                    if line.startswith("#") or not line.strip():
+                        continue
+                    revision, _, packed_ref = line.partition(" ")
+                    if packed_ref.strip() == ref_name:
+                        return revision.strip()
+        except (OSError, ValueError) as exc:
+            record_degradation('integrity_guardian', exc)
+            logger.debug("IntegrityGuardian: source revision lookup failed: %s", exc)
+        return ""
 
     @staticmethod
     def _normalize_repo_path(path: str) -> str:

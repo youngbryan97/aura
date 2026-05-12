@@ -332,11 +332,22 @@ class MoralReasoningEngine:
         
         # 0. Dynamic Context: Pull current values and beliefs from IdentityService
         from core.container import ServiceContainer
-        identity = ServiceContainer.get("identity", default=None)
+        identity = (
+            ServiceContainer.get("identity_service", default=None)
+            or ServiceContainer.get("identity", default=None)
+        )
         if identity:
-            self_narrative = identity.state.self_narrative
-            values = identity.state.values
-            beliefs = identity.state.beliefs
+            state = getattr(identity, "state", None)
+            if state is not None:
+                values = list(getattr(state, "values", []) or [])
+                beliefs = list(getattr(state, "beliefs", []) or [])
+            else:
+                values = list(getattr(identity, "values", []) or [])
+                raw_beliefs = getattr(identity, "beliefs", {}) or {}
+                if isinstance(raw_beliefs, dict):
+                    beliefs = [str(value) for value in raw_beliefs.values() if isinstance(value, str)]
+                else:
+                    beliefs = [str(value) for value in list(raw_beliefs or [])]
             assessment["identity_context"] = {
                 "values": values,
                 "beliefs": beliefs

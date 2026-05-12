@@ -6,6 +6,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import os
 import time
 import traceback as tb
 from collections import defaultdict
@@ -334,7 +335,15 @@ class ErrorPatternAnalyzer:
         
         if pattern.severity == 'critical' or recent:
             # Check if it's localized (fixable)
-            unique_files = set(e.file_path for e in pattern.events if e.file_path)
+            located_events = [
+                event
+                for event in pattern.events
+                if event.file_path and event.line_number
+            ]
+            if not located_events:
+                return False
+
+            unique_files = set(e.file_path for e in located_events if e.file_path)
             unique_skills = set(e.skill_name for e in pattern.events if e.skill_name)
             
             # If error is in 1-2 files and 1-3 skills, it's probably fixable
@@ -352,6 +361,56 @@ class AutomatedDiagnosisEngine:
     def __init__(self, cognitive_engine):
         self.brain = cognitive_engine
         logger.info("AutomatedDiagnosisEngine initialized")
+
+    def _deterministic_diagnosis(self, pattern: ErrorPattern) -> Dict[str, Any]:
+        """Produce a cheap diagnosis without waking a local model."""
+        sample = pattern.events[0] if pattern.events else None
+        if sample is None:
+            return {"ok": False, "error": "empty_pattern", "hypotheses": []}
+
+        message = str(sample.error_message or "")
+        error_type = str(sample.error_type or "Error")
+        location = (
+            f"{sample.file_path}:{sample.line_number}"
+            if sample.file_path and sample.line_number
+            else sample.file_path or "unknown location"
+        )
+
+        if "is not defined" in message.lower() or error_type == "NameError":
+            root = "A symbol is referenced before it is imported, declared, or made available in this scope."
+            test = f"Run a focused import/compile check for {location} and the failing call path."
+            fix = "Add the missing import/definition or guard the reference with the existing optional-service pattern."
+            confidence = "high"
+        elif "was never awaited" in message.lower() or "coroutine" in message.lower():
+            root = "An async coroutine is being called like a synchronous function."
+            test = f"Exercise the scheduler path that reaches {location} with runtime warnings enabled."
+            fix = "Await the coroutine or schedule it through the task tracker with a stable task name."
+            confidence = "high"
+        elif "timeout" in message.lower():
+            root = "A background operation exceeded its live-runtime budget or contended with the foreground lane."
+            test = "Replay the operation under the background policy gates and confirm it defers under load."
+            fix = "Move expensive work behind background policy, shorten the budget, or replace it with a deterministic fast path."
+            confidence = "medium"
+        else:
+            root = f"{error_type} recurred at {location} and should be isolated before any autonomous patch."
+            test = "Run the narrowest reproducer for the recorded traceback and inspect adjacent recent changes."
+            fix = "Prefer a small targeted guard or local invariant restoration after the reproducer confirms the cause."
+            confidence = "low"
+
+        return {
+            "ok": True,
+            "hypotheses": [
+                {
+                    "root_cause": root,
+                    "explanation": f"The same {error_type} occurred {pattern.occurrences} time(s), centered on {location}: {message[:240]}",
+                    "diagnostic_test": test,
+                    "potential_fix": fix,
+                    "confidence": confidence,
+                }
+            ],
+            "additional_context_needed": "",
+            "diagnosis_source": "deterministic_static",
+        }
     
     async def diagnose_pattern(self, pattern: ErrorPattern) -> Dict[str, Any]:
         """Generate diagnosis for an error pattern.
@@ -364,13 +423,27 @@ class AutomatedDiagnosisEngine:
 
         """
         logger.info("Diagnosing pattern %s (%d occurrences)", pattern.fingerprint, pattern.occurrences)
+
+        use_llm = str(os.environ.get("AURA_SELFMOD_LLM_DIAGNOSIS", "0")).strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+        if not use_llm:
+            return self._deterministic_diagnosis(pattern)
         
         # Build diagnostic prompt
         prompt = self._build_diagnostic_prompt(pattern)
         
         # Get LLM analysis
         try:
-            thought = await self.brain.think(prompt, priority=0.1)
+            thought = await self.brain.think(
+                prompt,
+                priority=0.1,
+                origin="self_modification_diagnosis",
+                is_background=True,
+            )
             # Guard: brain.think() returns None when all LLM endpoints are down
             raw_content = ""
             if thought is None:

@@ -89,6 +89,10 @@ def reaper_loop(kernel_pid: int, manifest_path: Path):
     The Reaper process main loop.
     Polls kernel liveness. On death, executes cleanup in strict order.
     """
+    try:
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+    except Exception:
+        pass
     # Configure logging for the detached process
     logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(name)s: %(message)s')
     manifest = ReaperManifest(manifest_path)

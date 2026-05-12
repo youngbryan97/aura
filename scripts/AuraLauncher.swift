@@ -925,6 +925,7 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate {
         env["AURA_DEFERRED_CORTEX_PREWARM"] = "0"
         env["AURA_SAFE_BOOT_METAL_CACHE_RATIO"] = "0.56"
         env["AURA_SAFE_BOOT_METAL_CACHE_CAP_GB"] = "36"
+        env["AURA_EXTERNAL_GUI_OWNER"] = "1"
         env["PYTHONUNBUFFERED"] = "1"
         env["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
         env["OBJC_PRINT_LOAD_METHODS"] = "NO"
@@ -974,6 +975,7 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate {
         export AURA_ATTACH_LAUNCHER=0
         export AURA_LAUNCHED_FROM_APP=1
         export AURA_SAFE_BOOT_DESKTOP=1
+        export AURA_EXTERNAL_GUI_OWNER=1
         export AURA_EAGER_CORTEX_WARMUP=0
         export AURA_DEFERRED_CORTEX_PREWARM=0
         export AURA_SAFE_BOOT_METAL_CACHE_RATIO=0.56
@@ -1594,9 +1596,6 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate {
 
     @discardableResult
     private func autoOpenDesktopWindowIfNeeded() -> Bool {
-        if spawnedFreshRuntime {
-            return true
-        }
         if autoDesktopOpenTriggered {
             return true
         }

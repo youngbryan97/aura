@@ -377,11 +377,18 @@ class AuraEventBus:
             sequence = self._seq
         # PriorityQueue tuple: (priority, sequence, event)
         item = (priority, sequence, {"topic": topic, "data": data})
+        try:
+            current_loop = asyncio.get_running_loop()
+        except RuntimeError:
+            current_loop = None
         
         for q, loop in subscribers:
             try:
                 if loop and loop.is_running():
-                    loop.call_soon_threadsafe(self._safe_put_direct, q, item)
+                    if current_loop is loop:
+                        loop.call_soon(self._safe_put_direct, q, item)
+                    else:
+                        loop.call_soon_threadsafe(self._safe_put_direct, q, item)
                     with self._stats_lock:
                         self._delivered_count += 1
                 else:

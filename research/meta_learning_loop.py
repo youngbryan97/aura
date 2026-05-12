@@ -38,7 +38,7 @@ class RSILab:
         from core.config import config
         # Store RSI experiments separately from operational data
         self.lab_dir = config.paths.data_dir / "rsi_lab"
-        get_task_tracker().create_task(get_storage_gateway().create_dir(self.lab_dir, cause='RSILab.__init__'))
+        self.lab_dir.mkdir(parents=True, exist_ok=True)
         
         self.candidates: Dict[str, CandidateArtifact] = {}
         self._load()

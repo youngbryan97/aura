@@ -252,8 +252,10 @@ class BootAutonomyMixin:
 
         # SessionGuardian — prevents conversation cascade failures in long sessions
         try:
-            from core.session_guardian import SessionGuardian
-            guardian = SessionGuardian()
+            from core.session_guardian import get_guardian
+            guardian = ServiceContainer.get("session_guardian", default=None)
+            if guardian is None:
+                guardian = get_guardian()
             guardian.attach(self).start()
             ServiceContainer.register_instance("session_guardian", guardian)
             logger.info("SessionGuardian active — health monitoring engaged.")
@@ -273,8 +275,10 @@ class BootAutonomyMixin:
 
         # BeliefRevisionEngine — persistent identity and self-model
         try:
-            from core.belief_revision import BeliefRevisionEngine
-            belief_engine = BeliefRevisionEngine()
+            from core.belief_revision import get_belief_revision_engine
+            belief_engine = ServiceContainer.get("belief_revision_engine", default=None)
+            if belief_engine is None:
+                belief_engine = get_belief_revision_engine()
             await belief_engine.start()
             ServiceContainer.register_instance("belief_revision_engine", belief_engine)
             logger.info("BeliefRevisionEngine online — identity persistence active.")
@@ -301,6 +305,7 @@ class BootAutonomyMixin:
             if memory_nexus and brain:
                 dreamer = DreamProcessor(memory_nexus, brain)
                 ServiceContainer.register_instance("dream_processor", dreamer)
+                ServiceContainer.register_instance("dreaming_process", dreamer)
                 logger.info("DreamProcessor registered — memory consolidation available.")
         except Exception as e:
             record_degradation('boot_autonomy', e)

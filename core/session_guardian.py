@@ -359,12 +359,15 @@ class SessionGuardian:
 
     def start(self):
         """Start the background monitor loop."""
+        if self._running and self._monitor_task and not self._monitor_task.done():
+            return self
         self._running = True
         self._monitor_task = get_task_tracker().create_task(
             self._monitor_loop(),
             name="session_guardian",
         )
         logger.info("SessionGuardian started")
+        return self
 
     def stop(self):
         """Stop the guardian."""

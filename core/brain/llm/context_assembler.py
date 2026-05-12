@@ -134,8 +134,15 @@ class ContextAssembler:
             "system_proprioception",
             "toggle_senses",
         }
+        try:
+            from core.conversation.response_reliability import is_non_answer_repair_floor_reply
+        except (ImportError, AttributeError):
+            is_non_answer_repair_floor_reply = lambda _text: False
         for message in working_memory:
             if not isinstance(message, dict):
+                continue
+            role = str(message.get("role", "") or "").strip().lower()
+            if role == "assistant" and is_non_answer_repair_floor_reply(message.get("content", "")):
                 continue
             metadata = message.get("metadata") or {}
             if str(metadata.get("type", "")).lower() == "skill_result":

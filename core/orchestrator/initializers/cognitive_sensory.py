@@ -12,9 +12,15 @@ async def init_cognitive_sensory_layer(orchestrator: Any):
     # 1. Identity & Drives
     try:
         from core.self_model import SelfModel
+        from core.brain.identity import IdentityService
         orchestrator.self_model = await SelfModel.load()
         ServiceContainer.register_instance("self_model", orchestrator.self_model)
         ServiceContainer.register_instance("identity", orchestrator.self_model)
+        identity_service = ServiceContainer.get("identity_service", default=None)
+        if identity_service is None:
+            identity_service = IdentityService()
+            ServiceContainer.register_instance("identity_service", identity_service)
+        orchestrator.identity_service = identity_service
         
         from core.soul import Soul
         orchestrator.soul = Soul(orchestrator)

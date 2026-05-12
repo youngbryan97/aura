@@ -62,6 +62,65 @@ async def test_constitutional_core_tracks_tool_execution_and_closes_intent(servi
     assert status["recent_decisions"]
 
 
+@pytest.mark.asyncio
+async def test_constitutional_core_marks_governed_deferral_without_high_surprise(service_container, tmp_path):
+    reset_constitutional_singletons()
+    ServiceContainer.register_instance("binding_engine", SimpleNamespace(get_coherence=lambda: 1.0), required=False)
+    intention_loop = IntentionLoop(db_path=str(tmp_path / "intention_loop.db"))
+    ServiceContainer.register_instance("intention_loop", intention_loop, required=False)
+
+    core = get_constitutional_core()
+    handle = await core.begin_tool_execution(
+        "auto_refactor",
+        {"mode": "scan"},
+        source="autonomous_initiative",
+        objective="Run a quiet codebase scan",
+    )
+
+    await core.finish_tool_execution(
+        handle,
+        result={"ok": False, "status": "deferred", "error": "background_deferred:foreground_quiet_window"},
+        success=False,
+        duration_ms=1.0,
+        error="background_deferred:foreground_quiet_window",
+    )
+
+    record = intention_loop.get_intention(handle.intention_id)
+    assert record is not None
+    assert record.status.value == "deferred"
+    assert record.surprise == 0.0
+    assert intention_loop.get_recent_surprises() == []
+
+
+@pytest.mark.asyncio
+async def test_constitutional_core_does_not_mark_successful_tool_results_as_high_surprise(service_container, tmp_path):
+    reset_constitutional_singletons()
+    ServiceContainer.register_instance("binding_engine", SimpleNamespace(get_coherence=lambda: 1.0), required=False)
+    intention_loop = IntentionLoop(db_path=str(tmp_path / "intention_loop.db"))
+    ServiceContainer.register_instance("intention_loop", intention_loop, required=False)
+
+    core = get_constitutional_core()
+    handle = await core.begin_tool_execution(
+        "email_adapter",
+        {"mode": "check"},
+        source="autonomous_initiative",
+        objective="Check unread mail",
+    )
+
+    await core.finish_tool_execution(
+        handle,
+        result={"ok": True, "unread": 22, "messages": [{"subject": "Test"}]},
+        success=True,
+        duration_ms=5.0,
+    )
+
+    record = intention_loop.get_intention(handle.intention_id)
+    assert record is not None
+    assert record.status.value == "completed"
+    assert record.surprise == 0.0
+    assert intention_loop.get_recent_surprises() == []
+
+
 def test_executive_sync_path_blocks_memory_write_on_identity_mismatch(service_container):
     reset_constitutional_singletons()
     clear_degraded_events()
@@ -458,6 +517,64 @@ async def test_executive_allows_test_generator_under_temporal_obligation(service
     assert record.outcome == executive_core_module.DecisionOutcome.DEGRADED
     assert record.reason == "temporal_safe_autonomous_tool"
     assert record.constraints["read_only"] is True
+
+
+@pytest.mark.asyncio
+async def test_executive_allows_passive_social_reads_under_temporal_obligation(service_container):
+    reset_constitutional_singletons()
+    clear_degraded_events()
+    ServiceContainer.register_instance("self_model", object(), required=False)
+    state = AuraState()
+    state.cognition.current_objective = "Protect continuity"
+    state.cognition.pending_initiatives = [{"goal": "Investigate anomaly"}]
+    ServiceContainer.register_instance("state_repository", SimpleNamespace(_current=state), required=False)
+    ServiceContainer.lock_registration()
+
+    executive = executive_core_module.get_executive_core()
+    _, email_record = await executive.prepare_tool_intent(
+        "email_adapter",
+        {"mode": "check", "limit": 5},
+        source="autonomous",
+    )
+    _, reddit_record = await executive.prepare_tool_intent(
+        "reddit_adapter",
+        {"mode": "browse", "subreddit": "technology", "limit": 5},
+        source="autonomous",
+    )
+
+    assert email_record.outcome == executive_core_module.DecisionOutcome.DEGRADED
+    assert email_record.reason == "temporal_safe_autonomous_tool"
+    assert reddit_record.outcome == executive_core_module.DecisionOutcome.DEGRADED
+    assert reddit_record.reason == "temporal_safe_autonomous_tool"
+
+
+@pytest.mark.asyncio
+async def test_executive_still_defers_social_writes_under_temporal_obligation(service_container):
+    reset_constitutional_singletons()
+    clear_degraded_events()
+    ServiceContainer.register_instance("self_model", object(), required=False)
+    state = AuraState()
+    state.cognition.current_objective = "Protect continuity"
+    state.cognition.pending_initiatives = [{"goal": "Investigate anomaly"}]
+    ServiceContainer.register_instance("state_repository", SimpleNamespace(_current=state), required=False)
+    ServiceContainer.lock_registration()
+
+    executive = executive_core_module.get_executive_core()
+    _, email_record = await executive.prepare_tool_intent(
+        "email_adapter",
+        {"mode": "send", "to": "person@example.com", "subject": "hi", "body": "hello"},
+        source="autonomous",
+    )
+    _, reddit_record = await executive.prepare_tool_intent(
+        "reddit_adapter",
+        {"mode": "comment", "url": "https://reddit.com/r/test/comments/1", "body": "hello"},
+        source="autonomous",
+    )
+
+    assert email_record.outcome == executive_core_module.DecisionOutcome.DEFERRED
+    assert email_record.reason.startswith("temporal_obligation_active:")
+    assert reddit_record.outcome == executive_core_module.DecisionOutcome.DEFERRED
+    assert reddit_record.reason.startswith("temporal_obligation_active:")
 
 
 @pytest.mark.asyncio

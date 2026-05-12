@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 
+import asyncio
 import pytest
 
 
@@ -73,6 +75,31 @@ def test_provider_constructors_accept_boot_time_defaults():
     assert monitor.get_status()["status"] == "STABLE"
 
 
+@pytest.mark.asyncio
+async def test_boot_identity_reuses_existing_fictional_engines():
+    from core.orchestrator.mixins.boot.boot_identity import BootIdentityMixin
+
+    engines = {"jarvis": object()}
+    harness = SimpleNamespace(fictional_engines=engines)
+
+    with patch(
+        "core.fictional_ai_synthesis.register_all_fictional_engines",
+        side_effect=AssertionError("duplicate fictional engine registration"),
+    ), patch(
+        "core.self_modification.shadow_ast_healer.ShadowASTHealer",
+        return_value=MagicMock(),
+    ), patch(
+        "core.memory.snap_kv_evictor.SnapKVEvictor",
+        return_value=MagicMock(),
+    ), patch(
+        "core.agency.latent_distiller.LatentSpaceDistiller",
+        return_value=MagicMock(),
+    ):
+        await BootIdentityMixin._init_fictional_synthesis(harness)
+
+    assert harness.fictional_engines is engines
+
+
 def test_final_engines_create_persistence_dirs_without_generated_gateways(tmp_path):
     from core.final_engines import NarrativeIdentityEngine, WorldModelEngine
 
@@ -120,6 +147,29 @@ async def test_performance_guard_start_uses_task_tracker():
     await guard.start(interval=3600.0)
     assert guard._task is not None
     await guard.stop()
+
+
+@pytest.mark.asyncio
+async def test_performance_guard_persists_reports_off_event_loop():
+    from core.runtime.performance_guard import PerformanceGuard
+
+    guard = PerformanceGuard()
+    release = asyncio.Event()
+
+    async def _fake_to_thread(func, row):
+        assert row["kind"] == "report"
+        release.set()
+        return func(row)
+
+    with patch(
+        "core.runtime.performance_guard.asyncio.to_thread",
+        side_effect=_fake_to_thread,
+    ) as to_thread, patch.object(guard, "_persist", return_value=None):
+        await guard.start(interval=3600.0)
+        await asyncio.wait_for(release.wait(), timeout=1.0)
+        await guard.stop()
+
+    assert to_thread.await_count == 1
 
 
 def test_consciousness_augmentor_exposes_status():

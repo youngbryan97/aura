@@ -36,6 +36,23 @@ class _NoTextClient:
         self.generate_text_async = AsyncMock(return_value=(False, "", {}))
 
 
+class _NoTextReadyClient(_NoTextClient):
+    def get_lane_status(self):
+        return {
+            "state": "ready",
+            "last_error": "",
+            "conversation_ready": True,
+            "warmup_attempted": True,
+            "warmup_in_flight": False,
+            "last_transition_at": 1.0,
+            "last_ready_at": 1.0,
+            "last_progress_at": 1.0,
+        }
+
+    def is_alive(self):
+        return True
+
+
 class _LaneWarmupClient:
     def __init__(self):
         self.warmup = AsyncMock(side_effect=self._finish_warmup)
@@ -101,6 +118,97 @@ class _ColdRecordingLaneClient(_RecordingClient):
             "last_ready_at": 1.0 if self.state == "ready" else 0.0,
             "last_progress_at": 1.0 if self.state == "ready" else 0.0,
         }
+
+
+@pytest.mark.asyncio
+async def test_inference_gate_passes_repairable_self_reflection_to_downstream_repair():
+    gate = InferenceGate()
+    bad_self_report = (
+        "My self-prediction accuracy is 0.98. My memory texture drift is 0.02. "
+        "My affect baseline is stable."
+    )
+    client = _FakeClient(bad_self_report)
+
+    result = await gate._generate_with_client(
+        client,
+        "Aura, live-path check: what is actually on your mind right now?",
+        "",
+        [],
+        get_deadline(10.0),
+        "Cortex",
+        messages=[
+            {"role": "system", "content": "rich_context"},
+            {"role": "user", "content": "Aura, live-path check: what is actually on your mind right now?"},
+        ],
+        origin="api",
+        foreground_request=True,
+    )
+
+    assert result == bad_self_report
+    client.generate_text_async.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_inference_gate_passes_repairable_reliability_draft_downstream():
+    gate = InferenceGate()
+    draft = (
+        "The practical standard is that a foreground chat turn should stay live, "
+        "finish as one coherent answer, and never collapse into retry chatter just "
+        "because the first draft needs a repair pass."
+    )
+    client = _FakeClient(draft)
+
+    result = await gate._generate_with_client(
+        client,
+        "Push back on me a little: if I demand that live chat never fails, what's the practical engineering version of that standard?",
+        "",
+        [],
+        get_deadline(10.0),
+        "Cortex",
+        messages=[
+            {"role": "system", "content": "rich_context"},
+            {
+                "role": "user",
+                "content": "Push back on me a little: if I demand that live chat never fails, what's the practical engineering version of that standard?",
+            },
+        ],
+        origin="api",
+        foreground_request=True,
+    )
+
+    assert result == draft
+    client.generate_text_async.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_inference_gate_passes_substantive_truncated_tail_downstream():
+    gate = InferenceGate()
+    draft = (
+        "I would answer the user directly, preserve the current thread, and keep "
+        "the live lane moving instead of detonating a long retry cascade,"
+    )
+    client = _FakeClient(draft)
+
+    result = await gate._generate_with_client(
+        client,
+        "Explain how you keep continuity during a strained live chat turn.",
+        "",
+        [],
+        get_deadline(10.0),
+        "Cortex",
+        messages=[
+            {"role": "system", "content": "rich_context"},
+            {
+                "role": "user",
+                "content": "Explain how you keep continuity during a strained live chat turn.",
+            },
+        ],
+        origin="api",
+        foreground_request=True,
+    )
+
+    assert result == draft
+    client.generate_text_async.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -301,6 +409,26 @@ async def test_user_facing_primary_uses_conversational_budget_and_chatml():
     assert "<|SYSTEM|>" not in cortex.prompts[0]
 
 
+@pytest.mark.asyncio
+async def test_user_facing_primary_restores_foreground_token_floor(monkeypatch):
+    gate = InferenceGate()
+    cortex = _RecordingClient("Live chat kept enough room to answer coherently.")
+    gate._mlx_client = cortex
+    monkeypatch.setenv("AURA_FOREGROUND_CHAT_MIN_TOKENS", "1024")
+
+    with patch.object(InferenceGate, "_default_max_tokens_for_request", return_value=512):
+        with patch("core.brain.llm.mlx_client.get_mlx_client", return_value=_FakeClient("fallback")):
+            with patch("core.brain.llm.model_registry.get_brainstem_path", return_value="/models/brainstem"):
+                with patch("core.brain.llm.model_registry.get_fallback_path", return_value="/models/fallback"):
+                    result = await gate.generate(
+                        "Stay with the thread and answer in a real conversational paragraph.",
+                        context={"origin": "user", "prefer_tier": "primary", "history": []},
+                    )
+
+    assert result == "Live chat kept enough room to answer coherently."
+    assert cortex.kwargs[0]["max_tokens"] >= 1024
+
+
 def test_adaptive_max_tokens_expands_budget_for_compound_prompt():
     prompt = (
         "If you refuse to give receipts or operational details, say exactly why. "
@@ -412,6 +540,51 @@ async def test_user_facing_secondary_uses_compact_foreground_context_builders():
     gate._build_compact_living_mind_context.assert_awaited_once()
     assert "compact-system" in solver.prompts[0]
     assert "compact-live" in solver.prompts[0]
+
+
+@pytest.mark.asyncio
+async def test_protected_primary_chat_failure_does_not_promote_to_solver():
+    gate = InferenceGate()
+    cortex = _NoTextReadyClient()
+    brainstem = _FakeClient("Brainstem fallback kept the live turn alive without loading the deep solver.")
+    gate._mlx_client = cortex
+    gate._ensure_cortex_recovery = AsyncMock()
+    gate._build_compact_system_prompt = MagicMock(return_value="compact-system")
+    gate._build_compact_living_mind_context = AsyncMock(return_value="compact-live")
+
+    requested_models = []
+
+    def _fake_get_mlx_client(model_path=None, **kwargs):
+        requested_models.append(str(model_path))
+        if model_path == "/models/deep":
+            raise AssertionError("protected primary chat must not load the 72B solver fallback")
+        if model_path == "/models/brainstem":
+            return brainstem
+        if model_path == "/models/active":
+            return cortex
+        if model_path == "/models/fallback":
+            return _FakeClient("cpu")
+        return cortex
+
+    with patch("core.brain.llm.mlx_client.get_mlx_client", side_effect=_fake_get_mlx_client):
+        with patch("core.brain.llm.model_registry.get_brainstem_path", return_value="/models/brainstem"):
+            with patch("core.brain.llm.model_registry.get_deep_model_path", return_value="/models/deep"):
+                with patch("core.brain.llm.model_registry.get_runtime_model_path", return_value="/models/active"):
+                    with patch("core.brain.llm.model_registry.get_fallback_path", return_value="/models/fallback"):
+                        result = await gate.generate(
+                            "Are you still with me?",
+                            context={
+                                "origin": "api",
+                                "prefer_tier": "primary",
+                                "protected_foreground_lane": True,
+                                "history": [],
+                                "allow_cloud_fallback": False,
+                            },
+                            timeout=30.0,
+                        )
+
+    assert result == "Brainstem fallback kept the live turn alive without loading the deep solver."
+    assert "/models/deep" not in requested_models
 
 
 def test_compact_prebuilt_messages_preserves_grounding_system_evidence():
@@ -1149,6 +1322,26 @@ def test_background_local_deferral_protects_cold_cortex_during_safe_boot(monkeyp
         gate,
         "get_conversation_status",
         lambda: {"conversation_ready": False, "state": "cold", "warmup_in_flight": False},
+    )
+
+    assert gate._background_local_deferral_reason(origin="system") == "cortex_startup_quiet"
+
+
+def test_background_local_deferral_reserves_ready_cortex_during_safe_boot(monkeypatch):
+    gate = InferenceGate()
+    gate._created_at = time.monotonic()
+    monkeypatch.setattr(InferenceGate, "_desktop_safe_boot_enabled", staticmethod(lambda: True))
+    monkeypatch.setattr(InferenceGate, "_foreground_user_turn_active", staticmethod(lambda: False))
+    monkeypatch.setattr(InferenceGate, "_foreground_owner_active", staticmethod(lambda: False))
+    monkeypatch.setattr(InferenceGate, "_foreground_quiet_window_active", staticmethod(lambda: False))
+    monkeypatch.setattr(gate, "_background_memory_pressure_active", lambda: False)
+    _low_pressure = {"pressure_pct": 40.0, "available_gb": 32.0, "safe": True, "reason": "ok"}
+    monkeypatch.setattr(InferenceGate, "_headroom_snapshot", staticmethod(lambda *a, **kw: _low_pressure))
+    monkeypatch.setattr(gate, "_foreground_headroom_reserved", lambda *a, **kw: False)
+    monkeypatch.setattr(
+        gate,
+        "get_conversation_status",
+        lambda: {"conversation_ready": True, "state": "ready", "warmup_in_flight": False},
     )
 
     assert gate._background_local_deferral_reason(origin="system") == "cortex_startup_quiet"

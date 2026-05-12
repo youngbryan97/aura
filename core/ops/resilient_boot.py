@@ -84,8 +84,12 @@ class ResilientBoot:
 
             # 1.1 Hook Omni-Tracer for Deep System Diagnostics
             try:
-                from core.resilience.omni_tracer import hook_omni_tracer
+                from core.resilience.omni_tracer import (
+                    hook_omni_tracer,
+                    install_asyncio_exception_handler,
+                )
                 hook_omni_tracer()
+                install_asyncio_exception_handler()
                 logger.info("🔬 [BOOT] Omni-Tracer hooked successfully.")
             except Exception as e:
                 logger.error("💥 [BOOT] Omni-Tracer hook failed: %s", e)

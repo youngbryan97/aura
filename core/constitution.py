@@ -482,6 +482,12 @@ class ConstitutionalCore:
             try:
                 tool_name = handle.proposal.payload.get("tool_name", "unknown")
                 args = dict(handle.proposal.payload.get("args", {}) or {})
+                deferred_result = False
+                if isinstance(result, dict):
+                    deferred_result = str(result.get("status", "") or "").lower() == "deferred"
+                    deferred_result = deferred_result or str(result.get("error", "") or "").startswith("background_deferred:")
+                else:
+                    deferred_result = "background_deferred:" in str(result or "").lower()
                 intention_loop.record_action(
                     handle.intention_id,
                     tool_name=tool_name,
@@ -490,7 +496,7 @@ class ConstitutionalCore:
                     success=success,
                     duration_ms=duration_ms,
                 )
-                observation = "tool_succeeded" if success else "tool_failed"
+                observation = "tool_deferred" if deferred_result else ("tool_succeeded" if success else "tool_failed")
                 actual_outcome = error or str(result)
                 intention_loop.observe(
                     handle.intention_id,
@@ -502,6 +508,7 @@ class ConstitutionalCore:
                     belief_updates=[],
                     self_model_updates=[],
                     success=success,
+                    status="deferred" if deferred_result else None,
                 )
             except Exception as exc:
                 record_degradation('constitution', exc)

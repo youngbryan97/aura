@@ -733,15 +733,20 @@ class ServiceContainer:
 
     @classmethod
     def _emit_absent_event(cls, service_name: str) -> None:
-        """Emit a warning event when a service defaults to None, replacing silent no-ops."""
+        """Emit a quiet breadcrumb when an explicitly optional service is absent.
+
+        Callers that pass a default are declaring the lookup optional. Treat that
+        as diagnostic context, not a live degradation, so UI/status probes do not
+        pollute the neural feed with false subsystem failures.
+        """
         try:
             from core.health.degraded_events import record_degraded_event
             record_degraded_event(
                 "service_container",
                 "SUBSYSTEM_ABSENT",
                 detail=service_name,
-                severity="warning",
-                classification="background_degraded",
+                severity="info",
+                classification="non_critical_fallback",
                 context={"service": service_name},
             )
         except Exception:

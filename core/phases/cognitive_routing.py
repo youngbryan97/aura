@@ -37,6 +37,34 @@ def _looks_like_simple_dialogue_request(text: str) -> bool:
         return False
     return bool(_SIMPLE_DIALOGUE_RE.search(body))
 
+
+def _looks_like_conversational_memory_question(text: str) -> bool:
+    lowered = " ".join(str(text or "").strip().lower().split())
+    if not lowered:
+        return False
+    direct_write_markers = (
+        "remember this",
+        "save this",
+        "store this",
+        "write this down",
+        "add to memory",
+        "memorize this",
+    )
+    if any(marker in lowered for marker in direct_write_markers):
+        return False
+    return any(
+        marker in lowered
+        for marker in (
+            "what do you remember",
+            "do you remember",
+            "what did we talk about",
+            "from our last conversation",
+            "from the previous conversation",
+            "our history",
+            "what do you know about me",
+        )
+    )
+
 logger = logging.getLogger(__name__)
 
 # Keywords that signal the 32B brain should be used in DELIBERATE mode
@@ -233,6 +261,9 @@ class CognitiveRoutingPhase(BasePhase):
                             "🧭 Routing: execution report detected; ignoring skill fast-path candidates %s",
                             matched_skills[:3],
                         )
+                    elif "memory_ops" in matched_skills and _looks_like_conversational_memory_question(input_text):
+                        logger.info("🧭 Routing: conversational memory question kept in chat lane.")
+                        matched_skills = []
                     elif looks_like_multi_step_skill_request(input_text, matched_skills):
                         new_state.response_modifiers["matched_skills"] = matched_skills
                         logger.info(

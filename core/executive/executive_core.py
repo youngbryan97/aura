@@ -176,8 +176,10 @@ SAFE_TOOLS = {
 
 TEMPORAL_SAFE_AUTONOMOUS_TOOLS = {
     "clock",
+    "email_adapter",
     "environment_info",
     "query_beliefs",
+    "reddit_adapter",
     "system_proprioception",
     "test_generator",
     "web_search",
@@ -383,6 +385,12 @@ class ExecutiveCore:
             return False
         tool_name = str(intent.payload.get("tool_name", "") or "").strip()
         if tool_name in TEMPORAL_SAFE_AUTONOMOUS_TOOLS:
+            args = intent.payload.get("args", {}) or {}
+            mode = str(args.get("mode") or "").strip().lower()
+            if tool_name == "email_adapter":
+                return mode in {"", "check", "read", "search"}
+            if tool_name == "reddit_adapter":
+                return mode in {"", "browse", "read_post", "check_inbox", "read_rules", "check_shadowban"}
             return True
         if tool_name == "auto_refactor":
             args = intent.payload.get("args", {}) or {}
@@ -442,6 +450,12 @@ class ExecutiveCore:
                 # Proceed to Rule 5, effectively bypassing Rule 4 lockdown
                 pass
             else:
+                if (
+                    int(failure_state.get("critical", 0) or 0) >= 1
+                    and int(failure_state.get("count", 0) or 0) >= 3
+                    and intent.source != IntentSource.USER
+                ):
+                    return self._reject(intent, f"unified_failure_lockdown_{failure_state['pressure']:.2f}")
                 if failure_state["pressure"] >= 0.85:
                     return self._reject(intent, f"unified_failure_lockdown_{failure_state['pressure']:.2f}")
                 if (
@@ -806,7 +820,7 @@ class ExecutiveCore:
         self._decision_history.append(record)
         self._approval_count += 1
         self._append_decision_event(intent, record)
-        logger.info("⚠️ Executive THROTTLED: %s (constraints: %s)",
+        logger.info("Executive constrained %s (constraints: %s)",
                     intent.goal[:50], constraints)
         return record
 

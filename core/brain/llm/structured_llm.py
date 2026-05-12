@@ -1,7 +1,7 @@
 from core.runtime.errors import record_degradation
 import json
 import logging
-from typing import Type, TypeVar, Optional, Any, Dict, List
+from typing import Type, TypeVar, Optional, Any, Dict, List, get_origin
 from pydantic import BaseModel, ValidationError
 from core.container import ServiceContainer
 
@@ -19,6 +19,7 @@ class StructuredLLM:
         self.model_class = model_class
         self.max_retries = max_retries
         self._llm_router = ServiceContainer.get("llm_router")
+        self.last_defer_reason = ""
 
     async def generate(self, prompt: str, context: Optional[str] = None) -> Optional[T]:
         """
@@ -27,15 +28,17 @@ class StructuredLLM:
         """
         schema = self.model_class.model_json_schema()
         ghost_example = self._generate_ghost_example()
+        self.last_defer_reason = ""
         
-        current_prompt = prompt
+        base_prompt = prompt
         
         # Inject JSON enforcement and Ghost Example into the prompt
-        if "JSON" not in current_prompt:
-            current_prompt += (
+        if "GHOST EXAMPLE (Follow this structure exactly):" not in base_prompt:
+            base_prompt += (
                 f"\n\nCRITICAL: You MUST respond with a valid JSON object matching the requested schema.\n"
                 f"GHOST EXAMPLE (Follow this structure exactly):\n{ghost_example}"
             )
+        current_prompt = base_prompt
 
         escalated_tier = None
         for attempt in range(self.max_retries):
@@ -74,10 +77,20 @@ class StructuredLLM:
                     )
 
                 error_code = str((metadata or {}).get("error") or "")
-                if error_code == "foreground_busy":
+                deferred_error = error_code == "foreground_busy" or error_code == "foreground_quiet_window"
+                deferred_error = deferred_error or error_code.startswith(
+                    (
+                        "background_deferred:",
+                        "failure_lockdown_",
+                        "conversation_lane_",
+                    )
+                )
+                if deferred_error:
+                    self.last_defer_reason = error_code
                     logger.info(
-                        "⏸️ StructuredLLM: Deferred %s while foreground lane is active.",
+                        "⏸️ StructuredLLM: Deferred %s (%s).",
                         self.model_class.__name__,
+                        error_code,
                     )
                     return None
 
@@ -142,7 +155,7 @@ class StructuredLLM:
                 # 4. Autonomous Correction: Feed the error back
                 error_msg = str(e)
                 current_prompt = (
-                    f"{prompt}\n\n"
+                    f"{base_prompt}\n\n"
                     f"⚠️ PREVIOUS ATTEMPT FAILED VALIDATION:\n{error_msg}\n\n"
                     f"Please correct the formatting and try again. Ensure all types match the schema."
                 )
@@ -177,10 +190,13 @@ class StructuredLLM:
         try:
             example = {}
             for name, field in self.model_class.model_fields.items():
-                if field.annotation == str: example[name] = "..."
-                elif field.annotation == int: example[name] = 0
-                elif field.annotation == bool: example[name] = False
-                elif field.annotation == list: example[name] = []
+                annotation = field.annotation
+                origin = get_origin(annotation)
+                if annotation == str: example[name] = "..."
+                elif annotation == int: example[name] = 0
+                elif annotation == bool: example[name] = False
+                elif annotation == list or origin is list: example[name] = []
+                elif annotation == dict or origin is dict: example[name] = {}
                 else: example[name] = None
             return json.dumps(example)
         except Exception:

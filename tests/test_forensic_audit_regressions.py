@@ -278,6 +278,16 @@ def test_self_play_quality_gate_accepts_structured_reasoning():
 
 
 @pytest.mark.asyncio
+async def test_self_play_waits_for_a_real_user_idle_anchor():
+    self_play = ContinuousSelfPlay(idle_threshold_seconds=0)
+    self_play._generate_adversarial_problem = AsyncMock(side_effect=AssertionError("should stay deferred"))
+
+    await self_play.trigger_cycle(0.0)
+
+    self_play._generate_adversarial_problem.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_base_skill_stats_are_per_instance_and_count_failures():
     class DemoSkill(BaseSkill):
         name = "demo"

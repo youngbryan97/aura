@@ -90,6 +90,7 @@ class SupervisionTree:
     def __init__(self):
         self._actors: Dict[str, ManagedActor] = {}
         self._is_running = False
+        self._shutting_down = False
         self._restart_callback: Optional[Callable[[str, Any], None]] = None
         self._lock = threading.RLock()
 
@@ -211,6 +212,7 @@ class SupervisionTree:
     async def start(self):
         """Async entry point for Orchestrator bootstrap."""
         self._is_running = True
+        self._shutting_down = False
         logger.info("🛡️ Supervision Tree initialized (Async).")
 
     async def stop(self):
@@ -221,6 +223,7 @@ class SupervisionTree:
         """Main supervision loop (non-blocking async)."""
         import asyncio
         self._is_running = True
+        self._shutting_down = False
         logger.info("🛡️ Supervision Tree ACTIVE (Async). Monitoring actors...")
         
         try:
@@ -233,6 +236,7 @@ class SupervisionTree:
     def run_forever(self):
         """Main supervision loop (blocking)."""
         self._is_running = True
+        self._shutting_down = False
         logger.info("🛡️ Supervision Tree ACTIVE. Monitoring actors...")
         
         try:
@@ -244,6 +248,8 @@ class SupervisionTree:
 
     def _poll_health(self):
         """Check all actors and restart if needed."""
+        if self._shutting_down:
+            return
         now = time.time()
         with self._lock:
             actors = list(self._actors.items())
@@ -278,6 +284,10 @@ class SupervisionTree:
             actor.process = None
             actor.pipe = None
 
+            if self._shutting_down:
+                actor.next_restart_time = 0.0
+                return
+
             # 1. Update Failure Tracking
             now = time.time()
             if now - actor.last_restart < actor.spec.window_seconds:
@@ -301,6 +311,8 @@ class SupervisionTree:
 
     def _restart_actor(self, name: str):
         """Internal helper to start actor and trigger callback."""
+        if self._shutting_down:
+            return
         new_pipe = self.start_actor(name)
         with self._lock:
             callback = self._restart_callback
@@ -313,6 +325,7 @@ class SupervisionTree:
 
     def stop_all(self):
         """Kill everything."""
+        self._shutting_down = True
         self._is_running = False
         with self._lock:
             actor_names = list(self._actors.keys())

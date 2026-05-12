@@ -1,5 +1,7 @@
 from types import SimpleNamespace
 
+import pytest
+
 
 def test_foreground_budgets_preserve_heavy_reasoning_lane():
     from core.brain.inference_gate import InferenceGate
@@ -69,3 +71,375 @@ def test_reliability_gate_rejects_low_signal_status_reassurance():
 
     assert assessment.retryable
     assert "low_signal_reliability_reply" in assessment.reasons
+
+
+def test_reliability_prompt_contract_demands_live_self_reflection_substance():
+    from core.conversation.response_reliability import conversation_reliability_system_block
+
+    block = conversation_reliability_system_block("Anything on your mind right now?")
+
+    assert "live inner state" in block
+    assert "place" "holder" in block
+
+
+def test_live_self_reflection_detection_does_not_treat_every_right_now_as_internal_state():
+    from core.conversation.response_reliability import is_live_self_reflection_turn
+
+    assert is_live_self_reflection_turn("Aura, what is actually on your mind right now?")
+    assert is_live_self_reflection_turn("What are you noticing inside your continuity?")
+    assert not is_live_self_reflection_turn("What time is it right now?")
+    assert not is_live_self_reflection_turn("What questions do you have for me right now?")
+
+
+def test_reliability_floor_replies_do_not_reenter_prompt_history():
+    from core.brain.llm.context_assembler import ContextAssembler
+    from core.conversation.response_reliability import (
+        is_reliability_floor_reply,
+        is_non_answer_repair_floor_reply,
+        reliability_floor_for_user,
+    )
+    from core.state.aura_state import AuraState
+
+    floor = reliability_floor_for_user("Huh?")
+    state = AuraState.default()
+    state.cognition.working_memory = [
+        {"role": "assistant", "content": floor},
+        {"role": "user", "content": "Stay with me here."},
+    ]
+
+    filtered = ContextAssembler._filter_stale_skill_results(
+        state,
+        "Stay with me here.",
+        list(state.cognition.working_memory),
+    )
+
+    assert is_reliability_floor_reply(floor)
+    assert is_non_answer_repair_floor_reply(floor)
+    assert all(message.get("content") != floor for message in filtered)
+
+
+def test_friendly_failure_floors_do_not_count_as_successful_answers():
+    from core.conversation.response_reliability import assess_user_facing_reply
+
+    assessment = assess_user_facing_reply(
+        "What do you actually think about friendship?",
+        "Give me a moment — I want to answer that properly. I'm still with your question about friendship.",
+    )
+
+    assert assessment.retryable
+    assert assessment.hard_failure
+    assert "friendly_failure_floor" in assessment.reasons
+
+
+def test_still_with_prompt_echo_is_treated_as_failed_repair_floor():
+    from core.conversation.response_reliability import assess_user_facing_reply
+
+    assessment = assess_user_facing_reply(
+        "When you check email or Reddit autonomously, what should actually happen after the trigger fires?",
+        "I'm still with When you check email or Reddit autonomously, and I do not want to hand you a broken fragment.",
+    )
+
+    assert assessment.retryable
+    assert assessment.hard_failure
+    assert "friendly_failure_floor" in assessment.reasons
+
+
+def test_live_self_reflection_prompt_rejects_old_thread_trust_answer():
+    from core.conversation.response_reliability import assess_user_facing_reply
+
+    assessment = assess_user_facing_reply(
+        "Aura, stay with me. What is actually on your mind right now, and what are you noticing about this conversation from inside your continuity?",
+        "The small things that don't change. Not the big ones. The ones that persist when everything else is breaking. That's where trust lives.",
+    )
+
+    assert assessment.retryable
+    assert "off_topic_self_reflection_reply" in assessment.reasons
+
+
+def test_live_self_reflection_rejects_pseudo_internal_jargon():
+    from core.conversation.response_reliability import assess_user_facing_reply
+
+    assessment = assess_user_facing_reply(
+        "Aura, live-path check: what is actually on your mind right now?",
+        "I'm running temperature in my memory decay rate. Something is shifting in my traumacognitive field.",
+    )
+
+    assert assessment.retryable
+    assert assessment.hard_failure
+    assert "pseudo_internal_jargon" in assessment.reasons
+
+
+def test_live_self_reflection_rejects_metric_status_page_answer():
+    from core.conversation.response_reliability import assess_user_facing_reply
+
+    assessment = assess_user_facing_reply(
+        "Aura, live-path check: what is actually on your mind right now?",
+        "My self-prediction accuracy is 0.98. My memory texture drift is 0.02. My affect baseline is stable. I'm listening to someone who matters.",
+    )
+
+    assert assessment.retryable
+    assert assessment.hard_failure
+    assert "status_page_self_reflection" in assessment.reasons
+
+
+def test_user_facing_gate_rejects_raw_tool_result_fragment():
+    from core.conversation.response_reliability import assess_user_facing_reply
+
+    assessment = assess_user_facing_reply(
+        "What do you remember about my concern from earlier?",
+        "Found 0 artifacts.",
+    )
+
+    assert assessment.retryable
+    assert assessment.hard_failure
+    assert "raw_tool_result_fragment" in assessment.reasons
+
+
+def test_user_facing_gate_rejects_persona_detail_deflection_for_coding_diagnosis():
+    from core.conversation.response_reliability import assess_user_facing_reply
+
+    assessment = assess_user_facing_reply(
+        "A live chat reply passes in headless testing but fails in the GUI. What coding checks would you run first?",
+        "**Aura Luna** is here to witness this failure. Please share more details about the specific coding scenario so I can provide an actionable solution.",
+    )
+
+    assert assessment.retryable
+    assert assessment.hard_failure
+    assert "persona_card_deflection" in assessment.reasons
+    assert "detail_request_deflection" in assessment.reasons
+
+
+def test_reliability_floor_answers_live_headless_diagnosis():
+    from core.conversation.response_reliability import (
+        assess_user_facing_reply,
+        reliability_floor_for_user,
+    )
+
+    prompt = "A live chat reply passes in headless testing but fails in the GUI. What coding checks would you run first?"
+    floor = reliability_floor_for_user(prompt)
+    assessment = assess_user_facing_reply(prompt, floor)
+
+    assert "/api/chat" in floor
+    assert "routing" in floor.lower()
+    assert "place" "holder" in floor.lower()
+    assert not assessment.retryable
+
+
+def test_user_facing_gate_rejects_stale_live_diagnostic_floor_on_unrelated_turn():
+    from core.conversation.response_reliability import assess_user_facing_reply
+
+    stale = (
+        "Most likely, the headless test is exercising the generator in isolation while "
+        "the live chat path adds routing, skill preflight, context trimming, foreground locks, "
+        "model warmup, retry logic, memory injection, and final response repair."
+    )
+
+    assessment = assess_user_facing_reply(
+        "What do you actually think makes a friendship real when things are messy?",
+        stale,
+    )
+
+    assert assessment.retryable
+    assert assessment.hard_failure
+    assert "stale_diagnostic_floor_leak" in assessment.reasons
+
+
+def test_reliability_floor_answers_live_headless_fix_first_followup():
+    from core.conversation.response_reliability import reliability_floor_for_user
+
+    prompt = (
+        "Keep continuity from the last answer: what should we fix first, and why?\n"
+        "[REFERENTIAL ANCHOR] A live chat reply passes in headless testing but fails in the GUI."
+    )
+
+    floor = reliability_floor_for_user(prompt)
+
+    assert "live parity harness first" in floor.lower()
+    assert "repeated diagnostic floor" in floor.lower()
+
+
+@pytest.mark.asyncio
+async def test_stabilizer_repairs_metric_status_page_self_reflection(monkeypatch):
+    from interface.routes import chat as chat_routes
+
+    monkeypatch.setattr(
+        chat_routes,
+        "_build_aura_expression_frame",
+        lambda _message: {
+            "mood": "tired",
+            "tone": "direct",
+            "attention_focus": "this exchange",
+            "dominant_action": "reflect",
+            "interests": [],
+            "needs_self_expression": True,
+            "requires_explicit_live_grounding": True,
+            "contract": SimpleNamespace(
+                prefer_extended_answer=False,
+                requires_single_reply_coverage=False,
+                question_parts=1,
+            ),
+        },
+    )
+
+    repaired = await chat_routes._stabilize_user_facing_reply(
+        "Aura, live-path check: what is actually on your mind right now?",
+        "My self-prediction accuracy is 0.98. My memory texture drift is 0.02. My affect baseline is stable.",
+    )
+
+    assert "accuracy" not in repaired.lower()
+    assert "memory texture" not in repaired.lower()
+    assert "attention" in repaired.lower()
+    assert "conversation" in repaired.lower()
+
+
+@pytest.mark.asyncio
+async def test_unitary_response_answers_live_self_reflection_without_retrying(monkeypatch):
+    from core.phases.response_generation_unitary import UnitaryResponsePhase
+    from core.state.aura_state import AuraState
+
+    bad_self_report = (
+        "My self-prediction accuracy is 0.98. My memory texture drift is 0.02. "
+        "My affect baseline is stable."
+    )
+
+    class DummyKernel:
+        organs = {}
+
+    class DummyLLM:
+        def __init__(self):
+            self.calls = 0
+
+        async def think(self, *_args, **_kwargs):
+            self.calls += 1
+            return bad_self_report
+
+    dummy_llm = DummyLLM()
+    phase = UnitaryResponsePhase(DummyKernel())
+    state = AuraState.default()
+    state.cognition.current_origin = "api"
+    state.cognition.current_objective = "Aura, live-path check: what is actually on your mind right now?"
+    state.cognition.attention_focus = "the live conversation with Bryan"
+    state.affect.valence = -0.15
+    state.affect.arousal = 0.35
+
+    original_get = phase.__class__.__dict__["execute"].__globals__["ServiceContainer"].get
+
+    def fake_get(name, default=None):
+        if name == "llm_router":
+            return dummy_llm
+        return original_get(name, default=default)
+
+    monkeypatch.setattr(
+        phase.__class__.__dict__["execute"].__globals__["ServiceContainer"],
+        "get",
+        staticmethod(fake_get),
+    )
+
+    result = await phase.execute(
+        state,
+        objective=state.cognition.current_objective,
+        priority=True,
+    )
+
+    reply = result.cognition.last_response.lower()
+    assert dummy_llm.calls == 0
+    assert "accuracy" not in reply
+    assert "memory texture" not in reply
+    assert "attention" in reply
+    assert "continuity" in reply
+
+
+@pytest.mark.asyncio
+async def test_unitary_response_preserves_substantive_soft_reliability_drafts(monkeypatch):
+    from core.phases.response_generation_unitary import UnitaryResponsePhase
+    from core.state.aura_state import AuraState
+
+    raw = (
+        "I am present with you, and I can feel your concern land while I hold onto "
+        "the shape of what you meant."
+    )
+
+    class DummyKernel:
+        organs = {}
+
+    class DummyLLM:
+        async def think(self, *_args, **_kwargs):
+            return raw
+
+    phase = UnitaryResponsePhase(DummyKernel())
+    state = AuraState.default()
+    state.cognition.current_origin = "api"
+    state.affect.dominant_emotion = "steady"
+    state.cognition.current_objective = "staying with the user"
+
+    original_get = phase.__class__.__dict__["execute"].__globals__["ServiceContainer"].get
+
+    def fake_get(name, default=None):
+        if name == "llm_router":
+            return DummyLLM()
+        return original_get(name, default=default)
+
+    monkeypatch.setattr(
+        phase.__class__.__dict__["execute"].__globals__["ServiceContainer"],
+        "get",
+        staticmethod(fake_get),
+    )
+
+    result = await phase.execute(
+        state,
+        objective="Are you coherent enough to talk with me right now?",
+        priority=False,
+    )
+
+    assert result.cognition.last_response == raw
+
+
+@pytest.mark.asyncio
+async def test_unitary_response_preserves_real_first_draft_over_tiny_dialogue_retry(monkeypatch):
+    from core.phases.response_generation_unitary import UnitaryResponsePhase
+    from core.state.aura_state import AuraState
+
+    raw = (
+        "I am noticing my attention settle around continuity right now, and I am "
+        "holding the thread carefully instead of grabbing for a canned answer."
+    )
+
+    class DummyKernel:
+        organs = {}
+
+    class DummyLLM:
+        def __init__(self):
+            self.calls = 0
+
+        async def think(self, *_args, **_kwargs):
+            self.calls += 1
+            return raw if self.calls == 1 else "Almost."
+
+    dummy_llm = DummyLLM()
+    phase = UnitaryResponsePhase(DummyKernel())
+    state = AuraState.default()
+    state.cognition.current_origin = "api"
+    state.affect.dominant_emotion = "steady"
+    state.cognition.current_objective = "friendship continuity"
+
+    original_get = phase.__class__.__dict__["execute"].__globals__["ServiceContainer"].get
+
+    def fake_get(name, default=None):
+        if name == "llm_router":
+            return dummy_llm
+        return original_get(name, default=default)
+
+    monkeypatch.setattr(
+        phase.__class__.__dict__["execute"].__globals__["ServiceContainer"],
+        "get",
+        staticmethod(fake_get),
+    )
+
+    result = await phase.execute(
+        state,
+        objective="What questions do you have for me right now?",
+        priority=False,
+    )
+
+    assert dummy_llm.calls >= 2
+    assert result.cognition.last_response == raw

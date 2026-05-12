@@ -7,6 +7,7 @@ Hunts for bottlenecks, redundant logic, and regex ulcers.
 from core.runtime.errors import record_degradation
 import ast
 import logging
+import os
 import time
 import re
 from pathlib import Path
@@ -107,6 +108,16 @@ class KernelRefiner:
 
     async def _perform_deep_brain_audit(self, content: str) -> List[Dict[str, Any]]:
         """uses LLM to look for 'cognitive ulcers' in the reasoning flow."""
+        use_llm = str(os.environ.get("AURA_KERNEL_REFINER_LLM_AUDIT", "0")).strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+        if not use_llm:
+            logger.debug("Refiner: deep semantic audit skipped; static audit is live-safe default.")
+            return []
+
         logger.info("🧠 Refiner: Running deep semantic audit via LLM...")
         
         # Read evaluate() method specifically
@@ -146,7 +157,12 @@ If no refinement is needed, return {{"found": false}}.
 """
 
         try:
-            thought = await self.brain.think(prompt, priority=0.1)
+            thought = await self.brain.think(
+                prompt,
+                priority=0.1,
+                origin="self_modification_kernel_refiner",
+                is_background=True,
+            )
             raw = thought.content
             # Basic JSON extraction
             match = re.search(r'\{.*\}', raw, re.DOTALL)

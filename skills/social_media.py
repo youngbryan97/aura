@@ -255,20 +255,30 @@ class TwitterAdapter(PlatformAdapter):
         acc_tok = _env("access_token")
         acc_sec = _env("access_secret")
 
+        oauth_ready = bool(api_key and api_sec and acc_tok and acc_sec)
+        if not bearer and not oauth_ready:
+            logger.info("TwitterAdapter idle: no credentials configured.")
+            return
+
         try:
-            self._client = tweepy.Client(
-                bearer_token=bearer,
-                consumer_key=api_key,
-                consumer_secret=api_sec,
-                access_token=acc_tok,
-                access_token_secret=acc_sec,
-                wait_on_rate_limit=True,
-            )
+            client_kwargs: Dict[str, Any] = {"wait_on_rate_limit": True}
+            if bearer:
+                client_kwargs["bearer_token"] = bearer
+            if oauth_ready:
+                client_kwargs.update(
+                    {
+                        "consumer_key": api_key,
+                        "consumer_secret": api_sec,
+                        "access_token": acc_tok,
+                        "access_token_secret": acc_sec,
+                    }
+                )
+            self._client = tweepy.Client(**client_kwargs)
             me = self._client.get_me()
             if me and me.data:
                 self._me = me.data
                 self._connected = True
-                self._rw_capable = bool(api_key and api_sec and acc_tok and acc_sec)
+                self._rw_capable = oauth_ready
                 mode = "read-write" if self._rw_capable else "read-only"
                 logger.info("✅ TwitterAdapter: connected as @%s (%s)", self._me.username, mode)
         except Exception as exc:

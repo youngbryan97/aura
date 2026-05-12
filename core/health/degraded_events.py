@@ -65,8 +65,8 @@ def record_degraded_event(
     now = time.time()
     subsystem = str(subsystem or "unknown")
     reason = str(reason or "unknown")
-    severity = str(severity or "warning")
-    classification = str(classification or "background_degraded")
+    severity = str(severity or "warning").lower()
+    classification = str(classification or "background_degraded").lower()
     detail = str(detail or "")
     event = {
         "subsystem": subsystem,
@@ -106,7 +106,8 @@ def record_degraded_event(
             event["last_seen"] = summary["last_seen"]
         _EVENTS.append(dict(event))
 
-    _forward_to_terminal_monitor(dict(event))
+    if severity != "info" and classification != "non_critical_fallback":
+        _forward_to_terminal_monitor(dict(event))
     should_forward_to_error_intelligence = (
         severity in {"error", "critical"}
         or classification == "foreground_blocking"
@@ -139,9 +140,16 @@ def get_unified_failure_state(limit: int = 25) -> Dict[str, Any]:
         }
 
     severity_weights = {
+        "info": 0.0,
         "warning": 0.25,
         "error": 0.6,
         "critical": 1.0,
+    }
+    classification_weights = {
+        "foreground_blocking": 1.0,
+        "system_crash": 1.0,
+        "background_degraded": 0.25,
+        "non_critical_fallback": 0.0,
     }
     now = time.time()
     subsystems: Dict[str, float] = {}
@@ -152,6 +160,12 @@ def get_unified_failure_state(limit: int = 25) -> Dict[str, Any]:
 
     for event in events:
         severity = str(event.get("severity", "warning") or "warning").lower()
+        classification = str(event.get("classification", "background_degraded") or "background_degraded").lower()
+        if severity not in severity_weights:
+            continue
+        classification_weight = classification_weights.get(classification, 0.5)
+        if classification_weight <= 0.0 or severity_weights.get(severity, 0.0) <= 0.0:
+            continue
         count = int(event.get("count", 1) or 1)
         last_seen = float(event.get("last_seen", event.get("timestamp", now)) or now)
         age_s = max(0.0, now - last_seen)
@@ -162,12 +176,12 @@ def get_unified_failure_state(limit: int = 25) -> Dict[str, Any]:
         active_count = min(4.0, float(count)) * recency
         subsystem = str(event.get("subsystem", "unknown"))
         subsystems[subsystem] = subsystems.get(subsystem, 0.0) + active_count
-        weighted += severity_weights.get(severity, 0.25) * active_count
-        if severity == "critical":
+        weighted += severity_weights.get(severity, 0.25) * active_count * classification_weight
+        if severity == "critical" and classification in {"foreground_blocking", "system_crash"}:
             critical += active_count
         elif severity == "error":
             errors += active_count
-        else:
+        elif severity == "warning":
             warnings += active_count
 
     # Severity-weighted sum forms the base.  Critical events add a bonus to

@@ -146,7 +146,7 @@ class LearningPhase(Phase):
                 min_idle_seconds=1200.0,
                 max_memory_percent=78.0,
                 max_failure_pressure=0.08,
-                require_conversation_ready=True,
+                require_conversation_ready=False,
             ):
                 return state
             logger.info("🔭 [AGI] High curiosity: Generating cross-domain synthesis...")

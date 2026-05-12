@@ -1,4 +1,5 @@
 import time
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -227,6 +228,17 @@ async def test_subconscious_loop_performs_idle_dream_and_constitutional_sandbox(
     dreamer.dream.assert_awaited_once()
     tool_orch.execute_python.assert_awaited_once()
     fake_core.finish_tool_execution.assert_awaited_once()
+
+
+def test_subconscious_loop_idle_gate_does_not_require_chat_lane_readiness():
+    source = (
+        Path(__file__).resolve().parents[1]
+        / "core"
+        / "consciousness"
+        / "subconscious_loop.py"
+    ).read_text(encoding="utf-8")
+
+    assert "require_conversation_ready=False" in source
 
 
 @pytest.mark.asyncio

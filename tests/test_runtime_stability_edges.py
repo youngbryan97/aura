@@ -1,6 +1,7 @@
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 import asyncio
+import os
 from pathlib import Path
 import tempfile
 import time
@@ -126,6 +127,24 @@ class TestAffectBroadcastBackpressure(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(result)
         self.assertEqual(engine._llm_failure_count, 0)
 
+    async def test_affect_background_timeout_falls_back_without_runtime_degradation(self):
+        with patch("core.affect.damasio_v2.PhysicalActuator", return_value=MagicMock()):
+            from core.affect.damasio_v2 import AffectEngineV2
+
+            engine = AffectEngineV2()
+
+        engine._background_llm_should_defer = MagicMock(return_value=False)
+        engine._appraise_with_llm = AsyncMock(side_effect=asyncio.TimeoutError())
+        engine.iot_bridge.broadcast_affect_state = AsyncMock(return_value=None)
+
+        with patch("core.brain.llm.mlx_client._foreground_owner_active", return_value=False), \
+             patch("core.affect.damasio_v2.record_degradation") as record_degradation:
+            result = await engine.react("I feel frustrated and need to reflect on recent interactions.")
+
+        self.assertIsNotNone(result)
+        self.assertEqual(engine._llm_failure_count, 0)
+        record_degradation.assert_not_called()
+
 
 class TestEternalMemoryCaching(unittest.IsolatedAsyncioTestCase):
     async def test_eternal_memory_reuses_recent_summary_cache(self):
@@ -201,6 +220,32 @@ class TestExperienceConsolidatorGuards(unittest.IsolatedAsyncioTestCase):
 
 
 class TestSubstrateStimulusGuards(unittest.IsolatedAsyncioTestCase):
+    async def test_recurrent_self_model_runs_off_event_loop(self):
+        from core.consciousness.liquid_substrate import LiquidSubstrate, SubstrateConfig
+
+        substrate = LiquidSubstrate(SubstrateConfig(neuron_count=4))
+
+        with patch(
+            "core.consciousness.liquid_substrate.asyncio.to_thread",
+            new=AsyncMock(return_value=None),
+        ) as to_thread:
+            await substrate._recurrent_self_model(0.05)
+
+        to_thread.assert_awaited_once_with(substrate._recurrent_self_model_sync, 0.05)
+
+    async def test_plasticity_runs_off_event_loop(self):
+        from core.consciousness.liquid_substrate import LiquidSubstrate, SubstrateConfig
+
+        substrate = LiquidSubstrate(SubstrateConfig(neuron_count=4))
+
+        with patch(
+            "core.consciousness.liquid_substrate.asyncio.to_thread",
+            new=AsyncMock(return_value=None),
+        ) as to_thread:
+            await substrate._apply_plasticity()
+
+        to_thread.assert_awaited_once_with(substrate._apply_plasticity_sync)
+
     async def test_liquid_substrate_scales_constrained_stimulus_weight(self):
         import numpy as np
 
@@ -348,7 +393,56 @@ class TestBackgroundPolicyGuards(unittest.TestCase):
         self.assertEqual(reason, "no_user_anchor")
 
 
+class TestSupervisorShutdownGuards(unittest.TestCase):
+    def test_shutdown_failure_path_never_schedules_actor_restart(self):
+        from core.supervisor.tree import ActorSpec, SupervisionTree
+
+        tree = SupervisionTree()
+        tree.add_actor(ActorSpec(name="sensory", entry_point=lambda *_args: None))
+        tree._is_running = False
+        tree._shutting_down = True
+
+        tree._handle_failure("sensory")
+
+        actor = tree._actors["sensory"]
+        self.assertEqual(actor.next_restart_time, 0.0)
+        self.assertFalse(actor.is_circuit_broken)
+
+
+class TestSovereignNetworkBackgroundGuards(unittest.IsolatedAsyncioTestCase):
+    async def test_autonomous_network_scan_defers_during_foreground_quiet_window(self):
+        from core.skills.sovereign_network import NetworkInput, SovereignNetworkSkill
+
+        skill = SovereignNetworkSkill()
+        with patch(
+            "core.runtime.background_policy.background_activity_reason",
+            return_value="foreground_quiet_window",
+        ):
+            result = await skill.execute(
+                NetworkInput(mode="discovery", target="192.168.1.0/30", ports="8000"),
+                {"origin": "system", "orchestrator": MagicMock()},
+            )
+
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["status"], "deferred")
+        self.assertEqual(result["reason"], "foreground_quiet_window")
+
+
 class TestCognitiveContextSanitization(unittest.TestCase):
+    def test_runtime_status_hides_stale_referential_anchor_intention(self):
+        from core.runtime.organism_status import _clean_current_intention_for_status
+
+        stale = (
+            "What do you think makes a friendship feel alive over time?\n\n"
+            "[REFERENTIAL ANCHOR]\nThe user is referring to an older prompt."
+        )
+
+        self.assertEqual(_clean_current_intention_for_status(stale, ""), "idle")
+        self.assertEqual(
+            _clean_current_intention_for_status(stale, "current live turn"),
+            "current live turn",
+        )
+
     def test_trim_working_memory_clears_stale_speculative_autonomy_state(self):
         from core.state.aura_state import CognitiveContext
 
@@ -510,3 +604,345 @@ class TestSelfModificationBackgroundSafety(unittest.IsolatedAsyncioTestCase):
                 new=AsyncMock(side_effect=asyncio.CancelledError),
             ):
                 await logger_system._append_to_log(Path(temp_dir) / "error_events.jsonl", {"ok": True})
+
+    async def test_self_modification_diagnosis_uses_static_path_by_default(self):
+        from core.self_modification.error_intelligence import (
+            AutomatedDiagnosisEngine,
+            ErrorEvent,
+            ErrorPattern,
+        )
+
+        brain = SimpleNamespace(think=AsyncMock(return_value=SimpleNamespace(content="{}")))
+        engine = AutomatedDiagnosisEngine(brain)
+        event = ErrorEvent(
+            timestamp=time.time(),
+            error_type="RuntimeWarning",
+            error_message="coroutine 'MemoryCoordinator.prune_low_salience' was never awaited",
+            stack_trace="trace",
+            context={},
+            file_path="core/coordinators/metabolic_coordinator.py",
+            line_number=841,
+        )
+        pattern = ErrorPattern(
+            fingerprint="await-warning",
+            occurrences=2,
+            first_seen=time.time() - 5,
+            last_seen=time.time(),
+            events=[event],
+            severity="medium",
+        )
+
+        with patch.dict(os.environ, {"AURA_SELFMOD_LLM_DIAGNOSIS": "0"}):
+            diagnosis = await engine.diagnose_pattern(pattern)
+
+        brain.think.assert_not_awaited()
+        self.assertTrue(diagnosis["ok"])
+        self.assertEqual(diagnosis["diagnosis_source"], "deterministic_static")
+        self.assertIn("coroutine", diagnosis["hypotheses"][0]["root_cause"])
+
+    async def test_self_modification_skips_unlocated_error_patterns_as_unfixable(self):
+        from core.self_modification.error_intelligence import (
+            ErrorPatternAnalyzer,
+            ErrorEvent,
+            ErrorPattern,
+        )
+
+        analyzer = ErrorPatternAnalyzer(SimpleNamespace())
+        event = ErrorEvent(
+            timestamp=time.time(),
+            error_type="RuntimeError",
+            error_message="opaque runtime failure",
+            stack_trace="trace",
+            context={},
+            file_path=None,
+            line_number=None,
+        )
+        pattern = ErrorPattern(
+            fingerprint="unlocated",
+            occurrences=2,
+            first_seen=time.time() - 5,
+            last_seen=time.time(),
+            events=[event],
+            severity="medium",
+        )
+
+        self.assertFalse(analyzer.should_trigger_fix(pattern))
+
+    async def test_kernel_refiner_skips_llm_deep_audit_by_default(self):
+        from core.self_modification.kernel_refiner import KernelRefiner
+
+        brain = SimpleNamespace(think=AsyncMock(return_value=SimpleNamespace(content='{"found": true}')))
+        refiner = KernelRefiner(brain, code_base_path=".")
+
+        with patch.dict(os.environ, {"AURA_KERNEL_REFINER_LLM_AUDIT": "0"}):
+            result = await refiner._perform_deep_brain_audit("def evaluate(self):\n    return None\n")
+
+        self.assertEqual(result, [])
+        brain.think.assert_not_awaited()
+
+
+class TestLifecycleDeduplication(unittest.IsolatedAsyncioTestCase):
+    async def test_reliability_engine_start_is_idempotent_while_tasks_are_alive(self):
+        from core.reliability_engine import ReliabilityEngine
+
+        engine = ReliabilityEngine()
+        engine._started = True
+        engine._tasks = [SimpleNamespace(done=lambda: False)]
+
+        with patch(
+            "core.reliability_engine.get_task_tracker",
+            side_effect=AssertionError("duplicate tasks should not be created"),
+        ):
+            await engine.start()
+
+        self.assertEqual(len(engine._tasks), 1)
+
+    def test_session_guardian_start_reuses_existing_monitor_task(self):
+        from core.session_guardian import SessionGuardian
+
+        guardian = SessionGuardian()
+        existing_task = SimpleNamespace(done=lambda: False)
+        guardian._running = True
+        guardian._monitor_task = existing_task
+
+        with patch(
+            "core.session_guardian.get_task_tracker",
+            side_effect=AssertionError("duplicate monitor task should not be created"),
+        ):
+            result = guardian.start()
+
+        self.assertIs(result, guardian)
+        self.assertIs(guardian._monitor_task, existing_task)
+
+    async def test_fictional_background_loops_noop_when_already_running(self):
+        from core.fictional_ai_synthesis import (
+            DistributedResilienceCore,
+            ProactiveAnticipationEngine,
+            TemporalDilationScheduler,
+        )
+
+        jarvis = ProactiveAnticipationEngine()
+        jarvis._running = True
+        await jarvis.start(interval_seconds=0.01)
+
+        skynet = DistributedResilienceCore()
+        skynet._running = True
+        await skynet.start_monitoring()
+
+        mist = TemporalDilationScheduler()
+        mist._is_running = True
+        await mist.run_idle_loop()
+
+
+class TestLiveRuntimeFailureIsolation(unittest.IsolatedAsyncioTestCase):
+    async def test_event_bus_same_loop_delivery_avoids_threadsafe_self_wakeup(self):
+        from core.event_bus import AuraEventBus
+
+        bus = AuraEventBus()
+        queue = await bus.subscribe("same-loop")
+        loop = asyncio.get_running_loop()
+
+        with patch.object(
+            loop,
+            "call_soon_threadsafe",
+            side_effect=AssertionError("same-loop publish should not wake the selector pipe"),
+        ), patch.object(loop, "call_soon", wraps=loop.call_soon) as call_soon:
+            await bus.publish("same-loop", {"ok": True})
+            await asyncio.sleep(0)
+
+        _priority, _sequence, payload = await asyncio.wait_for(queue.get(), timeout=1.0)
+        self.assertEqual(payload["topic"], "same-loop")
+        self.assertTrue(payload["data"]["ok"])
+        self.assertGreaterEqual(call_soon.call_count, 1)
+
+    def _terminal_monitor_without_handler(self):
+        from collections import deque
+        from core.terminal_monitor import TerminalMonitor
+
+        monitor = TerminalMonitor.__new__(TerminalMonitor)
+        monitor._error_buffer = deque(maxlen=100)
+        monitor._seen = {}
+        monitor._fix_attempts = {}
+        monitor._failures = {}
+        monitor._fix_window = []
+        monitor._sepsis_mode = False
+        monitor._sepsis_start = 0.0
+        monitor._circuit_breaker_open = False
+        monitor._ignore_patterns = []
+        monitor._actionable_patterns = {}
+        monitor._blacklist = set()
+        return monitor
+
+    def test_background_degraded_noise_does_not_trip_sepsis(self):
+        from core.terminal_monitor import ErrorEntry
+
+        monitor = self._terminal_monitor_without_handler()
+        for idx in range(25):
+            monitor._ingest_error(
+                ErrorEntry(
+                    message=f"background warning {idx}",
+                    level="WARNING",
+                    source=f"degraded.background_{idx}",
+                    metadata={"classification": "background_degraded", "severity": "warning"},
+                )
+            )
+
+        self.assertFalse(monitor._sepsis_mode)
+
+    def test_foreground_failures_can_still_trip_sepsis(self):
+        from core.terminal_monitor import ErrorEntry
+
+        monitor = self._terminal_monitor_without_handler()
+        now = time.time()
+        with patch("core.terminal_monitor.time.time", return_value=now):
+            for idx in range(12):
+                monitor._ingest_error(
+                    ErrorEntry(
+                        message=f"foreground failure {idx}",
+                        level="WARNING",
+                        source=f"degraded.foreground_{idx}",
+                        metadata={"classification": "foreground_blocking", "severity": "warning"},
+                        timestamp=now,
+                    )
+                )
+
+        self.assertTrue(monitor._sepsis_mode)
+
+    def test_runtime_status_hides_stale_user_prompt_as_current_intention(self):
+        from core.runtime_tools import _clean_current_intention_for_status
+
+        prompt = "Aura, what is actually on your mind right now?"
+
+        self.assertEqual(
+            _clean_current_intention_for_status(prompt, prompt, "user"),
+            "idle",
+        )
+        self.assertEqual(
+            _clean_current_intention_for_status(
+                "Checking autonomous action pathways for one blocked capability to rewire.",
+                "Auditing one live-runtime bottleneck and proposing a concrete repair.",
+                "motivation_engine",
+            ),
+            "Auditing one live-runtime bottleneck and proposing a concrete repair.",
+        )
+
+    def test_background_failure_pressure_stays_low_for_repeated_warnings(self):
+        from core.health.degraded_events import clear_degraded_events, get_unified_failure_state, record_degraded_event
+
+        clear_degraded_events()
+        try:
+            for idx in range(30):
+                record_degraded_event(
+                    "service_container",
+                    "SUBSYSTEM_ABSENT",
+                    detail="optional_neurochemical_regulator",
+                    severity="warning",
+                    classification="background_degraded",
+                )
+
+            pressure = get_unified_failure_state()["pressure"]
+            self.assertLess(pressure, 0.10)
+        finally:
+            clear_degraded_events()
+
+    def test_optional_service_absence_stays_out_of_neural_error_stream(self):
+        from core.container import ServiceContainer
+        from core.health.degraded_events import clear_degraded_events, get_recent_degraded_events, get_unified_failure_state
+
+        forwarded = []
+        clear_degraded_events()
+        try:
+            with patch("core.health.degraded_events._forward_to_terminal_monitor", side_effect=forwarded.append):
+                ServiceContainer._emit_absent_event("voice_pipeline")
+
+            events = get_recent_degraded_events(limit=5)
+            self.assertEqual(events[0]["severity"], "info")
+            self.assertEqual(events[0]["classification"], "non_critical_fallback")
+            self.assertEqual(forwarded, [])
+            self.assertEqual(get_unified_failure_state()["pressure"], 0.0)
+        finally:
+            clear_degraded_events()
+
+    async def test_private_phenomenology_uses_local_reflection_by_default(self):
+        from core.agency.private_phenomenology import PrivatePhenomenology
+
+        engine = MagicMock()
+        engine.think = AsyncMock(return_value=SimpleNamespace(content="quiet inner reflection"))
+
+        def fake_get(name, default=None):
+            if name == "cognitive_engine":
+                return engine
+            if name == "orchestrator":
+                return SimpleNamespace(is_busy=False, _last_user_interaction_time=time.time() - 300)
+            return default
+
+        with tempfile.TemporaryDirectory() as temp_dir, patch(
+            "core.agency.private_phenomenology.ServiceContainer.get",
+            side_effect=fake_get,
+        ), patch.dict(os.environ, {"AURA_PHENOMENOLOGY_USE_LLM": "0"}):
+            phenomenology = PrivatePhenomenology(storage_path=str(Path(temp_dir) / "monologue.jsonl"))
+            reflection = await phenomenology.reflect({"P": 0.1, "A": 0.2, "D": 0.3}, [{"event": "test"}])
+
+        engine.think.assert_not_awaited()
+        self.assertIn("recent pattern", reflection)
+
+    async def test_private_phenomenology_llm_mode_marks_internal_reflection_as_background(self):
+        from core.agency.private_phenomenology import PrivatePhenomenology
+
+        engine = MagicMock()
+        engine.think = AsyncMock(return_value=SimpleNamespace(content="quiet inner reflection"))
+
+        def fake_get(name, default=None):
+            if name == "cognitive_engine":
+                return engine
+            if name == "orchestrator":
+                return SimpleNamespace(is_busy=False, _last_user_interaction_time=time.time() - 300)
+            return default
+
+        with tempfile.TemporaryDirectory() as temp_dir, patch(
+            "core.agency.private_phenomenology.ServiceContainer.get",
+            side_effect=fake_get,
+        ), patch.dict(os.environ, {"AURA_PHENOMENOLOGY_USE_LLM": "1"}):
+            phenomenology = PrivatePhenomenology(storage_path=str(Path(temp_dir) / "monologue.jsonl"))
+            await phenomenology.reflect({"P": 0.1, "A": 0.2, "D": 0.3}, [{"event": "test"}])
+
+        kwargs = engine.think.await_args.kwargs
+        self.assertEqual(kwargs["origin"], "phenomenological_reflection")
+        self.assertTrue(kwargs["is_background"])
+
+    async def test_gemini_auth_failure_disables_adapter_without_runtime_degradation(self):
+        import httpx
+        from core.brain.llm.gemini_adapter import GeminiAdapter, GeminiProviderUnavailable
+
+        adapter = GeminiAdapter(api_key="test", model="gemini-2.0-flash")
+        response = httpx.Response(
+            403,
+            content=b'{"error":{"status":"PERMISSION_DENIED","message":"API key was reported as leaked"}}',
+        )
+
+        with self.assertRaises(GeminiProviderUnavailable):
+            await adapter._handle_error(response)
+
+        self.assertFalse(adapter.is_available())
+        self.assertIn("provider_auth_failed", adapter.availability_reason())
+
+    def test_email_and_reddit_adapters_remain_routable_for_autonomy(self):
+        from core.capability_engine import CapabilityEngine
+
+        engine = CapabilityEngine(orchestrator=None)
+
+        self.assertIn("email_adapter", engine.skills)
+        self.assertIn("reddit_adapter", engine.skills)
+        self.assertIn("email_adapter", engine.active_skills)
+        self.assertIn("reddit_adapter", engine.active_skills)
+
+    async def test_reddit_inbox_login_unavailable_is_quiet_success(self):
+        from core.skills.reddit_adapter import RedditAdapterSkill, RedditInput
+
+        skill = RedditAdapterSkill()
+        skill._ensure_logged_in = AsyncMock(return_value=False)
+
+        result = await skill._handle_check_inbox(MagicMock(), RedditInput(mode="check_inbox"))
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["status"], "login_unavailable")

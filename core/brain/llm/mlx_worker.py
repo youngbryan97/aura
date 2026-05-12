@@ -5,6 +5,7 @@ import logging
 import traceback
 import time
 import os
+import signal
 import multiprocessing as mp
 import threading
 import copy
@@ -569,6 +570,10 @@ def _mlx_worker_loop(
     device: str = "gpu",
     substrate_mem: Any = None
 ):
+    try:
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+    except Exception:
+        pass
     """
     Runs in a FULLY ISOLATED native subprocess via ForkServer.
     """
@@ -1098,18 +1103,19 @@ def _mlx_worker_loop(
                     # [v12.0 HARDENING] Post-generation telemetry sanitizer
                     sanitized_text = _sanitize_telemetry_leakage(response_text)
                     if sanitized_text is None:
-                        if internal_attempt < max_internal_retries:
-                            logger.warning("🚨 [WORKER] Hallucination detected by sanitizer. Retrying generation cleanly...")
-                            try:
-                                if prompt_cache_lru is not None: prompt_cache_lru.clear()
-                            except (AttributeError, RuntimeError) as exc:
-                                logger.debug("Prompt cache clear failed after sanitizer retry: %s", exc)
-                            if mx and device != "cpu": _clear_mlx_cache(mx)
-                            _prepare_clean_retry_kwargs(kwargs, structured=bool(schema))
-                            continue
-                        else:
-                            logger.error("🚨 [WORKER] Out of retries for hallucination. Returning empty text for caller-side recovery.")
-                            sanitized_text = ""
+                        logger.warning(
+                            "🚨 [WORKER] Hallucination detected by sanitizer. "
+                            "Returning empty text for caller-side recovery."
+                        )
+                        try:
+                            if prompt_cache_lru is not None:
+                                prompt_cache_lru.clear()
+                        except (AttributeError, RuntimeError) as exc:
+                            logger.debug("Prompt cache clear failed after sanitizer recovery: %s", exc)
+                        if mx and device != "cpu":
+                            _clear_mlx_cache(mx)
+                        _prepare_clean_retry_kwargs(kwargs, structured=bool(schema))
+                        sanitized_text = ""
                             
                     response_text = sanitized_text
                     

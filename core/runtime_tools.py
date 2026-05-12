@@ -7,7 +7,12 @@ import os
 import time
 from typing import Any, Dict
 from core.config import config
-from core.runtime.service_access import optional_service, resolve_canonical_self, resolve_identity_model
+from core.runtime.service_access import (
+    optional_service,
+    resolve_canonical_self,
+    resolve_identity_model,
+    resolve_state_repository,
+)
 
 logger = logging.getLogger("Aura.Runtime")
 
@@ -24,6 +29,61 @@ KEY_DIR = str(config.paths.home_dir / "keys")
 ED25519_PRIV_PATH = os.path.join(KEY_DIR, "ed25519_priv.pem")
 HMAC_KEY_PATH = os.path.join(KEY_DIR, "hmac_key.bin")
 _EPHEMERAL_HMAC_KEY = os.urandom(32)
+
+
+_USER_FACING_STATUS_ORIGINS = {
+    "user",
+    "api",
+    "chat",
+    "desktop",
+    "gui",
+    "voice",
+    "web",
+    "websocket",
+    "ws",
+    "direct",
+    "external",
+}
+
+
+def _is_user_facing_status_origin(origin: Any) -> bool:
+    normalized = str(origin or "").strip().lower().replace("-", "_")
+    if not normalized:
+        return False
+    tokens = {token for token in normalized.split("_") if token}
+    return normalized in _USER_FACING_STATUS_ORIGINS or bool(tokens & _USER_FACING_STATUS_ORIGINS)
+
+
+def _looks_like_stale_user_prompt(text: str) -> bool:
+    lowered = text.lower()
+    if not text:
+        return False
+    if "?" in text and any(marker in lowered for marker in ("aura", "you", "your", "what", "why", "how", "can ", "could ", "please")):
+        return True
+    return len(text) > 120 and any(
+        marker in lowered
+        for marker in (
+            "what is actually on your mind",
+            "tell me",
+            "answer like",
+            "why does",
+            "can you",
+            "could you",
+        )
+    )
+
+
+def _clean_current_intention_for_status(intention: Any, live_objective: Any = "", live_origin: Any = "") -> str:
+    text = " ".join(str(intention or "").split())
+    objective = " ".join(str(live_objective or "").split())
+    if objective and not _is_user_facing_status_origin(live_origin):
+        return objective[:260]
+    lowered = text.lower()
+    if not text:
+        return ""
+    if "[referential anchor]" in lowered or len(text) > 320 or _looks_like_stale_user_prompt(text):
+        return "idle"
+    return text[:260]
 
 def _prepare_key_dir() -> bool:
     try:
@@ -120,13 +180,25 @@ def get_runtime_state() -> Dict[str, Any]:
                 "arousal": float(getattr(affect, "arousal", 0))
             }
 
+        repo = resolve_state_repository(default=None)
+        live_state = getattr(repo, "_current", None) if repo is not None else None
+        live_cognition = getattr(live_state, "cognition", None) if live_state is not None else None
+        live_objective = str(
+            getattr(live_cognition, "current_objective", "") or ""
+        )
+        live_origin = str(getattr(live_cognition, "current_origin", "") or "")
+
         canonical_self = resolve_canonical_self(default=None)
         if canonical_self is not None:
             self_model_data.update(
                 {
                     "version": int(getattr(canonical_self, "version", 0) or 0),
                     "name": str(getattr(getattr(canonical_self, "identity", None), "name", "") or "Aura"),
-                    "current_intention": str(getattr(canonical_self, "current_intention", "") or ""),
+                    "current_intention": _clean_current_intention_for_status(
+                        getattr(canonical_self, "current_intention", "") or "",
+                        live_objective,
+                        live_origin,
+                    ),
                 }
             )
 
@@ -141,7 +213,11 @@ def get_runtime_state() -> Dict[str, Any]:
                     getattr(getattr(canonical_self, "identity", None), "name", merged_self.get("name", "Aura"))
                     or merged_self.get("name", "Aura")
                 )
-                merged_self["current_intention"] = str(getattr(canonical_self, "current_intention", "") or "")
+                merged_self["current_intention"] = _clean_current_intention_for_status(
+                    getattr(canonical_self, "current_intention", "") or "",
+                    live_objective,
+                    live_origin,
+                )
             self_model_data = {**self_model_data, **merged_self}
 
     except Exception as e:

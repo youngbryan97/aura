@@ -38,12 +38,62 @@ from core.conversation.response_reliability import (
     assess_model_text_integrity,
     assess_user_facing_reply,
     conversation_reliability_system_block,
+    is_live_self_reflection_turn,
 )
 from core.runtime.desktop_boot_safety import desktop_safe_boot_enabled
 from core.runtime.structured_input import analyze_prompt_shape
 from core.utils.deadlines import Deadline, get_deadline
 
 logger = logging.getLogger("Aura.InferenceGate")
+
+_DOWNSTREAM_REPAIRABLE_SELF_REFLECTION_REASONS = frozenset(
+    {
+        "off_topic_self_reflection_reply",
+        "pseudo_internal_jargon",
+        "status_page_self_reflection",
+    }
+)
+_DOWNSTREAM_REPAIRABLE_USER_FACING_REASONS = frozenset(
+    {
+        "off_topic_self_reflection_reply",
+        "pseudo_internal_jargon",
+        "status_page_self_reflection",
+        "too_thin_for_reliability_turn",
+        "too_thin_for_confusion_repair",
+        "too_short_for_user_turn",
+        "too_thin_for_open_ended_turn",
+        "low_signal_reliability_reply",
+        "low_signal_status_reply",
+        "too_thin_for_status_turn",
+        "generic_assistant_language",
+        "persona_card_deflection",
+        "detail_request_deflection",
+        "truncated_tail",
+        "vague_status_derailment",
+    }
+)
+
+
+def _should_pass_user_facing_draft_downstream(
+    text: str,
+    reasons: set[str],
+    *,
+    user_prompt: str,
+) -> bool:
+    """Keep salvageable chat drafts out of the expensive retry spiral."""
+    if not text or not reasons:
+        return False
+    if not reasons.issubset(_DOWNSTREAM_REPAIRABLE_USER_FACING_REASONS):
+        return False
+    stripped = str(text or "").strip()
+    if len(stripped) < 48:
+        return False
+    words = [token for token in stripped.replace("\n", " ").split(" ") if token.strip()]
+    if len(words) < 8:
+        return False
+    if reasons & _DOWNSTREAM_REPAIRABLE_SELF_REFLECTION_REASONS:
+        return is_live_self_reflection_turn(user_prompt)
+    return True
 
 _USER_FACING_ORIGINS = frozenset({
     "user",
@@ -163,6 +213,15 @@ class InferenceGate:
     @staticmethod
     def _desktop_safe_boot_enabled() -> bool:
         return desktop_safe_boot_enabled()
+
+    @staticmethod
+    def _desktop_background_local_enabled() -> bool:
+        return str(os.environ.get("AURA_ENABLE_DESKTOP_BACKGROUND_LOCAL_LLM", "")).strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
 
     @staticmethod
     def _boot_should_eager_warmup() -> bool:
@@ -1100,12 +1159,25 @@ class InferenceGate:
         except Exception:
             return False
 
+    def _safe_boot_background_guard_active(self) -> bool:
+        """Reserve launch headroom for the live conversation lane."""
+        if not self._desktop_safe_boot_enabled():
+            return False
+        try:
+            startup_guard_secs = float(os.environ.get("AURA_SAFE_BOOT_BACKGROUND_GUARD_SECS", "180"))
+        except Exception:
+            startup_guard_secs = 180.0
+        if startup_guard_secs <= 0:
+            return False
+        return (time.monotonic() - self._created_at) < startup_guard_secs
+
     def _should_quiet_background_for_cortex_startup(self) -> bool:
-        """Hold background inference while the primary 32B lane is still booting."""
+        """Hold background inference while the live 32B lane is booting or reserving headroom."""
+        lane = self.get_conversation_status()
+        if self._safe_boot_background_guard_active():
+            return True
         if not self._foreground_quiet_window_active():
             return False
-
-        lane = self.get_conversation_status()
         if lane.get("conversation_ready"):
             return False
 
@@ -1159,12 +1231,11 @@ class InferenceGate:
         lane_state = str(lane.get("state", "") or "").strip().lower()
         if not lane.get("conversation_ready") and lane_state == "failed":
             return "cortex_failed"
+        if self._safe_boot_background_guard_active():
+            return "cortex_startup_quiet"
+        if self._desktop_safe_boot_enabled() and not self._desktop_background_local_enabled():
+            return "desktop_background_disabled"
         if self._desktop_safe_boot_enabled() and not lane.get("conversation_ready"):
-            startup_guard_secs = float(os.environ.get("AURA_SAFE_BOOT_BACKGROUND_GUARD_SECS", "180"))
-            startup_age = time.monotonic() - self._created_at
-            if startup_age < startup_guard_secs:
-                if lane_state in {"cold", "spawning", "handshaking", "warming", "recovering", "failed"}:
-                    return "cortex_startup_quiet"
             if self._background_memory_pressure_active():
                 if lane_state in {"cold", "spawning", "handshaking", "warming", "recovering", "failed"}:
                     return "memory_pressure"
@@ -1315,9 +1386,15 @@ class InferenceGate:
         deep_handoff: bool,
         is_background: bool,
     ) -> bool:
-        # [RESTORED] Always use the full ContextAssembler identity to prevent
-        # generic "assistant-speak" and preserve Aura's true persona.
-        return False
+        if is_background:
+            return False
+        # User-facing live turns need the identity-rich foreground prompt, but
+        # not an unbounded replay of the entire assembled context stack. The
+        # compact foreground builders preserve Aura's voice and continuity
+        # anchors while keeping the conversational lane inside a sane latency
+        # envelope. Headless harnesses already exercise this path; live chat
+        # should not silently opt out of it.
+        return cls._origin_is_user_facing(origin)
 
     @classmethod
     def _default_max_tokens_for_request(
@@ -1553,6 +1630,23 @@ class InferenceGate:
                 user_facing=is_user_visible,
             )
             if integrity.retryable:
+                integrity_reasons = set(integrity.reasons or ())
+                if (
+                    is_user_visible
+                    and _should_pass_user_facing_draft_downstream(
+                        cleaned,
+                        integrity_reasons,
+                        user_prompt=user_input_for_eval,
+                    )
+                ):
+                    logger.warning(
+                        "🛡️ %s produced repairable user-facing draft shape (%s, len=%d). "
+                        "Passing it to downstream chat repair instead of retrying the Cortex lane.",
+                        label,
+                        ",".join(integrity.reasons) or "unknown",
+                        len(cleaned),
+                    )
+                    return self._strip_silence(cleaned)
                 logger.warning(
                     "🛡️ %s produced malformed model text (%s, len=%d). Treating it as failed generation.",
                     label,
@@ -1563,6 +1657,22 @@ class InferenceGate:
             if is_user_visible:
                 assessment = assess_user_facing_reply(user_input_for_eval, cleaned)
                 if assessment.retryable:
+                    reasons = set(assessment.reasons or ())
+                    if (
+                        _should_pass_user_facing_draft_downstream(
+                            cleaned,
+                            reasons,
+                            user_prompt=user_input_for_eval,
+                        )
+                    ):
+                        logger.warning(
+                            "🛡️ %s produced repairable user-facing draft (%s, len=%d). "
+                            "Passing it to downstream chat repair instead of retrying the Cortex lane.",
+                            label,
+                            ",".join(assessment.reasons) or "unknown",
+                            len(cleaned),
+                        )
+                        return self._strip_silence(cleaned)
                     logger.warning(
                         "🛡️ %s produced an unsafe user-facing draft (%s, len=%d). Treating it as failed generation.",
                         label,
@@ -2633,6 +2743,11 @@ class InferenceGate:
                         "⏸️ InferenceGate: Foreground quiet window active. Deferring background inference for origin=%s.",
                         origin,
                     )
+                elif background_deferral == "desktop_background_disabled":
+                    logger.info(
+                        "⏸️ InferenceGate: Desktop background local LLM disabled. Deferring background inference for origin=%s.",
+                        origin,
+                    )
                 else:
                     logger.info(
                         "⏸️ InferenceGate: Foreground lane reserved. Deferring background inference for origin=%s.",
@@ -2765,7 +2880,11 @@ class InferenceGate:
         # loop for 3-5+ seconds on large prompts.  Fix: offload to thread
         # pool, and skip entirely for background/autonomous requests.
         _trust_guidance = ""
-        _is_bg_request = bool(context.get("is_background", False))
+        # Use the fully resolved routing classification, not merely whether the
+        # caller explicitly stamped `is_background`. Origin-derived background
+        # work such as `origin="system"` must not pay the foreground trust-gate
+        # cost or get re-promoted back into the protected Cortex lane.
+        _is_bg_request = bool(is_background)
         if deep_probe_request and not _is_bg_request:
             # Deep self-report probes are foreground conversation checks, not
             # authentication attempts or tool requests.  Running the PBKDF2
@@ -2788,10 +2907,20 @@ class InferenceGate:
                 # [STABILITY v58] Force Primary 32B lane for all human-interaction tiers.
                 # No brainstem fallbacks for Sovereign, Trusted, or Guest users.
                 if _trust_level in (TrustLevel.SOVEREIGN, TrustLevel.TRUSTED, TrustLevel.GUEST):
-                    protected_foreground_lane = True
+                    # Trust should keep ordinary conversation on the primary
+                    # Cortex lane, but it must not turn an explicitly deep
+                    # request into an untouchable 72B allocation when headroom
+                    # policy says to downgrade. Preserve safety downgrades for
+                    # secondary handoffs.
                     if requested_tier != "secondary":
+                        protected_foreground_lane = True
                         requested_tier = "primary"
-                    logger.info("🎭 %s user recognized. Enforcing primary cortex lane (32B).", _trust_level.name)
+                        logger.info("🎭 %s user recognized. Enforcing primary cortex lane (32B).", _trust_level.name)
+                    else:
+                        logger.info(
+                            "🎭 %s user recognized. Keeping the explicit secondary handoff eligible for normal headroom checks.",
+                            _trust_level.name,
+                        )
                 
                 # Inject trust level into state for ContextAssembler visibility
                 if hasattr(state, "cognition") and hasattr(state.cognition, "modifiers"):
@@ -3083,6 +3212,30 @@ class InferenceGate:
                 record_degradation('inference_gate', _fe_e)
                 logger.debug("FreeEnergy tier nudge unavailable: %s", _fe_e)
 
+        # Ordinary live conversation must not collapse into a starvation budget
+        # after affective / homeostatic modulation. Explicit caller caps still
+        # win, as do hard resource-stakes blocks and deep-probe turns.
+        if (
+            not is_background
+            and self._origin_is_user_facing(origin)
+            and requested_tier in {"primary", "secondary"}
+            and "max_tokens" not in context
+            and not bool(context.get("resource_stakes_blocked", False))
+            and not deep_probe_request
+        ):
+            foreground_floor = max(
+                384,
+                int(os.environ.get("AURA_FOREGROUND_CHAT_MIN_TOKENS", "1024")),
+            )
+            if max_tokens < foreground_floor:
+                logger.info(
+                    "🧠 Foreground chat token floor raised budget %d→%d for origin=%s.",
+                    max_tokens,
+                    foreground_floor,
+                    origin or "unknown",
+                )
+                max_tokens = foreground_floor
+
         if deep_probe_request and not is_background:
             probe_token_cap = int(os.environ.get("AURA_DEEP_PROBE_MAX_TOKENS", "384"))
             max_tokens = min(max_tokens, max(128, probe_token_cap))
@@ -3234,6 +3387,7 @@ class InferenceGate:
         )
 
         _is_user_facing = self._origin_is_user_facing(origin) or requested_tier == "primary"
+        protected_deep_fallback = False
 
         # 1. Try the selected local brain.
         if self._mlx_client:
@@ -3268,7 +3422,8 @@ class InferenceGate:
                         restore_primary = True
 
                     protected_deep_fallback = bool(
-                        protected_foreground_lane
+                        bool(context.get("allow_deep_fallback", False))
+                        and deep_probe_request
                         and _is_user_facing
                         and requested_tier == "primary"
                     )

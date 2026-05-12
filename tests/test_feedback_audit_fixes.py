@@ -110,6 +110,28 @@ def test_integrity_guardian_parse_git_status_paths_handles_renames():
     assert paths == {"core/old_name.py", "core/new_name.py"}
 
 
+def test_integrity_guardian_rebuilds_legacy_manifest_when_source_revision_changes(monkeypatch, tmp_path):
+    from core.security import integrity_guardian as ig_mod
+
+    manifest_path = tmp_path / "integrity_manifest.json"
+    monkeypatch.setattr(ig_mod, "MANIFEST_PATH", manifest_path)
+    guardian = ig_mod.IntegrityGuardian()
+    files = {"core/security/emergency_protocol.py": "old"}
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "files": files,
+                "signature": guardian._sign_manifest(files),
+                "source_revision": "old-revision",
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(guardian, "_current_source_revision", lambda: "new-revision")
+
+    assert guardian._load_manifest() is False
+
+
 def test_system_health_json_safe_coerces_numpy_scalars_and_arrays():
     np = pytest.importorskip("numpy")
     from interface.routes.system import _json_safe

@@ -165,6 +165,13 @@ class EmailAdapterSkill(BaseSkill):
                 return await self._handle_search(params)
             else:
                 return {"ok": False, "error": f"Unsupported email mode: {params.mode}"}
+        except RuntimeError as e:
+            if "credentials not found" in str(e).lower():
+                logger.info("EmailAdapter idle: credentials are not configured.")
+                return {"ok": False, "status": "credentials_missing", "error": str(e)}
+            record_degradation('email_adapter', e)
+            logger.error("Email operation failed: %s", e)
+            return {"ok": False, "error": str(e)}
         except Exception as e:
             record_degradation('email_adapter', e)
             logger.error("Email operation failed: %s", e)
@@ -284,7 +291,7 @@ class EmailAdapterSkill(BaseSkill):
                 mail.login(addr, pwd)
                 mail.select("INBOX")
 
-                status, msg_data = mail.fetch(params.uid.encode(), "(RFC822)")
+                status, msg_data = mail.fetch(params.uid.encode(), "(BODY.PEEK[])")
                 if status != "OK" or msg_data[0] is None:
                     return None
 

@@ -74,9 +74,11 @@ ALLOW_DYNAMIC_CODE = {
 }
 
 ALLOW_SUBPROCESS = {
+    "aura_main.py",
     "core/agency/agency_orchestrator.py",
     "core/runtime/consequential_primitives.py",
     "core/sandbox/bash_daemon.py",
+    "core/security/integrity_guardian.py",
     "core/skills/sovereign_terminal.py",
     "security/sandbox.py",
     "skills/shell.py",

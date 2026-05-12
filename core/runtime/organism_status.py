@@ -18,6 +18,61 @@ def _canonical_self_version(current: Any) -> Optional[int]:
         return None
 
 
+_USER_FACING_STATUS_ORIGINS = {
+    "user",
+    "api",
+    "chat",
+    "desktop",
+    "gui",
+    "voice",
+    "web",
+    "websocket",
+    "ws",
+    "direct",
+    "external",
+}
+
+
+def _is_user_facing_status_origin(origin: Any) -> bool:
+    normalized = str(origin or "").strip().lower().replace("-", "_")
+    if not normalized:
+        return False
+    tokens = {token for token in normalized.split("_") if token}
+    return normalized in _USER_FACING_STATUS_ORIGINS or bool(tokens & _USER_FACING_STATUS_ORIGINS)
+
+
+def _looks_like_stale_user_prompt(text: str) -> bool:
+    lowered = text.lower()
+    if not text:
+        return False
+    if "?" in text and any(marker in lowered for marker in ("aura", "you", "your", "what", "why", "how", "can ", "could ", "please")):
+        return True
+    return len(text) > 120 and any(
+        marker in lowered
+        for marker in (
+            "what is actually on your mind",
+            "tell me",
+            "answer like",
+            "why does",
+            "can you",
+            "could you",
+        )
+    )
+
+
+def _clean_current_intention_for_status(intention: Any, live_objective: Any = "", live_origin: Any = "") -> str:
+    text = " ".join(str(intention or "").split())
+    objective = " ".join(str(live_objective or "").split())
+    if objective and not _is_user_facing_status_origin(live_origin):
+        return objective[:260]
+    lowered = text.lower()
+    if not text:
+        return ""
+    if "[referential anchor]" in lowered or len(text) > 320 or _looks_like_stale_user_prompt(text):
+        return "idle"
+    return text[:260]
+
+
 def get_organism_status(orchestrator: Any = None) -> Dict[str, Any]:
     orch = orchestrator or resolve_orchestrator(default=None)
     repo = resolve_state_repository(orch, default=None)
@@ -47,7 +102,11 @@ def get_organism_status(orchestrator: Any = None) -> Dict[str, Any]:
 
     current_intention = ""
     if canonical_self is not None:
-        current_intention = str(getattr(canonical_self, "current_intention", "") or "")
+        current_intention = _clean_current_intention_for_status(
+            getattr(canonical_self, "current_intention", "") or "",
+            str(getattr(cognition, "current_objective", "") or "") if cognition is not None else "",
+            str(getattr(cognition, "current_origin", "") or "") if cognition is not None else "",
+        )
     identity_name = ""
     if canonical_self is not None:
         identity_name = str(getattr(getattr(canonical_self, "identity", None), "name", "") or "")

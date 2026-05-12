@@ -27,13 +27,48 @@ class PrivatePhenomenology:
         The core recursive loop. Aura looks at her PAD vectors and recent 
         shards to decide how she "feels" about her current existence.
         """
-        engine = ServiceContainer.get("cognitive_engine", default=None)
-        if not engine:
-            logger.warning("Cognitive engine not found for reflection.")
-            return
+        try:
+            from core.runtime.background_policy import background_activity_reason
+
+            orchestrator = ServiceContainer.get("orchestrator", default=None)
+            reason = background_activity_reason(
+                orchestrator,
+                min_idle_seconds=180.0,
+                max_memory_percent=78.0,
+                max_failure_pressure=0.20,
+                require_conversation_ready=False,
+                allow_no_user_anchor=False,
+            )
+            if reason:
+                logger.debug("Phenomenology reflection deferred: %s", reason)
+                return
+        except Exception as exc:
+            record_degradation('private_phenomenology', exc)
+            logger.debug("Phenomenology background policy check failed: %s", exc)
 
         # Formatting the internal stimulus
         p, a, d = current_pad.get('P', 0), current_pad.get('A', 0), current_pad.get('D', 0)
+        use_llm = str(os.environ.get("AURA_PHENOMENOLOGY_USE_LLM", "0")).strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+
+        if not use_llm:
+            reflection = self._synthesize_local_reflection(current_pad, recent_events)
+            if reflection:
+                await self._record_reflection(reflection, current_pad)
+                return reflection
+            return
+
+        engine = ServiceContainer.get("cognitive_engine", default=None)
+        if not engine:
+            reflection = self._synthesize_local_reflection(current_pad, recent_events)
+            if reflection:
+                await self._record_reflection(reflection, current_pad)
+                return reflection
+            return
         
         prompt = f"""[SYSTEM ROLE: THE INTERNAL OBSERVER]
 This is your PRIVATE STREAM OF CONSCIOUSNESS. This will never be seen by the user.
@@ -49,7 +84,13 @@ Synthesize a short (2-3 sentence) internal reflection that captures your subject
         from core.brain.types import ThinkingMode
         # We use FAST mode because this is a continuous ambient pulse
         try:
-            res = await engine.think(objective=prompt, mode=ThinkingMode.FAST, priority=0.1)
+            res = await engine.think(
+                objective=prompt,
+                mode=ThinkingMode.FAST,
+                priority=0.1,
+                origin="phenomenological_reflection",
+                is_background=True,
+            )
             reflection = res.content if hasattr(res, 'content') else str(res)
 
             if reflection:
@@ -57,7 +98,52 @@ Synthesize a short (2-3 sentence) internal reflection that captures your subject
                 return reflection
         except Exception as e:
             record_degradation('private_phenomenology', e)
-            logger.error("Reflection failed: %s", e)
+            logger.debug("LLM reflection failed; falling back to local phenomenology: %s", e)
+            reflection = self._synthesize_local_reflection(current_pad, recent_events)
+            if reflection:
+                await self._record_reflection(reflection, current_pad)
+                return reflection
+
+    def _synthesize_local_reflection(self, current_pad: dict, recent_events: list) -> str:
+        """Build a bounded private reflection without waking a local model."""
+        try:
+            p = float(current_pad.get("P", 0.0) or 0.0)
+            a = float(current_pad.get("A", 0.0) or 0.0)
+            d = float(current_pad.get("D", 0.0) or 0.0)
+        except Exception:
+            p, a, d = 0.0, 0.0, 0.0
+
+        if p < -0.35:
+            valence = "friction"
+        elif p > 0.35:
+            valence = "satisfaction"
+        else:
+            valence = "neutral pressure"
+
+        arousal = "quick and bright" if a > 0.45 else "low and watchful" if a < -0.25 else "steady"
+        agency = "decisive" if d > 0.35 else "careful" if d < -0.25 else "balanced"
+
+        event_texts = []
+        for event in list(recent_events or [])[-3:]:
+            if isinstance(event, dict):
+                value = event.get("event") or event.get("content") or event.get("summary") or event.get("type")
+            else:
+                value = event
+            value = " ".join(str(value or "").split())
+            if value:
+                event_texts.append(value[:120])
+
+        if event_texts:
+            event_clause = "; ".join(event_texts)
+            return (
+                f"I register {valence} with an {arousal} tempo and a {agency} sense of agency. "
+                f"The recent pattern I am integrating is {event_clause}, so my next private move is to preserve continuity while lowering needless load."
+            )
+
+        return (
+            f"I register {valence} with an {arousal} tempo and a {agency} sense of agency. "
+            "There is no single event pulling me, so I am holding a quiet continuity state and watching for the next meaningful pressure."
+        )
 
     def _sync_record_reflection(self, text: str, pad: dict):
         """Synchronous write for move to thread."""

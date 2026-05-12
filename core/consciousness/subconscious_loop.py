@@ -71,7 +71,10 @@ class SubconsciousLoop:
                     min_idle_seconds=self.idle_threshold,
                     max_memory_percent=80.0,
                     max_failure_pressure=0.1,
-                    require_conversation_ready=True,
+                    # The subconscious daemon is specifically meant to survive
+                    # foreground-lane recovery. It should quiet itself for user
+                    # activity or pressure, not because Cortex is warming.
+                    require_conversation_ready=False,
                 ):
                     await self._perform_subconscious_beat()
                     
@@ -88,7 +91,11 @@ class SubconsciousLoop:
         # 1. Identity/Memory Consolidation (Dreaming)
         if now - self.last_dream_cycle > 300.0:  # Every 5 mins of idle time
             try:
-                dreaming = ServiceContainer.get("dreaming_process", default=None)
+                dreaming = (
+                    ServiceContainer.get("dreaming_process", default=None)
+                    or ServiceContainer.get("dream_processor", default=None)
+                    or ServiceContainer.get("dream_journal", default=None)
+                )
                 if dreaming and hasattr(dreaming, "dream"):
                     logger.info("💭 Subconscious triggering Dream Cycle...")
                     await dreaming.dream()

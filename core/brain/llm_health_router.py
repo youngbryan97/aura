@@ -28,6 +28,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
+from core.runtime.desktop_boot_safety import desktop_safe_boot_enabled
 from core.utils.task_tracker import get_task_tracker
 from core.brain.llm.model_registry import (
     BRAINSTEM_ENDPOINT,
@@ -405,6 +406,7 @@ class HealthAwareLLMRouter:
         self.endpoints: Dict[str, EndpointHealth] = {}
         self.health_monitor = HealthMonitorShim(self)
         self._lock = RobustLock()
+        self._created_at = time.monotonic()
         self.high_pressure_mode: bool = False
         self.last_tier: str = "local"
         self.last_user_tier: str = "local"
@@ -1067,10 +1069,35 @@ class HealthAwareLLMRouter:
         except Exception:
             return False
 
-    @classmethod
-    def _cortex_startup_quiet_window_active(cls) -> bool:
-        """Block background local fallbacks while Cortex is still warming."""
-        if not cls._foreground_quiet_window_active():
+    def _safe_boot_background_guard_active(self) -> bool:
+        """Reserve launch headroom for foreground chat before waking spare local models."""
+        if not desktop_safe_boot_enabled():
+            return False
+        try:
+            guard_secs = float(os.environ.get("AURA_SAFE_BOOT_BACKGROUND_GUARD_SECS", "180"))
+        except Exception:
+            guard_secs = 180.0
+        if guard_secs <= 0:
+            return False
+        return (time.monotonic() - self._created_at) < guard_secs
+
+    @staticmethod
+    def _desktop_background_local_enabled() -> bool:
+        return str(os.environ.get("AURA_ENABLE_DESKTOP_BACKGROUND_LOCAL_LLM", "")).strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+
+    def _desktop_background_local_disabled(self) -> bool:
+        return desktop_safe_boot_enabled() and not self._desktop_background_local_enabled()
+
+    def _cortex_startup_quiet_window_active(self) -> bool:
+        """Block background local fallbacks while Cortex is still warming or launch headroom is reserved."""
+        if self._safe_boot_background_guard_active():
+            return True
+        if not self._foreground_quiet_window_active():
             return False
 
         try:
@@ -1315,18 +1342,11 @@ class HealthAwareLLMRouter:
         purpose = str(kwargs.get("purpose", "") or "").lower()
         explicit_background = bool(kwargs.get("is_background", False))
         requested_tier = self._normalize_prefer_tier(prefer_tier) if prefer_tier else None
-        implicit_foreground = (
-            not explicit_background
-            and not origin
-            and requested_tier in {"primary", "secondary"}
-        )
         is_bg = self._is_background_request(
             origin=origin,
             purpose=purpose,
             explicit_background=explicit_background,
         )
-        if implicit_foreground:
-            is_bg = False
         # Make the inferred lane explicit for the runtime client. The router
         # often knows an origin is background even when the caller did not set
         # ``is_background``; without stamping it here, a stale background
@@ -1587,13 +1607,18 @@ class HealthAwareLLMRouter:
                 is_bg
                 and ep.is_local
                 and self._tier_is_background_only(tier_name)
-                and self._cortex_startup_quiet_window_active()
+                and (self._desktop_background_local_disabled() or self._cortex_startup_quiet_window_active())
             ):
-                last_error = "foreground_quiet_window"
+                last_error = (
+                    "desktop_background_local_disabled"
+                    if self._desktop_background_local_disabled()
+                    else "foreground_quiet_window"
+                )
                 self.last_background_error = last_error
                 logger.info(
-                    "⏸️ Router: Deferring background local endpoint %s while Cortex is still warming.",
+                    "⏸️ Router: Deferring background local endpoint %s (%s).",
                     ep.name,
+                    last_error,
                 )
                 continue
             try:
@@ -1709,6 +1734,16 @@ class HealthAwareLLMRouter:
                     client = ep.client
                     raw_text = None
                     token_count = 0
+                    if hasattr(client, "is_available") and not bool(client.is_available()):
+                        availability_reason = ""
+                        if hasattr(client, "availability_reason"):
+                            try:
+                                availability_reason = str(client.availability_reason() or "")
+                            except Exception:
+                                availability_reason = ""
+                        availability_reason = availability_reason or "client_unavailable"
+                        ep.record_failure(availability_reason)
+                        return {"ok": False, "error": availability_reason}
                     client_failure = _local_client_failure_reason(client) if ep.is_local else ""
                     if client_failure:
                         if ep.is_local and _is_transient_local_runtime_failure(client_failure):
@@ -1948,7 +1983,8 @@ def build_router_from_config(config) -> HealthAwareLLMRouter:
             return self._client
             
         async def generate_text_async(self, prompt: str, **kwargs):
-            return await self._get_client().generate_text_async(prompt, **kwargs)
+            client = await asyncio.to_thread(self._get_client)
+            return await client.generate_text_async(prompt, **kwargs)
             
         def generate_text(self, prompt: str, **kwargs):
             return self._get_client().generate_text(prompt, **kwargs)

@@ -405,8 +405,11 @@ class SelfModel:
 
     def add_long_term_goal(self, goal_data: Dict[str, Any], source: str = "unknown") -> None:
         """Fallback implementation to accept new long-term goals."""
-        from core.utils.logging import get_logger
-        get_logger(__name__).info("SelfModel accepted long term goal from %s: %s", source, goal_data.get("text", ""))
+        logger.info(
+            "SelfModel accepted long term goal from %s: %s",
+            source,
+            goal_data.get("text", ""),
+        )
 
 
     def get_introspection(self) -> Dict[str, Any]:
@@ -435,4 +438,3 @@ class SelfModel:
             except (TypeError, ValueError):
                 pass  # no-op: intentional
         return status
-

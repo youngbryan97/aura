@@ -16,6 +16,7 @@ logger = logging.getLogger("Skills.SovereignNetwork")
 
 TCP_DISCOVERY_BATCH_SIZE = 16
 TCP_DISCOVERY_TIMEOUT_S = 0.35
+BACKGROUND_NETWORK_MIN_IDLE_S = 1800.0
 
 class NetworkInput(BaseModel):
     mode: str = Field("status", description="Mode: 'status', 'recon', 'scan', 'audit', 'discovery'")
@@ -37,6 +38,7 @@ class SovereignNetworkSkill(BaseSkill):
     
     async def execute(self, params: NetworkInput, context: Dict[str, Any]) -> Dict[str, Any]:
         """Unified entry point for all network activities."""
+        context = context or {}
         if isinstance(params, dict):
             try:
                 params = NetworkInput(**params)
@@ -46,6 +48,35 @@ class SovereignNetworkSkill(BaseSkill):
 
         mode = params.mode
         target = params.target
+        source = str(
+            context.get("origin")
+            or context.get("source")
+            or context.get("intent_source")
+            or context.get("request_origin")
+            or ""
+        ).strip().lower()
+        user_initiated = source in {"user", "api", "chat", "desktop", "voice", "web"}
+        if not user_initiated and mode in {"recon", "scan", "audit", "discovery"}:
+            try:
+                from core.runtime.background_policy import background_activity_reason
+
+                reason = background_activity_reason(
+                    context.get("orchestrator"),
+                    min_idle_seconds=BACKGROUND_NETWORK_MIN_IDLE_S,
+                    max_memory_percent=72.0,
+                    max_failure_pressure=0.20,
+                    require_conversation_ready=False,
+                )
+            except Exception as policy_exc:
+                record_degradation('sovereign_network', policy_exc)
+                reason = "background_policy_unavailable"
+            if reason:
+                return {
+                    "ok": False,
+                    "status": "deferred",
+                    "reason": reason,
+                    "message": f"Network {mode} deferred while foreground conversation is protected ({reason}).",
+                }
         
         try:
             if mode == "status":
@@ -205,13 +236,11 @@ class SovereignNetworkSkill(BaseSkill):
                     try:
                         await writer.wait_closed()
                     except Exception as close_exc:
-                        record_degradation('sovereign_network', close_exc)
                         logger.debug("TCP peer writer close failed for %s:%s: %s", host, first_port, close_exc)
                     return {"address": host, "rpc_port": first_port, "source": "tcp_connect"}
                 except asyncio.CancelledError:
                     raise
                 except Exception as e:
-                    record_degradation('sovereign_network', e)
                     logger.debug("TCP peer probe failed for %s:%s: %s", host, first_port, e)
                     return None
 
@@ -232,7 +261,7 @@ class SovereignNetworkSkill(BaseSkill):
                 if tracker is not None:
                     tasks.append(tracker.create_task(probe(host), name=task_name))
                 else:
-                    tasks.append(get_task_tracker().create_task(probe(host), name=task_name))
+                    tasks.append(asyncio.create_task(probe(host), name=task_name))
             try:
                 batch_results = await asyncio.gather(*tasks)
             except asyncio.CancelledError:
@@ -275,7 +304,6 @@ class SovereignNetworkSkill(BaseSkill):
             s.close()
             return ip
         except Exception as e:
-            record_degradation('sovereign_network', e)
             logger.debug("Primary IP discovery failed, defaulting to localhost: %s", e)
             return "127.0.0.1"
 
@@ -285,7 +313,6 @@ class SovereignNetworkSkill(BaseSkill):
             await asyncio.to_thread(socket.create_connection, ("8.8.8.8", 53), 3)
             return True
         except Exception as e:
-            record_degradation('sovereign_network', e)
             logger.debug("Internet connectivity check failed: %s", e)
             return False
 

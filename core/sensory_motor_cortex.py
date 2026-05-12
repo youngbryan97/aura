@@ -211,6 +211,15 @@ class SensoryMotorCortex:
 
         orch = self.orchestrator
         if orch is not None:
+            try:
+                from core.runtime.background_policy import _foreground_activity_reason
+
+                if _foreground_activity_reason():
+                    self.last_interaction_time = max(self.last_interaction_time, now)
+                    return False
+            except Exception:
+                pass
+
             status = getattr(orch, "status", None)
             if getattr(status, "is_processing", False):
                 self.last_interaction_time = max(self.last_interaction_time, now)

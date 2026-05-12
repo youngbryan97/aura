@@ -1,3 +1,5 @@
+import time
+
 import pytest
 
 from core.brain.llm.llm_router import IntelligentLLMRouter, LLMEndpoint, LLMTier
@@ -293,6 +295,33 @@ async def test_router_defers_background_local_runtime_during_foreground_quiet_wi
             origin="affect_engine",
             prefer_tier="tertiary",
         )
+
+    assert result is None
+    assert client.calls == []
+
+
+@pytest.mark.asyncio
+async def test_router_defers_background_local_runtime_during_safe_boot_guard(monkeypatch):
+    router = HealthAwareLLMRouter()
+    router._created_at = time.monotonic()
+    client = _KwargRecordingGenerateClient()
+    router.register(
+        name="Brainstem",
+        url="internal",
+        model="local-fast-test",
+        is_local=True,
+        tier="local_fast",
+        client=client,
+    )
+
+    monkeypatch.setattr("core.brain.llm_health_router.desktop_safe_boot_enabled", lambda: True)
+    monkeypatch.setenv("AURA_SAFE_BOOT_BACKGROUND_GUARD_SECS", "180")
+
+    result = await router.think(
+        prompt="Compress this internal affect appraisal.",
+        origin="affect_engine",
+        prefer_tier="tertiary",
+    )
 
     assert result is None
     assert client.calls == []

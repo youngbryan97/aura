@@ -79,6 +79,34 @@ async def test_cognitive_engine_suppresses_background_thoughts_when_background_p
 
 
 @pytest.mark.asyncio
+async def test_cognitive_engine_background_no_response_is_quiet_noop(monkeypatch):
+    engine = CognitiveEngine()
+    state = AuraState.default()
+    repo = SimpleNamespace(
+        get_current=AsyncMock(return_value=state),
+        commit=AsyncMock(),
+    )
+    engine.state_repository = repo
+    engine._phases = []
+
+    monkeypatch.setattr(
+        "core.runtime.background_policy.background_activity_reason",
+        lambda *args, **kwargs: "",
+    )
+
+    thought = await engine.think(
+        "I was curious about the host environment, so I initiated a system scan.",
+        mode=ThinkingMode.FAST,
+        origin="agency_core_environmental_explorer",
+        is_background=True,
+    )
+
+    assert thought.content == ""
+    assert thought.metadata["suppressed"] is True
+    assert "background_cycle_no_response" in thought.reasoning[0]
+
+
+@pytest.mark.asyncio
 async def test_cognitive_engine_resolves_missing_origin_from_orchestrator(monkeypatch):
     engine = CognitiveEngine()
     state = AuraState.default()

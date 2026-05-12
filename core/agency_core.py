@@ -35,6 +35,7 @@ from core.adaptation.abstraction_engine import AbstractionEngine
 from core.agency.self_play import ContinuousSelfPlay
 from core.agency.private_phenomenology import PrivatePhenomenology
 import asyncio
+import inspect
 import logging
 import time
 import random
@@ -180,6 +181,14 @@ CRITICAL: You MUST respond with a valid JSON object matching the following struc
                 shard_res = await structured_brain.generate(prompt, context=context)
             
             if not shard_res:
+                defer_reason = str(getattr(structured_brain, "last_defer_reason", "") or "")
+                if defer_reason:
+                    logger.info(
+                        "⏸️ Swarm: Shard %s deferred before generation (%s).",
+                        shard_id,
+                        defer_reason,
+                    )
+                    return
                 logger.error("💀 Swarm: Shard %s failed to generate valid response after retries. Applying fallback logic.", shard_id)
                 # Apply fallback instead of silent death to avoid zombie state
                 shard_res = ShardResponse(
@@ -337,7 +346,10 @@ CRITICAL: You MUST respond with a valid JSON object matching the following struc
                     get_task_tracker().create_task(crucible.run_crucible(concept=output_text, context=goal))
                 except Exception as e:
                     record_degradation('agency_core', e)
-                    identity = ServiceContainer.get("identity", default=None)
+                    identity = (
+                        ServiceContainer.get("identity_service", default=None)
+                        or ServiceContainer.get("identity", default=None)
+                    )
                     if identity:
                         identity.add_insight(
                             f"Shard reflection on goal: {output_text}",
@@ -353,6 +365,22 @@ CRITICAL: You MUST respond with a valid JSON object matching the following struc
         except Exception as e:
             record_degradation('agency_core', e)
             capture_and_log(e, {'module': 'SovereignSwarm', 'goal': goal})
+
+    async def _active_self_repair_formatting(self, shard_id: str, goal: str) -> None:
+        """Record a formatting repair request without cascading into another failure."""
+        try:
+            from core.health.degraded_events import record_degraded_event
+
+            record_degraded_event(
+                "agency_core",
+                "swarm_formatting_repair_requested",
+                detail=f"{shard_id}:{str(goal)[:160]}",
+                severity="warning",
+                classification="background_degraded",
+                context={"shard_id": shard_id, "goal": str(goal)[:240]},
+            )
+        except Exception as exc:
+            record_degradation("agency_core", exc)
 
 # ── Data Structures ──────────────────────────────────────────
 
@@ -424,6 +452,7 @@ class AgencyCore:
         self.abstraction_engine = AbstractionEngine()
         self.self_play_engine = ContinuousSelfPlay(idle_threshold_seconds=1800)
         self.last_interaction_timestamp = time.time()
+        self.state.last_user_interaction = self.last_interaction_timestamp
         self.phenomenology = PrivatePhenomenology()
         
         # Phase 9: Meta-Cognition Shard
@@ -992,7 +1021,8 @@ class AgencyCore:
             goal["created_at"] = time.time()
             goal["status"] = "pending"
             self.state.pending_goals.append(goal)
-            logger.info("🎯 New persistent goal: %s", goal.get("description", "")[:60])
+            goal_label = str(goal.get("text") or goal.get("description") or "")
+            logger.info("🎯 New persistent goal: %s", goal_label[:60])
             return True
         return False
 
@@ -1230,7 +1260,7 @@ class AgencyCore:
         try:
             from core.moral_reasoning import get_moral_reasoning
             moral = get_moral_reasoning()
-            assessment = moral.reason_about_action(
+            assessment = await moral.reason_about_action(
                 {"type": "autonomous_goal", "description": goal_text},
                 {"affected_selves": ["self", "user"]}
             )
@@ -1249,7 +1279,10 @@ class AgencyCore:
             logger.debug("Goal audit failed (continuing with caution): %s", e)
 
         # 1. Goal Scoring: Align with Ego-Model
-        identity = ServiceContainer.get("identity", default=None)
+        identity = (
+            ServiceContainer.get("identity_service", default=None)
+            or ServiceContainer.get("identity", default=None)
+        )
         if identity and hasattr(identity, 'score_goal'):
             alignment_score = identity.score_goal(goal_text)
             priority = (priority + alignment_score) / 2
@@ -1577,7 +1610,10 @@ class AgencyCore:
         if idle_seconds < 300:
             return None
             
-        identity = ServiceContainer.get("identity", default=None)
+        identity = (
+            ServiceContainer.get("identity_service", default=None)
+            or ServiceContainer.get("identity", default=None)
+        )
         if not identity:
             return None
             
@@ -1875,7 +1911,10 @@ class AgencyCore:
         if since_last < 43200: # 12 hours
             return None
             
-        identity = self._resolve_component("identity")
+        identity = (
+            ServiceContainer.get("identity_service", default=None)
+            or self._resolve_component("identity")
+        )
         if not identity or not hasattr(identity, "state") or not identity.state.kinship:
             logger.debug("🧠 AgencyCore: Social reflection skipped — identity or kinship data missing.")
             return None
@@ -1891,8 +1930,14 @@ class AgencyCore:
         memory = ServiceContainer.get("memory_facade", default=None)
         memory_context = ""
         if memory and hasattr(memory, "search"):
-            # Offload CPU-bound vector search to prevent micro-stutters
-            results = await asyncio.to_thread(memory.search, f"{kin_name} user interaction highlights", limit=5)
+            search_query = f"{kin_name} user interaction highlights"
+            search_fn = memory.search
+            if inspect.iscoroutinefunction(search_fn):
+                results = await search_fn(search_query, limit=5)
+            else:
+                results = await asyncio.to_thread(search_fn, search_query, limit=5)
+                if inspect.isawaitable(results):
+                    results = await results
             if results:
                 found_texts = [r.get("text", "") for r in results if r.get("text")]
                 if found_texts:
@@ -2017,7 +2062,10 @@ class AgencyCore:
             
         self._last_creative_synthesis = now
         
-        identity = ServiceContainer.get("identity", default=None)
+        identity = (
+            ServiceContainer.get("identity_service", default=None)
+            or ServiceContainer.get("identity", default=None)
+        )
         kg = ServiceContainer.get("knowledge_graph", default=None)
         
         if not identity or not kg:
@@ -2058,7 +2106,10 @@ class AgencyCore:
             
         self._last_meta_audit = now
         
-        identity = ServiceContainer.get("identity", default=None)
+        identity = (
+            ServiceContainer.get("identity_service", default=None)
+            or ServiceContainer.get("identity", default=None)
+        )
         try:
             from core.moral_reasoning import get_moral_reasoning
             moral = get_moral_reasoning()
@@ -2072,7 +2123,7 @@ class AgencyCore:
         # Audit pending goals
         audit_results = []
         for goal in self.state.pending_goals:
-            res = moral.reason_about_action(
+            res = await moral.reason_about_action(
                 {"type": "goal_review", "description": goal.get("text")},
                 {"affected_selves": ["self", "user"]}
             )

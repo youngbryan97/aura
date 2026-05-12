@@ -88,6 +88,10 @@ class RuntimeHygieneManager:
         self.memory_growth_window = 6
         self.memory_growth_min_delta_mb = 128.0
         self.memory_growth_ratio = 0.12
+        self.model_activity_grace_s = max(
+            0.0,
+            float(os.getenv("AURA_RUNTIME_HYGIENE_MODEL_GRACE_S", "120") or 120.0),
+        )
         self.stale_thread_age_s = 900.0
         self.stale_task_age_s = 900.0
         self.process_shutdown_timeout_s = 1.0
@@ -611,6 +615,7 @@ class RuntimeHygieneManager:
 
     def _active_local_model_activity(self) -> List[str]:
         active: List[str] = []
+        now = time.time()
         registries = (
             ("core.brain.llm.mlx_client", "_CLIENTS"),
             ("core.brain.llm.local_server_client", "_SERVER_CLIENTS"),
@@ -638,6 +643,19 @@ class RuntimeHygieneManager:
                     "recovering",
                 }:
                     active.append(f"{os.path.basename(str(client_path))}:{state or 'active'}")
+                    continue
+
+                recent_activity_at = max(
+                    float(lane.get("last_ready_at", 0.0) or 0.0),
+                    float(lane.get("last_progress_at", 0.0) or 0.0),
+                    float(lane.get("last_transition_at", 0.0) or 0.0),
+                )
+                if (
+                    self.model_activity_grace_s > 0.0
+                    and recent_activity_at > 0.0
+                    and (now - recent_activity_at) <= self.model_activity_grace_s
+                ):
+                    active.append(f"{os.path.basename(str(client_path))}:recent")
         return active
 
     def _count_child_processes(self) -> int:
@@ -680,11 +698,19 @@ class RuntimeHygieneManager:
                 continue
             if not thread.is_alive():
                 continue
+            if thread.ident == threading.get_ident():
+                continue
             try:
-                await asyncio.to_thread(thread.join, self.thread_join_timeout_s)
+                await asyncio.to_thread(self._join_thread_if_not_current, thread, self.thread_join_timeout_s)
             except Exception as exc:
                 record_degradation('runtime_hygiene', exc)
                 logger.debug("RuntimeHygiene: thread join failed: %s", exc)
+
+    @staticmethod
+    def _join_thread_if_not_current(thread: threading.Thread, timeout_s: float) -> None:
+        if thread.ident == threading.get_ident():
+            return
+        thread.join(timeout_s)
 
 
 _runtime_hygiene: Optional[RuntimeHygieneManager] = None

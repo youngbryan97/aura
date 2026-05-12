@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional
 
 from core.conversation.response_reliability import (
     assess_user_facing_reply,
-    reliability_floor_for_user,
+    live_chat_diagnostic_floor,
 )
 
 logger = logging.getLogger("Aura.Conversation")
@@ -153,6 +153,10 @@ def _direct_answer_floor(user_message: str) -> str:
     if not lower:
         return ""
 
+    diagnostic = live_chat_diagnostic_floor(q)
+    if diagnostic:
+        return diagnostic
+
     expr_match = re.search(r"what\s+is\s+([0-9][0-9\s+\-*/().^]*[0-9])\s*\??$", lower)
     if expr_match:
         expr = expr_match.group(1).replace("^", "**")
@@ -198,6 +202,13 @@ def _direct_answer_floor(user_message: str) -> str:
         return "Python, JavaScript, and Rust."
     if "translate" in lower and "good morning" in lower and "spanish" in lower:
         return "Buenos días."
+
+    if "friendship" in lower and any(marker in lower for marker in ("messy", "hard", "difficult")):
+        return (
+            "What makes it real is repair. Not perfect ease, not constant agreement, "
+            "but whether both people can tell the truth, stay present through awkwardness, "
+            "and come back with more care instead of less."
+        )
 
     return ""
 
@@ -274,9 +285,16 @@ def stabilize_user_facing_response(text: str, user_message: str = "") -> str:
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
     assessment = assess_user_facing_reply(user_message, cleaned)
     if assessment.retryable:
-        floor = reliability_floor_for_user(user_message)
-        if floor:
-            return floor
+        preserve_substantive_soft_failure = bool(
+            not assessment.hard_failure
+            and len(cleaned) >= 80
+            and len(cleaned.split()) >= 12
+            and "off_topic_self_reflection_reply" not in assessment.reasons
+        )
+        if not preserve_substantive_soft_failure:
+            floor = deterministic_user_facing_floor(user_message)
+            if floor:
+                return floor
     low_signal = bool(_LOW_SIGNAL_REPLY_RE.fullmatch(cleaned or ""))
     broken_lane = bool(_BROKEN_LANE_REPLY_RE.search(cleaned or ""))
     corrupted_language = False

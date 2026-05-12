@@ -46,17 +46,29 @@ class CodingSkill(BaseSkill):
                 return {"ok": False, "error": "Cognitive engine unavailable for coding_skill."}
 
             # We pass a highly specific prompt that triggers the coding tier in local_llm
-            result = await self.brain.generate(
+            raw_result = await self.brain.generate(
                 prompt=f"Task: {task}",
                 system_prompt=system_prompt,
-                options={"num_predict": 4096, "num_ctx": 16384, "temperature": 0.2}
+                origin=str(context.get("origin") or "api"),
+                purpose="coding",
+                prefer_tier="primary",
+                deep_handoff=bool(context.get("deep_handoff", False)),
+                max_tokens=int(context.get("max_tokens", 4096) or 4096),
+                temperature=float(context.get("temperature", 0.2) or 0.2),
+                use_strategies=True,
             )
+            if isinstance(raw_result, dict):
+                code = str(raw_result.get("response") or raw_result.get("text") or "")
+                thought = str(raw_result.get("thought") or raw_result.get("thought_process") or "")
+            else:
+                code = str(raw_result or "")
+                thought = ""
             
             return {
                 "ok": True,
-                "code": result.get("response", ""),
-                "thought_process": result.get("thought", ""),
-                "note": "Generated with thought circulation"
+                "code": code,
+                "thought_process": thought,
+                "note": "Generated through foreground coding reasoning",
             }
         except Exception as e:
             record_degradation('coding_skill', e)

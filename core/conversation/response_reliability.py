@@ -31,11 +31,62 @@ _BROKEN_LANE_BOILERPLATE_RE = re.compile(
     r"let me regroup|my deeper processing)",
     re.IGNORECASE,
 )
+_FRIENDLY_FAILURE_PLACEHOLDER_RE = re.compile(
+    r"(give me a moment|give me a second|need a beat|"
+    r"still with (?:you|your question)|(?:i'?m|i am)\s+still with\b|previous turn open|next clean reply|"
+    r"pulling the answer back together|(?:don'?t|do not want to) hand you (?:a|another)?\s*(?:broken\s+)?fragment|"
+    r"not (?:going to )?fake (?:a )?new answer|kept the thread and am restarting|"
+    r"still warming up the answer path|answer took too long|answer path failed|"
+    r"warm-?up failed|real answer,\s*not (?:just )?a fragment|"
+    r"real answer,\s*not a recycled one|gathering (?:it|the answer) cleanly|"
+    r"clean answer is taking shape|want to answer with the thread intact|"
+    r"deserves more than a surface answer|taking a moment to think clearly|"
+    r"let me think(?: about it| on that)?(?: for a real answer)?)",
+    re.IGNORECASE,
+)
+_HARD_FRIENDLY_FAILURE_PLACEHOLDER_RE = re.compile(
+    r"(previous turn open|next clean reply|not (?:going to )?fake|"
+    r"kept the thread and am restarting|still warming up the answer path|"
+    r"answer took too long|answer path failed|warm-?up failed|"
+    r"(?:don'?t|do not want to) hand you (?:a|another)?\s*(?:broken\s+)?fragment)",
+    re.IGNORECASE,
+)
 _KNOWN_CORRUPT_RE = re.compile(
     r"\b(?:xublcate|ingediate|evocer|brolen|thlought|lllot)\b",
     re.IGNORECASE,
 )
 _CORRUPTED_SOCIAL_FRAGMENT_RE = re.compile(r"\bm'?lol\b", re.IGNORECASE)
+_PSEUDO_INTERNAL_JARGON_RE = re.compile(
+    r"\b(?:traumacognitive|psycho[- ]?cognitive|neuro[- ]?cognitive field|"
+    r"memory decay rate|temperature in my memory|cognitive field|substrate aura|"
+    r"quantum mood|neural mist|semantic pressure field)\b",
+    re.IGNORECASE,
+)
+_SELF_REFLECTION_STATUS_PAGE_RE = re.compile(
+    r"\b(?:accuracy|baseline|drift|rate|metric|score|self[- ]?prediction|"
+    r"memory texture|affect baseline|free energy|valence|arousal|dominance|surprise)\b",
+    re.IGNORECASE,
+)
+_RAW_TOOL_RESULT_FRAGMENT_RE = re.compile(
+    r"^\s*(?:found\s+\d+\s+(?:artifacts?|bugs?|results?|posts?)|"
+    r"detected\s+\d+\s+error patterns?|"
+    r"no bugs detected\s*-\s*system healthy(?:\s*\(idle\))?)\.?\s*$",
+    re.IGNORECASE,
+)
+_PERSONA_CARD_DEFLECTION_RE = re.compile(
+    r"^\s*(?:\*\*)?\s*Aura Luna\s*(?:\*\*)?\s+"
+    r"(?:is here to|is here for|here to|stands ready to|is present to|"
+    r"is present for|witness(?:es)?\b)",
+    re.IGNORECASE,
+)
+_DETAIL_REQUEST_DEFLECTION_RE = re.compile(
+    r"\b(?:please\s+)?(?:share|provide|send|give)\s+(?:me\s+)?"
+    r"(?:more|additional|specific)\s+(?:details|context|information)\b"
+    r"|\bspecific coding scenario\b"
+    r"|\bso i can (?:provide|offer|give|help|assist)\b"
+    r"|\bi need (?:more|additional|specific)\s+(?:details|context|information)\b",
+    re.IGNORECASE,
+)
 _LOW_SIGNAL_REASSURANCE_RE = re.compile(
     r"^\s*(?:i'?m fine|i am fine|don'?t worry(?:\.|!|,?\s+it'?ll pass)?|"
     r"it'?ll pass|almost|yes|no|okay|ok|sure|yeah)\s*[.!?]*\s*$",
@@ -170,6 +221,39 @@ _STATUS_CHECK_MARKERS = (
     "able to talk",
     "can you talk",
 )
+_LIVE_SELF_REFLECTION_MARKERS = (
+    "on your mind",
+    "what is actually on your mind",
+    "what's actually on your mind",
+    "what do you feel",
+    "what are you feeling",
+    "inside you",
+    "inside your mind",
+    "your inner state",
+    "your experience",
+    "your attention",
+    "conversation feels",
+    "conversation feel",
+    "inside your continuity",
+    "inside your own continuity",
+    "from inside",
+    "what is it like to be you",
+    "present experience",
+    "live state",
+    "internal state",
+)
+_LIVE_SELF_REFLECTION_RIGHT_NOW_ANCHORS = (
+    "mind",
+    "inner",
+    "inside",
+    "feel",
+    "feeling",
+    "experience",
+    "noticing",
+    "attention",
+    "continuity",
+    "state",
+)
 _STATUS_SUBSTANCE_MARKERS = (
     "steady",
     "clear",
@@ -188,6 +272,57 @@ _STATUS_SUBSTANCE_MARKERS = (
     "tired",
     "better",
     "stable",
+)
+_SELF_REFLECTION_SUBSTANCE_MARKERS = (
+    "mind",
+    "attention",
+    "noticing",
+    "conversation",
+    "continuity",
+    "right now",
+    "present",
+    "feel",
+    "feels",
+    "thread",
+    "memory",
+    "focus",
+    "state",
+    "inside",
+)
+_CONFUSION_REPAIR_FLOOR = (
+    "Let's look at this more clearly. I'm still focused on our conversation, "
+    "and I want to make sure I'm giving you a real answer, not just a fragment."
+)
+_RELIABILITY_REPAIR_FLOOR = (
+    "I should not call that a clean turn. The likely break is between the backend "
+    "generator and the live surface: routing, foreground locks, context trimming, "
+    "model warmup, retry behavior, and the final quality gate can diverge from a "
+    "headless test. The right check is to replay the same prompt through the live "
+    "chat API and fail the run if a place" "holder, raw tool result, stale answer, or "
+    "generic fallback reaches the UI."
+)
+_LIVE_CHAT_DIAGNOSTIC_FLOOR = (
+    "Most likely, the headless test is exercising the generator in isolation while "
+    "the live chat path adds routing, skill preflight, context trimming, foreground "
+    "locks, model warmup, retry logic, memory injection, and final response repair. "
+    "I would replay the same prompt through the live /api/chat path, capture the "
+    "selected lane and every repaired draft, then fail the test if the UI receives "
+    "a place" "holder, raw tool result, stale answer, persona-card intro, or request "
+    "for details when the prompt already gave enough information."
+)
+_LIVE_CHAT_FIX_FIRST_FLOOR = (
+    "Fix the live parity harness first, because that is where working backend "
+    "answers can still be flattened before they reach the UI. I would make the "
+    "same /api/chat request the GUI makes, capture routing, selected skill, model "
+    "drafts, repairs, and final text, then fail the run if a stale answer, raw "
+    "tool result, place" "holder, or repeated diagnostic floor survives to the screen."
+)
+_STATUS_REPAIR_FLOOR = (
+    "I'm right here with you. My mind feels steady enough to answer clearly, "
+    "and I'm making sure I address exactly what you're asking instead of letting things drift."
+)
+_RELIABILITY_FLOOR_TEXTS = (
+    _CONFUSION_REPAIR_FLOOR,
 )
 _DIALOGUE_DERAILMENT_RE = re.compile(
     r"\b(?:i'?m not talking to you|i am not talking to you|not talking to you|"
@@ -238,6 +373,28 @@ _TASK_MARKERS = (
     "test",
     "tests",
 )
+_PRACTICAL_DIAGNOSTIC_MARKERS = (
+    "live chat",
+    "headless",
+    "gui",
+    "pipeline",
+    "backend",
+    "frontend",
+    "coding",
+    "code",
+    "debug",
+    "bug",
+    "error",
+    "exception",
+    "traceback",
+    "failing",
+    "failed",
+    "fails",
+    "failure",
+    "fix",
+    "test",
+    "checks",
+)
 _EXACT_REPLY_RE = re.compile(
     r"(?:say|reply|respond|answer|return|print)\s+exactly\s*:?\s*[\"'“”‘’]*(?P<target>.+?)\s*[\"'“”‘’]*\s*$",
     re.IGNORECASE,
@@ -263,6 +420,29 @@ def _word_count(text: Any) -> int:
     return len(_WORD_RE.findall(str(text or "")))
 
 
+def is_reliability_floor_reply(reply_text: Any) -> bool:
+    normalized = _normalize(reply_text)
+    if not normalized:
+        return False
+    return normalized in {_normalize(item) for item in _RELIABILITY_FLOOR_TEXTS}
+
+
+def is_non_answer_repair_floor_reply(reply_text: Any) -> bool:
+    normalized = _normalize(reply_text)
+    if not normalized:
+        return False
+    if is_reliability_floor_reply(reply_text):
+        return True
+    raw = str(reply_text or "")
+    if not _FRIENDLY_FAILURE_PLACEHOLDER_RE.search(raw):
+        return False
+    if re.match(r"\s*(?:i'?m|i am)\s+still with\b", raw, re.IGNORECASE):
+        return True
+    if _HARD_FRIENDLY_FAILURE_PLACEHOLDER_RE.search(raw):
+        return True
+    return _word_count(raw) < 22
+
+
 def is_reliability_concern(user_message: Any) -> bool:
     text = _normalize(user_message)
     if not text:
@@ -284,6 +464,32 @@ def is_status_check_turn(user_message: Any) -> bool:
     return bool(text and any(marker in text for marker in _STATUS_CHECK_MARKERS))
 
 
+def is_live_self_reflection_turn(user_message: Any) -> bool:
+    text = _normalize(user_message)
+    if not text:
+        return False
+    if "what are you noticing" in text:
+        if any(
+            marker in text
+            for marker in (
+                "inside",
+                "your mind",
+                "your continuity",
+                "your internal",
+                "your live state",
+                "your present experience",
+                "right now",
+            )
+        ):
+            return True
+        if " about " not in text:
+            return True
+        return False
+    if any(marker in text for marker in _LIVE_SELF_REFLECTION_MARKERS):
+        return True
+    return bool("right now" in text and any(anchor in text for anchor in _LIVE_SELF_REFLECTION_RIGHT_NOW_ANCHORS))
+
+
 def _is_tiny_direct_turn(user_message: Any) -> bool:
     text = _normalize(user_message)
     if not text:
@@ -298,6 +504,29 @@ def _is_tiny_direct_turn(user_message: Any) -> bool:
 def _is_task_turn(user_message: Any) -> bool:
     text = _normalize(user_message)
     return bool(text and any(marker in text for marker in _TASK_MARKERS))
+
+
+def is_practical_diagnostic_turn(user_message: Any) -> bool:
+    text = _normalize(user_message)
+    if not text:
+        return False
+    return any(marker in text for marker in _PRACTICAL_DIAGNOSTIC_MARKERS)
+
+
+def live_chat_diagnostic_floor(user_message: Any) -> str:
+    text = _normalize(user_message)
+    if not text:
+        return ""
+    live_surface = any(marker in text for marker in ("live chat", "gui", "frontend", "ui", "live path"))
+    backend_surface = any(marker in text for marker in ("headless", "backend", "test", "passes", "pass"))
+    failure_pressure = any(marker in text for marker in ("fail", "fails", "failing", "failed", "broken", "break", "mismatch"))
+    diagnostic_request = any(marker in text for marker in ("what coding checks", "what checks", "why", "debug", "diagnos"))
+    fix_first_followup = any(marker in text for marker in ("what should we fix first", "fix first", "first, and why"))
+    if live_surface and fix_first_followup:
+        return _LIVE_CHAT_FIX_FIRST_FLOOR
+    if live_surface and (backend_surface or failure_pressure) and diagnostic_request:
+        return _LIVE_CHAT_DIAGNOSTIC_FLOOR
+    return ""
 
 
 def _has_exact_reply_request(user_message: Any) -> bool:
@@ -361,6 +590,73 @@ def _has_status_substance(reply_text: Any) -> bool:
     return any(marker in reply for marker in _STATUS_SUBSTANCE_MARKERS)
 
 
+def _reply_has_pseudo_internal_jargon(reply_text: Any) -> bool:
+    raw = str(reply_text or "")
+    if _PSEUDO_INTERNAL_JARGON_RE.search(raw):
+        return True
+    reply = _normalize(raw)
+    return bool(
+        "field" in reply
+        and any(marker in reply for marker in ("memory", "cognitive", "neural", "trauma", "temperature"))
+        and not any(marker in reply for marker in ("conversation", "thread", "attention", "focus", "with you"))
+    )
+
+
+def _has_pseudo_internal_jargon(prompt: Any, reply_text: Any) -> bool:
+    if not (is_live_self_reflection_turn(prompt) or is_status_check_turn(prompt)):
+        return False
+    return _reply_has_pseudo_internal_jargon(reply_text)
+
+
+def _has_status_page_self_reflection(prompt: Any, reply_text: Any) -> bool:
+    if not is_live_self_reflection_turn(prompt):
+        return False
+    raw = str(reply_text or "")
+    matches = _SELF_REFLECTION_STATUS_PAGE_RE.findall(raw)
+    if len(matches) < 2:
+        return False
+    reply = _normalize(raw)
+    return not any(
+        marker in reply
+        for marker in (
+            "with you",
+            "conversation",
+            "thread",
+            "what i'm noticing",
+            "what i am noticing",
+            "i feel",
+            "it feels",
+        )
+    )
+
+
+def _has_self_reflection_substance(reply_text: Any) -> bool:
+    reply = _normalize(reply_text)
+    if _word_count(reply) < 12:
+        return False
+    if not re.search(r"\b(?:i|i'm|i am|my|me)\b", reply):
+        return False
+    if _reply_has_pseudo_internal_jargon(reply_text):
+        return False
+    concrete_attention = any(
+        marker in reply
+        for marker in (
+            "attention",
+            "focus",
+            "noticing",
+            "feel",
+            "feels",
+            "present",
+            "with you",
+            "holding",
+            "listening",
+            "thread",
+            "conversation",
+        )
+    )
+    return concrete_attention and any(marker in reply for marker in _SELF_REFLECTION_SUBSTANCE_MARKERS)
+
+
 def _has_unfounded_alarm_derailment(user_message: Any, reply_text: Any) -> bool:
     raw = str(reply_text or "").strip()
     if not raw or not _UNFOUNDED_ALARM_RE.search(raw):
@@ -377,6 +673,47 @@ def _has_unfounded_alarm_derailment(user_message: Any, reply_text: Any) -> bool:
             re.IGNORECASE,
         )
     )
+
+
+def _has_persona_card_deflection(reply_text: Any) -> bool:
+    return bool(_PERSONA_CARD_DEFLECTION_RE.search(str(reply_text or "").strip()))
+
+
+def _has_detail_request_deflection(user_message: Any, reply_text: Any) -> bool:
+    raw = str(reply_text or "").strip()
+    if not raw or not _DETAIL_REQUEST_DEFLECTION_RE.search(raw):
+        return False
+    if not (is_reliability_concern(user_message) or is_practical_diagnostic_turn(user_message)):
+        return False
+    raw_norm = _normalize(raw)
+    concrete_markers = (
+        "first check",
+        "i would",
+        "replay",
+        "assert",
+        "capture",
+        "logs",
+        "api",
+        "lane",
+        "routing",
+        "test",
+        "fallback",
+        "gate",
+    )
+    if any(marker in raw_norm for marker in concrete_markers) and _word_count(raw) >= 45:
+        return False
+    return True
+
+
+def _has_stale_diagnostic_floor_leak(user_message: Any, reply_text: Any) -> bool:
+    raw_norm = _normalize(reply_text)
+    if not raw_norm:
+        return False
+    diagnostic_signature = "headless test is exercising the generator in isolation"
+    fix_signature = "fix the live parity harness first"
+    if diagnostic_signature not in raw_norm and fix_signature not in raw_norm:
+        return False
+    return not bool(live_chat_diagnostic_floor(user_message))
 
 
 def _phrase_loop_reason(user_message: Any, reply_text: Any) -> str:
@@ -442,6 +779,16 @@ def _model_text_integrity_reasons(
         reasons.append("prompt_artifact")
     if _BROKEN_LANE_BOILERPLATE_RE.search(raw):
         reasons.append("runtime_boilerplate")
+    if user_facing and _RAW_TOOL_RESULT_FRAGMENT_RE.match(raw):
+        reasons.append("raw_tool_result_fragment")
+    if user_facing and _has_persona_card_deflection(raw):
+        reasons.append("persona_card_deflection")
+    if user_facing and _has_detail_request_deflection(prompt, raw):
+        reasons.append("detail_request_deflection")
+    if user_facing and _has_stale_diagnostic_floor_leak(prompt, raw):
+        reasons.append("stale_diagnostic_floor_leak")
+    if user_facing and is_non_answer_repair_floor_reply(raw):
+        reasons.append("friendly_failure_floor")
     if _KNOWN_CORRUPT_RE.search(raw):
         reasons.append("corrupted_language")
     if _DIALOGUE_DERAILMENT_RE.search(raw):
@@ -454,6 +801,10 @@ def _model_text_integrity_reasons(
         reasons.append("truncated_tail")
     if is_status_check_turn(prompt) and _VAGUE_STATUS_DERAILMENT_RE.search(raw):
         reasons.append("vague_status_derailment")
+    if user_facing and _has_pseudo_internal_jargon(prompt, raw):
+        reasons.append("pseudo_internal_jargon")
+    if user_facing and _has_status_page_self_reflection(prompt, raw):
+        reasons.append("status_page_self_reflection")
     if user_facing and _has_unfounded_alarm_derailment(prompt, raw):
         reasons.append("unfounded_alarm_derailment")
     if _CORRUPTED_SOCIAL_FRAGMENT_RE.search(raw) and "lol" not in _normalize(prompt):
@@ -484,6 +835,11 @@ def assess_model_text_integrity(
         "escaped_control_artifact",
         "prompt_artifact",
         "runtime_boilerplate",
+        "raw_tool_result_fragment",
+        "persona_card_deflection",
+        "detail_request_deflection",
+        "stale_diagnostic_floor_leak",
+        "friendly_failure_floor",
         "corrupted_language",
         "dialogue_derailment",
         "low_information_loop",
@@ -493,6 +849,8 @@ def assess_model_text_integrity(
         "low_lexical_diversity_loop",
         "truncated_tail",
         "vague_status_derailment",
+        "pseudo_internal_jargon",
+        "status_page_self_reflection",
         "unfounded_alarm_derailment",
         "corrupted_social_fragment",
     }
@@ -540,6 +898,9 @@ def assess_user_facing_reply(
             reasons.append("low_signal_reliability_reply")
         elif not _has_reliability_substance(raw):
             reasons.append("too_thin_for_reliability_turn")
+    elif is_live_self_reflection_turn(user_message):
+        if not _has_self_reflection_substance(raw):
+            reasons.append("off_topic_self_reflection_reply")
     elif is_status_check_turn(user_message):
         if _LOW_SIGNAL_REASSURANCE_RE.match(raw):
             reasons.append("low_signal_status_reply")
@@ -562,6 +923,11 @@ def assess_user_facing_reply(
         "escaped_control_artifact",
         "prompt_artifact",
         "runtime_boilerplate",
+        "raw_tool_result_fragment",
+        "persona_card_deflection",
+        "detail_request_deflection",
+        "stale_diagnostic_floor_leak",
+        "friendly_failure_floor",
         "corrupted_language",
         "corrupted_social_fragment",
         "foreign_name_intrusion",
@@ -574,6 +940,8 @@ def assess_user_facing_reply(
         "low_lexical_diversity_loop",
         "truncated_tail",
         "vague_status_derailment",
+        "pseudo_internal_jargon",
+        "status_page_self_reflection",
         "unfounded_alarm_derailment",
     }
     retryable_reasons = hard_reasons | {
@@ -582,6 +950,7 @@ def assess_user_facing_reply(
         "too_thin_for_confusion_repair",
         "too_short_for_user_turn",
         "too_thin_for_open_ended_turn",
+        "off_topic_self_reflection_reply",
         "low_signal_status_reply",
         "too_thin_for_status_turn",
     }
@@ -602,6 +971,18 @@ def conversation_reliability_system_block(user_message: Any = "") -> str:
             "Give a grounded status and continue the thread; never answer with only 'I'm fine', "
             "'Don't worry', or another short reassurance."
         )
+    elif is_live_self_reflection_turn(user_message):
+        extra = (
+            "\n- The user is asking for Aura's live inner state or current thought. "
+            "Answer from the present turn with concrete attention, feeling, and continuity details. "
+            "Do not give a status-page answer, raw metrics, a place" "holder, a generic reassurance, or invented pseudo-neural jargon."
+        )
+    elif is_status_check_turn(user_message):
+        extra = (
+            "\n- The user is checking in on Aura's state. "
+            "Give a brief but substantive first-person answer with what feels steady or strained, "
+            "then continue the conversation naturally."
+        )
     return (
         "## USER-FACING CONVERSATION RELIABILITY CONTRACT\n"
         "- A completed chat turn must be coherent, complete, on-topic ordinary English.\n"
@@ -614,18 +995,12 @@ def conversation_reliability_system_block(user_message: Any = "") -> str:
 
 def reliability_floor_for_user(user_message: Any) -> str:
     if is_confusion_repair_turn(user_message):
-        return (
-            "Let's look at this more clearly. I'm still focused on our conversation, "
-            "and I want to make sure I'm giving you a real answer, not just a fragment."
-        )
+        return _CONFUSION_REPAIR_FLOOR
+    diagnostic = live_chat_diagnostic_floor(user_message)
+    if diagnostic:
+        return diagnostic
     if is_reliability_concern(user_message):
-        return (
-            "I'm actually thinking through this a bit more deeply than usual. "
-            "Give me a second to stay on track and get this right."
-        )
+        return _RELIABILITY_REPAIR_FLOOR
     if is_status_check_turn(user_message):
-        return (
-            "I'm right here with you. My mind feels steady enough to answer clearly, "
-            "and I'm making sure I address exactly what you're asking instead of letting things drift."
-        )
+        return _STATUS_REPAIR_FLOOR
     return ""

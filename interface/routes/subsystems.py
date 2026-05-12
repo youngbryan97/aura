@@ -522,7 +522,7 @@ async def api_mycelial_graph():
                 ("cognitive_engine", "voice_engine"),
             ]
             for svc_id, ntype, color, desc in SEED_SERVICES:
-                is_live = ServiceContainer.get(svc_id, default=None) is not None
+                is_live = ServiceContainer.peek(svc_id, default=None) is not None
                 nodes_map[svc_id] = {
                     "id": svc_id,
                     "label": svc_id.replace("_", " ").title(),

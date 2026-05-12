@@ -582,6 +582,13 @@ class CognitiveEngine:
                 reasoning=["Action Imperative fallback (no-op)."]
             )
 
+        if is_background:
+            logger.debug(
+                "🛡️ CognitiveEngine: background cycle for origin=%s produced no response; returning quiet no-op.",
+                origin,
+            )
+            return self._empty_thought(mode, "background_cycle_no_response")
+
         import random
         _processing_fallbacks = [
             "I'm turning that over. Give me a moment to find the right words.",
@@ -603,6 +610,14 @@ class CognitiveEngine:
         Emergency reactive response when the main cognitive loop fails.
         BUG-10: Added recursion guard, timeout, and proper exception handling.
         """
+        if self._is_background_request(origin, True):
+            logger.debug(
+                "🛡️ CognitiveEngine: suppressing background reactive recovery for origin=%s (%s).",
+                origin,
+                reason,
+            )
+            return self._empty_thought(mode, f"background_recovery_suppressed:{reason}")
+
         # Only use the mutex to guard the flag flip; long-running recovery work
         # must happen outside the lock so watchdogs don't see a false deadlock.
         if not await self._recovery_lock.acquire_robust(timeout=1.0):

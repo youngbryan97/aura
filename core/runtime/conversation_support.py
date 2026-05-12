@@ -306,6 +306,15 @@ def _conversation_importance(user_input: str) -> float:
 async def record_conversation_experience(user_input: str, aura_response: str, state: Any = None) -> None:
     if not str(user_input or "").strip() or not str(aura_response or "").strip():
         return
+    try:
+        from core.conversation.response_reliability import is_non_answer_repair_floor_reply
+
+        if is_non_answer_repair_floor_reply(aura_response):
+            logger.debug("Skipping non-answer repair floor in conversational learning.")
+            return
+    except Exception as exc:
+        record_degradation('conversation_support', exc)
+        logger.debug("Non-answer learning filter skipped: %s", exc)
 
     state_obj = state
     if state_obj is None:

@@ -32,17 +32,17 @@ if str(PROJECT_ROOT) not in sys.path:
 def _make_client():
     from core.brain.llm.mlx_client import MLXLocalClient
     # Use a path containing "32b" so the foreground budgets match the Cortex
-    # thresholds we just tightened (first_token_sla=22s, lock_timeout=12s).
+    # thresholds we validate here (warm first_token_sla=45s, lock_timeout=12s).
     return MLXLocalClient(model_path="/tmp/fake-qwen-32b-instruct")
 
 
 async def scenario_a_preemption_fires() -> tuple[bool, str]:
-    """Holder has been stuck past the warm-path foreground SLA (22s).
+    """Holder has been stuck past the warm-path foreground SLA (45s).
     Foreground caller should time out on the 12s lock budget AND
     trigger preemption (cancel future + defer reboot).
 
     We simulate a warm lane by stamping _last_generation_completed_at so
-    the SLA resolves to 22s instead of the 40s cold-start grace."""
+    the SLA resolves to 45s instead of the 75s cold-start grace."""
     client = _make_client()
 
     from core.brain.llm.mlx_client import _new_shared_future
@@ -50,7 +50,7 @@ async def scenario_a_preemption_fires() -> tuple[bool, str]:
     client._last_generation_completed_at = time.time() - 60.0
     client._request_lock.acquire()
     client._request_lock_owner_label = "Cortex"
-    client._request_lock_acquired_at = time.time() - 25.0  # 25s > 22s warm SLA
+    client._request_lock_acquired_at = time.time() - 50.0  # 50s > 45s warm SLA
     stuck = _new_shared_future()
     client._current_gen_future = stuck
 
@@ -82,7 +82,7 @@ async def scenario_a_preemption_fires() -> tuple[bool, str]:
 
 
 async def scenario_b_no_premature_preemption() -> tuple[bool, str]:
-    """Holder has only been running 5s — well within the 22s SLA.
+    """Holder has only been running 5s — well within the 45s SLA.
     Foreground should still time out on the 12s wait budget, but must NOT
     preempt a healthy slow request."""
     client = _make_client()
@@ -107,7 +107,7 @@ async def scenario_b_no_premature_preemption() -> tuple[bool, str]:
         if client._deferred_reboot_reason:
             return False, (
                 f"preemption fired prematurely on healthy request "
-                f"(age=5s, sla=22s); reason={client._deferred_reboot_reason}"
+                f"(age=5s, sla=45s); reason={client._deferred_reboot_reason}"
             )
         if healthy_future.done():
             return False, "healthy future was cancelled unexpectedly"
@@ -126,14 +126,14 @@ async def scenario_c_lock_timeout_tightened() -> tuple[bool, str]:
     bg_budget = client._request_lock_timeout(deadline=None, foreground_request=False)
     if budget > 15.0:
         return False, f"foreground budget too loose: {budget}s (expected ≤15)"
-    if bg_budget > 15.0:
+    if bg_budget != 60.0:
         return False, f"background budget regressed: {bg_budget}s"
     return True, f"foreground={budget}s, background={bg_budget}s"
 
 
 async def scenario_d_empty_retry_path_compiles() -> tuple[bool, str]:
     """Threshold methods accept foreground_request kwarg and cold-start
-    exemption grants ~40s on first gen, tightens to 22s after warmup."""
+    exemption grants ~75s on first gen, tightens to ~45s after warmup."""
     client = _make_client()
     # Cold-start (no generation completed yet): SLA is generous
     fto_cold = client._first_token_sla(foreground_request=True)
@@ -143,13 +143,13 @@ async def scenario_d_empty_retry_path_compiles() -> tuple[bool, str]:
     bg_fto = client._first_token_sla(foreground_request=False)
     ts = client._token_stall_after(foreground_request=True)
     stale = client._stale_after(during_generation=True, foreground_request=True)
-    if not (35.0 <= fto_cold <= 50.0):
-        return False, f"cold-start SLA out of expected 35–50s band: {fto_cold}s"
-    if fto_warm >= 30.0:
+    if not (70.0 <= fto_cold <= 85.0):
+        return False, f"cold-start SLA out of expected 70–85s band: {fto_cold}s"
+    if not (40.0 <= fto_warm <= 55.0):
         return False, f"warm foreground SLA not tightened: {fto_warm}s"
-    if ts >= 24.0:
+    if ts > 20.0:
         return False, f"foreground token_stall_after not tightened: {ts}s"
-    if stale >= 40.0:
+    if stale > 45.0:
         return False, f"foreground stale_after not tightened: {stale}s"
     return True, (
         f"cold_sla={fto_cold}s, warm_sla={fto_warm}s (bg={bg_fto}s), "

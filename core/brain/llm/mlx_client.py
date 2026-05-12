@@ -202,6 +202,22 @@ def _clear_matching_foreground_owner(*candidate_names: str) -> Optional[str]:
         return holder
 
 
+def _clear_stale_foreground_owner(max_age_s: float = 45.0) -> Optional[str]:
+    """Release leaked foreground ownership after the generation has ended."""
+    global _FOREGROUND_OWNER_NAME, _FOREGROUND_OWNER_ACQUIRED_AT
+
+    with _FOREGROUND_OWNER_LOCK:
+        holder = _FOREGROUND_OWNER_NAME
+        if holder is None:
+            return None
+        age = _foreground_owner_age()
+        if age <= max_age_s:
+            return None
+        _FOREGROUND_OWNER_NAME = None
+        _FOREGROUND_OWNER_ACQUIRED_AT = 0.0
+        return holder
+
+
 @contextlib.asynccontextmanager
 async def _foreground_owner_context(
     owner_name: str,
@@ -881,11 +897,22 @@ class MLXLocalClient:
         return min(full_timeout, scoped_timeout), scoped_timeout < full_timeout
 
     def get_lane_status(self) -> Dict[str, Any]:
-        conversation_ready = self.is_alive() and self._lane_state == "ready"
+        if int(getattr(self, "_active_generations", 0) or 0) <= 0:
+            stale_owner = _clear_stale_foreground_owner()
+            if stale_owner:
+                logger.warning("♻️ [MLX] Cleared stale foreground owner %s during lane status check.", stale_owner)
+        worker_alive = self.is_alive()
+        lane_state = self._lane_state
+        lane_error = self._lane_error
+        if lane_state == "ready" and not worker_alive:
+            lane_state = "cold"
+            lane_error = "worker_not_alive"
+            self._set_lane_state(lane_state, lane_error)
+        conversation_ready = worker_alive and lane_state == "ready"
         return {
             "model_path": self.model_path,
-            "state": self._lane_state,
-            "last_error": self._lane_error,
+            "state": lane_state,
+            "last_error": lane_error,
             "conversation_ready": conversation_ready,
             "foreground_owned": _foreground_owner_active(),
             "foreground_owner": _FOREGROUND_OWNER_NAME,
@@ -1015,7 +1042,7 @@ class MLXLocalClient:
         # should cascade to brainstem/cloud rather than keep waiting.  The
         # prior 30s budget stacked on top of a hung 32B generation produced
         # the 60–90 s "Aura is thinking..." windows the user reported.
-        default = 30.0 if foreground_request else 60.0
+        default = 12.0 if foreground_request else 60.0
         if not isinstance(deadline, Deadline):
             return default
 

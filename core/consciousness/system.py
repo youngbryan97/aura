@@ -35,7 +35,11 @@ class ConsciousnessSystem:
         self.temporal_binding = resolve_temporal_binding(default=None) or TemporalBindingEngine()
         self.homeostatic_coupling = resolve_homeostatic_coupling(default=None) or HomeostaticCoupling(orchestrator)
         self.self_prediction = resolve_self_prediction(default=None) or SelfPredictionLoop(orchestrator)
-        self.liquid_substrate = resolve_conscious_substrate(default=None) or LiquidSubstrate()
+        self.liquid_substrate = (
+            getattr(orchestrator, "substrate", None)
+            or resolve_conscious_substrate(default=None)
+            or LiquidSubstrate()
+        )
         self.qualia = ServiceContainer.get("qualia_synthesizer", default=None) or QualiaSynthesizer()
         
         # Initialize attributes to avoid NoneType/AttributeError in IDE

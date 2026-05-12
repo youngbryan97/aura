@@ -128,6 +128,36 @@ def test_health_router_prefers_existing_inference_gate(monkeypatch):
     assert router.endpoints[PRIMARY_ENDPOINT].client is sentinel_gate
 
 
+@pytest.mark.asyncio
+async def test_lazy_local_client_initializes_off_event_loop(monkeypatch):
+    sentinel_gate = object()
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.setattr(
+        ServiceContainer,
+        "get",
+        classmethod(lambda cls, name, default="_SENTINEL": sentinel_gate if name == "inference_gate" else default),
+    )
+
+    router = build_router_from_config(config)
+
+    from core.brain.llm.model_registry import BRAINSTEM_ENDPOINT
+
+    client = router.endpoints[BRAINSTEM_ENDPOINT].client
+    downstream = SimpleNamespace(generate_text_async=AsyncMock(return_value="ok"))
+    offloads = []
+
+    async def fake_to_thread(fn):
+        offloads.append(fn)
+        return fn()
+
+    monkeypatch.setattr(client, "_get_client", lambda: downstream)
+    monkeypatch.setattr("core.brain.llm_health_router.asyncio.to_thread", fake_to_thread)
+
+    assert await client.generate_text_async("hello") == "ok"
+    assert len(offloads) == 1
+    downstream.generate_text_async.assert_awaited_once_with("hello")
+
+
 def test_desktop_safe_boot_tracks_app_launch_context(monkeypatch):
     monkeypatch.delenv("AURA_SAFE_BOOT_DESKTOP", raising=False)
     monkeypatch.setenv("AURA_LAUNCHED_FROM_APP", "1")
@@ -160,6 +190,17 @@ def test_compute_mlx_cache_limit_defaults_to_standard_ratio_when_not_safe(monkey
     limit = compute_mlx_cache_limit(64 * 1024 ** 3)
 
     assert limit == int(64 * 1024 ** 3 * 0.75)
+
+
+def test_rsi_lab_creates_data_dir_without_runtime_globals(monkeypatch, tmp_path):
+    from research.meta_learning_loop import RSILab
+
+    monkeypatch.setattr(type(config.paths), "_runtime_home_cache", tmp_path)
+
+    lab = RSILab()
+
+    assert lab.lab_dir == tmp_path / "data" / "rsi_lab"
+    assert lab.lab_dir.exists()
 
 
 def test_inprocess_mlx_metal_disabled_during_safe_boot(monkeypatch):
