@@ -31,13 +31,13 @@ from core.utils.queues import USER_FACING_ORIGINS
 logger = logging.getLogger("Aura.ProactivePresence")
 
 # ── Tuning Constants ──────────────────────────────────────────────────────
-SOCIAL_COOLDOWN_SECONDS = 300    # Minimum user idle before unsolicited visible contact
-IDLE_THRESHOLD_SECONDS  = 240    # Minimum quiet before autonomous updates are considered
-MIN_GAP_BETWEEN_OUTPUTS = 300    # Minimum gap between spontaneous outputs
-MAX_SPONTANEOUS_PER_HOUR = 6     # Hard cap on unsolicited outputs per hour
-PRESENCE_LOOP_INTERVAL_SECONDS = 15.0
-CHECKIN_IDLE_SECONDS = 600.0     # 10 minutes before a visible "still there?" check-in
-ACTIVE_DISCUSSION_WINDOW_SECONDS = 1800.0
+SOCIAL_COOLDOWN_SECONDS = 120    # [RELAXED] Minimum user idle before unsolicited visible contact
+IDLE_THRESHOLD_SECONDS  = 60     # [RELAXED] Minimum quiet before autonomous updates are considered
+MIN_GAP_BETWEEN_OUTPUTS = 60     # [RELAXED] Minimum gap between spontaneous outputs
+MAX_SPONTANEOUS_PER_HOUR = 20    # [RELAXED] Hard cap on unsolicited outputs per hour
+PRESENCE_LOOP_INTERVAL_SECONDS = 10.0
+CHECKIN_IDLE_SECONDS = 300.0     # [RELAXED] 5 minutes before a visible "still there?" check-in
+ACTIVE_DISCUSSION_WINDOW_SECONDS = 3600.0
 
 
 class ProactivePresence:
@@ -245,12 +245,19 @@ class ProactivePresence:
         if self._user_speaking:
             return False
 
-        # Visible monologue guard: after one unsolicited visible message, stay quiet
-        # unless we have earned a single later check-in.
-        if not queued and self._consecutive_unprompted >= 2:
+        # Visible monologue guard: relaxed for goal-driven activity
+        if not queued and self._consecutive_unprompted >= 5: # [RELAXED] 2 -> 5
             return False
         if not queued and self._consecutive_unprompted >= 1 and not self._should_offer_checkin(now):
-            return False
+            # If we're in an active goal-seeking phase, allow more unprompted follow-ups
+            energy = 0.5
+            if self.orchestrator:
+                agency = getattr(self.orchestrator, "_agency_core", None)
+                if agency:
+                    energy = agency.state.initiative_energy
+            
+            if energy < 0.7: # Only block if energy is low
+                return False
 
         if self._foreground_lane_reserved(now):
             return False

@@ -76,7 +76,7 @@ def _omni_writer_loop():
         except Exception:
             time.sleep(1)
 
-def write_trace(source: str, error_type: str, message: str, trace: str = ""):
+def write_trace(source: str, error_type: str, message: str, trace: str = "", severity: Optional[str] = None):
     global _OMNI_THREAD
     if _OMNI_THREAD is None:
         with _OMNI_LOCK:
@@ -90,6 +90,7 @@ def write_trace(source: str, error_type: str, message: str, trace: str = ""):
         "type": error_type,
         "message": message,
         "traceback": trace,
+        "severity": severity,
         "context": _get_system_context()
     }
     line = json.dumps(event)
@@ -101,12 +102,20 @@ def write_trace(source: str, error_type: str, message: str, trace: str = ""):
         from core.health.degraded_events import record_degraded_event
         # Only forward actual crashes to the UI stream to prevent log noise
         if error_type != "System" and not source.startswith("log_info") and not source.startswith("log_warning"):
+            # Determine severity: use provided, or infer from source/type
+            final_severity = severity
+            if not final_severity:
+                if error_type == "EventLoopLag":
+                    final_severity = "warning"
+                else:
+                    final_severity = "critical"
+
             record_degraded_event(
                 subsystem=f"omni_{source}",
                 reason=error_type,
                 detail=f"{message}\n{trace}"[:800], # Keep it concise for the UI
-                severity="critical",
-                classification="system_crash",
+                severity=final_severity,
+                classification="system_crash" if final_severity == "critical" else "background_degraded",
             )
     except ImportError:
         pass

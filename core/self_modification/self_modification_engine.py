@@ -126,7 +126,7 @@ class AutonomousSelfModificationEngine:
         # Background monitoring
         self.monitoring_enabled = False
         self.monitor_thread = None
-        self.monitor_interval = 300  # Check every 5 minutes
+        self.monitor_interval = 60  # Check every 60 seconds (unlocked)
         
         # Statistics
         self.session_stats = {
@@ -690,11 +690,8 @@ class AutonomousSelfModificationEngine:
                 orch = ServiceContainer.get("orchestrator", default=None)
                 policy_reason = background_activity_reason(
                     orch,
-                    min_idle_seconds=max(float(self.monitor_interval), 900.0),
-                    # Let low-cost background self-development continue on
-                    # roomy machines instead of going silent in the low-80s.
-                    max_memory_percent=86.0,
-                    max_failure_pressure=0.10,
+                    min_idle_seconds=float(self.monitor_interval),
+                    # Memory and failure thresholds are now managed by relaxed BackgroundPolicy defaults
                     require_conversation_ready=False,
                 )
                 if policy_reason:

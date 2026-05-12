@@ -65,30 +65,30 @@ _BACKGROUND_ORIGIN_HINTS = frozenset({
 
 @dataclass(frozen=True)
 class BackgroundPolicyProfile:
-    min_idle_seconds: float = 30.0
-    max_memory_percent: float = 85.0
-    max_failure_pressure: float = 0.25
+    min_idle_seconds: float = 10.0
+    max_memory_percent: float = 90.0
+    max_failure_pressure: float = 0.60
     require_conversation_ready: bool = False
 
 
 THOUGHT_BACKGROUND_POLICY = BackgroundPolicyProfile(
-    min_idle_seconds=30.0,
-    max_memory_percent=75.0,
-    max_failure_pressure=0.10,
+    min_idle_seconds=5.0,
+    max_memory_percent=85.0,
+    max_failure_pressure=0.50,
     require_conversation_ready=False,
 )
 
 RESEARCH_BACKGROUND_POLICY = BackgroundPolicyProfile(
-    min_idle_seconds=90.0,
-    max_memory_percent=75.0,
-    max_failure_pressure=0.10,
+    min_idle_seconds=15.0,
+    max_memory_percent=85.0,
+    max_failure_pressure=0.50,
     require_conversation_ready=False,
 )
 
 MAINTENANCE_BACKGROUND_POLICY = BackgroundPolicyProfile(
-    min_idle_seconds=300.0,
-    max_memory_percent=85.0,
-    max_failure_pressure=0.20,
+    min_idle_seconds=60.0,
+    max_memory_percent=92.0,
+    max_failure_pressure=0.75,
     require_conversation_ready=False,
 )
 
@@ -162,9 +162,9 @@ def background_activity_reason(
         if require_conversation_ready is None:
             require_conversation_ready = profile.require_conversation_ready
 
-    min_idle_seconds = float(min_idle_seconds if min_idle_seconds is not None else 30.0)
-    max_memory_percent = float(max_memory_percent if max_memory_percent is not None else 85.0)
-    max_failure_pressure = float(max_failure_pressure if max_failure_pressure is not None else 0.25)
+    min_idle_seconds = float(min_idle_seconds if min_idle_seconds is not None else 10.0)
+    max_memory_percent = float(max_memory_percent if max_memory_percent is not None else 90.0)
+    max_failure_pressure = float(max_failure_pressure if max_failure_pressure is not None else 0.60)
     require_conversation_ready = bool(
         False if require_conversation_ready is None else require_conversation_ready
     )

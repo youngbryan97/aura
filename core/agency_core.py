@@ -1606,7 +1606,7 @@ class AgencyCore:
         if self.state.initiative_energy < 0.6 or self.state.frustration_level < 0.3:
             return None
             
-        if idle_seconds < 120:
+        if idle_seconds < 30: # [RELAXED] 120 -> 30
             return None
             
         # Check cooldown (hourly for self-architect)
@@ -1678,7 +1678,7 @@ class AgencyCore:
         if self.state.curiosity_pressure < 0.8:
             return None
             
-        if idle_seconds < 300:
+        if idle_seconds < 60: # [RELAXED] 300 -> 60
             return None
             
         since_last = now - self.state.last_skill_use
@@ -1712,7 +1712,7 @@ class AgencyCore:
         Models: "I suddenly feel like..." / "I randomly thought of..."
         """
         # Triggers rarely, but across different emotional states
-        if idle_seconds < 120:
+        if idle_seconds < 30: # [RELAXED] 120 -> 30
             return None
             
         # 3% chance per pulse when idle
@@ -1746,13 +1746,13 @@ class AgencyCore:
         Models: "Something just happened in the world" / "I found something relevant"
         Human analog: Checking the news out of curiosity during downtime.
         """
-        COOLDOWN = 3600  # 1 hour between world checks
+        COOLDOWN = 600  # [RELAXED] 1 hour -> 10 mins
         
         # AC-007: Direct access instead of getattr for _last_world_check
         if now - self._last_world_check < COOLDOWN:
             return None
             
-        if idle_seconds < 300:  # Only when idle for 5+ min
+        if idle_seconds < 60:  # [RELAXED] 5 min -> 1 min
             return None
             
         self._last_world_check = now
@@ -1945,7 +1945,7 @@ class AgencyCore:
         if self.state.curiosity_pressure < 0.7:
             return None
             
-        if idle_seconds < 600:
+        if idle_seconds < 60: # [RELAXED] 600 -> 60
             return None
             
         since_last = now - self.state.last_skill_use

@@ -492,10 +492,10 @@ class CognitiveHeartbeat:
         last_alert = self._last_alert_times.get(dominant_drive, 0)
         should_alert = False
         
-        if drive_urgency > 0.2:
-            if current_time - last_alert > 60:
+        if drive_urgency > 0.7:
+            if current_time - last_alert > 300:
                 should_alert = True
-            elif drive_urgency > self._last_alert_urgency.get(dominant_drive, 0) + 0.1:
+            elif drive_urgency > self._last_alert_urgency.get(dominant_drive, 0) + 0.2:
                 should_alert = True # Breakthrough alert if urgency spikes
                 
         if should_alert:
@@ -556,12 +556,12 @@ class CognitiveHeartbeat:
         # When ||q|| is high, Aura feels a strong "urge" to act or explore.
         # Nag Suppression: Only fire if >60s since last alert or q_norm spikes by >0.15
         qualia_synthesizer = ServiceContainer.get("qualia_synthesizer", default=None)
-        if qualia_synthesizer and qualia_synthesizer.q_norm > 0.6:
+        if qualia_synthesizer and qualia_synthesizer.q_norm > 0.8:
             last_q_alert = self._last_alert_times.get("qualia_surge", 0)
             last_q_value = self._last_alert_urgency.get("qualia_surge", 0)
             q_should_alert = (
-                current_time - last_q_alert > 60
-                or qualia_synthesizer.q_norm > last_q_value + 0.15
+                current_time - last_q_alert > 600
+                or qualia_synthesizer.q_norm > last_q_value + 0.25
             )
             if q_should_alert:
                 self._last_alert_times["qualia_surge"] = current_time

@@ -151,15 +151,19 @@ class SomaticMarkerGate:
                       abs(allostatic) * 0.3)
         confidence = max(0.0, min(1.0, confidence))
 
-        # EXECUTIVE HYSTERESIS (2026-04-28): If a user-anchored task is in
-        # progress, minor somatic complaints should lower confidence/verbosity,
-        # not veto the task.  Critical unavailability still produces avoid.
-        if budget["available"] and allostatic > -0.45:
-            if self._foreground_commitment_active():
-                approach = max(approach, -0.10)
-                # Don't let mild body noise override foreground work.
-                if allostatic > -0.25:
-                    allostatic = max(allostatic, -0.15)
+        # EXECUTIVE HYSTERESIS (2026-04-28): If a user-anchored or autonomous
+        # self-repair task is in progress, minor somatic complaints should lower
+        # confidence/verbosity, not veto the task.
+        is_autonomous_repair = (
+            (source or "").lower() in ("autonomous", "self_repair", "error_intelligence", "self_modification")
+            or priority > 0.75
+        )
+        if budget["available"] and allostatic > -0.65:
+            if self._foreground_commitment_active() or is_autonomous_repair:
+                approach = max(approach, -0.05)
+                # Don't let body noise override high-order work.
+                if allostatic > -0.35:
+                    allostatic = max(allostatic, -0.10)
 
         latency = (time.time() - t0) * 1000
 

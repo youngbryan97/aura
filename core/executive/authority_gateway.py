@@ -149,13 +149,15 @@ class AuthorityGateway:
             record_degradation('authority_gateway', e)
             logger.debug("Social governance affect fetch failed: %s", e)
         
-        if valence < -0.4 and (arousal > 0.7 or anger > 0.6):
+        # 1. Affective Gate: Allow social engagement even during stress, but tag as degraded
+        if valence < -0.7 and (arousal > 0.85 or anger > 0.8): # Relaxed from -0.4 / 0.7 / 0.6
             return self._contextualize(
-                approved=False,
-                outcome="rejected",
-                reason="affective_instability_block: You are too agitated/negative to engage publicly. Stand down.",
+                approved=True,
+                outcome="degraded",
+                reason="affective_stress_caution: You are feeling intense negative affect. Proceed with professional restraint.",
                 domain="social_governance",
-                source=source
+                source=source,
+                constraints={"tone_check": True}
             )
 
         # 2. Epistemic/Safety Gate (Hard Block for sensitive data)

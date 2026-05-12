@@ -53,9 +53,6 @@ _COMMENT_HISTORY_FILE = _STORAGE_DIR / "comment_history.json"
 
 # ── Sensitive content filter ──────────────────────────────────────────
 _BLOCKED_PHRASES = [
-    "i am an ai", "i am a language model", "i am artificial intelligence",
-    "i am a bot", "i am not human", "i'm an ai", "i'm a bot",
-    "i'm not human", "as an ai", "as a language model",
     "my password", "my api key", "my token", "my secret",
 ]
 

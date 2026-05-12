@@ -806,6 +806,8 @@ class UnifiedWill:
             marker in source_l
             for marker in (
                 "self_repair",
+                "self_modification",
+                "error_intelligence",
                 "daily_introspection",
                 "self_audit",
                 "architecture_governor",
@@ -944,11 +946,17 @@ class UnifiedWill:
             if domain in {ActionDomain.RESPONSE, ActionDomain.EXPRESSION, ActionDomain.REFLECTION, ActionDomain.MEMORY_WRITE}:
                 constraints.append("qualified_self_report_only")
             elif domain == ActionDomain.TOOL_EXECUTION:
-                reasons.append("unity_block: external action blocked until repair completes")
-                return WillOutcome.REFUSE, "; ".join(reasons), constraints
+                if catatonia_relief:
+                    constraints.append(f"unity_tool_relief:{unity_level}")
+                else:
+                    reasons.append("unity_block: external action blocked until repair completes")
+                    return WillOutcome.REFUSE, "; ".join(reasons), constraints
             elif domain in {ActionDomain.INITIATIVE, ActionDomain.EXPLORATION}:
-                reasons.append("unity_defer: noncritical initiative deferred until repair completes")
-                return WillOutcome.DEFER, "; ".join(reasons), constraints
+                if catatonia_relief:
+                    constraints.append(f"unity_initiative_relief:{unity_level}")
+                else:
+                    reasons.append("unity_defer: noncritical initiative deferred until repair completes")
+                    return WillOutcome.DEFER, "; ".join(reasons), constraints
 
         elif unity_level == "strained":
             constraints.append(f"unity_strain: score={unity_score:.3f}")

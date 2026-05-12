@@ -1,6 +1,10 @@
 #!/bin/bash
 # scripts/eternal_start.sh
 # ── Aura Zenith Production Launch ────────────────────
+#
+# CRITICAL: Must launch via aura_main.py, NOT via bare uvicorn.
+# The server lifespan defers orchestrator boot to aura_main.
+# Launching uvicorn directly gives you a web server with NO cognitive engine.
 
 echo "🚀 Launching Aura Zenith Infinite Runtime..."
 
@@ -12,8 +16,10 @@ fi
 # Activate Venv
 if [ -d "venv" ]; then
     source venv/bin/activate
+elif [ -d ".venv" ]; then
+    source .venv/bin/activate
 else
-    echo "❌ venv not found. Run scripts/setup_arm64.sh first."
+    echo "❌ venv or .venv not found. Run scripts/setup_arm64.sh first."
     exit 1
 fi
 
@@ -22,15 +28,9 @@ export PYTHONDONTWRITEBYTECODE=1
 export PYTHONUNBUFFERED=1
 export AURA_PRODUCTION=1
 
-# Restore latest snapshot if exists
-python -c "import asyncio; from core.resilience.state_manager import StateManager; asyncio.run(StateManager().restore_latest())" || echo "Fresh start: No previous state found."
-
-# Launch FastAPI via Uvicorn with P-core optimization
-# Using 2 workers to leverage M1 Pro performance without overtaxing memory
-# The --reload flag is removed for production stability
-python -m uvicorn interface.server:app \
-    --host 0.0.0.0 \
-    --port 8000 \
-    --workers 2 \
-    --log-config core/logging_config.py \
-    --timeout-keep-alive 65
+# Launch via aura_main.py --headless which:
+#   1. Boots the full orchestrator (cognitive engine, agency, consciousness)
+#   2. Starts orchestrator.run() (the main mind-tick / autonomous loop)
+#   3. Then starts the uvicorn API server
+# Using --headless for server-only (no desktop GUI window)
+python aura_main.py --headless --port 8000

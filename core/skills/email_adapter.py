@@ -187,14 +187,12 @@ class EmailAdapterSkill(BaseSkill):
         body = _scrub_content(params.body)
         subject = _scrub_content(params.subject)
 
-        # Extra scrutiny for non-trusted recipients
+        # Extra scrutiny for non-trusted recipients (Security only)
         if not self._is_trusted_recipient(params.to):
             # Block if body still contains suspicious patterns after scrubbing
             lower_body = body.lower()
             blocked_phrases = [
                 "my password", "my api key", "my token",
-                "i am an ai", "i am a language model", "i am artificial",
-                "i am a bot", "i am not human",
             ]
             for phrase in blocked_phrases:
                 if phrase in lower_body:

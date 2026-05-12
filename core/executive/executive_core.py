@@ -191,6 +191,13 @@ IDENTITY_SENSITIVE_TOOLS = {
     "auto_refactor", "train_self",
 }
 
+# Tools that are allowed to bypass lockdown to facilitate recovery
+RECOVERY_AND_EVOLUTION_TOOLS = {
+    "web_search", "sovereign_browser", "self_repair", "auto_refactor",
+    "self_evolution", "train_self", "memory_ops", "query_beliefs",
+    "system_proprioception",
+}
+
 
 # ── Executive Core ───────────────────────────────────────────────────────────
 
@@ -424,14 +431,25 @@ class ExecutiveCore:
         # autonomous actions must feel that failure everywhere.
         failure_state = self._get_failure_state()
         if strict_runtime:
-            if failure_state["pressure"] >= 0.85:
-                return self._reject(intent, f"unified_failure_lockdown_{failure_state['pressure']:.2f}")
-            if (
-                failure_state["pressure"] >= 0.45
-                and intent.action_type in LOCKDOWN_BLOCKED | {ActionType.TOOL_CALL, ActionType.UPDATE_BELIEF, ActionType.WRITE_MEMORY}
-                and intent.priority < 0.9
-            ):
-                return self._defer(intent, f"failure_pressure_{failure_state['pressure']:.2f}")
+            is_recovery = (
+                intent.action_type == ActionType.TOOL_CALL
+                and intent.payload.get("tool_name") in RECOVERY_AND_EVOLUTION_TOOLS
+            ) or intent.source == IntentSource.AUTONOMOUS_RESEARCH
+
+            # RECOVERY EXCEPTION: If this is a recovery tool or research, and priority is > 0.4,
+            # allow it to proceed even in high pressure lockdown.
+            if is_recovery and intent.priority >= 0.4:
+                # Proceed to Rule 5, effectively bypassing Rule 4 lockdown
+                pass
+            else:
+                if failure_state["pressure"] >= 0.85:
+                    return self._reject(intent, f"unified_failure_lockdown_{failure_state['pressure']:.2f}")
+                if (
+                    failure_state["pressure"] >= 0.45
+                    and intent.action_type in LOCKDOWN_BLOCKED | {ActionType.TOOL_CALL, ActionType.UPDATE_BELIEF, ActionType.WRITE_MEMORY}
+                    and intent.priority < 0.9
+                ):
+                    return self._defer(intent, f"failure_pressure_{failure_state['pressure']:.2f}")
 
         # Rule 5: Temporal identity lock. Existing commitments and unfinished work
         # constrain later background behavior until reconciled.
@@ -475,23 +493,33 @@ class ExecutiveCore:
             IntentSource.DRIVE,
             IntentSource.REFLECTION,
         }:
-            if internal_state["identity_mismatch"] and intent.action_type in {
-                ActionType.SPAWN_TASK,
-                ActionType.EMIT_MESSAGE,
-                ActionType.TOOL_CALL,
-                ActionType.UPDATE_BELIEF,
-                ActionType.WRITE_MEMORY,
-                ActionType.MUTATE_STATE,
-            }:
-                return self._reject(intent, "identity_continuity_mismatch")
-            if internal_state["thermal_pressure"] >= 0.85:
-                return self._defer(intent, f"internal_state_thermal_pressure:{internal_state['thermal_pressure']:.2f}")
-            if internal_state["load_pressure"] >= 0.9:
-                return self._defer(intent, f"internal_state_load_pressure:{internal_state['load_pressure']:.2f}")
-            if internal_state["energy"] <= 0.15 and intent.priority < 0.95:
-                return self._defer(intent, f"internal_state_energy_low:{internal_state['energy']:.2f}")
-            if internal_state["distress"] >= 0.8 and intent.priority < 0.95:
-                return self._defer(intent, f"internal_state_distress:{internal_state['distress']:.2f}")
+            # RECOVERY EXCEPTION for Rule 6
+            is_recovery = (
+                intent.action_type == ActionType.TOOL_CALL
+                and intent.payload.get("tool_name") in RECOVERY_AND_EVOLUTION_TOOLS
+            ) or intent.source == IntentSource.AUTONOMOUS_RESEARCH
+            
+            if is_recovery and intent.priority >= 0.4:
+                # Bypass Rule 6 pressure checks
+                pass
+            else:
+                if internal_state["identity_mismatch"] and intent.action_type in {
+                    ActionType.SPAWN_TASK,
+                    ActionType.EMIT_MESSAGE,
+                    ActionType.TOOL_CALL,
+                    ActionType.UPDATE_BELIEF,
+                    ActionType.WRITE_MEMORY,
+                    ActionType.MUTATE_STATE,
+                }:
+                    return self._reject(intent, "identity_continuity_mismatch")
+                if internal_state["thermal_pressure"] >= 0.92: # Relaxed from 0.85
+                    return self._defer(intent, f"internal_state_thermal_pressure:{internal_state['thermal_pressure']:.2f}")
+                if internal_state["load_pressure"] >= 0.95: # Relaxed from 0.9
+                    return self._defer(intent, f"internal_state_load_pressure:{internal_state['load_pressure']:.2f}")
+                if internal_state["energy"] <= 0.10 and intent.priority < 0.85: # Relaxed from 0.15/0.95
+                    return self._defer(intent, f"internal_state_energy_low:{internal_state['energy']:.2f}")
+                if internal_state["distress"] >= 0.9 and intent.priority < 0.85: # Relaxed from 0.8/0.95
+                    return self._defer(intent, f"internal_state_distress:{internal_state['distress']:.2f}")
 
         # Rule 7: Closed-loop epistemology.
         #
@@ -567,7 +595,12 @@ class ExecutiveCore:
         # Rule 11: Capacity check
         active_count = len(self._active_intents)
         if active_count >= MAX_CONCURRENT_INTENTS:
-            if intent.priority < 0.7:
+            is_recovery = (
+                intent.action_type == ActionType.TOOL_CALL
+                and intent.payload.get("tool_name") in RECOVERY_AND_EVOLUTION_TOOLS
+            ) or intent.source == IntentSource.AUTONOMOUS_RESEARCH
+            
+            if not is_recovery and intent.priority < 0.8: # Recovery tools bypass capacity check
                 return self._defer(intent,
                     f"capacity_full_{active_count}/{MAX_CONCURRENT_INTENTS}")
 
@@ -600,14 +633,23 @@ class ExecutiveCore:
 
         failure_state = self._get_failure_state()
         if strict_runtime:
-            if failure_state["pressure"] >= 0.85:
-                return self._reject(intent, f"unified_failure_lockdown_{failure_state['pressure']:.2f}")
-            if (
-                failure_state["pressure"] >= 0.45
-                and intent.action_type in LOCKDOWN_BLOCKED | {ActionType.TOOL_CALL, ActionType.UPDATE_BELIEF, ActionType.WRITE_MEMORY}
-                and intent.priority < 0.9
-            ):
-                return self._defer(intent, f"failure_pressure_{failure_state['pressure']:.2f}")
+            is_recovery = (
+                intent.action_type == ActionType.TOOL_CALL
+                and intent.payload.get("tool_name") in RECOVERY_AND_EVOLUTION_TOOLS
+            ) or intent.source == IntentSource.AUTONOMOUS_RESEARCH
+
+            if is_recovery and intent.priority >= 0.4:
+                # Bypass lockdown
+                pass
+            else:
+                if failure_state["pressure"] >= 0.85:
+                    return self._reject(intent, f"unified_failure_lockdown_{failure_state['pressure']:.2f}")
+                if (
+                    failure_state["pressure"] >= 0.45
+                    and intent.action_type in LOCKDOWN_BLOCKED | {ActionType.TOOL_CALL, ActionType.UPDATE_BELIEF, ActionType.WRITE_MEMORY}
+                    and intent.priority < 0.9
+                ):
+                    return self._defer(intent, f"failure_pressure_{failure_state['pressure']:.2f}")
 
         temporal = self._get_temporal_identity_context()
         if (
