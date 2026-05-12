@@ -607,10 +607,10 @@ class AgencyCore:
         proposed_actions = []
         for name, pathway in self._pathway_registry.items():
             try:
-                if asyncio.iscoroutinefunction(pathway):
-                    action = await pathway(now, idle_seconds)
-                else:
-                    action = pathway(now, idle_seconds)
+                action = pathway(now, idle_seconds)
+                import inspect
+                if inspect.isawaitable(action):
+                    action = await action
                 if action:
                     proposed_actions.append(action)
             except Exception as e:
@@ -1271,9 +1271,8 @@ class AgencyCore:
                 "priority": 0.1,
             }
         
-        if identity:
+        if identity and hasattr(identity, "add_long_term_goal"):
             identity.add_long_term_goal(new_goal, source="agency_goal_formation")
-        
         # 2. Goal Incubation: Spawn a cognitive shard for initial research
         if self.swarm:
             await self.swarm.spawn_shard(
