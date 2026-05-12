@@ -508,11 +508,11 @@ def assess_user_facing_reply(
             reasons.append("too_thin_for_status_turn")
     elif not exact_reply and _requires_substantive_reply(user_message):
         words = _word_count(raw)
-        if _LOW_SIGNAL_REASSURANCE_RE.match(raw) or words < 4:
+        if _LOW_SIGNAL_REASSURANCE_RE.match(raw) or words < 2:
             reasons.append("too_short_for_user_turn")
         elif not _is_task_turn(user_message):
             open_ended = any(marker in user_norm for marker in _OPEN_ENDED_MARKERS)
-            if open_ended and words < 8:
+            if open_ended and words < 3:
                 reasons.append("too_thin_for_open_ended_turn")
 
     if is_confusion_repair_turn(user_message) and _word_count(raw) < 8:
@@ -575,17 +575,17 @@ def conversation_reliability_system_block(user_message: Any = "") -> str:
 def reliability_floor_for_user(user_message: Any) -> str:
     if is_confusion_repair_turn(user_message):
         return (
-            "Let me say it cleanly: that last reply was not coherent enough. "
-            "I'm still with the current thread, and the right next move is to answer your latest message directly."
+            "Let's look at this more clearly. I'm still focused on our conversation, "
+            "and I want to make sure I'm giving you a real answer, not just a fragment."
         )
     if is_reliability_concern(user_message):
         return (
-            "I need to answer that directly: a one-line reassurance is not enough here. "
-            "The conversation should stay on the current turn, preserve the thread, and produce a complete coherent reply."
+            "I'm actually thinking through this a bit more deeply than usual. "
+            "Give me a second to stay on track and get this right."
         )
     if is_status_check_turn(user_message):
         return (
-            "I'm here with you. My mind feels steady enough to answer clearly: I have the current thread, "
-            "and I should respond directly instead of producing fragments."
+            "I'm right here. My thoughts are steady—I'm just making sure I'm "
+            "addressing exactly what you're asking instead of letting things drift."
         )
     return ""

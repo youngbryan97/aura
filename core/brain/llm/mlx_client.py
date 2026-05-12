@@ -2279,7 +2279,14 @@ class MLXLocalClient:
                 self.max_tokens,
             ),
             "schema": kwargs.get("schema"),
+            "stop_sequences": list(kwargs.get("stop_sequences") or []),
         }
+
+        # [STABILITY v57] Add default stop sequences to prevent prompt bleed
+        default_stops = ["<|im_end|>", "<|im_start|>", "user:", "assistant:", "User:", "Assistant:"]
+        for stop in default_stops:
+            if stop not in req["stop_sequences"]:
+                req["stop_sequences"].append(stop)
         # Activation-steering offsets ride along when present; the worker
         # consumes them if its build supports residual-stream injection,
         # otherwise it ignores the field with no harm.

@@ -1249,18 +1249,15 @@ def _watchdog_child_args(args: Optional[argparse.Namespace] = None) -> List[str]
 
 async def run_watchdog(args: Optional[argparse.Namespace] = None):
     """Stability Watchdog Loop (Async)."""
+    # [STABILITY] Ensure only one Watchdog is active.
+    # This prevents the "two instances" issue where multiple supervisors
+    # compete for the orchestrator lock and GPU memory.
+    acquire_instance_lock(lock_name="watchdog")
+    
     logger.info("🛡️ Watchdog supervisor active (supervision-only mode).")
     child_args = _watchdog_child_args(args)
     logger.info("🛡️ Watchdog restart command preserves mode args: %s", " ".join(child_args))
 
-    # Write watchdog PID so it can be stopped
-    lock_file = Path.home() / ".aura" / "locks" / "watchdog.lock"
-    try:
-        lock_file.parent.mkdir(parents=True, exist_ok=True)
-        with open(lock_file, "w") as f:
-            f.write(str(os.getpid()))
-    except Exception:
-        pass
     try:
         restart_count = 0
         while restart_count < 10:

@@ -402,13 +402,23 @@ class TaskCommitmentVerifier:
         # system directive, it is NEVER a conversational status query. 
         # Conversational status queries (e.g. 'how's the progress?') are short.
         if (
-            len(objective) > 500
+            len(objective) > 400
             or "[embodied control contract]" in lowered
             or "[sensory feed" in lowered
             or "[environmental context" in lowered
             or "core directive:" in lowered
         ):
             return False
+
+        # [STABILITY v54] Strict token check for complex sentences.
+        # If the sentence is long and the marker is a common word like 'progress' or 'task',
+        # do not trigger unless it's clearly a query.
+        tokens = re.findall(r"[a-z0-9_./-]+", lowered)
+        if len(tokens) > 8:
+            # For longer sentences, only trigger on highly specific markers
+            specific_markers = ("are you done", "did you finish", "still running", "what happened", "follow up", "did it work", "pick it back up")
+            if not any(marker in lowered for marker in specific_markers):
+                return False
 
         return any(marker in lowered for marker in _STATUS_QUERY_MARKERS)
 

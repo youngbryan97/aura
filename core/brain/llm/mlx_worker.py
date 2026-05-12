@@ -847,6 +847,12 @@ def _mlx_worker_loop(
                     "User:", "\nUser", "Human:", "Assistant:",
                     "Aura:", "\nAura:",
                 ]
+                job_stops = job.get("stop_sequences") or []
+                for s in job_stops:
+                    if s and s not in stop_sequences:
+                        stop_sequences.append(s)
+                # We do NOT pass stop_words to stream_generate as it causes TypeError in some mlx-lm versions.
+                # Truncation is handled manually in the token loop via _truncate_role_continuation.
 
                 
                 try:
@@ -937,13 +943,14 @@ def _mlx_worker_loop(
                                 except ImportError:
                                     pass # old mlx_lm
                                 
-                                # Remove legacy kwargs before calling stream_generate since they
-                                # are handled by sampler/logits_processors now.
-                                for key in ["temperature", "top_p", "min_p", "repetition_penalty", "repetition_context_size"]:
-                                    kwargs.pop(key, None)
+                                # [STABILITY v60] Definitive scrub of legacy kwargs.
+                                # New mlx-lm versions pass kwargs directly to generate_step which
+                                # throws TypeError if it sees 'temperature' or 'top_p' instead of 'temp'.
+                                clean_keys = {"temperature", "top_p", "min_p", "repetition_penalty", "repetition_context_size", "stop_words"}
+                                clean_kwargs = {k: v for k, v in kwargs.items() if k not in clean_keys}
                                 
                                 watchdog.activity()
-                                for response in stream_generate(model, tokenizer, prompt=gen_prompt, **kwargs):
+                                for response in stream_generate(model, tokenizer, prompt=gen_prompt, **clean_kwargs):
                                     watchdog.activity()
                                     token_count += 1
                                     progress_now = time.time()
@@ -959,6 +966,18 @@ def _mlx_worker_loop(
                                     
                                     current_response += response.text
                                     current_response, role_continuation_hit = _truncate_role_continuation(current_response)
+                                    
+                                    # [STABILITY v58] Explicit break on stop sequences or role drift
+                                    if role_continuation_hit:
+                                        break
+                                    
+                                    # Manual check for any dynamic stop sequences passed in the job
+                                    if any(s in current_response for s in stop_sequences):
+                                        for s in stop_sequences:
+                                            if s in current_response:
+                                                current_response = current_response.split(s)[0]
+                                                break
+                                        break
 
                                     # ── Sentinel: feed every token ────────────────────
                                     if sentinel is not None:
@@ -1189,25 +1208,12 @@ def _mlx_worker_loop(
                             except Exception:
                                 stream_sentinel = None
 
-                            # [STABILITY v57] Reset activity immediately before loop
-                            try:
-                                from mlx_lm.sample_utils import make_sampler
-                                if "sampler" not in kwargs:
-                                    import inspect as _insp
-                                    _sparams = _insp.signature(make_sampler).parameters
-                                    sampler_kwargs = {"temp": kwargs.pop("temperature", 0.7)}
-                                    if "top_p" in _sparams: sampler_kwargs["top_p"] = kwargs.pop("top_p", 1.0)
-                                    if "min_p" in _sparams: sampler_kwargs["min_p"] = kwargs.pop("min_p", 0.0)
-                                    if "repetition_penalty" in _sparams: 
-                                        sampler_kwargs["repetition_penalty"] = kwargs.pop("repetition_penalty", 1.0)
-                                    if "repetition_context_size" in _sparams: 
-                                        sampler_kwargs["repetition_context_size"] = kwargs.pop("repetition_context_size", 20)
-                                    kwargs["sampler"] = make_sampler(**sampler_kwargs)
-                            except ImportError:
-                                pass # old mlx_lm
-                            
+                            # [STABILITY v60] Definitive scrub of legacy kwargs.
+                            clean_keys = {"temperature", "top_p", "min_p", "repetition_penalty", "repetition_context_size", "stop_words"}
+                            clean_kwargs = {k: v for k, v in kwargs.items() if k not in clean_keys}
+
                             watchdog.activity()
-                            for response in stream_generate(model, tokenizer, prompt=prompt, **kwargs):
+                            for response in stream_generate(model, tokenizer, prompt=prompt, **clean_kwargs):
                                 watchdog.activity()
                                 token_count += 1
                                 token_text = response.text

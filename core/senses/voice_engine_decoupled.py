@@ -23,6 +23,7 @@ class DecoupledVoiceEngine:
     Prevents the '30-message stall' caused by event loop congestion.
     """
     def __init__(self, use_xtts: bool = True):
+        import os
         self.state = VoiceState.IDLE
         self._speech_queue = queue.Queue()
         self._is_running = False
@@ -30,6 +31,9 @@ class DecoupledVoiceEngine:
         self._tts_engine = None
         self._use_xtts = use_xtts
         self.interrupt_flag = threading.Event() # Thread-safe flag
+        self._muted = os.environ.get("AURA_VOICE_SILENT", "0") == "1"
+        if self._muted:
+            logger.info("🔇 DecoupledVoiceEngine: Muted (AURA_VOICE_SILENT=1)")
         
         # Performance monitoring
         self._last_speech_time: float = 0.0
@@ -51,7 +55,7 @@ class DecoupledVoiceEngine:
 
     def speak(self, text: str):
         """Enqueue text for speech. Non-blocking."""
-        if not text or not text.strip():
+        if self._muted or not text or not text.strip():
             return
         self._speech_queue.put(text)
         logger.debug(f"Queued speech: {text[:50]}...")

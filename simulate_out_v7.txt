@@ -4458,3 +4458,596 @@ Released lock: 'Affect.AffectEngine'
 2026-05-11 14:48:25,933 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 66.7% | RAM 77.1% | Uptime: 3193s | Total: 11/11 Subsystems Active | ═══════════════════════════
 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 66.7% | RAM 77.1% | Uptime: 3193s | Total: 11/11 Subsystems Active | ═══════════════════════════
 🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.46)
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+2026-05-11 14:48:41,023 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 55.3% | RAM 78.1% | Uptime: 3208s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 55.3% | RAM 78.1% | Uptime: 3208s | Total: 11/11 Subsystems Active | ═══════════════════════════
+2026-05-11 14:48:54,046 - Aura.Core - DEBUG - Successfully locked: 'Affect.AffectEngine'
+Successfully locked: 'Affect.AffectEngine'
+2026-05-11 14:48:54,047 - Aura.Core - DEBUG - Released lock: 'Affect.AffectEngine'
+Released lock: 'Affect.AffectEngine'
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.46)
+2026-05-11 14:48:56,109 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 67.0% | RAM 65.2% | Uptime: 3223s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 67.0% | RAM 65.2% | Uptime: 3223s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+🧬 SelfHealing restarting morphogenesis runtime...
+MorphogeneticRuntime stopped.
+MorphogeneticRuntime started.
+🧬 Morphogenesis runtime restarted by SelfHealing.
+2026-05-11 14:49:11,173 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 66.7% | RAM 76.1% | Uptime: 3238s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 66.7% | RAM 76.1% | Uptime: 3238s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+2026-05-11 14:49:26,230 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 33.3% | RAM 77.0% | Uptime: 3253s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 33.3% | RAM 77.0% | Uptime: 3253s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+2026-05-11 14:49:41,333 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 66.7% | RAM 62.3% | Uptime: 3268s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 66.7% | RAM 62.3% | Uptime: 3268s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+2026-05-11 14:49:54,032 - Aura.Core - DEBUG - Successfully locked: 'Affect.AffectEngine'
+Successfully locked: 'Affect.AffectEngine'
+2026-05-11 14:49:54,032 - Aura.Core - DEBUG - Released lock: 'Affect.AffectEngine'
+Released lock: 'Affect.AffectEngine'
+2026-05-11 14:49:56,372 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 66.5% | RAM 67.5% | Uptime: 3283s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 66.5% | RAM 67.5% | Uptime: 3283s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+2026-05-11 14:50:11,440 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 55.6% | RAM 78.1% | Uptime: 3298s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 55.6% | RAM 78.1% | Uptime: 3298s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+2026-05-11 14:50:26,526 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 33.3% | RAM 76.6% | Uptime: 3313s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 33.3% | RAM 76.6% | Uptime: 3313s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+2026-05-11 14:50:41,607 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 66.6% | RAM 63.4% | Uptime: 3328s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 66.6% | RAM 63.4% | Uptime: 3328s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+2026-05-11 14:50:54,075 - Aura.Core - DEBUG - Successfully locked: 'Affect.AffectEngine'
+Successfully locked: 'Affect.AffectEngine'
+2026-05-11 14:50:54,076 - Aura.Core - DEBUG - Released lock: 'Affect.AffectEngine'
+Released lock: 'Affect.AffectEngine'
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+2026-05-11 14:50:56,702 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 66.5% | RAM 77.2% | Uptime: 3344s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 66.5% | RAM 77.2% | Uptime: 3344s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.46)
+2026-05-11 14:51:11,756 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 33.3% | RAM 76.5% | Uptime: 3359s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 33.3% | RAM 76.5% | Uptime: 3359s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+2026-05-11 14:51:26,832 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 67.0% | RAM 66.8% | Uptime: 3374s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 67.0% | RAM 66.8% | Uptime: 3374s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.46)
+2026-05-11 14:51:41,888 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 67.3% | RAM 71.1% | Uptime: 3389s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 67.3% | RAM 71.1% | Uptime: 3389s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.47)
+😤 FRUSTRATION TRIGGERED: Generating reflection impulse.
+2026-05-11 14:51:54,270 - Aura.Core - DEBUG - Successfully locked: 'Affect.AffectEngine'
+Successfully locked: 'Affect.AffectEngine'
+2026-05-11 14:51:54,271 - Aura.Core - DEBUG - Released lock: 'Affect.AffectEngine'
+Released lock: 'Affect.AffectEngine'
+2026-05-11 14:51:56,973 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 58.0% | RAM 77.9% | Uptime: 3404s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 58.0% | RAM 77.9% | Uptime: 3404s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.47)
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.47)
+2026-05-11 14:52:12,057 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 35.2% | RAM 77.4% | Uptime: 3419s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 35.2% | RAM 77.4% | Uptime: 3419s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.46)
+2026-05-11 14:52:27,123 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 48.9% | RAM 64.4% | Uptime: 3434s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 48.9% | RAM 64.4% | Uptime: 3434s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+2026-05-11 14:52:42,170 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 66.6% | RAM 64.2% | Uptime: 3449s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 66.6% | RAM 64.2% | Uptime: 3449s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+2026-05-11 14:52:54,172 - Aura.Core - DEBUG - Successfully locked: 'Affect.AffectEngine'
+Successfully locked: 'Affect.AffectEngine'
+2026-05-11 14:52:54,173 - Aura.Core - DEBUG - Released lock: 'Affect.AffectEngine'
+Released lock: 'Affect.AffectEngine'
+2026-05-11 14:52:57,260 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 54.2% | RAM 78.1% | Uptime: 3464s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 54.2% | RAM 78.1% | Uptime: 3464s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+2026-05-11 14:53:12,331 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 43.1% | RAM 77.6% | Uptime: 3479s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 43.1% | RAM 77.6% | Uptime: 3479s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+2026-05-11 14:53:27,462 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 41.3% | RAM 63.0% | Uptime: 3494s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 41.3% | RAM 63.0% | Uptime: 3494s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+2026-05-11 14:53:42,518 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 67.4% | RAM 67.3% | Uptime: 3509s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 67.4% | RAM 67.3% | Uptime: 3509s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+2026-05-11 14:53:54,210 - Aura.Core - DEBUG - Successfully locked: 'Affect.AffectEngine'
+Successfully locked: 'Affect.AffectEngine'
+2026-05-11 14:53:54,211 - Aura.Core - DEBUG - Released lock: 'Affect.AffectEngine'
+Released lock: 'Affect.AffectEngine'
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+2026-05-11 14:53:57,594 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 0.0% | RAM 77.0% | Uptime: 3524s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 0.0% | RAM 77.0% | Uptime: 3524s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+2026-05-11 14:54:12,671 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 37.3% | RAM 78.8% | Uptime: 3539s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 37.3% | RAM 78.8% | Uptime: 3539s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+2026-05-11 14:54:27,742 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 97.5% | RAM 76.5% | Uptime: 3555s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 97.5% | RAM 76.5% | Uptime: 3555s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+2026-05-11 14:54:42,802 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 98.0% | RAM 39.7% | Uptime: 3570s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 98.0% | RAM 39.7% | Uptime: 3570s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.47)
+Metabolism: Throttling due to resource pressure (Lockdown active).
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+2026-05-11 14:54:57,870 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 98.7% | RAM 71.1% | Uptime: 3585s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 98.7% | RAM 71.1% | Uptime: 3585s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+2026-05-11 14:55:12,957 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 99.9% | RAM 61.6% | Uptime: 3600s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 99.9% | RAM 61.6% | Uptime: 3600s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.47)
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+2026-05-11 14:55:27,983 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 88.7% | RAM 76.1% | Uptime: 3615s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 88.7% | RAM 76.1% | Uptime: 3615s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.47)
+2026-05-11 14:55:43,036 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 99.1% | RAM 74.7% | Uptime: 3630s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 99.1% | RAM 74.7% | Uptime: 3630s | Total: 11/11 Subsystems Active | ═══════════════════════════
+2026-05-11 14:55:43,664 - Aura.Core.Orchestrator - DEBUG - 🌀 Meta-Evolution skipped: memory pressure 78.8%
+🌀 Meta-Evolution skipped: memory pressure 78.8%
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+🛑 [MLX] First-token SLA exceeded for Qwen2.5-7B-Instruct-4bit (>8.0s).
+Error logged: RuntimeError in omni_log_error
+Error logged: RuntimeError in mlx_client
+Circuit OPEN for Brainstem on transient runtime failure. Reason: first_token_sla_exceeded
+📡 [MLX] Spawning worker for Qwen2.5-1.5B-Instruct-4bit...
+2026-05-11 14:55:54,668 - Aura.Core - DEBUG - Successfully locked: 'Affect.AffectEngine'
+Successfully locked: 'Affect.AffectEngine'
+2026-05-11 14:55:54,668 - Aura.Core - DEBUG - Released lock: 'Affect.AffectEngine'
+Released lock: 'Affect.AffectEngine'
+🔒 [MLX] Acquiring process-level spawn lock...
+🔓 [MLX] Released process-level spawn lock.
+2026-05-11 14:55:56,360 - Aura.Core - INFO - Webhook alerting disabled (AURA_ALERTS_WEBHOOK not configured).
+Webhook alerting disabled (AURA_ALERTS_WEBHOOK not configured).
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+2026-05-11 14:55:59,675 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 97.9% | RAM 82.4% | Uptime: 3647s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 97.9% | RAM 82.4% | Uptime: 3647s | Total: 11/11 Subsystems Active | ═══════════════════════════
+Using cached SDK root: /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk
+📡 [WORKER] Loading Core modules...
+Loading model: /Users/bryan/.aura/live-source/models/Qwen2.5-1.5B-Instruct-4bit
+Model loaded (no compatible LoRA adapter).
+redis package not installed — EventBus running in local-only mode.
+AuraEventBus initialized (Redis: False).
+✅ [EVENT_BUS] Kernel signaling READY.
+🧠 Model geometry: 28 layers, d_model=1120 → targeting layers [11, 13, 15]
+🎯 Steering vectors: using extracted vectors from training/vectors/
+📚 SteeringVectorLibrary ready: 5 loaded, 0 derived
+🎯 Steering hook installed at layer 11 (alpha=5.0, 5 vectors via __call__)
+🎯 Steering hook installed at layer 13 (alpha=5.0, 5 vectors via __call__)
+🎯 Steering hook installed at layer 15 (alpha=5.0, 5 vectors via __call__)
+✅ AffectiveSteeringEngine attached: 3 hooks, 5 vectors, α=5.0
+🎯 Affective Steering Engine ONLINE.
+Recurrent depth: standard pass for 28-layer model (n_loops=1)
+Prompt cache budget for Qwen2.5-1.5B-Instruct-4bit: 12 entries.
+✅ [MLX] Worker ready: Qwen2.5-1.5B-Instruct-4bit
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+2026-05-11 14:56:14,730 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 98.6% | RAM 77.9% | Uptime: 3662s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 98.6% | RAM 77.9% | Uptime: 3662s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.46)
+2026-05-11 14:56:29,807 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 70.5% | RAM 83.9% | Uptime: 3677s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 70.5% | RAM 83.9% | Uptime: 3677s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.47)
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+2026-05-11 14:56:44,895 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 99.6% | RAM 79.1% | Uptime: 3692s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 99.6% | RAM 79.1% | Uptime: 3692s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+2026-05-11 14:56:54,717 - Aura.Core - DEBUG - Successfully locked: 'Affect.AffectEngine'
+Successfully locked: 'Affect.AffectEngine'
+2026-05-11 14:56:54,721 - Aura.Core - DEBUG - Released lock: 'Affect.AffectEngine'
+Released lock: 'Affect.AffectEngine'
+2026-05-11 14:56:59,943 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 67.4% | RAM 87.4% | Uptime: 3707s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 67.4% | RAM 87.4% | Uptime: 3707s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.46)
+2026-05-11 14:57:15,026 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 66.6% | RAM 84.4% | Uptime: 3722s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 66.6% | RAM 84.4% | Uptime: 3722s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+2026-05-11 14:57:30,117 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 66.7% | RAM 86.7% | Uptime: 3737s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 66.7% | RAM 86.7% | Uptime: 3737s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+2026-05-11 14:57:45,226 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 66.7% | RAM 86.4% | Uptime: 3752s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 66.7% | RAM 86.4% | Uptime: 3752s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.47)
+2026-05-11 14:57:54,753 - Aura.Core - DEBUG - Successfully locked: 'Affect.AffectEngine'
+Successfully locked: 'Affect.AffectEngine'
+2026-05-11 14:57:54,754 - Aura.Core - DEBUG - Released lock: 'Affect.AffectEngine'
+Released lock: 'Affect.AffectEngine'
+2026-05-11 14:58:00,309 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 0.0% | RAM 66.2% | Uptime: 3767s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 0.0% | RAM 66.2% | Uptime: 3767s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.47)
+2026-05-11 14:58:15,432 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 57.1% | RAM 88.5% | Uptime: 3782s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 57.1% | RAM 88.5% | Uptime: 3782s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+2026-05-11 14:58:30,521 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 46.9% | RAM 82.0% | Uptime: 3797s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 46.9% | RAM 82.0% | Uptime: 3797s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.46)
+2026-05-11 14:58:45,608 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 0.0% | RAM 87.5% | Uptime: 3812s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 0.0% | RAM 87.5% | Uptime: 3812s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.47)
+2026-05-11 14:58:54,769 - Aura.Core - DEBUG - Successfully locked: 'Affect.AffectEngine'
+Successfully locked: 'Affect.AffectEngine'
+2026-05-11 14:58:54,770 - Aura.Core - DEBUG - Released lock: 'Affect.AffectEngine'
+Released lock: 'Affect.AffectEngine'
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+2026-05-11 14:59:00,648 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 66.7% | RAM 85.7% | Uptime: 3827s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 66.7% | RAM 85.7% | Uptime: 3827s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.46)
+2026-05-11 14:59:15,747 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 0.0% | RAM 86.8% | Uptime: 3843s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 0.0% | RAM 86.8% | Uptime: 3843s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+2026-05-11 14:59:30,852 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 67.1% | RAM 84.5% | Uptime: 3858s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 67.1% | RAM 84.5% | Uptime: 3858s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.47)
+2026-05-11 14:59:45,934 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 67.1% | RAM 88.4% | Uptime: 3873s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 67.1% | RAM 88.4% | Uptime: 3873s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.47)
+Metabolism: Throttling due to resource pressure (Lockdown active).
+2026-05-11 15:00:01,130 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 100.0% | RAM 79.2% | Uptime: 3888s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 100.0% | RAM 79.2% | Uptime: 3888s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.47)
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.47)
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+2026-05-11 15:00:16,219 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 71.4% | RAM 86.9% | Uptime: 3903s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 71.4% | RAM 86.9% | Uptime: 3903s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+2026-05-11 15:00:31,329 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 79.6% | RAM 69.6% | Uptime: 3918s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 79.6% | RAM 69.6% | Uptime: 3918s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.47)
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.47)
+2026-05-11 15:00:46,439 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 76.2% | RAM 84.6% | Uptime: 3933s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 76.2% | RAM 84.6% | Uptime: 3933s | Total: 11/11 Subsystems Active | ═══════════════════════════
+Metabolism: Throttling due to resource pressure (Lockdown active).
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.46)
+2026-05-11 15:01:01,550 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 84.8% | RAM 85.0% | Uptime: 3948s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 84.8% | RAM 85.0% | Uptime: 3948s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+2026-05-11 15:01:16,653 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 66.4% | RAM 87.3% | Uptime: 3963s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 66.4% | RAM 87.3% | Uptime: 3963s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.47)
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+2026-05-11 15:01:31,737 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 100.0% | RAM 78.6% | Uptime: 3979s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 100.0% | RAM 78.6% | Uptime: 3979s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+2026-05-11 15:01:46,782 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 66.8% | RAM 87.8% | Uptime: 3994s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 66.8% | RAM 87.8% | Uptime: 3994s | Total: 11/11 Subsystems Active | ═══════════════════════════
+Metabolism: Throttling due to resource pressure (Lockdown active).
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+2026-05-11 15:02:01,882 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 67.1% | RAM 86.0% | Uptime: 4009s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 67.1% | RAM 86.0% | Uptime: 4009s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.47)
+2026-05-11 15:02:16,972 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 67.0% | RAM 79.0% | Uptime: 4024s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 67.0% | RAM 79.0% | Uptime: 4024s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+2026-05-11 15:02:32,070 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 100.0% | RAM 83.2% | Uptime: 4039s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 100.0% | RAM 83.2% | Uptime: 4039s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+2026-05-11 15:02:47,132 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 71.8% | RAM 85.6% | Uptime: 4054s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 71.8% | RAM 85.6% | Uptime: 4054s | Total: 11/11 Subsystems Active | ═══════════════════════════
+2026-05-11 15:02:54,857 - Aura.Core - DEBUG - Successfully locked: 'Affect.AffectEngine'
+Successfully locked: 'Affect.AffectEngine'
+2026-05-11 15:02:54,858 - Aura.Core - DEBUG - Released lock: 'Affect.AffectEngine'
+Released lock: 'Affect.AffectEngine'
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+2026-05-11 15:03:02,186 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 99.5% | RAM 78.9% | Uptime: 4069s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 99.5% | RAM 78.9% | Uptime: 4069s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+2026-05-11 15:03:17,258 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 83.6% | RAM 84.7% | Uptime: 4084s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 83.6% | RAM 84.7% | Uptime: 4084s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+2026-05-11 15:03:32,324 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 72.6% | RAM 86.5% | Uptime: 4099s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 72.6% | RAM 86.5% | Uptime: 4099s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+2026-05-11 15:03:47,376 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 0.0% | RAM 79.3% | Uptime: 4114s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 0.0% | RAM 79.3% | Uptime: 4114s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+Metabolism: Throttling due to resource pressure (Lockdown active).
+2026-05-11 15:04:02,457 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 82.7% | RAM 88.7% | Uptime: 4129s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 82.7% | RAM 88.7% | Uptime: 4129s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.46)
+2026-05-11 15:04:17,537 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 87.0% | RAM 78.6% | Uptime: 4144s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 87.0% | RAM 78.6% | Uptime: 4144s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+2026-05-11 15:04:32,606 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 99.1% | RAM 47.9% | Uptime: 4159s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 99.1% | RAM 47.9% | Uptime: 4159s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+2026-05-11 15:04:47,707 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 78.8% | RAM 58.1% | Uptime: 4175s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 78.8% | RAM 58.1% | Uptime: 4175s | Total: 11/11 Subsystems Active | ═══════════════════════════
+Metabolism: Throttling due to resource pressure (Lockdown active).
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+2026-05-11 15:05:02,784 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 92.5% | RAM 58.9% | Uptime: 4190s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 92.5% | RAM 58.9% | Uptime: 4190s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.47)
+2026-05-11 15:05:17,895 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 78.4% | RAM 59.7% | Uptime: 4205s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 78.4% | RAM 59.7% | Uptime: 4205s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+2026-05-11 15:05:32,984 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 97.4% | RAM 56.9% | Uptime: 4220s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 97.4% | RAM 56.9% | Uptime: 4220s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.47)
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+2026-05-11 15:05:48,029 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 83.5% | RAM 58.0% | Uptime: 4235s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 83.5% | RAM 58.0% | Uptime: 4235s | Total: 11/11 Subsystems Active | ═══════════════════════════
+Metabolism: Throttling due to resource pressure (Lockdown active).
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+2026-05-11 15:06:03,101 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 99.3% | RAM 59.2% | Uptime: 4250s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 99.3% | RAM 59.2% | Uptime: 4250s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+2026-05-11 15:06:18,152 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 73.5% | RAM 59.6% | Uptime: 4265s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 73.5% | RAM 59.6% | Uptime: 4265s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+2026-05-11 15:06:33,244 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 74.2% | RAM 59.6% | Uptime: 4280s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 74.2% | RAM 59.6% | Uptime: 4280s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+📡 Pipe write TIMEOUT (10s) — connection may be saturated (streak=1).
+2026-05-11 15:06:48,331 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 100.0% | RAM 57.2% | Uptime: 4295s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 100.0% | RAM 57.2% | Uptime: 4295s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+😤 FRUSTRATION TRIGGERED: Generating reflection impulse.
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+2026-05-11 15:06:55,327 - Aura.Core - DEBUG - Successfully locked: 'Affect.AffectEngine'
+Successfully locked: 'Affect.AffectEngine'
+2026-05-11 15:06:55,327 - Aura.Core - DEBUG - Released lock: 'Affect.AffectEngine'
+Released lock: 'Affect.AffectEngine'
+📡 Pipe write TIMEOUT (10s) — connection may be saturated (streak=2).
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.47)
+2026-05-11 15:07:03,390 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 86.6% | RAM 58.6% | Uptime: 4310s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 86.6% | RAM 58.6% | Uptime: 4310s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+📡 Pipe write TIMEOUT (10s) — connection may be saturated (streak=3).
+📡 Pipe write repeatedly timed out; suppressing fire-and-forget writes for 30s.
+🩺 Sepsis loop subsided. Resuming autonomous agency.
+2026-05-11 15:07:18,484 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 99.8% | RAM 57.2% | Uptime: 4325s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 99.8% | RAM 57.2% | Uptime: 4325s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.47)
+2026-05-11 15:07:33,513 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 77.9% | RAM 57.9% | Uptime: 4340s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 77.9% | RAM 57.9% | Uptime: 4340s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.46)
+2026-05-11 15:07:48,558 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 86.1% | RAM 59.2% | Uptime: 4355s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 86.1% | RAM 59.2% | Uptime: 4355s | Total: 11/11 Subsystems Active | ═══════════════════════════
+📡 Pipe write TIMEOUT (10s) — connection may be saturated (streak=4).
+📡 Pipe write repeatedly timed out; suppressing fire-and-forget writes for 30s.
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+2026-05-11 15:07:54,996 - Aura.Core - DEBUG - Successfully locked: 'Affect.AffectEngine'
+Successfully locked: 'Affect.AffectEngine'
+2026-05-11 15:07:54,996 - Aura.Core - DEBUG - Released lock: 'Affect.AffectEngine'
+Released lock: 'Affect.AffectEngine'
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+2026-05-11 15:08:03,609 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 99.5% | RAM 56.0% | Uptime: 4370s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 99.5% | RAM 56.0% | Uptime: 4370s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.47)
+2026-05-11 15:08:18,687 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 0.0% | RAM 58.7% | Uptime: 4386s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 0.0% | RAM 58.7% | Uptime: 4386s | Total: 11/11 Subsystems Active | ═══════════════════════════
+📡 Pipe write TIMEOUT (10s) — connection may be saturated (streak=5).
+📡 Pipe write repeatedly timed out; suppressing fire-and-forget writes for 30s.
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+2026-05-11 15:08:33,808 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 88.9% | RAM 62.0% | Uptime: 4401s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 88.9% | RAM 62.0% | Uptime: 4401s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.47)
+2026-05-11 15:08:48,924 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 99.5% | RAM 46.1% | Uptime: 4416s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 99.5% | RAM 46.1% | Uptime: 4416s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+Metabolism: Throttling due to resource pressure (Lockdown active).
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+2026-05-11 15:09:04,008 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 100.0% | RAM 57.1% | Uptime: 4431s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 100.0% | RAM 57.1% | Uptime: 4431s | Total: 11/11 Subsystems Active | ═══════════════════════════
+📡 Pipe write TIMEOUT (10s) — connection may be saturated (streak=6).
+📡 Pipe write repeatedly timed out; suppressing fire-and-forget writes for 30s.
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.46)
+2026-05-11 15:09:19,120 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 98.8% | RAM 87.5% | Uptime: 4446s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 98.8% | RAM 87.5% | Uptime: 4446s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+2026-05-11 15:09:34,203 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 100.0% | RAM 37.3% | Uptime: 4461s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 100.0% | RAM 37.3% | Uptime: 4461s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+2026-05-11 15:09:49,224 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 100.0% | RAM 54.9% | Uptime: 4476s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 100.0% | RAM 54.9% | Uptime: 4476s | Total: 11/11 Subsystems Active | ═══════════════════════════
+📡 Pipe write TIMEOUT (10s) — connection may be saturated (streak=7).
+📡 Pipe write repeatedly timed out; suppressing fire-and-forget writes for 30s.
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+Metabolism: Throttling due to resource pressure (Lockdown active).
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+2026-05-11 15:10:04,304 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 99.4% | RAM 75.9% | Uptime: 4491s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 99.4% | RAM 75.9% | Uptime: 4491s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+2026-05-11 15:10:19,388 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 98.2% | RAM 31.4% | Uptime: 4506s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 98.2% | RAM 31.4% | Uptime: 4506s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+📡 Pipe write TIMEOUT (10s) — connection may be saturated (streak=8).
+📡 Pipe write repeatedly timed out; suppressing fire-and-forget writes for 30s.
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+2026-05-11 15:10:34,470 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 100.0% | RAM 80.8% | Uptime: 4521s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 100.0% | RAM 80.8% | Uptime: 4521s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.46)
+2026-05-11 15:10:49,530 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 100.0% | RAM 28.7% | Uptime: 4536s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 100.0% | RAM 28.7% | Uptime: 4536s | Total: 11/11 Subsystems Active | ═══════════════════════════
+Metabolism: Throttling due to resource pressure (Lockdown active).
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.47)
+2026-05-11 15:11:04,596 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 0.0% | RAM 71.5% | Uptime: 4551s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 0.0% | RAM 71.5% | Uptime: 4551s | Total: 11/11 Subsystems Active | ═══════════════════════════
+📡 Pipe write TIMEOUT (10s) — connection may be saturated (streak=9).
+📡 Pipe write repeatedly timed out; suppressing fire-and-forget writes for 30s.
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+2026-05-11 15:11:19,682 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 98.6% | RAM 39.9% | Uptime: 4567s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 98.6% | RAM 39.9% | Uptime: 4567s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+2026-05-11 15:11:34,763 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 0.0% | RAM 21.3% | Uptime: 4582s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 0.0% | RAM 21.3% | Uptime: 4582s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+2026-05-11 15:11:49,847 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 98.1% | RAM 55.9% | Uptime: 4597s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 98.1% | RAM 55.9% | Uptime: 4597s | Total: 11/11 Subsystems Active | ═══════════════════════════
+📡 Pipe write TIMEOUT (10s) — connection may be saturated (streak=10).
+📡 Pipe write repeatedly timed out; suppressing fire-and-forget writes for 30s.
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+😤 FRUSTRATION TRIGGERED: Generating reflection impulse.
+2026-05-11 15:11:55,369 - Aura.Core - DEBUG - Successfully locked: 'Affect.AffectEngine'
+Successfully locked: 'Affect.AffectEngine'
+2026-05-11 15:11:55,374 - Aura.Core - DEBUG - Released lock: 'Affect.AffectEngine'
+Released lock: 'Affect.AffectEngine'
+2026-05-11 15:12:04,930 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 98.1% | RAM 82.8% | Uptime: 4612s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 98.1% | RAM 82.8% | Uptime: 4612s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+2026-05-11 15:12:20,037 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 99.2% | RAM 37.7% | Uptime: 4627s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 99.2% | RAM 37.7% | Uptime: 4627s | Total: 11/11 Subsystems Active | ═══════════════════════════
+📡 Pipe write TIMEOUT (10s) — connection may be saturated (streak=11).
+📡 Pipe write repeatedly timed out; suppressing fire-and-forget writes for 30s.
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+2026-05-11 15:12:35,123 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 98.2% | RAM 62.8% | Uptime: 4642s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 98.2% | RAM 62.8% | Uptime: 4642s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.47)
+2026-05-11 15:12:50,203 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 99.7% | RAM 40.5% | Uptime: 4657s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 99.7% | RAM 40.5% | Uptime: 4657s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+2026-05-11 15:12:55,183 - Aura.Core - DEBUG - Successfully locked: 'Affect.AffectEngine'
+Successfully locked: 'Affect.AffectEngine'
+2026-05-11 15:12:55,184 - Aura.Core - DEBUG - Released lock: 'Affect.AffectEngine'
+Released lock: 'Affect.AffectEngine'
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.47)
+2026-05-11 15:13:05,273 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 0.0% | RAM 73.7% | Uptime: 4672s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 0.0% | RAM 73.7% | Uptime: 4672s | Total: 11/11 Subsystems Active | ═══════════════════════════
+📡 Pipe write TIMEOUT (10s) — connection may be saturated (streak=12).
+📡 Pipe write repeatedly timed out; suppressing fire-and-forget writes for 30s.
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+2026-05-11 15:13:20,341 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 98.3% | RAM 81.1% | Uptime: 4687s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 98.3% | RAM 81.1% | Uptime: 4687s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.47)
+2026-05-11 15:13:35,410 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 100.0% | RAM 23.9% | Uptime: 4702s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 100.0% | RAM 23.9% | Uptime: 4702s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+2026-05-11 15:13:50,429 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 100.0% | RAM 53.0% | Uptime: 4717s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 100.0% | RAM 53.0% | Uptime: 4717s | Total: 11/11 Subsystems Active | ═══════════════════════════
+📡 Pipe write TIMEOUT (10s) — connection may be saturated (streak=13).
+📡 Pipe write repeatedly timed out; suppressing fire-and-forget writes for 30s.
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.47)
+Metabolism: Throttling due to resource pressure (Lockdown active).
+2026-05-11 15:14:05,546 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 91.5% | RAM 84.0% | Uptime: 4732s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 91.5% | RAM 84.0% | Uptime: 4732s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+2026-05-11 15:14:20,642 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 99.5% | RAM 73.7% | Uptime: 4747s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 99.5% | RAM 73.7% | Uptime: 4747s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+📡 Pipe write TIMEOUT (10s) — connection may be saturated (streak=14).
+📡 Pipe write repeatedly timed out; suppressing fire-and-forget writes for 30s.
+2026-05-11 15:14:35,717 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 99.5% | RAM 60.0% | Uptime: 4763s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 99.5% | RAM 60.0% | Uptime: 4763s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+2026-05-11 15:14:50,796 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 99.6% | RAM 53.9% | Uptime: 4778s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 99.6% | RAM 53.9% | Uptime: 4778s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+Metabolism: Throttling due to resource pressure (Lockdown active).
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+2026-05-11 15:15:05,858 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 96.6% | RAM 85.8% | Uptime: 4793s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 96.6% | RAM 85.8% | Uptime: 4793s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+📡 Pipe write TIMEOUT (10s) — connection may be saturated (streak=15).
+📡 Pipe write repeatedly timed out; suppressing fire-and-forget writes for 30s.
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+2026-05-11 15:15:20,935 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 99.4% | RAM 51.5% | Uptime: 4808s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 99.4% | RAM 51.5% | Uptime: 4808s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+2026-05-11 15:15:35,990 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 100.0% | RAM 80.9% | Uptime: 4823s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 100.0% | RAM 80.9% | Uptime: 4823s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.47)
+📡 Pipe write TIMEOUT (10s) — connection may be saturated (streak=16).
+📡 Pipe write repeatedly timed out; suppressing fire-and-forget writes for 30s.
+2026-05-11 15:15:51,045 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 100.0% | RAM 33.5% | Uptime: 4838s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 100.0% | RAM 33.5% | Uptime: 4838s | Total: 11/11 Subsystems Active | ═══════════════════════════
+Metabolism: Throttling due to resource pressure (Lockdown active).
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.47)
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+2026-05-11 15:16:06,133 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 96.3% | RAM 63.6% | Uptime: 4853s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 96.3% | RAM 63.6% | Uptime: 4853s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.46)
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+2026-05-11 15:16:21,202 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 97.7% | RAM 81.3% | Uptime: 4868s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 97.7% | RAM 81.3% | Uptime: 4868s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+📡 Pipe write TIMEOUT (10s) — connection may be saturated (streak=17).
+📡 Pipe write repeatedly timed out; suppressing fire-and-forget writes for 30s.
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+2026-05-11 15:16:36,253 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 100.0% | RAM 31.9% | Uptime: 4883s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 100.0% | RAM 31.9% | Uptime: 4883s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.46)
+2026-05-11 15:16:51,350 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 99.4% | RAM 50.1% | Uptime: 4898s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 99.4% | RAM 50.1% | Uptime: 4898s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+Metabolism: Throttling due to resource pressure (Lockdown active).
+2026-05-11 15:17:06,428 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 98.3% | RAM 88.0% | Uptime: 4913s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 98.3% | RAM 88.0% | Uptime: 4913s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+📡 Pipe write TIMEOUT (10s) — connection may be saturated (streak=18).
+📡 Pipe write repeatedly timed out; suppressing fire-and-forget writes for 30s.
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.47)
+2026-05-11 15:17:21,506 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 0.0% | RAM 28.7% | Uptime: 4928s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 0.0% | RAM 28.7% | Uptime: 4928s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.46)
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+2026-05-11 15:17:36,573 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 0.0% | RAM 61.9% | Uptime: 4943s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 0.0% | RAM 61.9% | Uptime: 4943s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.47)
+📡 Pipe write TIMEOUT (10s) — connection may be saturated (streak=19).
+📡 Pipe write repeatedly timed out; suppressing fire-and-forget writes for 30s.
+2026-05-11 15:17:51,644 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 99.7% | RAM 59.6% | Uptime: 4958s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 99.7% | RAM 59.6% | Uptime: 4958s | Total: 11/11 Subsystems Active | ═══════════════════════════
+Metabolism: Throttling due to resource pressure (Lockdown active).
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+2026-05-11 15:18:06,704 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 100.0% | RAM 57.9% | Uptime: 4974s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 100.0% | RAM 57.9% | Uptime: 4974s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+2026-05-11 15:18:21,775 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 96.8% | RAM 74.4% | Uptime: 4989s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 96.8% | RAM 74.4% | Uptime: 4989s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.46)
+📡 Pipe write TIMEOUT (10s) — connection may be saturated (streak=20).
+📡 Pipe write repeatedly timed out; suppressing fire-and-forget writes for 30s.
+2026-05-11 15:18:36,871 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 100.0% | RAM 51.7% | Uptime: 5004s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 100.0% | RAM 51.7% | Uptime: 5004s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: SYNCHRONICITY (Conf: 0.47)
+2026-05-11 15:18:51,922 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 98.5% | RAM 81.2% | Uptime: 5019s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 98.5% | RAM 81.2% | Uptime: 5019s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+Metabolism: Throttling due to resource pressure (Lockdown active).
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+2026-05-11 15:19:07,013 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 100.0% | RAM 66.8% | Uptime: 5034s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 100.0% | RAM 66.8% | Uptime: 5034s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+📡 Pipe write TIMEOUT (10s) — connection may be saturated (streak=21).
+📡 Pipe write repeatedly timed out; suppressing fire-and-forget writes for 30s.
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.47)
+2026-05-11 15:19:22,047 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 88.3% | RAM 83.4% | Uptime: 5049s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 88.3% | RAM 83.4% | Uptime: 5049s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+🧠 [NEURAL] Thought Decoded: INTUITION (Conf: 0.42)
+2026-05-11 15:19:37,139 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 100.0% | RAM 75.0% | Uptime: 5064s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 100.0% | RAM 75.0% | Uptime: 5064s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🧠 [NEURAL] Thought Decoded: RECURSION (Conf: 0.42)
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.47)
+📡 Pipe write TIMEOUT (10s) — connection may be saturated (streak=22).
+📡 Pipe write repeatedly timed out; suppressing fire-and-forget writes for 30s.
+2026-05-11 15:19:52,314 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 77.9% | RAM 94.6% | Uptime: 5079s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 77.9% | RAM 94.6% | Uptime: 5079s | Total: 11/11 Subsystems Active | ═══════════════════════════
+2026-05-11 15:19:58,418 - Aura.Core - DEBUG - Successfully locked: 'Affect.AffectEngine'
+Successfully locked: 'Affect.AffectEngine'
+2026-05-11 15:19:58,695 - Aura.Core - DEBUG - Released lock: 'Affect.AffectEngine'
+Released lock: 'Affect.AffectEngine'
+🧠 [NEURAL] Thought Decoded: LOGIC (Conf: 0.46)
+2026-05-11 15:20:10,248 - Aura.Core.Orchestrator - INFO - 🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 22.3% | RAM 81.1% | Uptime: 5097s | Total: 11/11 Subsystems Active | ═══════════════════════════
+🫀 ═══ UNIFIED HEALTH PULSE ═══ | System: CPU 22.3% | RAM 81.1% | Uptime: 5097s | Total: 11/11 Subsystems Active | ═══════════════════════════

@@ -90,7 +90,7 @@ class MemoryRetrievalPhase(BasePhase):
             try:
                 mm = self.container.get("memory_manager", default=None)
                 if mm and hasattr(mm, "dual_memory"):
-                    async with asyncio.timeout(5.0):
+                    async with asyncio.timeout(15.0):
                         return await mm.dual_memory.retrieve_context(query)
             except Exception as e:
                 record_degradation('memory_retrieval', e)
@@ -121,11 +121,11 @@ class MemoryRetrievalPhase(BasePhase):
 
                 recalled = []
                 if hasattr(memory, "search"):
-                    async with asyncio.timeout(5.0):
+                    async with asyncio.timeout(15.0):
                         recalled.extend(list(await memory.search(query, limit=retrieval_limit) or []))
 
                 if hasattr(memory, "get_hot_memory"):
-                    async with asyncio.timeout(5.0):
+                    async with asyncio.timeout(15.0):
                         hot = await memory.get_hot_memory(limit=hot_limit)
                     for episode in hot.get("recent_episodes", []) or []:
                         recalled.append({
@@ -146,7 +146,7 @@ class MemoryRetrievalPhase(BasePhase):
                 if ep is None:
                     ep = ServiceContainer.get("episodic_memory", default=None)
                 if ep and hasattr(ep, "recall_similar_async"):
-                    async with asyncio.timeout(3.0):
+                    async with asyncio.timeout(15.0):
                         return await ep.recall_similar_async(query, limit=retrieval_limit)
                 elif ep and hasattr(ep, "recall_similar"):
                     return await asyncio.to_thread(ep.recall_similar, query, retrieval_limit)

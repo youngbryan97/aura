@@ -133,6 +133,9 @@ class LocalVoiceCortex:
 
     async def speak(self, text: str):
         """Reflexive speech output via Sovereign Voice Engine (High Fidelity)."""
+        import os
+        if os.environ.get("AURA_VOICE_SILENT", "0") == "1":
+            return
         logger.info(f"🗣️ Aura: {text}")
         try:
             from core.container import ServiceContainer

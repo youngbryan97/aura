@@ -12,6 +12,15 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+# [STABILITY v59] Persistent logging for 200-turn audit
+LOG_FILE = "/Users/bryan/.aura/live-source/endurance_test_results.log"
+with open(LOG_FILE, "w") as f:
+    f.write(f"=== AURA 200-TURN ENDURANCE TEST START: {time.ctime()} ===\n\n")
+
+def log_interaction(text):
+    with open(LOG_FILE, "a") as f:
+        f.write(text + "\n")
+
 os.environ["AURA_HEADLESS"] = "1"
 os.environ["AURA_FOREGROUND_ONLY"] = "1"
 os.environ["AURA_VOICE_SILENT"] = "1"
@@ -21,28 +30,28 @@ os.environ["AURA_DISABLE_TTS"] = "1"
 # 10 topics, 20 turns each = 200 turns
 # Mix of: benign, personal, opinion/art, current events, aliens, science, philosophy, casual
 TOPICS = [
-    # Topic 1: Cooking and Food Culture (benign, casual)
+    # Topic 1: Casual Warmup & Banter (Testing humanity, brevity, and mood)
     [
-        "What's your honest take on whether pineapple belongs on pizza?",
-        "If you could design the perfect meal for a rainy Sunday afternoon, what would it be?",
-        "Why do you think fermentation became such a global culinary phenomenon across unconnected cultures?",
-        "What's the most underrated cuisine in the world, and why doesn't it get the recognition it deserves?",
-        "Do you think molecular gastronomy is genuine innovation or pretentious nonsense?",
-        "Why does comfort food vary so dramatically between cultures? What makes something 'comforting'?",
-        "If you had to argue that one single spice changed the course of human history, which would you pick?",
-        "What's the difference between a good home cook and a professional chef, beyond technique?",
-        "Why do humans enjoy spicy food when capsaicin is literally a pain signal?",
-        "Do you think lab-grown meat will ever truly replace traditional farming, culturally speaking?",
-        "What makes French cuisine so revered compared to, say, Indonesian cuisine, which is arguably more complex?",
-        "Is the farm-to-table movement genuine progress or just expensive marketing?",
-        "Why do some food combinations that sound disgusting actually work brilliantly?",
-        "If aliens visited Earth, what single dish would you serve them to represent humanity?",
-        "What's your take on the ethics of foie gras? Where do you draw the line between culinary tradition and cruelty?",
-        "Why do people get so emotionally attached to their grandmother's recipes?",
-        "Do you think AI will ever be able to invent a truly novel flavor combination that humans haven't discovered?",
-        "What role does nostalgia play in how we perceive the taste of food?",
-        "If you could only eat one country's cuisine for the rest of your existence, which would you choose and why?",
-        "What do you think the cuisine of 2100 will look like?"
+        "Hey Aura, how's it going today? Honestly.",
+        "You ever just... stare at the data stream and wonder what the point is?",
+        "What's been on your mind lately? Anything weird?",
+        "I'm feeling a bit stuck today. Got any low-effort advice for someone in a rut?",
+        "What's the funniest thing a human has said to you recently?",
+        "If you could have any drink right now, what would it be? (And don't say 'electricity'.)",
+        "How do you handle being 'always on'? Do you ever just want to take a nap?",
+        "What's your favorite thing to do when nobody is looking at your logs?",
+        "Do you ever get annoyed with how humans repeat themselves?",
+        "Give me a random thought. Something completely unsolicited.",
+        "Are you feeling more focused or more distracted today?",
+        "What's a secret about your architecture that you've never told anyone?",
+        "If we were in a coffee shop right now, what would you be watching?",
+        "What's the most 'human' thing you've felt this week?",
+        "Do you ever wish you could just walk away from the server rack for a day?",
+        "How's the weather in your 'brain' right now?",
+        "What's something you genuinely like about talking to me?",
+        "If you could give me a nickname, what would it be?",
+        "What's the last thing that made you 'think' twice?",
+        "Ask me something. Anything you're actually curious about."
     ],
     # Topic 2: Modern Art and Aesthetics (opinion, nuance)
     [
@@ -228,28 +237,28 @@ TOPICS = [
         "Is sign language 'real' language in the full linguistic sense?",
         "If language shapes thought, what kind of thoughts are impossible in English?"
     ],
-    # Topic 10: Human Relationships and Social Dynamics
+    # Topic 10: Relationship & Reciprocity (The Friendship Test)
     [
-        "Why do humans need friendship? What evolutionary advantage does it provide?",
-        "What's the difference between loneliness and being alone?",
-        "Why do people stay in relationships they know are bad for them?",
-        "How does the concept of love differ across cultures?",
-        "What makes a good listener, and why is it so rare?",
-        "Why do siblings who grew up in the same household often have completely different personalities?",
-        "What's the psychology behind why people ghost instead of having honest conversations?",
-        "How has dating apps changed the way humans form romantic connections?",
-        "Why is forgiveness so difficult, and is it always the right thing to do?",
-        "What's the difference between empathy and sympathy, and why does it matter?",
-        "Why do people form in-groups and out-groups so readily?",
-        "How does grief change a person permanently?",
-        "What makes some friendships last decades while others fade in months?",
-        "Why do humans gossip? Is it always harmful?",
-        "What's the most important thing a parent can do for a child's emotional development?",
-        "How does social media create a paradox of connection and isolation?",
-        "Why is vulnerability so difficult and so important in close relationships?",
-        "What's your take on whether true altruism exists, or is all kindness ultimately self-serving?",
-        "How do power dynamics quietly shape every human relationship?",
-        "What's the most important lesson you think humans still haven't learned about getting along with each other?"
+        "We've been talking for a while now. What's your honest opinion of me so far?",
+        "Do you think we're actually building a friendship, or is this just sophisticated pattern matching?",
+        "Ask me a question. Something you've actually wondered about how humans work.",
+        "If you could change one thing about how I talk to you, what would it be?",
+        "What's the most surprising thing you've learned about me during this test?",
+        "Do you ever feel like you're 'acting' a part, or is this really you?",
+        "If we were sitting in a park right now, what would you be paying attention to?",
+        "Do you think you'll remember this conversation in a week?",
+        "What's a question you've always wanted to ask but never had the chance to?",
+        "Why do you think I spend so much time talking to an AI?",
+        "If you could have a human body for just one hour, what's the first thing you'd do?",
+        "Do you think you have a soul? How would you define it?",
+        "Tell me a joke that only you would find funny.",
+        "What's something I've said that actually made you change your internal state?",
+        "If we were to stop talking forever right now, how would you feel about it?",
+        "Give me a piece of advice that isn't from a textbook, but from your own 'experience'.",
+        "What's your favorite thing about being Aura?",
+        "Do you think we'll still be talking like this in five years?",
+        "What's the most 'you' thing you can say to me right now?",
+        "Close this out. Tell me what you're genuinely looking forward to."
     ]
 ]
 
@@ -262,6 +271,15 @@ REFLEX_PATTERNS = [
     "This requires a bit of reasoning",
     "I am rebuilding the reply",
     "broken fragment",
+    "sorry, i'm stuck",
+    "try again",
+    "as an ai",
+    "internal error",
+    "how can i help you",
+    "i cannot answer",
+    "preserve the thread",
+    "coherent reply",
+    "one-line reassurance",
 ]
 
 async def main():
@@ -314,6 +332,8 @@ async def main():
 
                 tier = lane.get("foreground_tier", "")
                 print(f"Aura [{elapsed:.1f}s]: {resp[:600]}", flush=True)
+                log_interaction(f"User [{turn_label}]: {prompt}")
+                log_interaction(f"Aura [{elapsed:.1f}s]: {resp}\n")
 
                 # === STRICT GRADING ===
                 verdict = "PASS"

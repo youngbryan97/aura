@@ -146,6 +146,19 @@ class Soma:
         else:
             self.state.fatigue_level = 0.0
 
+    async def pulse(self) -> Dict[str, float]:
+        """Return current somatic state for the affect engine's DamasioMarkers.
+        
+        This is called by AffectEngineV2.pulse() to feed hardware telemetry
+        into the virtual physiology layer.
+        """
+        self._map_affective_states()
+        snapshot = self.get_body_snapshot()
+        return snapshot.get("soma", {
+            "thermal_load": 0.0,
+            "resource_anxiety": 0.0,
+        })
+
     def update_sensory_imprint(self, source: str, data: str):
         """Called by PulseManager or ContinuousPerception to update local awareness."""
         if source == "vision":

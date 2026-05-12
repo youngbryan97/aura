@@ -917,6 +917,10 @@ class UnifiedWill:
         if domain in {ActionDomain.SEMANTIC_WEIGHT_UPDATE, ActionDomain.STATE_MUTATION} and unity_level not in {"coherent", "strained"}:
             if catatonia_relief and domain == ActionDomain.STATE_MUTATION:
                 constraints.append(f"unity_repair_relief:{unity_level}")
+            elif unity_level == "unknown" and domain == ActionDomain.STATE_MUTATION:
+                # [STABILITY v55] Permit state mutations under 'unknown' unity to avoid 
+                # deadlocks during rapid transitions, but tag with a constraint.
+                constraints.append("unity_uncertainty: state mutation permitted under unknown unity")
             else:
                 reasons.append(f"unity_block: {domain.value} requires coherent or strained unity (current={unity_level})")
                 return WillOutcome.REFUSE, "; ".join(reasons), constraints
