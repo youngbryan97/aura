@@ -241,6 +241,53 @@ def test_reliability_contract_rejects_reported_live_incoherence(user, reply, exp
     assert expected_reason in assessment.reasons
 
 
+@pytest.mark.parametrize(
+    ("user", "reply"),
+    [
+        ("Actually? For real this time?", "I had the distinct impression that you were being held under duress."),
+        ("Sheesh. Why would you think that?", "You're the devil's girl."),
+    ],
+)
+def test_reliability_contract_rejects_unfounded_alarm_fragments(user, reply):
+    from core.conversation.response_reliability import assess_user_facing_reply
+
+    assessment = assess_user_facing_reply(user, reply)
+
+    assert assessment.retryable
+    assert "unfounded_alarm_derailment" in assessment.reasons
+
+
+def test_same_answer_detector_allows_equivalent_confusion_repair_prompts():
+    from interface.routes import chat as chat_routes
+
+    chat_routes._recent_responses.clear()
+    chat_routes._recent_response_pairs.clear()
+    repair = (
+        "Let's slow that down. I crossed a wire in the last answer, and I need to answer "
+        "the thing you actually asked instead of skating past it."
+    )
+
+    chat_routes._record_recent_response(repair, "huh")
+
+    assert not chat_routes._is_same_answer_different_prompt("im so confused", repair)
+
+
+def test_short_live_turns_are_not_static_floor_stress():
+    from core.phases.response_generation_unitary import UnitaryResponsePhase
+
+    short_turns = [
+        "huh",
+        "for real?",
+        "actually?",
+        "what?",
+        "im confused",
+        "you yourself now?",
+    ]
+
+    for idx in range(200):
+        assert UnitaryResponsePhase._simple_foreground_floor_reply(short_turns[idx % len(short_turns)]) == ""
+
+
 def test_model_text_integrity_rejects_malformed_32b_backend_output():
     from core.conversation.response_reliability import assess_model_text_integrity
 

@@ -36,6 +36,43 @@ def test_user_facing_unitary_response_timeout_matches_foreground_lane():
     ) == 360.0
 
 
+def test_simple_foreground_floor_does_not_bypass_live_conversation_turns():
+    assert UnitaryResponsePhase._simple_foreground_floor_reply("huh") == ""
+    assert UnitaryResponsePhase._simple_foreground_floor_reply("im so confused") == ""
+    assert UnitaryResponsePhase._simple_foreground_floor_reply("Actually? For real this time?") == ""
+    assert (
+        UnitaryResponsePhase._simple_foreground_floor_reply("Who wrote the play Hamlet?")
+        == "William Shakespeare."
+    )
+
+
+@pytest.mark.asyncio
+async def test_short_confusion_turn_reaches_llm(monkeypatch):
+    state = AuraState()
+    state.cognition.current_origin = "api"
+    state.cognition.current_objective = "huh"
+
+    llm = SimpleNamespace(
+        think=AsyncMock(
+            return_value=(
+                "I crossed a wire there. The direct answer is: yes, I'm here with the thread, "
+                "and that last reply was malformed."
+            )
+        )
+    )
+    phase = UnitaryResponsePhase(SimpleNamespace(organs={}))
+
+    monkeypatch.setattr(
+        "core.container.ServiceContainer.get",
+        staticmethod(lambda name, default=None: llm if name == "llm_router" else default),
+    )
+
+    new_state = await phase.execute(state, objective=state.cognition.current_objective, priority=True)
+
+    llm.think.assert_awaited()
+    assert "crossed a wire" in new_state.cognition.last_response
+
+
 def test_compact_router_prompt_does_not_embed_objective_labels_for_ordinary_chat():
     state = AuraState()
     state.cognition.current_origin = "api"
@@ -553,6 +590,7 @@ async def test_unitary_response_background_turn_uses_minimal_prompt(monkeypatch)
 
     _, kwargs = llm.think.await_args
     assert kwargs["skip_runtime_payload"] is True
+    assert kwargs["state"] is new_state
     assert kwargs["prefer_tier"] == "tertiary"
     assert "internal background reflection" in kwargs["messages"][0]["content"].lower()
     assert "YOUR LIVE NEURAL STATE" not in kwargs["messages"][0]["content"]

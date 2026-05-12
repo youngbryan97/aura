@@ -793,9 +793,9 @@ class ReActLoop:
         yield {"type": "status", "content": f"Aura is analyzing: {query[:30]}..."}
 
         try:
-            from core.synthesis import stabilize_user_facing_response
+            from core.synthesis import deterministic_user_facing_floor
 
-            floor_reply = stabilize_user_facing_response("", query)
+            floor_reply = deterministic_user_facing_floor(query)
         except Exception:
             floor_reply = ""
         if floor_reply and len(str(query or "").split()) <= 18:

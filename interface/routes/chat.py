@@ -1039,6 +1039,24 @@ def _is_stale_repeated_response(text: str) -> bool:
     return False
 
 
+_EQUIVALENT_REPAIR_PROMPT_GROUPS = (
+    ("huh", "wait what", "confused", "doesn't make sense", "does not make sense", "not making sense"),
+    ("you ok", "you okay", "are you ok", "are you okay", "feeling better", "for real this time"),
+    ("coherent", "still there", "able to talk", "can you talk", "chat", "response", "conversation"),
+)
+
+
+def _same_repair_prompt_class(a: str, b: str) -> bool:
+    left = _normalize_user_message(a)
+    right = _normalize_user_message(b)
+    if not left or not right:
+        return False
+    for group in _EQUIVALENT_REPAIR_PROMPT_GROUPS:
+        if any(marker in left for marker in group) and any(marker in right for marker in group):
+            return True
+    return False
+
+
 def _is_same_answer_different_prompt(user_message: str, text: str) -> bool:
     """Detect when different user prompts are getting the same response."""
     if _is_referential_followup_request(user_message):
@@ -1051,6 +1069,8 @@ def _is_same_answer_different_prompt(user_message: str, text: str) -> bool:
         if prev_user == user_fp:
             continue
         if _is_referential_followup_request(prev_user):
+            continue
+        if _same_repair_prompt_class(prev_user, user_fp):
             continue
         # Near-paraphrase follow-ups can legitimately receive the same answer.
         if _fuzzy_similar(prev_user, user_fp):

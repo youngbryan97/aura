@@ -218,6 +218,11 @@ def _creative_response_floor(user_message: str) -> str:
     return ""
 
 
+def deterministic_user_facing_floor(user_message: str) -> str:
+    """Return only exact deterministic floors, never conversational filler."""
+    return _direct_answer_floor(user_message) or _creative_response_floor(user_message)
+
+
 _LOW_SIGNAL_REPLY_RE = re.compile(
     r"^\s*(?:here(?:'s| is| you go)|sure|certainly|of course|okay|ok|done|"
     r"i can do that|let me|one moment)[\s:.,!;-]*$",

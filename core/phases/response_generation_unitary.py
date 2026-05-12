@@ -2176,14 +2176,13 @@ class UnitaryResponsePhase(Phase):
         canned template that trips reflex detectors.
         """
         try:
-            from core.synthesis import stabilize_user_facing_response
+            from core.synthesis import deterministic_user_facing_floor
 
-            stabilized = stabilize_user_facing_response(
-                "",
-                user_message or getattr(state.cognition, "current_objective", "") or "",
+            deterministic = deterministic_user_facing_floor(
+                user_message or getattr(state.cognition, "current_objective", "") or ""
             )
-            if stabilized:
-                return stabilized
+            if deterministic:
+                return deterministic
         except Exception:
             pass
 
@@ -2277,10 +2276,10 @@ class UnitaryResponsePhase(Phase):
         if len(str(objective or "").split()) > 18:
             return ""
         try:
-            from core.synthesis import stabilize_user_facing_response
+            from core.synthesis import deterministic_user_facing_floor
 
             return cls._normalize_text(
-                stabilize_user_facing_response("", objective),
+                deterministic_user_facing_floor(objective),
                 1200,
             )
         except Exception:
@@ -3038,11 +3037,10 @@ class UnitaryResponsePhase(Phase):
                 "protected_foreground_lane": is_deep_probe_objective,
                 "deep_mind_probe": is_deep_probe_objective,
                 "timeout": request_timeout,
+                "state": new_state,
             }
             if use_compact_router_payload:
                 llm_kwargs["skip_runtime_payload"] = True
-            else:
-                llm_kwargs["state"] = new_state
 
             # [STABILITY v53] Explicit timeout wrapper — don't rely on router
             # honoring the timeout kwarg. If the router hangs, the phase hangs,
@@ -3113,12 +3111,13 @@ class UnitaryResponsePhase(Phase):
                     "origin": routing_origin,
                     "purpose": "reply",
                     "is_background": not is_user_facing,
+                    "foreground_request": is_user_facing,
+                    "protected_foreground_lane": is_deep_probe_objective,
+                    "state": new_state,
                     "timeout": retry_timeout,
                 }
                 if use_compact_router_payload:
                     retry_kwargs["skip_runtime_payload"] = True
-                else:
-                    retry_kwargs["state"] = new_state
                 # [STABILITY v53] Explicit timeout on retry too
                 try:
                     retried = await asyncio.wait_for(
@@ -3242,24 +3241,42 @@ class UnitaryResponsePhase(Phase):
 
                     quality = assess_user_facing_reply(objective, response_text)
                     if quality.retryable:
-                        floor = reliability_floor_for_user(objective) or self._build_minimal_live_voice_reply(
-                            new_state,
-                            objective,
+                        retry_block = (
+                            "The previous draft failed the user-facing reliability gate "
+                            f"({','.join(quality.reasons) or 'unsafe_draft'}). "
+                            "Regenerate once. Answer the current user message directly, in ordinary English, "
+                            "without occult accusations, invented danger, prompt artifacts, or filler."
                         )
-                        shaped_floor = self._shape_user_facing_response(floor, objective)
-                        floor_quality = assess_user_facing_reply(objective, shaped_floor)
-                        if not floor_quality.retryable:
-                            logger.warning(
-                                "🛡️ UnitaryResponse replaced unsafe final 32B draft (%s, len=%d).",
-                                ",".join(quality.reasons) or "unknown",
-                                len(str(response_text or "")),
+                        retried_text = await _retry_dialogue(retry_block) if is_user_facing else ""
+                        if retried_text:
+                            retried_quality = assess_user_facing_reply(objective, retried_text)
+                            if not retried_quality.retryable:
+                                logger.warning(
+                                    "🛡️ UnitaryResponse regenerated unsafe final draft (%s -> clean, len=%d).",
+                                    ",".join(quality.reasons) or "unknown",
+                                    len(str(response_text or "")),
+                                )
+                                response_text = retried_text
+                                quality = retried_quality
+                        if quality.retryable:
+                            floor = reliability_floor_for_user(objective) or self._build_minimal_live_voice_reply(
+                                new_state,
+                                objective,
                             )
-                            response_text = shaped_floor
-                        else:
-                            raise TimeoutError(
-                                "Foreground conversation lane produced only unsafe drafts: "
-                                + ",".join(quality.reasons)
-                            )
+                            shaped_floor = self._shape_user_facing_response(floor, objective)
+                            floor_quality = assess_user_facing_reply(objective, shaped_floor)
+                            if not floor_quality.retryable:
+                                logger.warning(
+                                    "🛡️ UnitaryResponse replaced unsafe final 32B draft (%s, len=%d).",
+                                    ",".join(quality.reasons) or "unknown",
+                                    len(str(response_text or "")),
+                                )
+                                response_text = shaped_floor
+                            else:
+                                raise TimeoutError(
+                                    "Foreground conversation lane produced only unsafe drafts: "
+                                    + ",".join(quality.reasons)
+                                )
                 except TimeoutError:
                     raise
                 except Exception as quality_exc:

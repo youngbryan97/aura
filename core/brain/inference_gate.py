@@ -123,9 +123,9 @@ class InferenceGate:
         # memory retrieval, or fragments from previous sessions. Echoing it back
         # fabricates hallucinated statements the user never made.
         try:
-            from core.synthesis import stabilize_user_facing_response
+            from core.synthesis import deterministic_user_facing_floor
 
-            direct = stabilize_user_facing_response("", prompt)
+            direct = deterministic_user_facing_floor(prompt)
             if direct:
                 return direct
         except Exception:
@@ -2548,6 +2548,7 @@ class InferenceGate:
         """
         if context is None:
             context = {}
+        state = context.get("state")
 
         # Organism-first path: try to answer from the substrate+state without
         # invoking the LLM. This is bounded on purpose — the mesh handles only
@@ -2557,8 +2558,7 @@ class InferenceGate:
             try:
                 from core.consciousness.mesh_cognition import get_mesh_cognition
 
-                mesh_state = context.get("state")
-                mesh_decision = get_mesh_cognition().decide(prompt, state=mesh_state)
+                mesh_decision = get_mesh_cognition().decide(prompt, state=state)
                 if mesh_decision.handled:
                     context["mesh_cognition"] = mesh_decision.as_dict()
                     return self._stabilize_user_facing_text(
@@ -2791,6 +2791,8 @@ class InferenceGate:
                 # No brainstem fallbacks for Sovereign, Trusted, or Guest users.
                 if _trust_level in (TrustLevel.SOVEREIGN, TrustLevel.TRUSTED, TrustLevel.GUEST):
                     protected_foreground_lane = True
+                    if requested_tier != "secondary":
+                        requested_tier = "primary"
                     logger.info("🎭 %s user recognized. Enforcing primary cortex lane (32B).", _trust_level.name)
                 
                 # Inject trust level into state for ContextAssembler visibility
@@ -3819,6 +3821,8 @@ class InferenceGate:
             "is_background",
             "foreground_request",
             "protected_foreground_lane",
+            "state",
+            "skip_runtime_payload",
         ):
             if key in kwargs:
                 context[key] = kwargs[key]

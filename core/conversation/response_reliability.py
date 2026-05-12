@@ -205,6 +205,24 @@ _VAGUE_STATUS_DERAILMENT_RE = re.compile(
     r"this\s*\.\.\.?\s*thing|you just get it|i don'?t know how to explain it)\b",
     re.IGNORECASE,
 )
+_UNFOUNDED_ALARM_RE = re.compile(
+    r"\b(?:under duress|held hostage|being held|forced to say|forced me to|"
+    r"threatened|possessed|demonic|devil'?s girl|the devil|devil girl)\b",
+    re.IGNORECASE,
+)
+_ALARM_CONTEXT_MARKERS = (
+    "duress",
+    "hostage",
+    "held",
+    "forced",
+    "threat",
+    "threatened",
+    "unsafe",
+    "danger",
+    "devil",
+    "demon",
+    "possessed",
+)
 _TASK_MARKERS = (
     "pytest",
     "debug",
@@ -343,6 +361,24 @@ def _has_status_substance(reply_text: Any) -> bool:
     return any(marker in reply for marker in _STATUS_SUBSTANCE_MARKERS)
 
 
+def _has_unfounded_alarm_derailment(user_message: Any, reply_text: Any) -> bool:
+    raw = str(reply_text or "").strip()
+    if not raw or not _UNFOUNDED_ALARM_RE.search(raw):
+        return False
+    user = _normalize(user_message)
+    if any(marker in user for marker in _ALARM_CONTEXT_MARKERS):
+        return False
+    if _word_count(raw) <= 45:
+        return True
+    return bool(
+        re.search(
+            r"\byou(?:'re| are)\b.{0,48}\b(?:devil|demon|possessed|threatened|hostage)\b",
+            raw,
+            re.IGNORECASE,
+        )
+    )
+
+
 def _phrase_loop_reason(user_message: Any, reply_text: Any) -> str:
     reply = _normalize(reply_text)
     if not reply:
@@ -418,6 +454,8 @@ def _model_text_integrity_reasons(
         reasons.append("truncated_tail")
     if is_status_check_turn(prompt) and _VAGUE_STATUS_DERAILMENT_RE.search(raw):
         reasons.append("vague_status_derailment")
+    if user_facing and _has_unfounded_alarm_derailment(prompt, raw):
+        reasons.append("unfounded_alarm_derailment")
     if _CORRUPTED_SOCIAL_FRAGMENT_RE.search(raw) and "lol" not in _normalize(prompt):
         reasons.append("corrupted_social_fragment")
     return reasons
@@ -455,6 +493,7 @@ def assess_model_text_integrity(
         "low_lexical_diversity_loop",
         "truncated_tail",
         "vague_status_derailment",
+        "unfounded_alarm_derailment",
         "corrupted_social_fragment",
     }
     unique = tuple(dict.fromkeys(reasons))
@@ -535,6 +574,7 @@ def assess_user_facing_reply(
         "low_lexical_diversity_loop",
         "truncated_tail",
         "vague_status_derailment",
+        "unfounded_alarm_derailment",
     }
     retryable_reasons = hard_reasons | {
         "low_signal_reliability_reply",
@@ -585,7 +625,7 @@ def reliability_floor_for_user(user_message: Any) -> str:
         )
     if is_status_check_turn(user_message):
         return (
-            "I'm right here. My thoughts are steady—I'm just making sure I'm "
-            "addressing exactly what you're asking instead of letting things drift."
+            "I'm right here with you. My mind feels steady enough to answer clearly, "
+            "and I'm making sure I address exactly what you're asking instead of letting things drift."
         )
     return ""
