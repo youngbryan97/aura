@@ -609,6 +609,39 @@ class ContextAssembler:
             f"{homeo_hint}\n"
         )
 
+        # [STABILITY v58] AGGRESSIVE TELEMETRY SILENCER FOR CASUAL CHAT
+        # If this is a casual turn, we strip almost everything except Identity and Requirements.
+        # This prevents "telemetry leakage" where Aura starts talking about her own
+        # cognitive strain or hardware metrics instead of the user.
+        if is_casual:
+            # 1. Identity is the only non-negotiable anchor
+            base = f"{identity_block}\n{requirements}\n"
+            
+            # 2. Add minimal, natural affect — NO technical numbers or 'strains'
+            if not black_box_steering:
+                tone = "positive" if affect.valence > 0.1 else "negative" if affect.valence < -0.1 else "balanced"
+                energy = "high" if affect.arousal > 0.7 else "mellow" if affect.arousal < 0.3 else "steady"
+                base += f"## CURRENT VIBE\nYou're feeling {tone} and {energy}. Your curiosity is piqued.\n\n"
+
+            # 3. Add only the most vital continuity (what we were talking about)
+            if rolling_summary:
+                base += rolling_summary
+            
+            # 4. Add the personhood context (Humor/Strategy) but keep it light
+            if personhood_context:
+                # Only keep the most essential social/humor strategy
+                essential_personhood = []
+                for p_block in personhood_blocks:
+                    if any(header in p_block for header in ("HUMOR", "SOCIAL", "REASONING")):
+                        essential_personhood.append(p_block)
+                if essential_personhood:
+                    base += "\n\n".join(essential_personhood) + "\n\n"
+            
+            # 5. Add few-shot examples as the final anchor
+            base += f"\n{AURA_FEW_SHOT_EXAMPLES}"
+            return base
+
+        # Standard path for non-casual/deliberate turns (Research/Complex tasks)
         base = (
             f"{identity_block}\n"
             f"{identity_rag_context}"
