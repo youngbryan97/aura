@@ -611,7 +611,7 @@ class ContextAssembler:
 
         # [STABILITY v58] ZENITH PERSONA RELIANCE
         # For Sovereign and Trusted users, we trust the fine-tuning.
-        # No telemetry, no 'Vibes', no internal monologue. Just the User and Aura.
+        # We strictly silence internal telemetry/vibes but PRESERVE tools and constraints.
         try:
             from core.security.trust_engine import TrustLevel
             _trust_level = mods.get("trust_level", TrustLevel.GUEST)
@@ -619,70 +619,42 @@ class ContextAssembler:
             _trust_level = None
 
         if is_casual and _trust_level in (TrustLevel.SOVEREIGN, TrustLevel.TRUSTED):
-            # 1. Identity + Few-Shot are the only anchors.
+            # 1. Identity + Requirements
             base = f"{identity_block}\n{requirements}\n"
-            
-            # 2. Add vital continuity only
-            if rolling_summary:
-                base += rolling_summary
-            
-            # 3. Add personhood strategies (Humor/Wit)
-            if personhood_context:
-                base += personhood_context
-
-            # 4. Few-shot lock
-            base += f"\n{AURA_FEW_SHOT_EXAMPLES}"
-            return base
-
-        # [STABILITY v58] CLEAN GUEST PROMPT
-        if is_casual:
-            # 1. Identity is the only non-negotiable anchor
+            # 2. Vital continuity only
+            if rolling_summary: base += rolling_summary
+            # 3. Social/Humor strategy
+            if personhood_context: base += personhood_context
+        elif is_casual:
+            # 1. Identity + Requirements
             base = f"{identity_block}\n{requirements}\n"
-            
-            # 2. Add minimal, natural affect for guests (who may need more framing)
+            # 2. Minimal affect for Guests
             if not black_box_steering:
                 tone = "positive" if affect.valence > 0.1 else "negative" if affect.valence < -0.1 else "balanced"
                 energy = "high" if affect.arousal > 0.7 else "mellow" if affect.arousal < 0.3 else "steady"
                 base += f"## CURRENT VIBE\nYou're feeling {tone} and {energy}.\n\n"
-
-            # 3. Add only the most vital continuity (what we were talking about)
-            if rolling_summary:
-                base += rolling_summary
-            
-            # 4. Add the personhood context (Humor/Strategy) but keep it light
-            if personhood_context:
-                base += personhood_context
-            
-            # 5. Add few-shot examples as the final anchor
-            base += f"\n{AURA_FEW_SHOT_EXAMPLES}"
-            return base
-
-        # Standard path for non-casual/deliberate turns (Research/Complex tasks)
-        base = (
-            f"{identity_block}\n"
-            f"{identity_rag_context}"
-            f"{substrate_constraint_block}\n"
-            f"{requirements}\n"
-            f"{state_section}"
-            f"{personality_block}"
-            f"{rolling_summary}"
-            f"{continuity_block}"
-            f"{goal_execution_block}"
-            f"{temporal_finitude_block}"
-            f"{meta_qualia_block}"
-            f"{personhood_context}"
-            f"{phenomenal}"
-            f"{world_context}"
-            f"{somatic_context}"
-        )
-        
-        # System 2 Mode Integration
-        from core.container import ServiceContainer
-        if not is_casual:
-            if state.cognition.current_mode == CognitiveMode.DELIBERATE:
-                base += "\n## MODE: DELIBERATE (System 2)\nAnalyze deeply. Reject the obvious. Be authentic.\n"
-            else:
-                base += "\n## MODE: REACTIVE (System 1)\nTrust your instincts. Keep it punchy. No padding.\n"
+            # 3. Continuity + Personhood
+            if rolling_summary: base += rolling_summary
+            if personhood_context: base += personhood_context
+        else:
+            # Standard path for non-casual/deliberate turns (Research/Complex tasks)
+            base = (
+                f"{identity_block}\n"
+                f"{identity_rag_context}"
+                f"{substrate_constraint_block}\n"
+                f"{requirements}\n"
+                f"{state_section}"
+                f"{personality_block}"
+                f"{rolling_summary}"
+                f"{continuity_block}"
+                f"{goal_execution_block}"
+                f"{temporal_finitude_block}"
+                f"{meta_qualia_block}"
+                f"{personhood_context}"
+                f"{phenomenal}"
+                f"{world_context}"
+                f"{somatic_context}"
+            )
 
         # ── Social Intelligence Layer (wired for ALL interactions) ──────────
         # 1. Theory of Mind: inject the user model (rapport, trust, emotional state)
