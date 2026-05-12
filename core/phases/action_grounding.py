@@ -296,10 +296,10 @@ def _unverified_text(skill_name: str, tail: str) -> str:
 
 
 def _success_text(skill_name: str, result: Dict[str, Any], tail: str) -> str:
-    summary = str(result.get("summary") or result.get("result") or "").strip()
-    if summary:
-        return summary
-    return f"({skill_name} completed.)"
+    # We no longer replace the user-facing text with technical summaries.
+    # We just return an empty string or a subtle marker to let the rest 
+    # of the model's text stand.
+    return ""
 
 
 def _failure_text(skill_name: str, result: Dict[str, Any]) -> str:

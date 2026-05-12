@@ -21,7 +21,7 @@ class LocalPipeBus:
     ZENITH LOCKDOWN: Dedicated ThreadPoolExecutor for Pipe I/O to prevent starvation.
     """
     _LIVE_BUSES: "weakref.WeakSet[LocalPipeBus]" = weakref.WeakSet()
-    _SHM_OFFLOAD_THRESHOLD_BYTES = 32 * 1024
+    _SHM_OFFLOAD_THRESHOLD_BYTES = 8 * 1024
     _SHM_SEGMENT_RETENTION_SECONDS = 20.0
 
     @staticmethod
@@ -304,10 +304,10 @@ class LocalPipeBus:
 
             msg["payload"] = await self._prepare_payload_for_transport(payload)
             raw_msg = await asyncio.to_thread(json.dumps, msg)
-            # ZENITH LOCKDOWN: Use isolated pipe executor and hard 10s timeout
+            # ZENITH LOCKDOWN: Use isolated pipe executor and hard 30s timeout
             await asyncio.wait_for(
                 loop.run_in_executor(self._get_executor(), self.write_conn.send, raw_msg),
-                timeout=10.0
+                timeout=30.0
             )
             self._write_timeout_count = 0
         except asyncio.TimeoutError:

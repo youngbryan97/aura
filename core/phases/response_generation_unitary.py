@@ -2929,34 +2929,41 @@ class UnitaryResponsePhase(Phase):
 
             # [RUBICON] Pre-Linguistic Decision: structured decision BEFORE LLM speaks
             if not _is_system_directive:
-                try:
-                    from core.cognition.pre_linguistic import get_pre_linguistic
-                    pl_engine = get_pre_linguistic()
-                    if pl_engine._started:
-                        has_tool_evidence = self._has_recent_grounded_evidence(new_state)
-                        matched = list(new_state.response_modifiers.get("matched_skills", []) or [])
-                        decision_pkg = pl_engine.synthesize(
-                            objective,
-                            is_user_facing=is_user_facing,
-                            has_tool_result=has_tool_evidence,
-                            matched_skills=matched,
-                            response_modifiers=dict(new_state.response_modifiers),
-                        )
-                        # Inject the decision block into the prompt so the LLM narrates it
-                        decision_block = decision_pkg.to_prompt_block()
-                        _prepend_system_guidance(decision_block)
-                        # Store the decision in state for downstream audit
-                        new_state.response_modifiers["pre_linguistic_decision"] = decision_pkg.to_dict()
-                        logger.debug(
-                            "[RUBICON] PreLinguistic: %s via %s (%.1fms)",
-                            decision_pkg.chosen_action.value,
-                            decision_pkg.selected_limb,
-                            decision_pkg.latency_ms,
-                        )
-                except Exception as pl_exc:
-                    record_degradation('response_generation_unitary', pl_exc)
-                    record_degradation('response_generation_unitary', pl_exc)
-                    logger.debug("[RUBICON] PreLinguistic injection skipped: %s", pl_exc)
+                # [STABILITY v54] Banter Shield: Hide architectural complexity for casual turns
+                is_banter = (
+                    new_state.cognition.modifiers.get("semantic_lane") == "casual"
+                    or "banter" in objective.lower()
+                )
+                if is_banter:
+                    logger.debug("🛡️ Banter Shield: suppressing RUBICON and architectural metrics for persona purity.")
+                else:
+                    try:
+                        from core.cognition.pre_linguistic import get_pre_linguistic
+                        pl_engine = get_pre_linguistic()
+                        if pl_engine._started:
+                            has_tool_evidence = self._has_recent_grounded_evidence(new_state)
+                            matched = list(new_state.response_modifiers.get("matched_skills", []) or [])
+                            decision_pkg = pl_engine.synthesize(
+                                objective,
+                                is_user_facing=is_user_facing,
+                                has_tool_result=has_tool_evidence,
+                                matched_skills=matched,
+                                response_modifiers=dict(new_state.response_modifiers),
+                            )
+                            # Inject the decision block into the prompt so the LLM narrates it
+                            decision_block = decision_pkg.to_prompt_block()
+                            _prepend_system_guidance(decision_block)
+                            # Store the decision in state for downstream audit
+                            new_state.response_modifiers["pre_linguistic_decision"] = decision_pkg.to_dict()
+                            logger.debug(
+                                "[RUBICON] PreLinguistic: %s via %s (%.1fms)",
+                                decision_pkg.chosen_action.value,
+                                decision_pkg.selected_limb,
+                                decision_pkg.latency_ms,
+                            )
+                    except Exception as pl_exc:
+                        record_degradation('response_generation_unitary', pl_exc)
+                        logger.debug("[RUBICON] PreLinguistic injection skipped: %s", pl_exc)
 
             # [PERF] In embodied challenges, long history is a liability that causes
             # 80s+ inference stalls. We aggressively shed to the bare minimum.

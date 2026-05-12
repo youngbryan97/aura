@@ -280,6 +280,9 @@ REFLEX_PATTERNS = [
     "preserve the thread",
     "coherent reply",
     "one-line reassurance",
+    "archival storage",
+    "skill_result",
+    "action_result",
 ]
 
 async def main():
