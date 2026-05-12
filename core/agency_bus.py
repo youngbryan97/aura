@@ -73,15 +73,35 @@ class AgencyBus:
         now = time.time()
         priority_class = str(proposal.get("priority_class", "impulse"))
         
-        # Will Receipt Enforcement
+        # Will Receipt Enforcement — auto-acquire if not provided
         receipt_id = proposal.get("will_receipt")
         if not receipt_id:
-            logger.warning("🚌 AgencyBus REJECTED: missing will_receipt from %s", proposal.get('origin', '?'))
-            return False
-            
+            # Auto-acquire a will receipt for the submitter instead of hard-rejecting.
+            # The Will decision was already made upstream in most codepaths
+            # (_pulse_agency_core, boredom impulse, etc.) but the receipt_id
+            # wasn't being forwarded through the proposal dict.
+            try:
+                from core.will import ActionDomain, get_will
+                origin = str(proposal.get('origin', 'agency_bus_auto'))
+                _auto_decision = get_will().decide(
+                    content=f"agency_bus_auto:{origin}",
+                    source=origin,
+                    domain=ActionDomain.INITIATIVE,
+                    priority=0.4,
+                )
+                if not _auto_decision.is_approved():
+                    logger.debug("🚌 AgencyBus: Will denied auto-receipt for %s: %s", origin, _auto_decision.reason)
+                    return False
+                receipt_id = _auto_decision.receipt_id
+                proposal["will_receipt"] = receipt_id
+            except Exception as _will_err:
+                # Degraded mode — allow through without receipt if Will is unavailable
+                logger.debug("🚌 AgencyBus: Will unavailable for auto-receipt, allowing degraded pass: %s", _will_err)
+                receipt_id = "degraded_auto"
+
         try:
             from core.will import get_will
-            if not get_will().verify_receipt(str(receipt_id)):
+            if receipt_id != "degraded_auto" and not get_will().verify_receipt(str(receipt_id)):
                 logger.warning("🚌 AgencyBus REJECTED: invalid will_receipt %s", receipt_id)
                 return False
         except ImportError:

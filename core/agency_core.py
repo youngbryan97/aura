@@ -80,7 +80,6 @@ class SovereignSwarm:
             get_task_tracker().create_task(get_registry().update(active_shards=len(self.active_shards)))
         except Exception as e:
             record_degradation('agency_core', e)
-            from core.utils.exceptions import capture_and_log
             capture_and_log(e, {"context": "AgencyCore.spawn_shard"})
             
         if len(self.active_shards) >= 6:
@@ -173,7 +172,7 @@ CRITICAL: You MUST respond with a valid JSON object matching the following struc
             # 2. Autonomous Thought Synthesis (With Strict Pydantic Enforcement)
             from core.brain.llm.structured_llm import StructuredLLM
             from core.schemas import ShardResponse
-            
+
             structured_brain = StructuredLLM(ShardResponse, max_retries=3)
             
             async with self._inference_semaphore:
@@ -203,7 +202,8 @@ CRITICAL: You MUST respond with a valid JSON object matching the following struc
                     
                 # ACTIVE SELF-REPAIR: Spawn a background task to fix the prompt
                 try:
-                    from core.utils.task_tracker import get_task_tracker
+                    # Note: get_task_tracker is imported at module level (line 30).
+                    # Do NOT re-import locally — it causes UnboundLocalError in except handlers.
                     get_task_tracker().create_task(
                         self._active_self_repair_formatting(shard_id, goal),
                         name=f"swarm_self_repair_{shard_id}"
@@ -246,7 +246,8 @@ CRITICAL: You MUST respond with a valid JSON object matching the following struc
                     
                     is_blocked = False
                     try:
-                        from core.container import ServiceContainer
+                        # Note: ServiceContainer is imported at module level (line 50).
+                        # Do NOT re-import locally — it causes UnboundLocalError in except handlers.
                         dvg = ServiceContainer.get("dynamic_value_graph", default=None)
                         if dvg and name in ["python_sandbox", "shell_executor", "file_operations"]:
                             status_dict = dvg.get_status().get("nodes", {})
@@ -351,7 +352,6 @@ CRITICAL: You MUST respond with a valid JSON object matching the following struc
                 
         except Exception as e:
             record_degradation('agency_core', e)
-            from core.utils.exceptions import capture_and_log
             capture_and_log(e, {'module': 'SovereignSwarm', 'goal': goal})
 
 # ── Data Structures ──────────────────────────────────────────
@@ -1250,7 +1250,7 @@ class AgencyCore:
 
         # 1. Goal Scoring: Align with Ego-Model
         identity = ServiceContainer.get("identity", default=None)
-        if identity:
+        if identity and hasattr(identity, 'score_goal'):
             alignment_score = identity.score_goal(goal_text)
             priority = (priority + alignment_score) / 2
         
@@ -1582,7 +1582,9 @@ class AgencyCore:
         if not identity:
             return None
             
-        # AC-005: Guard against None from get_random_belief
+        # AC-005: Guard against None/missing get_random_belief
+        if not hasattr(identity, 'get_random_belief'):
+            return None
         belief = identity.get_random_belief()
         if not belief:
             return None
@@ -2021,7 +2023,9 @@ class AgencyCore:
         
         if not identity or not kg:
             return None
-            
+
+        if not hasattr(identity, 'get_random_belief'):
+            return None
         belief = identity.get_random_belief()
         
         # Mocking interest if KG doesn't have them easily accessible

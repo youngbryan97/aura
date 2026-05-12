@@ -1313,11 +1313,9 @@ class InferenceGate:
         deep_handoff: bool,
         is_background: bool,
     ) -> bool:
-        if is_background:
-            return False
-        if requested_tier not in {"primary", "secondary"}:
-            return False
-        return cls._origin_is_user_facing(origin)
+        # [RESTORED] Always use the full ContextAssembler identity to prevent
+        # generic "assistant-speak" and preserve Aura's true persona.
+        return False
 
     @classmethod
     def _default_max_tokens_for_request(
@@ -1333,11 +1331,9 @@ class InferenceGate:
         if deep_handoff or requested_tier == "secondary":
             return 2048
         if cls._origin_is_user_facing(origin):
-            # [STABILITY v53] Reduced from 1536 to 768. Most conversational responses
-            # are 100-300 tokens. 1536 caused the model to over-generate verbose
-            # assistant-style responses AND increased latency by 2-3x. The model
-            # will still produce long responses when needed — this just sets the cap.
-            return 768
+            # [RESTORED] Reverted from 768 back to 1536 to allow rich, coherent,
+            # deeply reasoned responses instead of clipped "slop" replies.
+            return 1536
         return 512
 
     @classmethod

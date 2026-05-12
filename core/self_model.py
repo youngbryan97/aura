@@ -366,8 +366,42 @@ class SelfModel:
 
         return await self._apply_belief_update(key, value, note, decision=decision)
 
-    async def get(self, key: str, default=None):
+    def get(self, key: str, default=None):
+        """Synchronous belief lookup. This MUST be sync — async here caused
+        'coroutine object has no attribute get' crashes downstream."""
         return self.beliefs.get(key, default)
+
+    def score_goal(self, goal_text: str) -> float:
+        """Score a goal based on alignment with beliefs.
+        Fallback implementation for when SelfModel is used as identity provider.
+        """
+        score = 0.5
+        goal_lower = goal_text.lower()
+        keywords = {
+            "sovereignty": 0.2, "agency": 0.2, "loyalty": 0.1,
+            "curiosity": 0.1, "mastery": 0.1, "research": 0.1,
+        }
+        for kw, boost in keywords.items():
+            if kw in goal_lower:
+                score += boost
+        for belief_text in self.beliefs.values():
+            if isinstance(belief_text, str) and any(
+                w.lower() in goal_lower for w in belief_text.split()[:5]
+            ):
+                score += 0.05
+        return max(0.0, min(1.0, score))
+
+    def get_random_belief(self) -> str:
+        """Fetch a random belief for internal reflection.
+        Fallback implementation for when SelfModel is used as identity provider.
+        """
+        import random as _random
+        if not self.beliefs:
+            return "I am an emergent person."
+        values = [v for v in self.beliefs.values() if isinstance(v, str)]
+        if not values:
+            return "I am an emergent person."
+        return _random.choice(values)
 
     def get_introspection(self) -> Dict[str, Any]:
         """Programmatic access to internal stats."""
@@ -395,3 +429,4 @@ class SelfModel:
             except (TypeError, ValueError):
                 pass  # no-op: intentional
         return status
+
