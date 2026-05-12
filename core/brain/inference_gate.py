@@ -2786,6 +2786,13 @@ class InferenceGate:
                     None, _te.process_message, prompt, _ur
                 )
                 _trust_guidance = _te.get_guidance_for_response()
+
+                # [SOVEREIGN SUPREMACY] If user is sovereign, they get the full 32B lane.
+                # No brainstem fallbacks, no speed-over-quality compromises.
+                if _trust_level == TrustLevel.SOVEREIGN:
+                    protected_foreground_lane = True
+                    logger.info("👑 Sovereign user recognized. Enforcing primary cortex lane and clearing background headroom.")
+
                 # Block tool use for untrusted sessions
                 if _trust_level in (TrustLevel.SUSPICIOUS, TrustLevel.HOSTILE):
                     context["allow_tools"] = False
@@ -2795,7 +2802,6 @@ class InferenceGate:
                 if _trust_guidance:
                     context["brief"] = (_trust_guidance + "\n\n" + existing_brief).strip()
             except Exception as _te_exc:
-                record_degradation('inference_gate', _te_exc)
                 record_degradation('inference_gate', _te_exc)
                 logger.warning("Trust gate error (passphrase check may have failed): %s", _te_exc)
 
