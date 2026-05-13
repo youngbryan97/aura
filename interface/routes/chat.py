@@ -1604,7 +1604,7 @@ def _build_protected_foreground_system_prompt(
         _compact_snapshot_line("Mood", voice_state.get("mood")),
         _compact_snapshot_line("Tone", voice_state.get("tone")),
         _compact_snapshot_line("Dominant emotion", voice_state.get("dominant_emotion")),
-        _compact_snapshot_line("Attention", _sanitize_attention_focus(str(voice_state.get("attention_focus") or ""))),
+        _compact_snapshot_line("Attention", _sanitize_attention_focus(str(voice_state.get("attention_focus") or ""), user_message)),
         _compact_snapshot_line("Valence", voice_state.get("valence") or voice_snapshot.get("field_valence")),
         _compact_snapshot_line("Arousal", voice_state.get("arousal") or voice_snapshot.get("arousal")),
         _compact_snapshot_line("Curiosity", voice_state.get("curiosity")),
@@ -2113,11 +2113,21 @@ _SEARCH_SNIPPET_PATTERNS = re.compile(
 )
 
 
-def _sanitize_attention_focus(raw: str) -> str:
+def _sanitize_attention_focus(raw: str, user_message: str = "") -> str:
     """Strip internal housekeeping content from attention_focus before user-facing use."""
     if not raw:
         return ""
     if _INTERNAL_STATE_PATTERNS.search(raw) or _looks_symbolic_scene_leak(raw):
+        return ""
+    focus_norm = _normalize_user_message(raw)
+    user_norm = _normalize_user_message(user_message)
+    if (
+        user_norm
+        and focus_norm
+        and len(raw) > 72
+        and focus_norm not in user_norm
+        and user_norm not in focus_norm
+    ):
         return ""
     return raw
 
@@ -2240,7 +2250,7 @@ def _build_aura_expression_frame(user_message: str) -> Dict[str, Any]:
             closure_status = closure.get_status() or {}
             raw_focus = " ".join(str(closure_status.get("attention_focus") or "").split())
             # Sanitize: never let internal housekeeping leak into user-facing frames
-            frame["attention_focus"] = _sanitize_attention_focus(raw_focus)
+            frame["attention_focus"] = _sanitize_attention_focus(raw_focus, user_message)
     except Exception as exc:
         record_degradation('chat', exc)
         logger.debug("Aura expression frame closure read failed: %s", exc)
@@ -3387,7 +3397,22 @@ async def _repair_final_degraded_reply(
         reflex,
         recent_user_messages=recent_user_messages,
     )
-    return reflex, reflex_stale, reflex_same_diff, reflex_off_topic, reflex_off_topic_reason, True
+    reflex_semantic, reflex_semantic_reason = _looks_semantically_glitched(user_message, reflex)
+    reflex_assessment = assess_user_facing_reply(user_message, reflex) if assess_user_facing_reply else None
+    if not (
+        reflex_stale
+        or reflex_same_diff
+        or reflex_off_topic
+        or reflex_semantic
+        or (reflex_assessment is not None and reflex_assessment.retryable)
+    ):
+        return reflex, reflex_stale, reflex_same_diff, reflex_off_topic, reflex_off_topic_reason, True
+
+    honest_failure = (
+        "This live turn failed the final reliability checks, so I should not reuse "
+        "an older answer as if it answered you."
+    )
+    return honest_failure, False, False, True, reflex_off_topic_reason or reflex_semantic_reason or "unrepaired_degraded_turn", True
 
 
 def _normalize_user_message(text: str) -> str:
@@ -3850,7 +3875,8 @@ def _build_grounded_introspection_reply(
             return None
 
     attention_focus = _sanitize_attention_focus(
-        " ".join(str(closure_status.get("attention_focus") or "").split())
+        " ".join(str(closure_status.get("attention_focus") or "").split()),
+        user_message,
     )
     if not attention_focus:
         attention_focus = "internal monitoring"
@@ -3978,6 +4004,25 @@ def _build_grounded_introspection_reply(
             response_parts.append(explanation)
         elif action:
             response_parts.append(f"My dominant pull right now is toward {action}.")
+
+    if asks_internal_state and not (asks_free_energy or asks_topology or asks_authority):
+        assembled_preview = " ".join(part for part in response_parts if part)
+        if len(assembled_preview.split()) < 45:
+            mode_label = ""
+            try:
+                live_state = _resolve_live_aura_state()
+                mode_label = str(getattr(getattr(live_state, "cognition", None), "current_mode", "") or "")
+                mode_label = mode_label.rsplit(".", 1)[-1].lower()
+            except (AttributeError, RuntimeError, TypeError, ValueError):
+                mode_label = ""
+            if mode_label:
+                response_parts.append(f"The active mode feels like {mode_label}: more protective of continuity than expansive.")
+            response_parts.append(
+                "The thread I am holding is not abstract self-description; it is this conversation's pressure around whether the live path can stay coherent while the rest of the mind keeps moving."
+            )
+            response_parts.append(
+                "The next useful priority is to keep the foreground answer intact, then let the background systems act only when they can finish and report back cleanly."
+            )
 
     assembled = " ".join(part for part in response_parts if part)
     # Last-mile defense: if the canned introspection response itself leaks
@@ -4428,30 +4473,97 @@ async def api_chat(
 
         async def _finalize_fastpath(reply_text: str, status: str = "ok"):
             nonlocal pending_exchange_id
-            _record_recent_response(reply_text or "…", body.message)
+            final_text = str(reply_text or "…").strip() or "…"
+            response_confidence = "high"
+            try:
+                recent_user_messages = await _gather_recent_user_messages_for_relevance(body.message)
+                is_stale = _is_stale_repeated_response(final_text)
+                is_same_diff = _is_same_answer_different_prompt(body.message, final_text)
+                is_off_topic, off_topic_reason = _evaluate_reply_topicality(
+                    body.message,
+                    final_text,
+                    recent_user_messages=recent_user_messages,
+                )
+                semantic_glitch, semantic_glitch_reason = _looks_semantically_glitched(body.message, final_text)
+                assess_user_facing_reply = None
+                try:
+                    from core.conversation.response_reliability import assess_user_facing_reply as _assess_user_facing_reply
+
+                    assess_user_facing_reply = _assess_user_facing_reply
+                    fastpath_assessment = assess_user_facing_reply(body.message, final_text)
+                except ImportError:
+                    fastpath_assessment = None
+                if (
+                    is_stale
+                    or is_same_diff
+                    or is_off_topic
+                    or semantic_glitch
+                    or (fastpath_assessment is not None and fastpath_assessment.retryable)
+                ):
+                    response_confidence = "degraded"
+                    (
+                        repaired_text,
+                        is_stale,
+                        is_same_diff,
+                        is_off_topic,
+                        off_topic_reason,
+                        repaired,
+                    ) = await _repair_final_degraded_reply(
+                        body.message,
+                        final_text,
+                        stale=is_stale,
+                        same_diff=is_same_diff,
+                        off_topic=is_off_topic,
+                        off_topic_reason=off_topic_reason or semantic_glitch_reason,
+                    )
+                    if repaired and repaired_text != final_text:
+                        final_text = repaired_text
+                        semantic_glitch, semantic_glitch_reason = _looks_semantically_glitched(body.message, final_text)
+                        try:
+                            if assess_user_facing_reply is None:
+                                from core.conversation.response_reliability import assess_user_facing_reply as _assess_user_facing_reply
+
+                                assess_user_facing_reply = _assess_user_facing_reply
+                            fastpath_assessment = assess_user_facing_reply(body.message, final_text)
+                        except ImportError:
+                            fastpath_assessment = None
+                        if not (
+                            is_stale
+                            or is_same_diff
+                            or is_off_topic
+                            or semantic_glitch
+                            or (fastpath_assessment is not None and fastpath_assessment.retryable)
+                        ):
+                            response_confidence = "high"
+            except (AttributeError, RuntimeError, TypeError, ValueError) as fastpath_gate_exc:
+                record_degradation('chat', fastpath_gate_exc)
+                logger.debug("Fastpath final quality gate skipped: %s", fastpath_gate_exc)
+
+            _record_recent_response(final_text, body.message)
             response_data = {
-                "response": reply_text or "…",
+                "response": final_text,
                 "status": status,
                 "conversation_lane": _collect_conversation_lane_status(),
+                "response_confidence": response_confidence,
             }
             if pending_exchange_id:
                 await _complete_logged_exchange(
                     pending_exchange_id,
                     body.message,
-                    reply_text or "…",
+                    final_text,
                 )
                 pending_exchange_id = None
             else:
-                await _log_exchange(body.message, reply_text or "…")
+                await _log_exchange(body.message, final_text)
             if idem_key:
                 async with _get_idemp_lock():
                     _idempotency_cache[idem_key] = response_data
                     if len(_idempotency_cache) > 1000:
                         _idempotency_cache.popitem(last=False)
             await _emit_chat_output_receipt(
-                reply_text or "…",
+                final_text,
                 cause=f"chat_fastpath:{status}",
-                metadata={"status": status, "path": "fastpath"},
+                metadata={"status": status, "path": "fastpath", "confidence": response_confidence},
             )
             return JSONResponse(response_data)
 
@@ -4462,6 +4574,15 @@ async def api_chat(
 
             route = _protected_foreground_route(body.message)
             deep_handoff = bool(route.get("deep_handoff", False))
+            if deep_handoff:
+                # The protected lane is a live-chat rescue path. Hot-swapping
+                # from 32B to 72B here can create exactly the RAM pressure and
+                # latency spiral this lane is meant to avoid.
+                route = dict(route)
+                route["prefer_tier"] = "primary"
+                route["deep_handoff"] = False
+                route["protected_downgraded_from_deep"] = True
+                deep_handoff = False
             direct_budget = min(
                 _PROTECTED_FOREGROUND_SECONDARY_BUDGET_SECONDS if deep_handoff else _PROTECTED_FOREGROUND_PRIMARY_BUDGET_SECONDS,
                 _remaining_foreground_budget(reserve=6.0 if deep_handoff else 4.0),
@@ -4513,7 +4634,28 @@ async def api_chat(
             if not direct_reply or not str(direct_reply).strip():
                 return None
 
-            return await _stabilize_user_facing_reply(body.message, str(direct_reply).strip())
+            stabilized = await _stabilize_user_facing_reply(body.message, str(direct_reply).strip())
+            recent_user_messages = await _gather_recent_user_messages_for_relevance(body.message)
+            is_stale = _is_stale_repeated_response(stabilized)
+            is_same_diff = _is_same_answer_different_prompt(body.message, stabilized)
+            is_off_topic, off_topic_reason = _evaluate_reply_topicality(
+                body.message,
+                stabilized,
+                recent_user_messages=recent_user_messages,
+            )
+            semantic_glitch, semantic_glitch_reason = _looks_semantically_glitched(body.message, stabilized)
+            if is_stale or is_same_diff or is_off_topic or semantic_glitch:
+                logger.warning(
+                    "Protected foreground produced unsafe user-facing reply "
+                    "(stale=%s same_diff=%s off_topic=%s semantic=%s reason=%s).",
+                    is_stale,
+                    is_same_diff,
+                    is_off_topic,
+                    semantic_glitch,
+                    off_topic_reason or semantic_glitch_reason or "",
+                )
+                return None
+            return stabilized
 
         diagnostic_target = None
 

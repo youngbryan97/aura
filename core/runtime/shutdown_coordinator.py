@@ -113,6 +113,7 @@ class ShutdownCoordinator:
     # --- Execution ------------------------------------------------------
 
     async def shutdown(self, *, timeout_per_phase: Optional[float] = None) -> ShutdownReport:
+        request_shutdown("coordinator")
         report = ShutdownReport()
         if self._running:
             logger.warning("ShutdownCoordinator.shutdown() invoked re-entrantly")
@@ -193,6 +194,23 @@ class ShutdownCoordinator:
 
 _shutdown_coordinator: Optional[ShutdownCoordinator] = None
 _singleton_lock = threading.RLock()
+_shutdown_requested = threading.Event()
+
+
+def request_shutdown(reason: str = "") -> None:
+    """Mark the whole process as shutting down."""
+    if not _shutdown_requested.is_set():
+        logger.info("Shutdown requested%s.", f": {reason}" if reason else "")
+    _shutdown_requested.set()
+
+
+def is_shutdown_requested() -> bool:
+    return _shutdown_requested.is_set()
+
+
+def clear_shutdown_request() -> None:
+    """Test helper / warm-reboot helper."""
+    _shutdown_requested.clear()
 
 
 def get_shutdown_coordinator() -> ShutdownCoordinator:
@@ -208,3 +226,4 @@ def reset_shutdown_coordinator() -> None:
     global _shutdown_coordinator
     with _singleton_lock:
         _shutdown_coordinator = None
+    clear_shutdown_request()

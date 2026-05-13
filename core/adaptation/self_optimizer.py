@@ -5,6 +5,9 @@ This allows Aura to update her own weights based on captured experiences.
 """
 
 from core.runtime.errors import record_degradation
+from core.container import ServiceContainer
+from core.runtime.background_policy import background_activity_reason
+from core.runtime.shutdown_coordinator import is_shutdown_requested
 from core.utils.task_tracker import get_task_tracker
 import os
 import json
@@ -43,6 +46,22 @@ class SelfOptimizer:
         
         This is a resource-intensive operation and should only run when idle or dreaming.
         """
+        if os.getenv("AURA_SELF_OPTIMIZER_ENABLED", "").strip().lower() not in {"1", "true", "yes"}:
+            return {"ok": False, "error": "self_optimizer_disabled_for_live_runtime"}
+
+        if is_shutdown_requested():
+            return {"ok": False, "error": "shutdown_requested"}
+
+        reason = background_activity_reason(
+            ServiceContainer.get("orchestrator", default=None),
+            min_idle_seconds=float(os.getenv("AURA_SELF_OPTIMIZER_MIN_IDLE_S", "900") or 900),
+            max_memory_percent=float(os.getenv("AURA_SELF_OPTIMIZER_MAX_RAM_PCT", "65") or 65),
+            max_failure_pressure=float(os.getenv("AURA_SELF_OPTIMIZER_MAX_FAILURE_PRESSURE", "0.20") or 0.20),
+            require_conversation_ready=True,
+        )
+        if reason:
+            return {"ok": False, "error": f"background_deferred:{reason}"}
+
         if self._is_optimizing:
             return {"ok": False, "error": "Optimization already in progress"}
             

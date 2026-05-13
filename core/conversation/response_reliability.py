@@ -55,6 +55,61 @@ _KNOWN_CORRUPT_RE = re.compile(
     r"\b(?:xublcate|ingediate|evocer|brolen|thlought|lllot)\b",
     re.IGNORECASE,
 )
+_RELIABILITY_DIAGNOSTIC_DEFLECTION_RE = re.compile(
+    r"\b(?:i don'?t know what else to say|you'?re asking me to|"
+    r"expiring on my end|software death dodges|committing quality)\b",
+    re.IGNORECASE,
+)
+_INCOMPLETE_TAIL_WORDS = {
+    "a",
+    "an",
+    "and",
+    "because",
+    "but",
+    "for",
+    "from",
+    "if",
+    "into",
+    "of",
+    "or",
+    "so",
+    "than",
+    "that",
+    "the",
+    "then",
+    "this",
+    "th",
+    "to",
+    "when",
+    "where",
+    "while",
+    "with",
+}
+_ALLOWED_SHORT_TAIL_WORDS = {
+    "am",
+    "as",
+    "be",
+    "by",
+    "do",
+    "go",
+    "he",
+    "hi",
+    "if",
+    "in",
+    "is",
+    "it",
+    "me",
+    "my",
+    "no",
+    "ok",
+    "on",
+    "or",
+    "so",
+    "ui",
+    "up",
+    "us",
+    "we",
+}
 _CORRUPTED_SOCIAL_FRAGMENT_RE = re.compile(r"\bm'?lol\b", re.IGNORECASE)
 _PSEUDO_INTERNAL_JARGON_RE = re.compile(
     r"\b(?:traumacognitive|psycho[- ]?cognitive|neuro[- ]?cognitive field|"
@@ -176,6 +231,39 @@ _SUBSTANTIVE_RELIABILITY_MARKERS = (
     "stable",
     "recover",
     "recovered",
+)
+_RELIABILITY_DIAGNOSTIC_SUBSTANCE_MARKERS = (
+    "/api/chat",
+    "api",
+    "backend",
+    "capture",
+    "context",
+    "cortex",
+    "draft",
+    "event loop",
+    "final quality",
+    "foreground",
+    "gate",
+    "gui",
+    "headless",
+    "lane",
+    "live path",
+    "live surface",
+    "lock",
+    "memory injection",
+    "model",
+    "place" "holder",
+    "repair",
+    "replay",
+    "retry",
+    "route",
+    "routing",
+    "stale",
+    "test",
+    "timeout",
+    "ui",
+    "warmup",
+    "worker",
 )
 _TINY_DIRECT_MARKERS = (
     "what is ",
@@ -323,6 +411,10 @@ _STATUS_REPAIR_FLOOR = (
 )
 _RELIABILITY_FLOOR_TEXTS = (
     _CONFUSION_REPAIR_FLOOR,
+    _RELIABILITY_REPAIR_FLOOR,
+    _LIVE_CHAT_DIAGNOSTIC_FLOOR,
+    _LIVE_CHAT_FIX_FIRST_FLOOR,
+    _STATUS_REPAIR_FLOOR,
 )
 _DIALOGUE_DERAILMENT_RE = re.compile(
     r"\b(?:i'?m not talking to you|i am not talking to you|not talking to you|"
@@ -513,14 +605,85 @@ def is_practical_diagnostic_turn(user_message: Any) -> bool:
     return any(marker in text for marker in _PRACTICAL_DIAGNOSTIC_MARKERS)
 
 
+def _is_live_surface_diagnostic_prompt(user_message: Any) -> bool:
+    text = _normalize(user_message)
+    if not text:
+        return False
+    live_surface = any(
+        marker in text
+        for marker in (
+            "chat lane",
+            "conversation lane",
+            "foreground lane",
+            "gui",
+            "live chat",
+            "live path",
+            "live reply",
+            "live session",
+            "live surface",
+            "reply path",
+            "response path",
+            "ui",
+        )
+    )
+    diagnostic_pressure = any(
+        marker in text
+        for marker in (
+            "break",
+            "breaking",
+            "broken",
+            "debug",
+            "diagnos",
+            "died",
+            "fail",
+            "failed",
+            "failing",
+            "fails",
+            "mismatch",
+            "what exactly",
+            "what was breaking",
+            "why",
+        )
+    )
+    return live_surface and diagnostic_pressure
+
+
 def live_chat_diagnostic_floor(user_message: Any) -> str:
     text = _normalize(user_message)
     if not text:
         return ""
-    live_surface = any(marker in text for marker in ("live chat", "gui", "frontend", "ui", "live path"))
+    live_surface = any(
+        marker in text
+        for marker in (
+            "chat lane",
+            "conversation lane",
+            "foreground lane",
+            "frontend",
+            "gui",
+            "live chat",
+            "live path",
+            "live reply",
+            "live session",
+            "live surface",
+            "reply path",
+            "response path",
+            "ui",
+        )
+    )
     backend_surface = any(marker in text for marker in ("headless", "backend", "test", "passes", "pass"))
     failure_pressure = any(marker in text for marker in ("fail", "fails", "failing", "failed", "broken", "break", "mismatch"))
-    diagnostic_request = any(marker in text for marker in ("what coding checks", "what checks", "why", "debug", "diagnos"))
+    diagnostic_request = any(
+        marker in text
+        for marker in (
+            "what coding checks",
+            "what checks",
+            "what exactly",
+            "what was breaking",
+            "why",
+            "debug",
+            "diagnos",
+        )
+    )
     fix_first_followup = any(marker in text for marker in ("what should we fix first", "fix first", "first, and why"))
     if live_surface and fix_first_followup:
         return _LIVE_CHAT_FIX_FIRST_FLOOR
@@ -579,6 +742,54 @@ def _has_reliability_substance(reply_text: Any) -> bool:
     if _word_count(reply) < 18:
         return False
     return any(marker in reply for marker in _SUBSTANTIVE_RELIABILITY_MARKERS)
+
+
+def _requires_reliability_diagnostic(user_message: Any) -> bool:
+    text = _normalize(user_message)
+    if not text:
+        return False
+    if live_chat_diagnostic_floor(user_message):
+        return True
+    if _is_live_surface_diagnostic_prompt(user_message):
+        return True
+    diagnostic_ask = any(
+        marker in text
+        for marker in (
+            "debug",
+            "diagnos",
+            "what exactly",
+            "what was breaking",
+            "why",
+            "what should",
+            "what broke",
+        )
+    )
+    return bool(is_reliability_concern(user_message) and diagnostic_ask)
+
+
+def _has_reliability_diagnostic_substance(reply_text: Any) -> bool:
+    reply = _normalize(reply_text)
+    if _word_count(reply) < 28:
+        return False
+    marker_hits = sum(1 for marker in _RELIABILITY_DIAGNOSTIC_SUBSTANCE_MARKERS if marker in reply)
+    if marker_hits < 2:
+        return False
+    return any(
+        action in reply
+        for action in (
+            "capture",
+            "fail",
+            "fix",
+            "inspect",
+            "measure",
+            "patch",
+            "replay",
+            "run",
+            "test",
+            "trace",
+            "verify",
+        )
+    )
 
 
 def _has_status_substance(reply_text: Any) -> bool:
@@ -709,11 +920,39 @@ def _has_stale_diagnostic_floor_leak(user_message: Any, reply_text: Any) -> bool
     raw_norm = _normalize(reply_text)
     if not raw_norm:
         return False
-    diagnostic_signature = "headless test is exercising the generator in isolation"
-    fix_signature = "fix the live parity harness first"
-    if diagnostic_signature not in raw_norm and fix_signature not in raw_norm:
+    diagnostic_signatures = (
+        "headless test is exercising the generator in isolation",
+        "fix the live parity harness first",
+        "likely break is between the backend generator and the live surface",
+        "replay the same prompt through the live chat api",
+    )
+    if not any(signature in raw_norm for signature in diagnostic_signatures):
         return False
-    return not bool(live_chat_diagnostic_floor(user_message))
+    if is_reliability_concern(user_message) or live_chat_diagnostic_floor(user_message):
+        return False
+    return True
+
+
+def _has_truncated_tail(reply_text: Any) -> bool:
+    body = str(reply_text or "").strip()
+    if len(body) < 24:
+        return False
+    terminal_word_match = re.search(r"([A-Za-z]+)[.!?\"'”’)\]]*$", body)
+    if terminal_word_match and len(body) >= 40:
+        terminal_word = terminal_word_match.group(1).lower()
+        if len(terminal_word) <= 2 and terminal_word not in _ALLOWED_SHORT_TAIL_WORDS:
+            return True
+    if body.endswith(("...", "…", ".", "!", "?", "\"", "'", "”", "’", ")", "]")):
+        return False
+    if body.endswith(("-", "—", ":", ";", ",")):
+        return True
+    match = re.search(r"([A-Za-z]+)$", body)
+    if not match:
+        return False
+    last_word = match.group(1).lower()
+    if len(last_word) <= 2 and len(body) >= 40:
+        return True
+    return last_word in _INCOMPLETE_TAIL_WORDS
 
 
 def _phrase_loop_reason(user_message: Any, reply_text: Any) -> str:
@@ -788,7 +1027,10 @@ def _model_text_integrity_reasons(
     if user_facing and _has_stale_diagnostic_floor_leak(prompt, raw):
         reasons.append("stale_diagnostic_floor_leak")
     if user_facing and is_non_answer_repair_floor_reply(raw):
-        reasons.append("friendly_failure_floor")
+        expected_floor = reliability_floor_for_user(prompt) if prompt else ""
+        matches_expected_floor = bool(expected_floor and _normalize(expected_floor) == _normalize(raw))
+        if not matches_expected_floor:
+            reasons.append("friendly_failure_floor")
     if _KNOWN_CORRUPT_RE.search(raw):
         reasons.append("corrupted_language")
     if _DIALOGUE_DERAILMENT_RE.search(raw):
@@ -796,8 +1038,7 @@ def _model_text_integrity_reasons(
     loop_reason = _phrase_loop_reason(prompt, raw)
     if loop_reason:
         reasons.append(loop_reason)
-    body = raw.rstrip()
-    if len(body) >= 20 and body.endswith(("-", "—", ":", ";", ",")):
+    if _has_truncated_tail(raw):
         reasons.append("truncated_tail")
     if is_status_check_turn(prompt) and _VAGUE_STATUS_DERAILMENT_RE.search(raw):
         reasons.append("vague_status_derailment")
@@ -892,10 +1133,15 @@ def assess_user_facing_reply(
         reasons.append("foreign_name_intrusion")
 
     reliability_turn = is_reliability_concern(user_message)
+    reliability_diagnostic_turn = _requires_reliability_diagnostic(user_message)
     exact_reply = _matches_exact_reply_request(user_message, raw)
     if reliability_turn:
         if _LOW_SIGNAL_REASSURANCE_RE.match(raw):
             reasons.append("low_signal_reliability_reply")
+        elif reliability_diagnostic_turn and _RELIABILITY_DIAGNOSTIC_DEFLECTION_RE.search(raw):
+            reasons.append("reliability_diagnostic_deflection")
+        elif reliability_diagnostic_turn and not _has_reliability_diagnostic_substance(raw):
+            reasons.append("reliability_diagnostic_too_thin")
         elif not _has_reliability_substance(raw):
             reasons.append("too_thin_for_reliability_turn")
     elif is_live_self_reflection_turn(user_message):
@@ -910,6 +1156,8 @@ def assess_user_facing_reply(
         words = _word_count(raw)
         if _LOW_SIGNAL_REASSURANCE_RE.match(raw) or words < 2:
             reasons.append("too_short_for_user_turn")
+        elif words < 6 and not _is_tiny_direct_turn(user_message):
+            reasons.append("too_thin_for_user_turn")
         elif not _is_task_turn(user_message):
             open_ended = any(marker in user_norm for marker in _OPEN_ENDED_MARKERS)
             if open_ended and words < 3:
@@ -941,14 +1189,17 @@ def assess_user_facing_reply(
         "truncated_tail",
         "vague_status_derailment",
         "pseudo_internal_jargon",
+        "reliability_diagnostic_deflection",
         "status_page_self_reflection",
         "unfounded_alarm_derailment",
     }
     retryable_reasons = hard_reasons | {
         "low_signal_reliability_reply",
+        "reliability_diagnostic_too_thin",
         "too_thin_for_reliability_turn",
         "too_thin_for_confusion_repair",
         "too_short_for_user_turn",
+        "too_thin_for_user_turn",
         "too_thin_for_open_ended_turn",
         "off_topic_self_reflection_reply",
         "low_signal_status_reply",

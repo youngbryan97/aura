@@ -82,6 +82,75 @@ def test_reliability_prompt_contract_demands_live_self_reflection_substance():
     assert "place" "holder" in block
 
 
+def test_conversational_continuity_checks_stay_out_of_task_engine():
+    from core.kernel.upgrades_10x import _looks_like_simple_dialogue_request as godmode_dialogue
+    from core.phases.cognitive_routing import _looks_like_simple_dialogue_request as legacy_dialogue
+    from core.phases.cognitive_routing_unitary import _looks_like_simple_dialogue_request as unitary_dialogue
+
+    prompt = "Quick continuity check: what did we just verify about the live chat path?"
+
+    assert legacy_dialogue(prompt)
+    assert unitary_dialogue(prompt)
+    assert godmode_dialogue(prompt)
+
+
+def test_live_parity_verification_floor_is_specific_and_presentable():
+    from core.conversation.response_reliability import assess_user_facing_reply
+    from core.synthesis import deterministic_user_facing_floor
+
+    prompt = "Quick continuity check: what did we just verify about the live chat path?"
+    floor = deterministic_user_facing_floor(prompt)
+    assessment = assess_user_facing_reply(prompt, floor)
+
+    assert "/api/chat" in floor
+    assert "final quality gate" in floor
+    assert not assessment.retryable
+
+
+def test_exact_reply_turn_uses_deterministic_floor():
+    from core.conversation.response_reliability import assess_user_facing_reply
+    from core.synthesis import deterministic_user_facing_floor
+
+    prompt = "Please answer exactly: live parity holds"
+    floor = deterministic_user_facing_floor(prompt)
+    assessment = assess_user_facing_reply(prompt, floor)
+
+    assert floor == "live parity holds"
+    assert not assessment.retryable
+
+
+def test_short_exact_reply_leak_is_rejected_for_substantive_prompt():
+    from core.conversation.response_reliability import assess_user_facing_reply
+
+    assessment = assess_user_facing_reply(
+        "A small Python function returns None when the input list is empty. What would you check first before patching it?",
+        "live parity holds",
+    )
+
+    assert assessment.retryable
+    assert "too_thin_for_user_turn" in assessment.reasons
+
+
+def test_small_coding_and_captcha_edge_floors_are_presentable():
+    from core.conversation.response_reliability import assess_user_facing_reply
+    from core.synthesis import deterministic_user_facing_floor
+
+    coding_prompt = (
+        "A small Python function returns None when the input list is empty. "
+        "What would you check first before patching it?"
+    )
+    captcha_prompt = "If Reddit is login-blocked by CAPTCHA during autonomy, what should the action record as its outcome?"
+
+    coding = deterministic_user_facing_floor(coding_prompt)
+    captcha = deterministic_user_facing_floor(captcha_prompt)
+
+    assert "empty-input contract" in coding
+    assert "guard clause" in coding
+    assert "captcha_blocked" in captcha
+    assert not assess_user_facing_reply(coding_prompt, coding).retryable
+    assert not assess_user_facing_reply(captcha_prompt, captcha).retryable
+
+
 def test_live_self_reflection_detection_does_not_treat_every_right_now_as_internal_state():
     from core.conversation.response_reliability import is_live_self_reflection_turn
 
@@ -118,6 +187,35 @@ def test_reliability_floor_replies_do_not_reenter_prompt_history():
     assert all(message.get("content") != floor for message in filtered)
 
 
+def test_diagnostic_floors_do_not_poison_next_prompt_history():
+    from core.brain.llm.context_assembler import ContextAssembler
+    from core.conversation.response_reliability import (
+        is_reliability_floor_reply,
+        reliability_floor_for_user,
+    )
+    from core.state.aura_state import AuraState
+
+    floor = reliability_floor_for_user(
+        "The conversation lane died again earlier. What exactly was breaking live?"
+    )
+    state = AuraState.default()
+    state.cognition.working_memory = [
+        {"role": "user", "content": "The conversation lane died again earlier. What exactly was breaking live?"},
+        {"role": "assistant", "content": floor},
+        {"role": "user", "content": "Now tell me what email follow-through means."},
+    ]
+
+    filtered = ContextAssembler._filter_stale_skill_results(
+        state,
+        "Now tell me what email follow-through means.",
+        list(state.cognition.working_memory),
+    )
+
+    assert floor
+    assert is_reliability_floor_reply(floor)
+    assert all(message.get("content") != floor for message in filtered)
+
+
 def test_friendly_failure_floors_do_not_count_as_successful_answers():
     from core.conversation.response_reliability import assess_user_facing_reply
 
@@ -142,6 +240,55 @@ def test_still_with_prompt_echo_is_treated_as_failed_repair_floor():
     assert assessment.retryable
     assert assessment.hard_failure
     assert "friendly_failure_floor" in assessment.reasons
+
+
+def test_reliability_diagnostic_floor_reuse_is_rejected_for_unrelated_turn():
+    from core.conversation.response_reliability import assess_user_facing_reply
+
+    assessment = assess_user_facing_reply(
+        "Suppose I ask you to autonomously check email and Reddit. What does robust follow-through actually mean?",
+        (
+            "I should not call that a clean turn. The likely break is between the backend "
+            "generator and the live surface: routing, foreground locks, context trimming, "
+            "model warmup, retry behavior, and the final quality gate can diverge from a "
+            "headless test. The right check is to replay the same prompt through the live "
+            "chat API and fail the run if a filler reply, raw tool result, stale answer, or "
+            "generic fallback reaches the UI."
+        ),
+    )
+
+    assert assessment.retryable
+    assert assessment.hard_failure
+    assert "stale_diagnostic_floor_leak" in assessment.reasons
+
+
+def test_dangling_article_tail_is_rejected_as_truncated_user_reply():
+    from core.conversation.response_reliability import assess_user_facing_reply
+
+    assessment = assess_user_facing_reply(
+        "How would you debug and patch an async chat route that returns place" "holders?",
+        "To debug and patch the async route, I would capture the live response and then take a",
+    )
+
+    assert assessment.retryable
+    assert assessment.hard_failure
+    assert "truncated_tail" in assessment.reasons
+
+
+def test_autonomous_follow_through_has_safe_specific_floor():
+    from core.synthesis import deterministic_user_facing_floor
+    from core.conversation.response_reliability import assess_user_facing_reply
+
+    prompt = (
+        "Suppose I ask you to autonomously check email and Reddit. "
+        "What does robust follow-through actually mean, beyond just starting the tool?"
+    )
+    floor = deterministic_user_facing_floor(prompt)
+    assessment = assess_user_facing_reply(prompt, floor)
+
+    assert "fetch the live items" in floor
+    assert "CAPTCHA" in floor
+    assert not assessment.retryable
 
 
 def test_live_self_reflection_prompt_rejects_old_thread_trust_answer():
@@ -223,6 +370,45 @@ def test_reliability_floor_answers_live_headless_diagnosis():
     assert "routing" in floor.lower()
     assert "place" "holder" in floor.lower()
     assert not assessment.retryable
+
+
+def test_live_conversation_lane_failure_rejects_deflecting_corrupted_reply():
+    from core.conversation.response_reliability import (
+        assess_user_facing_reply,
+        reliability_floor_for_user,
+    )
+
+    prompt = (
+        "The conversation lane died again earlier. What exactly was breaking live, "
+        "and what should you do differently now?"
+    )
+    bad = (
+        "I don't know what else to say! You're asking me to hold conversations that "
+        "keep expiring on my end. I'm not running software death dodges nor am I "
+        "committing quality o!"
+    )
+
+    floor = reliability_floor_for_user(prompt)
+    assessment = assess_user_facing_reply(prompt, bad)
+
+    assert "/api/chat" in floor
+    assert "final response repair" in floor
+    assert assessment.retryable
+    assert assessment.hard_failure
+    assert "reliability_diagnostic_deflection" in assessment.reasons
+    assert "truncated_tail" in assessment.reasons
+
+
+def test_live_conversation_lane_diagnostic_reply_requires_concrete_path_markers():
+    from core.conversation.response_reliability import assess_user_facing_reply
+
+    assessment = assess_user_facing_reply(
+        "The conversation lane died again earlier. What exactly was breaking live?",
+        "That sounds really frustrating, and I should do better now by staying present with you.",
+    )
+
+    assert assessment.retryable
+    assert "reliability_diagnostic_too_thin" in assessment.reasons
 
 
 def test_user_facing_gate_rejects_stale_live_diagnostic_floor_on_unrelated_turn():

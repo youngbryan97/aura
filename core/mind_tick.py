@@ -16,6 +16,7 @@ from core.predictive.trajectory_predictor import TrajectoryPredictor
 from core.container import ServiceContainer
 from core.health.degraded_events import record_degraded_event
 from core.runtime.pipeline_blueprint import instantiate_legacy_runtime_phases
+from core.runtime.shutdown_coordinator import is_shutdown_requested
 from core.utils.resilience import CircuitBreaker, run_with_watchdog
 from core.utils.task_tracker import get_task_tracker
 from core.config import get_config
@@ -860,7 +861,7 @@ class MindTick:
                 self._last_tick_metadata = metadata
                 
             except asyncio.CancelledError:
-                if not self._running:
+                if not self._running or is_shutdown_requested():
                     break
                 logger.warning("MindTick loop spuriously cancelled. Ignoring.")
                 continue

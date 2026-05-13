@@ -48,13 +48,40 @@ def register_memory_services(container):
         try:
             from core.config import config
             from core.memory.knowledge_graph import PersistentKnowledgeGraph
-            kg_path = config.paths.data_dir / "knowledge_graph"
-            kg_path.mkdir(parents=True, exist_ok=True)
-            return PersistentKnowledgeGraph(str(kg_path))
-        except Exception:
-            logger.debug("Knowledge graph unavailable")
+            kg_dir = config.paths.data_dir / "knowledge_graph"
+            if kg_dir.exists() and not kg_dir.is_dir():
+                logger.warning("Knowledge graph path is a legacy file; using it directly: %s", kg_dir)
+                db_path = kg_dir
+            else:
+                kg_dir.mkdir(parents=True, exist_ok=True)
+                db_path = kg_dir / "knowledge.db"
+            return PersistentKnowledgeGraph(str(db_path))
+        except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation("memory_provider", exc)
+            logger.warning("Knowledge graph unavailable: %s", exc)
             return None
     container.register('knowledge_graph', create_knowledge_graph, lifetime=ServiceLifetime.SINGLETON, required=False)
+
+    # 23.5 Dreamer V2 (idle consolidation). Keep this registered so the
+    # SleepTrigger does real consolidation instead of quietly skipping.
+    def create_dreamer_v2():
+        try:
+            from core.dreamer_v2 import DreamerV2
+            brain = container.get("cognitive_engine", default=None)
+            kg = container.get("knowledge_graph", default=None)
+            if brain is None or kg is None:
+                return None
+            return DreamerV2(
+                brain=brain,
+                knowledge_graph=kg,
+                vector_memory=container.get("vector_memory", default=None),
+                belief_graph=container.get("belief_graph", default=None),
+            )
+        except (ImportError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation("memory_provider", exc)
+            logger.warning("DreamerV2 unavailable: %s", exc)
+            return None
+    container.register('dreamer_v2', create_dreamer_v2, lifetime=ServiceLifetime.SINGLETON, required=False)
 
     # 25. Memory Subsystem (Lifecycle Manager)
     def create_memory_subsystem():

@@ -30,6 +30,7 @@ import time
 from pathlib import Path
 from typing import Optional, List, Any, Dict
 import multiprocessing
+from core.runtime.shutdown_coordinator import is_shutdown_requested, request_shutdown
 from core.utils.task_tracker import get_task_tracker
 
 # Phase 31: Native Apple Silicon Resilience Fixes
@@ -314,11 +315,15 @@ def clean_artifacts():
     """Purge stale bytecode and temporary caches."""
     logger.info("🧹 Purging runtime artifacts...")
     for p in PROJECT_ROOT.rglob("__pycache__"):
-        try: shutil.rmtree(p)
-        except Exception: pass
+        try:
+            shutil.rmtree(p)
+        except OSError as exc:
+            logger.debug("Unable to remove cache directory %s: %s", p, exc)
     for p in PROJECT_ROOT.rglob("*.pyc"):
-        try: p.unlink()
-        except Exception: pass
+        try:
+            p.unlink()
+        except OSError as exc:
+            logger.debug("Unable to remove bytecode file %s: %s", p, exc)
 
 
 def _select_preferred_launcher_python(current_executable: Optional[str] = None) -> Optional[Path]:
@@ -1078,8 +1083,24 @@ async def run_desktop(port: int, *, launch_gui: Optional[bool] = None):
             server_config = uvicorn.Config(_app, host=host, port=port, log_level="info", loop="asyncio")
             server_config.handle_signals = False
             server = uvicorn.Server(server_config)
+            stop_wait = threading.Event()
+
+            def _api_shutdown_watcher():
+                while not server.should_exit:
+                    if is_shutdown_requested():
+                        logger.info("📡 API Server received runtime shutdown request.")
+                        server.should_exit = True
+                        return
+                    stop_wait.wait(0.25)
+
+            threading.Thread(
+                target=_api_shutdown_watcher,
+                name="AuraAPIShutdownWatcher",
+                daemon=True,
+            ).start()
             logger.info("🚀 API Server (Kernel Thread) starting on port %s...", port)
             server.run()
+            stop_wait.set()
             logger.info("📡 API Server thread has exited.")
         except Exception as e:
             record_degradation('aura_main', e)
@@ -1633,6 +1654,7 @@ def main():
                 logger.info("Initializing in Desktop/Autonomy mode...")
                 asyncio.run(run_desktop(args.port))
     except KeyboardInterrupt:
+        request_shutdown("keyboard_interrupt")
         logger.info("Shutdown requested by user.")
     except Exception as e:
         record_degradation('aura_main', e)

@@ -75,6 +75,50 @@ def test_provider_constructors_accept_boot_time_defaults():
     assert monitor.get_status()["status"] == "STABLE"
 
 
+def test_memory_provider_registers_usable_knowledge_graph_and_dreamer(tmp_path, monkeypatch):
+    from core.config import Paths
+    from core.container import ServiceContainer
+    from core.providers.memory_provider import register_memory_services
+
+    ServiceContainer.clear()
+    monkeypatch.setattr(Paths, "_runtime_home_cache", tmp_path)
+    ServiceContainer.register_instance("cognitive_engine", SimpleNamespace(think=lambda *_args, **_kwargs: None))
+
+    try:
+        register_memory_services(ServiceContainer)
+
+        kg = ServiceContainer.require("knowledge_graph")
+        dreamer = ServiceContainer.require("dreamer_v2")
+
+        assert kg.db_path.endswith("knowledge_graph/knowledge.db")
+        assert dreamer.kg is kg
+    finally:
+        ServiceContainer.clear()
+
+
+def test_memory_provider_accepts_legacy_knowledge_graph_file(tmp_path, monkeypatch):
+    from core.config import Paths
+    from core.container import ServiceContainer
+    from core.providers.memory_provider import register_memory_services
+
+    legacy_path = tmp_path / "data" / "knowledge_graph"
+    legacy_path.parent.mkdir(parents=True)
+    legacy_path.touch()
+
+    ServiceContainer.clear()
+    monkeypatch.setattr(Paths, "_runtime_home_cache", tmp_path)
+    ServiceContainer.register_instance("cognitive_engine", SimpleNamespace(think=lambda *_args, **_kwargs: None))
+
+    try:
+        register_memory_services(ServiceContainer)
+
+        kg = ServiceContainer.require("knowledge_graph")
+
+        assert kg.db_path == str(legacy_path)
+    finally:
+        ServiceContainer.clear()
+
+
 @pytest.mark.asyncio
 async def test_boot_identity_reuses_existing_fictional_engines():
     from core.orchestrator.mixins.boot.boot_identity import BootIdentityMixin
@@ -209,6 +253,14 @@ def test_liquid_substrate_velocity_contract(tmp_path):
     velocity = substrate.compute_cognitive_velocity()
 
     assert 0.0 <= velocity <= 1.0
+
+
+def test_system_state_monitor_initializes_health_history():
+    from core.system_monitor import SystemStateMonitor
+
+    monitor = SystemStateMonitor()
+
+    assert monitor.health_history == []
 
 
 @pytest.mark.asyncio

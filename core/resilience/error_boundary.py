@@ -111,6 +111,23 @@ def _is_user_facing_response_phase(phase_name: str, state: Any) -> bool:
     return bool(tokens & {"user", "voice", "admin", "api", "gui", "ws", "websocket", "direct", "external"})
 
 
+def _clear_failed_user_facing_response_state(phase_name: str, state: Any, error: Exception) -> None:
+    """Prevent a failed response phase from reusing the prior chat answer."""
+    if not _is_user_facing_response_phase(phase_name, state):
+        return
+    cognition = getattr(state, "cognition", None)
+    if cognition is not None:
+        try:
+            cognition.last_response = ""
+        except (AttributeError, TypeError) as exc:
+            logger.debug("Could not clear failed response state: %s", exc)
+    modifiers = getattr(state, "response_modifiers", None)
+    if isinstance(modifiers, dict):
+        modifiers["response_phase_failed"] = phase_name
+        modifiers["response_phase_error"] = type(error).__name__
+        modifiers["suppress_stale_response_reuse"] = True
+
+
 # ── Boundary Decorators ───────────────────────────────────────────────────────
 
 def error_boundary(
@@ -218,6 +235,7 @@ async def wrap_phase(
     except Exception as e:
         record_degradation('error_boundary', e)
         breaker.record_failure(e)
+        _clear_failed_user_facing_response_state(phase_name, state, e)
         logger.error(
             "ERROR BOUNDARY: Phase [%s] failed. State preserved.\n%s",
             phase_name,

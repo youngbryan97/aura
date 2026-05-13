@@ -50,6 +50,10 @@ _SIMPLE_DIALOGUE_RE = re.compile(
     r"capital of france|15\s*\*\s*12|square root of 64|3 apples|"
     r"who wrote (?:the play )?hamlet|three programming languages|"
     r"color is the sky|translate ['\"]?good morning|"
+    r"continuity check|what did we just verify|live chat path|"
+    r"conversation lane|reply path|response path|"
+    r"you ok|you okay|are you ok|are you okay|"
+    r"what feels most important|what should you do differently|"
     r"write (?:a )?(?:short )?(?:poem|joke|haiku)|"
     r"compose (?:a )?(?:short )?(?:poem|joke|haiku)"
     r")\b",
@@ -59,7 +63,7 @@ _SIMPLE_DIALOGUE_RE = re.compile(
 
 def _looks_like_simple_dialogue_request(text: str) -> bool:
     body = str(text or "").strip()
-    if not body or len(body.split()) > 18:
+    if not body or len(body.split()) > 28:
         return False
     return bool(_SIMPLE_DIALOGUE_RE.search(body))
 

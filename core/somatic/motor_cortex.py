@@ -25,6 +25,7 @@ Design invariants:
 from __future__ import annotations
 from core.runtime.errors import record_degradation
 
+from core.runtime.shutdown_coordinator import is_shutdown_requested
 from core.utils.task_tracker import get_task_tracker
 
 import asyncio
@@ -504,7 +505,7 @@ class MotorCortex:
                 if sleep_time > 0:
                     await asyncio.sleep(sleep_time)
             except asyncio.CancelledError:
-                if not self._running:
+                if not self._running or is_shutdown_requested():
                     break
                 
                 # Somatic-H52: Suppress spurious warnings during boot or transition

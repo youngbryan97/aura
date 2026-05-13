@@ -24,9 +24,11 @@ class SystemHealthState:
 
 class SystemStateMonitor:
     """Auditing Aura's own stability."""
-    
+
     def __init__(self):
         self.start_time = time.time()
+        self.health_history: List[SystemHealthState] = []
+
     async def audit_stability(self) -> SystemHealthState:
         """Perform a deep audit of current system state."""
         import asyncio
@@ -59,7 +61,7 @@ class SystemStateMonitor:
         
         state = SystemHealthState(
             uptime=time.time() - self.start_time,
-            memory_usage=0.0, # Placeholder
+            memory_usage=0.0,  # Reserved for psutil-backed RSS sampling
             active_shards=active_shards,
             unresolved_refinements=pending_refinements,
             cognitive_stability=stability

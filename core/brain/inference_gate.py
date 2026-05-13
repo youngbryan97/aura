@@ -41,6 +41,7 @@ from core.conversation.response_reliability import (
     is_live_self_reflection_turn,
 )
 from core.runtime.desktop_boot_safety import desktop_safe_boot_enabled
+from core.runtime.shutdown_coordinator import is_shutdown_requested
 from core.runtime.structured_input import analyze_prompt_shape
 from core.utils.deadlines import Deadline, get_deadline
 
@@ -951,11 +952,19 @@ class InferenceGate:
         lane = self.get_conversation_status()
         lane_state = str(lane.get("state", "") or "").lower()
         lane_reason = str(lane.get("last_failure_reason", "") or "")
+        cold_start_recovery = (
+            lane_state in {"cold", "spawning", "handshaking", "warming"}
+            or not bool(lane.get("warmup_attempted", False))
+        )
         if lane_state == "failed" and lane_reason.startswith(("mlx_runtime_unavailable", "local_runtime_unavailable")):
             if self._rearm_runtime_failed_lane(force_probe=True):
                 lane = self.get_conversation_status()
                 lane_state = str(lane.get("state", "") or "").lower()
                 lane_reason = str(lane.get("last_failure_reason", "") or "")
+                cold_start_recovery = (
+                    lane_state in {"cold", "spawning", "handshaking", "warming"}
+                    or not bool(lane.get("warmup_attempted", False))
+                )
             else:
                 return
         if lane.get("warmup_in_flight"):
@@ -978,7 +987,16 @@ class InferenceGate:
                     logger.debug('Ignored Exception in inference_gate.py killing process: %s', _e)
 
             try:
-                logger.warning("♻️ [RECOVERY] Primary 32B cortex is dead. Triggering background respawn (Attempt %d/5)...", self._cortex_recovery_attempts)
+                if cold_start_recovery:
+                    logger.info(
+                        "♻️ [STARTUP] Primary 32B cortex is cold. Starting warmup (Attempt %d/5)...",
+                        self._cortex_recovery_attempts,
+                    )
+                else:
+                    logger.warning(
+                        "♻️ [RECOVERY] Primary 32B cortex is dead. Triggering background respawn (Attempt %d/5)...",
+                        self._cortex_recovery_attempts,
+                    )
                 self._prewarm_task = get_task_tracker().create_task(
                     self._mlx_client.warmup(),
                     name="InferenceGate.cortex_recovery",
@@ -989,12 +1007,22 @@ class InferenceGate:
                 # timeouts and a 5-minute lockout. Give warmup the room it
                 # actually needs.
                 await asyncio.wait_for(asyncio.shield(self._prewarm_task), timeout=420.0)
-                logger.info("✅ [RECOVERY] Primary 32B cortex restored after disruption.")
+                if cold_start_recovery:
+                    logger.info("✅ [STARTUP] Primary 32B cortex warmup complete.")
+                else:
+                    logger.info("✅ [RECOVERY] Primary 32B cortex restored after disruption.")
                 self._cortex_recovery_attempts = 0
                 self._cortex_recovery_exhausted_at = 0.0
             except Exception as exc:
                 record_degradation('inference_gate', exc)
-                logger.error("⚠️ [RECOVERY] Primary 32B cortex is dead. Triggering background respawn (Attempt %d/5): %s", self._cortex_recovery_attempts, exc)
+                if cold_start_recovery:
+                    logger.error(
+                        "⚠️ [STARTUP] Primary 32B cortex warmup failed (Attempt %d/5): %s",
+                        self._cortex_recovery_attempts,
+                        exc,
+                    )
+                else:
+                    logger.error("⚠️ [RECOVERY] Primary 32B cortex is dead. Triggering background respawn (Attempt %d/5): %s", self._cortex_recovery_attempts, exc)
             finally:
                 # [STABILITY v51] ALWAYS clear the flag, even on unexpected exceptions.
                 self._cortex_recovery_in_progress = False
@@ -2838,12 +2866,12 @@ class InferenceGate:
             ):
                 if protected_foreground_lane:
                     logger.warning(
-                        "⚠️ InferenceGate: Primary cortex still dead after recovery wait, "
+                        "⚠️ InferenceGate: Primary cortex is still warming after the short inline wait, "
                         "but protected foreground mode will preserve the requested high-capability path."
                     )
                 else:
                     logger.warning(
-                        "⚠️ InferenceGate: Primary cortex still dead after recovery wait. "
+                        "⚠️ InferenceGate: Primary cortex is still warming after the short inline wait. "
                         "Downgrading to the fast tertiary lane for user responsiveness."
                     )
                     requested_tier = "tertiary"  # Use 7B brainstem — fast, always available
@@ -3501,6 +3529,9 @@ class InferenceGate:
                     # can easily trip a single timeout. We give it 3s, then 6s to settle.
                     if _is_user_facing and local_label == PRIMARY_ENDPOINT:
                         for retry_attempt, wait_sec in enumerate([3.0, 6.0], 1):
+                            if is_shutdown_requested():
+                                logger.info("🛑 %s retry loop aborted: runtime is shutting down.", local_label)
+                                return ""
                             lane_status = self.get_conversation_status()
                             if not lane_status.get("conversation_ready"):
                                 logger.warning(
@@ -3515,9 +3546,15 @@ class InferenceGate:
                                 except Exception as warmup_exc:
                                     record_degradation('inference_gate', warmup_exc)
                                     logger.warning("🧠 Foreground warmup retry did not complete cleanly: %s", warmup_exc)
+                            if is_shutdown_requested():
+                                logger.info("🛑 %s retry wait skipped: runtime is shutting down.", local_label)
+                                return ""
 
                             logger.warning("🧠 %s returned no text on user-facing request. Retrying (attempt %d/2) after %ds pause...", local_label, retry_attempt, wait_sec)
                             await asyncio.sleep(wait_sec)
+                            if is_shutdown_requested():
+                                logger.info("🛑 %s retry generation skipped: runtime is shutting down.", local_label)
+                                return ""
                             
                             # Give the retry MORE time than the initial attempt
                             retry_timeout = primary_timeout * 1.5 

@@ -25,6 +25,7 @@ import psutil
 
 from core.utils.deadlines import Deadline, get_deadline
 from core.utils.concurrency import run_io_bound
+from core.runtime.shutdown_coordinator import is_shutdown_requested
 from .mlx_worker import _mlx_worker_loop
 from .chat_format import format_chatml_messages, format_chatml_prompt
 
@@ -69,6 +70,10 @@ _USER_FACING_PURPOSES = frozenset({
     "reply",
     "user_response",
 })
+
+
+def _runtime_shutdown_requested() -> bool:
+    return is_shutdown_requested()
 
 
 def _probe_cache_ttl_seconds(ok: Optional[bool], *, disk: bool) -> float:
@@ -1427,6 +1432,9 @@ class MLXLocalClient:
         [OOM FIX] Acquires a global semaphore so only ONE model loads at a time.
         This prevents the 32B + 7B from loading simultaneously and crashing Metal.
         """
+        if _runtime_shutdown_requested():
+            logger.info("🛑 [MLX] Worker start/recovery skipped for %s: runtime is shutting down.", os.path.basename(self.model_path))
+            return False
         if request_is_background and _foreground_owner_active():
             logger.info(
                 "⏸️ [MLX] Deferring background worker activity for %s while foreground lane is owned by %s.",
@@ -1470,6 +1478,9 @@ class MLXLocalClient:
         skip_swap_cooldown: bool = False,
     ) -> bool:
         """Inner implementation — called while holding the global spawn gate."""
+        if _runtime_shutdown_requested():
+            logger.info("🛑 [MLX] Worker spawn skipped for %s: runtime is shutting down.", os.path.basename(self.model_path))
+            return False
         should_wait_init = False
         init_future: Optional[SharedFuture] = None
         
@@ -2752,6 +2763,10 @@ class MLXLocalClient:
                         foreground_request=foreground_request,
                     )
                     logger.info("⏸️ [MLX] Warmup deferred for %s: %s", os.path.basename(self.model_path), exc)
+                return
+
+            if _runtime_shutdown_requested():
+                logger.info("🛑 [MLX] Warmup skipped for %s: runtime is shutting down.", os.path.basename(self.model_path))
                 return
 
             alive = await self._ensure_worker_alive(

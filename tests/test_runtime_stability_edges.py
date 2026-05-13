@@ -56,6 +56,143 @@ class TestSensoryClientRecovery(unittest.IsolatedAsyncioTestCase):
         client.start.assert_awaited_once()
 
 
+class TestResponsePhaseErrorBoundary(unittest.IsolatedAsyncioTestCase):
+    async def test_user_facing_response_phase_failure_clears_stale_reply(self):
+        from core.resilience.error_boundary import CircuitRegistry, wrap_phase
+
+        CircuitRegistry._instance = None
+        state = SimpleNamespace(
+            cognition=SimpleNamespace(current_origin="api", last_response="old answer from a previous turn"),
+            response_modifiers={},
+            world=SimpleNamespace(recent_percepts=[]),
+        )
+
+        async def fail_phase(_state, objective=None, **_kwargs):
+            await asyncio.sleep(0)
+            raise TimeoutError("only unsafe drafts")
+
+        result = await wrap_phase(
+            "UnitaryResponsePhase",
+            fail_phase,
+            state,
+            objective="new user turn",
+        )
+
+        self.assertIs(result, state)
+        self.assertEqual(state.cognition.last_response, "")
+        self.assertTrue(state.response_modifiers["suppress_stale_response_reuse"])
+        self.assertEqual(state.response_modifiers["response_phase_failed"], "UnitaryResponsePhase")
+
+
+class TestStallWatchdogRecovery(unittest.IsolatedAsyncioTestCase):
+    async def test_stall_recovery_is_diagnostic_only_by_default(self):
+        from core.resilience.stall_watchdog import StallWatchdog
+
+        async def long_lived():
+            await asyncio.Event().wait()
+
+        loop = asyncio.get_running_loop()
+        task = asyncio.create_task(long_lived(), name="ordinary_background_task")
+        dog = StallWatchdog(loop, threshold=0.1)
+        dog._task_birth[id(task)] = time.time() - 300
+
+        try:
+            with patch.dict(os.environ, {}, clear=True):
+                await dog._recover_on_loop(91.0)
+
+            self.assertFalse(task.cancelled())
+            self.assertFalse(task.done())
+        finally:
+            task.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await task
+
+
+class TestSelfHealingLoopSafety(unittest.IsolatedAsyncioTestCase):
+    async def test_ledger_write_timeout_does_not_block_tick(self):
+        from core.runtime.self_healing import SelfHealing
+
+        healer = SelfHealing()
+        healer._ledger_write_timeout_s = 0.01
+        healer.watch("slow_watch", expected_interval_s=0.01)
+        watch = healer._watches["slow_watch"]
+        watch.last_heartbeat_at = time.time() - 10
+
+        def slow_append(_record):
+            import threading
+
+            threading.Event().wait(0.25)
+
+        started = time.perf_counter()
+        with patch.object(healer, "_foreground_runtime_busy", return_value=True), \
+             patch.object(healer, "_append_record", side_effect=slow_append):
+            await healer._tick()
+
+        self.assertLess(time.perf_counter() - started, 0.12)
+        self.assertGreater(watch.last_heartbeat_at, time.time() - 1.0)
+
+
+class TestRSSFallback(unittest.TestCase):
+    def test_stdlib_rss_parser_returns_feedparser_like_shape(self):
+        from core.utils.rss_feed import parse_feed_bytes
+
+        feed = parse_feed_bytes(
+            b"""<?xml version="1.0"?>
+            <rss version="2.0"><channel>
+              <title>World</title>
+              <item><title>Signal found</title><link>https://example.test/a</link><description>Useful context</description></item>
+            </channel></rss>"""
+        )
+
+        self.assertEqual(feed.feed["title"], "World")
+        self.assertEqual(feed.entries[0].title, "Signal found")
+        self.assertEqual(feed.entries[0].summary, "Useful context")
+
+
+class TestShutdownCoordination(unittest.TestCase):
+    def test_supervisor_does_not_schedule_actor_restart_during_shutdown(self):
+        from core.runtime.shutdown_coordinator import clear_shutdown_request, request_shutdown
+        from core.supervisor.tree import ActorSpec, SupervisionTree
+
+        tree = SupervisionTree()
+        tree.add_actor(ActorSpec(name="worker", entry_point=lambda _pipe=None: None))
+        actor = tree._actors["worker"]
+        actor.process = MagicMock()
+        actor.process.is_alive.return_value = False
+        actor.process.exitcode = -15
+        actor.pipe = object()
+
+        request_shutdown("test")
+        try:
+            tree._poll_health()
+            self.assertEqual(actor.next_restart_time, 0.0)
+            self.assertIsNone(tree.start_actor("worker"))
+        finally:
+            clear_shutdown_request()
+
+
+class TestShutdownCancellationHandlers(unittest.IsolatedAsyncioTestCase):
+    async def test_self_healing_loop_honors_process_shutdown_cancellation(self):
+        from core.runtime.self_healing import SelfHealing
+        from core.runtime.shutdown_coordinator import clear_shutdown_request, request_shutdown
+
+        healer = SelfHealing()
+        healer._tick = AsyncMock(return_value=None)
+
+        try:
+            await healer.start(interval=60.0)
+            self.assertIsNotNone(healer._task)
+            await asyncio.sleep(0)
+            request_shutdown("test")
+            healer._task.cancel()
+            await asyncio.wait_for(healer._task, timeout=0.25)
+            self.assertTrue(healer._task.done())
+            self.assertFalse(healer._task.cancelled())
+        finally:
+            healer._running = False
+            clear_shutdown_request()
+
+
 class TestAffectBroadcastBackpressure(unittest.IsolatedAsyncioTestCase):
     async def test_affect_broadcast_caps_background_tasks(self):
         emit_release = asyncio.Event()

@@ -726,7 +726,14 @@ def _mlx_worker_loop(
 
     while True:
         try:
-            job = request_queue.get()
+            try:
+                job = request_queue.get()
+            except KeyboardInterrupt:
+                logger.info("🛑 [WORKER] Shutdown signal received while idle; exiting quietly.")
+                break
+            except (EOFError, BrokenPipeError, OSError) as queue_exc:
+                logger.info("🛑 [WORKER] Request queue closed; exiting quietly (%s).", queue_exc)
+                break
             if job is None: break
                 
             action = job.get("action")
@@ -1325,6 +1332,9 @@ def _mlx_worker_loop(
                     pass  # no-op: intentional
                 ipc_writer.put({"status": "ok"})
                 
+        except KeyboardInterrupt:
+            logger.info("🛑 [WORKER] Shutdown signal received; exiting quietly.")
+            break
         except Exception as e:
             record_degradation('mlx_worker', e)
             import traceback

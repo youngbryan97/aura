@@ -8,6 +8,7 @@ Returns a report of bytes reclaimed and files removed.
 Runs as the first maintenance step in DreamerV2.engage_sleep_cycle().
 """
 from core.runtime.errors import record_degradation
+import asyncio
 import logging
 import os
 import shutil
@@ -61,6 +62,9 @@ class MetabolismEngine:
         }
 
     async def scan_and_purge(self) -> PurgeReport:
+        return await asyncio.to_thread(self._scan_and_purge_sync)
+
+    def _scan_and_purge_sync(self) -> PurgeReport:
         report = PurgeReport()
         t0 = time.monotonic()
         logger.info("🫀 Metabolism sweep starting at %s", self.root_dir)

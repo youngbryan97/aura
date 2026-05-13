@@ -7,6 +7,7 @@ import traceback
 from dataclasses import dataclass, field
 from typing import Callable, Dict, Optional, Any, List
 
+from core.runtime.shutdown_coordinator import is_shutdown_requested
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.Scheduler")
@@ -117,12 +118,11 @@ class Scheduler:
                 
                 await asyncio.sleep(0.05)
             except asyncio.CancelledError:
-                if stop_event.is_set():
+                if stop_event.is_set() or is_shutdown_requested():
                     logger.info("Scheduler main loop cancelled cleanly.")
                     break
-                else:
-                    logger.warning("Scheduler loop spuriously cancelled. Ignoring.")
-                    continue
+                logger.warning("Scheduler loop spuriously cancelled. Ignoring.")
+                continue
             except Exception as e:
                 record_degradation('scheduler', e)
                 logger.error(f"Scheduler Fatal Crash: {e}")

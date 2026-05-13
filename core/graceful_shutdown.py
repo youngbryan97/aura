@@ -3,6 +3,7 @@ import asyncio
 import logging
 import signal
 from typing import Any, Callable, List, Union, Awaitable, ClassVar, Optional
+from core.runtime.shutdown_coordinator import request_shutdown
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.Shutdown")
@@ -49,6 +50,7 @@ class GracefulShutdown:
         if cls._is_shutting_down:
             return
         cls._is_shutting_down = True
+        request_shutdown(f"signal:{getattr(sig, 'name', sig)}" if sig else "graceful_shutdown")
         
         prefix = f"Received signal {sig}: " if sig else ""
         logger.warning(f"🛑 {prefix}Initiating graceful shutdown of Aura components...")

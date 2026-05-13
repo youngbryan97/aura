@@ -2,6 +2,7 @@ from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
+import os
 import random
 import time
 from typing import List, Optional, Any, Set, Dict
@@ -283,6 +284,10 @@ class EventLoopMonitor:
         self.threshold = threshold
         self.interval = interval
         self.startup_grace = startup_grace
+        self.log_transient_lag = (
+            os.getenv("AURA_EVENT_LOOP_LOG_TRANSIENTS", "").strip().lower()
+            in {"1", "true", "yes"}
+        )
         self._stop_event = asyncio.Event()
         self._task: Optional[asyncio.Task] = None
         self._last_lag: float = 0.0
@@ -352,7 +357,7 @@ class EventLoopMonitor:
                         )
                     except Exception:
                         pass
-                else:
+                elif self.log_transient_lag:
                     logger.debug(
                         "EventLoopMonitor: transient lag %.4fs observed (threshold=%.2fs).",
                         lag,

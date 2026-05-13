@@ -196,13 +196,13 @@ class AutonomousInitiativeLoop:
         """Periodically checks RSS feeds for real-time reactivity."""
         while self.running:
             try:
-                import feedparser
+                from core.utils.rss_feed import parse_feed_url
                 for url in self.rss_feeds:
                     if not _background_initiative_allowed(self.orchestrator):
                         await asyncio.sleep(30)
                         break
                     # Offload blocking network request to prevent event loop freeze
-                    feed = await asyncio.to_thread(feedparser.parse, url)
+                    feed = await asyncio.to_thread(parse_feed_url, url)
                     if not feed.entries: continue
                     
                     latest = feed.entries[0]
@@ -248,10 +248,6 @@ class AutonomousInitiativeLoop:
                         
                     await asyncio.sleep(0)  # Yield between feeds
                             
-            except ImportError:
-                logger.warning("feedparser not installed. RSS world-watcher is idle.")
-                await asyncio.sleep(3600) # Sleep for an hour
-                continue
             except Exception as e:
                 record_degradation('autonomous_initiative_loop', e)
                 logger.debug(f"World watcher loop transient error: {e}")

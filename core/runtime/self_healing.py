@@ -35,6 +35,7 @@ from pathlib import Path
 from typing import Any
 
 from core.runtime.errors import record_degradation
+from core.runtime.shutdown_coordinator import is_shutdown_requested
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.SelfHealing")
@@ -67,6 +68,7 @@ class SelfHealing:
         self._deep_repairs: dict[str, asyncio.Task] = {}
         self._task: asyncio.Task | None = None
         self._running = False
+        self._ledger_write_timeout_s = 1.0
 
     def watch(
         self,
@@ -100,7 +102,7 @@ class SelfHealing:
                     await self._tick()
                     await asyncio.sleep(interval)
                 except asyncio.CancelledError:
-                    if not self._running:
+                    if not self._running or is_shutdown_requested():
                         break
                     logger.warning("SelfHealing loop spuriously cancelled. Ignoring.")
                     continue
@@ -129,7 +131,7 @@ class SelfHealing:
                 continue
             if self._foreground_runtime_busy():
                 w.last_heartbeat_at = now
-                self._append_record(
+                await self._append_record_async(
                     {
                         "when": now,
                         "name": w.name,
@@ -184,7 +186,7 @@ class SelfHealing:
                     )
                     w.restarts = 0
                     w.last_heartbeat_at = time.time()
-                    self._append_record(record)
+                    await self._append_record_async(record)
                     return
 
             if record.get("result") not in (
@@ -206,7 +208,7 @@ class SelfHealing:
         except Exception as exc:
             record_degradation('self_healing', exc)
             record["result"] = f"restart_failed:{exc}"
-        self._append_record(record)
+        await self._append_record_async(record)
 
     def _module_path_for_watch(self, w: WatchEntry) -> str | None:
         if not w.container_key:
@@ -344,19 +346,34 @@ class SelfHealing:
             record["result"] = f"deep_repair_failed:{exc}"
             return record
         finally:
-            self._append_record(record)
+            await self._append_record_async(record)
+
+    async def _append_record_async(self, record: dict[str, Any]) -> None:
+        """Persist a healing receipt without blocking the main asyncio loop."""
+        try:
+            await asyncio.wait_for(
+                asyncio.to_thread(self._append_record, record),
+                timeout=self._ledger_write_timeout_s,
+            )
+        except TimeoutError:
+            logger.warning("SelfHealing ledger write timed out; preserving live loop responsiveness.")
+        except asyncio.CancelledError:
+            raise
+        except (OSError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug("SelfHealing ledger write failed asynchronously: %s", exc)
 
     def _append_record(self, record: dict[str, Any]) -> None:
         try:
             with open(_LEDGER, "a", encoding="utf-8") as fh:
                 fh.write(json.dumps(record, default=str) + "\n")
                 fh.flush()
-                try:
-                    os.fsync(fh.fileno())
-                except Exception:
-                    pass  # no-op: intentional
-        except Exception:
-            pass  # no-op: intentional
+                if _env_flag("AURA_SELF_HEALING_LEDGER_FSYNC", False):
+                    try:
+                        os.fsync(fh.fileno())
+                    except OSError as exc:
+                        logger.debug("SelfHealing ledger fsync skipped: %s", exc)
+        except (OSError, TypeError, ValueError) as exc:
+            logger.debug("SelfHealing ledger append failed: %s", exc)
 
 
 _HEALER: SelfHealing | None = None

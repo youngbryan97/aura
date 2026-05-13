@@ -28,6 +28,7 @@ from core.meta.cognitive_trace import CognitiveTrace
 from core.scheduler import TaskSpec, scheduler
 from core.health.degraded_events import record_degraded_event
 from core.runtime.errors import record_degradation
+from core.runtime.shutdown_coordinator import is_shutdown_requested
 from core.utils.task_tracker import get_task_tracker
 from core.utils.exceptions import capture_and_log
 from core.utils.queues import BackpressuredQueue, USER_FACING_ORIGINS
@@ -1234,12 +1235,11 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                 # Short sleep to prevent CPU spinning while remaining responsive
                 await asyncio.sleep(0.05) 
             except asyncio.CancelledError:
-                if self._stop_event.is_set():
+                if self._stop_event.is_set() or is_shutdown_requested():
                     logger.info("Orchestrator heartbeat cancelled cleanly.")
                     break
-                else:
-                    logger.warning("Orchestrator heartbeat spuriously cancelled. Ignoring.")
-                    continue
+                logger.warning("Orchestrator heartbeat spuriously cancelled. Ignoring.")
+                continue
             except Exception as e:
                 record_degradation('main', e)
                 logger.error("🛑 ORCHESTRATOR LOOP CRITICAL ERROR: %s", e, exc_info=True)

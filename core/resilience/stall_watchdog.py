@@ -176,21 +176,32 @@ class StallWatchdog(threading.Thread):
         except RuntimeError:
             return
 
-        for task in tasks:
-            if task.done():
-                continue
-            name = getattr(task, "get_name", lambda: "")() or repr(task)
-            if any(p in name for p in protected_substrings):
-                continue
-            birth = self._task_birth.get(id(task))
-            if birth is None or birth >= cutoff:
-                continue
-            try:
-                task.cancel()
-                cancelled += 1
-            except Exception as exc:
-                record_degradation('stall_watchdog', exc)
-                logger.debug("Stall recovery: failed to cancel %s: %s", name, exc)
+        aggressive_cancel = os.getenv("AURA_WATCHDOG_CANCEL_HUNG_TASKS", "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+        }
+        if aggressive_cancel:
+            for task in tasks:
+                if task.done():
+                    continue
+                name = getattr(task, "get_name", lambda: "")() or repr(task)
+                if any(p in name for p in protected_substrings):
+                    continue
+                birth = self._task_birth.get(id(task))
+                if birth is None or birth >= cutoff:
+                    continue
+                try:
+                    task.cancel()
+                    cancelled += 1
+                except RuntimeError as exc:
+                    record_degradation('stall_watchdog', exc)
+                    logger.debug("Stall recovery: failed to cancel %s: %s", name, exc)
+        else:
+            logger.warning(
+                "💉 [IMMUNE] Stall recovery is diagnostic-only; not bulk-cancelling asyncio tasks. "
+                "Set AURA_WATCHDOG_CANCEL_HUNG_TASKS=1 to enable aggressive cancellation."
+            )
 
         if cancelled:
             logger.warning(

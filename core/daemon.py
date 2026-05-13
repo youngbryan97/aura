@@ -150,9 +150,9 @@ class WorldFeed:
     async def _feed_loop(self):
         while self._running:
             try:
-                import feedparser
+                from core.utils.rss_feed import parse_feed_url
                 for url in self.DEFAULT_FEEDS:
-                    feed = await asyncio.to_thread(feedparser.parse, url)
+                    feed = await asyncio.to_thread(parse_feed_url, url)
                     for entry in feed.entries[:3]:
                         if entry.id not in self._seen_ids:
                             self._seen_ids[entry.id] = True
@@ -160,9 +160,6 @@ class WorldFeed:
                             while len(self._seen_ids) > self._max_seen:
                                 self._seen_ids.popitem(last=False)
                             await self._inject(entry)
-            except ImportError:
-                 logger.warning("feedparser missing")
-                 break
             except Exception as e:
                 record_degradation('daemon', e)
                 logger.debug("Feed error: %s", e)

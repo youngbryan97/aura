@@ -18,6 +18,7 @@ from core.consciousness.executive_authority import get_executive_authority
 from core.container import ServiceContainer
 from core.kernel.bridge import LegacyPhase
 from core.kernel.organs import OrganStub
+from core.runtime.shutdown_coordinator import is_shutdown_requested
 from core.kernel.upgrades_10x import (
     EternalGrowthEngine,
     EternalMemoryPhase,
@@ -688,7 +689,7 @@ class AuraKernel:
                     logger.warning("[RUBICON] Motor cortex loop died -- restarting")
                     mc._task = get_task_tracker().create_task(mc._run_loop(), name="motor_cortex_loop")
             except asyncio.CancelledError:
-                if not self._running:
+                if not self._running or is_shutdown_requested():
                     break
                 logger.warning("Motor cortex watchdog spuriously cancelled. Ignoring.")
                 continue

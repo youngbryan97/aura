@@ -9,8 +9,13 @@ import sys
 import threading
 from typing import Dict, Any, Callable, Optional, List
 from dataclasses import dataclass, field
+from core.runtime.shutdown_coordinator import is_shutdown_requested
 
 logger = logging.getLogger("Aura.Supervisor")
+
+
+def _shutdown_requested() -> bool:
+    return is_shutdown_requested()
 
 @dataclass
 class ActorSpec:
@@ -146,6 +151,9 @@ class SupervisionTree:
 
     def start_actor(self, name: str):
         """Spin up a specific actor. Idempotent: returns existing pipe if already running."""
+        if self._shutting_down or _shutdown_requested():
+            logger.info("🛑 Not starting Actor %s: runtime is shutting down.", name)
+            return None
         with self._lock:
             actor = self._actors.get(name)
             if not actor:
@@ -223,11 +231,14 @@ class SupervisionTree:
         """Main supervision loop (non-blocking async)."""
         import asyncio
         self._is_running = True
-        self._shutting_down = False
+        self._shutting_down = _shutdown_requested()
         logger.info("🛡️ Supervision Tree ACTIVE (Async). Monitoring actors...")
         
         try:
             while self._is_running:
+                if _shutdown_requested():
+                    self.stop_all()
+                    break
                 self._poll_health()
                 await asyncio.sleep(1.0)
         except asyncio.CancelledError:
@@ -236,11 +247,14 @@ class SupervisionTree:
     def run_forever(self):
         """Main supervision loop (blocking)."""
         self._is_running = True
-        self._shutting_down = False
+        self._shutting_down = _shutdown_requested()
         logger.info("🛡️ Supervision Tree ACTIVE. Monitoring actors...")
         
         try:
             while self._is_running:
+                if _shutdown_requested():
+                    self.stop_all()
+                    break
                 self._poll_health()
                 time.sleep(1.0)
         except KeyboardInterrupt:
@@ -248,7 +262,8 @@ class SupervisionTree:
 
     def _poll_health(self):
         """Check all actors and restart if needed."""
-        if self._shutting_down:
+        if self._shutting_down or _shutdown_requested():
+            self._shutting_down = True
             return
         now = time.time()
         with self._lock:
@@ -284,7 +299,7 @@ class SupervisionTree:
             actor.process = None
             actor.pipe = None
 
-            if self._shutting_down:
+            if self._shutting_down or _shutdown_requested():
                 actor.next_restart_time = 0.0
                 return
 
@@ -311,7 +326,8 @@ class SupervisionTree:
 
     def _restart_actor(self, name: str):
         """Internal helper to start actor and trigger callback."""
-        if self._shutting_down:
+        if self._shutting_down or _shutdown_requested():
+            self._shutting_down = True
             return
         new_pipe = self.start_actor(name)
         with self._lock:

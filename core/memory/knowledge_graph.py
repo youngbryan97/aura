@@ -496,6 +496,14 @@ class PersistentKnowledgeGraph:
         # 1. Ensure nodes exist
         id1 = self.add_knowledge(entity1, "concept", source="graph_contraction")
         id2 = self.add_knowledge(entity2, "concept", source="graph_contraction")
+        if not self._knowledge_exists(id1) or not self._knowledge_exists(id2):
+            logger.info(
+                "KnowledgeGraph relationship skipped because concept write was not committed: %s -[%s]-> %s",
+                entity1,
+                relation,
+                entity2,
+            )
+            return False
         
         # 2. Normalize relation
         rel = relation.lower().replace(" ", "_")
@@ -504,6 +512,18 @@ class PersistentKnowledgeGraph:
             
         # 3. Link
         return self.add_relationship(id1, id2, rel, strength=weight)
+
+    def _knowledge_exists(self, node_id: str) -> bool:
+        if not node_id:
+            return False
+        try:
+            with self._get_conn() as conn:
+                row = conn.execute("SELECT 1 FROM knowledge WHERE id = ? LIMIT 1", (node_id,)).fetchone()
+                return row is not None
+        except (OSError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation("knowledge_graph", exc)
+            logger.debug("KnowledgeGraph existence check failed for %s: %s", node_id, exc)
+            return False
 
     def get_relationships(self, node_id: str,
                           direction: str = "both",
