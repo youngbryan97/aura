@@ -515,6 +515,19 @@ class ResponseGenerationPhase(BasePhase):
         text = re.sub(r'^Aura:\s*', '', text, flags=re.IGNORECASE)
         text = re.sub(r'^Assistant:\s*', '', text, flags=re.IGNORECASE)
         
+        # 🧠 COGNITIVE WIRING: Affect-Gated Prompt Hunting
+        # Instead of using a 'fake band-aid' system prompt to forbid questions,
+        # we wire this behavior directly into her mind. If the LLM reflexively 
+        # appends a trailing question, she must ACTUALLY be curious to ask it.
+        if state is not None and hasattr(state, "affect"):
+            curiosity = getattr(state.affect, "curiosity", 0.5)
+            if curiosity < 0.70:
+                # She is not curious enough to warrant a reflexive follow-up question.
+                # Strip the trailing question (e.g. 'What do you think?').
+                # This matches the last sentence if it ends in a question mark.
+                text = re.sub(r'(?<=[.!?])\s+[A-Z][^.!?]*\?\s*$', '', text)
+                text = text.strip()
+        
         # Apply aggressive centralized scrubbing
         text = strip_meta_commentary(text)
         text = stabilize_user_facing_response(
