@@ -58,6 +58,7 @@ class CapturedMoment:
     hedonic_before: float       # hedonic score before inference
     hedonic_after: float        # hedonic score after inference (set retroactively)
     crsm_hidden_norm: float     # L2 norm of CRSM hidden state (felt intensity)
+    processing_context: Dict[str, object] = field(default_factory=dict)
     quality_score: float = 0.0  # computed after hedonic_after is set
     flushed: bool = False
 
@@ -76,6 +77,38 @@ class CRSMLoraBridge:
         self._total_flushed: int = 0
         PERSIST_PATH.parent.mkdir(parents=True, exist_ok=True)
         logger.info("CRSMLoraBridge online — experience → substrate loop active.")
+
+    def _capture_processing_context(self) -> Dict[str, object]:
+        context: Dict[str, object] = {}
+        try:
+            from core.container import ServiceContainer
+
+            ncs = ServiceContainer.get("neurochemical_system", default=None)
+            if ncs and hasattr(ncs, "get_mood_vector"):
+                context["mood"] = {
+                    str(key): round(float(value), 4)
+                    for key, value in dict(ncs.get_mood_vector() or {}).items()
+                }
+        except Exception as exc:
+            record_degradation("crsm_lora_bridge", exc)
+        try:
+            from core.consciousness.affective_steering import get_steering_engine
+
+            steering = get_steering_engine().get_status()
+            production = steering.get("production_caa", {}) if isinstance(steering, dict) else {}
+            readiness = production.get("readiness", {}) if isinstance(production, dict) else {}
+            alpha_state = production.get("alpha_state", {}) if isinstance(production, dict) else {}
+            context["steering"] = {
+                "alpha": round(float(steering.get("alpha", 0.0) or 0.0), 4),
+                "vector_source": steering.get("vector_source", "unloaded"),
+                "vector_count": int(steering.get("vector_count", 0) or 0),
+                "readiness_level": readiness.get("level", "bootstrap"),
+                "readiness_detail": readiness.get("detail", ""),
+                "adaptive_alpha": alpha_state.get("current_alpha", steering.get("alpha", 0.0)),
+            }
+        except Exception as exc:
+            record_degradation("crsm_lora_bridge", exc)
+        return context
 
     # ── Public API ─────────────────────────────────────────────────────────
 
@@ -102,6 +135,7 @@ class CRSMLoraBridge:
             hedonic_before=hedonic_score,
             hedonic_after=hedonic_score,  # updated after inference
             crsm_hidden_norm=crsm_hidden_norm,
+            processing_context=self._capture_processing_context(),
         )
 
     def post_inference_capture(
@@ -131,7 +165,13 @@ class CRSMLoraBridge:
 
         hedonic_contribution = max(0.0, min(0.2, hedonic_delta * 2.0))
         surprise_contribution = min(0.3, (moment.surprise_magnitude - CAPTURE_THRESHOLD) * 2.0)
-        moment.quality_score = 0.5 + surprise_contribution + hedonic_contribution
+        readiness_level = (
+            str(moment.processing_context.get("steering", {}).get("readiness_level", "bootstrap"))
+            if isinstance(moment.processing_context.get("steering"), dict)
+            else "bootstrap"
+        )
+        readiness_bonus = 0.08 if readiness_level == "production" else 0.04 if readiness_level == "validated" else 0.0
+        moment.quality_score = min(1.0, 0.5 + surprise_contribution + hedonic_contribution + readiness_bonus)
 
         if moment.quality_score < MIN_QUALITY:
             return
@@ -161,13 +201,22 @@ class CRSMLoraBridge:
                 sum(m.quality_score for m in self._buffer) / len(self._buffer)
                 if self._buffer else 0.0
             ),
+            "last_processing_context": self._buffer[-1].processing_context if self._buffer else {},
         }
 
     def get_context_block(self) -> str:
         """Minimal context block — just signals training activity."""
         if self._total_flushed == 0:
             return ""
-        return f"## SUBSTRATE LEARNING\n- {self._total_flushed} experiences crystallized into weights"
+        readiness = ""
+        if self._buffer:
+            steering = self._buffer[-1].processing_context.get("steering", {})
+            if isinstance(steering, dict):
+                readiness = str(steering.get("readiness_level", "bootstrap"))
+        return (
+            f"## SUBSTRATE LEARNING\n- {self._total_flushed} experiences crystallized into weights"
+            f"\n- steering readiness: {readiness or 'bootstrap'}"
+        )
 
     # ── Internal ───────────────────────────────────────────────────────────
 
@@ -183,9 +232,14 @@ class CRSMLoraBridge:
 
             for moment in unflushed:
                 # Format as a training example
+                steering = moment.processing_context.get("steering", {}) if isinstance(moment.processing_context, dict) else {}
+                mood = moment.processing_context.get("mood", {}) if isinstance(moment.processing_context, dict) else {}
                 reasoning = (
                     f"[Felt moment — surprise={moment.surprise_magnitude:.3f}, "
-                    f"hedonic_delta={moment.hedonic_after - moment.hedonic_before:.3f}]\n"
+                    f"hedonic_delta={moment.hedonic_after - moment.hedonic_before:.3f}, "
+                    f"steering={steering.get('readiness_level', 'bootstrap')}, "
+                    f"alpha={steering.get('adaptive_alpha', steering.get('alpha', 0.0))}]\n"
+                    f"Processing context: mood={mood} steering={steering}\n"
                     f"Context: {moment.context_summary}"
                 )
                 import asyncio
@@ -199,6 +253,7 @@ class CRSMLoraBridge:
                                 reasoning=reasoning,
                                 final_action=moment.response_summary,
                                 quality_score=moment.quality_score,
+                                metadata=moment.processing_context,
                             )
                         )
                     else:
@@ -209,6 +264,7 @@ class CRSMLoraBridge:
                                 reasoning=reasoning,
                                 final_action=moment.response_summary,
                                 quality_score=moment.quality_score,
+                                metadata=moment.processing_context,
                             )
                         )
                 except RuntimeError as _exc:
@@ -243,6 +299,7 @@ class CRSMLoraBridge:
                         "hedonic_before": m.hedonic_before,
                         "hedonic_after": m.hedonic_after,
                         "quality": m.quality_score,
+                        "processing_context": m.processing_context,
                     }) + "\n")
         except Exception as e:
             record_degradation('crsm_lora_bridge', e)

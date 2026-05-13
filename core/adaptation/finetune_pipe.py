@@ -53,8 +53,15 @@ class FinetunePipe:
             score -= 0.2
         return max(0.0, min(1.0, score))
 
-    async def register_success(self, task_description: str, context: str, reasoning: str, final_action: str,
-                               quality_score: float = -1.0):
+    async def register_success(
+        self,
+        task_description: str,
+        context: str,
+        reasoning: str,
+        final_action: str,
+        quality_score: float = -1.0,
+        metadata: Dict[str, Any] | None = None,
+    ):
         """Records a successful trace for future fine-tuning."""
         try:
             full_response = f"<thought>\n{reasoning}\n</thought>\n<action>\n{final_action}\n</action>"
@@ -67,6 +74,8 @@ class FinetunePipe:
             if quality_score < 0:
                 quality_score = self._compute_quality_score(reasoning, final_action)
             formatted_entry["_quality"] = round(quality_score, 4)
+            if metadata:
+                formatted_entry["_meta"] = metadata
 
             self._batch.append(formatted_entry)
             logger.info("FinetunePipe: Captured trace for '%s' (quality=%.2f).", task_description[:30], quality_score)

@@ -411,8 +411,17 @@ def extract_steering_vectors(
             dim_vectors[lidx] = direction
 
             # Save individual vector file
-            vec_filename = f"{dim_key}_layer_{lidx}.npy"
-            np.save(out_dir / vec_filename, direction)
+            vec_filename = f"{dim_key}_layer{lidx}.npz"
+            np.savez(
+                out_dir / vec_filename,
+                v=direction,
+                source="extracted_caa",
+                extracted=True,
+                dimension=dim_key,
+                layer=lidx,
+                model=model_path,
+                derived_at=time.time(),
+            )
             logger.info(
                 "  Layer %d: saved %s (dim=%d, raw_norm=%.4f)",
                 lidx, vec_filename, direction.shape[0], norm,

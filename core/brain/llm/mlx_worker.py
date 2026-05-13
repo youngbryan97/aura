@@ -1125,6 +1125,12 @@ def _mlx_worker_loop(
                         sanitized_text = ""
                             
                     response_text = sanitized_text
+                    try:
+                        if engine is not None and response_text.strip():
+                            engine.observe_generation(response_text)
+                    except Exception as steering_obs_exc:
+                        record_degradation("mlx_worker", steering_obs_exc)
+                        logger.debug("Affective steering post-generation observation failed: %s", steering_obs_exc)
                     
                     # : Tag with action: "generate" so client can distinguish
                     # from init/heartbeat responses unambiguously.

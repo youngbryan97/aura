@@ -106,6 +106,7 @@ import json
 import logging
 import math
 import os
+import re
 import threading
 import time
 from dataclasses import dataclass, field
@@ -113,6 +114,8 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
+
+from core.consciousness.caa import ProductionCAA, RegisteredVector, VectorProvenance, VectorRegistry
 
 logger = logging.getLogger("Aura.AffectiveSteering")
 
@@ -324,6 +327,12 @@ class SteeringVector:
     is_derived: bool = False   # True if derived from model activations
     derived_at: float = 0.0    # timestamp of derivation
     source: str = "unknown"    # extracted_caa, runtime_derived_caa, fallback_random, etc.
+    file_path: str = ""
+    requested_layer: int = -1
+    selected_layer: int = -1
+    selection_reason: str = "exact"
+    exact_layer_match: bool = False
+    extracted: bool = False
     
     # [OPTIMIZATION] MLX-native version for zero-copy/fast path
     _v_mx: Any = field(default=None, init=False, repr=False)
@@ -341,12 +350,15 @@ class SteeringVector:
         """
         Map the learned mood coefficient directly to a scalar steering weight.
         """
+        if not hasattr(moods, "get"):
+            return 0.0
         # Map our vector keys to the adaptive_mood keys
         key_map = {
             "valence_positive": "valence",
             "arousal": "arousal",
             "curiosity": "motivation",
-            "frustration": "stress"
+            "frustration": "stress",
+            "energy": "energy",
         }
         mood_key = key_map.get(self.key, "valence")
         raw = float(moods.get(mood_key, 0.0))
@@ -370,6 +382,12 @@ class SteeringVector:
             "is_derived": self.is_derived,
             "derived_at": self.derived_at,
             "source": self.source,
+            "file_path": self.file_path,
+            "requested_layer": self.requested_layer,
+            "selected_layer": self.selected_layer,
+            "selection_reason": self.selection_reason,
+            "exact_layer_match": self.exact_layer_match,
+            "extracted": self.extracted,
             "v_norm": float(np.linalg.norm(self.v)),
         }
 
@@ -420,6 +438,9 @@ class SteeringVectorLibrary:
         self._cache_dir = cache_dir
         self._cache_dir.mkdir(parents=True, exist_ok=True)
         self._vectors: Dict[str, SteeringVector] = {}
+        self._vectors_by_layer: Dict[int, Dict[str, SteeringVector]] = {}
+        self._registry = VectorRegistry()
+        self._path_dim_cache: Dict[str, int] = {}
         self._source = self._infer_source()
 
     def _infer_source(self) -> str:
@@ -435,6 +456,220 @@ class SteeringVectorLibrary:
             pass
         return "configured_caa"
 
+    def _candidate_paths_for_key(self, key: str) -> List[Tuple[int, Path]]:
+        candidates: List[Tuple[int, Path]] = []
+        for path in sorted(self._cache_dir.glob(f"{key}_layer*.np*")):
+            match = re.match(rf"^{re.escape(key)}_layer_?(?P<layer>\d+)$", path.stem)
+            if not match:
+                continue
+            candidates.append((int(match.group("layer")), path))
+        return candidates
+
+    def _vector_dim_for_path(self, path: Path) -> int:
+        cache_key = str(path)
+        if cache_key in self._path_dim_cache:
+            return self._path_dim_cache[cache_key]
+        vector, _ = self._read_cached_array(path)
+        dim = int(np.asarray(vector).reshape(-1).shape[0])
+        self._path_dim_cache[cache_key] = dim
+        return dim
+
+    def _resolve_cached_path(
+        self,
+        key: str,
+        requested_layer: int,
+        d_model: int,
+    ) -> Optional[Tuple[int, Path, bool]]:
+        candidates = self._candidate_paths_for_key(key)
+        if not candidates:
+            return None
+        compatible = [
+            (layer, path)
+            for layer, path in candidates
+            if self._vector_dim_for_path(path) == d_model
+        ]
+        if compatible:
+            candidates = compatible
+        exact = [(layer, path) for layer, path in candidates if layer == requested_layer]
+        if exact:
+            exact.sort(key=lambda item: (0 if item[1].suffix == ".npz" else 1, item[0]))
+            layer, path = exact[0]
+            return layer, path, True
+        candidates.sort(
+            key=lambda item: (
+                abs(item[0] - requested_layer),
+                0 if item[1].suffix == ".npz" else 1,
+                item[0],
+            )
+        )
+        layer, path = candidates[0]
+        return layer, path, False
+
+    def _read_cached_array(self, path: Path) -> Tuple[np.ndarray, Dict[str, Any]]:
+        if path.suffix == ".npy":
+            return np.load(path), {}
+        with np.load(path, allow_pickle=True) as data:
+            vector = None
+            for key in ("v", "vector", "direction", "arr_0"):
+                if key in data:
+                    vector = data[key]
+                    break
+            if vector is None:
+                raise ValueError(f"no vector payload in {path}")
+            meta: Dict[str, Any] = {}
+            for key in data.files:
+                if key in {"v", "vector", "direction", "arr_0"}:
+                    continue
+                value = data[key]
+                if getattr(value, "shape", ()) == ():
+                    meta[key] = value.item()
+            return vector, meta
+
+    def _load_cached_vector(
+        self,
+        *,
+        key: str,
+        requested_layer: int,
+        selected_layer: int,
+        path: Path,
+        d_model: int,
+        dim_spec: Dict[str, Any],
+        exact_match: bool,
+    ) -> SteeringVector:
+        vector, meta = self._read_cached_array(path)
+        vec = np.asarray(vector, dtype=np.float32).reshape(-1)
+        norm = np.linalg.norm(vec)
+        if norm > 1e-8:
+            vec = vec / norm
+        if vec.shape[0] != d_model:
+            raise ValueError(
+                f"vector {path.name} has d_model={vec.shape[0]} but runtime expects {d_model}"
+            )
+        source = str(meta.get("source", self._source))
+        extracted = bool(meta.get("extracted", source.startswith("extracted")))
+        return SteeringVector(
+            key=key,
+            layer_idx=requested_layer,
+            d_model=d_model,
+            v=vec,
+            substrate_idx=dim_spec["substrate_idx"],
+            substrate_fn=dim_spec["substrate_fn"],
+            is_derived=True,
+            derived_at=float(meta.get("derived_at", path.stat().st_mtime)),
+            source=source if exact_match else f"{source}_nearest_layer",
+            file_path=str(path),
+            requested_layer=requested_layer,
+            selected_layer=selected_layer,
+            selection_reason="exact" if exact_match else f"nearest_layer:{selected_layer}",
+            exact_layer_match=exact_match,
+            extracted=extracted,
+        )
+
+    def _register_vector(self, vector: SteeringVector) -> None:
+        provenance = VectorProvenance(
+            source=vector.source,
+            file_path=vector.file_path,
+            cache_dir=str(self._cache_dir),
+            requested_layer=vector.requested_layer,
+            selected_layer=vector.selected_layer,
+            selection_reason=vector.selection_reason,
+            derived_at=vector.derived_at,
+            extracted=vector.extracted,
+            exact_layer_match=vector.exact_layer_match,
+        )
+        self._registry.register(
+            RegisteredVector(
+                key=vector.key,
+                layer_idx=vector.layer_idx,
+                d_model=vector.d_model,
+                v=vector.v,
+                substrate_idx=vector.substrate_idx,
+                substrate_fn=vector.substrate_fn,
+                provenance=provenance,
+            )
+        )
+
+    def _derive_or_fallback(
+        self,
+        *,
+        model: Any,
+        tokenizer: Any,
+        dim_spec: Dict[str, Any],
+        target_layer: int,
+        d_model: int,
+    ) -> SteeringVector:
+        key = dim_spec["key"]
+        cache_path = self._cache_dir / f"{key}_layer{target_layer}.npz"
+        logger.info("🔬 Deriving steering vector: %s (layer %d)...", key, target_layer)
+        try:
+            vec = self._derive_caa(
+                model=model,
+                tokenizer=tokenizer,
+                positive_prompts=dim_spec["positive"],
+                negative_prompts=dim_spec["negative"],
+                target_layer=target_layer,
+                d_model=d_model,
+            )
+            derived_at = time.time()
+            np.savez(
+                cache_path,
+                v=vec,
+                derived_at=derived_at,
+                source="runtime_derived_caa",
+                requested_layer=target_layer,
+                selected_layer=target_layer,
+                selection_reason="runtime_derived",
+                extracted=False,
+            )
+            return SteeringVector(
+                key=key,
+                layer_idx=target_layer,
+                d_model=d_model,
+                v=vec,
+                substrate_idx=dim_spec["substrate_idx"],
+                substrate_fn=dim_spec["substrate_fn"],
+                is_derived=True,
+                derived_at=derived_at,
+                source="runtime_derived_caa",
+                file_path=str(cache_path),
+                requested_layer=target_layer,
+                selected_layer=target_layer,
+                selection_reason="runtime_derived",
+                exact_layer_match=True,
+                extracted=False,
+            )
+        except Exception as e:
+            record_degradation('affective_steering', e)
+            logger.error("❌ Failed to derive vector %s at layer %d: %s", key, target_layer, e)
+            try:
+                from core.evaluation.evidence_mode import require
+
+                require(
+                    "steering_vector_derivation",
+                    False,
+                    f"vector {key} failed to derive from hidden states at layer {target_layer}: {e}",
+                )
+            except Exception:
+                raise
+            fallback = np.random.randn(d_model).astype(np.float32)
+            fallback /= max(np.linalg.norm(fallback), 1e-8)
+            return SteeringVector(
+                key=key,
+                layer_idx=target_layer,
+                d_model=d_model,
+                v=fallback,
+                substrate_idx=dim_spec["substrate_idx"],
+                substrate_fn=dim_spec["substrate_fn"],
+                is_derived=False,
+                derived_at=time.time(),
+                source="fallback_random",
+                requested_layer=target_layer,
+                selected_layer=target_layer,
+                selection_reason="fallback_random",
+                exact_layer_match=False,
+                extracted=False,
+            )
+
     def load_or_derive(
         self,
         model,
@@ -442,7 +677,7 @@ class SteeringVectorLibrary:
         target_layers: List[int],
         d_model: int,
         force_rederive: bool = False,
-    ) -> Dict[str, SteeringVector]:
+    ) -> Dict[int, Dict[str, SteeringVector]]:
         """
         Load cached vectors if available, derive if not.
         
@@ -451,93 +686,59 @@ class SteeringVectorLibrary:
         """
         loaded = 0
         derived = 0
+        nearest = 0
+        self._registry.clear()
+        self._vectors.clear()
+        self._vectors_by_layer = {}
 
-        for dim_spec in AFFECTIVE_DIMENSIONS:
-            key = dim_spec["key"]
-            cache_path = self._cache_dir / f"{key}_layer{target_layers[0]}.npz"
-
-            if not force_rederive and cache_path.exists():
-                try:
-                    data = np.load(cache_path)
-                    v = SteeringVector(
-                        key=key,
-                        layer_idx=target_layers[0],
+        for layer_idx in target_layers:
+            self._vectors_by_layer[layer_idx] = {}
+            for dim_spec in AFFECTIVE_DIMENSIONS:
+                key = dim_spec["key"]
+                vector: Optional[SteeringVector] = None
+                if not force_rederive:
+                    cached = self._resolve_cached_path(key, layer_idx, d_model)
+                    if cached is not None:
+                        selected_layer, path, exact = cached
+                        try:
+                            vector = self._load_cached_vector(
+                                key=key,
+                                requested_layer=layer_idx,
+                                selected_layer=selected_layer,
+                                path=path,
+                                d_model=d_model,
+                                dim_spec=dim_spec,
+                                exact_match=exact,
+                            )
+                            loaded += 1
+                            nearest += 0 if exact else 1
+                        except Exception as e:
+                            record_degradation('affective_steering', e)
+                            logger.warning(
+                                "Failed to load cached vector %s at layer %d from %s: %s",
+                                key, layer_idx, path.name, e,
+                            )
+                if vector is None:
+                    vector = self._derive_or_fallback(
+                        model=model,
+                        tokenizer=tokenizer,
+                        dim_spec=dim_spec,
+                        target_layer=layer_idx,
                         d_model=d_model,
-                        v=data["v"],
-                        substrate_idx=dim_spec["substrate_idx"],
-                        substrate_fn=dim_spec["substrate_fn"],
-                        is_derived=True,
-                        derived_at=float(data.get("derived_at", 0)),
-                        source=str(data.get("source", self._source)),
                     )
-                    self._vectors[key] = v
-                    loaded += 1
-                    logger.debug("📂 Loaded cached vector: %s (norm=%.3f)", key, np.linalg.norm(data["v"]))
-                    continue
-                except Exception as e:
-                    record_degradation('affective_steering', e)
-                    logger.warning("Failed to load cached vector %s: %s", key, e)
+                    if vector.source == "runtime_derived_caa":
+                        derived += 1
+                self._vectors_by_layer[layer_idx][key] = vector
+                self._register_vector(vector)
 
-            # Derive from model
-            logger.info("🔬 Deriving steering vector: %s (layer %d)...", key, target_layers[0])
-            try:
-                vec = self._derive_caa(
-                    model=model,
-                    tokenizer=tokenizer,
-                    positive_prompts=dim_spec["positive"],
-                    negative_prompts=dim_spec["negative"],
-                    target_layer=target_layers[0],
-                    d_model=d_model,
-                )
-                sv = SteeringVector(
-                    key=key,
-                    layer_idx=target_layers[0],
-                    d_model=d_model,
-                    v=vec,
-                    substrate_idx=dim_spec["substrate_idx"],
-                    substrate_fn=dim_spec["substrate_fn"],
-                    is_derived=True,
-                    derived_at=time.time(),
-                    source="runtime_derived_caa",
-                )
-                self._vectors[key] = sv
-                # Cache to disk
-                np.savez(cache_path, v=vec, derived_at=time.time(), source="runtime_derived_caa")
-                derived += 1
-                logger.info("✅ Derived: %s (norm=%.3f)", key, np.linalg.norm(vec))
-            except Exception as e:
-                record_degradation('affective_steering', e)
-                logger.error("❌ Failed to derive vector %s: %s", key, e)
-                # Evidence-mode: random fallback vectors are NOT credited as
-                # live steering. In normal mode we still install one so the
-                # runtime keeps functioning, but the flag propagates so tests
-                # can refuse to interpret the resulting run as evidence.
-                try:
-                    from core.evaluation.evidence_mode import require
-                    require(
-                        "steering_vector_derivation",
-                        False,
-                        f"vector {key} failed to derive from hidden states: {e}",
-                    )
-                except Exception:
-                    raise
-                fallback = np.random.randn(d_model).astype(np.float32)
-                fallback /= np.linalg.norm(fallback)
-                self._vectors[key] = SteeringVector(
-                    key=key,
-                    layer_idx=target_layers[0],
-                    d_model=d_model,
-                    v=fallback,
-                    substrate_idx=dim_spec["substrate_idx"],
-                    substrate_fn=dim_spec["substrate_fn"],
-                    is_derived=False,
-                    source="fallback_random",
-                )
-
+        self._vectors = dict(self._vectors_by_layer.get(target_layers[0], {}))
         logger.info(
-            "📚 SteeringVectorLibrary ready: %d loaded, %d derived", loaded, derived
+            "📚 SteeringVectorLibrary ready: %d loaded, %d derived, %d nearest-layer matches",
+            loaded,
+            derived,
+            nearest,
         )
-        return self._vectors
+        return self._vectors_by_layer
 
     def _derive_caa(
         self,
@@ -649,13 +850,29 @@ class SteeringVectorLibrary:
     def vectors(self) -> Dict[str, SteeringVector]:
         return self._vectors
 
+    def get_vectors_for_layer(self, layer_idx: int) -> Dict[str, SteeringVector]:
+        return dict(self._vectors_by_layer.get(int(layer_idx), {}))
+
+    @property
+    def vectors_by_layer(self) -> Dict[int, Dict[str, SteeringVector]]:
+        return {layer: dict(vectors) for layer, vectors in self._vectors_by_layer.items()}
+
+    @property
+    def registry(self) -> VectorRegistry:
+        return self._registry
+
+    @property
+    def cache_dir(self) -> Path:
+        return self._cache_dir
+
     @property
     def source(self) -> str:
-        if not self._vectors:
+        if not self._vectors_by_layer:
             return self._source
-        if any(v.source == "fallback_random" for v in self._vectors.values()):
+        all_vectors = [v for vectors in self._vectors_by_layer.values() for v in vectors.values()]
+        if any(v.source == "fallback_random" for v in all_vectors):
             return "mixed_with_fallback_random"
-        sources = {v.source for v in self._vectors.values()}
+        sources = {v.source for v in all_vectors}
         if len(sources) == 1:
             return next(iter(sources))
         return "mixed"
@@ -704,6 +921,7 @@ class AffectiveSteeringHook:
         
         # Shared substrate state (updated by SubstrateSyncThread)
         self._substrate_x: Optional[np.ndarray] = None
+        self._latest_moods: Dict[str, float] = {}
         self._substrate_lock = threading.Lock()
         
         # Active flag
@@ -724,7 +942,13 @@ class AffectiveSteeringHook:
         import mlx.core as mx
         with self._substrate_lock:
             # 1. Store mood state for debugging
-            self._substrate_x = np.zeros(64, dtype=np.float32) # deprecated, kept for api compatibility
+            self._latest_moods = {str(key): float(value) for key, value in dict(moods or {}).items()}
+            self._substrate_x = np.zeros(64, dtype=np.float32)
+            self._substrate_x[0] = float(self._latest_moods.get("valence", 0.0))
+            self._substrate_x[1] = float(self._latest_moods.get("arousal", 0.0))
+            self._substrate_x[3] = float(self._latest_moods.get("stress", 0.0))
+            self._substrate_x[4] = float(self._latest_moods.get("motivation", 0.0))
+            self._substrate_x[5] = float(self._latest_moods.get("energy", 0.0))
             
             # 2. PRE-COMPUTE COMPOSITE ON CPU/NP (Background Thread)
             # This moves the O(dims * d_model) work out of the inference hook.
@@ -880,6 +1104,7 @@ class AffectiveSteeringHook:
     def get_diagnostics(self) -> Dict[str, Any]:
         with self._substrate_lock:
             x = self._substrate_x
+            moods = dict(self._latest_moods)
         return {
             "layer_idx": self._layer_idx,
             "installed": self._installed,
@@ -888,8 +1113,9 @@ class AffectiveSteeringHook:
             "last_injection_norm": round(self._last_injection_norm, 4),
             "last_mask_mode": self._last_mask_mode,
             "substrate_connected": x is not None,
-            "substrate_valence": round(float(np.tanh(x[0])), 3) if x is not None else None,
-            "substrate_arousal": round(float((x[1] + 1.0) / 2.0), 3) if x is not None else None,
+            "substrate_valence": round(float(moods.get("valence", 0.0)), 3) if moods else None,
+            "substrate_arousal": round(float(moods.get("arousal", 0.0)), 3) if moods else None,
+            "vector_sources": {key: vector.source for key, vector in self._vectors.items()},
         }
 
 
@@ -1021,6 +1247,7 @@ class AffectiveSteeringEngine:
         self._hooks: List[AffectiveSteeringHook] = []
         self._sync_thread: Optional[SubstrateSyncThread] = None
         self._library: Optional[SteeringVectorLibrary] = None
+        self._production_caa: Optional[ProductionCAA] = None
         self._model_attached = False
         self._alpha = DEFAULT_ALPHA
         self._model_info: Dict[str, Any] = {}
@@ -1066,7 +1293,7 @@ class AffectiveSteeringEngine:
 
         # ── Load or derive steering vectors ───────────────────────────────────
         self._library = SteeringVectorLibrary()
-        vectors = self._library.load_or_derive(
+        vectors_by_layer = self._library.load_or_derive(
             model=model,
             tokenizer=tokenizer,
             target_layers=target_layers,
@@ -1074,9 +1301,29 @@ class AffectiveSteeringEngine:
             force_rederive=force_rederive,
         )
 
-        if not vectors:
+        if not any(vectors_by_layer.values()):
             logger.error("No steering vectors available. Steering aborted.")
             return
+
+        behavioral_results_path = Path(__file__).parent.parent.parent / "tests" / "CAA_32B_AB_LIVE_RESULTS.json"
+        model_path_hint = str(
+            getattr(model, "model_path", "")
+            or getattr(tokenizer, "name_or_path", "")
+            or os.environ.get("AURA_MODEL_PATH", "")
+        )
+        self._production_caa = ProductionCAA(
+            base_alpha=self._alpha,
+            vectors_dir=self._library.cache_dir,
+            behavioral_results_path=behavioral_results_path if behavioral_results_path.exists() else None,
+        )
+        production_status = self._production_caa.ingest_registry(
+            self._library.registry,
+            expected_layers=target_layers,
+            expected_keys=[dim["key"] for dim in AFFECTIVE_DIMENSIONS],
+            model_path=model_path_hint,
+        )
+        self._alpha = float(production_status["alpha_state"]["current_alpha"])
+        self._model_info["production_caa"] = production_status["readiness"]
 
         # ── Install hooks at target layers ────────────────────────────────────
         layers = self._discover_model_layers(model)
@@ -1089,11 +1336,15 @@ class AffectiveSteeringEngine:
                 logger.warning("Layer %d out of range (%d layers)", layer_idx, n_layers)
                 continue
 
+            layer_vectors = self._library.get_vectors_for_layer(layer_idx)
+            if not layer_vectors:
+                logger.warning("No vectors resolved for layer %d", layer_idx)
+                continue
             block = layers[layer_idx]
             hook = AffectiveSteeringHook(
                 block=block,
                 layer_idx=layer_idx,
-                vectors=vectors,
+                vectors=layer_vectors,
                 alpha=self._alpha,
             )
             hook.install()
@@ -1101,8 +1352,11 @@ class AffectiveSteeringEngine:
 
         self._model_attached = True
         logger.info(
-            "✅ AffectiveSteeringEngine attached: %d hooks, %d vectors, α=%.1f",
-            len(self._hooks), len(vectors), self._alpha,
+            "✅ AffectiveSteeringEngine attached: %d hooks, %d layer-vectors, α=%.1f (%s)",
+            len(self._hooks),
+            sum(len(vectors) for vectors in vectors_by_layer.values()),
+            self._alpha,
+            self._model_info.get("production_caa", {}).get("level", "bootstrap"),
         )
 
     def start_substrate_sync(self, shared_state: Any = None):
@@ -1139,6 +1393,16 @@ class AffectiveSteeringEngine:
         for hook in self._hooks:
             hook._alpha = alpha
         logger.info("⚙️  Steering alpha set to %.1f", alpha)
+
+    def observe_generation(self, text: str) -> Dict[str, Any]:
+        """Feed completed text back into collapse detection and adaptive alpha."""
+        if not self._production_caa:
+            return {}
+        report = self._production_caa.observe_generation(text)
+        recommended = float(report.get("alpha_state", {}).get("current_alpha", self._alpha) or self._alpha)
+        if abs(recommended - self._alpha) >= 0.05:
+            self.set_alpha(recommended)
+        return report
 
     def is_active(self) -> bool:
         """Returns True if steering vectors are attached and alpha > 0."""
@@ -1236,12 +1500,17 @@ class AffectiveSteeringEngine:
             "substrate_sync_running": (
                 self._sync_thread._running if self._sync_thread else False
             ),
-            "vector_count": len(self._library._vectors) if self._library else 0,
+            "vector_count": self._library.registry.status().get("loaded_total", 0) if self._library else 0,
             "vector_source": self._library.source if self._library else "unloaded",
-            "vector_sources": {
-                key: vector.source
-                for key, vector in (self._library.vectors.items() if self._library else [])
-            },
+            "vector_sources": (
+                {
+                    str(layer): {key: vector.source for key, vector in vectors.items()}
+                    for layer, vectors in self._library.vectors_by_layer.items()
+                }
+                if self._library
+                else {}
+            ),
+            "production_caa": self._production_caa.status() if self._production_caa else {},
         }
 
     def explain_current_injection(self) -> str:
@@ -1253,15 +1522,15 @@ class AffectiveSteeringEngine:
             return "No steering hooks installed."
 
         hook = self._hooks[0]
-        if hook._substrate_x is None:
+        if hook._substrate_x is None or not hook._latest_moods:
             return "Substrate not connected yet."
 
-        x = hook._substrate_x
+        moods = dict(hook._latest_moods)
         lines = ["Current affective injection:"]
 
         if self._library:
-            for key, sv in self._library.vectors.items():
-                weight = sv.compute_weight(x)
+            for key, sv in self._library.get_vectors_for_layer(hook._layer_idx).items():
+                weight = sv.compute_weight(moods)
                 if abs(weight) > 0.1:
                     direction = "↑" if weight > 0 else "↓"
                     lines.append(
@@ -1272,6 +1541,12 @@ class AffectiveSteeringEngine:
         if len(lines) == 1:
             lines.append("  (near-neutral state — no strong affective direction)")
 
+        if self._production_caa:
+            readiness = self._production_caa.status().get("readiness", {})
+            lines.append(
+                f"  readiness={readiness.get('level', 'bootstrap')} "
+                f"detail={readiness.get('detail', 'n/a')}"
+            )
         lines.append(f"\n  Total inject count: {sum(h._inject_count for h in self._hooks)}")
         return "\n".join(lines)
 
