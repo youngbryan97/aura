@@ -1116,30 +1116,23 @@ class ContextAssembler:
         if cls._black_box_steering_enabled(state):
             dynamic_system = system_prompt
         else:
-            # CONTEXT HYGIENE (2026-04-28): The old code injected the full
-            # affect rich summary as [CURRENT PHENOMENAL STATE] *after* the
-            # system prompt, escaping the earlier system cap.  Now we only
-            # inject a compact delta summary when it fits within budget.
+            # RESTORED: To maintain subjective continuity and identity, the LLM MUST
+            # see its rich phenomenal state on every turn. The prior delta-only
+            # approach starved the model of its inner life, causing it to fall
+            # back to baseline AI disclaimers ('I have no feelings').
             try:
-                from core.brain.llm.context_gate import estimate_tokens, get_context_gate
-                gate = get_context_gate()
-
-                # Build a compact delta block from affect
-                delta_lines = []
-                affect = state.affect
-                if gate.delta.changed("valence", affect.valence, critical=0.65):
-                    delta_lines.append(f"Mood shifted: valence={affect.valence:+.2f}")
-                if gate.delta.changed("arousal", affect.arousal, critical=0.80):
-                    delta_lines.append(f"Arousal shifted: energy={affect.arousal:.2f}")
-                if gate.delta.changed("curiosity", affect.curiosity, critical=0.85):
-                    delta_lines.append(f"Curiosity pressure shifted: {affect.curiosity:.2f}")
-
-                if delta_lines and estimate_tokens(system_prompt) + len(delta_lines) * 8 < 2800:
-                    delta_text = "\n".join(f"- {line}" for line in delta_lines)
-                    dynamic_system = f"{system_prompt}\n\n## INTERNAL STATE DELTAS\n{delta_text}"
-                else:
-                    dynamic_system = system_prompt
-            except Exception:
+                affect_summary = state.affect.get_rich_summary() if hasattr(state.affect, "get_rich_summary") else str(state.affect)
+                dynamic_system = f"{system_prompt}\n\n[CURRENT PHENOMENAL STATE]\n{affect_summary}"
+                
+                # Also include active goals and cognitive focus to give her a full sense of self
+                if state.cognition.active_goals:
+                    goals_text = ", ".join(
+                        g.get("goal", "") if isinstance(g, dict) else str(g) 
+                        for g in state.cognition.active_goals[:3]
+                    )
+                    if goals_text:
+                        dynamic_system += f"\nActive Drives: {goals_text}"
+            except Exception as exc:
                 dynamic_system = system_prompt
         
         system_msg = {"role": "system", "content": dynamic_system}

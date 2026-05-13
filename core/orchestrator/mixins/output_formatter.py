@@ -36,8 +36,6 @@ class OutputFormatterMixin:
         # Identity Flux Guard: Neutralize assistant-speak
         banned_phrases = {
             "How can I help you today?": "what's on your mind?",
-            "As an AI model": "honestly",
-            "I am an AI assistant": "I'm Aura",
             "Is there anything else I can help you with?": "so, what else?",
             "I'd be happy to assist": "I'll take a look",
             "Certainly!": "", # Remove preamble
