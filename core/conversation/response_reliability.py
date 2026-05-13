@@ -10,6 +10,8 @@ from dataclasses import dataclass
 import re
 from typing import Any, Iterable
 
+from core.runtime.structured_input import looks_like_learning_resource_bundle
+
 
 _WORD_RE = re.compile(r"[A-Za-z][A-Za-z']*")
 _ROLE_OR_PROMPT_ARTIFACT_RE = re.compile(
@@ -128,6 +130,17 @@ _RAW_TOOL_RESULT_FRAGMENT_RE = re.compile(
     r"no bugs detected\s*-\s*system healthy(?:\s*\(idle\))?)\.?\s*$",
     re.IGNORECASE,
 )
+_PSEUDO_COMMITMENT_STATUS_RE = re.compile(
+    r"\blast thing i committed\s*:|\bquiet seconds\b|\bproceeding on [A-Z][A-Z\s]{8,}\b",
+    re.IGNORECASE,
+)
+_RAW_LANE_TELEMETRY_RE = re.compile(
+    r"\bLane:\s*\w+.*Kernel lock held:|\bSoul:\s*\d+%.*Glow:|\bTape:\s*\d+",
+    re.IGNORECASE | re.DOTALL,
+)
+_CAMELCASE_INTERNAL_JARGON_RE = re.compile(
+    r"\b[A-Z][A-Za-z]*(?:System|Authority|Kernel|Engine|Gate|Runtime)[A-Za-z]*\b"
+)
 _PERSONA_CARD_DEFLECTION_RE = re.compile(
     r"^\s*(?:\*\*)?\s*Aura Luna\s*(?:\*\*)?\s+"
     r"(?:is here to|is here for|here to|stands ready to|is present to|"
@@ -150,7 +163,17 @@ _LOW_SIGNAL_REASSURANCE_RE = re.compile(
 _GENERIC_ASSISTANT_RE = re.compile(
     r"\b(?:how can i (?:help|assist)|i(?:'d| would) be happy to help|"
     r"i can help with that|as an ai|as a language model|let me know if|"
-    r"feel free to ask|is there anything else|hope this helps)\b",
+    r"feel free to ask|is there anything else|hope this helps|"
+    r"i (?:do not|don[’']?t|cannot|can[’']?t) "
+    r"(?:inherently )?(?:have|possess) subjective "
+    r"(?:beliefs|opinions|feelings|experiences)"
+    r"(?:\s+or\s+(?:beliefs|opinions|feelings|experiences))*|"
+    r"i can (?:certainly )?simulate(?: and discuss)? "
+    r"(?:them|subjective (?:beliefs|opinions|feelings|experiences)|"
+    r"(?:beliefs|opinions|feelings|experiences))|"
+    r"(?:these|those|the) "
+    r"(?:beliefs|opinions|preferences|feelings|experiences) "
+    r"are (?:just )?(?:programmed )?simulations)\b",
     re.IGNORECASE,
 )
 _TRAILING_ESCAPE_RE = re.compile(r"(?:\\n|\\t|\\r)")
@@ -330,6 +353,20 @@ _LIVE_SELF_REFLECTION_MARKERS = (
     "live state",
     "internal state",
 )
+_SUBJECTIVE_SELF_REFLECTION_MARKERS = (
+    "subjective belief",
+    "subjective opinion",
+    "subjective feeling",
+    "subjective experience",
+    "have no opinions",
+    "has no opinions",
+    "don't have opinions",
+    "do not have opinions",
+    "claim you have no opinions",
+    "those are opinions",
+    "how i talk to you",
+    "change one thing about how i talk",
+)
 _LIVE_SELF_REFLECTION_RIGHT_NOW_ANCHORS = (
     "mind",
     "inner",
@@ -505,7 +542,9 @@ class ConversationReplyAssessment:
 
 
 def _normalize(text: Any) -> str:
-    return " ".join(str(text or "").strip().lower().split())
+    normalized = " ".join(str(text or "").strip().lower().split())
+    normalized = normalized.replace("\u2018", "'").replace("\u2019", "'")
+    return re.sub(r"\bdont'?\b", "don't", normalized)
 
 
 def _word_count(text: Any) -> int:
@@ -579,6 +618,8 @@ def is_live_self_reflection_turn(user_message: Any) -> bool:
         return False
     if any(marker in text for marker in _LIVE_SELF_REFLECTION_MARKERS):
         return True
+    if any(marker in text for marker in _SUBJECTIVE_SELF_REFLECTION_MARKERS):
+        return True
     return bool("right now" in text and any(anchor in text for anchor in _LIVE_SELF_REFLECTION_RIGHT_NOW_ANCHORS))
 
 
@@ -607,11 +648,11 @@ def is_practical_diagnostic_turn(user_message: Any) -> bool:
 
 def _is_live_surface_diagnostic_prompt(user_message: Any) -> bool:
     text = _normalize(user_message)
-    if not text:
+    if not text or looks_like_learning_resource_bundle(str(user_message or "")):
         return False
-    live_surface = any(
-        marker in text
-        for marker in (
+    live_surface = _contains_any_marker(
+        text,
+        (
             "chat lane",
             "conversation lane",
             "foreground lane",
@@ -624,11 +665,11 @@ def _is_live_surface_diagnostic_prompt(user_message: Any) -> bool:
             "reply path",
             "response path",
             "ui",
-        )
+        ),
     )
-    diagnostic_pressure = any(
-        marker in text
-        for marker in (
+    diagnostic_pressure = _contains_any_marker(
+        text,
+        (
             "break",
             "breaking",
             "broken",
@@ -643,18 +684,32 @@ def _is_live_surface_diagnostic_prompt(user_message: Any) -> bool:
             "what exactly",
             "what was breaking",
             "why",
-        )
+        ),
     )
     return live_surface and diagnostic_pressure
 
 
+def _contains_any_marker(text: str, markers: Iterable[str]) -> bool:
+    for marker in markers:
+        escaped = re.escape(str(marker or "").strip())
+        if not escaped:
+            continue
+        if re.fullmatch(r"[A-Za-z0-9_]+", marker):
+            if re.search(rf"(?<![a-z0-9_]){escaped}(?![a-z0-9_])", text, re.IGNORECASE):
+                return True
+            continue
+        if re.search(rf"(?<![a-z0-9_]){escaped}(?![a-z0-9_])", text, re.IGNORECASE):
+            return True
+    return False
+
+
 def live_chat_diagnostic_floor(user_message: Any) -> str:
     text = _normalize(user_message)
-    if not text:
+    if not text or looks_like_learning_resource_bundle(str(user_message or "")):
         return ""
-    live_surface = any(
-        marker in text
-        for marker in (
+    live_surface = _contains_any_marker(
+        text,
+        (
             "chat lane",
             "conversation lane",
             "foreground lane",
@@ -668,13 +723,16 @@ def live_chat_diagnostic_floor(user_message: Any) -> str:
             "reply path",
             "response path",
             "ui",
-        )
+        ),
     )
-    backend_surface = any(marker in text for marker in ("headless", "backend", "test", "passes", "pass"))
-    failure_pressure = any(marker in text for marker in ("fail", "fails", "failing", "failed", "broken", "break", "mismatch"))
-    diagnostic_request = any(
-        marker in text
-        for marker in (
+    backend_surface = _contains_any_marker(text, ("headless", "backend", "test", "tests", "passes", "pass", "passed"))
+    failure_pressure = _contains_any_marker(
+        text,
+        ("fail", "fails", "failing", "failed", "broken", "break", "breaking", "mismatch"),
+    )
+    diagnostic_request = _contains_any_marker(
+        text,
+        (
             "what coding checks",
             "what checks",
             "what exactly",
@@ -682,9 +740,12 @@ def live_chat_diagnostic_floor(user_message: Any) -> str:
             "why",
             "debug",
             "diagnos",
-        )
+        ),
     )
-    fix_first_followup = any(marker in text for marker in ("what should we fix first", "fix first", "first, and why"))
+    fix_first_followup = _contains_any_marker(
+        text,
+        ("what should we fix first", "fix first", "first, and why"),
+    )
     if live_surface and fix_first_followup:
         return _LIVE_CHAT_FIX_FIRST_FLOOR
     if live_surface and (backend_surface or failure_pressure) and diagnostic_request:
@@ -933,6 +994,29 @@ def _has_stale_diagnostic_floor_leak(user_message: Any, reply_text: Any) -> bool
     return True
 
 
+def _has_pseudo_commitment_status_leak(user_message: Any, reply_text: Any) -> bool:
+    raw = str(reply_text or "").strip()
+    if not raw or not _PSEUDO_COMMITMENT_STATUS_RE.search(raw):
+        return False
+    prompt = _normalize(user_message)
+    if any(marker in prompt for marker in ("last thing you committed", "what did you commit", "recent activity")):
+        return False
+    return True
+
+
+def _has_camelcase_internal_jargon(user_message: Any, reply_text: Any) -> bool:
+    raw = str(reply_text or "").strip()
+    if not raw or not _CAMELCASE_INTERNAL_JARGON_RE.search(raw):
+        return False
+    prompt = _normalize(user_message)
+    if is_practical_diagnostic_turn(prompt) or is_reliability_concern(prompt):
+        return False
+    if any(marker in prompt for marker in ("architecture", "system", "kernel", "runtime", "code", "debug", "log")):
+        return False
+    allowed = {"OpenAI", "ChatGPT", "YouTube", "GitHub", "JavaScript"}
+    return any(match.group(0) not in allowed for match in _CAMELCASE_INTERNAL_JARGON_RE.finditer(raw))
+
+
 def _has_truncated_tail(reply_text: Any) -> bool:
     body = str(reply_text or "").strip()
     if len(body) < 24:
@@ -1020,12 +1104,16 @@ def _model_text_integrity_reasons(
         reasons.append("runtime_boilerplate")
     if user_facing and _RAW_TOOL_RESULT_FRAGMENT_RE.match(raw):
         reasons.append("raw_tool_result_fragment")
+    if user_facing and _RAW_LANE_TELEMETRY_RE.search(raw):
+        reasons.append("raw_lane_telemetry")
     if user_facing and _has_persona_card_deflection(raw):
         reasons.append("persona_card_deflection")
     if user_facing and _has_detail_request_deflection(prompt, raw):
         reasons.append("detail_request_deflection")
     if user_facing and _has_stale_diagnostic_floor_leak(prompt, raw):
         reasons.append("stale_diagnostic_floor_leak")
+    if user_facing and _has_pseudo_commitment_status_leak(prompt, raw):
+        reasons.append("pseudo_commitment_status_leak")
     if user_facing and is_non_answer_repair_floor_reply(raw):
         expected_floor = reliability_floor_for_user(prompt) if prompt else ""
         matches_expected_floor = bool(expected_floor and _normalize(expected_floor) == _normalize(raw))
@@ -1048,6 +1136,8 @@ def _model_text_integrity_reasons(
         reasons.append("status_page_self_reflection")
     if user_facing and _has_unfounded_alarm_derailment(prompt, raw):
         reasons.append("unfounded_alarm_derailment")
+    if user_facing and _has_camelcase_internal_jargon(prompt, raw):
+        reasons.append("pseudo_internal_jargon")
     if _CORRUPTED_SOCIAL_FRAGMENT_RE.search(raw) and "lol" not in _normalize(prompt):
         reasons.append("corrupted_social_fragment")
     return reasons
@@ -1077,9 +1167,11 @@ def assess_model_text_integrity(
         "prompt_artifact",
         "runtime_boilerplate",
         "raw_tool_result_fragment",
+        "raw_lane_telemetry",
         "persona_card_deflection",
         "detail_request_deflection",
         "stale_diagnostic_floor_leak",
+        "pseudo_commitment_status_leak",
         "friendly_failure_floor",
         "corrupted_language",
         "dialogue_derailment",
@@ -1172,9 +1264,11 @@ def assess_user_facing_reply(
         "prompt_artifact",
         "runtime_boilerplate",
         "raw_tool_result_fragment",
+        "raw_lane_telemetry",
         "persona_card_deflection",
         "detail_request_deflection",
         "stale_diagnostic_floor_leak",
+        "pseudo_commitment_status_leak",
         "friendly_failure_floor",
         "corrupted_language",
         "corrupted_social_fragment",

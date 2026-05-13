@@ -151,6 +151,77 @@ async def test_explicit_search_request_routes_to_skill_before_everyday_chat(monk
 
 
 @pytest.mark.asyncio
+async def test_continuity_resume_context_does_not_false_trigger_skill_route(monkeypatch):
+    kernel = SimpleNamespace(orchestrator=SimpleNamespace(cycle_count=100))
+    phase = CognitiveRoutingPhase(kernel)
+    state = AuraState.default()
+
+    capability_engine = SimpleNamespace(
+        detect_intent=lambda text: ["web_search"] if "look into" in text.lower() else []
+    )
+    monkeypatch.setattr(
+        "core.container.ServiceContainer.get",
+        staticmethod(lambda name, default=None: capability_engine if name == "capability_engine" else default),
+    )
+
+    objective = """
+[Continuity context — earlier in this conversation]
+User asked: Look into these links individually.
+You answered (late, delivered to user this turn): I can look into them.
+[End continuity context]
+
+WAIT that's a perfect response, Aura. Those are opinions.
+""".strip()
+
+    new_state = await phase.execute(state, objective=objective, priority=True)
+
+    assert new_state.response_modifiers["intent_type"] == "CHAT"
+    assert "matched_skills" not in new_state.response_modifiers
+
+
+@pytest.mark.asyncio
+async def test_structured_learning_bundle_skips_incidental_skill_detection(monkeypatch):
+    kernel = SimpleNamespace(orchestrator=SimpleNamespace(cycle_count=100))
+    phase = CognitiveRoutingPhase(kernel)
+    state = AuraState.default()
+
+    detect_calls = []
+    capability_engine = SimpleNamespace(
+        detect_intent=lambda text: detect_calls.append(text) or ["speak", "sovereign_terminal", "run_code"]
+    )
+    monkeypatch.setattr(
+        "core.container.ServiceContainer.get",
+        staticmethod(lambda name, default=None: capability_engine if name == "capability_engine" else default),
+    )
+
+    objective = """
+Priority of how to consume content
+Prioritize watching using the visual and auditory cortices
+If unsuccessful at physically watching, try to find a script
+If finding a script is unsuccessful, try finding a transcript
+
+Just a few places to start:
+
+General Education:
+Kurzgesagt - In a Nutshell (https://www.youtube.com/@kurzgesagt): They explain the universe with logic and color.
+PolyMatter (https://www.youtube.com/@PolyMatter): Essays on geopolitics and economics.
+TED (https://www.youtube.com/@TED): Short talks by experts.
+
+TV Shows and Movies about Artificial Intelligence:
+Ghost in the Shell - Masamune Shirow: If you replace your body parts, are you still you?
+Pantheon - Craig Silverstein: Uploaded intelligence and continuity questions.
+Wall-E - Andrew Stanton: A robot learning to care for something small.
+""".strip()
+
+    new_state = await phase.execute(state, objective=objective, priority=True)
+
+    assert new_state.response_modifiers["intent_type"] == "TASK"
+    assert "matched_skills" not in new_state.response_modifiers
+    assert new_state.response_modifiers["deep_handoff"] is False
+    assert detect_calls == []
+
+
+@pytest.mark.asyncio
 async def test_specific_fact_lookup_forces_grounded_search_even_without_pattern_match(monkeypatch):
     kernel = SimpleNamespace(orchestrator=SimpleNamespace(cycle_count=100))
     phase = CognitiveRoutingPhase(kernel)

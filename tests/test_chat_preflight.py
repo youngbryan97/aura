@@ -199,6 +199,19 @@ class TestDirectiveInjection(unittest.TestCase):
         )
         self.assertIn("Note on continuity", prefix)
 
+    def test_learning_bundle_does_not_promote_quoted_identity_question_to_directive(self):
+        bundle = """
+General Education:
+Wendover Productions (https://www.youtube.com/@Wendoverproductions): How humans move things around the planet.
+
+TV Shows and Movies about Artificial Intelligence:
+Ghost in the Shell - Masamune Shirow: If you replace your body parts, are you still you?
+Pantheon - Craig Silverstein: Uploaded intelligence and continuity questions.
+Wall-E - Andrew Stanton: A robot learning to care for something small.
+""".strip()
+
+        self.assertEqual(compose_chat_directive_prefix(bundle), "")
+
     def test_multiple_directives_compose(self):
         # A message that triggers two patterns at once: specific-instance
         # request + inner-state probe.

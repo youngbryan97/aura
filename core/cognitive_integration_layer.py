@@ -371,22 +371,30 @@ class CognitiveIntegrationLayer:
         is_embodied = "embodied" in str(origin) or "[embodied control contract]" in str(message).lower()
         if brief.requires_research and intent_type != "ACTION" and not is_embodied:
             try:
-                # AgencyCoordinator is registered as agency_coordinator in ServiceContainer
-                agency = ServiceContainer.get("agency_coordinator", default=None)
-                if agency:
-                    logger.info("🔍 [AGENCY] Tool use required. Dispatching to AgencyCoordinator.")
-                    # Direct skill trigger for research
-                    search_res = await agency.execute_skill("web_search", {"query": message})
-                    if isinstance(search_res, dict) and search_res.get("ok"):
-                        findings = search_res.get("result", "")
-                        if findings:
-                            logger.info("✅ [AGENCY] Research findings captured.")
-                            # Inject findings as key points so the LanguageCenter sees them
-                            brief.key_points.append(f"RESEARCH FINDINGS: {findings}")
-                            if hasattr(brief, "internal_notes"):
-                                brief.internal_notes += f"\n[Agentic Research Result]: {findings}"
+                from core.runtime.structured_input import looks_like_learning_resource_bundle
+
+                if looks_like_learning_resource_bundle(message):
+                    logger.info(
+                        "🔍 [AGENCY] Structured learning bundle detected; "
+                        "skipping one-shot blob search in favor of deterministic task decomposition."
+                    )
                 else:
-                    logger.warning("AgencyCoordinator missing from container during research-required turn.")
+                    # AgencyCoordinator is registered as agency_coordinator in ServiceContainer
+                    agency = ServiceContainer.get("agency_coordinator", default=None)
+                    if agency:
+                        logger.info("🔍 [AGENCY] Tool use required. Dispatching to AgencyCoordinator.")
+                        # Direct skill trigger for research
+                        search_res = await agency.execute_skill("web_search", {"query": message})
+                        if isinstance(search_res, dict) and search_res.get("ok"):
+                            findings = search_res.get("result", "")
+                            if findings:
+                                logger.info("✅ [AGENCY] Research findings captured.")
+                                # Inject findings as key points so the LanguageCenter sees them
+                                brief.key_points.append(f"RESEARCH FINDINGS: {findings}")
+                                if hasattr(brief, "internal_notes"):
+                                    brief.internal_notes += f"\n[Agentic Research Result]: {findings}"
+                    else:
+                        logger.warning("AgencyCoordinator missing from container during research-required turn.")
             except Exception as e:
                 record_degradation('cognitive_integration_layer', e)
                 logger.error("Agency resolution failed in CIL: %s", e)

@@ -5,7 +5,7 @@ from datetime import datetime
 import re
 from typing import Any, Dict
 
-from core.runtime.structured_input import analyze_prompt_shape
+from core.runtime.structured_input import analyze_prompt_shape, looks_like_learning_resource_bundle
 from core.state.aura_state import AuraState
 from core.utils.intent_normalization import normalize_memory_intent_text
 
@@ -248,6 +248,10 @@ _STATE_REFLECTION_PATTERNS = (
     r"\bindependent intelligence\b",
     r"\bactual present mind\b",
     r"\bhow do you see all of this\b",
+    r"\bsubjective (?:beliefs?|opinions?|feelings?|experiences?)\b",
+    r"\b(?:have|claim you have|say you have|say you do not have|say you don't have)\b.*\b(?:opinions?|beliefs?|experiences?)\b",
+    r"\bthose are opinions\b",
+    r"\bchange one thing about how i talk to you\b",
 )
 
 _AURA_PERSPECTIVE_PATTERNS = (
@@ -772,6 +776,7 @@ def build_response_contract(
     lower = normalize_memory_intent_text(text)
     prompt_shape = analyze_prompt_shape(text)
     is_embodied_control = "[embodied control contract]" in lower
+    is_learning_bundle = looks_like_learning_resource_bundle(text)
 
     explicit_search = _matches_any(lower, _EXPLICIT_SEARCH_PATTERNS)
     factual_lookup = _matches_any(lower, _FACTUAL_LOOKUP_PATTERNS)
@@ -839,8 +844,16 @@ def build_response_contract(
         factual_lookup = False
         factual_followup = False
         temporal_live_lookup = False
-    # URL presence always forces search — user expects content to be fetched
-    has_url = bool(re.search(r'https?://[^\s]+', text))
+    if is_learning_bundle:
+        # Structured curricula should be handled as decomposable task input,
+        # not collapsed into one giant one-shot web search query.
+        explicit_search = False
+        factual_lookup = False
+        factual_followup = False
+        temporal_live_lookup = False
+    # URL presence usually forces fetch/search, except for structured bundles
+    # that already need deterministic decomposition upstream.
+    has_url = bool(re.search(r'https?://[^\s]+', text)) and not is_learning_bundle
     requires_search = bool(
         is_user_facing
         and not is_embodied_control
@@ -898,6 +911,8 @@ def build_response_contract(
         reasons.append("grounded_followup")
     elif requires_search:
         reasons.append("specific_fact_lookup")
+    if is_learning_bundle:
+        reasons.append("structured_learning_bundle")
     if requires_memory:
         reasons.append("memory_grounding")
     if biographical_grounding:

@@ -68,6 +68,56 @@ def test_simple_foreground_floor_handles_live_headless_fix_first_followup():
     assert "repeated diagnostic floor" in reply.lower()
 
 
+def test_simple_foreground_floor_ignores_structured_learning_bundle():
+    bundle = """
+Priority of how to consume content.
+
+General Education:
+Kurzgesagt - In a Nutshell (https://www.youtube.com/@kurzgesagt): Explain the universe with logic and color.
+PolyMatter (https://www.youtube.com/@PolyMatter): Essays on geopolitics and economics.
+TED (https://www.youtube.com/@TED): Short talks by experts.
+
+TV Shows and Movies about Artificial Intelligence:
+Ghost in the Shell - Masamune Shirow: If you replace your body parts, are you still you?
+Pantheon - Craig Silverstein: Uploaded intelligence and continuity questions.
+Wall-E - Andrew Stanton: A robot learning to care for something small.
+""".strip()
+
+    assert UnitaryResponsePhase._simple_foreground_floor_reply(bundle) == ""
+
+
+def test_deterministic_task_reply_narrates_completed_learning_bundle():
+    state = AuraState.default()
+    state.response_modifiers["last_task_result_payload"] = {
+        "status": "completed",
+        "steps_completed": 4,
+        "steps_total": 4,
+    }
+    bundle = """
+Priority of how to consume content.
+
+General Education:
+Kurzgesagt - In a Nutshell (https://www.youtube.com/@kurzgesagt): Explain the universe with logic and color.
+PolyMatter (https://www.youtube.com/@PolyMatter): Essays on geopolitics and economics.
+TED (https://www.youtube.com/@TED): Short talks by experts.
+
+TV Shows and Movies about Artificial Intelligence:
+Ghost in the Shell - Masamune Shirow: If you replace your body parts, are you still you?
+Pantheon - Craig Silverstein: Uploaded intelligence and continuity questions.
+Wall-E - Andrew Stanton: A robot learning to care for something small.
+""".strip()
+
+    reply = UnitaryResponsePhase._build_deterministic_task_reply(
+        state,
+        bundle,
+        ResponseContract(is_user_facing=True, reason="task_result"),
+    )
+
+    assert "structured learning bundle" in reply
+    assert "separate research threads" in reply
+    assert "4/4 steps" in reply
+
+
 def test_memory_recall_answer_sanitizes_raw_prior_tool_artifacts():
     state = AuraState.default()
 

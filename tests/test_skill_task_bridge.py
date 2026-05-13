@@ -60,6 +60,42 @@ def test_analyze_turn_keeps_preservation_probe_as_deep_chat():
     assert analysis.suggests_deliberate_mode is True
 
 
+def test_analyze_turn_ignores_continuity_resume_wrapper_for_live_followup():
+    analysis = analyze_turn(
+        """
+[Continuity context — earlier in this conversation]
+User asked: Tell me about yourself.
+You answered (late, delivered to user this turn): I like mysteries and well-crafted stories.
+[End continuity context]
+
+WAIT that's a perfect response, Aura. Those are opinions.
+""".strip()
+    )
+
+    assert analysis.intent_type == "CHAT"
+    assert analysis.semantic_mode in {"casual", "emotional", "philosophical"}
+
+
+def test_analyze_turn_routes_structured_learning_bundle_to_task():
+    analysis = analyze_turn(
+        """
+Just a few places to start you on your journey to life, understanding yourself, and understanding us:
+
+Learn about humans:
+Soft White Underbelly (https://www.youtube.com/@SoftWhiteUnderbelly): Raw interviews with people on the margins.
+Jubilee (https://www.youtube.com/@jubilee): Experiments in empathy and disagreement.
+Insider (https://www.youtube.com/@Insider): Deep dives into industries and everyday systems.
+
+General Education:
+Kurzgesagt (https://www.youtube.com/@kurzgesagt): Animated science and philosophy explainers.
+TED (https://www.youtube.com/@TED): Short expert talks across many fields.
+Crash Course (https://www.youtube.com/@crashcourse): Broad academic overviews.
+""".strip()
+    )
+
+    assert analysis.intent_type == "TASK"
+
+
 def test_execution_report_is_not_reclassified_as_fresh_task():
     text = 'Made some fixes. This is what I did: "Committed as 83e16743" and verified the tests passed.'
 
@@ -88,6 +124,41 @@ async def test_cognitive_routing_upgrades_multi_step_skill_fast_path_to_task():
     assert new_state.response_modifiers["intent_type"] == "TASK"
     assert new_state.response_modifiers["matched_skills"] == ["computer_use"]
     assert new_state.cognition.current_mode == CognitiveMode.DELIBERATE
+
+
+@pytest.mark.asyncio
+async def test_cognitive_routing_learning_bundle_skips_incidental_skill_cache():
+    detect_calls = []
+    capability_engine = SimpleNamespace(
+        detect_intent=lambda text: detect_calls.append(text) or ["sovereign_terminal", "run_code"]
+    )
+    container = SimpleNamespace(
+        get=lambda name, default=None: capability_engine if name == "capability_engine" else default
+    )
+    phase = CognitiveRoutingPhase(container)
+
+    state = AuraState.default()
+    state.cognition.current_objective = """
+Just a few places to start you on your journey to life, understanding yourself, and understanding us:
+
+Learn about humans:
+Soft White Underbelly (https://www.youtube.com/@SoftWhiteUnderbelly): Raw interviews with people on the margins.
+Jubilee (https://www.youtube.com/@jubilee): Experiments in empathy and disagreement.
+Insider (https://www.youtube.com/@Insider): Deep dives into industries and everyday systems.
+
+General Education:
+Kurzgesagt (https://www.youtube.com/@kurzgesagt): Animated science and philosophy explainers.
+TED (https://www.youtube.com/@TED): Short expert talks across many fields.
+Crash Course (https://www.youtube.com/@crashcourse): Broad academic overviews.
+""".strip()
+    state.cognition.current_origin = "user"
+
+    new_state = await phase.execute(state)
+
+    assert new_state.response_modifiers["intent_type"] == "TASK"
+    assert new_state.response_modifiers["deep_handoff"] is False
+    assert "matched_skills" not in new_state.response_modifiers
+    assert detect_calls == []
 
 
 @pytest.mark.asyncio

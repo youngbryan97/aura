@@ -36,6 +36,8 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from core.runtime.structured_input import looks_like_learning_resource_bundle
+
 logger = logging.getLogger("Aura.ChatPreflight")
 
 PROJECT_ROOT = Path("/Users/bryan/.aura/live-source").resolve()
@@ -495,6 +497,11 @@ def compose_chat_directive_prefix(message: str) -> str:
     resume-mechanism) the evaluator looks for.
     """
     if not message:
+        return ""
+    if looks_like_learning_resource_bundle(message):
+        # Resource bundles often quote philosophical questions inside media
+        # descriptions. Treating those quotations as Bryan directly probing
+        # Aura's identity injects the wrong guidance into the live turn.
         return ""
     directives: List[str] = []
     if any(p.search(message) for p in _INSTANCE_REQUEST_PATTERNS):

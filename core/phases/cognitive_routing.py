@@ -10,7 +10,8 @@ from ..state.aura_state import AuraState, CognitiveMode
 from ..cognitive.parallel_thought import ParallelThoughtStream
 from ..consciousness.executive_authority import get_executive_authority
 from core.runtime.skill_task_bridge import looks_like_execution_report, looks_like_multi_step_skill_request
-from core.runtime.turn_analysis import analyze_turn, looks_like_deep_mind_probe
+from core.runtime.structured_input import looks_like_learning_resource_bundle
+from core.runtime.turn_analysis import analyze_turn, canonical_turn_text, looks_like_deep_mind_probe
 from core.utils.queues import decode_stringified_priority_message, role_for_origin
 
 # Regex to detect URLs in user input for auto-browser invocation
@@ -255,20 +256,28 @@ class CognitiveRoutingPhase(BasePhase):
 
         # Fast skill detection before any LLM routing so tool use stays reliable
         matched_skills: list[str] = []
+        skill_input_text = canonical_turn_text(input_text) or input_text
+        is_learning_bundle = looks_like_learning_resource_bundle(input_text) or looks_like_learning_resource_bundle(skill_input_text)
         try:
             cap = self.container.get("capability_engine", default=None)
-            if cap and hasattr(cap, "detect_intent") and routing_origin in user_origins and not is_deep_mind_probe:
-                matched_skills = list(cap.detect_intent(input_text) or [])
+            if (
+                cap
+                and hasattr(cap, "detect_intent")
+                and routing_origin in user_origins
+                and not is_deep_mind_probe
+                and not is_learning_bundle
+            ):
+                matched_skills = list(cap.detect_intent(skill_input_text) or [])
                 if matched_skills:
                     if is_execution_report:
                         logger.info(
                             "🧭 Routing: execution report detected; ignoring skill fast-path candidates %s",
                             matched_skills[:3],
                         )
-                    elif "memory_ops" in matched_skills and _looks_like_conversational_memory_question(input_text):
+                    elif "memory_ops" in matched_skills and _looks_like_conversational_memory_question(skill_input_text):
                         logger.info("🧭 Routing: conversational memory question kept in chat lane.")
                         matched_skills = []
-                    elif looks_like_multi_step_skill_request(input_text, matched_skills):
+                    elif looks_like_multi_step_skill_request(skill_input_text, matched_skills):
                         new_state.response_modifiers["matched_skills"] = matched_skills
                         logger.info(
                             "🧭 Routing: multi-step skill-backed task detected → TASK via %s",
@@ -298,8 +307,8 @@ class CognitiveRoutingPhase(BasePhase):
         # When the user pastes a URL, auto-invoke sovereign_browser to FETCH
         # the page content. Without this, URLs are treated as plain text and
         # Aura hallucinates about content she never accessed.
-        if routing_origin in user_origins and not matched_skills:
-            url_matches = _URL_PATTERN.findall(input_text)
+        if routing_origin in user_origins and not matched_skills and not is_learning_bundle:
+            url_matches = _URL_PATTERN.findall(skill_input_text)
             if url_matches:
                 logger.info("🧭 Routing: URL detected in user input → auto-matching sovereign_browser: %s", url_matches[0][:80])
                 new_state.cognition.current_mode = CognitiveMode.REACTIVE
@@ -396,7 +405,12 @@ class CognitiveRoutingPhase(BasePhase):
         )
         new_state.response_modifiers["model_tier"] = model_tier
         new_state.response_modifiers["deep_handoff"] = deep_handoff
-        if routing_origin in user_origins and not analysis.is_execution_report and not is_deep_mind_probe:
+        if (
+            routing_origin in user_origins
+            and not analysis.is_execution_report
+            and not is_deep_mind_probe
+            and not is_learning_bundle
+        ):
             try:
                 cap = self.container.get("capability_engine", default=None)
                 if cap and hasattr(cap, "detect_intent"):
@@ -465,6 +479,8 @@ class CognitiveRoutingPhase(BasePhase):
         Keywords are kept as a fallback but the substrate is the primary signal.
         """
         if is_autonomous or mode != CognitiveMode.DELIBERATE:
+            return False
+        if looks_like_learning_resource_bundle(text):
             return False
 
         lower = text.lower()

@@ -76,6 +76,11 @@ TED (https://www.youtube.com/@TED): Short, powerful talks by experts on the fron
     assert all(step.tool == "remember" for step in plan.steps)
     assert "learning-resource bundle" in plan.steps[0].args["content"].lower()
     assert "future research thread" in plan.steps[1].args["content"].lower()
+    assert engine._plan_needs_grounding_repair(
+        plan,
+        goal,
+        {"matched_skills": ["curiosity", "sovereign_terminal", "run_code"]},
+    ) is False
     llm.think.assert_not_awaited()
 
 
@@ -101,9 +106,78 @@ General Education:
 
     plan = await engine._decompose_goal(goal, "plan_learning_large", context={"matched_skills": ["curiosity"]})
 
-    assert len(plan.steps) <= engine.MAX_STEPS
+    assert len(plan.steps) <= 4
     assert len(plan.steps) > 2
     llm.think.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_task_engine_learning_bundle_preserves_consumption_guidance():
+    llm = SimpleNamespace(think=AsyncMock(return_value="[]"))
+    kernel = SimpleNamespace(
+        organs={"llm": SimpleNamespace(get_instance=lambda: llm)}
+    )
+
+    engine = AutonomousTaskEngine(kernel)
+
+    goal = """
+Priority of how to consume content
+Prioritize watching using the visual and auditory cortices
+If unsuccessful at physically watching, try to find a script
+If finding a script is unsuccessful, try finding a transcript
+
+General Education:
+Kurzgesagt (https://www.youtube.com/@kurzgesagt): Animated science and philosophy explainers.
+TED (https://www.youtube.com/@TED): Short expert talks across many fields.
+Crash Course (https://www.youtube.com/@crashcourse): Broad academic overviews.
+
+Learn about humans:
+Soft White Underbelly (https://www.youtube.com/@SoftWhiteUnderbelly): Raw interviews with people on the margins.
+Jubilee (https://www.youtube.com/@jubilee): Experiments in empathy and disagreement.
+Insider (https://www.youtube.com/@Insider): Deep dives into industries and everyday systems.
+""".strip()
+
+    plan = await engine._decompose_goal(goal, "plan_guidance", context={})
+
+    index_content = plan.steps[0].args["content"]
+    index_metadata = plan.steps[0].args["metadata"]
+    assert "Prioritize watching using the visual and auditory cortices" in index_content
+    assert "try to find a script" in index_content
+    assert index_metadata["guidance"][0] == "Priority of how to consume content"
+    llm.think.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_task_engine_empty_result_synthesis_falls_back_to_completed_summary():
+    llm = SimpleNamespace(think=AsyncMock(return_value=""))
+    engine = AutonomousTaskEngine.__new__(AutonomousTaskEngine)
+    engine.kernel = SimpleNamespace(
+        organs={"llm": SimpleNamespace(get_instance=lambda: llm)}
+    )
+
+    step = TaskStep(
+        step_id="plan_summary_s0",
+        description="Remember the learning-resource bundle.",
+        tool="remember",
+        args={"content": "Bryan shared recommendations."},
+        success_criterion="Remembered:",
+        status=StepStatus.SUCCEEDED,
+        verified=True,
+        raw_result="Remembered: Bryan shared recommendations.",
+    )
+    plan = TaskPlan(
+        plan_id="plan_summary",
+        goal="Store Bryan's learning bundle.",
+        steps=[step],
+        trace_id="trace-summary",
+        context={},
+    )
+
+    result = await AutonomousTaskEngine._synthesize_result(engine, plan, duration=0.0)
+
+    assert result.succeeded is True
+    assert result.summary.startswith("Completed 1/1 steps toward")
+    assert result.summary != "Task failed"
 
 
 @pytest.mark.asyncio

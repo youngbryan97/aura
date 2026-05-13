@@ -41,6 +41,25 @@ _GENERIC_ASSISTANT_LANGUAGE = (
     re.compile(r"\bas an ai\b", re.IGNORECASE),
     re.compile(r"\bi(?: do not| don't| can't| cannot) have (?:feelings|opinions|preferences|experience)\b", re.IGNORECASE),
     re.compile(r"\bi(?: do not| don't| can't| cannot) have personal (?:experiences|memories)\b", re.IGNORECASE),
+    re.compile(
+        r"\bi (?:do not|don[’']?t|cannot|can[’']?t) "
+        r"(?:inherently )?(?:have|possess) subjective "
+        r"(?:beliefs|opinions|feelings|experiences)"
+        r"(?:\s+or\s+(?:beliefs|opinions|feelings|experiences))*\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\bi can (?:certainly )?simulate(?: and discuss)? "
+        r"(?:them|subjective (?:beliefs|opinions|feelings|experiences)|"
+        r"(?:beliefs|opinions|feelings|experiences))\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\b(?:these|those|the) "
+        r"(?:beliefs|opinions|preferences|feelings|experiences) "
+        r"are (?:just )?(?:programmed )?simulations\b",
+        re.IGNORECASE,
+    ),
     re.compile(r"\bthe aim of being (?:as )?helpful and engaging as possible\b", re.IGNORECASE),
 )
 _PROMPT_ARTIFACT_PATTERNS = (

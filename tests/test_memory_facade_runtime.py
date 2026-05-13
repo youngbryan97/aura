@@ -164,6 +164,28 @@ def test_black_hole_vault_get_prefers_most_recent_items_when_limited():
     assert payload["documents"] == ["newer", "newest"]
 
 
+def test_black_hole_vault_delete_memories_supports_episode_metadata(monkeypatch):
+    vault = BlackHoleVault.__new__(BlackHoleVault)
+    vault.memories = [
+        {"created": 1, "text": "keep", "metadata": {"episode_id": "keep"}},
+        {"created": 2, "text": "drop-a", "metadata": {"episode_id": "drop-a"}},
+        {"created": 3, "text": "drop-b", "metadata": {"episode_id": "drop-b"}},
+    ]
+    vault._dirty = False
+    saves = []
+    monkeypatch.setattr(vault, "_save_vault", lambda: saves.append(True))
+
+    deleted = BlackHoleVault.delete_memories(
+        vault,
+        filter_metadata={"episode_id": ["drop-a", "drop-b"]},
+    )
+
+    assert deleted == 2
+    assert [memory["text"] for memory in vault.memories] == ["keep"]
+    assert vault._dirty is True
+    assert saves == [True]
+
+
 @pytest.mark.asyncio
 async def test_memory_ops_core_append_writes_to_block(tmp_path, monkeypatch):
     monkeypatch.setattr("core.config.config.paths", SimpleNamespace(base_dir=str(tmp_path)))

@@ -59,6 +59,7 @@ _DOWNSTREAM_REPAIRABLE_USER_FACING_REASONS = frozenset(
         "off_topic_self_reflection_reply",
         "pseudo_internal_jargon",
         "status_page_self_reflection",
+        "reliability_diagnostic_too_thin",
         "too_thin_for_reliability_turn",
         "too_thin_for_confusion_repair",
         "too_short_for_user_turn",
@@ -3296,6 +3297,8 @@ class InferenceGate:
                     system_prompt = str(msg.get("content", "") or "").strip()
                     break
             living_mind_context = ""
+            if not is_background and self._origin_is_user_facing(origin):
+                living_mind_context = await self._build_compact_living_mind_context(prompt, origin)
         elif use_compact_foreground_context:
             system_prompt = self._build_compact_system_prompt(brief)
             living_mind_context = await self._build_compact_living_mind_context(prompt, origin)
@@ -3375,18 +3378,22 @@ class InferenceGate:
         )))
         if provided_messages is not None:
             messages = [dict(msg) for msg in provided_messages if isinstance(msg, dict)]
-            if prompt_user_facing:
+            if prompt_user_facing or living_mind_context:
                 reliability_block = conversation_reliability_system_block(prompt)
                 inserted = False
                 for msg in messages:
                     if str(msg.get("role", "") or "").strip().lower() == "system":
                         content = str(msg.get("content", "") or "")
+                        if living_mind_context and living_mind_context not in content:
+                            content = f"{content.rstrip()}\n\n{living_mind_context}".strip()
                         if "USER-FACING CONVERSATION RELIABILITY CONTRACT" not in content:
-                            msg["content"] = f"{content.rstrip()}\n\n{reliability_block}".strip()
+                            content = f"{content.rstrip()}\n\n{reliability_block}".strip()
+                        msg["content"] = content
                         inserted = True
                         break
                 if not inserted:
-                    messages.insert(0, {"role": "system", "content": reliability_block})
+                    blocks = [block for block in (living_mind_context, reliability_block if prompt_user_facing else "") if block]
+                    messages.insert(0, {"role": "system", "content": "\n\n".join(blocks)})
         else:
             messages = (
                 self._build_messages(prompt, system_prompt, history)

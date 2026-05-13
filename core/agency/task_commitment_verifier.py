@@ -53,6 +53,7 @@ from typing import Any, Dict, List, Optional
 
 from core.config import config
 from core.runtime.skill_task_bridge import looks_like_multi_step_skill_request
+from core.runtime.structured_input import looks_like_learning_resource_bundle
 from core.utils.file_utils import atomic_write_json
 
 logger = logging.getLogger("Aura.TaskCommitmentVerifier")
@@ -470,6 +471,13 @@ class TaskCommitmentVerifier:
 
     def _assess_capability(self, objective: str) -> CapabilityAssessment:
         """Check CapabilityEngine and AutonomousTaskEngine tool registry for coverage."""
+        if looks_like_learning_resource_bundle(objective):
+            return CapabilityAssessment(
+                can_fulfil=True,
+                confidence=0.95,
+                gap_description="Structured learning-resource bundle uses the deterministic memory-ingestion path.",
+            )
+
         cap_engine = self._get_cap_engine()
         if cap_engine is None:
             return CapabilityAssessment(
@@ -536,6 +544,8 @@ class TaskCommitmentVerifier:
 
     def _estimate_steps(self, objective: str, assessment: CapabilityAssessment) -> int:
         """Heuristic step-count estimate — avoids an LLM call just for routing."""
+        if looks_like_learning_resource_bundle(objective):
+            return self.INLINE_STEP_THRESHOLD
         if looks_like_multi_step_skill_request(objective, assessment.matched_skills or assessment.matched_tools):
             return max(5, len(assessment.matched_skills) + 2)
         # If a single specific skill matched, it's one step

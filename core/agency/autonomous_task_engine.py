@@ -1058,6 +1058,12 @@ Respond ONLY with a JSON array, no other text:
         return normalize_matched_skills(context.get("matched_skills"))
 
     def _requires_grounded_action(self, goal: str, context: Optional[Dict[str, Any]]) -> bool:
+        # Structured learning bundles are grounded by parsing + memory
+        # ingestion. Incidental copied verbs/URLs or stale skill metadata must
+        # not turn them into "perform this external action" requests.
+        if self._looks_like_learning_resource_bundle(goal):
+            return False
+
         matched_skills = self._matched_skills_from_context(context)
         lowered = str(goal or "").lower()
         if looks_like_multi_step_skill_request(goal, matched_skills):
@@ -1239,14 +1245,21 @@ Respond ONLY with a JSON array, no other text:
         lines = [line.strip() for line in str(goal or "").splitlines() if line.strip()]
         category = ""
         entries: List[Dict[str, str]] = []
+        guidance_lines: List[str] = []
         seen: Set[Tuple[str, str]] = set()
+        saw_section_header = False
 
         for line in lines:
             if self._looks_like_learning_bundle_header(line):
                 category = line.rstrip(":").strip()
+                saw_section_header = True
                 continue
             parsed = self._parse_learning_resource_line(line, category)
             if not parsed:
+                if not saw_section_header:
+                    guidance = " ".join(str(line or "").strip().strip('"').split())
+                    if guidance and guidance not in guidance_lines:
+                        guidance_lines.append(guidance[:240])
                 continue
             dedupe_key = (
                 parsed.get("category", "").lower(),
@@ -1270,6 +1283,13 @@ Respond ONLY with a JSON array, no other text:
             f"{name} ({count})"
             for name, count in category_counts.items()
         )
+        guidance_summary = ""
+        if guidance_lines:
+            guidance_summary = (
+                " Bryan also supplied bundle-level consumption guidance: "
+                + " | ".join(guidance_lines[:8])
+                + "."
+            )
         steps.append(
             TaskStep(
                 step_id=f"{plan_id}_s0",
@@ -1279,6 +1299,7 @@ Respond ONLY with a JSON array, no other text:
                     "content": (
                         "Bryan shared a structured learning-resource bundle for Aura. "
                         f"Categories: {category_summary}. "
+                        f"{guidance_summary}"
                         "Preserve each recommendation as its own future research lead instead of flattening the list."
                     ),
                     "verified": False,
@@ -1286,13 +1307,18 @@ Respond ONLY with a JSON array, no other text:
                     "metadata": {
                         "entry_count": len(entries),
                         "categories": list(category_counts.keys()),
+                        "guidance": guidance_lines[:8],
                     },
                 },
                 success_criterion="result contains 'Remembered:'",
             )
         )
 
-        chunks = self._chunk_learning_resource_entries(entries, max_chunks=max(1, self.MAX_STEPS - 1))
+        # Keep remember-only bundle ingestion inline and below approval gating.
+        chunks = self._chunk_learning_resource_entries(
+            entries,
+            max_chunks=min(max(1, self.MAX_STEPS - 1), 3),
+        )
         for index, chunk in enumerate(chunks, start=1):
             chunk_lines = [
                 f"Learning resource bundle from Bryan - chunk {index}/{len(chunks)}.",
@@ -1945,7 +1971,9 @@ Respond ONLY with a JSON array, no other text:
                 ),
                 timeout=20.0,
             )
-            plan.final_result = summary
+            if not str(summary or "").strip():
+                raise ValueError("LLM returned empty response for result synthesis")
+            plan.final_result = str(summary).strip()
         except Exception:
             n_done = len(succeeded_steps)
             n_total = len(plan.steps)

@@ -177,6 +177,34 @@ def test_deep_handoff_remains_available_for_explicit_technical_root_cause_work()
     assert allowed is True
 
 
+def test_deep_handoff_stays_off_for_structured_learning_bundle():
+    router = SimpleNamespace(classify=AsyncMock(return_value="technical"))
+    container = SimpleNamespace(get=lambda name, default=None: router if name == "llm_router" else default)
+    phase = CognitiveRoutingPhase(container)
+    text = """
+Just a few places to start you on your journey to life, understanding yourself, and understanding us:
+
+Learn about humans:
+Soft White Underbelly (https://www.youtube.com/@SoftWhiteUnderbelly): Raw interviews with people on the margins.
+Jubilee (https://www.youtube.com/@jubilee): Experiments in empathy and disagreement.
+Insider (https://www.youtube.com/@Insider): Deep dives into industries and everyday systems.
+
+General Education:
+Kurzgesagt (https://www.youtube.com/@kurzgesagt): Animated science and philosophy explainers.
+TED (https://www.youtube.com/@TED): Short expert talks across many fields.
+Crash Course (https://www.youtube.com/@crashcourse): Broad academic overviews.
+""".strip()
+
+    allowed = phase._should_allow_deep_handoff(
+        text,
+        CognitiveMode.DELIBERATE,
+        False,
+        analysis=analyze_turn(text),
+    )
+
+    assert allowed is False
+
+
 @pytest.mark.asyncio
 async def test_execute_drops_stale_auto_browse_urls_before_rerouting():
     router = SimpleNamespace(classify=AsyncMock(return_value="casual"))

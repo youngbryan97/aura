@@ -13,6 +13,7 @@ from core.conversation.response_reliability import (
     is_status_check_turn,
     live_chat_diagnostic_floor,
 )
+from core.runtime.structured_input import looks_like_learning_resource_bundle
 
 logger = logging.getLogger("Aura.Conversation")
 
@@ -63,11 +64,11 @@ _LEADING_ROLE_PREFIX_RE = re.compile(
 _INLINE_ROLE_BOUNDARY_PATTERNS = (
     re.compile(r"(?is)<\|im_start\|>\s*(?:user|human|assistant|system|aura)\b.*$"),
     re.compile(r"(?is)<\|im_end\|>.*$"),
-    re.compile(r"(?is)(?<=\S)\s+(?:User|Human|Assistant|System)\s*[:：]\s*.*$"),
+    re.compile(r"(?s)(?<=\S)\s+(?:User|Human|Assistant|System)\s*[:：]\s*.*$"),
     re.compile(
-        r"(?is)(?<=\S)\s+(?:User|Human)\s+"
-        r"(?=(?:what|who|when|where|why|how|can|could|would|if|i\b|you\b|"
-        r"yes\b|no\b|tell\b|translate\b|name\b|write\b|hello\b|hi\b|[\"'0-9])).*$"
+        r"(?s)(?<=\S)\s+(?:User|Human)\s+"
+        r"(?=(?i:(?:what|who|when|where|why|how|can|could|would|if|i\b|you\b|"
+        r"yes\b|no\b|tell\b|translate\b|name\b|write\b|hello\b|hi\b|[\"'0-9]))).*$"
     ),
     re.compile(r"(?is)_user\b.*$"),
 )
@@ -300,6 +301,8 @@ def _creative_response_floor(user_message: str) -> str:
 
 def deterministic_user_facing_floor(user_message: str) -> str:
     """Return only exact deterministic floors, never conversational filler."""
+    if looks_like_learning_resource_bundle(str(user_message or "")):
+        return ""
     return _direct_answer_floor(user_message) or _creative_response_floor(user_message)
 
 
@@ -396,6 +399,10 @@ def stabilize_user_facing_response(text: str, user_message: str = "") -> str:
             genuinely_broken
             or "user" in cleaned.lower()
             or "assistant" in cleaned.lower()
+            or (
+                len(cleaned.split()) <= 4
+                and cleaned.rstrip(" .!?") != floor.rstrip(" .!?")
+            )
         ):
             return floor
         # If the model gave a substantive response (>= 40 chars), keep it.
@@ -408,6 +415,15 @@ def stabilize_user_facing_response(text: str, user_message: str = "") -> str:
             genuinely_broken
             or "user" in lowered
             or "assistant" in lowered
+            or any(
+                marker in lowered
+                for marker in (
+                    "not sure what poetry",
+                    "can't write",
+                    "cannot write",
+                    "just noise",
+                )
+            )
         ):
             return creative
     return cleaned

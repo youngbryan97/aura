@@ -117,6 +117,40 @@ def test_task_commitment_verifier_estimates_multistep_skill_request_as_long():
     assert steps > verifier.INLINE_STEP_THRESHOLD
 
 
+def test_task_commitment_verifier_keeps_learning_bundle_on_inline_deterministic_path(monkeypatch, tmp_path):
+    verifier = TaskCommitmentVerifier(kernel=None, persist_path=tmp_path / "task_commitment_state.json")
+    monkeypatch.setattr(
+        verifier,
+        "_get_cap_engine",
+        lambda: SimpleNamespace(detect_intent=lambda _objective: ["sovereign_terminal", "run_code"]),
+    )
+
+    objective = """
+Priority of how to consume content
+Prioritize watching using the visual and auditory cortices
+If unsuccessful at physically watching, try to find a script
+If finding a script is unsuccessful, try finding a transcript
+
+General Education:
+Kurzgesagt - In a Nutshell (https://www.youtube.com/@kurzgesagt): They explain the universe with logic and color.
+PolyMatter (https://www.youtube.com/@PolyMatter): Essays on geopolitics and economics.
+TED (https://www.youtube.com/@TED): Short talks by experts.
+
+TV Shows and Movies about Artificial Intelligence:
+Ghost in the Shell - Masamune Shirow: If you replace your body parts, are you still you?
+Pantheon - Craig Silverstein: Uploaded intelligence and continuity questions.
+Wall-E - Andrew Stanton: A robot learning to care for something small.
+""".strip()
+
+    assessment = verifier._assess_capability(objective)
+    steps = verifier._estimate_steps(objective, assessment)
+
+    assert assessment.can_fulfil is True
+    assert assessment.matched_skills == []
+    assert assessment.matched_tools == []
+    assert steps <= verifier.INLINE_STEP_THRESHOLD
+
+
 @pytest.mark.asyncio
 async def test_task_commitment_verifier_passes_user_origin_into_task_context(monkeypatch, tmp_path):
     tracker = _GoalTracker()

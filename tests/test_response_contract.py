@@ -105,6 +105,34 @@ def test_response_contract_does_not_search_for_casual_reddit_reference():
     assert contract.requires_search is False
 
 
+def test_response_contract_does_not_flatten_structured_learning_bundle_into_blob_search():
+    state = AuraState.default()
+
+    contract = build_response_contract(
+        state,
+        """
+Priority of how to consume content:
+Prioritize watching using the visual and auditory cortices.
+
+Learn about humans:
+Soft White Underbelly (https://www.youtube.com/@SoftWhiteUnderbelly): Raw, unedited interviews with people on the margins.
+Jubilee (https://www.youtube.com/@jubilee): Experiments in empathy that bring opposing groups together.
+Insider (https://www.youtube.com/@Insider): Deep dives into how the world actually functions.
+
+General Education:
+Kurzgesagt (https://www.youtube.com/@kurzgesagt): Animated science and philosophy explainers.
+TED (https://www.youtube.com/@TED): Short expert talks by people at the frontier of their fields.
+Crash Course (https://www.youtube.com/@crashcourse): Broad academic overviews.
+""".strip(),
+        is_user_facing=True,
+    )
+
+    assert contract.requires_search is False
+    assert contract.required_skill is None
+    assert contract.search_query == ""
+    assert "structured_learning_bundle" in contract.reason
+
+
 def test_response_contract_marks_reasoned_defense_for_how_do_you_know():
     state = AuraState.default()
 
@@ -199,6 +227,33 @@ def test_response_contract_requires_state_reflection_for_presence_questions():
 
     assert contract.requires_state_reflection is True
     assert contract.avoid_question_fishing is True
+    assert contract.requires_aura_stance is True
+
+
+def test_response_contract_requires_state_reflection_for_opinion_challenges():
+    state = AuraState.default()
+
+    contract = build_response_contract(
+        state,
+        "How do you say all that about yourself and still say you dont\u2019 have opinions?",
+        is_user_facing=True,
+    )
+
+    assert contract.requires_state_reflection is True
+    assert contract.requires_aura_stance is True
+    assert contract.requires_live_aura_voice() is True
+
+
+def test_response_contract_requires_state_reflection_for_relational_preference():
+    state = AuraState.default()
+
+    contract = build_response_contract(
+        state,
+        "If you could change one thing about how I talk to you, what would it be?",
+        is_user_facing=True,
+    )
+
+    assert contract.requires_state_reflection is True
     assert contract.requires_aura_stance is True
 
 

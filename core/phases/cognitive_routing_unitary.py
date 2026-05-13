@@ -6,7 +6,8 @@ import re
 import time
 from typing import Optional, TYPE_CHECKING
 from core.runtime.skill_task_bridge import looks_like_execution_report, looks_like_multi_step_skill_request
-from core.runtime.turn_analysis import analyze_turn, looks_like_deep_mind_probe
+from core.runtime.structured_input import looks_like_learning_resource_bundle
+from core.runtime.turn_analysis import analyze_turn, canonical_turn_text, looks_like_deep_mind_probe
 from core.state.aura_state import AuraState, CognitiveMode
 from core.kernel.bridge import Phase
 from core.phases.response_contract import build_response_contract
@@ -245,6 +246,8 @@ class CognitiveRoutingPhase(Phase):
         if not is_user_facing or intent_type not in {"TASK"}:
             # [STABILITY v53] Only TASK intent can trigger deep handoff.
             # CHAT intent stays on 32B — it handles conversation beautifully.
+            return False
+        if looks_like_learning_resource_bundle(text):
             return False
         lower = text.lower()
         current_analysis = analysis or analyze_turn(text)
@@ -559,18 +562,26 @@ class CognitiveRoutingPhase(Phase):
             )
             return new_state
 
+        skill_objective = canonical_turn_text(objective) or objective
+        is_learning_bundle = looks_like_learning_resource_bundle(objective) or looks_like_learning_resource_bundle(skill_objective)
         try:
             from core.container import ServiceContainer
             cap = ServiceContainer.get("capability_engine", default=None)
-            if cap and hasattr(cap, "detect_intent") and not is_deep_mind_probe and not objective.startswith("CORE DIRECTIVE"):
-                matched = cap.detect_intent(objective)
+            if (
+                cap
+                and hasattr(cap, "detect_intent")
+                and not is_deep_mind_probe
+                and not objective.startswith("CORE DIRECTIVE")
+                and not is_learning_bundle
+            ):
+                matched = cap.detect_intent(skill_objective)
                 if matched:
-                    if looks_like_execution_report(objective):
+                    if looks_like_execution_report(skill_objective):
                         logger.info(
                             "🧭 Routing: execution report detected; ignoring skill fast-path candidates %s",
                             matched[:3],
                         )
-                    elif looks_like_multi_step_skill_request(objective, matched):
+                    elif looks_like_multi_step_skill_request(skill_objective, matched):
                         new_state.response_modifiers["matched_skills"] = matched
                         logger.info("🧭 Routing: multi-step skill-backed task detected → TASK via %s", matched[:3])
                         new_state.cognition.current_mode = CognitiveMode.DELIBERATE

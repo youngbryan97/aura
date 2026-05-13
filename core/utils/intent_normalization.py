@@ -25,6 +25,8 @@ def _looks_like_memory_verb(word: str, target: str) -> bool:
 def normalize_memory_intent_text(text: str) -> str:
     """Normalize common memory-verb typos without rewriting unrelated text."""
     lowered = " ".join(str(text or "").split()).lower()
+    lowered = lowered.replace("\u2018", "'").replace("\u2019", "'")
+    lowered = re.sub(r"\bdont'?\b", "don't", lowered)
     if not lowered:
         return ""
 

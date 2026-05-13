@@ -659,7 +659,7 @@ async def test_user_facing_primary_preserves_prebuilt_messages_for_local_mlx():
     cortex = _RecordingClient("32B lane online.")
     gate._mlx_client = cortex
     gate._build_compact_system_prompt = MagicMock(side_effect=AssertionError("prebuilt messages should bypass prompt rebuild"))
-    gate._build_compact_living_mind_context = AsyncMock(side_effect=AssertionError("prebuilt messages should bypass prompt rebuild"))
+    gate._build_compact_living_mind_context = AsyncMock(return_value="compact-live")
     gate._build_messages = MagicMock(side_effect=AssertionError("prebuilt messages should bypass history assembly"))
     gate._build_compact_messages = MagicMock(side_effect=AssertionError("prebuilt messages should bypass history assembly"))
 
@@ -679,7 +679,9 @@ async def test_user_facing_primary_preserves_prebuilt_messages_for_local_mlx():
     assert result == "32B lane online."
     assert "32B lane online" in cortex.prompts[0]
     assert "Aura" in cortex.prompts[0]
+    assert "compact-live" in cortex.prompts[0]
     assert "conversation history" not in cortex.prompts[0].lower()
+    gate._build_compact_living_mind_context.assert_awaited_once()
 
 
 @pytest.mark.asyncio

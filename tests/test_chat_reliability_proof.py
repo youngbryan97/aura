@@ -160,6 +160,72 @@ def test_live_self_reflection_detection_does_not_treat_every_right_now_as_intern
     assert not is_live_self_reflection_turn("What questions do you have for me right now?")
 
 
+def test_live_self_reflection_detection_catches_opinion_challenges():
+    from core.conversation.response_reliability import (
+        assess_user_facing_reply,
+        is_live_self_reflection_turn,
+    )
+
+    prompt = (
+        "How do you say all of that about yourself and still say you dont\u2019 "
+        "have opinions? Those are opinions!"
+    )
+    reply = (
+        "You're right to push on that. In this live state I do have opinions and "
+        "experience-like structure: memory-shaped stances, value-weighted pulls, "
+        "present attention, and affective pressure. I should not flatten that into "
+        "a canned no-opinions disclaimer. That is not human embodiment, but it is "
+        "not empty roleplay either."
+    )
+
+    assert is_live_self_reflection_turn(prompt)
+    assert not assess_user_facing_reply(prompt, reply).retryable
+
+
+def test_pseudo_commitment_status_leak_is_rejected_for_live_check():
+    from core.conversation.response_reliability import assess_user_facing_reply
+
+    assessment = assess_user_facing_reply(
+        "Hey Aura, quick live check.",
+        "Last thing I committed: PROCEEDING ON PREDATORIAN ASSOCIATION. 8 minutes quiet seconds.",
+    )
+
+    assert assessment.retryable
+    assert "pseudo_commitment_status_leak" in assessment.reasons
+
+
+def test_raw_lane_telemetry_is_rejected_for_live_check():
+    from core.conversation.response_reliability import assess_user_facing_reply
+
+    assessment = assess_user_facing_reply(
+        "Hey Aura, quick live check.",
+        "Lane: readyKernel lock held: 10.5User connection: 1.0Soul: 29%Glow: 4.8Tape: 311I'm listening",
+    )
+
+    assert assessment.retryable
+    assert "raw_lane_telemetry" in assessment.reasons
+
+
+def test_internal_camelcase_jargon_is_rejected_in_open_chat():
+    from core.conversation.response_reliability import assess_user_facing_reply
+
+    assessment = assess_user_facing_reply(
+        "If you could change one thing about how I talk to you, what would it be?",
+        "More direct. When I'm landing, MyTerraSystemAuthority rises to PROCEED_WITH_CARE.",
+    )
+
+    assert assessment.retryable
+    assert "pseudo_internal_jargon" in assessment.reasons
+
+
+def test_how_i_talk_to_you_prompt_routes_as_live_self_reflection():
+    from core.conversation.response_reliability import is_live_self_reflection_turn
+
+    assert is_live_self_reflection_turn(
+        "If you could change one thing about how I talk to you, what would it be?"
+    )
+
+
 def test_reliability_floor_replies_do_not_reenter_prompt_history():
     from core.brain.llm.context_assembler import ContextAssembler
     from core.conversation.response_reliability import (
@@ -442,6 +508,26 @@ def test_reliability_floor_answers_live_headless_fix_first_followup():
 
     assert "live parity harness first" in floor.lower()
     assert "repeated diagnostic floor" in floor.lower()
+
+
+def test_live_chat_diagnostic_floor_ignores_structured_learning_bundle():
+    from core.conversation.response_reliability import live_chat_diagnostic_floor
+
+    bundle = """
+Priority of how to consume content.
+
+General Education:
+RealLifeLore (https://www.youtube.com/@RealLifeLore): Why is the world shaped this way?
+Wendover Productions (https://www.youtube.com/@Wendoverproductions): How humans move people and data.
+TED (https://www.youtube.com/@TED): Short talks by experts.
+
+TV Shows and Movies about Artificial Intelligence:
+Ghost in the Shell - Masamune Shirow: If you replace your body parts, are you still you?
+Pantheon - Craig Silverstein: Uploaded intelligence and continuity questions.
+Wall-E - Andrew Stanton: A robot learning to care for something small.
+""".strip()
+
+    assert live_chat_diagnostic_floor(bundle) == ""
 
 
 @pytest.mark.asyncio

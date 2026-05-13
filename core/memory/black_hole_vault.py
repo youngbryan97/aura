@@ -301,6 +301,47 @@ class BlackHoleVault:
         self._save_vault()
         logger.info("BlackHoleVault: Deleted %d memories.", len(ids))
 
+    def delete_memories(
+        self,
+        ids: Optional[List[str]] = None,
+        *,
+        filter_metadata: Optional[Dict[str, Any]] = None,
+        **kwargs,
+    ) -> int:
+        """VectorMemory-compatible deletion shim used by episodic pruning."""
+        id_set = {str(memory_id) for memory_id in (ids or []) if str(memory_id)}
+        metadata_filters = dict(filter_metadata or {})
+        if not id_set and not metadata_filters:
+            return 0
+
+        normalized_filters: Dict[str, set[str]] = {}
+        for key, raw_value in metadata_filters.items():
+            if isinstance(raw_value, (list, tuple, set)):
+                values = {str(value) for value in raw_value}
+            else:
+                values = {str(raw_value)}
+            normalized_filters[str(key)] = values
+
+        def _matches(memory: Dict[str, Any]) -> bool:
+            if str(memory.get("created")) in id_set:
+                return True
+            metadata = memory.get("metadata", {}) or {}
+            if not isinstance(metadata, dict):
+                return False
+            return any(
+                str(metadata.get(key)) in accepted
+                for key, accepted in normalized_filters.items()
+            )
+
+        before = len(self.memories)
+        self.memories = [memory for memory in self.memories if not _matches(memory)]
+        deleted = before - len(self.memories)
+        if deleted:
+            self._dirty = True
+            self._save_vault()
+            logger.info("BlackHoleVault: Deleted %d memories via compatibility filter.", deleted)
+        return deleted
+
     def get_stats(self) -> Dict[str, Any]:
         """Standard interface: Return collection statistics."""
         return {

@@ -19,6 +19,8 @@ from core.consciousness.executive_authority import get_executive_authority
 from core.phases.response_contract import build_response_contract, _looks_like_search_capability_question
 from core.runtime.background_policy import background_activity_allowed
 from core.runtime.skill_task_bridge import looks_like_multi_step_skill_request, normalize_matched_skills
+from core.runtime.structured_input import looks_like_learning_resource_bundle
+from core.runtime.turn_analysis import canonical_turn_text
 from core.runtime.tool_result_contracts import compact_result_payload
 
 if TYPE_CHECKING:
@@ -743,14 +745,22 @@ class GodModeToolPhase(Phase):
         cap = self._get_cap_engine()
         matched_skill_hints = normalize_matched_skills(state.response_modifiers.get("matched_skills", []))
         is_nethack_directive = str(objective or "").startswith("CORE DIRECTIVE")
-        if not matched_skill_hints and cap and hasattr(cap, "detect_intent") and not is_nethack_directive:
+        skill_objective = canonical_turn_text(objective) or objective
+        is_learning_bundle = looks_like_learning_resource_bundle(objective) or looks_like_learning_resource_bundle(skill_objective)
+        if (
+            not matched_skill_hints
+            and cap
+            and hasattr(cap, "detect_intent")
+            and not is_nethack_directive
+            and not is_learning_bundle
+        ):
             try:
-                matched_skill_hints = list(cap.detect_intent(objective) or [])
+                matched_skill_hints = list(cap.detect_intent(skill_objective) or [])
             except Exception as exc:
                 record_degradation('upgrades_10x', exc)
                 logger.debug("GodMode: matched skill refresh skipped: %s", exc)
 
-        if intent_type == "SKILL" and looks_like_multi_step_skill_request(objective, matched_skill_hints):
+        if intent_type == "SKILL" and looks_like_multi_step_skill_request(skill_objective, matched_skill_hints):
             intent_type = "TASK"
             state.response_modifiers["intent_type"] = "TASK"
             if matched_skill_hints:
@@ -770,7 +780,7 @@ class GodModeToolPhase(Phase):
         try:
             contract = build_response_contract(
                 state,
-                objective,
+                skill_objective,
                 is_user_facing=str(getattr(state.cognition, "current_origin", "") or "").lower() in {"user", "voice", "admin", "api", "gui", "ws", "websocket", "direct", "external"},
             )
             state.response_modifiers["response_contract"] = contract.to_dict()
@@ -782,9 +792,9 @@ class GodModeToolPhase(Phase):
 
             # 2. Re-run pattern match if routing didn't capture it
             if not matched_skills and hasattr(cap, "detect_intent") and not is_nethack_directive:
-                matched_skills = cap.detect_intent(objective)
+                matched_skills = cap.detect_intent(skill_objective)
 
-            if _looks_like_search_capability_question(objective):
+            if _looks_like_search_capability_question(skill_objective):
                 matched_skills = [
                     name for name in matched_skills
                     if name not in {"web_search", "search_web", "free_search", "sovereign_browser"}
@@ -800,7 +810,7 @@ class GodModeToolPhase(Phase):
                 logger.debug("GodMode: No skill matched (will chat): %s", objective[:60])
                 return state
 
-            skill_name = self._choose_best_skill(objective, matched_skills)
+            skill_name = self._choose_best_skill(skill_objective, matched_skills)
             if not skill_name:
                 state.response_modifiers.pop("matched_skills", None)
                 state.response_modifiers["intent_type"] = "CHAT"
@@ -809,7 +819,11 @@ class GodModeToolPhase(Phase):
             logger.info("⚡ GodMode: Dispatching '%s' for: %s", skill_name, objective[:60])
 
             # 4. Extract params
-            params = self._normalize_skill_params(skill_name, objective, await self._extract_params(skill_name, objective, cap))
+            params = self._normalize_skill_params(
+                skill_name,
+                skill_objective,
+                await self._extract_params(skill_name, skill_objective, cap),
+            )
             params_ok, params, params_error = self._validate_skill_params(skill_name, params, cap)
             if not params_ok:
                 logger.warning("GodMode: invalid params for %s → %s | params=%s", skill_name, params_error, params)

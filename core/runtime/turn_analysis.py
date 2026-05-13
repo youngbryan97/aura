@@ -8,6 +8,7 @@ from core.runtime.skill_task_bridge import (
     looks_like_multi_step_skill_request,
     normalize_matched_skills,
 )
+from core.runtime.structured_input import looks_like_learning_resource_bundle
 from core.utils.intent_normalization import normalize_memory_intent_text
 
 
@@ -71,6 +72,7 @@ _STATE_PATTERNS = (
     r"\babout yourself\b",
     r"\babout you\b",
     r"\bwhat are you like\b",
+    r"\bchange one thing about how i talk to you\b",
 )
 
 _STANCE_PATTERNS = (
@@ -186,6 +188,15 @@ _DEEP_MIND_PROBE_PATTERNS = (
     r"\bpause\s+mid[- ]answer\b.{0,120}\brun\s+a\s+report\b",
 )
 
+_CONTINUITY_CONTEXT_BLOCK = re.compile(
+    r"\[Continuity context[^\]]*\].*?\[End continuity context\]\s*",
+    re.IGNORECASE | re.DOTALL,
+)
+_USER_MESSAGE_BLOCK = re.compile(
+    r"(?:^|\n)\s*User message:\s*(?P<message>.+)\Z",
+    re.IGNORECASE | re.DOTALL,
+)
+
 
 def _matches_any(text: str, patterns: tuple[str, ...]) -> bool:
     return any(re.search(pattern, text, re.IGNORECASE) for pattern in patterns)
@@ -195,6 +206,10 @@ def canonical_turn_text(text: str) -> str:
     raw = str(text or "").strip()
     if not raw:
         return ""
+    raw = _CONTINUITY_CONTEXT_BLOCK.sub("", raw).strip()
+    user_message_match = _USER_MESSAGE_BLOCK.search(raw)
+    if user_message_match:
+        raw = user_message_match.group("message").strip()
     match = _CLASSIFIER_INPUT.search(raw)
     if match:
         raw = match.group(1).strip()
@@ -224,6 +239,7 @@ def analyze_turn(text: str, *, matched_skills: bool | list[str] = False) -> Turn
     has_matched_skills = bool(matched_skill_list)
     is_execution_report = looks_like_execution_report(normalized)
     is_deep_mind_probe = looks_like_deep_mind_probe(normalized)
+    is_learning_bundle = looks_like_learning_resource_bundle(str(text or ""))
 
     requires_live_voice = (
         _matches_any(lower, _STATE_PATTERNS)
@@ -234,6 +250,8 @@ def analyze_turn(text: str, *, matched_skills: bool | list[str] = False) -> Turn
 
     if is_deep_mind_probe:
         intent_type = "CHAT"
+    elif is_learning_bundle:
+        intent_type = "TASK"
     elif _matches_any(lower, _SYSTEM_PATTERNS):
         intent_type = "SYSTEM"
     elif is_execution_report:

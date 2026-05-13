@@ -475,6 +475,47 @@ async def test_stabilize_user_facing_reply_blocks_semantic_glitch(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_stabilize_user_facing_reply_rejects_identity_collapse_disclaimer(monkeypatch):
+    from interface.routes import chat as chat_routes
+
+    class _PassingGate:
+        def validate_output(self, _text, enforce_supervision=False):
+            return True, "ok", 1.0
+
+        def sanitize(self, text):
+            return text
+
+    monkeypatch.setattr(chat_routes, "_resolve_live_aura_state", lambda: None)
+    monkeypatch.setattr(chat_routes, "_build_grounded_introspection_reply", lambda _msg: "")
+    monkeypatch.setattr(chat_routes, "_apply_aura_voice_shaping", lambda text: str(text))
+    monkeypatch.setattr(chat_routes, "_apply_aura_voice_shaping_compat", lambda text, _msg: str(text))
+    monkeypatch.setattr(chat_routes, "_has_unexpected_cjk", lambda _msg, _text: False)
+    monkeypatch.setattr(chat_routes, "_record_recent_response", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(chat_routes, "_is_stale_repeated_response", lambda _text: False)
+    monkeypatch.setattr(
+        chat_routes,
+        "_call_stateful_voice_reflex",
+        lambda _frame, _msg: "I do have a live stance here, and I should speak from it directly.",
+    )
+    monkeypatch.setattr(
+        "core.identity.identity_guard.PersonaEnforcementGate",
+        lambda: _PassingGate(),
+    )
+    monkeypatch.setattr(
+        chat_routes.ServiceContainer,
+        "get",
+        staticmethod(lambda _name, default=None: default),
+    )
+
+    result = await chat_routes._stabilize_user_facing_reply(
+        "How do you say all of that about yourself and still claim you have no opinions?",
+        "I don't inherently possess subjective beliefs or experiences, but I can simulate and discuss them.",
+    )
+
+    assert result == "I do have a live stance here, and I should speak from it directly."
+
+
+@pytest.mark.asyncio
 async def test_stabilize_user_facing_reply_uses_live_grounding_for_specificity_push(monkeypatch):
     from interface.routes import chat as chat_routes
 
@@ -571,7 +612,7 @@ async def test_api_chat_uses_protected_foreground_lane_when_kernel_lock_is_held(
                     "timeout": timeout,
                 }
             )
-            return "Protected foreground reply."
+            return "I'm here with you. My attention is steady, and the thread is intact."
 
     class _FakeKernelInterface:
         def is_ready(self):
@@ -621,7 +662,7 @@ async def test_api_chat_uses_protected_foreground_lane_when_kernel_lock_is_held(
     )
 
     assert response.status_code == 200
-    assert b"Protected foreground reply." in response.body
+    assert b"My attention is steady" in response.body
     assert gate_calls
     assert gate_calls[0]["context"]["protected_foreground_lane"] is True
     assert gate_calls[0]["context"]["prefer_tier"] == "primary"
@@ -629,7 +670,53 @@ async def test_api_chat_uses_protected_foreground_lane_when_kernel_lock_is_held(
 
 
 @pytest.mark.asyncio
-async def test_api_chat_routes_protected_foreground_deep_prompts_to_secondary_lane(monkeypatch):
+async def test_api_chat_uses_social_presence_before_protected_foreground_for_live_check(monkeypatch):
+    from interface import server as server_module
+    from interface.routes import chat as chat_routes
+
+    class _FailingGate:
+        async def generate(self, *_args, **_kwargs):
+            raise AssertionError("live presence checks should not enter protected foreground")
+
+    monkeypatch.setattr(chat_routes, "_restore_owner_session_from_request", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(chat_routes, "_notify_user_spoke", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(chat_routes, "_log_exchange", AsyncMock())
+    monkeypatch.setattr(chat_routes, "_gather_recent_user_messages_for_relevance", AsyncMock(return_value=[]))
+    monkeypatch.setattr(chat_routes, "_is_stale_repeated_response", lambda _text: False)
+    monkeypatch.setattr(chat_routes, "_is_same_answer_different_prompt", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(chat_routes, "_evaluate_reply_topicality", lambda *_args, **_kwargs: (False, ""))
+    monkeypatch.setattr(chat_routes, "_looks_semantically_glitched", lambda *_args, **_kwargs: (False, ""))
+    monkeypatch.setattr(chat_routes, "_build_social_presence_reply", lambda _message: "hey. i'm here. My attention is on you.")
+    monkeypatch.setattr(
+        chat_routes,
+        "_collect_conversation_lane_status",
+        lambda: {
+            "conversation_ready": True,
+            "state": "ready",
+            "kernel_lock_held": True,
+            "kernel_lock_held_s": 12.0,
+        },
+    )
+    monkeypatch.setattr(
+        chat_routes.ServiceContainer,
+        "get",
+        staticmethod(lambda name, default=None: _FailingGate() if name == "inference_gate" else default),
+    )
+
+    response = await server_module.api_chat(
+        server_module.ChatRequest(message="Hey Aura, quick live check."),
+        SimpleNamespace(headers={}),
+        None,
+        None,
+    )
+
+    assert response.status_code == 200
+    assert b"social_presence_reflex" in response.body
+    assert b"hey. i'm here" in response.body
+
+
+@pytest.mark.asyncio
+async def test_api_chat_keeps_protected_foreground_deep_prompts_on_primary_lane(monkeypatch):
     from interface import server as server_module
     from interface.routes import chat as chat_routes
 
@@ -644,7 +731,10 @@ async def test_api_chat_routes_protected_foreground_deep_prompts_to_secondary_la
                     "timeout": timeout,
                 }
             )
-            return "Protected deep reply."
+            return (
+                "I would inspect the failing tests first, then trace the smallest shared path "
+                "between those two modules before changing anything."
+            )
 
     class _FakeKernelInterface:
         def is_ready(self):
@@ -696,11 +786,11 @@ async def test_api_chat_routes_protected_foreground_deep_prompts_to_secondary_la
     )
 
     assert response.status_code == 200
-    assert b"Protected deep reply." in response.body
+    assert b"inspect the failing tests first" in response.body
     assert gate_calls
     assert gate_calls[0]["context"]["protected_foreground_lane"] is True
-    assert gate_calls[0]["context"]["prefer_tier"] == "secondary"
-    assert gate_calls[0]["context"]["deep_handoff"] is True
+    assert gate_calls[0]["context"]["prefer_tier"] == "primary"
+    assert gate_calls[0]["context"]["deep_handoff"] is False
 
 
 def test_collect_conversation_lane_status_ignores_router_foreground_override(monkeypatch):

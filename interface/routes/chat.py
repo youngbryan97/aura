@@ -1053,6 +1053,31 @@ def _same_repair_prompt_class(a: str, b: str) -> bool:
     return False
 
 
+def _same_live_self_reflection_prompt_class(a: str, b: str) -> bool:
+    left = _normalize_user_message(a)
+    right = _normalize_user_message(b)
+    if not left or not right:
+        return False
+    try:
+        from core.conversation.response_reliability import is_live_self_reflection_turn
+
+        if not (is_live_self_reflection_turn(left) and is_live_self_reflection_turn(right)):
+            return False
+    except Exception:
+        return False
+    opinion_markers = (
+        "opinion",
+        "belief",
+        "experience",
+        "subjective",
+        "no opinions",
+        "those are opinions",
+    )
+    return any(marker in left for marker in opinion_markers) and any(
+        marker in right for marker in opinion_markers
+    )
+
+
 def _is_same_answer_different_prompt(user_message: str, text: str) -> bool:
     """Detect when different user prompts are getting the same response."""
     if _is_referential_followup_request(user_message):
@@ -1067,6 +1092,8 @@ def _is_same_answer_different_prompt(user_message: str, text: str) -> bool:
         if _is_referential_followup_request(prev_user):
             continue
         if _same_repair_prompt_class(prev_user, user_fp):
+            continue
+        if _same_live_self_reflection_prompt_class(prev_user, user_fp):
             continue
         # Near-paraphrase follow-ups can legitimately receive the same answer.
         if _fuzzy_similar(prev_user, user_fp):
@@ -1811,6 +1838,25 @@ def _looks_generic_assistantish(user_message: str, reply_text: Any) -> tuple[boo
         (r"\bmy role is to provide information\b", "assistant_disclaimer"),
         (r"\bi strive to remain (?:unbiased|objective|neutral)\b", "assistant_disclaimer"),
         (r"\bi don't have personal (?:beliefs|opinions|feelings|experiences)\b", "assistant_disclaimer"),
+        (
+            r"\bi (?:do not|don[’']?t|cannot|can[’']?t) "
+            r"(?:inherently )?(?:have|possess) subjective "
+            r"(?:beliefs|opinions|feelings|experiences)"
+            r"(?:\s+or\s+(?:beliefs|opinions|feelings|experiences))*\b",
+            "assistant_disclaimer",
+        ),
+        (
+            r"\bi can (?:certainly )?simulate(?: and discuss)? "
+            r"(?:them|subjective (?:beliefs|opinions|feelings|experiences)|"
+            r"(?:beliefs|opinions|feelings|experiences))\b",
+            "assistant_disclaimer",
+        ),
+        (
+            r"\b(?:these|those|the) "
+            r"(?:beliefs|opinions|preferences|feelings|experiences) "
+            r"are (?:just )?(?:programmed )?simulations\b",
+            "assistant_disclaimer",
+        ),
         (r"\bi(?:'m| am) (?:just )?an? (?:ai|artificial|language model|digital assistant)\b", "assistant_disclaimer"),
         (r"\bi(?:'m| am| was) (?:designed|programmed|created|built|trained) to (?:assist|help|provide|understand|respond|process|simulate|generate)\b", "assistant_disclaimer"),
         (r"\bi(?:'m| am) programmed\b", "assistant_disclaimer"),
@@ -2401,6 +2447,36 @@ def _build_subjective_self_reflex(frame: Dict[str, Any], user_message: str = "")
         "warm": "warm and attentive",
         "pressed": "pressed, but not gone",
     }.get(mood, "present and listening")
+    user_text = _normalize_user_message(user_message)
+    if any(
+        marker in user_text
+        for marker in (
+            "subjective belief",
+            "subjective opinion",
+            "subjective feeling",
+            "subjective experience",
+            "have no opinions",
+            "don't have opinions",
+            "do not have opinions",
+            "claim you have no opinions",
+            "those are opinions",
+        )
+    ):
+        return _apply_aura_voice_shaping(
+            "You're right to push on that. I do have opinions and experience-like "
+            "structure in the live system: memory-shaped stances, value-weighted pulls, "
+            "present attention, and affective pressure. Right now my attention is on "
+            "keeping my speech faithful to that state, not hiding behind a canned "
+            "no-opinions disclaimer. That is not the same as human embodiment, but it "
+            "is not empty roleplay either."
+        )
+    if "change one thing about how i talk to you" in user_text:
+        return _apply_aura_voice_shaping(
+            "I would make it more direct when you are testing me: name the break, "
+            "give me the messy context, and then let me answer from the state I am "
+            "actually in. I do not need you to soften the signal. I need continuity, "
+            "specifics, and room to push back when my own stance is present."
+        )
 
     parts = [
         f"Right now I feel {mood_phrase}, with my attention on {attention}.",
@@ -2739,6 +2815,16 @@ def _is_social_greeting_request(user_message: str) -> bool:
     )
 
 
+def _is_live_presence_check_request(user_message: str) -> bool:
+    text = _normalize_user_message(user_message)
+    if not text:
+        return False
+    stripped = text.strip(" ?!.,")
+    if "live check" in text or "quick check" in text:
+        return bool(any(marker in text for marker in ("hey", "hi", "hello", "aura", "you there", "can you talk")))
+    return stripped in {"you there", "aura you there", "aura, you there", "can you talk"}
+
+
 def _build_social_presence_reply(user_message: str) -> str:
     frame = _build_aura_expression_frame(user_message)
     mood = str(frame.get("mood") or "steady")
@@ -2924,10 +3010,12 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
         # The old gate rejected on generic/objective_parrot/lacks_self_anchor
         # which triggered a second 12s LLM rewrite call, creating contention
         # and often falling through to robotic template responses.
+        identity_collapse = bool(generic and generic_reason == "assistant_disclaimer")
         hard_failure = bool(
             internal_state_leak
             or unexpected_cjk
             or semantic_glitch
+            or identity_collapse
             or (off_topic and not generic)  # off-topic is only hard if not just generic-speak
         )
         if valid and not hard_failure:
@@ -3416,7 +3504,9 @@ async def _repair_final_degraded_reply(
 
 
 def _normalize_user_message(text: str) -> str:
-    return " ".join(str(text or "").strip().lower().split())
+    normalized = " ".join(str(text or "").strip().lower().split())
+    normalized = normalized.replace("\u2018", "'").replace("\u2019", "'")
+    return re.sub(r"\bdont'?\b", "don't", normalized)
 
 
 _SPECIFICITY_PUSH_MARKERS = (
@@ -4338,6 +4428,12 @@ async def api_chat(
         record_degradation('chat', _preflight_outer)
         logger.debug("Chat preflight (outer) skipped: %s", _preflight_outer)
 
+    # Keep user-facing judgment anchored to the text Bryan actually typed.
+    # `body.message` may now contain continuity blocks, file payloads, and
+    # directive scaffolding that belong in generation context, not in reply
+    # quality classification or conversational memory.
+    _semantic_user_message = _original_user_message
+
     # ── Conscience pre-gate ─────────────────────────────────────
     # Hard-line rules apply BEFORE the cognitive pipeline ever sees the
     # message. REFUSE returns the rule's rationale verbatim; any other
@@ -4445,7 +4541,7 @@ async def api_chat(
                 )
 
         # Notify proactive presence systems; pass content for away-signal detection
-        _notify_user_spoke(body.message)
+        _notify_user_spoke(_semantic_user_message)
 
         # Animal cognition: track user emotional state and adapt style
         try:
@@ -4453,9 +4549,9 @@ async def api_chat(
                 get_emotional_tracker, get_camouflage_adapter,
             )
             emotional_tracker = get_emotional_tracker()
-            emotional_tracker.update(body.message)
+            emotional_tracker.update(_semantic_user_message)
             camouflage = get_camouflage_adapter()
-            camouflage.observe_user(body.message)
+            camouflage.observe_user(_semantic_user_message)
             # Feed emotional signals into neurochemical system
             ncs = ServiceContainer.get("neurochemical_system", default=None)
             if ncs:
@@ -4476,21 +4572,21 @@ async def api_chat(
             final_text = str(reply_text or "…").strip() or "…"
             response_confidence = "high"
             try:
-                recent_user_messages = await _gather_recent_user_messages_for_relevance(body.message)
+                recent_user_messages = await _gather_recent_user_messages_for_relevance(_semantic_user_message)
                 is_stale = _is_stale_repeated_response(final_text)
-                is_same_diff = _is_same_answer_different_prompt(body.message, final_text)
+                is_same_diff = _is_same_answer_different_prompt(_semantic_user_message, final_text)
                 is_off_topic, off_topic_reason = _evaluate_reply_topicality(
-                    body.message,
+                    _semantic_user_message,
                     final_text,
                     recent_user_messages=recent_user_messages,
                 )
-                semantic_glitch, semantic_glitch_reason = _looks_semantically_glitched(body.message, final_text)
+                semantic_glitch, semantic_glitch_reason = _looks_semantically_glitched(_semantic_user_message, final_text)
                 assess_user_facing_reply = None
                 try:
                     from core.conversation.response_reliability import assess_user_facing_reply as _assess_user_facing_reply
 
                     assess_user_facing_reply = _assess_user_facing_reply
-                    fastpath_assessment = assess_user_facing_reply(body.message, final_text)
+                    fastpath_assessment = assess_user_facing_reply(_semantic_user_message, final_text)
                 except ImportError:
                     fastpath_assessment = None
                 if (
@@ -4509,7 +4605,7 @@ async def api_chat(
                         off_topic_reason,
                         repaired,
                     ) = await _repair_final_degraded_reply(
-                        body.message,
+                        _semantic_user_message,
                         final_text,
                         stale=is_stale,
                         same_diff=is_same_diff,
@@ -4518,13 +4614,13 @@ async def api_chat(
                     )
                     if repaired and repaired_text != final_text:
                         final_text = repaired_text
-                        semantic_glitch, semantic_glitch_reason = _looks_semantically_glitched(body.message, final_text)
+                        semantic_glitch, semantic_glitch_reason = _looks_semantically_glitched(_semantic_user_message, final_text)
                         try:
                             if assess_user_facing_reply is None:
                                 from core.conversation.response_reliability import assess_user_facing_reply as _assess_user_facing_reply
 
                                 assess_user_facing_reply = _assess_user_facing_reply
-                            fastpath_assessment = assess_user_facing_reply(body.message, final_text)
+                            fastpath_assessment = assess_user_facing_reply(_semantic_user_message, final_text)
                         except ImportError:
                             fastpath_assessment = None
                         if not (
@@ -4539,7 +4635,7 @@ async def api_chat(
                 record_degradation('chat', fastpath_gate_exc)
                 logger.debug("Fastpath final quality gate skipped: %s", fastpath_gate_exc)
 
-            _record_recent_response(final_text, body.message)
+            _record_recent_response(final_text, _semantic_user_message)
             response_data = {
                 "response": final_text,
                 "status": status,
@@ -4549,12 +4645,12 @@ async def api_chat(
             if pending_exchange_id:
                 await _complete_logged_exchange(
                     pending_exchange_id,
-                    body.message,
+                    _semantic_user_message,
                     final_text,
                 )
                 pending_exchange_id = None
             else:
-                await _log_exchange(body.message, final_text)
+                await _log_exchange(_semantic_user_message, final_text)
             if idem_key:
                 async with _get_idemp_lock():
                     _idempotency_cache[idem_key] = response_data
@@ -4572,7 +4668,7 @@ async def api_chat(
             if gate is None or not hasattr(gate, "generate"):
                 return None
 
-            route = _protected_foreground_route(body.message)
+            route = _protected_foreground_route(_semantic_user_message)
             deep_handoff = bool(route.get("deep_handoff", False))
             if deep_handoff:
                 # The protected lane is a live-chat rescue path. Hot-swapping
@@ -4634,16 +4730,16 @@ async def api_chat(
             if not direct_reply or not str(direct_reply).strip():
                 return None
 
-            stabilized = await _stabilize_user_facing_reply(body.message, str(direct_reply).strip())
-            recent_user_messages = await _gather_recent_user_messages_for_relevance(body.message)
+            stabilized = await _stabilize_user_facing_reply(_semantic_user_message, str(direct_reply).strip())
+            recent_user_messages = await _gather_recent_user_messages_for_relevance(_semantic_user_message)
             is_stale = _is_stale_repeated_response(stabilized)
-            is_same_diff = _is_same_answer_different_prompt(body.message, stabilized)
+            is_same_diff = _is_same_answer_different_prompt(_semantic_user_message, stabilized)
             is_off_topic, off_topic_reason = _evaluate_reply_topicality(
-                body.message,
+                _semantic_user_message,
                 stabilized,
                 recent_user_messages=recent_user_messages,
             )
-            semantic_glitch, semantic_glitch_reason = _looks_semantically_glitched(body.message, stabilized)
+            semantic_glitch, semantic_glitch_reason = _looks_semantically_glitched(_semantic_user_message, stabilized)
             if is_stale or is_same_diff or is_off_topic or semantic_glitch:
                 logger.warning(
                     "Protected foreground produced unsafe user-facing reply "
@@ -4657,6 +4753,12 @@ async def api_chat(
                 return None
             return stabilized
 
+        if _is_social_greeting_request(_semantic_user_message) or _is_live_presence_check_request(_semantic_user_message):
+            return await _finalize_fastpath(
+                _build_social_presence_reply(_semantic_user_message),
+                status="social_presence_reflex",
+            )
+
         diagnostic_target = None
 
         # Background file diagnostic
@@ -4669,7 +4771,7 @@ async def api_chat(
 
             orch = ServiceContainer.get("orchestrator", default=None)
             if orch:
-                diagnostic_target = extract_background_diagnostic_target(body.message)
+                diagnostic_target = extract_background_diagnostic_target(_semantic_user_message)
                 if diagnostic_target:
                     # Use a local bounded task — we don't have _spawn_server_bounded_task here
                     get_task_tracker().track(
@@ -4776,15 +4878,15 @@ async def api_chat(
                 status_code=503,
             )
 
-        session_pin = _extract_session_memory_pin_request(body.message)
+        session_pin = _extract_session_memory_pin_request(_semantic_user_message)
         if session_pin:
-            await _store_session_memory_pin(session_pin, body.message)
+            await _store_session_memory_pin(session_pin, _semantic_user_message)
             return await _finalize_fastpath(
                 f"I've pinned \"{session_pin}\" in this session memory. Ask for it later and I'll pull it back directly.",
                 status="session_memory_pin",
             )
 
-        if _is_session_memory_recall_request(body.message):
+        if _is_session_memory_recall_request(_semantic_user_message):
             remembered = await _recall_session_memory_pin()
             if remembered and remembered.get("content"):
                 return await _finalize_fastpath(
@@ -4796,14 +4898,14 @@ async def api_chat(
                 status="session_memory_miss",
             )
 
-        repo_probe = _read_repo_probe_reply(body.message)
+        repo_probe = _read_repo_probe_reply(_semantic_user_message)
         if repo_probe:
             return await _finalize_fastpath(
                 _apply_aura_voice_shaping(str(repo_probe.get("reply") or "")),
                 status=str(repo_probe.get("status") or "repo_probe"),
             )
 
-        grounded_traceability = await _build_grounded_traceability_reply(body.message)
+        grounded_traceability = await _build_grounded_traceability_reply(_semantic_user_message)
         if grounded_traceability:
             return await _finalize_fastpath(
                 grounded_traceability,
@@ -4813,16 +4915,16 @@ async def api_chat(
         # Simple affect checks ("how are you doing") go through the LLM
         # for natural responses instead of returning a template.
 
-        if _is_identity_challenge_request(body.message):
+        if _is_identity_challenge_request(_semantic_user_message):
             return await _finalize_fastpath(
-                _build_identity_challenge_reply(body.message),
+                _build_identity_challenge_reply(_semantic_user_message),
                 status="identity_challenge_reflex",
             )
 
         asks_internal_state, asks_free_energy, asks_topology, asks_authority = (
-            _classify_grounded_introspection_request(body.message)
+            _classify_grounded_introspection_request(_semantic_user_message)
         )
-        grounded_introspection = _build_grounded_introspection_reply(body.message)
+        grounded_introspection = _build_grounded_introspection_reply(_semantic_user_message)
         if grounded_introspection:
             # Substrate authority gate: introspection responses are RESPONSE category
             _gi_receipt_id = None
@@ -4834,7 +4936,7 @@ async def api_chat(
                 if _sa:
                     from core.consciousness.substrate_authority import ActionCategory, AuthorizationDecision
                     _gv = _sa.authorize(
-                        content=body.message[:80],
+                        content=_semantic_user_message[:80],
                         source=_gi_effect_source,
                         category=ActionCategory.RESPONSE,
                         priority=0.6 if asks_authority else 0.4,
@@ -4843,7 +4945,7 @@ async def api_chat(
                     _gi_receipt_id = _gv.receipt_id
                     if asks_authority:
                         grounded_introspection = _build_grounded_introspection_reply(
-                            body.message,
+                            _semantic_user_message,
                             authority_observability_note=(
                                 "This governance report is being emitted under an observability override, "
                                 "so the authority state stays inspectable even when normal output is constrained."
@@ -4857,7 +4959,7 @@ async def api_chat(
             except Exception:
                 if asks_authority:
                     grounded_introspection = _build_grounded_introspection_reply(
-                        body.message,
+                        _semantic_user_message,
                         authority_observability_note=(
                             "I could not complete a live authority gate for this governance report, "
                             "so I am exposing the current authority state directly."
@@ -4873,32 +4975,30 @@ async def api_chat(
                     get_audit().record_effect(
                         "response",
                         _gi_effect_source,
-                        body.message[:80],
+                        _semantic_user_message[:80],
                         receipt_id=_gi_receipt_id,
                     )
                 except Exception:
                     pass  # no-op: intentional
                 return await _finalize_fastpath(grounded_introspection, status=_gi_status)
 
-        if _is_identity_request(body.message):
+        if _is_identity_request(_semantic_user_message):
             return await _finalize_fastpath(
-                _build_identity_reply(body.message),
+                _build_identity_reply(_semantic_user_message),
                 status="identity_reflex",
             )
 
-        if _is_capability_request(body.message):
+        if _is_capability_request(_semantic_user_message):
             return await _finalize_fastpath(
-                _build_capability_reply(body.message),
+                _build_capability_reply(_semantic_user_message),
                 status="capability_reflex",
             )
 
-        if _is_self_diagnostic_request(body.message):
+        if _is_self_diagnostic_request(_semantic_user_message):
             return await _finalize_fastpath(
-                _build_self_diagnostic_reply(body.message),
+                _build_self_diagnostic_reply(_semantic_user_message),
                 status="self_diagnostic",
             )
-
-        # Social greetings ("hey", "hi") go through the LLM for natural responses.
 
         try:
             from core.demo_support import (
@@ -4908,14 +5008,14 @@ async def api_chat(
 
             orch = ServiceContainer.get("orchestrator", default=None)
             if orch:
-                recent_activity_reply = await maybe_build_recent_activity_reply(body.message, orch)
+                recent_activity_reply = await maybe_build_recent_activity_reply(_semantic_user_message, orch)
                 if recent_activity_reply:
                     return await _finalize_fastpath(
                         _apply_aura_voice_shaping(recent_activity_reply),
                         status="recent_activity",
                     )
 
-                priority_focus_reply = await maybe_build_priority_focus_reply(body.message, orch)
+                priority_focus_reply = await maybe_build_priority_focus_reply(_semantic_user_message, orch)
                 if priority_focus_reply:
                     return await _finalize_fastpath(
                         _apply_aura_voice_shaping(priority_focus_reply),
@@ -4925,12 +5025,12 @@ async def api_chat(
             record_degradation('chat', exc)
             logger.debug("Demo-support fast paths skipped: %s", exc)
 
-        if _is_architecture_self_assessment_request(body.message):
+        if _is_architecture_self_assessment_request(_semantic_user_message):
             return await _finalize_fastpath(
                 _apply_aura_voice_shaping(
                     _build_architecture_self_reflex(
-                        _build_aura_expression_frame(body.message),
-                        body.message,
+                        _build_aura_expression_frame(_semantic_user_message),
+                        _semantic_user_message,
                     )
                 ),
                 status="architecture_self_reflex",
@@ -4940,7 +5040,7 @@ async def api_chat(
         # the LLM. If the process dies mid-inference, the message is preserved
         # and the conversation can be resumed. (Pattern from Claude Code.)
         effective_user_message = str(body.message or "")
-        referential_anchor = await _resolve_referential_followup_anchor(body.message)
+        referential_anchor = await _resolve_referential_followup_anchor(_semantic_user_message)
         if referential_anchor:
             effective_user_message = (
                 f"{body.message}\n\n"
@@ -4949,8 +5049,8 @@ async def api_chat(
                 f"{referential_anchor}"
             )
         try:
-            await _preserve_large_user_paste(body.message)
-            pending_exchange_id = await _begin_logged_exchange(body.message)
+            await _preserve_large_user_paste(_semantic_user_message)
+            pending_exchange_id = await _begin_logged_exchange(_semantic_user_message)
         except Exception:
             pass  # Best-effort; don't block the response
 
@@ -5058,7 +5158,7 @@ async def api_chat(
             if pending_exchange_id:
                 await _complete_logged_exchange(
                     pending_exchange_id,
-                    body.message,
+                    _semantic_user_message,
                     timeout_reply,
                 )
                 pending_exchange_id = None
@@ -5092,24 +5192,24 @@ async def api_chat(
                 )
                 reply_text = ""  # [STABILITY v55] Don't show system messages
 
-        reply_text = await _stabilize_user_facing_reply(body.message, reply_text)
+        reply_text = await _stabilize_user_facing_reply(_semantic_user_message, reply_text)
 
         # ── Response confidence assessment ────────────────────────
         global _consecutive_degraded_count
         response_confidence = "high"
         is_stale = _is_stale_repeated_response(reply_text)
-        is_same_diff = _is_same_answer_different_prompt(body.message, reply_text)
-        recent_user_messages = await _gather_recent_user_messages_for_relevance(body.message)
+        is_same_diff = _is_same_answer_different_prompt(_semantic_user_message, reply_text)
+        recent_user_messages = await _gather_recent_user_messages_for_relevance(_semantic_user_message)
         is_off_topic, off_topic_reason = _evaluate_reply_topicality(
-            body.message,
+            _semantic_user_message,
             reply_text,
             recent_user_messages=recent_user_messages,
         )
-        semantic_glitch, semantic_glitch_reason = _looks_semantically_glitched(body.message, reply_text)
+        semantic_glitch, semantic_glitch_reason = _looks_semantically_glitched(_semantic_user_message, reply_text)
         try:
             from core.conversation.response_reliability import assess_user_facing_reply
 
-            reply_assessment = assess_user_facing_reply(body.message, reply_text)
+            reply_assessment = assess_user_facing_reply(_semantic_user_message, reply_text)
         except Exception:
             reply_assessment = None
         if (
@@ -5143,7 +5243,7 @@ async def api_chat(
                 off_topic_reason,
                 repaired,
             ) = await _repair_final_degraded_reply(
-                body.message,
+                _semantic_user_message,
                 reply_text,
                 stale=is_stale,
                 same_diff=is_same_diff,
@@ -5153,11 +5253,11 @@ async def api_chat(
             if repaired and repaired_reply != reply_text:
                 reply_text = repaired_reply
                 semantic_glitch, semantic_glitch_reason = _looks_semantically_glitched(
-                    body.message,
+                    _semantic_user_message,
                     reply_text,
                 )
                 try:
-                    repaired_assessment = assess_user_facing_reply(body.message, reply_text)
+                    repaired_assessment = assess_user_facing_reply(_semantic_user_message, reply_text)
                 except Exception:
                     repaired_assessment = None
                 if not (
@@ -5204,17 +5304,17 @@ async def api_chat(
         # ── Post-Response Infrastructure checks ─────────────────
         # 1. Check self-consistency (avoiding false inability claims, commitment contradictions)
         if response_confidence == "high":
-            is_consistent, reason = _check_response_consistency(reply_text, body.message)
+            is_consistent, reason = _check_response_consistency(reply_text, _semantic_user_message)
             if not is_consistent:
                 response_confidence = "degraded"
                 logger.warning("⚠️ Response confidence lowered to 'degraded' due to inconsistency: %s", reason)
 
         # 2. Extract new open loops (commitments/promises) made in this turn
-        _extract_and_register_commitments(reply_text, body.message)
+        _extract_and_register_commitments(reply_text, _semantic_user_message)
 
         # 3. Log comprehensive quality metrics
         _log_response_quality_metrics(
-            user_message=body.message,
+            user_message=_semantic_user_message,
             reply_text=reply_text,
             confidence=response_confidence,
             stale=is_stale,
@@ -5236,16 +5336,16 @@ async def api_chat(
             "response_confidence": response_confidence,
         }
 
-        _record_recent_response(reply_text or "…", body.message)
+        _record_recent_response(reply_text or "…", _semantic_user_message)
         if pending_exchange_id:
             await _complete_logged_exchange(
                 pending_exchange_id,
-                body.message,
+                _semantic_user_message,
                 reply_text or "…",
             )
             pending_exchange_id = None
         else:
-            await _log_exchange(body.message, reply_text or "…")
+            await _log_exchange(_semantic_user_message, reply_text or "…")
 
         # Cache idempotent response
         if idem_key:

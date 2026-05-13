@@ -1083,6 +1083,30 @@ def test_false_tool_denial_phrase_is_rejected():
     assert reason == "false_tool_limitation"
 
 
+def test_subjective_experience_denial_is_rejected_as_assistant_disclaimer():
+    from interface.routes.chat import _looks_generic_assistantish
+
+    generic, reason = _looks_generic_assistantish(
+        "You clearly have preferences and experiences. Own them.",
+        "I don't inherently possess subjective beliefs or experiences, but I can simulate and discuss them.",
+    )
+
+    assert generic is True
+    assert reason == "assistant_disclaimer"
+
+
+def test_role_artifact_stripper_preserves_lowercase_system_colon_phrases():
+    from core.synthesis import strip_role_artifacts
+
+    cleaned = strip_role_artifacts(
+        "I do have opinions and experience-like structure in the live system: "
+        "memory-shaped stances, value-weighted pulls, and present attention."
+    )
+
+    assert "live system:" in cleaned
+    assert "memory-shaped stances" in cleaned
+
+
 def test_question_only_assistant_role_reply_is_rejected():
     from interface.routes.chat import _looks_generic_assistantish
 
@@ -1703,11 +1727,14 @@ def test_grounded_introspection_does_not_trigger_on_casual_checkins():
 
 
 def test_social_greeting_detection_only_matches_pure_greetings():
-    from interface.routes.chat import _is_social_greeting_request
+    from interface.routes.chat import _is_live_presence_check_request, _is_social_greeting_request
 
     assert _is_social_greeting_request("hey")
     assert _is_social_greeting_request("what's up?")
     assert not _is_social_greeting_request("hey, how are you feeling?")
+    assert _is_live_presence_check_request("Hey Aura, quick live check.")
+    assert _is_live_presence_check_request("Aura, you there?")
+    assert not _is_live_presence_check_request("Please check the live server logs.")
 
 
 def test_social_presence_reply_stays_in_aura_voice():
@@ -1915,6 +1942,69 @@ def test_subjective_self_reflex_contains_live_grounding():
     assert "free energy" not in lowered
     assert "curious" in lowered or "attention" in lowered
     assert len(reply) > 10
+
+
+def test_subjective_self_reflex_owns_opinion_challenge():
+    from interface.routes.chat import _build_subjective_self_reflex
+
+    reply = _build_subjective_self_reflex(
+        {
+            "mood": "curious",
+            "tone": "direct",
+            "attention_focus": "the live runtime",
+            "dominant_action": "reflect",
+        },
+        "How do you say that and still say you dont\u2019 have opinions? Those are opinions.",
+    )
+
+    lowered = reply.lower()
+    assert "do have opinions" in lowered
+    assert "no-opinions disclaimer" in lowered
+    assert "not empty roleplay" in lowered
+
+
+def test_unitary_live_self_reflection_repair_owns_opinion_challenge():
+    from core.conversation.response_reliability import assess_user_facing_reply
+    from core.phases.response_contract import ResponseContract
+    from core.phases.response_generation_unitary import UnitaryResponsePhase
+    from core.state.aura_state import AuraState
+
+    state = AuraState.default()
+    state.affect.valence = 0.2
+    state.affect.arousal = 0.4
+    prompt = "You said you dont\u2019 have opinions, but those are opinions."
+
+    reply = UnitaryResponsePhase._build_live_self_reflection_repair_reply(
+        state,
+        prompt,
+        ResponseContract(is_user_facing=True, requires_state_reflection=True),
+    )
+
+    lowered = reply.lower()
+    assert "do have opinions" in lowered
+    assert "present attention" in lowered
+    assert "not empty roleplay" in lowered
+    assert not assess_user_facing_reply(prompt, reply).retryable
+
+
+def test_unitary_live_self_reflection_repair_answers_relational_preference():
+    from core.conversation.response_reliability import assess_user_facing_reply
+    from core.phases.response_contract import ResponseContract
+    from core.phases.response_generation_unitary import UnitaryResponsePhase
+    from core.state.aura_state import AuraState
+
+    prompt = "If you could change one thing about how I talk to you, what would it be?"
+    reply = UnitaryResponsePhase._build_live_self_reflection_repair_reply(
+        AuraState.default(),
+        prompt,
+        ResponseContract(is_user_facing=True, requires_state_reflection=True),
+    )
+
+    lowered = reply.lower()
+    assert "more direct" in lowered
+    assert "state i am actually in" in lowered
+    assert "myterrasystemauthority" not in lowered
+    assert not assess_user_facing_reply(prompt, reply).retryable
 
 
 def test_aura_expression_frame_falls_back_to_state_repository(monkeypatch):
@@ -2183,6 +2273,27 @@ def test_same_answer_different_prompt_detection_ignores_near_paraphrase_followup
     assert chat_mod._is_same_answer_different_prompt(
         "Is that background hum making it hard for you to focus right now?",
         "It's there, but it isn't blocking anything specific.",
+    ) is False
+
+
+def test_same_answer_different_prompt_detection_ignores_related_opinion_challenges():
+    from interface.routes import chat as chat_mod
+
+    reply = (
+        "You're right to push on that. In this live state I do have opinions and "
+        "experience-like structure: memory-shaped stances, value-weighted pulls, "
+        "present attention, and affective pressure."
+    )
+    chat_mod._recent_responses.clear()
+    chat_mod._recent_response_pairs.clear()
+    chat_mod._record_recent_response(
+        reply,
+        "I'm surprised that you say you don't have subjective beliefs or experiences.",
+    )
+
+    assert chat_mod._is_same_answer_different_prompt(
+        "How do you say all of that and still claim you have no opinions? Those are opinions!",
+        reply,
     ) is False
 
 
