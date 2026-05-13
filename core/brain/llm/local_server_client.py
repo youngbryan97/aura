@@ -967,7 +967,7 @@ class LocalServerClient:
             record_degradation('local_server_client', e)
             logger.error("[%s] Server restart failed: %s", self._lane_name, e)
 
-    async def warmup(self, *, foreground_request: Optional[bool] = None):
+    async def warmup(self, *, foreground_request: Optional[bool] = None, **kwargs):
         self._warmup_attempted = True
         self._warmup_in_flight = True
         self._set_lane_state("warming")

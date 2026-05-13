@@ -3723,11 +3723,16 @@ class InferenceGate:
                 if self._mlx_client and hasattr(self._mlx_client, "_process"):
                     try:
                         proc = self._mlx_client._process
-                        if proc and proc.is_alive():
-                            logger.warning("🧹 [CASCADE CLEANUP] Force-killing stuck cortex worker pid=%s", proc.pid)
+                        is_running = proc.is_alive() if hasattr(proc, 'is_alive') else (proc.poll() is None)
+                        if proc and is_running:
+                            logger.warning("🧹 [CASCADE CLEANUP] Force-killing stuck cortex worker pid=%s", getattr(proc, 'pid', 'unknown'))
                             proc.kill()
-                            proc.join(timeout=2.0)
-                        self._mlx_client._drain_queue()
+                            if hasattr(proc, 'join'):
+                                proc.join(timeout=2.0)
+                            elif hasattr(proc, 'wait'):
+                                proc.wait(timeout=2.0)
+                        if hasattr(self._mlx_client, '_drain_queue'):
+                            self._mlx_client._drain_queue()
                         # Replace queues to sever any stuck feeder threads
                         _safe_close = getattr(self._mlx_client, '_safe_close_queue', None)
                         import multiprocessing as _mp
