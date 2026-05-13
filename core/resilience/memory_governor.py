@@ -154,8 +154,12 @@ class MemoryGovernor:
         )
 
         # 2. Check Global System Memory (Neural Purge Trigger)
-        vm = psutil.virtual_memory()
-        sys_percent = vm.percent
+        try:
+            from core.utils.memory_monitor import AppleSiliconMemoryMonitor
+            sys_percent = AppleSiliconMemoryMonitor()._get_pressure_sysctl()
+        except Exception:
+            vm = psutil.virtual_memory()
+            sys_percent = vm.percent
 
         if sys_percent > 98.0:
             logger.critical("🚨 HIGH RAM: System at %.1f%%. Checking for idle local-runtime workers.", sys_percent)

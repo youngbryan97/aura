@@ -237,21 +237,20 @@ class InferenceGate:
             return False
 
         try:
+            from core.utils.memory_monitor import AppleSiliconMemoryMonitor
+            monitor = AppleSiliconMemoryMonitor()
+            pressure = monitor._get_pressure_sysctl()
             vm = psutil.virtual_memory()
             total_gb = vm.total / float(1024 ** 3)
             min_total_gb = float(os.environ.get("AURA_BOOT_WARMUP_MIN_TOTAL_GB", "48"))
             if total_gb >= 60.0:
-                # On 64GB-class machines the conversation lane is a core desktop
-                # feature, not an opportunistic luxury. Only defer under truly
-                # critical pressure. The 32B model needs ~20GB; we want to keep
-                # the cortex alive unless we're genuinely about to OOM.
-                max_pressure = 82.0   # was 70 — much more generous
-                min_available_gb = 12.0  # was 18 — 12GB is enough for 32B Q4
+                max_pressure = 82.0
+                min_available_gb = 12.0
             else:
                 max_pressure = float(os.environ.get("AURA_BOOT_WARMUP_MAX_PRESSURE_PCT", "72"))
                 min_available_gb = float(os.environ.get("AURA_BOOT_WARMUP_MIN_AVAILABLE_GB", "24"))
-            available_gb = vm.available / float(1024 ** 3)
-            if total_gb < min_total_gb or vm.percent >= max_pressure or available_gb < min_available_gb:
+            available_gb = total_gb * ( (100 - pressure) / 100.0 )
+            if total_gb < min_total_gb or pressure >= max_pressure or available_gb < min_available_gb:
                 logger.warning(
                     "⏸️ Deferring eager 32B warmup at boot (total=%.1fGB pressure=%.1f%% available=%.1fGB).",
                     total_gb,
@@ -281,9 +280,11 @@ class InferenceGate:
     @staticmethod
     def _headroom_snapshot(requested_tier: str = "primary") -> Dict[str, Any]:
         try:
+            from core.utils.memory_monitor import AppleSiliconMemoryMonitor
+            pressure = AppleSiliconMemoryMonitor()._get_pressure_sysctl()
             vm = psutil.virtual_memory()
             total_gb = vm.total / float(1024 ** 3)
-            available_gb = vm.available / float(1024 ** 3)
+            available_gb = total_gb * ( (100 - pressure) / 100.0 )
             tier = str(requested_tier or "primary").strip().lower()
 
             def _threshold(name: str, default: str) -> float:

@@ -885,8 +885,9 @@ class LocalServerClient:
         # prevents the 72B + 32B + 7B triple-residency explosion.
         ram_pressure_critical = False
         try:
-            vm = psutil.virtual_memory()
-            ram_pressure_critical = vm.percent >= 85 or (vm.available / float(1024 ** 3)) < 8
+            from core.utils.memory_monitor import AppleSiliconMemoryMonitor
+            pressure = AppleSiliconMemoryMonitor()._get_pressure_sysctl()
+            ram_pressure_critical = pressure >= 85
         except Exception:
             pass  # no-op: intentional
 

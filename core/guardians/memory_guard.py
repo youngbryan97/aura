@@ -49,18 +49,19 @@ class MemoryGuard:
 
         while self._running:
             try:
-                mem = psutil.virtual_memory()
+                from core.utils.memory_monitor import AppleSiliconMemoryMonitor
+                pressure = AppleSiliconMemoryMonitor()._get_pressure_sysctl()
                 
                 # Check if we are above the ADAPTIVE threshold
-                if mem.percent > adaptive_threshold:
+                if pressure > adaptive_threshold:
                     self.consecutive_strikes = self.consecutive_strikes + 1
-                    logger.warning("🔴 RAM CRITICAL (%s%%) - Strike %s. Defensive Mode Active.", mem.percent, self.consecutive_strikes)
+                    logger.warning("🔴 RAM CRITICAL (%s%%) - Strike %s. Defensive Mode Active.", pressure, self.consecutive_strikes)
                     
                     # 1. Emergency Garbage Collection
                     # GUARD: Focus Area 3 - Building the reference graph for gen-2 GC can cause MemoryError
                     # If we are above 96%, building the graph might be the final blow. Skip deep GC.
                     # v2026 FIX: Reduced to generation=1 to prevent loop stalls during boot
-                    if mem.percent < 94:
+                    if pressure < 94:
                         gc.collect(generation=1) 
                     else:
                         logger.warning("⚠️ RAM > 94%: Using minimal GC to avoid stall.")
@@ -71,7 +72,7 @@ class MemoryGuard:
                     adaptive_threshold = max(85.0, adaptive_threshold - 0.2)
                     
                     # 3. Component Cache Purging
-                    if mem.percent > 95:
+                    if pressure > 95:
                         try:
                             router = ServiceContainer.get("llm_router", default=None)
                             gate = ServiceContainer.get("inference_gate", default=None)
@@ -87,7 +88,7 @@ class MemoryGuard:
                             if foreground_busy:
                                 logger.warning(
                                     "MemoryGuard: Skipping router cache purge during active foreground inference (%s%%)",
-                                    mem.percent,
+                                    pressure,
                                 )
                             elif router and hasattr(router, "clear_cache"):
                                 logger.info("MemoryGuard: Clearing LLM Router cache")
@@ -107,17 +108,17 @@ class MemoryGuard:
                     try:
                         router = ServiceContainer.get("llm_router", default=None)
                         if router and not getattr(router, "high_pressure_mode", False):
-                            logger.warning("MemoryGuard: Triggering HIGH PRESSURE mode in LLM Router (%s%%)", mem.percent)
+                            logger.warning("MemoryGuard: Triggering HIGH PRESSURE mode in LLM Router (%s%%)", pressure)
                             router.high_pressure_mode = True
                     except Exception as e:
                         record_degradation('memory_guard', e)
                         logger.error("MemoryGuard: Setting high pressure mode failed: %s", e)
 
-                    if mem.percent > max(adaptive_threshold + 1.5, 84.0):
+                    if pressure > max(adaptive_threshold + 1.5, 84.0):
                         try:
                             gate = ServiceContainer.get("inference_gate", default=None)
                             if gate and hasattr(gate, "_shed_background_workers_for_memory_pressure"):
-                                logger.warning("MemoryGuard: Shedding background local-runtime workers to protect Cortex (%s%%)", mem.percent)
+                                logger.warning("MemoryGuard: Shedding background local-runtime workers to protect Cortex (%s%%)", pressure)
                                 await gate._shed_background_workers_for_memory_pressure()
                         except Exception as e:
                             record_degradation('memory_guard', e)

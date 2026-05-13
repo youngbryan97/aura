@@ -71,8 +71,20 @@ class AppleSiliconMemoryMonitor:
                 await asyncio.sleep(5)
 
     def _get_pressure_sysctl(self) -> int:
-        """Legacy name: return a safe process-wide pressure sample."""
+        """Return a safe process-wide pressure sample using macOS native tools."""
         try:
+            import sys
+            if sys.platform == "darwin":
+                import subprocess
+                import re
+                output = subprocess.check_output(['memory_pressure'], timeout=1.0).decode('utf-8')
+                match = re.search(r"System-wide memory free percentage:\s*(\d+)", output)
+                if match:
+                    free_pct = int(match.group(1))
+                    return 100 - free_pct
+            
+            # Fallback for Linux or if memory_pressure fails
+            import psutil
             mem = psutil.virtual_memory()
             return int(mem.percent)
         except Exception:
