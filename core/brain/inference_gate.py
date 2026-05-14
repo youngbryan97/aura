@@ -165,6 +165,7 @@ class InferenceGate:
         self._foreground_ready_lock = _threading.Lock()
         self._last_background_memory_shed_at: float = 0.0
         self._last_spare_maintenance_at: float = 0.0
+        self._last_cortex_warmup_deferral_log_at: float = 0.0
         type(self)._instance_ref = weakref.ref(self)
         logger.info("🛡️ InferenceGate created.")
 
@@ -226,6 +227,100 @@ class InferenceGate:
         }
 
     @staticmethod
+    def _env_float(name: str, default: float) -> float:
+        try:
+            return float(os.environ.get(name, str(default)))
+        except Exception:
+            return float(default)
+
+    @staticmethod
+    def _cortex_warmup_admission_snapshot(context: str = "background") -> Dict[str, Any]:
+        """Return whether a cold Cortex load is safe under current RAM pressure.
+
+        The normal foreground headroom check is intentionally permissive because
+        a *resident* Cortex can keep answering while RAM is high. A cold 32B
+        load is different: it adds tens of GB of unified-memory pressure in one
+        burst. This snapshot is therefore stricter and is used before any
+        background/recovery/foreground warmup that would spawn the Cortex worker.
+        """
+        context_key = str(context or "background").strip().upper()
+        try:
+            vm = psutil.virtual_memory()
+            total_gb = float(vm.total) / float(1024 ** 3)
+            available_gb = float(vm.available) / float(1024 ** 3)
+            pressure_pct = float(vm.percent)
+
+            if total_gb >= 60.0:
+                default_max_pressure = 72.0
+                default_min_available = 32.0
+            else:
+                default_max_pressure = 64.0
+                default_min_available = 22.0
+
+            max_pressure = InferenceGate._env_float(
+                f"AURA_CORTEX_{context_key}_WARMUP_MAX_PRESSURE_PCT",
+                InferenceGate._env_float(
+                    "AURA_CORTEX_COLD_WARMUP_MAX_PRESSURE_PCT",
+                    default_max_pressure,
+                ),
+            )
+            min_available = InferenceGate._env_float(
+                f"AURA_CORTEX_{context_key}_WARMUP_MIN_AVAILABLE_GB",
+                InferenceGate._env_float(
+                    "AURA_CORTEX_COLD_WARMUP_MIN_AVAILABLE_GB",
+                    default_min_available,
+                ),
+            )
+            can_admit = bool(pressure_pct < max_pressure and available_gb >= min_available)
+            reason = ""
+            if not can_admit:
+                reason = (
+                    f"memory_pressure:{pressure_pct:.1f}%/{available_gb:.1f}GB "
+                    f"(need <{max_pressure:.1f}% and >={min_available:.1f}GB)"
+                )
+            return {
+                "context": str(context or "background"),
+                "pressure_pct": pressure_pct,
+                "available_gb": available_gb,
+                "total_gb": total_gb,
+                "max_pressure_pct": max_pressure,
+                "min_available_gb": min_available,
+                "can_admit": can_admit,
+                "reason": reason,
+            }
+        except Exception as exc:
+            record_degradation("inference_gate", exc)
+            logger.debug("Cortex warmup memory probe failed: %s", exc)
+            return {
+                "context": str(context or "background"),
+                "pressure_pct": 0.0,
+                "available_gb": 0.0,
+                "total_gb": 0.0,
+                "max_pressure_pct": 100.0,
+                "min_available_gb": 0.0,
+                "can_admit": False,
+                "reason": "memory_probe_failed",
+            }
+
+    def _cortex_warmup_deferral_reason(self, context: str = "background") -> Optional[str]:
+        if str(os.environ.get("AURA_FORCE_CORTEX_WARMUP_UNDER_PRESSURE", "")).strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }:
+            return None
+        snapshot = self._cortex_warmup_admission_snapshot(context)
+        return None if snapshot["can_admit"] else str(snapshot["reason"] or "memory_pressure")
+
+    def _log_cortex_warmup_deferral(self, reason: str, *, context: str) -> None:
+        now = time.monotonic()
+        if (now - self._last_cortex_warmup_deferral_log_at) < 30.0:
+            return
+        self._last_cortex_warmup_deferral_log_at = now
+        logger.warning("⏸️ Cortex %s warmup deferred to protect RAM: %s", context, reason)
+
+    @staticmethod
     def _boot_should_eager_warmup() -> bool:
         """Keep the 32B lane warm on high-memory desktops unless explicitly disabled."""
         if InferenceGate._desktop_safe_boot_enabled():
@@ -233,30 +328,24 @@ class InferenceGate:
             return False
         setting = str(os.environ.get("AURA_EAGER_CORTEX_WARMUP", "auto")).strip().lower()
         if setting in {"1", "true", "yes", "on"}:
+            snapshot = InferenceGate._cortex_warmup_admission_snapshot("boot")
+            if not snapshot["can_admit"] and str(os.environ.get("AURA_FORCE_CORTEX_WARMUP_UNDER_PRESSURE", "")).strip().lower() not in {"1", "true", "yes", "on"}:
+                logger.warning("⏸️ Explicit eager Cortex warmup deferred to protect RAM: %s", snapshot["reason"])
+                return False
             return True
         if setting in {"0", "false", "no", "off"}:
             return False
 
         try:
-            from core.utils.memory_monitor import AppleSiliconMemoryMonitor
-            monitor = AppleSiliconMemoryMonitor()
-            pressure = monitor._get_pressure_sysctl()
             vm = psutil.virtual_memory()
-            total_gb = vm.total / float(1024 ** 3)
+            snapshot = InferenceGate._cortex_warmup_admission_snapshot("boot")
             min_total_gb = float(os.environ.get("AURA_BOOT_WARMUP_MIN_TOTAL_GB", "48"))
-            if total_gb >= 60.0:
-                max_pressure = 82.0
-                min_available_gb = 12.0
-            else:
-                max_pressure = float(os.environ.get("AURA_BOOT_WARMUP_MAX_PRESSURE_PCT", "72"))
-                min_available_gb = float(os.environ.get("AURA_BOOT_WARMUP_MIN_AVAILABLE_GB", "24"))
-            available_gb = total_gb * ( (100 - pressure) / 100.0 )
-            if total_gb < min_total_gb or pressure >= max_pressure or available_gb < min_available_gb:
+            if (vm.total / float(1024 ** 3)) < min_total_gb or not snapshot["can_admit"]:
                 logger.warning(
                     "⏸️ Deferring eager 32B warmup at boot (total=%.1fGB pressure=%.1f%% available=%.1fGB).",
-                    total_gb,
-                    vm.percent,
-                    available_gb,
+                    snapshot["total_gb"],
+                    snapshot["pressure_pct"],
+                    snapshot["available_gb"],
                 )
                 return False
         except Exception as exc:
@@ -635,8 +724,12 @@ class InferenceGate:
                         self._deferred_prewarm_task and not self._deferred_prewarm_task.done()
                     ):
                         try:
-                            self._schedule_background_cortex_prewarm(delay=2.0)
-                            logger.info("🔄 [STABILITY v53] Auto-scheduling cortex recovery after failed prewarm: %s", exc)
+                            warmup_deferral = self._cortex_warmup_deferral_reason("background")
+                            if warmup_deferral:
+                                self._log_cortex_warmup_deferral(warmup_deferral, context="background")
+                            else:
+                                self._schedule_background_cortex_prewarm(delay=2.0)
+                                logger.info("🔄 [STABILITY v53] Auto-scheduling cortex recovery after failed prewarm: %s", exc)
                         except Exception:
                             pass  # Best-effort recovery scheduling
         lane_state = str(lane.get("state", "") or "").lower()
@@ -700,7 +793,11 @@ class InferenceGate:
                     # [HARDENING v54] Schedule a recovery warmup so the cortex
                     # actually comes back online instead of staying cold forever.
                     try:
-                        self._schedule_background_cortex_prewarm(delay=3.0)
+                        warmup_deferral = self._cortex_warmup_deferral_reason("background")
+                        if warmup_deferral:
+                            self._log_cortex_warmup_deferral(warmup_deferral, context="background")
+                        else:
+                            self._schedule_background_cortex_prewarm(delay=3.0)
                     except Exception:
                         pass  # Best-effort recovery scheduling
         return lane
@@ -720,7 +817,11 @@ class InferenceGate:
         except RuntimeError:
             return
         try:
-            self._schedule_background_cortex_prewarm(delay=2.0)
+            warmup_deferral = self._cortex_warmup_deferral_reason("background")
+            if warmup_deferral:
+                self._log_cortex_warmup_deferral(warmup_deferral, context="background")
+            else:
+                self._schedule_background_cortex_prewarm(delay=2.0)
         except Exception as exc:
             record_degradation('inference_gate', exc)
             record_degradation('inference_gate', exc)
@@ -776,6 +877,11 @@ class InferenceGate:
                         return
                 if self._foreground_user_turn_active() or self._foreground_owner_active():
                     next_delay = min(20.0, max(6.0, next_delay))
+                    continue
+                warmup_deferral = self._cortex_warmup_deferral_reason("background")
+                if warmup_deferral:
+                    self._log_cortex_warmup_deferral(warmup_deferral, context="background")
+                    next_delay = min(90.0, max(20.0, next_delay * 1.5))
                     continue
                 try:
                     vm = psutil.virtual_memory()
@@ -885,6 +991,19 @@ class InferenceGate:
                 if self._prewarm_task and not self._prewarm_task.done():
                     task = self._prewarm_task
                 else:
+                    warmup_deferral = self._cortex_warmup_deferral_reason("foreground")
+                    if warmup_deferral:
+                        await self._shed_background_workers_for_memory_pressure(
+                            force=True,
+                            reason="foreground_cortex_warmup_admission",
+                        )
+                        gc.collect()
+                        warmup_deferral = self._cortex_warmup_deferral_reason("foreground")
+                    if warmup_deferral:
+                        self._log_cortex_warmup_deferral(warmup_deferral, context="foreground")
+                        if hasattr(self._mlx_client, "note_lane_recovering"):
+                            self._mlx_client.note_lane_recovering("foreground_warmup_deferred_memory_pressure")
+                        raise RuntimeError(f"foreground_warmup_deferred:{warmup_deferral}")
                     self._extend_startup_quiet_window(20.0)
                     self._prewarm_task = get_task_tracker().create_task(
                         self._mlx_client.warmup(),
@@ -973,6 +1092,10 @@ class InferenceGate:
             return
         if self._foreground_user_turn_active() or self._foreground_owner_active():
             return
+        warmup_deferral = self._cortex_warmup_deferral_reason("recovery")
+        if warmup_deferral:
+            self._log_cortex_warmup_deferral(warmup_deferral, context="recovery")
+            return
 
         async def _background_recover():
             self._cortex_recovery_in_progress = True
@@ -989,6 +1112,10 @@ class InferenceGate:
                     logger.debug('Ignored Exception in inference_gate.py killing process: %s', _e)
 
             try:
+                warmup_deferral = self._cortex_warmup_deferral_reason("recovery")
+                if warmup_deferral:
+                    self._log_cortex_warmup_deferral(warmup_deferral, context="recovery")
+                    return
                 if cold_start_recovery:
                     logger.info(
                         "♻️ [STARTUP] Primary 32B cortex is cold. Starting warmup (Attempt %d/5)...",
@@ -1541,6 +1668,10 @@ class InferenceGate:
             from core.brain.llm.model_registry import ACTIVE_MODEL, get_runtime_model_path
 
             primary_client = get_mlx_client(model_path=str(get_runtime_model_path(ACTIVE_MODEL)))
+            warmup_deferral = self._cortex_warmup_deferral_reason("recovery")
+            if warmup_deferral:
+                self._log_cortex_warmup_deferral(warmup_deferral, context="post-deep-restore")
+                return
             # Give the conversational 32B lane enough time to swap back after
             # a 72B deep handoff; otherwise the next ordinary turn inherits a
             # preventable "cortex warming" failure.
@@ -2825,23 +2956,31 @@ class InferenceGate:
                 and not self._cortex_recovery_in_progress
                 and hasattr(self._mlx_client, "_ensure_worker_alive")
             ):
-                logger.warning("🔄 [STABILITY] Cortex dead, no recovery in progress. Attempting inline fast-recovery (15s budget)...")
-                try:
-                    alive = await asyncio.wait_for(
-                        self._mlx_client._ensure_worker_alive(
-                            request_is_background=False,
-                            foreground_request=True,
-                            init_timeout=15.0,
-                            soft_timeout=True,
-                        ),
-                        timeout=15.0,
+                inline_deferral = self._cortex_warmup_deferral_reason("foreground")
+                if inline_deferral:
+                    self._log_cortex_warmup_deferral(inline_deferral, context="foreground")
+                    logger.warning(
+                        "🧠 Cortex inline recovery skipped by RAM admission; routing foreground turn to Brainstem."
                     )
-                    if alive:
-                        logger.info("✅ [STABILITY] Inline fast-recovery succeeded.")
-                except Exception as inline_exc:
-                    record_degradation('inference_gate', inline_exc)
-                    record_degradation('inference_gate', inline_exc)
-                    logger.warning("⚠️ [STABILITY] Inline fast-recovery failed: %s", inline_exc)
+                    requested_tier = "tertiary"
+                else:
+                    logger.warning("🔄 [STABILITY] Cortex dead, no recovery in progress. Attempting inline fast-recovery (15s budget)...")
+                    try:
+                        alive = await asyncio.wait_for(
+                            self._mlx_client._ensure_worker_alive(
+                                request_is_background=False,
+                                foreground_request=True,
+                                init_timeout=15.0,
+                                soft_timeout=True,
+                            ),
+                            timeout=15.0,
+                        )
+                        if alive:
+                            logger.info("✅ [STABILITY] Inline fast-recovery succeeded.")
+                    except Exception as inline_exc:
+                        record_degradation('inference_gate', inline_exc)
+                        record_degradation('inference_gate', inline_exc)
+                        logger.warning("⚠️ [STABILITY] Inline fast-recovery failed: %s", inline_exc)
 
             # If cortex recovery was just triggered or is in progress, give it
             # a short window to complete before the user hits a dead endpoint.
@@ -3467,6 +3606,7 @@ class InferenceGate:
                         fallback_client = get_mlx_client(model_path=str(get_deep_model_path()))
                         fallback_label = DEEP_ENDPOINT
                     skip_initial_primary_attempt = False
+                    primary_warmup_memory_deferred = False
                     lane_managed_client = hasattr(local_client, "get_lane_status") or hasattr(local_client, "warmup")
                     if _is_user_facing and local_label == PRIMARY_ENDPOINT and lane_managed_client:
                         lane_status = self.get_conversation_status()
@@ -3486,6 +3626,8 @@ class InferenceGate:
                             except Exception as warmup_exc:
                                 record_degradation('inference_gate', warmup_exc)
                                 record_degradation('inference_gate', warmup_exc)
+                                if "foreground_warmup_deferred" in str(warmup_exc):
+                                    primary_warmup_memory_deferred = True
                                 logger.warning(
                                     "🧠 Foreground preflight warmup did not complete cleanly: %s",
                                     warmup_exc,
@@ -3498,6 +3640,14 @@ class InferenceGate:
                                     local_label,
                                     lane_status.get("state", "unknown"),
                                 )
+                    if primary_warmup_memory_deferred:
+                        logger.warning(
+                            "🧠 Cortex cold-load deferred by RAM admission; routing this foreground turn to %s.",
+                            fallback_label,
+                        )
+                        local_client = fallback_client
+                        local_label = fallback_label
+                        skip_initial_primary_attempt = False
                     logger.info("🧠 Routing to %s (timeout=%.0fs, user_facing=%s)...", local_label, float(timeout_val), _is_user_facing)
                     primary_deadline = get_deadline(primary_timeout)
                     if skip_initial_primary_attempt:
@@ -3621,6 +3771,12 @@ class InferenceGate:
                         )
                     else:
                         logger.warning("🧠 %s returned no text. Trying local fallback.", local_label)
+                        if is_background and not bool(context.get("allow_background_local_fallback", False)):
+                            logger.info(
+                                "🧠 Background %s request returned no text; suppressing local fallback to protect foreground latency.",
+                                local_label,
+                            )
+                            return None
 
                     # Graceful local fallback: for background/autonomous requests, the
                     # brainstem is an acceptable degradation. For user-facing requests

@@ -280,10 +280,16 @@ class EventLoopMonitor:
     If the loop is delayed by more than 'threshold' seconds beyond its
     intended sleep interval, it logs a warning.
     """
-    def __init__(self, threshold: float = 0.25, interval: float = 1.0, startup_grace: float = 15.0):
-        self.threshold = threshold
+    def __init__(self, threshold: float = 0.75, interval: float = 1.0, startup_grace: float = 300.0):
+        try:
+            self.threshold = float(os.getenv("AURA_EVENT_LOOP_MONITOR_THRESHOLD_S", str(threshold)))
+        except (TypeError, ValueError):
+            self.threshold = float(threshold)
         self.interval = interval
-        self.startup_grace = startup_grace
+        try:
+            self.startup_grace = float(os.getenv("AURA_EVENT_LOOP_MONITOR_STARTUP_GRACE_S", str(startup_grace)))
+        except (TypeError, ValueError):
+            self.startup_grace = float(startup_grace)
         self.log_transient_lag = (
             os.getenv("AURA_EVENT_LOOP_LOG_TRANSIENTS", "").strip().lower()
             in {"1", "true", "yes"}

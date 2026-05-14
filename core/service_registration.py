@@ -246,6 +246,12 @@ def register_all_services(is_proxy: bool = False):
         from core.goals.goal_engine import GoalEngine
         return GoalEngine()
 
+    def _create_goal_hierarchy():
+        from core.motivation.goal_hierarchy import GoalHierarchy
+
+        cognitive_engine = container.get("cognitive_engine", default=None)
+        return GoalHierarchy(cognitive_engine)
+
     def _create_internal_simulator():
         from core.simulation.internal_simulator import InternalSimulator
         return InternalSimulator()
@@ -264,6 +270,7 @@ def register_all_services(is_proxy: bool = False):
     )
     container.register('identity_anchor', _create_identity_anchor, lifetime=ServiceLifetime.SINGLETON)
     container.register('goal_engine', _create_goal_engine, lifetime=ServiceLifetime.SINGLETON)
+    container.register('goal_hierarchy', _create_goal_hierarchy, lifetime=ServiceLifetime.SINGLETON, required=False)
     container.register('goal_manager', lambda: container.get("goal_engine"), lifetime=ServiceLifetime.SINGLETON, required=False)
     container.register('goal_memory', lambda: container.get("goal_engine"), lifetime=ServiceLifetime.SINGLETON, required=False)
     container.register('internal_simulator', _create_internal_simulator, lifetime=ServiceLifetime.SINGLETON)

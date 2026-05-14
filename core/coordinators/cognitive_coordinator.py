@@ -477,7 +477,7 @@ class CognitiveCoordinator:
             hist_snippet = orch.conversation_history[-3:] if isinstance(orch.conversation_history, list) else []
             t = await orch.cognitive_engine.think(message, {"history": hist_snippet}, ThinkingMode.FAST)
             if not t or not hasattr(t, "content") or not t.content:
-                return "I'm having trouble formulating a response. Let me try once more."
+                return "I recorded a degraded cognitive cycle instead of inventing an answer."
             return t.content
         except Exception as e:
             record_degradation('cognitive_coordinator', e)
@@ -499,7 +499,7 @@ class CognitiveCoordinator:
                 record_degradation('cognitive_coordinator', degraded_exc)
                 record_degradation('cognitive_coordinator', degraded_exc)
                 logger.debug("CognitiveCoordinator degraded-event logging failed: %s", degraded_exc)
-            return "I'm having trouble processing that right now — my cognitive engine hit an error. Could you try rephrasing?"
+            return "I recorded a cognitive engine error and withheld a speculative answer."
 
     async def apply_constitutional_guard(self, response: str) -> str:
         try:

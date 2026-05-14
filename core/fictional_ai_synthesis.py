@@ -830,6 +830,28 @@ class TemporalDilationScheduler:
             if orch and getattr(getattr(orch, "status", None), "is_processing", False):
                 continue
 
+            if orch:
+                try:
+                    from core.runtime.background_policy import (
+                        MAINTENANCE_BACKGROUND_POLICY,
+                        background_activity_reason,
+                    )
+
+                    reason = background_activity_reason(
+                        orch,
+                        profile=MAINTENANCE_BACKGROUND_POLICY,
+                        min_idle_seconds=self.MIN_IDLE_FOR_SYNTHESIS_S,
+                        max_memory_percent=78.0,
+                        max_failure_pressure=0.25,
+                        require_conversation_ready=True,
+                    )
+                    if reason:
+                        logger.debug("MIST: Skipping synthesis by background policy: %s", reason)
+                        continue
+                except Exception as exc:
+                    record_degradation("fictional_ai_synthesis", exc)
+                    logger.debug("MIST background policy probe failed: %s", exc)
+
             flow_controller = getattr(orch, "_flow_controller", None) if orch else None
             if flow_controller and orch:
                 try:

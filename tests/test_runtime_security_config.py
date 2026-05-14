@@ -67,3 +67,33 @@ def test_runtime_security_rejects_invalid_external_token(monkeypatch):
         )
 
     assert exc.value.status_code == 401
+
+
+def test_verify_token_allows_trusted_local_internal_only_without_header(monkeypatch):
+    from interface import auth
+
+    monkeypatch.setattr(auth.config.security, "internal_only_mode", True, raising=False)
+    monkeypatch.setattr(auth.config, "api_token", "secret", raising=False)
+
+    auth._verify_token(_Request(host="127.0.0.1"), x_api_token=None)
+
+
+def test_verify_token_allows_trusted_local_desktop_ui_without_header(monkeypatch):
+    from interface import auth
+
+    monkeypatch.setattr(auth.config.security, "internal_only_mode", False, raising=False)
+    monkeypatch.setattr(auth.config, "api_token", "secret", raising=False)
+
+    auth._verify_token(_Request(host="127.0.0.1"), x_api_token=None)
+
+
+def test_verify_token_rejects_external_internal_only_without_header(monkeypatch):
+    from interface import auth
+
+    monkeypatch.setattr(auth.config.security, "internal_only_mode", True, raising=False)
+    monkeypatch.setattr(auth.config, "api_token", "secret", raising=False)
+
+    with pytest.raises(HTTPException) as exc:
+        auth._verify_token(_Request(host="198.51.100.9"), x_api_token=None)
+
+    assert exc.value.status_code == 401

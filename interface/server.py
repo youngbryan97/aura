@@ -806,7 +806,7 @@ async def websocket_endpoint(ws: WebSocket):
                                     # [STABILITY v53] Never leave user without a response
                                     await ws_ref.send_text(json.dumps({
                                         "type": "aura_message",
-                                        "content": "I lost my thread for a second. Say that again?",
+                                        "content": "I could not produce a clean live reply from this path. I logged the failure and kept the conversation state intact.",
                                     }))
                             except TimeoutError:
                                 logger.error("WS: KernelInterface.process() timed out after 180s")
@@ -838,14 +838,14 @@ async def websocket_endpoint(ws: WebSocket):
                                     pass  # no-op: intentional
                                 await ws_ref.send_text(json.dumps({
                                     "type": "aura_message",
-                                    "content": "I was thinking but my cortex took too long. Try again — I should be warmer now.",
+                                    "content": "The live reasoning lane exceeded its timeout. I logged the timeout and preserved this turn instead of fabricating a recovered answer.",
                                 }))
                             except Exception as e:
                                 record_degradation('server', e)
                                 logger.error("WS: Message handling failed: %s (%s)", type(e).__name__, e, exc_info=True)
                                 await ws_ref.send_text(json.dumps({
                                     "type": "aura_message",
-                                    "content": "I hit a bump in my thinking. Try me again?",
+                                    "content": "The live message handler failed before a coherent answer formed. I logged the failure with the current turn context.",
                                 }))
 
                         _spawn_server_bounded_task(

@@ -415,28 +415,41 @@ class SteeringVectorLibrary:
     Computation time: ~2-5 minutes per dimension. Cached permanently after.
     """
 
-    def __init__(self, cache_dir: Optional[Path] = None):
+    def __init__(
+        self,
+        cache_dir: Optional[Path] = None,
+        source_dirs: Optional[List[Path]] = None,
+    ):
+        discovered_source_dirs: List[Path] = []
         if cache_dir is None:
-            # Check for extracted vectors first (from training/extract_steering_vectors.py).
-            # These are properly extracted via contrastive prompts and are higher quality
-            # than the on-demand derived vectors.
             env_dir = os.environ.get("AURA_STEERING_DIR")
             if env_dir and Path(env_dir).exists():
-                cache_dir = Path(env_dir)
-                logger.info("🎯 Steering vectors: using AURA_STEERING_DIR=%s", cache_dir)
-            else:
-                extracted_dir = Path(__file__).parent.parent.parent / "training" / "vectors"
-                if extracted_dir.exists() and (any(extracted_dir.glob("*.npy")) or any(extracted_dir.glob("*.npz"))):
-                    cache_dir = extracted_dir
-                    logger.info("🎯 Steering vectors: using extracted vectors from training/vectors/")
-                else:
-                    try:
-                        from core.config import config as aura_config
-                        cache_dir = aura_config.paths.data_dir / "steering_vectors"
-                    except Exception:
-                        cache_dir = Path.home() / ".aura" / "steering_vectors"
+                discovered_source_dirs.append(Path(env_dir))
+
+            extracted_dir = Path(__file__).parent.parent.parent / "training" / "vectors"
+            if extracted_dir.exists() and (any(extracted_dir.glob("*.npy")) or any(extracted_dir.glob("*.npz"))):
+                discovered_source_dirs.append(extracted_dir)
+
+            try:
+                from core.config import config as aura_config
+                cache_dir = aura_config.paths.data_dir / "steering_vectors"
+            except Exception:
+                cache_dir = Path.home() / ".aura" / "steering_vectors"
+
         self._cache_dir = cache_dir
         self._cache_dir.mkdir(parents=True, exist_ok=True)
+        raw_source_dirs = list(source_dirs or discovered_source_dirs)
+        self._source_dirs = []
+        for source_dir in raw_source_dirs:
+            path = Path(source_dir)
+            if path.exists() and path.resolve() != self._cache_dir.resolve():
+                self._source_dirs.append(path)
+        if self._source_dirs:
+            logger.info(
+                "🎯 Steering vectors: using runtime cache %s with %d compatible source dir(s)",
+                self._cache_dir,
+                len(self._source_dirs),
+            )
         self._vectors: Dict[str, SteeringVector] = {}
         self._vectors_by_layer: Dict[int, Dict[str, SteeringVector]] = {}
         self._registry = VectorRegistry()
@@ -458,11 +471,12 @@ class SteeringVectorLibrary:
 
     def _candidate_paths_for_key(self, key: str) -> List[Tuple[int, Path]]:
         candidates: List[Tuple[int, Path]] = []
-        for path in sorted(self._cache_dir.glob(f"{key}_layer*.np*")):
-            match = re.match(rf"^{re.escape(key)}_layer_?(?P<layer>\d+)$", path.stem)
-            if not match:
-                continue
-            candidates.append((int(match.group("layer")), path))
+        for root in [self._cache_dir, *self._source_dirs]:
+            for path in sorted(root.glob(f"{key}_layer*.np*")):
+                match = re.match(rf"^{re.escape(key)}_layer_?(?P<layer>\d+)$", path.stem)
+                if not match:
+                    continue
+                candidates.append((int(match.group("layer")), path))
         return candidates
 
     def _vector_dim_for_path(self, path: Path) -> int:
@@ -488,8 +502,15 @@ class SteeringVectorLibrary:
             for layer, path in candidates
             if self._vector_dim_for_path(path) == d_model
         ]
-        if compatible:
-            candidates = compatible
+        if not compatible:
+            logger.debug(
+                "No compatible cached CAA vector for %s at layer %d with d_model=%d; deriving.",
+                key,
+                requested_layer,
+                d_model,
+            )
+            return None
+        candidates = compatible
         exact = [(layer, path) for layer, path in candidates if layer == requested_layer]
         if exact:
             exact.sort(key=lambda item: (0 if item[1].suffix == ".npz" else 1, item[0]))
@@ -1292,7 +1313,9 @@ class AffectiveSteeringEngine:
         )
 
         # ── Load or derive steering vectors ───────────────────────────────────
-        self._library = SteeringVectorLibrary()
+        self._library = SteeringVectorLibrary(
+            cache_dir=self._runtime_vector_cache_dir(n_layers=n_layers, d_model=d_model)
+        )
         vectors_by_layer = self._library.load_or_derive(
             model=model,
             tokenizer=tokenizer,
@@ -1412,6 +1435,17 @@ class AffectiveSteeringEngine:
         """Enable or disable all steering without removing hooks."""
         for hook in self._hooks:
             hook._active = active
+
+    @staticmethod
+    def _runtime_vector_cache_dir(*, n_layers: int, d_model: int) -> Path:
+        """Writable runtime CAA cache partitioned by model geometry."""
+        try:
+            from core.config import config as aura_config
+
+            base = aura_config.paths.data_dir / "steering_vectors"
+        except Exception:
+            base = Path.home() / ".aura" / "steering_vectors"
+        return base / f"dmodel_{int(d_model)}_layers_{int(n_layers)}"
 
     def _discover_model_geometry(self, model) -> Tuple[int, int]:
         """Determine n_layers and d_model from the loaded model."""

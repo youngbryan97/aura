@@ -131,6 +131,15 @@ class OutputReceptor:
         if not generated_text or len(generated_text.strip()) < 5:
             return None
 
+        try:
+            from core.container import ServiceContainer
+
+            substrate = ServiceContainer.get("conscious_substrate", default=None)
+            if substrate is not None and hasattr(substrate, "x"):
+                self.ensure_dimension(len(substrate.x))
+        except Exception:
+            substrate = None
+
         delta = self._extract_affective_delta(generated_text)
 
         magnitude = float(np.linalg.norm(delta))
@@ -139,8 +148,6 @@ class OutputReceptor:
 
         # Inject into substrate
         try:
-            from core.container import ServiceContainer
-            substrate = ServiceContainer.get("conscious_substrate", default=None)
             if substrate:
                 get_task_tracker().create_task(
                     substrate.inject_stimulus(delta, weight=OUTPUT_FEEDBACK_WEIGHT)
@@ -160,6 +167,12 @@ class OutputReceptor:
             logger.debug("OutputReceptor injection failed: %s", e)
 
         return None
+
+    def ensure_dimension(self, neuron_count: int) -> None:
+        """Resize future affect deltas to the active substrate dimension."""
+        neuron_count = max(1, int(neuron_count or 64))
+        if neuron_count != self._neuron_count:
+            self._neuron_count = neuron_count
 
     def _extract_affective_delta(self, text: str) -> np.ndarray:
         """Keyword-based affective content extraction."""
@@ -484,6 +497,17 @@ class ClosedCausalLoop:
         logger.info("   ├─ SelfPredictive  : ✓ (substrate self-prediction + FE)")
         logger.info("   └─ PhiWitness      : ✓ (transfer entropy Φ estimator)")
 
+    def _ensure_vector_dimensions(self, neuron_count: int) -> None:
+        """Keep feedback and self-prediction aligned with the live substrate width."""
+        neuron_count = max(1, int(neuron_count or 64))
+        if getattr(self._output_receptor, "_neuron_count", None) != neuron_count:
+            self._output_receptor.ensure_dimension(neuron_count)
+            logger.info("ClosedCausalLoop: OutputReceptor resized to %d neurons", neuron_count)
+
+        if getattr(self._predictor, "_n", None) != neuron_count:
+            self._predictor = SelfPredictiveCore(neuron_count=neuron_count)
+            logger.info("ClosedCausalLoop: SelfPredictiveCore resized to %d neurons", neuron_count)
+
     def _setup_save_dir(self):
         try:
             from core.config import config as aura_config
@@ -616,7 +640,8 @@ class ClosedCausalLoop:
                     await asyncio.sleep(PREDICTION_INTERVAL_S)
                     continue
 
-                current_x = substrate.x.copy()
+                current_x = np.asarray(substrate.x.copy(), dtype=np.float32).ravel()
+                self._ensure_vector_dimensions(len(current_x))
 
                 # STEP 1: Record state for Phi computation
                 self._phi_witness.record_substrate_state(current_x)
@@ -747,6 +772,15 @@ class ClosedCausalLoop:
             return
         self._last_output_fingerprint = fingerprint
         self._last_output_at = now
+
+        try:
+            from core.container import ServiceContainer
+
+            substrate = ServiceContainer.get("conscious_substrate", default=None)
+            if substrate is not None and hasattr(substrate, "x"):
+                self._ensure_vector_dimensions(len(substrate.x))
+        except Exception:
+            pass
 
         result = self._output_receptor.receive_output(generated_text)
         if result is not None:

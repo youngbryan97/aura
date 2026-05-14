@@ -33,6 +33,24 @@ def _background_autonomy_allowed(orchestrator) -> bool:
         require_conversation_ready=False,
     )
 
+
+def _background_autonomy_block_reason(orchestrator) -> str:
+    try:
+        from core.runtime.background_policy import background_activity_reason
+
+        return background_activity_reason(
+            orchestrator,
+            min_idle_seconds=900.0,
+            max_memory_percent=80.0,
+            max_failure_pressure=0.12,
+            require_conversation_ready=False,
+            allow_no_user_anchor=False,
+        )
+    except Exception as exc:
+        record_degradation("engine", exc)
+        logger.debug("Motivation: background autonomy policy probe failed: %s", exc)
+        return "policy_probe_failed"
+
 @dataclass
 class ResourceBudget:
     name: str
@@ -149,6 +167,11 @@ class MotivationEngine:
     async def _assess_needs(self) -> Optional[Intention]:
         """Examines budgets and affective state to produce the strongest need."""
         async with self._lock:
+            policy_reason = _background_autonomy_block_reason(self.orchestrator)
+            if policy_reason:
+                logger.debug("Motivation: autonomous intention held by background policy: %s", policy_reason)
+                return None
+
             # 1. Calculate dynamic action threshold based on energy
             threshold = self._calculate_action_threshold()
             
@@ -163,7 +186,7 @@ class MotivationEngine:
                 energy_level = self.budgets["energy"].level
                 boredom_timeout = 300 if energy_level < 50 else 120
                 
-                if time.time() - self._last_activity_time > boredom_timeout and _background_autonomy_allowed(self.orchestrator):
+                if time.time() - self._last_activity_time > boredom_timeout:
                     return Intention(
                         drive=DriveType.CURIOSITY,
                         goal="Quietly consolidating memory and monitoring system stability.",
@@ -175,8 +198,6 @@ class MotivationEngine:
             resonance = self.affect.get_resonance_string() if hasattr(self.affect, "get_resonance_string") else "Aura (Core) 100%"
             
             if most_urgent_name == "curiosity":
-                if not _background_autonomy_allowed(self.orchestrator):
-                    return None
                 # Weighted selection based on resonance
                 topic = self._get_weighted_topic(resonance)
                 return Intention(DriveType.CURIOSITY, f"Reviewing internal knowledge patterns around {topic}.", {"topic": topic, "resonance": resonance}, 0.6)

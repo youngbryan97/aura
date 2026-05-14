@@ -77,6 +77,8 @@ class TerminalMonitor:
             r"Foreground conversation lane returned no text",
             r"UnitaryResponsePhase timed out",
             r"ResponseGenerationPhase timed out",
+            r"Phase '.*' timed out",
+            r"EternalMemoryPhase.*timed out",
             r"Exception in callback _SelectorSocketTransport\._read_ready",
             r"_SelectorSocketTransport\._read_ready\(\)",
             r"BrokenPipeError",
@@ -337,9 +339,11 @@ class TerminalMonitor:
         if "[silent auto-fix]" in lowered:
             return None
         if (
-            "timeout" in lowered
+            ("timeout" in lowered or "timed out" in lowered)
             and (
-                "unitaryresponsephase" in lowered
+                "phase '" in lowered
+                or "eternalmemoryphase" in lowered
+                or "unitaryresponsephase" in lowered
                 or "responsegenerationphase" in lowered
                 or "foreground conversation lane returned no text" in lowered
                 or "conversation lane timed out" in lowered

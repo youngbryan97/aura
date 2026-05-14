@@ -930,10 +930,16 @@ class MLXLocalClient:
             "last_transition_at": self._lane_transition_at,
             "warmup_attempted": self._warmup_attempted,
             "warmup_in_flight": self._warmup_in_flight,
+            "active_generations": int(self._active_generations),
             "process_started_at": self._process_started_at,
             "current_request_started_at": self._current_request_started_at,
             "current_first_token_at": self._current_first_token_at,
             "current_request_prompt_chars": self._current_request_prompt_chars,
+            "request_age_s": (
+                max(0.0, time.time() - self._current_request_started_at)
+                if self._current_request_started_at
+                else 0.0
+            ),
         }
 
     def get_supervision_status(self) -> Dict[str, Any]:

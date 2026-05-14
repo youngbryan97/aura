@@ -335,6 +335,12 @@ class ConsciousnessBridge:
             try:
                 projection = self.neural_mesh.get_executive_projection()
                 with substrate.sync_lock:
+                    projection = self._fit_vector(
+                        projection,
+                        len(substrate.x),
+                        mode="tile",
+                        dtype=np.float64,
+                    )
                     substrate.x = np.clip(
                         substrate.x * 0.65 + projection * 0.35,
                         -1.0, 1.0
@@ -347,7 +353,8 @@ class ConsciousnessBridge:
         if substrate and self.unified_field:
             try:
                 state = substrate.x.copy()
-                self.unified_field.receive_substrate(state[:64].astype(np.float32))
+                state64 = self._fit_vector(state, 64, mode="truncate", dtype=np.float32)
+                self.unified_field.receive_substrate(state64)
             except Exception as e:
                 record_degradation('consciousness_bridge', e)
                 logger.debug("Substrate→Field failed: %s", e)
@@ -356,7 +363,8 @@ class ConsciousnessBridge:
         if self.neural_mesh and self.unified_field:
             try:
                 proj = self.neural_mesh.get_executive_projection()
-                self.unified_field.receive_mesh(proj)
+                proj64 = self._fit_vector(proj, 64, mode="truncate", dtype=np.float32)
+                self.unified_field.receive_mesh(proj64)
             except Exception as e:
                 record_degradation('consciousness_bridge', e)
                 logger.debug("Mesh→Field failed: %s", e)
@@ -528,16 +536,21 @@ class ConsciousnessBridge:
         if self.neural_mesh and substrate:
             try:
                 # Use substrate velocity as a proxy for recent LLM stimulus impact
-                velocity = substrate.v.copy() if substrate.v is not None else np.zeros(64)
+                substrate_dim = len(substrate.x) if hasattr(substrate, "x") else 64
+                velocity = (
+                    substrate.v.copy()
+                    if substrate.v is not None
+                    else np.zeros(substrate_dim, dtype=np.float32)
+                )
                 # Expand to association tier dimensionality (2048)
                 assoc_dim = (self.neural_mesh.cfg.association_end - self.neural_mesh.cfg.sensory_end) * self.neural_mesh.cfg.neurons_per_column
-                if len(velocity) < assoc_dim:
-                    expanded = np.zeros(assoc_dim, dtype=np.float32)
-                    # Tile velocity across association columns
-                    for i in range(0, assoc_dim, len(velocity)):
-                        end = min(i + len(velocity), assoc_dim)
-                        expanded[i:end] = velocity[:end - i]
-                    self.neural_mesh.inject_association(expanded * 0.3)
+                expanded = self._fit_vector(
+                    velocity,
+                    assoc_dim,
+                    mode="tile",
+                    dtype=np.float32,
+                )
+                self.neural_mesh.inject_association(expanded * 0.3)
             except Exception as e:
                 record_degradation('consciousness_bridge', e)
                 logger.debug("LLM→Mesh association injection failed: %s", e)
@@ -695,6 +708,42 @@ class ConsciousnessBridge:
             ServiceContainer.get("global_workspace", default=None) or
             getattr(self._cs, "global_workspace", None)
         )
+
+    @staticmethod
+    def _fit_vector(
+        vector: Any,
+        target_dim: int,
+        *,
+        mode: str = "tile",
+        dtype: Any = np.float32,
+    ) -> np.ndarray:
+        """Return a stable one-dimensional vector with exactly target_dim entries.
+
+        The bridge intentionally couples components with different native
+        resolutions: the mesh executive projection is 64-wide, the production
+        substrate can be 64/128/512-wide, and the association tier is much wider.
+        Resizing here is explicit so dimension upgrades do not turn into runtime
+        degradation storms.
+        """
+        target_dim = max(0, int(target_dim or 0))
+        arr = np.asarray(vector if vector is not None else [], dtype=dtype).ravel()
+
+        if target_dim == 0:
+            return np.zeros(0, dtype=dtype)
+        if arr.size == target_dim:
+            return arr.astype(dtype, copy=False)
+        if arr.size == 0:
+            return np.zeros(target_dim, dtype=dtype)
+        if arr.size > target_dim:
+            return arr[:target_dim].astype(dtype, copy=False)
+
+        if mode == "tile":
+            repeats = int(np.ceil(target_dim / arr.size))
+            return np.tile(arr, repeats)[:target_dim].astype(dtype, copy=False)
+
+        out = np.zeros(target_dim, dtype=dtype)
+        out[:arr.size] = arr
+        return out
 
     # ── Status ───────────────────────────────────────────────────────────
 

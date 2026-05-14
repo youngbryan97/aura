@@ -74,7 +74,7 @@ def _get_whisper_model_class():
         from faster_whisper import WhisperModel as whisper_model_cls
         _WhisperModel = whisper_model_cls
     except ImportError:
-        logger.error("❌ faster-whisper not installed — STT unavailable")
+        logger.warning("faster-whisper not installed — STT unavailable")
     except Exception as exc:
         record_degradation('voice_engine', exc)
         logger.error("❌ faster-whisper import failed — STT unavailable: %s", exc)
@@ -519,7 +519,7 @@ class SovereignVoiceEngine:
                 logger.warning("Failed to init Piper: %s. Falling back to pyttsx3.", e)
 
         if pyttsx3 is None:
-            logger.error("❌ pyttsx3 not installed — TTS unavailable")
+            logger.warning("pyttsx3 not installed — TTS unavailable")
             return
         try:
             self.tts_engine = pyttsx3.init()
@@ -587,7 +587,7 @@ class SovereignVoiceEngine:
             return False
 
         if sd is None:
-            logger.error("❌ sounddevice not installed — cannot capture mic")
+            logger.warning("sounddevice not installed — cannot capture mic")
             return False
 
         if self._mic_listening:

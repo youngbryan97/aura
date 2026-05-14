@@ -46,6 +46,16 @@ class StructuredLLM:
                         attempt + 1, self.max_retries, self.model_class.__name__)
             
             try:
+                defer_reason = self._background_defer_reason(escalated=bool(escalated_tier))
+                if defer_reason:
+                    self.last_defer_reason = defer_reason
+                    logger.info(
+                        "⏸️ StructuredLLM: Deferred %s (%s).",
+                        self.model_class.__name__,
+                        defer_reason,
+                    )
+                    return None
+
                 # [STABILITY v54.1] Multi-stage escalation:
                 # Attempt 0: TERTIARY (Local fast)
                 # Attempt 1 (Failure 1): PRIMARY (Local 32B)
@@ -184,6 +194,23 @@ class StructuredLLM:
                 return text[start:end+1]
                 
         return text.strip()
+
+    def _background_defer_reason(self, *, escalated: bool = False) -> str:
+        if escalated:
+            return ""
+        try:
+            from core.runtime.background_policy import THOUGHT_BACKGROUND_POLICY, background_activity_reason
+
+            orch = ServiceContainer.get("orchestrator", default=None)
+            return background_activity_reason(
+                orch,
+                profile=THOUGHT_BACKGROUND_POLICY,
+                require_conversation_ready=True,
+            )
+        except Exception as exc:
+            record_degradation("structured_llm", exc)
+            logger.debug("StructuredLLM background defer check failed: %s", exc)
+            return ""
 
     def _generate_ghost_example(self) -> str:
         """Generates a minimal 1-line JSON example based on the model's fields."""

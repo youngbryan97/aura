@@ -36,7 +36,7 @@ class ReflexiveCore:
         return "Systems operational. All actors supervised and state-vault hardened."
 
     def _handle_ping(self, text: str) -> str:
-        return "Pong (Reflex path active)."
+        return "Reflex path active."
 
     def _handle_identity(self, text: str) -> str:
         return "I am Aura Zenith, a hardened digital intelligence with a reflexive core online."

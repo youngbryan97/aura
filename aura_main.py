@@ -1220,6 +1220,13 @@ async def run_desktop(port: int, *, launch_gui: Optional[bool] = None):
                             pass
                         return
 
+                    if is_shutdown_requested() or proc.returncode in {-signal.SIGTERM, -signal.SIGINT}:
+                        logger.info(
+                            "🎨 GUI process ended during runtime shutdown (code=%s); not restarting.",
+                            proc.returncode,
+                        )
+                        return
+
                     restart_count += 1
                     logger.critical(f"🛑 GUI Process crashed (code: {proc.returncode}). Reason:\n{stderr_output}")
                     logger.warning(f"🎨 Restarting GUI in 5s... (Attempt {restart_count}/{max_restarts})")
@@ -1518,6 +1525,12 @@ def main():
     parser.add_argument("--skeletal", action="store_true", help="Skeletal Mode: Bypass heavy subsystems")
     
     args = parser.parse_args()
+
+    # Desktop/headless live sessions run alongside the GUI, browser probes, and
+    # other macOS apps. Default them into safe boot so Cortex warmup is admitted
+    # by live RAM headroom instead of being scheduled optimistically during boot.
+    if (args.desktop or args.headless) and "AURA_SAFE_BOOT_DESKTOP" not in os.environ:
+        os.environ["AURA_SAFE_BOOT_DESKTOP"] = "1"
     
     # Standardize: Reboot behavior
     if args.stop:

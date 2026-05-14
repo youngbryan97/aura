@@ -203,8 +203,8 @@ async def test_research_cycle_integrates_findings_into_semantic_memory(monkeypat
     state = SimpleNamespace(cognition=SimpleNamespace(long_term_memory=[]))
 
     class _FakeKG:
-        def add_knowledge(self, *, content, source, confidence):
-            kg_entries.append((content, source, confidence))
+        def add_knowledge(self, *, content, type, source, confidence):
+            kg_entries.append((content, type, source, confidence))
 
     class _FakeSemantic:
         async def remember(self, content, metadata=None):

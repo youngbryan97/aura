@@ -85,6 +85,21 @@ class SovereignSwarm:
             
         if len(self.active_shards) >= 6:
             return False # Capacity reached (M5 Pro 64GB safeguard)
+
+        try:
+            from core.runtime.background_policy import THOUGHT_BACKGROUND_POLICY, background_activity_reason
+
+            reason = background_activity_reason(
+                self.orch,
+                profile=THOUGHT_BACKGROUND_POLICY,
+                require_conversation_ready=True,
+            )
+            if reason:
+                logger.info("⏸️ Swarm: shard deferred for '%s' (%s).", str(goal)[:80], reason)
+                return False
+        except Exception as exc:
+            record_degradation("agency_core", exc)
+            logger.debug("Swarm background-policy check failed: %s", exc)
             
         # The shard wrapper handles the actual thinking via cognitive engine
         raw_uuid = uuid.uuid4().hex
@@ -623,6 +638,27 @@ class AgencyCore:
 
         # Sync state from orchestrator subsystems
         self._sync_from_orchestrator()
+
+        try:
+            from core.runtime.background_policy import (
+                THOUGHT_BACKGROUND_POLICY,
+                background_activity_reason,
+            )
+
+            policy_reason = background_activity_reason(
+                self.orch,
+                profile=THOUGHT_BACKGROUND_POLICY,
+                min_idle_seconds=180.0,
+                max_memory_percent=78.0,
+                max_failure_pressure=0.25,
+                require_conversation_ready=True,
+            )
+            if policy_reason:
+                logger.debug("AgencyCore pulse deferred by background policy: %s", policy_reason)
+                return None
+        except Exception as exc:
+            record_degradation("agency_core", exc)
+            logger.debug("AgencyCore background-policy probe failed: %s", exc)
         
         # Update temporal state
         idle_seconds = now - self.state.last_user_interaction

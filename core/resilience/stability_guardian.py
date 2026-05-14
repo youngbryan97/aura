@@ -6,6 +6,7 @@ import asyncio
 import gc
 import json
 import logging
+import os
 import sys
 import threading
 import time
@@ -97,6 +98,9 @@ class StabilityGuardian:
     MEMORY_CRITICAL_PCT = 92.0    # True critical on 64GB — ~59GB used
     MAX_TICK_LAG_MS     = 5000.0   # 5s mean tick = something is blocking
     MAX_EVENT_LOOP_LAG_MS = 2500.0
+    MAX_EVENT_LOOP_LAG_BOOT_MS = 12000.0
+    MAX_EVENT_LOOP_LAG_ACTIVE_MS = 5000.0
+    EVENT_LOOP_LAG_BOOT_GRACE_S = 300.0
     MIN_TICK_RATE_HZ    = 0.01     # If we're not ticking at all, something is wrong
     MAX_TASK_COUNT      = 260      # asyncio task explosion guard
     MAX_UNSUPERVISED_TASK_COUNT = 80
@@ -115,6 +119,13 @@ class StabilityGuardian:
         if total_gb >= 60.0:
             return 88.0, 94.0
         return StabilityGuardian.MEMORY_WARNING_PCT, StabilityGuardian.MEMORY_CRITICAL_PCT
+
+    @staticmethod
+    def _env_float(name: str, default: float) -> float:
+        try:
+            return float(os.getenv(name, str(default)))
+        except (TypeError, ValueError):
+            return float(default)
 
     def __init__(self, orchestrator: Any):
         self.orchestrator   = orchestrator
@@ -137,6 +148,56 @@ class StabilityGuardian:
         self._log_path.parent.mkdir(parents=True, exist_ok=True)
 
         logger.info("StabilityGuardian initialized.")
+
+    def _runtime_uptime_s(self) -> float:
+        candidates = [
+            getattr(self.orchestrator, "start_time", None),
+            getattr(getattr(self.orchestrator, "status", None), "start_time", None),
+        ]
+        for candidate in candidates:
+            try:
+                start = float(candidate or 0.0)
+            except (TypeError, ValueError):
+                continue
+            if start > 0.0:
+                return max(0.0, time.time() - start)
+        return 0.0
+
+    def _inference_or_foreground_active(self) -> bool:
+        try:
+            from core.container import ServiceContainer
+
+            gate = ServiceContainer.get("inference_gate", default=None)
+            if gate and hasattr(gate, "get_conversation_status"):
+                lane = dict(gate.get_conversation_status() or {})
+                if bool(lane.get("foreground_owned")) or int(lane.get("active_generations", 0) or 0) > 0:
+                    return True
+                if bool(lane.get("kernel_lock_held")):
+                    return True
+                if float(lane.get("request_age_s", 0.0) or 0.0) > 0.0:
+                    return True
+        except Exception:
+            pass
+        return False
+
+    def _event_loop_lag_threshold_ms(self) -> float:
+        threshold = self._env_float("AURA_MAX_EVENT_LOOP_LAG_MS", self.MAX_EVENT_LOOP_LAG_MS)
+        uptime_s = self._runtime_uptime_s()
+        boot_grace_s = self._env_float(
+            "AURA_EVENT_LOOP_LAG_BOOT_GRACE_S",
+            self.EVENT_LOOP_LAG_BOOT_GRACE_S,
+        )
+        if boot_grace_s > 0.0 and 0.0 < uptime_s < boot_grace_s:
+            threshold = max(
+                threshold,
+                self._env_float("AURA_MAX_EVENT_LOOP_LAG_BOOT_MS", self.MAX_EVENT_LOOP_LAG_BOOT_MS),
+            )
+        if self._inference_or_foreground_active():
+            threshold = max(
+                threshold,
+                self._env_float("AURA_MAX_EVENT_LOOP_LAG_ACTIVE_MS", self.MAX_EVENT_LOOP_LAG_ACTIVE_MS),
+            )
+        return threshold
 
     def _repair_allowed(self, name: str, cooldown_s: float) -> bool:
         now = time.time()
@@ -276,6 +337,14 @@ class StabilityGuardian:
             try:
                 expected_wakeup = time.monotonic() + self.CHECK_INTERVAL_S
                 await asyncio.sleep(self.CHECK_INTERVAL_S)
+                try:
+                    from core.runtime.shutdown_coordinator import is_shutdown_requested
+
+                    if is_shutdown_requested():
+                        logger.debug("StabilityGuardian loop exiting during runtime shutdown.")
+                        break
+                except Exception:
+                    pass
                 lag_ms = max(0.0, (time.monotonic() - expected_wakeup) * 1000.0)
                 self._loop_lag_samples.append((time.time(), lag_ms))
                 report = await self.run_checks()
@@ -578,6 +647,19 @@ class StabilityGuardian:
             logger.debug("StabilityGuardian thread dump failed: %s", exc)
 
     def _check_tick_rate(self) -> HealthCheckResult:
+        try:
+            from core.runtime.shutdown_coordinator import is_shutdown_requested
+
+            if is_shutdown_requested():
+                return HealthCheckResult(
+                    "tick_rate",
+                    True,
+                    "Runtime shutdown in progress; tick-rate checks suppressed",
+                    severity="info",
+                )
+        except Exception:
+            pass
+
         now = time.time()
         elapsed = now - self._last_tick_at
         recent_samples = self._recent_tick_samples(now)
@@ -589,11 +671,12 @@ class StabilityGuardian:
         loop_lags = self._recent_loop_lags(now, self.EVENT_LOOP_LAG_WINDOW_S)
         max_loop_lag = max(loop_lags) if loop_lags else 0.0
         mean_loop_lag = (sum(loop_lags) / len(loop_lags)) if loop_lags else 0.0
+        loop_lag_threshold_ms = self._event_loop_lag_threshold_ms()
 
         severe_loop_lags = [
             (timestamp, lag_ms)
             for timestamp, lag_ms in self._loop_lag_samples
-            if (now - timestamp) <= self.EVENT_LOOP_LAG_WINDOW_S and lag_ms > self.MAX_EVENT_LOOP_LAG_MS
+            if (now - timestamp) <= self.EVENT_LOOP_LAG_WINDOW_S and lag_ms > loop_lag_threshold_ms
         ]
         latest_loop_lag_age = (
             now - max(timestamp for timestamp, _lag in severe_loop_lags)
@@ -612,7 +695,7 @@ class StabilityGuardian:
                 False,
                 (
                     f"Event loop lag is elevated: max={max_loop_lag:.0f}ms "
-                    f"(threshold {self.MAX_EVENT_LOOP_LAG_MS:.0f}ms)"
+                    f"(threshold {loop_lag_threshold_ms:.0f}ms)"
                 ),
                 severity="warning",
                 action_taken=(

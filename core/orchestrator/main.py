@@ -1093,7 +1093,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                     logger.info("✓ Event Loop Monitor active (reused from hardening)")
                 else:
                     from core.utils.concurrency import EventLoopMonitor
-                    loop_lag_threshold = 1.0 if _foreground_only_runtime() else 0.25
+                    loop_lag_threshold = 1.0 if _foreground_only_runtime() else 0.75
                     self._event_loop_monitor = EventLoopMonitor(threshold=loop_lag_threshold, interval=1.0)
                     self._event_loop_monitor.start()
                     logger.info("✓ Event Loop Monitor active")
@@ -1848,6 +1848,25 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                     error_goal = await error_goal
                 is_thinking = (t := self._current_thought_task) is not None and not t.done()
                 if error_goal and not is_thinking:
+                    try:
+                        from core.runtime.background_policy import background_activity_reason
+
+                        policy_reason = background_activity_reason(
+                            self,
+                            min_idle_seconds=180.0,
+                            max_memory_percent=78.0,
+                            max_failure_pressure=0.25,
+                            require_conversation_ready=False,
+                        )
+                        if policy_reason:
+                            logger.debug(
+                                "Terminal Monitor: Auto-fix deferred by background policy: %s",
+                                policy_reason,
+                            )
+                            return
+                    except Exception as policy_exc:
+                        record_degradation("main", policy_exc)
+                        logger.debug("Terminal Monitor policy probe failed: %s", policy_exc)
                     logger.info("🔧 Terminal Monitor: Auto-fix triggered")
                     
                     # Report to self-modifier for intelligence logging
@@ -1979,7 +1998,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
         response = await self.process_user_input_priority(user_text, origin="voice")
         
         if not response:
-            response = "I'm processing that thought. One moment."
+            response = "The voice turn did not produce a coherent reply; I logged the degraded output."
 
         # Log Aura's response to unified transcript
         try:

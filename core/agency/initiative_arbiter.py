@@ -86,6 +86,8 @@ class InitiativeArbiter:
     def __init__(self):
         self._selection_history: deque[ScoredInitiative] = deque(maxlen=_MAX_HISTORY)
         self._weights = dict(DEFAULT_WEIGHTS)
+        self._last_log_signature: str | None = None
+        self._last_log_at: float = 0.0
 
         # Attempt to load identity-derived weight overrides at init time.
         self._try_load_identity_weights()
@@ -97,7 +99,21 @@ class InitiativeArbiter:
 
         Returns None if there are no pending initiatives or all score <= 0.
         """
-        pending = getattr(state.cognition, "pending_initiatives", [])
+        pending = list(getattr(state.cognition, "pending_initiatives", []) or [])
+        if not pending:
+            return None
+
+        filtered = [initiative for initiative in pending if not _is_generic_reentry_goal(initiative)]
+        if len(filtered) != len(pending):
+            try:
+                state.cognition.pending_initiatives = filtered
+            except Exception:
+                pass
+            logger.debug(
+                "InitiativeArbiter: quarantined %d generic continuity re-entry initiative(s).",
+                len(pending) - len(filtered),
+            )
+        pending = filtered
         if not pending:
             return None
 
@@ -126,8 +142,18 @@ class InitiativeArbiter:
         best.rationale = "; ".join(rationale_parts)
 
         self._selection_history.append(best)
-        logger.info("InitiativeArbiter: %s", best.rationale)
+        self._log_selection(best)
         return best
+
+    def _log_selection(self, best: ScoredInitiative) -> None:
+        signature = _goal(best.initiative)
+        now = time.time()
+        if self._last_log_signature == signature and (now - self._last_log_at) < 30.0:
+            logger.debug("InitiativeArbiter: %s", best.rationale)
+            return
+        self._last_log_signature = signature
+        self._last_log_at = now
+        logger.info("InitiativeArbiter: %s", best.rationale)
 
     async def score_initiative(self, initiative: dict, state) -> ScoredInitiative:
         """Score a single initiative across all 8 dimensions."""
@@ -430,6 +456,19 @@ class InitiativeArbiter:
 def _goal(initiative: dict) -> str:
     """Extract a readable goal string from an initiative dict."""
     return initiative.get("goal", initiative.get("description", initiative.get("type", "unknown")))
+
+
+def _is_generic_reentry_goal(initiative: dict) -> bool:
+    try:
+        from core.continuity import _is_generic_continuity_reentry_goal
+
+        return _is_generic_continuity_reentry_goal(_goal(initiative))
+    except Exception:
+        lowered = " ".join(str(_goal(initiative) or "").strip().lower().split())
+        return (
+            "reconcile continuity gap" in lowered
+            or "re-establish the interrupted thread" in lowered
+        )
 
 
 # -- Singleton ---------------------------------------------------------------

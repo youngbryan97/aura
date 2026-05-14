@@ -41,6 +41,26 @@ def _classify_forwarded_log(source: str, message: str, severity: str) -> tuple[s
     ):
         return "warning", "background_degraded"
 
+    optional_dependency_sources = (
+        "aura.voiceengine",
+        "aura.socialmedia",
+        "twitteradapter",
+        "redditadapter",
+    )
+    optional_dependency_markers = (
+        "not installed",
+        "tts unavailable",
+        "stt unavailable",
+        "adapter disabled",
+        "connection disabled",
+        "no credentials configured",
+        "incomplete credentials",
+    )
+    if any(source in lowered_source for source in optional_dependency_sources) and any(
+        marker in lowered_message for marker in optional_dependency_markers
+    ):
+        return "warning", "background_degraded"
+
     if "generation deadline reached" in lowered_message and "llm.mlx" in lowered_source:
         return "warning", "foreground_blocking"
 

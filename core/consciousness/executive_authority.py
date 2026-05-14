@@ -23,6 +23,14 @@ def _normalize_text(text: Any) -> str:
     return " ".join(str(text or "").strip().split())
 
 
+def _is_generic_continuity_reentry_goal(text: Any) -> bool:
+    lowered = _normalize_text(text).lower()
+    return (
+        "reconcile continuity gap" in lowered
+        or "re-establish the interrupted thread" in lowered
+    )
+
+
 @dataclass
 class ExecutiveAuthoritySnapshot:
     last_action: str = "idle"
@@ -227,6 +235,13 @@ class ExecutiveAuthority:
             return state, self._record("rejected", "state_missing", source=source, goal=goal)
         if len(goal) < 4:
             return state, self._record("rejected", "empty_goal", source=source, goal=goal)
+        if _is_generic_continuity_reentry_goal(goal):
+            return state, self._record(
+                "rejected",
+                "generic_continuity_reentry_quarantined",
+                source=source,
+                goal=goal,
+            )
 
         current_objective = _normalize_text(getattr(state.cognition, "current_objective", ""))
         if current_objective and current_objective == goal:
@@ -378,7 +393,17 @@ class ExecutiveAuthority:
             record_degradation('executive_authority', exc)
             logger.debug("ExecutiveAuthority promotion fallback engaged: %s", exc)
 
-        initiative = dict(selected.initiative) if selected else dict(pending[0])
+        if selected:
+            initiative = dict(selected.initiative)
+        else:
+            pending = list(getattr(state.cognition, "pending_initiatives", []) or [])
+            if not pending:
+                return state, None, self._record(
+                    "rejected",
+                    "no_selectable_initiatives",
+                    source=source,
+                )
+            initiative = dict(pending[0])
 
         # ── Counterfactual deliberation ──────────────────────────────────
         # Before committing to this initiative, let the counterfactual engine

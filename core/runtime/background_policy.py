@@ -3,6 +3,7 @@ from core.runtime.errors import record_degradation
 
 
 import logging
+import os
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -12,6 +13,17 @@ import psutil
 from core.health.degraded_events import get_unified_failure_state
 
 logger = logging.getLogger(__name__)
+
+
+def _env_float(name: str, default: float) -> float:
+    raw = os.getenv(name)
+    if raw is None:
+        return float(default)
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        logger.debug("Invalid %s=%r; using %.1f", name, raw, default)
+        return float(default)
 
 _USER_FACING_ORIGIN_TOKENS = frozenset({
     "user",
@@ -143,6 +155,24 @@ def _last_user_interaction_time(orchestrator: Any = None) -> float:
     return 0.0
 
 
+def _runtime_uptime_seconds(orchestrator: Any = None) -> float:
+    if orchestrator is None:
+        return 0.0
+
+    candidates = [
+        getattr(orchestrator, "start_time", None),
+        getattr(getattr(orchestrator, "status", None), "start_time", None),
+    ]
+    for candidate in candidates:
+        try:
+            start = float(candidate or 0.0)
+        except (TypeError, ValueError):
+            continue
+        if start > 0.0:
+            return max(0.0, time.time() - start)
+    return 0.0
+
+
 def _foreground_activity_reason() -> str:
     try:
         from core.container import ServiceContainer
@@ -198,6 +228,11 @@ def background_activity_reason(
 
     orch = orchestrator
     if orch is not None:
+        boot_grace_s = _env_float("AURA_BACKGROUND_BOOT_GRACE_S", 300.0)
+        uptime_s = _runtime_uptime_seconds(orch)
+        if boot_grace_s > 0.0 and 0.0 < uptime_s < boot_grace_s:
+            return f"boot_grace_{int(uptime_s)}s"
+
         if bool(getattr(orch, "is_busy", False)):
             return "orchestrator_busy"
 

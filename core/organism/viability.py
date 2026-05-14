@@ -42,6 +42,7 @@ import asyncio
 import enum
 import logging
 import math
+import os
 import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Tuple
@@ -109,6 +110,7 @@ class ViabilitySample:
     user_interactions_last_hour: int
     incoherent_beliefs: int
     broken_subsystems: int
+    runtime_uptime_s: float = 0.0
     sampled_at: float = field(default_factory=time.time)
 
 
@@ -139,14 +141,22 @@ class ViabilityEngine:
 
     @staticmethod
     def _classify(sample: ViabilitySample) -> ViabilityState:
+        try:
+            boot_grace_s = float(os.getenv("AURA_VIABILITY_BOOT_GRACE_S", "300"))
+        except (TypeError, ValueError):
+            boot_grace_s = 300.0
+        in_boot_grace = boot_grace_s > 0.0 and 0.0 < sample.runtime_uptime_s < boot_grace_s
+        effective_broken = 0 if in_boot_grace and sample.broken_subsystems < 3 else sample.broken_subsystems
+        idle_starvation_counts = not in_boot_grace
+
         # Death: total subsystem failure or unrecoverable corruption.
-        if sample.broken_subsystems >= 6:
+        if effective_broken >= 6:
             return ViabilityState.DEAD
 
         # Injured: critical resource exhaustion or multiple broken subsystems.
         if (
             sample.disk_pct > 97.0
-            or sample.broken_subsystems >= 3
+            or effective_broken >= 3
             or sample.incoherent_beliefs >= 5
         ):
             return ViabilityState.INJURED
@@ -157,7 +167,7 @@ class ViabilityEngine:
             or sample.cpu_pct > 95.0
             or sample.error_rate_per_min > 12.0
             or sample.failed_tool_loops >= 4
-            or sample.broken_subsystems >= 1
+            or effective_broken >= 1
         ):
             return ViabilityState.DEGRADED
 
@@ -165,7 +175,11 @@ class ViabilityEngine:
         if (
             sample.ram_pct > 85.0
             or sample.unresolved_goals >= 8
-            or (sample.user_interactions_last_hour == 0 and sample.successful_goals_last_hour == 0)
+            or (
+                idle_starvation_counts
+                and sample.user_interactions_last_hour == 0
+                and sample.successful_goals_last_hour == 0
+            )
         ):
             return ViabilityState.STARVED
 
@@ -291,6 +305,7 @@ def _sample_from_container() -> ViabilitySample:
     interactions = 0
     incoherent = 0
     broken = 0
+    runtime_uptime = 0.0
     try:
         import psutil
         cpu = psutil.cpu_percent(interval=None)
@@ -303,6 +318,22 @@ def _sample_from_container() -> ViabilitySample:
         pass  # no-op: intentional
     try:
         from core.container import ServiceContainer
+        orch = ServiceContainer.get("orchestrator", default=None)
+        if orch is not None:
+            start = float(
+                getattr(orch, "start_time", None)
+                or getattr(getattr(orch, "status", None), "start_time", 0.0)
+                or 0.0
+            )
+            if start > 0.0:
+                runtime_uptime = max(0.0, time.time() - start)
+            last_user = float(
+                getattr(orch, "_last_user_interaction_time", None)
+                or getattr(getattr(orch, "status", None), "last_user_interaction_time", 0.0)
+                or 0.0
+            )
+            if last_user > 0.0 and (time.time() - last_user) <= 3600.0:
+                interactions = 1
         guardian = ServiceContainer.get("stability_guardian", default=None)
         if guardian is not None:
             r = getattr(guardian, "last_report", None)
@@ -328,6 +359,7 @@ def _sample_from_container() -> ViabilitySample:
         user_interactions_last_hour=interactions,
         incoherent_beliefs=incoherent,
         broken_subsystems=broken,
+        runtime_uptime_s=runtime_uptime,
     )
 
 

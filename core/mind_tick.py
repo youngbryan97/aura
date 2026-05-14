@@ -169,6 +169,22 @@ class MindTick:
 
     def _background_reasoning_pause_reason(self, state: Optional[AuraState] = None) -> str:
         try:
+            from core.runtime.background_policy import background_activity_reason
+
+            reason = background_activity_reason(
+                self.orchestrator,
+                min_idle_seconds=180.0,
+                max_memory_percent=78.0,
+                max_failure_pressure=0.25,
+                require_conversation_ready=False,
+            )
+            if reason:
+                return reason
+        except Exception as exc:
+            record_degradation('mind_tick', exc)
+            logger.debug("MindTick background policy probe failed: %s", exc)
+
+        try:
             flow = getattr(self.orchestrator, "_flow_controller", None)
             if flow is not None:
                 snap = flow.snapshot(self.orchestrator)
@@ -359,13 +375,32 @@ class MindTick:
 
                 # ── INITIATIVE ARBITRATION: Replace FIFO with scored selection ──
                 if not state.cognition.current_objective and state.cognition.pending_initiatives:
+                    initiative_pause = ""
+                    try:
+                        from core.runtime.background_policy import background_activity_reason
+
+                        initiative_pause = background_activity_reason(
+                            self.orchestrator,
+                            min_idle_seconds=180.0,
+                            max_memory_percent=78.0,
+                            max_failure_pressure=0.25,
+                            require_conversation_ready=False,
+                        )
+                        if initiative_pause:
+                            logger.debug("MindTick: initiative promotion paused: %s", initiative_pause)
+                    except Exception as exc:
+                        record_degradation("mind_tick", exc)
+                        logger.debug("MindTick: initiative background-policy probe failed: %s", exc)
+
                     # Cooldown: don't re-promote the same initiative within 30s
                     top_goal = ""
                     if state.cognition.pending_initiatives:
                         top_init = state.cognition.pending_initiatives[0]
                         top_goal = top_init.get("goal", "") if isinstance(top_init, dict) else str(top_init)
                     now_init = time.time()
-                    if top_goal == self._last_initiative_goal and (now_init - self._last_initiative_time) < self._initiative_cooldown:
+                    if initiative_pause:
+                        pass
+                    elif top_goal == self._last_initiative_goal and (now_init - self._last_initiative_time) < self._initiative_cooldown:
                         pass  # Skip — same initiative, still in cooldown
                     else:
                         from core.consciousness.executive_authority import get_executive_authority
@@ -444,6 +479,22 @@ class MindTick:
                     objective = str(current_state.cognition.current_objective or "").strip()
                     current_origin = str(getattr(current_state.cognition, "current_origin", "") or "").strip().lower()
                     quiet_until = float(getattr(self.orchestrator, "_foreground_user_quiet_until", 0.0) or 0.0)
+                    try:
+                        from core.continuity import _is_generic_continuity_reentry_goal
+
+                        if _is_generic_continuity_reentry_goal(objective):
+                            current_state.cognition.current_objective = None
+                            current_state.cognition.pending_initiatives = [
+                                item for item in list(getattr(current_state.cognition, "pending_initiatives", []) or [])
+                                if not _is_generic_continuity_reentry_goal(
+                                    item.get("goal", "") if isinstance(item, dict) else str(item)
+                                )
+                            ]
+                            logger.debug("💓 MindTick: Cleared generic continuity re-entry objective.")
+                            return current_state
+                    except Exception as exc:
+                        record_degradation("mind_tick", exc)
+                        logger.debug("MindTick continuity objective scrub failed: %s", exc)
                     if not objective:
                         return current_state
                     if current_origin in {"user", "voice", "admin", "api", "gui", "ws", "websocket", "direct", "external"}:

@@ -29,6 +29,11 @@ const state = {
     toolCatalog: [],
     uiFlags: [],
     lastToolEvent: null,
+    isSubmitting: false,
+    activeChatRequestId: null,
+    lastChatLatencyMs: null,
+    liveProofActive: null,
+    liveProofHistory: [],
     commitments: null,
     voiceSummary: null,
     desktopAccess: null,
@@ -45,7 +50,8 @@ const state = {
     cameraSignalActive: false,
     cameraSignalWanted: false,
     cameraSignalInterval: null,
-    cameraSignalCapture: null
+    cameraSignalCapture: null,
+    lastSystemRamPct: null
 };
 console.log(`%c AURA %c ${state.version} `, "color:white; background:#8a2be2; padding:2px 5px; border-radius:3px 0 0 3px;", "color:white; background:#1e1535; padding:2px 5px; border-radius:0 3px 3px 0;");
 
@@ -352,6 +358,10 @@ const DOM = {
         what: $('metric-guide-what'),
         how: $('metric-guide-how'),
         why: $('metric-guide-why')
+    },
+    liveProof: {
+        latency: $('live-proof-latency'),
+        receipt: $('live-proof-receipt')
     }
 };
 
@@ -1467,6 +1477,11 @@ function connect() {
         if (state.ws !== ws) return;
         try {
             const data = JSON.parse(e.data);
+            if (!state.connected) state.connected = true;
+            const toast = $('conn-toast');
+            if (toast && toast.classList.contains('show') && /connection lost|reconnecting/i.test(toast.textContent || '')) {
+                showConnToast(false);
+            }
             handleWsEvent(data);
         } catch (err) {
             console.error('[WS] Failed to parse WebSocket message:', err);
@@ -1655,10 +1670,15 @@ function handleWsEvent(data) {
     } else if (type === 'heartbeat') {
         if (!state.connected) {
             state.connected = true;
+            showConnToast(false);
             setConnectionVisual('online');
         }
     } else if (type === 'pong') {
         state.lastPong = Date.now();
+        if (!state.connected) {
+            state.connected = true;
+            showConnToast(false);
+        }
     }
 }
 
@@ -1980,6 +2000,15 @@ function updateSkillUI(skill, state) {
     }
 }
 
+function sanitizeThoughtMessage(message) {
+    const text = String(message == null ? '' : message);
+    const compact = text.replace(/\s+/g, ' ').trim();
+    if (/^(?:[?�]\s*){12,}$/.test(compact)) {
+        return 'Neural telemetry active; no semantic thought event in this low-band sample.';
+    }
+    return text;
+}
+
 function addThoughtCard(data) {
     const card = document.createElement('div');
     const level = data.level || '';
@@ -1991,7 +2020,7 @@ function addThoughtCard(data) {
 
     const ts = formatEventTimestamp(data.timestamp);
     const name = data.name || 'SYS';
-    const msg = data.message || data.content || JSON.stringify(data);
+    const msg = sanitizeThoughtMessage(data.message || data.content || JSON.stringify(data));
     const repeatCount = Math.max(1, Number(data.repeatCount || 1));
     const safeName = escHtml(name);
     const safeMsg = escHtml(msg).replace(/\n/g, '<br>');
@@ -2103,6 +2132,19 @@ function normalizePercentValue(value) {
     return Math.max(0, Math.min(100, scaled));
 }
 
+function setHudRamUsage(value, { source = 'telemetry' } = {}) {
+    const pct = normalizePercentValue(value);
+    if (pct == null) return;
+    // Some stream payloads use 0 as an omitted RAM placeholder. Preserve the
+    // last real system reading so the HUD does not flicker to a false 0%.
+    if (source !== 'health' && pct <= 0.1 && state.lastSystemRamPct != null && state.lastSystemRamPct > 1) {
+        return;
+    }
+    state.lastSystemRamPct = pct;
+    const ramEl = (DOM.telemetry && DOM.telemetry.ram) || $('hud-ram');
+    if (ramEl) ramEl.textContent = Math.round(pct) + '%';
+}
+
 function updateTelemetry(data) {
     if (!data) return;
     const t = DOM.telemetry;
@@ -2141,7 +2183,7 @@ function updateTelemetry(data) {
         t.pCore.className = normalized.p_core_usage > 50 ? 'status-ok pulsating' : '';
     }
     if (normalized.cpu_usage != null && t.cpu) t.cpu.textContent = Math.round(normalized.cpu_usage) + '%';
-    if (normalized.ram_usage != null && t.ram) t.ram.textContent = Math.round(normalized.ram_usage) + '%';
+    if (normalized.ram_usage != null) setHudRamUsage(normalized.ram_usage, { source: 'telemetry' });
 
     // Phase 7: Neural Dynamic VAD update
     if (normalized.vad && vadStream) {
@@ -2177,6 +2219,75 @@ function updateTelemetry(data) {
     refreshMetricGuide();
 }
 
+const LIVE_PROOF_PROMPTS = {
+    snake: 'Live runtime proof: independently create a simple playable Snake game as a real file at artifacts/live_runtime/generated/ui_snake.html. Use your governed coding and file tools, then report the file path, receipt, and how to run it.',
+    desktop: 'Live runtime proof: use your governed computer_use capability to open Calculator on this Mac, read or confirm the frontmost app state if available, then report the action receipt and any permission limits.',
+    novel: 'Live runtime proof: have a coherent conversation about a novel topic called glass arithmetic. Define its rules yourself, reason through one example, and avoid canned reset language.',
+    chain: 'Live runtime proof: perform a chained self-directed check. First create or update artifacts/live_runtime/generated/chain_note.txt with one sentence about what you are doing, then use a local desktop or shell observation if allowed, then answer with receipts and a concise continuity summary.'
+};
+
+function setLiveProofStatus(message, tone = 'idle') {
+    const receipt = DOM.liveProof && DOM.liveProof.receipt;
+    if (receipt) {
+        receipt.textContent = String(message || '');
+        receipt.dataset.tone = tone;
+    }
+}
+
+function setLatencyStatus(message, tone = 'idle') {
+    const latency = DOM.liveProof && DOM.liveProof.latency;
+    if (latency) {
+        latency.textContent = String(message || 'idle');
+        latency.dataset.tone = tone;
+    }
+}
+
+function recordChatLatency(requestId, latencyMs, ok) {
+    if (!Number.isFinite(latencyMs)) return;
+    state.lastChatLatencyMs = latencyMs;
+    const seconds = latencyMs / 1000;
+    const tone = ok ? (seconds > 90 ? 'warn' : 'ok') : 'error';
+    setLatencyStatus(`${seconds.toFixed(seconds >= 10 ? 0 : 1)}s`, tone);
+
+    fetch('/api/performance/ack', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ request_id: requestId, latency_ms: latencyMs }),
+    }).catch(() => {});
+}
+
+function submitPromptFromUi(prompt, proofLabel = null) {
+    const input = $('chat-input');
+    const form = $('chat-form');
+    if (!input || !form || !prompt) return;
+    if (proofLabel) {
+        state.liveProofActive = proofLabel;
+        setLiveProofStatus(`${proofLabel} proof running through Aura...`, 'running');
+    }
+    input.value = prompt;
+    input.style.height = 'auto';
+    input.style.height = Math.min(input.scrollHeight, 150) + 'px';
+    form.requestSubmit();
+}
+
+function sendMessage(message) {
+    submitPromptFromUi(message);
+}
+window.sendMessage = sendMessage;
+
+function initializeLiveProofPanel() {
+    document.querySelectorAll('[data-live-proof]').forEach(button => {
+        if (button.dataset.boundLiveProof === '1') return;
+        button.dataset.boundLiveProof = '1';
+        button.addEventListener('click', () => {
+            const key = button.dataset.liveProof;
+            const prompt = LIVE_PROOF_PROMPTS[key];
+            if (!prompt) return;
+            submitPromptFromUi(prompt, button.textContent.trim() || key);
+        });
+    });
+}
+
 // ── Chat ─────────────────────────────────────────────────
 $('chat-form').onsubmit = async e => {
     e.preventDefault();
@@ -2206,6 +2317,10 @@ $('chat-form').onsubmit = async e => {
     const controller = new AbortController();
     const requestTimeoutMs = conversationLaneRequestTimeoutMs(state.conversationLane);
     const timeoutId = window.setTimeout(() => controller.abort(), requestTimeoutMs);
+    const requestId = `chat_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const requestStartedAt = performance.now();
+    state.activeChatRequestId = requestId;
+    setLatencyStatus('running', 'running');
 
     try {
         const res = await fetch('/api/chat', {
@@ -2214,6 +2329,8 @@ $('chat-form').onsubmit = async e => {
             body: JSON.stringify({ message: msg }),
             signal: controller.signal,
         });
+        const latencyMs = performance.now() - requestStartedAt;
+        recordChatLatency(requestId, latencyMs, res.ok);
         const data = await res.json();
         if (data && data.conversation_lane) {
             applyConversationLane(data.conversation_lane, res.ok ? 'ok' : 'degraded');
@@ -2224,6 +2341,9 @@ $('chat-form').onsubmit = async e => {
                 appendMsg('aura', data.response);
             } else {
                 appendMsg('aura', '⚠ Communication error. Check connection.');
+            }
+            if (state.liveProofActive) {
+                setLiveProofStatus(`${state.liveProofActive} proof returned HTTP ${res.status}.`, 'error');
             }
             return;
         }
@@ -2242,8 +2362,16 @@ $('chat-form').onsubmit = async e => {
                 appendMsg('aura', data.response, false, chatMeta);
             }
         }
+        if (state.liveProofActive) {
+            const label = state.liveProofActive;
+            state.liveProofHistory.unshift({ label, requestId, latencyMs, ok: true, ts: Date.now() });
+            state.liveProofHistory = state.liveProofHistory.slice(0, 12);
+            setLiveProofStatus(`${label} proof completed in ${(latencyMs / 1000).toFixed(1)}s.`, 'ok');
+            state.liveProofActive = null;
+        }
     } catch (err) {
         console.error('[CHAT] Error sending message:', err);
+        recordChatLatency(requestId, performance.now() - requestStartedAt, false);
         if (err && err.name === 'AbortError') {
             const timedOutLane = Object.assign({}, state.conversationLane || {}, {
                 state: 'recovering',
@@ -2257,16 +2385,27 @@ $('chat-form').onsubmit = async e => {
             const msgs = (DOM.messages || $('messages'));
             const lastAuraMsg = msgs ? msgs.querySelector('.msg.aura:last-of-type') : null;
             const lastAuraText = lastAuraMsg ? (lastAuraMsg.textContent || '').trim() : '';
-            const alreadyShowingRecovery = lastAuraText.includes('took too long') || lastAuraText.includes('respond faster');
+            const alreadyShowingRecovery = lastAuraText.includes('timeout') || lastAuraText.includes('degraded');
             if (!streamedReplyInFlight && !alreadyShowingRecovery) {
-                appendMsg('aura', 'That took too long on my end. Try sending your message again \u2014 I should respond faster this time.');
+                appendMsg('aura', 'The live reply timed out before a coherent answer reached the UI. The degraded turn is recorded.');
+            }
+            if (state.liveProofActive) {
+                setLiveProofStatus(`${state.liveProofActive} proof timed out before a coherent UI response.`, 'error');
+                state.liveProofActive = null;
             }
         } else {
             appendMsg('aura', '⚠ Communication error. Check connection.');
+            if (state.liveProofActive) {
+                setLiveProofStatus(`${state.liveProofActive} proof hit a connection error.`, 'error');
+                state.liveProofActive = null;
+            }
         }
     } finally {
         window.clearTimeout(timeoutId);
         state.isSubmitting = false;
+        if (state.activeChatRequestId === requestId) {
+            state.activeChatRequestId = null;
+        }
         // Note: Typing indicator is usually cleared when the WS 'aura_message' arrives.
         $('typing-ind').classList.remove('show');
     }
@@ -2591,19 +2730,24 @@ function showConnToast(mode) {
     if (mode === false) {
         // Hide
         toast.classList.remove('show', 'reconnected');
+        toast.textContent = '';
+        toast.setAttribute('aria-hidden', 'true');
     } else if (mode === 'reconnected') {
         // Brief green "reconnected" toast
         toast.textContent = '✓ Connection restored';
+        toast.setAttribute('aria-hidden', 'false');
         toast.classList.remove('show'); // reset
         toast.classList.add('reconnected');
         requestAnimationFrame(() => toast.classList.add('show'));
         _connToastTimer = setTimeout(() => {
             toast.classList.remove('show', 'reconnected');
-            toast.textContent = '⚠ Connection lost — reconnecting…';
+            toast.textContent = '';
+            toast.setAttribute('aria-hidden', 'true');
         }, 2500);
     } else {
         // Show disconnect toast
         toast.textContent = '⚠ Connection lost — reconnecting…';
+        toast.setAttribute('aria-hidden', 'false');
         toast.classList.remove('reconnected');
         toast.classList.add('show');
     }
@@ -2619,11 +2763,13 @@ function showBriefNotification(message, durationMs = 3000) {
         _briefToastTimer = null;
     }
     toast.textContent = message;
+    toast.setAttribute('aria-hidden', 'false');
     toast.classList.remove('reconnected');
     toast.classList.add('show');
     _briefToastTimer = setTimeout(() => {
         toast.classList.remove('show');
         toast.textContent = '';
+        toast.setAttribute('aria-hidden', 'true');
     }, durationMs);
 }
 
@@ -2762,8 +2908,7 @@ async function pollHealth() {
         const cpuEl = $('hud-cpu');
         if (cpuEl) cpuEl.textContent = Math.round(d.cpu_usage || 0) + '%';
         
-        const ramEl = $('hud-ram');
-        if (ramEl) ramEl.textContent = Math.round(d.ram_usage || 0) + '%';
+        setHudRamUsage(d.ram_usage, { source: 'health' });
         
         const pcoreEl = $('hud-pcore');
         const pcoreVal = d.cortex ? d.cortex.p_core_usage : 0;
@@ -3054,11 +3199,9 @@ async function pollHealth() {
         }
 
         if (d.ram_usage != null) {
-            const ramEl = $('hud-ram');
-            if (ramEl) ramEl.textContent = d.ram_usage + '%';
+            setHudRamUsage(d.ram_usage, { source: 'health' });
         } else if (d.runtime && d.runtime.memory_percent != null) {
-            const ramEl = $('hud-ram');
-            if (ramEl) ramEl.textContent = d.runtime.memory_percent + '%';
+            setHudRamUsage(d.runtime.memory_percent, { source: 'health' });
         }
 
         if (d.privacy && (!state._privacyLockUntil || Date.now() > state._privacyLockUntil)) {
@@ -3710,6 +3853,7 @@ if ('serviceWorker' in navigator) {
 setConnectionVisual('booting');
 hydrateBootstrap({ hydrateConversationHistory: true, quiet: true });
 initializeMetricGuide();
+initializeLiveProofPanel();
 renderNeuralFeedMode();
 if (DOM.neuralPauseToggle) {
     DOM.neuralPauseToggle.addEventListener('click', toggleNeuralVisualPause);

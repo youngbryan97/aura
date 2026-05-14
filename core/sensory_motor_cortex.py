@@ -212,9 +212,25 @@ class SensoryMotorCortex:
         orch = self.orchestrator
         if orch is not None:
             try:
-                from core.runtime.background_policy import _foreground_activity_reason
+                from core.runtime.background_policy import (
+                    THOUGHT_BACKGROUND_POLICY,
+                    _foreground_activity_reason,
+                    background_activity_reason,
+                )
 
                 if _foreground_activity_reason():
+                    self.last_interaction_time = max(self.last_interaction_time, now)
+                    return False
+                policy_reason = background_activity_reason(
+                    orch,
+                    profile=THOUGHT_BACKGROUND_POLICY,
+                    min_idle_seconds=max(180.0, float(self.boredom_threshold_seconds)),
+                    max_memory_percent=78.0,
+                    max_failure_pressure=0.25,
+                    require_conversation_ready=True,
+                )
+                if policy_reason:
+                    logger.debug("SensoryMotorCortex: idle volition deferred: %s", policy_reason)
                     self.last_interaction_time = max(self.last_interaction_time, now)
                     return False
             except Exception:

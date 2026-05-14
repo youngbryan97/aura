@@ -6,6 +6,7 @@ from core.utils.task_tracker import get_task_tracker
 import asyncio
 import json
 import logging
+import os
 import time
 import uuid
 from dataclasses import dataclass
@@ -16,6 +17,28 @@ from typing import Any, Dict, List, Optional
 from core.runtime import background_policy
 
 logger = logging.getLogger("Aura.ResearchCycle")
+
+
+def _env_float(name: str, default: float) -> float:
+    raw = os.getenv(name)
+    if raw is None:
+        return float(default)
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        logger.debug("Invalid %s=%r; using %.1f", name, raw, default)
+        return float(default)
+
+
+def _env_int(name: str, default: int) -> int:
+    raw = os.getenv(name)
+    if raw is None:
+        return int(default)
+    try:
+        return max(1, int(raw))
+    except (TypeError, ValueError):
+        logger.debug("Invalid %s=%r; using %d", name, raw, default)
+        return int(default)
 
 
 # ── Completed research record ─────────────────────────────────────────────────
@@ -96,6 +119,7 @@ class ResearchCycle:
         self._running = False
         self._task: Optional[asyncio.Task] = None
         self._last_cycle_mono: float = 0.0
+        self._started_mono: float = monotonic()
         self._cycle_count: int = 0
         self._history: List[ResearchRecord] = []
 
@@ -157,6 +181,11 @@ class ResearchCycle:
         """Check all conditions before starting a research cycle."""
         # 1. Rate limiting
         now = monotonic()
+        boot_grace_s = _env_float("AURA_RESEARCH_BOOT_GRACE_S", 300.0)
+        started_mono = float(getattr(self, "_started_mono", 0.0) or 0.0)
+        if boot_grace_s > 0.0 and started_mono > 0.0 and (now - started_mono) < boot_grace_s:
+            return False
+
         if self._last_cycle_mono and now - self._last_cycle_mono < self.MIN_CYCLE_INTERVAL_S:
             return False
 
@@ -544,6 +573,7 @@ class ResearchCycle:
                     content_str = str(fact)[:500]
                     kg.add_knowledge(
                         content    = content_str,
+                        type       = "research_finding",
                         source     = f"autonomous_research:{drive}",
                         confidence = 0.75,
                     )
@@ -646,10 +676,26 @@ class ResearchCycle:
         Dreams consolidate knowledge across multiple research cycles into
         deeper identity evolution.
         """
-        if self._cycle_count % 3 != 0:  # Every 3rd cycle
+        dream_interval = _env_int("AURA_RESEARCH_DREAM_INTERVAL_CYCLES", 12)
+        if self._cycle_count % dream_interval != 0:
             return
 
         try:
+            reason = background_policy.background_activity_reason(
+                self.orchestrator,
+                profile=background_policy.MAINTENANCE_BACKGROUND_POLICY,
+                min_idle_seconds=max(600.0, background_policy.MAINTENANCE_BACKGROUND_POLICY.min_idle_seconds),
+                max_failure_pressure=0.35,
+                require_conversation_ready=True,
+            )
+            if reason:
+                logger.info(
+                    "ResearchCycle: deferred dream pass after %d cycles (%s).",
+                    self._cycle_count,
+                    reason,
+                )
+                return
+
             from core.container import ServiceContainer
             dreamer = ServiceContainer.get("dreamer_v2", default=None)
             if dreamer and hasattr(dreamer, "engage_sleep_cycle"):

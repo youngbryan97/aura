@@ -226,6 +226,24 @@ class ProactivePresence:
         """Gate: should Aura consider speaking right now?"""
         now = time.time()
 
+        try:
+            from core.runtime.background_policy import background_activity_reason
+
+            reason = background_activity_reason(
+                self.orchestrator,
+                min_idle_seconds=CHECKIN_IDLE_SECONDS if queued else IDLE_THRESHOLD_SECONDS,
+                max_memory_percent=80.0,
+                max_failure_pressure=0.18,
+                require_conversation_ready=False,
+                allow_no_user_anchor=False,
+            )
+            if reason:
+                logger.debug("[ProactivePresence] Held by background policy: %s", reason)
+                return False
+        except Exception as exc:
+            record_degradation("proactive_presence", exc)
+            logger.debug("[ProactivePresence] Background policy check failed: %s", exc)
+
         quiet_until = float(getattr(self.orchestrator, "_suppress_unsolicited_proactivity_until", 0.0) or 0.0)
         if quiet_until > now:
             return False
@@ -818,6 +836,25 @@ class ProactivePresence:
 
         if len(content) < 5:
             return
+
+        if visible_presence:
+            try:
+                from core.runtime.background_policy import background_activity_reason
+
+                reason = background_activity_reason(
+                    self.orchestrator,
+                    min_idle_seconds=IDLE_THRESHOLD_SECONDS,
+                    max_memory_percent=80.0,
+                    max_failure_pressure=0.18,
+                    require_conversation_ready=False,
+                    allow_no_user_anchor=False,
+                )
+                if reason:
+                    logger.debug("[ProactivePresence] Visible emission held by background policy: %s", reason)
+                    return
+            except Exception as exc:
+                record_degradation("proactive_presence", exc)
+                logger.debug("[ProactivePresence] Visible emission policy check failed: %s", exc)
 
         # Quality gate — reject anything that doesn't sound like natural speech
         if not self._is_valid_spontaneous_output(content):

@@ -1045,12 +1045,14 @@ async def test_initialize_allows_opt_in_eager_warmup():
     gate = InferenceGate()
     client = MagicMock()
     client.warmup = AsyncMock()
+    vm = MagicMock(total=64 * 1024 ** 3, available=42 * 1024 ** 3, percent=34.0)
 
     with patch.dict(os.environ, {"AURA_EAGER_CORTEX_WARMUP": "1"}, clear=False):
-        with patch("core.brain.llm.mlx_client.get_mlx_client", return_value=client):
-            with patch("core.brain.llm.model_registry.get_model_path", return_value="/models/active"):
-                with patch("core.brain.llm.model_registry.ACTIVE_MODEL", "ACTIVE"):
-                    await gate.initialize()
+        with patch("core.brain.inference_gate.psutil.virtual_memory", return_value=vm):
+            with patch("core.brain.llm.mlx_client.get_mlx_client", return_value=client):
+                with patch("core.brain.llm.model_registry.get_model_path", return_value="/models/active"):
+                    with patch("core.brain.llm.model_registry.ACTIVE_MODEL", "ACTIVE"):
+                        await gate.initialize()
 
     client.warmup.assert_awaited_once()
     if gate._maintenance_task:
@@ -1299,6 +1301,71 @@ def test_secondary_headroom_snapshot_allows_measured_64gb_solver_envelope(monkey
     assert snapshot["max_pressure_pct"] == 86.0
     assert snapshot["min_available_gb"] == 10.0
     assert snapshot["can_admit"] is True
+
+
+def test_cortex_cold_warmup_requires_real_available_memory(monkeypatch):
+    monkeypatch.delenv("AURA_FORCE_CORTEX_WARMUP_UNDER_PRESSURE", raising=False)
+    monkeypatch.delenv("AURA_CORTEX_COLD_WARMUP_MIN_AVAILABLE_GB", raising=False)
+    monkeypatch.setattr(
+        "core.brain.inference_gate.psutil.virtual_memory",
+        lambda: SimpleNamespace(
+            percent=55.0,
+            total=64 * 1024 ** 3,
+            available=int(28.0 * 1024 ** 3),
+        ),
+    )
+
+    snapshot = InferenceGate._cortex_warmup_admission_snapshot("background")
+
+    assert snapshot["can_admit"] is False
+    assert snapshot["min_available_gb"] == 32.0
+    assert "memory_pressure" in snapshot["reason"]
+
+
+@pytest.mark.asyncio
+async def test_cortex_recovery_does_not_spawn_under_memory_pressure(monkeypatch):
+    gate = InferenceGate()
+    client = _LaneWarmupClient()
+    client.is_alive = MagicMock(return_value=False)
+    gate._mlx_client = client
+    monkeypatch.setattr(
+        "core.brain.inference_gate.psutil.virtual_memory",
+        lambda: SimpleNamespace(
+            percent=88.0,
+            total=64 * 1024 ** 3,
+            available=int(7.0 * 1024 ** 3),
+        ),
+    )
+    monkeypatch.setattr(InferenceGate, "_foreground_user_turn_active", staticmethod(lambda: False))
+    monkeypatch.setattr(InferenceGate, "_foreground_owner_active", staticmethod(lambda: False))
+
+    await gate._ensure_cortex_recovery()
+
+    client.warmup.assert_not_awaited()
+    assert gate._cortex_recovery_in_progress is False
+
+
+@pytest.mark.asyncio
+async def test_foreground_ready_refuses_cold_cortex_spawn_without_headroom(monkeypatch):
+    gate = InferenceGate()
+    client = _LaneWarmupClient()
+    gate._mlx_client = client
+    gate._shed_background_workers_for_memory_pressure = AsyncMock()
+    monkeypatch.setattr(
+        "core.brain.inference_gate.psutil.virtual_memory",
+        lambda: SimpleNamespace(
+            percent=83.0,
+            total=64 * 1024 ** 3,
+            available=int(10.0 * 1024 ** 3),
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="foreground_warmup_deferred"):
+        await gate.ensure_foreground_ready(timeout=15.0)
+
+    gate._shed_background_workers_for_memory_pressure.assert_awaited_once()
+    client.warmup.assert_not_awaited()
+    assert client.last_error == "foreground_warmup_deferred_memory_pressure"
 
 
 def test_desktop_safe_boot_still_schedules_deferred_cortex_prewarm(monkeypatch):

@@ -93,10 +93,20 @@ def _require_internal(request: Request) -> None:
 
 # ── Token verification ───────────────────────────────────────
 
-def _verify_token(x_api_token: Optional[str] = Header(default=None)) -> None:
+def _verify_token(request: Request, x_api_token: Optional[str] = Header(default=None)) -> None:
     """Bearer-token check. Ensures fail-closed unless running in strict internal_only_mode."""
     expected = config.api_token
     internal_only = getattr(config.security, "internal_only_mode", False)
+    host = _request_host(request)
+
+    if _is_trusted_local_host(host) and not x_api_token:
+        # Local desktop operation is already covered by the runtime security
+        # request gate. Let same-host UI/probe calls hit governed skill routes
+        # without forcing a second hidden token path.
+        if not getattr(_verify_token, '_warned_local', False):
+            logger.warning("AURA_API_TOKEN not supplied for trusted local request.")
+            _verify_token._warned_local = True
+        return
 
     if not expected:
         # Only allow missing token if we are strictly bound to localhost

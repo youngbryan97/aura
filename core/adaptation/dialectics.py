@@ -99,6 +99,22 @@ Return ONLY the final synthesized belief.
         Executes the full dialectical process. 
         Should be called by the SovereignSwarm or AgencyCore when a high-curiosity goal completes.
         """
+        try:
+            from core.runtime.background_policy import THOUGHT_BACKGROUND_POLICY, background_activity_reason
+
+            orch = ServiceContainer.get("orchestrator", default=None)
+            reason = background_activity_reason(
+                orch,
+                profile=THOUGHT_BACKGROUND_POLICY,
+                require_conversation_ready=True,
+            )
+            if reason:
+                logger.info("⏸️ Crucible deferred for '%s' (%s).", concept[:50], reason)
+                return {"ok": False, "reason": reason}
+        except Exception as exc:
+            record_degradation("dialectical_crucible", exc)
+            logger.debug("Crucible background-policy check failed: %s", exc)
+
         if self._active_debates >= self.max_concurrent_debates:
             logger.warning("Crucible at capacity. Skipping dialectic for: %s", concept[:30])
             return {"ok": False, "reason": "capacity"}

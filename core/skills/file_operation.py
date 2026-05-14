@@ -89,6 +89,7 @@ class FileOperationSkill(BaseSkill):
                 
             elif action == "write":
                 def _write():
+                    os.makedirs(os.path.dirname(full_path) or self.root_dir, exist_ok=True)
                     with open(full_path, "w", encoding='utf-8') as f:
                         f.write(content)
                 
@@ -97,6 +98,7 @@ class FileOperationSkill(BaseSkill):
                 
             elif action == "append":
                  def _append():
+                     os.makedirs(os.path.dirname(full_path) or self.root_dir, exist_ok=True)
                      with open(full_path, "a", encoding='utf-8') as f:
                         f.write(content + "\n")
                  

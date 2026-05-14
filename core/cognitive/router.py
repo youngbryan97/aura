@@ -110,3 +110,29 @@ class IntentRouter:
             analysis.requires_live_aura_voice,
         )
         return routed_intent
+
+    async def route_execution(
+        self,
+        skill_name: str,
+        params: Optional[Dict[str, Any]] = None,
+        engine: Any = None,
+    ) -> Dict[str, Any]:
+        """Execute a concrete skill through the governed capability engine.
+
+        The UI skill button path is already past intent classification: the
+        operator selected a named skill and supplied typed params. Keeping this
+        adapter here lets `/api/skill/execute` use the same registered router
+        without inventing a parallel executor or bypassing CapabilityEngine.
+        """
+        capability_engine = engine or optional_service("capability_engine", default=None)
+        if capability_engine is None or not hasattr(capability_engine, "execute"):
+            return {
+                "ok": False,
+                "error": "Capability engine unavailable for routed skill execution.",
+                "skill": str(skill_name or ""),
+            }
+        return await capability_engine.execute(
+            str(skill_name or "").strip(),
+            dict(params or {}),
+            context={"origin": "api", "route": "intent_router.route_execution"},
+        )

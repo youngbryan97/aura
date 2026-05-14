@@ -739,7 +739,7 @@ class IntelligentLLMRouter:
 
         if not prompt:
             logger.error("IntelligentLLMRouter.think called without prompt or messages!")
-            return "I approach this with genuine curiosity, yet I've encountered a cognitive disconnect. Let's try that again."
+            return "The language router received no prompt, so it blocked the empty generation path and logged the fault."
 
         origin = str(kwargs.get("origin", "")).lower()
         is_background = bool(kwargs.get("is_background", False)) or any(

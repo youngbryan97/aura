@@ -243,7 +243,7 @@ class TwitterAdapter(PlatformAdapter):
         try:
             import tweepy  # type: ignore
         except ImportError:
-            logger.error("TwitterAdapter: tweepy not installed. Run: pip install tweepy")
+            logger.warning("TwitterAdapter: tweepy not installed. Twitter platform disabled.")
             return
 
         def _env(key: str) -> Optional[str]:
@@ -282,7 +282,7 @@ class TwitterAdapter(PlatformAdapter):
                 mode = "read-write" if self._rw_capable else "read-only"
                 logger.info("✅ TwitterAdapter: connected as @%s (%s)", self._me.username, mode)
         except Exception as exc:
-            logger.error("TwitterAdapter: connection failed — %s", exc)
+            logger.warning("TwitterAdapter: connection disabled — %s", exc)
 
     # Async wrappers (all tweepy calls are blocking; we push them to executor)
     async def post(self, content: str, reply_to_id: Optional[str] = None) -> Optional[str]:
@@ -416,7 +416,7 @@ class RedditAdapter(PlatformAdapter):
         try:
             import praw  # type: ignore
         except ImportError:
-            logger.error("RedditAdapter: praw not installed. Run: pip install praw")
+            logger.warning("RedditAdapter: praw not installed. Reddit platform disabled.")
             return
 
         def _env(key: str) -> Optional[str]:
@@ -446,7 +446,7 @@ class RedditAdapter(PlatformAdapter):
                 self._connected = True
                 logger.info("✅ RedditAdapter: connected as u/%s", self._me_name)
         except Exception as exc:
-            logger.error("RedditAdapter: connection failed — %s", exc)
+            logger.warning("RedditAdapter: connection disabled — %s", exc)
 
     async def post(
         self,

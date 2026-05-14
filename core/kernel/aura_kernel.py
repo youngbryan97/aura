@@ -709,6 +709,22 @@ class AuraKernel:
         if state is None:
             raise RuntimeError("Kernel ticked before state initialization")
         turn_origin = self._normalize_origin(getattr(getattr(state, "cognition", None), "current_origin", ""))
+        try:
+            from core.continuity import _is_generic_continuity_reentry_goal
+
+            if not priority and _is_generic_continuity_reentry_goal(objective):
+                state.cognition.current_objective = None
+                state.cognition.pending_initiatives = [
+                    item for item in list(getattr(state.cognition, "pending_initiatives", []) or [])
+                    if not _is_generic_continuity_reentry_goal(
+                        item.get("goal", "") if isinstance(item, dict) else str(item)
+                    )
+                ]
+                logger.debug("Kernel: skipped generic continuity re-entry bookkeeping objective.")
+                return None
+        except Exception as exc:
+            record_degradation("aura_kernel", exc)
+            logger.debug("Kernel continuity objective scrub failed: %s", exc)
 
         # [PRIORITY PREEMPTION] Signal that a user-facing tick is waiting.
         # Background ticks check this flag between phases and yield early.

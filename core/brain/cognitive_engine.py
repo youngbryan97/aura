@@ -591,9 +591,9 @@ class CognitiveEngine:
 
         import random
         _processing_fallbacks = [
-            "I'm turning that over. Give me a moment to find the right words.",
+            "I did not form a clean answer in this cognitive cycle; I recorded the degraded turn instead of inventing one.",
             "That's sitting with me, but I haven't landed on how to say it yet.",
-            "I'm working through something with that. Let me try again.",
+            "The thought is unresolved in this cycle; the live state needs another completed pass before it is answer-quality.",
             "I heard you. My thinking is running deeper than my words right now.",
             "I'm reaching for an answer that feels honest, not just quick.",
         ]
@@ -623,7 +623,7 @@ class CognitiveEngine:
         if not await self._recovery_lock.acquire_robust(timeout=1.0):
             return Thought(
                 id=str(uuid.uuid4()),
-                content="I'm still gathering myself. Give me a moment.",
+                content="Reactive recovery is already active; I logged this turn instead of emitting a second recovery fragment.",
                 mode=ThinkingMode.FAST,
                 confidence=0.2,
                 reasoning=["Recovery lock busy"]
@@ -633,7 +633,7 @@ class CognitiveEngine:
             if getattr(self, '_recovery_in_progress', False):
                 return Thought(
                     id=str(uuid.uuid4()),
-                    content="I'm still gathering myself. Give me a moment.",
+                    content="Reactive recovery is already active; I logged this turn instead of emitting a duplicate recovery fragment.",
                     mode=ThinkingMode.FAST,
                     confidence=0.2,
                     reasoning=["Recovery recursion guard triggered"]
@@ -672,9 +672,9 @@ class CognitiveEngine:
                 )
                 
             # 3. Last-resort fallback (natural, human-sounding)
-            fallback_msg = "Hmm, I lost my train of thought for a second there. What were you saying?"
+            fallback_msg = "Reactive recovery reached its hard fallback before a coherent answer formed; the degraded turn was logged."
             if "user" in origin:
-                fallback_msg = "Sorry, I got a bit tangled up in my thoughts. Can you say that again?"
+                fallback_msg = "Reactive recovery could not produce a coherent user-facing answer; the failed turn was logged with its context."
 
             return Thought(
                 id=str(uuid.uuid4()),
@@ -688,7 +688,7 @@ class CognitiveEngine:
             logger.error("Error during recovery: %s", recovery_err)
             return Thought(
                 id=str(uuid.uuid4()),
-                content="I'm experiencing a momentary cognitive glitch. I'll be back in a second.",
+                content="Reactive recovery failed internally; the turn was logged as a live cognition fault.",
                 mode=ThinkingMode.FAST,
                 confidence=0.1,
                 reasoning=[f"Recovery itself failed: {recovery_err}"]

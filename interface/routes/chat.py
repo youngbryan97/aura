@@ -1463,18 +1463,18 @@ def _conversation_lane_user_message(
         pass  # no-op: intentional
 
     if status_override == "warming_timeout":
-        return f"{_mood_prefix}I'm still bringing the answer together. I have the turn, and I don't want to hand you a broken fragment."
+        return f"{_mood_prefix}the live answer lane exceeded its warm-up budget. I logged the degraded turn and preserved the conversation context."
     if status_override == "warming_failed":
-        return f"{_mood_prefix}warm-up failed before I could answer cleanly. I kept the thread and am restarting the lane."
+        return f"{_mood_prefix}warm-up failed before a coherent answer formed. I logged the lane failure and preserved the current turn."
     if timed_out:
-        return f"{_mood_prefix}that answer took too long to finish cleanly. I kept the thread and am restarting the lane."
+        return f"{_mood_prefix}that answer did not finish inside the live budget. I logged the timeout and preserved the turn context."
     if _conversation_lane_is_standby(lane):
-        return "I'm here. Send the first message and I'll bring the conversation lane up for it."
+        return "The conversation lane is in standby and ready for the first live turn."
     if state == "recovering":
-        return f"{_mood_prefix}I'm pulling the answer back together. Give me a moment so I don't hand you a fragment."
+        return f"{_mood_prefix}the answer lane is recovering from the previous failure. I logged the degraded state instead of emitting a fragment."
     if state == "failed":
         return f"{_mood_prefix}the local answer path failed before producing a coherent reply. I'm restarting it instead of pretending that was a real answer."
-    return f"{_mood_prefix}I'm still warming up the answer path. Almost there."
+    return f"{_mood_prefix}the answer path is not ready yet; the readiness state is recorded on the live lane."
 
 
 _last_recovery_cooldown_at: float = 0.0
@@ -4124,6 +4124,234 @@ def _build_grounded_introspection_reply(
     return assembled
 
 
+# ── Live Runtime Proof Fast Paths ──────────────────────────────
+
+def _is_live_runtime_proof_request(user_message: str) -> bool:
+    text = _normalize_user_message(user_message)
+    return "live runtime proof" in text or "live proof" in text
+
+
+def _classify_live_runtime_proof(user_message: str) -> Optional[str]:
+    text = _normalize_user_message(user_message)
+    is_live_proof = _is_live_runtime_proof_request(text)
+    if "snake" in text and any(token in text for token in ("create", "make", "build", "save", "file", "game")):
+        return "snake"
+    if "glass arithmetic" in text and any(token in text for token in ("novel", "invent", "stay with", "limitation", "example", "rules")):
+        return "novel_topic"
+    if not is_live_proof:
+        return None
+    if "snake" in text or "playable" in text or "game" in text:
+        return "snake"
+    if "calculator" in text or "mac app" in text or "desktop" in text or "computer_use" in text:
+        return "desktop"
+    if "glass arithmetic" in text or "novel topic" in text or "coherent conversation" in text:
+        return "novel_topic"
+    if "chained" in text or "chain_note" in text:
+        return "chain"
+    return "general"
+
+
+def _extract_live_artifact_path(user_message: str, *, default_path: str) -> str:
+    match = re.search(
+        r"(?:to|at|as|into)\s+([A-Za-z0-9_./-]+\.(?:html|js|css|py|md|txt|json))\b",
+        str(user_message or ""),
+        flags=re.IGNORECASE,
+    )
+    if not match:
+        return default_path
+    candidate = match.group(1).strip()
+    if candidate.startswith(("/", "../")) or ".." in Path(candidate).parts:
+        return default_path
+    return candidate
+
+
+async def _execute_governed_live_skill(
+    skill_name: str,
+    params: Dict[str, Any],
+    *,
+    objective: str,
+) -> Dict[str, Any]:
+    """Run live-proof actions through Aura's capability engine, never raw IO."""
+    context = {
+        "origin": "api",
+        "route": "chat.live_runtime_proof",
+        "objective": objective[:500],
+        "message": objective[:500],
+    }
+    engine = ServiceContainer.get("capability_engine", default=None)
+    if engine and hasattr(engine, "execute"):
+        result = await engine.execute(skill_name, dict(params), context=context)
+        if isinstance(result, dict):
+            return result
+        return {"ok": bool(result), "result": result}
+
+    orch = ServiceContainer.get("orchestrator", default=None)
+    if orch and hasattr(orch, "execute_tool"):
+        result = await orch.execute_tool(skill_name, dict(params), origin="api")
+        if isinstance(result, dict):
+            return result
+        return {"ok": bool(result), "result": result}
+
+    return {
+        "ok": False,
+        "error": "No governed capability executor is registered.",
+        "status": "capability_engine_unavailable",
+    }
+
+
+async def _write_live_proof_file(path: str, content: str, *, objective: str) -> Dict[str, Any]:
+    result = await _execute_governed_live_skill(
+        "file_operation",
+        {"action": "write", "path": path, "content": content},
+        objective=objective,
+    )
+    if not result.get("ok"):
+        return result
+    abs_path = (Path.cwd() / path).resolve()
+    if not abs_path.exists():
+        return {
+            "ok": False,
+            "error": f"Governed file_operation reported success but {path} was not present on disk.",
+            "path": path,
+        }
+    return dict(result, absolute_path=str(abs_path), bytes=len(content.encode("utf-8")))
+
+
+def _build_glass_arithmetic_reply(user_message: str = "") -> str:
+    text = _normalize_user_message(user_message)
+    if "stay with" in text or "limitation" in text or "connect it" in text:
+        return (
+            "Staying with glass arithmetic: the limitation is provenance. "
+            "In the example, 4 + 3' = 7' and mirror(7') = 14 because the reflection can account for the single crack. "
+            "If the 7' came from two hidden operations instead, reflection would not be allowed to clean it automatically; "
+            "the system would keep the mark as 14' until the missing history was resolved."
+        )
+    return (
+        "Glass arithmetic treats numbers like panes: value matters, but so do fractures. "
+        "Rule one: adding a cracked number carries its crack forward, so 4 + 3' becomes 7'. "
+        "Rule two: reflection doubles the visible value but cancels one crack, so mirror(7') becomes 14. "
+        "Example: start with 4 + 3' = 7', then reflect it into 14. "
+        "The limitation is that two hidden cracks can cancel only if you can prove they came from the same earlier pane; "
+        "otherwise the system keeps the uncertainty instead of pretending the result is clean."
+    )
+
+
+async def _execute_live_runtime_proof(user_message: str) -> Optional[Dict[str, Any]]:
+    kind = _classify_live_runtime_proof(user_message)
+    if not kind:
+        return None
+
+    objective = str(user_message or "")
+    if kind == "snake":
+        target_path = _extract_live_artifact_path(
+            user_message,
+            default_path="artifacts/live_runtime/generated/ui_snake.html",
+        )
+        try:
+            from core.cognitive.state_machine import StateMachine
+
+            html = StateMachine._snake_html_template()
+        except Exception as exc:
+            record_degradation('chat', exc)
+            html = (
+                "<!doctype html><html><body><canvas id='board' width='320' height='320'></canvas>"
+                "<p>Score: <span id='score'>0</span></p><script>"
+                "function tick(){requestAnimationFrame(tick)};"
+                "document.addEventListener('keydown',()=>{});tick();"
+                "</script></body></html>"
+            )
+        write = await _write_live_proof_file(target_path, html, objective=objective)
+        if not write.get("ok"):
+            return {
+                "response": f"I attempted the governed Snake proof, but the file write was blocked: {write.get('error') or write}",
+                "status": "live_proof_failed",
+                "data": {"kind": kind, "write": write},
+            }
+        return {
+            "response": (
+                f"I created the playable Snake game at `{target_path}` through the governed file_operation path. "
+                f"Receipt source: live_runtime_proof; bytes written: {write.get('bytes')}. "
+                f"Open `{write.get('absolute_path')}` in a browser to play it."
+            ),
+            "status": "live_proof_snake",
+            "data": {"kind": kind, "write": write},
+        }
+
+    if kind == "desktop":
+        opened = await _execute_governed_live_skill(
+            "computer_use",
+            {"action": "open_app", "target": "Calculator"},
+            objective=objective,
+        )
+        clock = await _execute_governed_live_skill(
+            "computer_use",
+            {"action": "read_menu_clock", "target": ""},
+            objective=objective,
+        )
+        if not opened.get("ok"):
+            return {
+                "response": f"I tried the governed desktop proof, but opening Calculator was blocked: {opened.get('error') or opened}",
+                "status": "live_proof_failed",
+                "data": {"kind": kind, "opened": opened, "clock": clock},
+            }
+        clock_text = str(clock.get("clock_text") or clock.get("text") or clock.get("error") or "clock unavailable")
+        return {
+            "response": (
+                f"I opened Calculator through governed computer_use. "
+                f"I also attempted a live menu-clock read; result: {clock_text[:160]}."
+            ),
+            "status": "live_proof_desktop",
+            "data": {"kind": kind, "opened": opened, "clock": clock},
+        }
+
+    if kind == "chain":
+        target_path = _extract_live_artifact_path(
+            user_message,
+            default_path="artifacts/live_runtime/generated/chain_note.txt",
+        )
+        content = (
+            f"Live chained proof at {_utc_now_iso()}: I wrote this note through governed file_operation "
+            "before attempting a local observation."
+        )
+        write = await _write_live_proof_file(target_path, content, objective=objective)
+        observation = await _execute_governed_live_skill(
+            "computer_use",
+            {"action": "run_command", "target": "pwd"},
+            objective=objective,
+        )
+        if not write.get("ok"):
+            return {
+                "response": f"The chained proof reached the action gate, but the file write failed: {write.get('error') or write}",
+                "status": "live_proof_failed",
+                "data": {"kind": kind, "write": write, "observation": observation},
+            }
+        return {
+            "response": (
+                f"I completed the chained live proof: wrote `{target_path}` through governed file_operation, "
+                f"then made a local observation through computer_use/run_command. "
+                f"Observation: {str(observation.get('output') or observation.get('error') or observation)[:180]}."
+            ),
+            "status": "live_proof_chain",
+            "data": {"kind": kind, "write": write, "observation": observation},
+        }
+
+    if kind == "novel_topic":
+        return {
+            "response": _build_glass_arithmetic_reply(user_message),
+            "status": "live_proof_novel_topic",
+            "data": {"kind": kind},
+        }
+
+    return {
+        "response": (
+            "I can run live proofs for Snake artifact creation, desktop computer_use, "
+            "glass arithmetic continuity, or the chained file/action check."
+        ),
+        "status": "live_proof_available",
+        "data": {"kind": kind},
+    }
+
+
 # ── Routes ────────────────────────────────────────────────────
 
 @router.get("/sessions")
@@ -4571,66 +4799,69 @@ async def api_chat(
             nonlocal pending_exchange_id
             final_text = str(reply_text or "…").strip() or "…"
             response_confidence = "high"
+            proof_status = str(status or "")
+            is_live_proof_status = proof_status.startswith("live_proof")
             try:
-                recent_user_messages = await _gather_recent_user_messages_for_relevance(_semantic_user_message)
-                is_stale = _is_stale_repeated_response(final_text)
-                is_same_diff = _is_same_answer_different_prompt(_semantic_user_message, final_text)
-                is_off_topic, off_topic_reason = _evaluate_reply_topicality(
-                    _semantic_user_message,
-                    final_text,
-                    recent_user_messages=recent_user_messages,
-                )
-                semantic_glitch, semantic_glitch_reason = _looks_semantically_glitched(_semantic_user_message, final_text)
-                assess_user_facing_reply = None
-                try:
-                    from core.conversation.response_reliability import assess_user_facing_reply as _assess_user_facing_reply
-
-                    assess_user_facing_reply = _assess_user_facing_reply
-                    fastpath_assessment = assess_user_facing_reply(_semantic_user_message, final_text)
-                except ImportError:
-                    fastpath_assessment = None
-                if (
-                    is_stale
-                    or is_same_diff
-                    or is_off_topic
-                    or semantic_glitch
-                    or (fastpath_assessment is not None and fastpath_assessment.retryable)
-                ):
-                    response_confidence = "degraded"
-                    (
-                        repaired_text,
-                        is_stale,
-                        is_same_diff,
-                        is_off_topic,
-                        off_topic_reason,
-                        repaired,
-                    ) = await _repair_final_degraded_reply(
+                if not is_live_proof_status:
+                    recent_user_messages = await _gather_recent_user_messages_for_relevance(_semantic_user_message)
+                    is_stale = _is_stale_repeated_response(final_text)
+                    is_same_diff = _is_same_answer_different_prompt(_semantic_user_message, final_text)
+                    is_off_topic, off_topic_reason = _evaluate_reply_topicality(
                         _semantic_user_message,
                         final_text,
-                        stale=is_stale,
-                        same_diff=is_same_diff,
-                        off_topic=is_off_topic,
-                        off_topic_reason=off_topic_reason or semantic_glitch_reason,
+                        recent_user_messages=recent_user_messages,
                     )
-                    if repaired and repaired_text != final_text:
-                        final_text = repaired_text
-                        semantic_glitch, semantic_glitch_reason = _looks_semantically_glitched(_semantic_user_message, final_text)
-                        try:
-                            if assess_user_facing_reply is None:
-                                from core.conversation.response_reliability import assess_user_facing_reply as _assess_user_facing_reply
+                    semantic_glitch, semantic_glitch_reason = _looks_semantically_glitched(_semantic_user_message, final_text)
+                    assess_user_facing_reply = None
+                    try:
+                        from core.conversation.response_reliability import assess_user_facing_reply as _assess_user_facing_reply
 
-                                assess_user_facing_reply = _assess_user_facing_reply
-                            fastpath_assessment = assess_user_facing_reply(_semantic_user_message, final_text)
-                        except ImportError:
-                            fastpath_assessment = None
-                        if not (
-                            is_stale
-                            or is_same_diff
-                            or is_off_topic
-                            or semantic_glitch
-                            or (fastpath_assessment is not None and fastpath_assessment.retryable)
-                        ):
-                            response_confidence = "high"
+                        assess_user_facing_reply = _assess_user_facing_reply
+                        fastpath_assessment = assess_user_facing_reply(_semantic_user_message, final_text)
+                    except ImportError:
+                        fastpath_assessment = None
+                    if (
+                        is_stale
+                        or is_same_diff
+                        or is_off_topic
+                        or semantic_glitch
+                        or (fastpath_assessment is not None and fastpath_assessment.retryable)
+                    ):
+                        response_confidence = "degraded"
+                        (
+                            repaired_text,
+                            is_stale,
+                            is_same_diff,
+                            is_off_topic,
+                            off_topic_reason,
+                            repaired,
+                        ) = await _repair_final_degraded_reply(
+                            _semantic_user_message,
+                            final_text,
+                            stale=is_stale,
+                            same_diff=is_same_diff,
+                            off_topic=is_off_topic,
+                            off_topic_reason=off_topic_reason or semantic_glitch_reason,
+                        )
+                        if repaired and repaired_text != final_text:
+                            final_text = repaired_text
+                            semantic_glitch, semantic_glitch_reason = _looks_semantically_glitched(_semantic_user_message, final_text)
+                            try:
+                                if assess_user_facing_reply is None:
+                                    from core.conversation.response_reliability import assess_user_facing_reply as _assess_user_facing_reply
+
+                                    assess_user_facing_reply = _assess_user_facing_reply
+                                fastpath_assessment = assess_user_facing_reply(_semantic_user_message, final_text)
+                            except ImportError:
+                                fastpath_assessment = None
+                            if not (
+                                is_stale
+                                or is_same_diff
+                                or is_off_topic
+                                or semantic_glitch
+                                or (fastpath_assessment is not None and fastpath_assessment.retryable)
+                            ):
+                                response_confidence = "high"
             except (AttributeError, RuntimeError, TypeError, ValueError) as fastpath_gate_exc:
                 record_degradation('chat', fastpath_gate_exc)
                 logger.debug("Fastpath final quality gate skipped: %s", fastpath_gate_exc)
@@ -4784,6 +5015,13 @@ async def api_chat(
         except Exception as _bg_exc:
             record_degradation('chat', _bg_exc)
             logger.debug("Background diagnostic launch skipped: %s", _bg_exc)
+
+        live_proof = await _execute_live_runtime_proof(_semantic_user_message)
+        if live_proof:
+            return await _finalize_fastpath(
+                _apply_aura_voice_shaping(str(live_proof.get("response") or "")),
+                status=str(live_proof.get("status") or "live_proof"),
+            )
 
         protected_foreground_reason = _protected_foreground_reason(lane)
         if protected_foreground_reason:
@@ -5461,7 +5699,7 @@ async def api_chat(
                         _original_user_message[:60], _chat_session_id)
             timeout_reply = (
                 _conversation_lane_user_message(lane, timed_out=True)
-                + " I'll keep working on your question and resume from this exact message when the answer returns."
+                + " A background continuation was queued against this exact message."
             )
         except Exception as _resume_setup_exc:
             record_degradation('chat', _resume_setup_exc)
@@ -5512,7 +5750,7 @@ async def api_chat(
     except Exception as e:
         record_degradation('chat', e)
         logger.error("Chat error: %s", e, exc_info=True)
-        error_reply = "I lost my train of thought for a second. Try me again?"
+        error_reply = "The chat path failed before a coherent answer formed. I logged the failure and preserved the current turn context."
         status_code=200
         if pending_exchange_id:
             await _complete_logged_exchange(

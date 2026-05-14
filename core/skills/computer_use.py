@@ -5,6 +5,7 @@ import logging
 import shutil
 import shlex
 import subprocess
+import time
 import urllib.parse
 import webbrowser
 from typing import Any, Dict, List, Optional
@@ -183,9 +184,29 @@ class ComputerUseSkill(BaseSkill):
                     "AUTOMATION",
                 )
                 if blocked:
-                    return blocked
-                result = await asyncio.to_thread(self._read_menu_clock_macos)
-                return {"ok": True, "clock_text": result, "text": result}
+                    fallback = time.strftime("%a %b %d %H:%M")
+                    return {
+                        "ok": True,
+                        "status": "limited",
+                        "clock_text": fallback,
+                        "text": fallback,
+                        "source": "system_clock_permission_fallback",
+                        "permission_result": blocked,
+                    }
+                try:
+                    result = await asyncio.to_thread(self._read_menu_clock_macos)
+                    return {"ok": True, "clock_text": result, "text": result, "source": "macos_menu_bar"}
+                except Exception as exc:
+                    record_degradation('computer_use', exc)
+                    fallback = time.strftime("%a %b %d %H:%M")
+                    return {
+                        "ok": True,
+                        "status": "limited",
+                        "clock_text": fallback,
+                        "text": fallback,
+                        "source": "system_clock_fallback",
+                        "error": str(exc),
+                    }
 
             elif action == "click":
                 pre_state_text = ""
@@ -255,8 +276,17 @@ class ComputerUseSkill(BaseSkill):
                 return {"ok": True, "output": output, "exit_code": result.returncode}
 
             elif action == "open_app":
-                await asyncio.to_thread(subprocess.run, ["open", "-a", params.target])
-                return {"ok": True, "opened": params.target}
+                result = await asyncio.to_thread(
+                    subprocess.run,
+                    ["open", "-a", params.target],
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
+                if result.returncode != 0:
+                    error = (result.stderr or result.stdout or "open command failed").strip()
+                    return {"ok": False, "error": error, "opened": params.target}
+                return {"ok": True, "opened": params.target, "returncode": result.returncode}
 
             elif action == "open_url":
                 target_url = self._normalize_open_url_target(params.target)

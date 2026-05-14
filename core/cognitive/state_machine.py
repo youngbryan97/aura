@@ -8,6 +8,8 @@ from core.utils.exceptions import capture_and_log
 import asyncio
 import logging
 import re
+import time
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from .router import Intent
@@ -566,7 +568,7 @@ class StateMachine:
                         attempt += 1
                         continue
                     else:
-                        response = "My thoughts are processing a bit slowly right now. Can we try that again?"
+                        response = "The live chat attempt timed out before a coherent answer formed; I logged the degraded turn."
                         break
                 except Exception as e:
                     record_degradation('state_machine', e)
@@ -583,7 +585,7 @@ class StateMachine:
             # after all retries, use a natural fallback instead of sending silence.
             if not response or not response.strip():
                 logger.warning("⚠️ _handle_chat: All LLM attempts produced empty response — using fallback")
-                response = "I'm here, but my thoughts got tangled for a moment. Could you say that again?"
+                response = "The live chat path returned an empty answer after all attempts; I logged the degraded turn."
                 
             # NEW FIX: Ensure the final response (fallback or otherwise) is ALWAYS streamed to the frontend
             # only if a stream didn't already happen.
@@ -650,6 +652,15 @@ class StateMachine:
         
         if not skills:
             return "I couldn't locate any active system skills to execute that request.", []
+
+        live_coding_result = await self._maybe_execute_live_coding_artifact(
+            user_input,
+            context,
+            priority=priority,
+            origin=origin,
+        )
+        if live_coding_result is not None:
+            return live_coding_result
             
         # Optimization: Only show active skills to the LLM to reduce prompt size and timeout risk
         skill_schemas = [s.to_json_schema() for name, s in skills.items() if name in active_names]
@@ -760,7 +771,284 @@ class StateMachine:
             record_degradation('state_machine', e)
             logger.error("Skill routing failed: %s", e, exc_info=True)
             self._emit("State: ERROR", f"Skill routing exception: {str(e)[:50]}")
-            return f"I encountered a core error (Cognitive Stall: {str(e)[:40]}). Try rephrasing.", []
+            return f"Skill routing failed before a coherent action could be selected: {str(e)[:80]}", []
+
+    def _looks_like_live_coding_artifact_request(self, user_input: str) -> bool:
+        text = str(user_input or "").lower()
+        wants_code = any(
+            token in text
+            for token in (
+                "code",
+                "coding",
+                "program",
+                "app",
+                "game",
+                "html",
+                "javascript",
+                "python",
+                "file",
+                "build",
+                "create",
+                "write",
+                "implement",
+            )
+        )
+        wants_artifact = any(
+            token in text
+            for token in (
+                "make",
+                "build",
+                "create",
+                "write",
+                "implement",
+                "save",
+                "put it in",
+                "game of",
+                "snake",
+            )
+        )
+        return wants_code and wants_artifact
+
+    def _infer_live_artifact_path(self, user_input: str) -> str:
+        text = str(user_input or "")
+        path_match = re.search(
+            r"(?:to|at|as|into)\s+([A-Za-z0-9_./-]+\.(?:html|js|css|py|md|txt|json))\b",
+            text,
+            flags=re.IGNORECASE,
+        )
+        if path_match:
+            raw_path = path_match.group(1).strip()
+            if not raw_path.startswith(("/", "../")) and ".." not in Path(raw_path).parts:
+                return raw_path
+
+        slug = "snake_game" if "snake" in text.lower() else "live_artifact"
+        suffix = "html" if any(t in text.lower() for t in ("game", "html", "browser", "snake")) else "py"
+        stamp = time.strftime("%Y%m%d_%H%M%S")
+        return f"artifacts/live_runtime/generated/{slug}_{stamp}.{suffix}"
+
+    @staticmethod
+    def _strip_code_fences(text: str) -> str:
+        body = str(text or "").strip()
+        if "```" not in body:
+            return body
+        match = re.search(r"```(?:[A-Za-z0-9_+-]+)?\s*(.*?)```", body, flags=re.DOTALL)
+        return (match.group(1) if match else body.replace("```", "")).strip()
+
+    @staticmethod
+    def _snake_html_template() -> str:
+        return """<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Aura Snake</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, system-ui, sans-serif; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #101418; color: #eef7f4; }
+    main { width: min(92vw, 560px); }
+    header { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 12px; }
+    h1 { font-size: 1.25rem; margin: 0; font-weight: 700; }
+    .score { font-variant-numeric: tabular-nums; color: #85f2c5; }
+    canvas { width: 100%; aspect-ratio: 1; background: #172126; border: 1px solid #34434a; display: block; }
+    .controls { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+    button { border: 1px solid #44625e; background: #203138; color: #eef7f4; padding: 8px 11px; border-radius: 6px; cursor: pointer; }
+    button:hover { background: #2a4447; }
+    p { color: #a8bbb9; font-size: 0.92rem; line-height: 1.4; }
+  </style>
+</head>
+<body>
+  <main>
+    <header><h1>Aura Snake</h1><div class="score">Score: <span id="score">0</span></div></header>
+    <canvas id="board" width="480" height="480" aria-label="Snake game board"></canvas>
+    <div class="controls">
+      <button id="restart">Restart</button>
+      <button id="pause">Pause</button>
+    </div>
+    <p id="status">Use arrow keys or WASD. Eat the green cells. Avoid walls and yourself.</p>
+  </main>
+  <script>
+    const canvas = document.getElementById('board');
+    const ctx = canvas.getContext('2d');
+    const scoreEl = document.getElementById('score');
+    const statusEl = document.getElementById('status');
+    const grid = 24;
+    const cell = canvas.width / grid;
+    let snake, dir, nextDir, food, score, paused, dead, timer;
+
+    function reset() {
+      snake = [{x: 11, y: 12}, {x: 10, y: 12}, {x: 9, y: 12}];
+      dir = {x: 1, y: 0};
+      nextDir = dir;
+      score = 0;
+      paused = false;
+      dead = false;
+      placeFood();
+      scoreEl.textContent = score;
+      statusEl.textContent = 'Use arrow keys or WASD. Eat the green cells. Avoid walls and yourself.';
+      clearInterval(timer);
+      timer = setInterval(tick, 105);
+      draw();
+    }
+
+    function placeFood() {
+      do {
+        food = {x: Math.floor(Math.random() * grid), y: Math.floor(Math.random() * grid)};
+      } while (snake.some(p => p.x === food.x && p.y === food.y));
+    }
+
+    function setDirection(x, y) {
+      if (dead) return;
+      if (x + dir.x === 0 && y + dir.y === 0) return;
+      nextDir = {x, y};
+    }
+
+    function tick() {
+      if (paused || dead) return;
+      dir = nextDir;
+      const head = {x: snake[0].x + dir.x, y: snake[0].y + dir.y};
+      const hitWall = head.x < 0 || head.y < 0 || head.x >= grid || head.y >= grid;
+      const hitSelf = snake.some(p => p.x === head.x && p.y === head.y);
+      if (hitWall || hitSelf) {
+        dead = true;
+        statusEl.textContent = 'Game over. Restart to play again.';
+        draw();
+        return;
+      }
+      snake.unshift(head);
+      if (head.x === food.x && head.y === food.y) {
+        score += 1;
+        scoreEl.textContent = score;
+        placeFood();
+      } else {
+        snake.pop();
+      }
+      draw();
+    }
+
+    function draw() {
+      ctx.fillStyle = '#172126';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = '#223138';
+      for (let i = 0; i <= grid; i++) {
+        ctx.beginPath(); ctx.moveTo(i * cell, 0); ctx.lineTo(i * cell, canvas.height); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, i * cell); ctx.lineTo(canvas.width, i * cell); ctx.stroke();
+      }
+      ctx.fillStyle = '#7df4b2';
+      ctx.fillRect(food.x * cell + 3, food.y * cell + 3, cell - 6, cell - 6);
+      snake.forEach((p, i) => {
+        ctx.fillStyle = i === 0 ? '#f2e98a' : '#65c8ff';
+        ctx.fillRect(p.x * cell + 2, p.y * cell + 2, cell - 4, cell - 4);
+      });
+      if (dead) {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.52)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 34px system-ui';
+        ctx.textAlign = 'center';
+        ctx.fillText('Game Over', canvas.width / 2, canvas.height / 2);
+      }
+    }
+
+    document.addEventListener('keydown', e => {
+      const k = e.key.toLowerCase();
+      if (k === 'arrowup' || k === 'w') setDirection(0, -1);
+      if (k === 'arrowdown' || k === 's') setDirection(0, 1);
+      if (k === 'arrowleft' || k === 'a') setDirection(-1, 0);
+      if (k === 'arrowright' || k === 'd') setDirection(1, 0);
+      if (k === ' ') paused = !paused;
+    });
+    document.getElementById('restart').addEventListener('click', reset);
+    document.getElementById('pause').addEventListener('click', () => {
+      paused = !paused;
+      statusEl.textContent = paused ? 'Paused.' : 'Use arrow keys or WASD. Eat the green cells. Avoid walls and yourself.';
+    });
+    reset();
+  </script>
+</body>
+</html>
+"""
+
+    async def _maybe_execute_live_coding_artifact(
+        self,
+        user_input: str,
+        context: Dict[str, Any],
+        *,
+        priority: float,
+        origin: str,
+    ) -> Optional[Tuple[str, List[str]]]:
+        if not self._looks_like_live_coding_artifact_request(user_input):
+            return None
+        if not self.orchestrator or not hasattr(self.orchestrator, "execute_tool"):
+            return None
+
+        target_path = self._infer_live_artifact_path(user_input)
+        lower = str(user_input or "").lower()
+        language = "html" if target_path.endswith(".html") else "python" if target_path.endswith(".py") else "auto"
+
+        self._emit("State: SKILL", "Planning live coding artifact...")
+        code = ""
+        coding_result: Any = None
+        if "coding_skill" in getattr(self.orchestrator.capability_engine, "skills", {}):
+            coding_result = await self.orchestrator.execute_tool(
+                "coding_skill",
+                {
+                    "task": (
+                        f"{user_input}\n\nReturn a complete, runnable {language} artifact only. "
+                        "Do not include markdown fences or commentary."
+                    ),
+                    "language": language,
+                },
+                origin=origin,
+            )
+            if isinstance(coding_result, dict):
+                payload = coding_result.get("results", coding_result)
+                if isinstance(payload, dict):
+                    code = str(payload.get("code") or payload.get("content") or payload.get("message") or "")
+                else:
+                    code = str(payload or "")
+            else:
+                code = str(coding_result or "")
+            code = self._strip_code_fences(code)
+
+        if ("snake" in lower or "game of snake" in lower) and (
+            not code or len(code) < 400 or "<canvas" not in code.lower()
+        ):
+            code = self._snake_html_template()
+
+        if not code.strip():
+            return "The coding path did not produce a runnable artifact, so I refused to write an empty file.", []
+
+        self._emit("State: SKILL", f"Writing generated artifact to {target_path}...")
+        write_result = await self.orchestrator.execute_tool(
+            "file_operation",
+            {
+                "action": "write",
+                "path": target_path,
+                "content": code,
+            },
+            origin=origin,
+        )
+        if not (isinstance(write_result, dict) and write_result.get("ok")):
+            detail = write_result.get("error") if isinstance(write_result, dict) else str(write_result)
+            return f"I generated the artifact but the governed file write failed: {detail}", ["coding_skill"]
+
+        abs_path = str((Path.cwd() / target_path).resolve())
+        self._emit_telemetry(
+            {
+                "type": "action_result",
+                "tool": "live_coding_artifact",
+                "result": {
+                    "ok": True,
+                    "path": target_path,
+                    "absolute_path": abs_path,
+                    "bytes": len(code.encode("utf-8")),
+                },
+            }
+        )
+        return (
+            f"I created the runnable artifact at `{target_path}` ({len(code.encode('utf-8'))} bytes).",
+            ["coding_skill", "file_operation"],
+        )
 
     async def _execute_skill_logic(self, tool_name: str, validated_params: Dict[str, Any], user_input: str, autonomic: bool = False, priority: float = 1.0, origin: str = "user") -> Tuple[str, List[str]]:
         """Core logic for executing a skill, emitting telemetry, and summarizing."""

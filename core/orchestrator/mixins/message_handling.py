@@ -117,6 +117,24 @@ class MessageHandlingMixin:
             )
         return f"enqueue:{origin}:{tool_hint}{str(payload or '')[:160]}"
 
+    def _background_enqueue_defer_reason(self, origin: str, priority: int) -> str:
+        if priority < 20 or self._is_user_facing_origin(origin):
+            return ""
+        try:
+            from core.runtime.background_policy import background_activity_reason
+
+            return background_activity_reason(
+                self,
+                min_idle_seconds=180.0,
+                max_memory_percent=78.0,
+                max_failure_pressure=0.25,
+                require_conversation_ready=False,
+            )
+        except Exception as exc:
+            record_degradation("message_handling", exc)
+            logger.debug("Background enqueue policy probe failed: %s", exc)
+            return ""
+
     def _authorize_background_enqueue_sync(self, message: Any, origin: str, priority: int) -> bool:
         summary = self._background_enqueue_summary(message, origin)
         current_state = getattr(getattr(self, "state_repo", None), "_current", None)
@@ -239,6 +257,15 @@ class MessageHandlingMixin:
             self._last_user_interaction_time = time.time()
             return
 
+        defer_reason = self._background_enqueue_defer_reason(origin, priority)
+        if defer_reason:
+            logger.debug(
+                "🛡️ Background enqueue deferred for %s: %s",
+                origin,
+                defer_reason,
+            )
+            return False
+
         if not _authority_checked and not self._authorize_background_enqueue_sync(message, origin, priority):
             logger.info("🛡️ Background enqueue blocked for %s.", origin)
             return False
@@ -302,6 +329,14 @@ class MessageHandlingMixin:
             priority = decision.priority
 
         if not self._is_user_facing_origin(origin) and not _authority_checked:
+            defer_reason = self._background_enqueue_defer_reason(origin, priority)
+            if defer_reason:
+                logger.debug(
+                    "🛡️ Background threaded enqueue deferred for %s: %s",
+                    origin,
+                    defer_reason,
+                )
+                return
             if not self._authorize_background_enqueue_sync(message, origin, priority):
                 logger.info("🛡️ Background threaded enqueue blocked for %s.", origin)
                 return

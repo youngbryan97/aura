@@ -1050,6 +1050,26 @@ class MetabolicCoordinator:
         if not orch:
             return
         try:
+            try:
+                from core.runtime.background_policy import background_activity_reason
+
+                policy_reason = background_activity_reason(
+                    orch,
+                    min_idle_seconds=180.0,
+                    max_memory_percent=78.0,
+                    max_failure_pressure=0.25,
+                    require_conversation_ready=False,
+                )
+                if policy_reason:
+                    logger.debug(
+                        "Terminal Monitor: metabolic auto-fix deferred by background policy: %s",
+                        policy_reason,
+                    )
+                    return
+            except Exception as policy_exc:
+                record_degradation("metabolic_coordinator", policy_exc)
+                logger.debug("Metabolic terminal self-heal policy probe failed: %s", policy_exc)
+
             from core.terminal_monitor import get_terminal_monitor
             monitor = get_terminal_monitor()
             if monitor:

@@ -6,6 +6,7 @@ somewhere else for a while and knows it.
 
 from core.runtime.errors import record_degradation
 import json
+import os
 import time
 import logging
 from pathlib import Path
@@ -44,9 +45,24 @@ def _sanitize_restored_text(value: Any) -> str:
     text = _normalize_goal_text(value)
     if not text:
         return ""
+    if _is_generic_continuity_reentry_goal(text):
+        return ""
     if _is_speculative_autonomy_label(text) or _is_background_processing_placeholder(text):
         return ""
     return text
+
+
+def _is_generic_continuity_reentry_goal(value: Any) -> bool:
+    """Return true for boot bookkeeping goals that should not become work."""
+    lowered = " ".join(str(value or "").strip().lower().split())
+    if not lowered:
+        return False
+    generic_markers = (
+        "reconcile continuity gap and re-establish the interrupted thread",
+        "reconcile continuity gap",
+        "re-establish the interrupted thread",
+    )
+    return any(marker in lowered for marker in generic_markers)
 
 
 def _looks_like_ephemeral_conversation_turn(value: Any) -> bool:
@@ -239,10 +255,15 @@ class ContinuityEngine:
         if pending_initiatives > 0 or self._record.active_commitments:
             scar_markers.append("unfinished_obligations")
 
+        try:
+            min_reentry_gap_s = float(os.getenv("AURA_CONTINUITY_REENTRY_MIN_GAP_S", "900"))
+        except (TypeError, ValueError):
+            min_reentry_gap_s = 900.0
+
         reentry_required = bool(
-            continuity_pressure >= 0.28
+            (continuity_pressure >= 0.28 and gap_seconds >= max(0.0, min_reentry_gap_s))
             or shutdown_factor > 0.0
-            or executive_failure_reason
+            or bool(executive_failure_reason and gap_seconds >= max(0.0, min_reentry_gap_s))
             or contradiction_count > 0
         )
 
@@ -484,6 +505,9 @@ class ContinuityEngine:
             int(self._record.contradiction_count or 0),
         )
 
+        restored_pending = [item for item in restored_pending if not _is_generic_continuity_reentry_goal(item)]
+        restored_goals = [item for item in restored_goals if not _is_generic_continuity_reentry_goal(item)]
+
         if not list(getattr(cognition, "pending_initiatives", []) or []) and restored_pending:
             cognition.pending_initiatives = [
                 {
@@ -517,13 +541,27 @@ class ContinuityEngine:
                 for item in restored_goals[:5]
             ]
 
+        try:
+            min_reentry_gap_s = float(os.getenv("AURA_CONTINUITY_REENTRY_MIN_GAP_S", "900"))
+        except (TypeError, ValueError):
+            min_reentry_gap_s = 900.0
+        gap_seconds = float(obligations.get("gap_seconds", 0.0) or 0.0)
+        shutdown_was_graceful = self._record.last_shutdown_reason == "graceful"
+        meaningful_gap = gap_seconds >= max(0.0, min_reentry_gap_s) or not shutdown_was_graceful
+
+        continuity_initiative_enabled = str(
+            os.getenv("AURA_ENABLE_CONTINUITY_REENTRY_INITIATIVE", "0")
+        ).strip().lower() in {"1", "true", "yes", "on"}
+
         should_inject_reentry_initiative = bool(
-            obligations.get("continuity_reentry_required")
+            continuity_initiative_enabled
+            and obligations.get("continuity_reentry_required")
+            and meaningful_gap
             and (restored_objective or restored_pending or restored_goals or _sanitize_restored_items(self._record.active_commitments))
             and (
                 float(obligations.get("continuity_pressure", 0.0) or 0.0) >= 0.35
-                or float(obligations.get("gap_seconds", 0.0) or 0.0) >= 900.0
-                or self._record.last_shutdown_reason != "graceful"
+                or gap_seconds >= max(0.0, min_reentry_gap_s)
+                or not shutdown_was_graceful
                 or obligations.get("executive_failure_reason")
             )
         )

@@ -30,3 +30,18 @@ def test_shell_exposes_neural_pause_and_text_size_accessibility_controls():
     assert "body.chat-text-large" in css
     assert "body.neural-text-large" in css
     assert "body.neural-visual-paused #pane-neural #neural-feed" in css
+
+
+def test_connection_toast_and_ram_hud_are_live_runtime_safe():
+    html = (PROJECT_ROOT / "interface" / "static" / "index.html").read_text(encoding="utf-8")
+    js = (PROJECT_ROOT / "interface" / "static" / "aura.js").read_text(encoding="utf-8")
+
+    assert 'id="conn-toast" class="conn-toast" aria-live="polite" aria-hidden="true"></div>' in html
+    assert "lastSystemRamPct: null" in js
+    assert "function setHudRamUsage" in js
+    assert "source !== 'health' && pct <= 0.1" in js
+    assert "Some stream payloads use 0 as an omitted RAM placeholder" in js
+    assert "toast.setAttribute('aria-hidden', 'true')" in js
+    assert "connection lost|reconnecting" in js
+    assert "function sanitizeThoughtMessage" in js
+    assert "no semantic thought event" in js

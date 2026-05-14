@@ -730,6 +730,16 @@ class AffectEngineV2:
     def _background_llm_should_defer() -> bool:
         try:
             from core.container import ServiceContainer
+            from core.runtime import background_policy
+
+            orch = ServiceContainer.get("orchestrator", default=None)
+            policy_reason = background_policy.background_activity_reason(
+                orch,
+                profile=background_policy.THOUGHT_BACKGROUND_POLICY,
+                require_conversation_ready=True,
+            )
+            if policy_reason:
+                return True
 
             gate = ServiceContainer.get("inference_gate", default=None)
             if gate and hasattr(gate, "_background_local_deferral_reason"):

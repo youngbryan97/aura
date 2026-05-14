@@ -410,14 +410,14 @@ class LanguageCenter:
         
         # Determine the most appropriate 'human-sounding' fallback based on stance
         if "curious" in str(thought.stance).lower():
-            return "That's an interesting thought. I'm actually chewing on it right now, but my expression layer is a bit tangled. Ask me again in a second?"
+            return "The expression layer could not turn this curious state into a coherent reply; I logged the degraded output."
         
         if "direct" in str(thought.tone).lower():
             return "I have a few thoughts on that, but I'm having trouble putting them into words right now. Technical friction on my end."
 
         return (
-            "I'm here, but I'm having a hard time articulating my thoughts at the moment. "
-            "My cognitive core is active, but the language center is stuttering. Try me again in a bit."
+            "The cognitive core is active, but the language center failed to articulate a coherent reply. "
+            "I logged the degraded output instead of asking you to repeat yourself."
         )
 
     def get_status(self) -> Dict[str, Any]:

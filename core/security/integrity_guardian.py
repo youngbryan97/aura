@@ -440,7 +440,7 @@ class IntegrityGuardian:
 
     def _git_active_paths(self) -> Set[str]:
         status = subprocess.run(
-            ["git", "status", "--porcelain=v1", "--untracked-files=no", "--ignored=no"],
+            ["git", "status", "--porcelain=v1", "--untracked-files=all", "--ignored=no"],
             cwd=str(_BASE_DIR),
             capture_output=True,
             text=True,

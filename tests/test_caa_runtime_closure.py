@@ -45,6 +45,28 @@ def test_steering_vector_library_resolves_exact_and_nearest_layers(tmp_path):
     assert status["nearest_match_count"] == len(AFFECTIVE_DIMENSIONS)
 
 
+def test_steering_vector_library_rejects_wrong_d_model_cache(tmp_path):
+    from core.consciousness.affective_steering import SteeringVectorLibrary
+
+    cache_dir = tmp_path / "vectors"
+    _write_vector(cache_dir / "valence_positive_layer25.npz", [1.0, 0.0, 0.0])
+
+    library = SteeringVectorLibrary(cache_dir=cache_dir)
+
+    assert library._resolve_cached_path("valence_positive", 25, d_model=4) is None
+
+
+def test_affective_steering_runtime_cache_is_partitioned_by_geometry():
+    from core.consciousness.affective_steering import AffectiveSteeringEngine
+
+    small = AffectiveSteeringEngine._runtime_vector_cache_dir(n_layers=28, d_model=2368)
+    large = AffectiveSteeringEngine._runtime_vector_cache_dir(n_layers=64, d_model=4096)
+
+    assert small != large
+    assert "dmodel_2368_layers_28" in str(small)
+    assert "dmodel_4096_layers_64" in str(large)
+
+
 def test_production_caa_adapts_alpha_and_detects_collapse(tmp_path):
     from core.consciousness.caa import ProductionCAA, RegisteredVector, VectorProvenance, VectorRegistry
 

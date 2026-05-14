@@ -20,3 +20,23 @@ def test_research_cycle_respects_background_policy_gate_before_starting(monkeypa
     )
 
     assert cycle._should_run() is False
+
+
+def test_research_cycle_defers_during_boot_grace(monkeypatch):
+    cycle = ResearchCycle.__new__(ResearchCycle)
+    cycle.orchestrator = SimpleNamespace(_last_user_interaction_time=0.0, status=SimpleNamespace(is_processing=False))
+    cycle._last_cycle_mono = 0.0
+    cycle._started_mono = time.monotonic()
+    cycle._get_state = lambda: SimpleNamespace(
+        motivation=SimpleNamespace(budgets={"energy": {"level": 100.0}}),
+        affect=SimpleNamespace(curiosity=0.8),
+        cognition=SimpleNamespace(pending_initiatives=[{"goal": "Research continuity"}]),
+    )
+
+    monkeypatch.setenv("AURA_RESEARCH_BOOT_GRACE_S", "300")
+    monkeypatch.setattr(
+        "core.runtime.background_policy.background_activity_reason",
+        lambda *args, **kwargs: "",
+    )
+
+    assert cycle._should_run() is False

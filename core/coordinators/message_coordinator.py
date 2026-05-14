@@ -159,12 +159,12 @@ class MessageCoordinator:
                     logger.warning("Timed out waiting for cognitive reply after 240s.")
                     if orch._current_thought_task and not orch._current_thought_task.done():
                         logger.info("Cognitive task is still RUNNING. Moving to background.")
-                        return "I'm still processing that deep thought... check the Neural Feed for progress."
-                    return "I'm sorry, my cognitive loop timed out. Please try again or check my status."
+                        return "The cognitive task is still running in the background; the live reply timed out and was logged as degraded."
+                    return "The cognitive loop timed out before producing a coherent reply; the failure was logged for recovery."
             return None
         except asyncio.QueueFull:
             logger.warning("Message queue full. Input dropped.")
-            return "My processing queue is currently overloaded. One moment..."
+            return "The processing queue is overloaded, so this input was not accepted into the live reply path."
 
     async def handle_incoming_message(self, message: Any, origin: str = "user"):
         """Route an incoming message through the deterministic State Machine pipeline."""

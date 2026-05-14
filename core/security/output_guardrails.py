@@ -77,7 +77,7 @@ class OutputGuardrails:
             report["ok"] = False
             issues.append("empty_response")
             self._total_blocks += 1
-            return "I need a moment to collect my thoughts. Could you say that again?", report
+            return "The response path produced an empty output; I blocked it and logged the failure.", report
 
         # 1. Check for incomplete/broken responses
         for pattern in self._incomplete_compiled:
@@ -85,7 +85,7 @@ class OutputGuardrails:
                 report["ok"] = False
                 issues.append("incomplete_response")
                 self._total_blocks += 1
-                return "I'm having trouble forming that thought. Let me try again — could you repeat your question?", report
+                return "The response path produced an incomplete output; I blocked the fragment and logged the failure.", report
 
         # 2. Strip metadata leaks
         sanitized = response

@@ -47,6 +47,7 @@ class StallWatchdog(threading.Thread):
         self._stop_event = threading.Event()
         self._task_birth: dict[int, float] = {}
         self._consecutive_long_stalls: int = 0
+        self._started_at: float = time.time()
 
     def run(self):
         logger.info("🛡️ StallWatchdog: Monitoring loop (Threshold: %.1fs)", self.threshold)
@@ -71,6 +72,10 @@ class StallWatchdog(threading.Thread):
             # Check for stall
             elapsed = time.time() - self._last_heartbeat
             if elapsed > self.threshold:
+                if self._should_suppress_stall(elapsed):
+                    self._last_heartbeat = time.time()
+                    self._consecutive_long_stalls = 0
+                    continue
                 self._report_stall(elapsed)
                 if elapsed >= _ACTIVE_RECOVERY_THRESHOLD:
                     self._consecutive_long_stalls += 1
@@ -105,6 +110,59 @@ class StallWatchdog(threading.Thread):
         except Exception as exc:
             record_degradation('stall_watchdog', exc)
             logger.debug("Task age bookkeeping failed: %s", exc)
+
+    def _should_suppress_stall(self, elapsed: float) -> bool:
+        """Suppress expected launch/shutdown stalls without hiding live hangs."""
+        try:
+            from core.runtime.shutdown_coordinator import is_shutdown_requested
+
+            if is_shutdown_requested():
+                logger.debug("StallWatchdog: suppressing %.1fs stall during shutdown.", elapsed)
+                return True
+        except Exception:
+            pass
+
+        try:
+            boot_grace = float(os.getenv("AURA_WATCHDOG_BOOT_GRACE_S", "120") or 120)
+        except Exception:
+            boot_grace = 120.0
+        if boot_grace > 0 and (time.time() - self._started_at) < boot_grace:
+            logger.info(
+                "StallWatchdog: suppressing %.1fs launch stall during boot grace.",
+                elapsed,
+            )
+            return True
+        try:
+            foreground_grace = float(os.getenv("AURA_WATCHDOG_FOREGROUND_GRACE_S", "75") or 75)
+        except Exception:
+            foreground_grace = 75.0
+        if foreground_grace > 0 and elapsed <= foreground_grace:
+            try:
+                from core.container import ServiceContainer
+
+                gate = ServiceContainer.get("inference_gate", default=None)
+                lane = gate.get_conversation_status() if gate and hasattr(gate, "get_conversation_status") else {}
+            except Exception:
+                lane = {}
+            lane_state = str(lane.get("state") or "").lower()
+            foreground_active = bool(
+                lane.get("foreground_owned")
+                or int(lane.get("active_generations", 0) or 0) > 0
+                or lane.get("warmup_in_flight")
+                or lane_state in {"spawning", "handshaking", "warming", "recovering"}
+            )
+            if foreground_active:
+                logger.info(
+                    "StallWatchdog: suppressing %.1fs foreground inference stall "
+                    "(state=%s active=%s warmup=%s owner=%s).",
+                    elapsed,
+                    lane.get("state"),
+                    lane.get("active_generations", 0),
+                    lane.get("warmup_in_flight"),
+                    lane.get("foreground_owner", ""),
+                )
+                return True
+        return False
 
     def _report_stall(self, elapsed: float):
         logger.error("🚨 [WATCHDOG] EVENT LOOP STALL DETECTED! (Elapsed: %.1fs)", elapsed)

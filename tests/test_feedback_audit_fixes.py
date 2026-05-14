@@ -110,6 +110,14 @@ def test_integrity_guardian_parse_git_status_paths_handles_renames():
     assert paths == {"core/old_name.py", "core/new_name.py"}
 
 
+def test_integrity_guardian_parse_git_status_paths_handles_untracked_files():
+    from core.security.integrity_guardian import IntegrityGuardian
+
+    paths = IntegrityGuardian._parse_git_status_paths("?? tests/test_live_runtime_surface_regressions.py")
+
+    assert paths == {"tests/test_live_runtime_surface_regressions.py"}
+
+
 def test_integrity_guardian_rebuilds_legacy_manifest_when_source_revision_changes(monkeypatch, tmp_path):
     from core.security import integrity_guardian as ig_mod
 

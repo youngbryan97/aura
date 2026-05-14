@@ -943,7 +943,7 @@ class ReActLoop:
         except asyncio.TimeoutError:
             trace.terminated_reason = "timeout"
             trace.final_answer = "That required more reasoning time than I had. Here's what I know so far: " + (
-                trace.steps[-1].observation.content[:200] if trace.steps else "Let me try again."
+                trace.steps[-1].observation.content[:200] if trace.steps else "no stable observation was available before timeout."
             )
 
         trace.total_steps = len(trace.steps)

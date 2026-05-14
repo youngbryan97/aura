@@ -61,11 +61,10 @@ async def init_hardening_layer(orchestrator: Any):
     # EventLoopMonitor: Watchdog for stall detection (>0.1s)
     try:
         from core.utils.concurrency import EventLoopMonitor
-        monitor = EventLoopMonitor(threshold=0.25)
-        from core.utils.task_tracker import get_task_tracker
-        get_task_tracker().track(monitor.start(), name="event_loop_monitor")
+        monitor = EventLoopMonitor()
+        monitor.start()
         ServiceContainer.register_instance("event_loop_monitor", monitor)
-        logger.info("🛡️ [BOOT] EventLoopMonitor active (Threshold: 0.1s)")
+        logger.info("🛡️ [BOOT] EventLoopMonitor active (threshold=%.2fs)", monitor.threshold)
     except Exception as e:
         record_degradation('hardening', e)
         logger.error("❌ [BOOT] EventLoopMonitor failed to start: %s", e)

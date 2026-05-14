@@ -85,7 +85,7 @@ class BCIClassifier:
             score = float(np.dot(flattened, template) / (sample_norm * self._template_norms[class_idx]))
             scores.append(score)
 
-        probabilities = _softmax(np.asarray(scores, dtype=np.float64))
+        probabilities = _softmax(np.asarray(scores, dtype=np.float64) * 6.0)
         winner = int(np.argmax(probabilities))
         return winner, float(probabilities[winner]), probabilities
 
@@ -110,6 +110,7 @@ class NeuralBridge:
         self._novelty: float = 0.0
         self._confidence_history: deque[float] = deque(maxlen=128)
         self._pattern_history: deque[str] = deque(maxlen=128)
+        self._last_band_profile: Dict[str, float] = {}
 
     async def load(self):
         logger.info("🧠 [NEURAL] Initializing BCI Neural Bridge...")
@@ -205,16 +206,18 @@ class NeuralBridge:
                 self._confidence_history.append(confidence)
                 self._pattern_history.append(self._last_pattern)
                 self._novelty = self._estimate_novelty(eeg_data)
+                self._last_band_profile = self._band_profile(eeg_data)
                 if not self._is_running or self._stop_event.is_set():
                     break
 
                 if _logging_streams_available():
                     logger.info(
-                        "🧠 [NEURAL] Simulated telemetry pattern: %s (conf=%.2f entropy=%.2f novelty=%.2f)",
+                        "🧠 [NEURAL] Simulated neural telemetry: state=%s quality=%.2f entropy=%.2f novelty=%.2f bands=%s",
                         self._last_pattern,
                         self._confidence,
                         self._entropy,
                         self._novelty,
+                        self._format_band_profile(self._last_band_profile),
                     )
 
                 if self._event_bus:
@@ -230,6 +233,7 @@ class NeuralBridge:
                                         "confidence": self._confidence,
                                         "entropy": self._entropy,
                                         "novelty": self._novelty,
+                                        "band_profile": self._last_band_profile,
                                         "simulated": True,
                                         "not_thought_decode": True,
                                         "confidence_variance": self._confidence_variance(),
@@ -263,6 +267,31 @@ class NeuralBridge:
         spread = float(np.std(band_energy) / (np.mean(band_energy) + 1e-6))
         return max(0.0, min(1.0, spread / 3.0))
 
+    @staticmethod
+    def _band_profile(eeg_data: np.ndarray) -> Dict[str, float]:
+        freqs = np.fft.rfftfreq(NUM_SAMPLES, d=1.0 / SAMPLING_RATE)
+        power = np.mean(np.abs(np.fft.rfft(eeg_data, axis=1)) ** 2, axis=0)
+        bands = {
+            "delta": (0.5, 4.0),
+            "theta": (4.0, 8.0),
+            "alpha": (8.0, 13.0),
+            "beta": (13.0, 30.0),
+            "gamma": (30.0, 80.0),
+        }
+        raw: Dict[str, float] = {}
+        for name, (lo, hi) in bands.items():
+            mask = (freqs >= lo) & (freqs < hi)
+            raw[name] = float(np.mean(power[mask])) if np.any(mask) else 0.0
+        total = sum(raw.values()) or 1.0
+        return {name: round(value / total, 4) for name, value in raw.items()}
+
+    @staticmethod
+    def _format_band_profile(profile: Dict[str, float]) -> str:
+        if not profile:
+            return "unavailable"
+        names = ("delta", "theta", "alpha", "beta", "gamma")
+        return " ".join(f"{name[0]}={profile.get(name, 0.0):.2f}" for name in names)
+
     def _confidence_variance(self) -> float:
         if len(self._confidence_history) < 2:
             return 0.0
@@ -277,6 +306,7 @@ class NeuralBridge:
             "confidence_variance": self._confidence_variance(),
             "entropy": self._entropy,
             "novelty": self._novelty,
+            "band_profile": dict(self._last_band_profile),
             "pattern_vocabulary_size": len(set(self._pattern_history)),
             "simulated_not_thought_decoding": True,
             "channel_count": NUM_CHANNELS,

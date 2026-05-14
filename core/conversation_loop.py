@@ -451,7 +451,7 @@ Respond naturally as Aura:
             response = thought.content if thought else None
             
             if not response:
-                return "I'm thinking about that, but I'm having trouble formulating a response right now."
+                return "I recorded a degraded cognitive cycle instead of inventing an answer."
             
             # Clean up response
             response = response.strip()
