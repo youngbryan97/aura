@@ -597,6 +597,10 @@ class HealthAwareLLMRouter:
         origin = str(kwargs.get("origin", "") or "").lower()
         purpose = str(kwargs.get("purpose", "") or "").lower()
         explicit_background = bool(kwargs.get("is_background", False))
+        non_chat_inference = bool(kwargs.pop("_non_chat_inference", False))
+        if not origin and not purpose and not explicit_background and not non_chat_inference:
+            purpose = "expression"
+            kwargs["purpose"] = purpose
         inferred_background = self._is_background_request(
             origin=origin,
             purpose=purpose,
@@ -699,6 +703,7 @@ class HealthAwareLLMRouter:
                 system_prompt=system_prompt or "",
                 prefer_tier=prefer_tier,
                 schema=schema,
+                _non_chat_inference=True,
                 **kwargs,
             )
             text = result.get("text", "") if isinstance(result, dict) else str(result)

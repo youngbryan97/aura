@@ -192,11 +192,8 @@ def build_conversational_context_blocks(state: Any, objective: str = "") -> list
         verifier = get_task_commitment_verifier()
         if verifier and hasattr(verifier, "get_context_block"):
             task_block = verifier.get_context_block(objective or "")
-            if task_block:
-                if _is_task_context_priority(objective or ""):
-                    priority_blocks.append(task_block)
-                else:
-                    blocks.append(task_block)
+            if task_block and _is_task_context_priority(objective or ""):
+                priority_blocks.append(task_block)
     except Exception as exc:
         record_degradation('conversation_support', exc)
         logger.debug("Task verifier context injection failed: %s", exc)

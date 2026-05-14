@@ -177,6 +177,16 @@ class EnhancedWebSearchSkill(BaseSkill):
                         await self.pipeline._retain_artifact(artifact, context or {})
                         normalized["retained"] = True
                         normalized["artifact_id"] = artifact.artifact_id
+                    try:
+                        from core.advanced_cognition import ExternalEvidenceDeliberator
+
+                        normalized["deliberation_receipts"] = ExternalEvidenceDeliberator.deliberate_many(
+                            normalized.get("chunks") or [],
+                            source_type="web_search",
+                            goal=query,
+                        )
+                    except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                        record_degradation("web_search", exc, severity="warning", action="continued without deep evidence deliberation")
                     return normalized
                 logger.warning("Deep Research returned an empty answer for '%s'; falling back to retrieval pipeline.", query)
             except Exception as e:
@@ -206,6 +216,30 @@ class EnhancedWebSearchSkill(BaseSkill):
                 force_refresh=False,
             )
         result.setdefault("summary", result.get("answer") or result.get("message") or "")
+        try:
+            from core.advanced_cognition import ExternalEvidenceDeliberator
+
+            artifacts = result.get("chunks") or result.get("results") or []
+            if artifacts:
+                result["deliberation_receipts"] = ExternalEvidenceDeliberator.deliberate_many(
+                    artifacts,
+                    source_type="web_search",
+                    goal=query,
+                )
+            elif result.get("summary"):
+                result["deliberation_receipts"] = [
+                    ExternalEvidenceDeliberator()
+                    .deliberate(
+                        source_type="web_search",
+                        source_ref=result.get("source") or query,
+                        content=str(result.get("summary") or ""),
+                        goal=query,
+                        metadata=result,
+                    )
+                    .to_dict()
+                ]
+        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            record_degradation("web_search", exc, severity="warning", action="continued without evidence deliberation receipts")
         return result
 
     async def on_stop_async(self):

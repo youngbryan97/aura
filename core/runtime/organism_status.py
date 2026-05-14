@@ -63,13 +63,14 @@ def _looks_like_stale_user_prompt(text: str) -> bool:
 def _clean_current_intention_for_status(intention: Any, live_objective: Any = "", live_origin: Any = "") -> str:
     text = " ".join(str(intention or "").split())
     objective = " ".join(str(live_objective or "").split())
-    if objective and not _is_user_facing_status_origin(live_origin):
+    origin = str(live_origin or "").strip()
+    if objective and origin.lower() not in {"system", "unknown"} and not _is_user_facing_status_origin(origin):
         return objective[:260]
     lowered = text.lower()
     if not text:
-        return ""
+        return objective[:260] if objective and not _is_user_facing_status_origin(live_origin) else ""
     if "[referential anchor]" in lowered or len(text) > 320 or _looks_like_stale_user_prompt(text):
-        return "idle"
+        return objective[:260] if objective and not _is_user_facing_status_origin(live_origin) else "idle"
     return text[:260]
 
 

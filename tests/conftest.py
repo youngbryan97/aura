@@ -169,6 +169,23 @@ def _cleanup_runtime_hygiene_after_test():
         pass
 
 
+@pytest.fixture(autouse=True)
+def _reset_shutdown_request_between_tests():
+    try:
+        from core.runtime.shutdown_coordinator import clear_shutdown_request
+
+        clear_shutdown_request()
+    except (ImportError, RuntimeError, AttributeError):
+        pass
+    yield
+    try:
+        from core.runtime.shutdown_coordinator import clear_shutdown_request
+
+        clear_shutdown_request()
+    except (ImportError, RuntimeError, AttributeError):
+        pass
+
+
 def pytest_sessionfinish(session, exitstatus):
     """Final cleanup for singleton executors that can keep pytest alive.
 

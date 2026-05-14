@@ -72,9 +72,17 @@ class AuthorityGateway:
                 "tool_execution": ActionDomain.TOOL_EXECUTION,
                 "state_mutation": ActionDomain.STATE_MUTATION,
                 "memory_write": ActionDomain.MEMORY_WRITE,
+                "belief_update": getattr(ActionDomain, "BELIEF_UPDATE", ActionDomain.MEMORY_WRITE),
                 "initiative": ActionDomain.INITIATIVE,
                 "expression": ActionDomain.EXPRESSION,
                 "response": ActionDomain.RESPONSE,
+                "environment_action": getattr(ActionDomain, "ENVIRONMENT_ACTION", ActionDomain.TOOL_EXECUTION),
+                "external_action": getattr(ActionDomain, "EXTERNAL_ACTION", ActionDomain.TOOL_EXECUTION),
+                "file_write": getattr(ActionDomain, "FILE_WRITE", ActionDomain.STATE_MUTATION),
+                "network_call": getattr(ActionDomain, "NETWORK_CALL", ActionDomain.TOOL_EXECUTION),
+                "cloud_call": getattr(ActionDomain, "CLOUD_CALL", ActionDomain.TOOL_EXECUTION),
+                "ci_cd": getattr(ActionDomain, "CI_CD", ActionDomain.TOOL_EXECUTION),
+                "self_modification": getattr(ActionDomain, "SELF_MODIFICATION", ActionDomain.STATE_MUTATION),
             }
             domain = domain_map.get(domain_str, ActionDomain.STATE_MUTATION)
             will = get_will()
@@ -241,6 +249,87 @@ class AuthorityGateway:
             decision.capability_token_id = token.token_id
         return decision
 
+    async def authorize_environment_action(
+        self,
+        intent_name: str,
+        payload: Dict[str, Any],
+        *,
+        source: str = "environment",
+        priority: float = 0.5,
+        is_critical: bool = False,
+    ) -> AuthorityDecision:
+        """Authorize an embodied/digital environment action through the same spine.
+
+        Environment actions are "tools with a body": even when they compile to a
+        key press or observe step, the Will must see and receipt the intent.
+        """
+        will_block, will_decision = self._will_gate(
+            f"environment:{intent_name}", source, "environment_action", priority, is_critical
+        )
+        if will_block is not None:
+            return will_block
+
+        blocked, substrate_constraints, receipt_id = self._substrate_preflight(
+            content=f"environment:{intent_name} payload:{str(payload)[:120]}",
+            source=source or "environment",
+            category=ActionCategory.TOOL_EXECUTION,
+            priority=priority,
+            is_critical=is_critical,
+            require_substrate=False,
+            will_receipt_id=getattr(will_decision, "receipt_id", None),
+            domain="environment_action",
+        )
+        if blocked is not None:
+            return blocked
+
+        intent = Intent(
+            source=_coerce_intent_source(source or "environment"),
+            goal=f"environment_action:{intent_name}",
+            action_type=ActionType.TOOL_CALL,
+            payload={"intent_name": intent_name, "payload": dict(payload or {})},
+            priority=priority,
+            requires_tool=True,
+        )
+        record = await self._get_executive_core().request_approval(intent)
+        decision = self._decision_from_record(
+            record,
+            executive_intent_id=intent.intent_id,
+            substrate_constraints=substrate_constraints,
+            substrate_receipt_id=receipt_id,
+            will_receipt_id=getattr(will_decision, "receipt_id", None),
+            domain="environment_action",
+            source=source or "environment",
+        )
+        if decision.approved:
+            token = self._capabilities.generate_token(["environment_action"], duration_s=self.TOOL_TOKEN_TTL_S)
+            token.metadata.update(
+                {
+                    "source": source,
+                    "intent_name": intent_name,
+                    "intent_id": intent.intent_id,
+                    "substrate_receipt_id": receipt_id,
+                }
+            )
+            decision.capability_token_id = token.token_id
+        return decision
+
+    def authorize_belief_update(
+        self,
+        key: str,
+        value: Any,
+        *,
+        note: Optional[str] = None,
+        source: str = "unknown",
+        priority: float = 0.7,
+    ) -> AuthorityDecision:
+        return self.authorize_belief_update_sync(
+            key,
+            value,
+            note=note,
+            source=source,
+            priority=priority,
+        )
+
     async def authorize_state_mutation(
         self,
         origin: str,
@@ -351,7 +440,7 @@ class AuthorityGateway:
             priority=max(0.0, min(1.0, float(importance or 0.0))),
             require_substrate=False,
             will_receipt_id=getattr(will_decision, "receipt_id", None),
-            domain="memory_write",
+            domain="belief_update",
         )
         if blocked is not None:
             return blocked
@@ -447,7 +536,7 @@ class AuthorityGateway:
         priority: float = 0.7,
     ) -> AuthorityDecision:
         content = f"belief:{key}:{str(value)[:80]}"
-        will_block, will_decision = self._will_gate(content, source, "memory_write", priority)
+        will_block, will_decision = self._will_gate(content, source, "belief_update", priority)
         if will_block is not None:
             return will_block
 
@@ -482,7 +571,7 @@ class AuthorityGateway:
             substrate_constraints=substrate_constraints,
             substrate_receipt_id=receipt_id,
             will_receipt_id=getattr(will_decision, "receipt_id", None),
-            domain="memory_write",
+            domain="belief_update",
             source=source or "system",
         )
         if decision.approved:

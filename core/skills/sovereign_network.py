@@ -56,7 +56,8 @@ class SovereignNetworkSkill(BaseSkill):
             or ""
         ).strip().lower()
         user_initiated = source in {"user", "api", "chat", "desktop", "voice", "web"}
-        if not user_initiated and mode in {"recon", "scan", "audit", "discovery"}:
+        background_declared = bool(context.get("is_background") or context.get("background") or (source and not user_initiated))
+        if background_declared and mode in {"recon", "scan", "audit", "discovery"}:
             try:
                 from core.runtime.background_policy import background_activity_reason
 

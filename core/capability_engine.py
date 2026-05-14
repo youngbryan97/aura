@@ -235,13 +235,52 @@ class Shell:
     async def run(self, cmd: List[str]) -> Tuple[bool, str]:
         if not self._is_allowed(cmd):
             return False, f"Command {cmd[0]} not in allowlist"
+        auth = None
+        try:
+            from core.executive.authority_gateway import get_authority_gateway
+
+            gateway = get_authority_gateway()
+            auth = await gateway.authorize_tool_execution(
+                "shell_command",
+                {"cmd": list(cmd), "cwd": self.cwd, "timeout": self.timeout},
+                source="capability_engine.shell",
+                priority=0.75,
+                is_critical=False,
+            )
+            if not auth.approved:
+                return False, f"Authority refused shell command: {auth.reason}"
+            if not gateway.verify_tool_access("shell_command", auth.capability_token_id):
+                return False, "Authority token verification failed for shell_command"
+        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as e:
+            record_degradation('capability_engine', e)
+            return False, f"Authority unavailable for shell command: {e}"
         try:
             result = await asyncio.to_thread(
                 subprocess.run, cmd, cwd=self.cwd, capture_output=True, text=True, timeout=self.timeout
             )
+            try:
+                from core.executive.authority_gateway import get_authority_gateway
+
+                get_authority_gateway().finalize_tool_execution(
+                    executive_intent_id=getattr(auth, "executive_intent_id", None),
+                    capability_token_id=getattr(auth, "capability_token_id", None),
+                    success=result.returncode == 0,
+                )
+            except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as finalize_error:
+                record_degradation('capability_engine', finalize_error)
             return result.returncode == 0, (result.stdout + "\n" + result.stderr).strip()
-        except Exception as e:
+        except (subprocess.TimeoutExpired, OSError, ValueError) as e:
             record_degradation('capability_engine', e)
+            try:
+                from core.executive.authority_gateway import get_authority_gateway
+
+                get_authority_gateway().finalize_tool_execution(
+                    executive_intent_id=getattr(auth, "executive_intent_id", None),
+                    capability_token_id=getattr(auth, "capability_token_id", None),
+                    success=False,
+                )
+            except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as finalize_error:
+                record_degradation('capability_engine', finalize_error)
             return False, str(e)
 
 class WebClient:
@@ -258,11 +297,50 @@ class WebClient:
     async def get(self, url: str, headers: Optional[Dict[str, str]] = None) -> Tuple[bool, str]:
         if not self._is_allowed(url):
             return False, f"Domain not in allowlist: {url}"
+        auth = None
+        try:
+            from core.executive.authority_gateway import get_authority_gateway
+
+            gateway = get_authority_gateway()
+            auth = await gateway.authorize_tool_execution(
+                "network_get",
+                {"url": url, "headers": sorted((headers or {}).keys()), "timeout": self.timeout},
+                source="capability_engine.web_client",
+                priority=0.65,
+                is_critical=False,
+            )
+            if not auth.approved:
+                return False, f"Authority refused network request: {auth.reason}"
+            if not gateway.verify_tool_access("network_get", auth.capability_token_id):
+                return False, "Authority token verification failed for network_get"
+        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as e:
+            record_degradation('capability_engine', e)
+            return False, f"Authority unavailable for network request: {e}"
         try:
             resp = await asyncio.to_thread(requests.get, url, headers=headers, timeout=self.timeout)
+            try:
+                from core.executive.authority_gateway import get_authority_gateway
+
+                get_authority_gateway().finalize_tool_execution(
+                    executive_intent_id=getattr(auth, "executive_intent_id", None),
+                    capability_token_id=getattr(auth, "capability_token_id", None),
+                    success=True,
+                )
+            except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as finalize_error:
+                record_degradation('capability_engine', finalize_error)
             return True, resp.text
-        except Exception as e:
+        except (requests.RequestException, OSError, ValueError) as e:
             record_degradation('capability_engine', e)
+            try:
+                from core.executive.authority_gateway import get_authority_gateway
+
+                get_authority_gateway().finalize_tool_execution(
+                    executive_intent_id=getattr(auth, "executive_intent_id", None),
+                    capability_token_id=getattr(auth, "capability_token_id", None),
+                    success=False,
+                )
+            except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as finalize_error:
+                record_degradation('capability_engine', finalize_error)
             return False, str(e)
 
 class Sandbox2:

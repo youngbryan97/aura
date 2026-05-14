@@ -3,6 +3,7 @@ import asyncio
 import logging
 import threading
 import time
+from collections import deque
 from typing import Any, Dict, Optional
 
 import numpy as np
@@ -23,8 +24,18 @@ NUM_CHANNELS = 8
 SAMPLING_RATE = 250
 WINDOW_SEC = 2.0
 NUM_SAMPLES = int(SAMPLING_RATE * WINDOW_SEC)
-COMMANDS = ["INTUITION", "LOGIC", "SYNCHRONICITY", "RECURSION"]
-NUM_CLASSES = len(COMMANDS)
+TELEMETRY_PATTERNS = [
+    "BETA_ANALYTIC_STABILITY",
+    "ALPHA_ORIENTATION_SHIFT",
+    "THETA_NOVELTY_BURST",
+    "GAMMA_BINDING_SURGE",
+    "SENSORIMOTOR_READYING",
+    "LOW_VARIANCE_IDLE",
+    "HIGH_ENTROPY_UNCERTAINTY",
+    "CROSS_BAND_RESONANCE",
+]
+COMMANDS = TELEMETRY_PATTERNS  # legacy import compatibility; not commands/thoughts.
+NUM_CLASSES = len(TELEMETRY_PATTERNS)
 
 
 def _softmax(values: np.ndarray) -> np.ndarray:
@@ -62,9 +73,9 @@ class BCIClassifier:
     def eval(self) -> None:
         return None
 
-    def predict(self, eeg_data: np.ndarray) -> tuple[int, float]:
+    def predict(self, eeg_data: np.ndarray) -> tuple[int, float, np.ndarray]:
         if not self._templates:
-            return 0, 0.0
+            return 0, 0.0, np.ones(NUM_CLASSES, dtype=np.float64) / NUM_CLASSES
 
         flattened = eeg_data.ravel()
         sample_norm = max(float(np.linalg.norm(flattened)), 1e-6)
@@ -76,7 +87,7 @@ class BCIClassifier:
 
         probabilities = _softmax(np.asarray(scores, dtype=np.float64))
         winner = int(np.argmax(probabilities))
-        return winner, float(probabilities[winner])
+        return winner, float(probabilities[winner]), probabilities
 
 
 class NeuralBridge:
@@ -93,8 +104,12 @@ class NeuralBridge:
         self._lightweight_mode = lightweight_mode
         self._poll_interval_range = (8.0, 18.0) if lightweight_mode else (5.0, 15.0)
 
-        self._last_command: Optional[str] = None
+        self._last_pattern: Optional[str] = None
         self._confidence: float = 0.0
+        self._entropy: float = 0.0
+        self._novelty: float = 0.0
+        self._confidence_history: deque[float] = deque(maxlen=128)
+        self._pattern_history: deque[str] = deque(maxlen=128)
 
     async def load(self):
         logger.info("🧠 [NEURAL] Initializing BCI Neural Bridge...")
@@ -122,14 +137,23 @@ class NeuralBridge:
         data = np.zeros((NUM_CHANNELS, NUM_SAMPLES))
         for ch in range(NUM_CHANNELS):
             noise = self._rng.normal(0, 0.5, NUM_SAMPLES)
+            class_label = class_label % NUM_CLASSES
             if class_label == 0:
                 sig = 1.5 * np.sin(2 * np.pi * 18 * t) + 0.8 * np.sin(2 * np.pi * 10 * t)
             elif class_label == 1:
                 sig = 1.5 * np.sin(2 * np.pi * 22 * t) + 0.8 * np.sin(2 * np.pi * 12 * t)
             elif class_label == 2:
                 sig = np.exp(-((t - 0.3) ** 2) / 0.05) * 3
-            else:
+            elif class_label == 3:
                 sig = 2.0 * np.sin(2 * np.pi * 10 * t)
+            elif class_label == 4:
+                sig = 1.8 * np.sin(2 * np.pi * 14 * t) * np.sin(2 * np.pi * 3 * t)
+            elif class_label == 5:
+                sig = 0.35 * np.sin(2 * np.pi * 8 * t)
+            elif class_label == 6:
+                sig = self._rng.normal(0, 1.2, NUM_SAMPLES)
+            else:
+                sig = 0.9 * np.sin(2 * np.pi * 40 * t) + 0.9 * np.sin(2 * np.pi * 6 * t)
             data[ch] = sig + noise + self._rng.normal(0, 0.2, NUM_SAMPLES)
 
         kernel = np.array([0.1, 0.2, 0.4, 0.2, 0.1], dtype=np.float64)
@@ -173,18 +197,24 @@ class NeuralBridge:
 
                 target_cls = int(self._rng.integers(0, NUM_CLASSES))
                 eeg_data = self._generate_synthetic_eeg(target_cls)
-                cmd_idx, confidence = self.model.predict(eeg_data)
+                pattern_idx, confidence, probabilities = self.model.predict(eeg_data)
 
-                self._last_command = COMMANDS[cmd_idx]
+                self._last_pattern = TELEMETRY_PATTERNS[pattern_idx]
                 self._confidence = confidence
+                self._entropy = self._distribution_entropy(probabilities)
+                self._confidence_history.append(confidence)
+                self._pattern_history.append(self._last_pattern)
+                self._novelty = self._estimate_novelty(eeg_data)
                 if not self._is_running or self._stop_event.is_set():
                     break
 
                 if _logging_streams_available():
                     logger.info(
-                        "🧠 [NEURAL] Thought Decoded: %s (Conf: %.2f)",
-                        self._last_command,
+                        "🧠 [NEURAL] Simulated telemetry pattern: %s (conf=%.2f entropy=%.2f novelty=%.2f)",
+                        self._last_pattern,
                         self._confidence,
+                        self._entropy,
+                        self._novelty,
                     )
 
                 if self._event_bus:
@@ -195,10 +225,17 @@ class NeuralBridge:
                                 self._event_bus.publish(
                                     "core/senses/bci_event",
                                     {
-                                        "command": self._last_command,
+                                        "pattern": self._last_pattern,
+                                        "command": self._last_pattern,
                                         "confidence": self._confidence,
+                                        "entropy": self._entropy,
+                                        "novelty": self._novelty,
+                                        "simulated": True,
+                                        "not_thought_decode": True,
+                                        "confidence_variance": self._confidence_variance(),
+                                        "pattern_vocabulary_size": len(set(self._pattern_history)),
                                         "timestamp": time.time(),
-                                        "type": "SIMULATED_NEURAL_DECODE",
+                                        "type": "SIMULATED_NEURAL_TELEMETRY",
                                     },
                                 ),
                                 loop,
@@ -214,11 +251,34 @@ class NeuralBridge:
                 if self._stop_event.wait(timeout=1.0):
                     break
 
+    @staticmethod
+    def _distribution_entropy(probabilities: np.ndarray) -> float:
+        probs = np.asarray(probabilities, dtype=np.float64)
+        probs = probs / max(float(np.sum(probs)), 1e-9)
+        entropy = -float(np.sum([p * np.log2(max(p, 1e-12)) for p in probs]))
+        return entropy / max(np.log2(len(probs)), 1e-9)
+
+    def _estimate_novelty(self, eeg_data: np.ndarray) -> float:
+        band_energy = np.mean(np.abs(np.fft.rfft(eeg_data, axis=1)), axis=0)
+        spread = float(np.std(band_energy) / (np.mean(band_energy) + 1e-6))
+        return max(0.0, min(1.0, spread / 3.0))
+
+    def _confidence_variance(self) -> float:
+        if len(self._confidence_history) < 2:
+            return 0.0
+        return float(np.var(np.asarray(self._confidence_history, dtype=np.float64)))
+
     def get_status(self) -> Dict[str, Any]:
         return {
             "is_running": self._is_running,
-            "last_thought": self._last_command,
+            "last_thought": None,
+            "last_pattern": self._last_pattern,
             "confidence": self._confidence,
+            "confidence_variance": self._confidence_variance(),
+            "entropy": self._entropy,
+            "novelty": self._novelty,
+            "pattern_vocabulary_size": len(set(self._pattern_history)),
+            "simulated_not_thought_decoding": True,
             "channel_count": NUM_CHANNELS,
             "lightweight_mode": self._lightweight_mode,
         }

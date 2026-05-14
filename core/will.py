@@ -87,6 +87,14 @@ class ActionDomain(str, Enum):
     STABILIZATION = "stabilization"     # rest / recovery action
     REFLECTION = "reflection"           # internal reflection / metacognition
     SEMANTIC_WEIGHT_UPDATE = "semantic_weight_update"  # plastic adapter update
+    BELIEF_UPDATE = "belief_update"       # explicit belief graph update
+    ENVIRONMENT_ACTION = "environment_action"  # embodied/digital environment action
+    EXTERNAL_ACTION = "external_action"   # externally visible side effect
+    FILE_WRITE = "file_write"             # persistent filesystem mutation
+    NETWORK_CALL = "network_call"         # network or browser action
+    CLOUD_CALL = "cloud_call"             # cloud/provider side effect
+    CI_CD = "ci_cd"                       # CI/CD and deployment authority
+    SELF_MODIFICATION = "self_modification"  # code/architecture mutation
 
 
 # Modules whose weights may be updated under SEMANTIC_WEIGHT_UPDATE.  This

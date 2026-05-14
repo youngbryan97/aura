@@ -131,6 +131,7 @@ class EnvironmentKernel:
         self.macro_inducer = None      # set externally to MacroInducer if available
         self.competence_tracker: dict[str, dict] = {}  # action_name -> {attempts, successes, last_score}
         self.world_state = None
+        self.advanced_cognition = None
         self._bind_aura_services()
 
     async def start(self, *, run_id: str, seed: int | None = None) -> None:
@@ -207,6 +208,54 @@ class EnvironmentKernel:
             )
             frame.selected_option = intent.name
 
+        advanced_gate = self._advanced_pre_action_gate(frame, intent)
+        if advanced_gate:
+            frame.metadata["advanced_cognition_gate"] = self._jsonish_advanced_gate(advanced_gate)
+            if not advanced_gate.get("allowed"):
+                decision = GatewayDecision(
+                    approved=False,
+                    action_intent=None,
+                    reason="advanced_cognition_gate_refused",
+                    vetoes=["advanced_cognition_gate_refused"],
+                    decision_id=advanced_gate.get("receipt", {}).get("receipt_id", "advanced_gate_veto"),
+                )
+                frame.action_intent = intent
+                frame.gateway_decision = decision
+                receipt = EnvironmentActionReceipt(
+                    receipt_id=f"envrcpt_{self.run_id}_{parsed.sequence_id}_{len(self.frames)}",
+                    run_id=self.run_id,
+                    sequence_id=parsed.sequence_id,
+                    environment_id=self.environment_id,
+                    observation_id=frame.observation.stable_hash(),
+                    belief_hash_before=frame.belief_hash_before,
+                    action_intent_id=intent.intent_id(),
+                    gateway_decision_id=decision.decision_id,
+                    will_receipt_id=None,
+                    authority_receipt_id=advanced_gate.get("receipt", {}).get("receipt_id"),
+                )
+                frame.receipt = receipt
+                receipt.finalize(status="blocked", belief_hash_after=frame.belief_hash_after)
+                self._record_action_budget(
+                    frame,
+                    intent,
+                    irreversible=intent.risk == "irreversible",
+                    unknown="unknown" in intent.tags,
+                    modal=bool(parsed.modal_state),
+                    failed=True,
+                )
+                self._trace(frame, latency_ms=(time.time() - started) * 1000)
+                return frame
+            selected_payload = advanced_gate.get("selected")
+            replacement = self._intent_from_advanced_selection(frame, intent, selected_payload)
+            if replacement.intent_id() != intent.intent_id():
+                frame.metadata["advanced_cognition_replaced_intent"] = {
+                    "from": intent.name,
+                    "to": replacement.name,
+                    "reason": "safer_transfer_or_reflex_selection",
+                }
+                intent = replacement
+                frame.selected_option = f"ADVANCED_COGNITION:{intent.name}"
+
         sim = self.simulator.simulate(self.belief, intent)
         
         gov_decision = await self.governance_bridge.decide_action(intent)
@@ -252,6 +301,7 @@ class EnvironmentKernel:
         if not decision.approved:
             receipt.finalize(status="blocked", belief_hash_after=frame.belief_hash_after)
             self.gateway.record_failure(intent.name, parsed.context_id or "default")
+            self._finalize_environment_authority(gov_decision, success=False)
             self._record_action_budget(
                 frame,
                 intent,
@@ -269,6 +319,7 @@ class EnvironmentKernel:
             frame.execution_result = result
             receipt.finalize(status="failed", belief_hash_after=frame.belief_hash_after)
             self.gateway.record_failure(intent.name, parsed.context_id or "default")
+            self._finalize_environment_authority(gov_decision, success=False)
             self._record_action_budget(
                 frame,
                 intent,
@@ -290,6 +341,7 @@ class EnvironmentKernel:
             receipt.finalize(status="blocked", belief_hash_after=frame.belief_hash_after)
             frame.execution_result = ExecutionResult(False, command.command_id, None, error=";".join(semantic_decision.reasons))
             self.gateway.record_failure(intent.name, parsed.context_id or "default")
+            self._finalize_environment_authority(gov_decision, success=False)
             self._record_action_budget(
                 frame,
                 intent,
@@ -303,6 +355,7 @@ class EnvironmentKernel:
         receipt.command_id = command.command_id
         result = await self.adapter.execute(command)
         frame.execution_result = result
+        self._finalize_environment_authority(gov_decision, success=bool(result.ok))
         
         # Observe and parse after execution. If execution itself failed and
         # the adapter did not provide a fresh observation, do not blindly ask
@@ -461,6 +514,7 @@ class EnvironmentKernel:
         ):
             frame.metadata.setdefault("emergent_abstractions", []).append(abstraction.to_dict())
         self._publish_experience_outcome(frame, intent, outcome, observed_events)
+        self._advanced_after_action(frame, intent, outcome, resource_delta)
 
         # 8. RunManager: record step
         self.run_manager.record_step(frame)
@@ -539,16 +593,216 @@ class EnvironmentKernel:
         """Connect kernel learning to Aura's existing organs when present."""
         try:
             from core.container import ServiceContainer
-        except Exception:
+        except ImportError:
             return
         self.world_state = ServiceContainer.get("world_state", default=None)
         self.causal_model = ServiceContainer.get("causal_world_model", default=self.causal_model)
         self.episodic_memory = ServiceContainer.get("episodic_memory", default=self.episodic_memory)
         self.macro_inducer = ServiceContainer.get("macro_inducer", default=self.macro_inducer)
+        self.advanced_cognition = ServiceContainer.get("advanced_cognition", default=None)
+        if self.advanced_cognition is None:
+            try:
+                from core.advanced_cognition import AdvancedCognitionRuntime
+                from .runtime_workspace import environment_runtime_dir
+
+                self.advanced_cognition = AdvancedCognitionRuntime(
+                    state_dir=environment_runtime_dir(self.environment_id, purpose="learning") / "advanced_cognition"
+                )
+                ServiceContainer.register_instance("advanced_cognition", self.advanced_cognition, required=False)
+            except (ImportError, RuntimeError, AttributeError, TypeError, ValueError, OSError) as exc:
+                record_degradation(
+                    "environment_kernel",
+                    exc,
+                    severity="warning",
+                    action="continued without advanced cognition runtime",
+                )
         try:
             ServiceContainer.register_instance(f"environment_kernel:{self.environment_id}", self, required=False)
-        except Exception as exc:
+        except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
             record_degradation("environment_kernel", exc, severity="debug", action="continued without environment kernel service registration")
+
+    def _advanced_observation(self, frame: EnvironmentFrame) -> dict[str, Any]:
+        parsed_payload = frame.parsed_state.to_json_safe()
+        raw_payload = frame.observation.to_json_safe() if hasattr(frame.observation, "to_json_safe") else {}
+        return {
+            "domain": self.environment_id,
+            "state": {
+                "parsed": parsed_payload,
+                "raw": raw_payload,
+                "belief_hash": frame.belief_hash_after,
+            },
+            "source": "environment_kernel",
+            "confidence": max(0.1, 1.0 - max(frame.parsed_state.uncertainty.values()) if frame.parsed_state.uncertainty else 0.75),
+        }
+
+    def _advanced_action_candidates(self, intent: ActionIntent) -> list[dict[str, Any]]:
+        risk_tier = {"safe": 1, "caution": 2, "risky": 3, "irreversible": 4, "forbidden": 5}
+        reversible = intent.risk not in {"irreversible", "forbidden"}
+        candidates = [
+            {
+                "action_id": intent.intent_id(),
+                "kind": intent.name,
+                "params": dict(intent.parameters or {}),
+                "reversible": reversible,
+                "authority_tier": risk_tier.get(intent.risk, 2),
+                "expected_cost": 0.15 if intent.risk == "safe" else 0.35,
+                "tags": tuple(sorted(intent.tags or set())),
+            },
+            {
+                "action_id": "adv_observe",
+                "kind": "observe",
+                "params": {},
+                "reversible": True,
+                "authority_tier": 0,
+                "expected_cost": 0.05,
+                "tags": ("probe", "safe"),
+            },
+            {
+                "action_id": "adv_wait",
+                "kind": "wait",
+                "params": {},
+                "reversible": True,
+                "authority_tier": 0,
+                "expected_cost": 0.03,
+                "tags": ("safe",),
+            },
+            {
+                "action_id": "adv_retreat",
+                "kind": "retreat_to_safety",
+                "params": {},
+                "reversible": True,
+                "authority_tier": 1,
+                "expected_cost": 0.12,
+                "tags": ("movement", "safety"),
+            },
+        ]
+        return candidates
+
+    def _advanced_pre_action_gate(self, frame: EnvironmentFrame, intent: ActionIntent) -> dict[str, Any] | None:
+        if self.advanced_cognition is None:
+            return None
+        try:
+            observation = self._advanced_observation(frame)
+            risk_tolerance = {
+                "safe": 0.7,
+                "caution": 0.55,
+                "risky": 0.4,
+                "irreversible": 0.25,
+                "forbidden": 0.0,
+            }.get(intent.risk, 0.5)
+            return self.advanced_cognition.pre_action_gate(
+                observation,
+                self._advanced_action_candidates(intent),
+                risk_tolerance=risk_tolerance,
+            )
+        except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            record_degradation(
+                "environment_kernel",
+                exc,
+                severity="warning",
+                action="advanced cognition gate unavailable; continued to canonical governance",
+            )
+            return None
+
+    def _intent_from_advanced_selection(
+        self,
+        frame: EnvironmentFrame,
+        original: ActionIntent,
+        selected: dict[str, Any] | None,
+    ) -> ActionIntent:
+        if not selected or selected.get("action_id") == original.intent_id():
+            return original
+        if original.risk == "safe" and not frame.parsed_state.hazards and "unknown" not in original.tags:
+            return original
+        kind = str(selected.get("kind") or "observe")
+        if kind not in {"observe", "wait", "retreat_to_safety", "stabilize_resource"}:
+            return original
+        return ActionIntent(
+            name=kind,
+            parameters=dict(selected.get("params") or {}),
+            expected_effect="observation_updated" if kind == "observe" else "risk_reduced",
+            risk="safe",
+            tags=set(selected.get("tags") or ("safe",)),
+            requires_authority=False,
+        )
+
+    def _finalize_environment_authority(self, decision: Any, *, success: bool) -> None:
+        if not decision:
+            return
+        token_id = getattr(decision, "capability_token_id", None)
+        intent_id = getattr(decision, "executive_intent_id", None)
+        if not (token_id or intent_id):
+            return
+        try:
+            from core.executive.authority_gateway import get_authority_gateway
+
+            get_authority_gateway().finalize_tool_execution(
+                executive_intent_id=intent_id,
+                capability_token_id=token_id,
+                success=success,
+            )
+        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            record_degradation(
+                "environment_kernel",
+                exc,
+                severity="warning",
+                action="continued after environment authority finalization failed",
+            )
+
+    def _jsonish_advanced_gate(self, gate: dict[str, Any]) -> dict[str, Any]:
+        payload = dict(gate)
+        physical = dict(payload.get("physical") or {})
+        grounded = physical.get("grounded_state")
+        if grounded is not None:
+            physical["grounded_state"] = {
+                "state_id": getattr(grounded, "state_id", ""),
+                "hazards": list(getattr(grounded, "hazards", []) or []),
+                "resources": dict(getattr(grounded, "resources", {}) or {}),
+                "confidence": getattr(grounded, "confidence", 0.0),
+            }
+        payload["physical"] = physical
+        return payload
+
+    def _advanced_after_action(
+        self,
+        frame: EnvironmentFrame,
+        intent: ActionIntent,
+        outcome: OutcomeAssessment,
+        resource_delta: dict[str, float],
+    ) -> None:
+        if self.advanced_cognition is None:
+            return
+        try:
+            action_id = intent.intent_id()
+            payload = self.advanced_cognition.after_action(
+                self._advanced_observation(frame),
+                {
+                    "action_id": action_id,
+                    "kind": intent.name,
+                    "params": dict(intent.parameters or {}),
+                    "reversible": intent.risk not in {"irreversible", "forbidden"},
+                    "authority_tier": {"safe": 1, "caution": 2, "risky": 3, "irreversible": 4, "forbidden": 5}.get(intent.risk, 2),
+                    "expected_cost": 0.2,
+                    "tags": tuple(sorted(intent.tags or set())),
+                },
+                {
+                    "success": outcome.success_score > 0.5,
+                    "reward": outcome.success_score,
+                    "harm": outcome.harm_score,
+                    "surprise": outcome.surprise,
+                    "resources_delta": {str(k): float(v) for k, v in resource_delta.items()},
+                    "terminal": outcome.is_death,
+                    "notes": outcome.lesson or "",
+                },
+            )
+            frame.metadata["advanced_cognition_after"] = payload
+        except (RuntimeError, AttributeError, TypeError, ValueError, OSError) as exc:
+            record_degradation(
+                "environment_kernel",
+                exc,
+                severity="warning",
+                action="continued after advanced cognition outcome write failed",
+            )
 
     def _publish_observation(self, frame: EnvironmentFrame) -> None:
         if self.world_state is None:

@@ -49,7 +49,20 @@ class WillClient:
                     "state": "state_mutation",
                     "mutation": "state_mutation",
                     "external_communication": "expression",
-                    "self_modification": "state_mutation",
+                    "self_modification": "self_modification",
+                    "environment": "environment_action",
+                    "environment_action": "environment_action",
+                    "external_action": "external_action",
+                    "file": "file_write",
+                    "file_write": "file_write",
+                    "network": "network_call",
+                    "network_call": "network_call",
+                    "cloud": "cloud_call",
+                    "cloud_call": "cloud_call",
+                    "ci": "ci_cd",
+                    "ci_cd": "ci_cd",
+                    "belief": "belief_update",
+                    "belief_update": "belief_update",
                 }
                 value = aliases.get(value, value)
                 for candidate in ActionDomain:

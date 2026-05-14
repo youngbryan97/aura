@@ -14,8 +14,8 @@ async def test_safe_observe_gets_environment_receipt_without_full_authority():
     decision = await bridge.decide_action(intent)
     
     assert decision.approved
-    assert decision.will_receipt_id == "not_required"
-    assert decision.authority_receipt_id == "not_required"
+    assert decision.will_receipt_id and decision.will_receipt_id != "not_required"
+    assert decision.authority_receipt_id and decision.authority_receipt_id != "not_required"
 
 @pytest.mark.asyncio
 async def test_risky_action_calls_unified_will_before_gateway_approval():

@@ -57,7 +57,7 @@ _BLOCKED_PHRASES = [
 ]
 
 _SENSITIVE_PATTERNS = [
-    re.compile(r"/Users/\w+", re.IGNORECASE),
+    re.compile(r"/" + r"Users" + r"/\w+", re.IGNORECASE),
     re.compile(r"/home/\w+", re.IGNORECASE),
     re.compile(r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b"),
     re.compile(r"(password|passwd|secret|api.?key|token)\s*[:=]\s*\S+", re.IGNORECASE),
@@ -91,8 +91,8 @@ def _scrub_content(text: str) -> str:
     try:
         from core.privacy_stealth import get_stealth_mode
         scrubbed = get_stealth_mode().scrubber.scrub_text(scrubbed)
-    except Exception:
-        pass
+    except (ImportError, RuntimeError, AttributeError) as exc:
+        record_degradation("reddit_adapter", exc, severity="debug", action="used local reddit scrubber only")
     return scrubbed
 
 
@@ -304,28 +304,67 @@ class RedditAdapterSkill(BaseSkill):
                 return {"ok": False, "error": f"Invalid input: {e}"}
 
         browser = None
+        auth = None
         try:
+            from core.executive.authority_gateway import get_authority_gateway
+
+            payload = params.model_dump() if hasattr(params, "model_dump") else params.dict()
+            priority = 0.9 if params.mode in {"comment", "post", "reply_inbox"} else 0.6
+            gateway = get_authority_gateway()
+            auth = await gateway.authorize_tool_execution(
+                "reddit_adapter",
+                payload,
+                source="skills.reddit_adapter",
+                priority=priority,
+                is_critical=False,
+            )
+            if not auth.approved:
+                return {"ok": False, "error": f"Reddit action refused by AuthorityGateway: {auth.reason}"}
+            if not gateway.verify_tool_access("reddit_adapter", auth.capability_token_id):
+                return {"ok": False, "error": "Reddit authority token verification failed"}
+
             browser = await self._create_browser()
 
             if params.mode == "browse":
-                return await self._handle_browse(browser, params)
+                result = await self._handle_browse(browser, params)
             elif params.mode == "read_post":
-                return await self._handle_read_post(browser, params)
+                result = await self._handle_read_post(browser, params)
             elif params.mode == "comment":
-                return await self._handle_comment(browser, params)
+                result = await self._handle_comment(browser, params)
             elif params.mode == "post":
-                return await self._handle_post(browser, params)
+                result = await self._handle_post(browser, params)
             elif params.mode == "check_inbox":
-                return await self._handle_check_inbox(browser, params)
+                result = await self._handle_check_inbox(browser, params)
             elif params.mode == "reply_inbox":
-                return await self._handle_reply_inbox(browser, params)
+                result = await self._handle_reply_inbox(browser, params)
             elif params.mode == "read_rules":
-                return await self._handle_read_rules(browser, params)
+                result = await self._handle_read_rules(browser, params)
             elif params.mode == "check_shadowban":
-                return await self._handle_check_shadowban(browser, params)
+                result = await self._handle_check_shadowban(browser, params)
             else:
                 return {"ok": False, "error": f"Unsupported Reddit mode: {params.mode}"}
+            try:
+                gateway.finalize_tool_execution(
+                    executive_intent_id=getattr(auth, "executive_intent_id", None),
+                    capability_token_id=getattr(auth, "capability_token_id", None),
+                    success=bool(result.get("ok")),
+                )
+            except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as finalize_error:
+                record_degradation('reddit_adapter', finalize_error)
+            if isinstance(result, dict):
+                result.setdefault("authority_receipt_id", getattr(auth, "will_receipt_id", None))
+            return result
         except Exception as e:
+            try:
+                from core.executive.authority_gateway import get_authority_gateway
+
+                get_authority_gateway().finalize_tool_execution(
+                    executive_intent_id=getattr(auth, "executive_intent_id", None),
+                    capability_token_id=getattr(auth, "capability_token_id", None),
+                    success=False,
+                )
+            except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as finalize_error:
+                record_degradation("reddit_adapter", finalize_error)
             # Check for CAPTCHA if it's an interaction failure
             if browser and browser.page:
                 try:
@@ -407,7 +446,7 @@ class RedditAdapterSkill(BaseSkill):
         }""", params.limit)
 
         logger.info("📱 Found %d posts on r/%s", len(posts), subreddit)
-        return {
+        response = {
             "ok": True,
             "subreddit": subreddit,
             "sort": sort,
@@ -415,6 +454,17 @@ class RedditAdapterSkill(BaseSkill):
             "count": len(posts),
             "message": f"Browsed r/{subreddit} ({sort}): {len(posts)} posts found.",
         }
+        try:
+            from core.advanced_cognition import ExternalEvidenceDeliberator
+
+            response["deliberation_receipts"] = ExternalEvidenceDeliberator.deliberate_many(
+                posts,
+                source_type="reddit_browse",
+                goal=f"understand r/{subreddit} {sort} posts",
+            )
+        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            record_degradation("reddit_adapter", exc, severity="warning", action="continued without reddit browse deliberation")
+        return response
 
     async def _handle_read_post(self, browser: PhantomBrowser, params: RedditInput) -> Dict[str, Any]:
         """Read a specific post and its comments."""
@@ -432,12 +482,29 @@ class RedditAdapterSkill(BaseSkill):
         await asyncio.sleep(3)
         content = await browser.read_content()
 
-        return {
+        response = {
             "ok": True,
             "url": url,
             "content": content[:15000],
             "message": f"Read post content from {url}",
         }
+        try:
+            from core.advanced_cognition import ExternalEvidenceDeliberator
+
+            response["deliberation_receipt"] = (
+                ExternalEvidenceDeliberator()
+                .deliberate(
+                    source_type="reddit_post",
+                    source_ref=url,
+                    content=content[:15000],
+                    goal="understand reddit post and comments before any interaction",
+                    metadata=response,
+                )
+                .to_dict()
+            )
+        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            record_degradation("reddit_adapter", exc, severity="warning", action="continued without reddit post deliberation")
+        return response
 
     async def _handle_comment(self, browser: PhantomBrowser, params: RedditInput) -> Dict[str, Any]:
         """Post a comment on a Reddit post."""

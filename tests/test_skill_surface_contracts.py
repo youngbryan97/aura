@@ -32,8 +32,10 @@ EXPECTED_REGISTERED_SKILLS = {
     "deploy_ghost_probe",
     "dream_sleep",
     "embodiment",
+    "email_adapter",
     "environment_info",
     "evolution_status",
+    "execute_nethack_action",
     "file_operation",
     "force_dream_cycle",
     "free_search",
@@ -54,6 +56,7 @@ EXPECTED_REGISTERED_SKILLS = {
     "propagation",
     "query_beliefs",
     "query_visual_context",
+    "reddit_adapter",
     "run_code",
     "search_web",
     "sec_ops",
@@ -127,6 +130,8 @@ def _params_for_skill(skill_name: str, tmp_path: Path) -> dict[str, Any]:
         "curiosity": {"topic": ""},
         "delegate_shard": {"objective": "review this"},
         "deploy_ghost_probe": {"resource": "sample.txt"},
+        "email_adapter": {"mode": "check"},
+        "execute_nethack_action": {"action": "look"},
         "file_operation": {"action": "exists", "path": "."},
         "free_search": {"query": ""},
         "grounded_search": {"objective": ""},
@@ -143,6 +148,7 @@ def _params_for_skill(skill_name: str, tmp_path: Path) -> dict[str, Any]:
         "propagation": {"action": "connect", "target_ip": "10.0.0.7"},
         "query_beliefs": {"subject": "Bryan"},
         "query_visual_context": {"question": "what is on screen"},
+        "reddit_adapter": {"mode": "read_rules", "subreddit": "LocalLLaMA"},
         "run_code": {"code": "1 + 1"},
         "search_web": {"query": ""},
         "sec_ops": {"action": "bogus", "target": "localhost", "path": str(tmp_path)},
@@ -172,9 +178,11 @@ def _neutralize_side_effects(monkeypatch: pytest.MonkeyPatch) -> None:
     unavailable = RuntimeError("display access unavailable")
 
     import core.skills.computer_use as computer_use
+    import core.skills.email_adapter as email_adapter
     import core.skills.listen as listen
     import core.skills.notify_user as notify_user
     import core.skills.os_manipulation as os_manipulation
+    import core.skills.reddit_adapter as reddit_adapter
     import core.skills.social_lurker as social_lurker
     import core.skills.speak as speak
     import core.skills.sovereign_browser as sovereign_browser
@@ -190,9 +198,20 @@ def _neutralize_side_effects(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(AutoRefactorSkill, "_publish_proposals", lambda self, issues: None)
     monkeypatch.setattr(SpeakSkill, "_get_engine", lambda self: SimpleNamespace(synthesize_speech=lambda _text: asyncio.sleep(0)))
     monkeypatch.setattr(social_lurker, "PLAYWRIGHT", False)
+    monkeypatch.setattr(
+        email_adapter.EmailAdapterSkill,
+        "_get_creds",
+        lambda self: (_ for _ in ()).throw(RuntimeError("email credentials unavailable during contract sweep")),
+    )
 
     async def _raise_browser_unavailable(self):
         raise RuntimeError("browser unavailable during contract sweep")
+
+    monkeypatch.setattr(
+        reddit_adapter.RedditAdapterSkill,
+        "_create_browser",
+        _raise_browser_unavailable,
+    )
 
     monkeypatch.setattr(
         sovereign_browser.SovereignBrowserSkill,
@@ -213,7 +232,7 @@ def _disable_governance(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_registered_skill_surface_matches_expected_catalog(skill_registry):
     assert set(skill_registry) == EXPECTED_REGISTERED_SKILLS
-    assert len(skill_registry) == 56
+    assert len(skill_registry) == 59
 
 
 @pytest.mark.asyncio

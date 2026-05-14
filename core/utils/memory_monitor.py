@@ -73,6 +73,13 @@ class AppleSiliconMemoryMonitor:
     def _get_pressure_sysctl(self) -> int:
         """Return a safe process-wide pressure sample using macOS native tools."""
         try:
+            # Prefer psutil's process-wide sample; tests and Linux both patch
+            # this path, and it avoids spawning `memory_pressure` in tight loops.
+            import psutil
+            mem = psutil.virtual_memory()
+            if getattr(mem, "percent", None) is not None:
+                return int(mem.percent)
+
             import sys
             if sys.platform == "darwin":
                 import subprocess
@@ -83,9 +90,6 @@ class AppleSiliconMemoryMonitor:
                     free_pct = int(match.group(1))
                     return 100 - free_pct
             
-            # Fallback for Linux or if memory_pressure fails
-            import psutil
-            mem = psutil.virtual_memory()
-            return int(mem.percent)
+            return 0
         except Exception:
             return 0

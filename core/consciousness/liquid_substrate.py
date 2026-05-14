@@ -12,6 +12,7 @@ from core.utils.exceptions import capture_and_log
 import asyncio
 import json
 import logging
+import os
 import tempfile
 import threading
 import time
@@ -39,11 +40,20 @@ class LiquidStateVector:
 
 logger = logging.getLogger("Consciousness.Substrate")
 
+
+def _default_substrate_dim() -> int:
+    raw = os.environ.get("AURA_SUBSTRATE_DIM", "512")
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        value = 512
+    return max(16, min(4096, value))
+
 @dataclass
 class SubstrateConfig:
     """Configuration for Liquid Substrate"""
 
-    neuron_count: int = 64
+    neuron_count: int = field(default_factory=_default_substrate_dim)
     time_constant: float = 0.1  # Integration time step (dt)
     update_rate: float = 20.0   # Hz (updates per second)
     decay_rate: float = 0.5     # State decay (leak current prevents saturation while allowing nonlinear dynamics)
@@ -61,6 +71,8 @@ class LiquidSubstrate:
     """
     
     def __init__(self, config: SubstrateConfig = None):
+        self._explicit_config = config is not None
+        self._explicit_state_file = bool(config and config.state_file)
         self.config: SubstrateConfig = config or SubstrateConfig()
         
         # State Vectors
@@ -862,17 +874,54 @@ class LiquidSubstrate:
                 loaded_W = data['W']
                 n = self.config.neuron_count
                 # Validate shapes match current config
-                if loaded_x.shape != (n,) or loaded_W.shape != (n, n):
+                if loaded_x.ndim == 1 and loaded_x.shape != (n,):
+                    saved_n = int(loaded_x.shape[0])
+                    if self._explicit_config and not self._explicit_state_file:
+                        logger.warning(
+                            "Substrate state x dimension (%d) differs from explicit configured n=%d; "
+                            "ignoring persisted state for this isolated substrate.",
+                            saved_n,
+                            n,
+                        )
+                        self.x = np.zeros(n)
+                        self.W = self._rng.standard_normal((n, n)).astype(np.float64) * (1.0 / np.sqrt(max(n, 1)))
+                        self.W_torch = torch.tensor(self.W, dtype=torch.float32, device=self.device)
+                        self.x_torch = torch.tensor(self.x, dtype=torch.float32, device=self.device)
+                        self.v = np.zeros(n)
+                        self.v_torch = torch.zeros(n, device=self.device)
+                        return
                     logger.warning(
-                        "Substrate state shape mismatch (saved x=%s, W=%s vs config n=%d). "
+                        "Substrate state x dimension (%d) differs from configured n=%d; "
+                        "adopting saved dimension for continuity.",
+                        saved_n,
+                        n,
+                    )
+                    self.config.neuron_count = saved_n
+                    n = saved_n
+                    self.v = np.zeros(n)
+                    self.x_torch = torch.zeros(n, device=self.device)
+                    self.v_torch = torch.zeros(n, device=self.device)
+                if loaded_x.shape != (n,):
+                    logger.warning(
+                        "Substrate state shape mismatch (saved x=%s vs config n=%d). "
                         "Reinitializing fresh state.",
-                        loaded_x.shape, loaded_W.shape, n
+                        loaded_x.shape, n
                     )
                     self.x = np.zeros(n)
                     self.W = self._rng.standard_normal((n, n)).astype(np.float64) * 0.1
                     return
                 self.x = np.nan_to_num(loaded_x, nan=0.0, posinf=1.0, neginf=-1.0)
-                self.W = np.nan_to_num(loaded_W, nan=0.0, posinf=5.0, neginf=-5.0)
+                if loaded_W.shape == (n, n):
+                    self.W = np.nan_to_num(loaded_W, nan=0.0, posinf=5.0, neginf=-5.0)
+                else:
+                    logger.warning(
+                        "Substrate W shape mismatch (saved W=%s vs n=%d); rebuilding W while preserving x.",
+                        loaded_W.shape,
+                        n,
+                    )
+                    self.W = self._rng.standard_normal((n, n)).astype(np.float64) * (1.0 / np.sqrt(max(n, 1)))
+                self.W_torch = torch.tensor(self.W, dtype=torch.float32, device=self.device)
+                self.x_torch = torch.tensor(self.x, dtype=torch.float32, device=self.device)
                 self.tick_count = int(data['tick'])
             logger.info("Substrate state restored.")
         except Exception as e:

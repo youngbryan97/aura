@@ -235,7 +235,6 @@ class SubstrateAuthority:
         if field_coherence < self.thresholds.field_crisis:
             is_exempt = (
                 (category == ActionCategory.STABILIZATION and self.thresholds.stabilization_exempt_from_field)
-                or (category in (ActionCategory.TOOL_EXECUTION, ActionCategory.INITIATIVE, ActionCategory.MEMORY_WRITE) and (priority > 0.6 or not self._is_user_facing_source(source)))
             )
             if is_exempt:
                 field_decision = AuthorizationDecision.CONSTRAIN

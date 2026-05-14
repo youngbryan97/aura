@@ -610,7 +610,7 @@ class CognitiveEngine:
         Emergency reactive response when the main cognitive loop fails.
         BUG-10: Added recursion guard, timeout, and proper exception handling.
         """
-        if self._is_background_request(origin, True):
+        if self._is_background_request(origin, False):
             logger.debug(
                 "🛡️ CognitiveEngine: suppressing background reactive recovery for origin=%s (%s).",
                 origin,

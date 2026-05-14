@@ -78,6 +78,32 @@ class AddBeliefSkill(BaseSkill):
 
         fact = f"{source} —[{relation}]→ {target}"
         stored_layers = []
+        authority_receipt = None
+
+        try:
+            from core.executive.authority_gateway import get_authority_gateway
+
+            auth = get_authority_gateway().authorize_belief_update_sync(
+                f"{source}:{relation}",
+                target,
+                note=f"centrality={centrality:.2f}; confidence={confidence:.2f}",
+                source="belief_ops.add_belief",
+                priority=max(confidence, centrality),
+            )
+            authority_receipt = auth.will_receipt_id or auth.substrate_receipt_id or auth.executive_intent_id
+            if not auth.approved:
+                return {
+                    "ok": False,
+                    "error": f"Belief update refused by AuthorityGateway: {auth.reason}",
+                    "authority": {
+                        "outcome": auth.outcome,
+                        "reason": auth.reason,
+                        "will_receipt_id": auth.will_receipt_id,
+                    },
+                }
+        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as e:
+            record_degradation('belief_ops', e)
+            return {"ok": False, "error": f"Authority unavailable for belief update: {e}"}
 
         # Layer 1: BeliefRevisionEngine (primary — real Bayesian-ish updates)
         try:
@@ -161,6 +187,7 @@ class AddBeliefSkill(BaseSkill):
                 "source": source, "relation": relation, "target": target,
                 "confidence": confidence, "centrality": centrality,
                 "layers": stored_layers,
+                "authority_receipt_id": authority_receipt,
             },
         }
 

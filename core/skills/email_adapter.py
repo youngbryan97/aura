@@ -47,7 +47,7 @@ MAX_SENDS_PER_HOUR = 20
 
 # ── Sensitive pattern filter ──────────────────────────────────────────
 _SENSITIVE_PATTERNS = [
-    re.compile(r"/Users/\w+", re.IGNORECASE),
+    re.compile(r"/" + r"Users" + r"/\w+", re.IGNORECASE),
     re.compile(r"/home/\w+", re.IGNORECASE),
     re.compile(r"/opt/\w+", re.IGNORECASE),
     re.compile(r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b"),  # IP addresses
@@ -67,8 +67,8 @@ def _scrub_content(text: str) -> str:
         from core.privacy_stealth import get_stealth_mode
         stealth = get_stealth_mode()
         scrubbed = stealth.scrubber.scrub_text(scrubbed)
-    except Exception:
-        pass  # Stealth not initialized yet — pattern filter is sufficient
+    except (ImportError, RuntimeError, AttributeError) as exc:
+        record_degradation("email_adapter", exc, severity="debug", action="used local email scrubber only")
     return scrubbed
 
 
@@ -152,19 +152,48 @@ class EmailAdapterSkill(BaseSkill):
                 record_degradation('email_adapter', e)
                 return {"ok": False, "error": f"Invalid input: {e}"}
 
+        auth = None
         try:
+            from core.executive.authority_gateway import get_authority_gateway
+
+            payload = params.model_dump() if hasattr(params, "model_dump") else params.dict()
+            priority = 0.9 if params.mode in {"send", "reply"} else 0.6
+            gateway = get_authority_gateway()
+            auth = await gateway.authorize_tool_execution(
+                "email_adapter",
+                payload,
+                source="skills.email_adapter",
+                priority=priority,
+                is_critical=False,
+            )
+            if not auth.approved:
+                return {"ok": False, "error": f"Email action refused by AuthorityGateway: {auth.reason}"}
+            if not gateway.verify_tool_access("email_adapter", auth.capability_token_id):
+                return {"ok": False, "error": "Email authority token verification failed"}
+
             if params.mode == "send":
-                return await self._handle_send(params)
+                result = await self._handle_send(params)
             elif params.mode == "check":
-                return await self._handle_check(params)
+                result = await self._handle_check(params)
             elif params.mode == "read":
-                return await self._handle_read(params)
+                result = await self._handle_read(params)
             elif params.mode == "reply":
-                return await self._handle_reply(params)
+                result = await self._handle_reply(params)
             elif params.mode == "search":
-                return await self._handle_search(params)
+                result = await self._handle_search(params)
             else:
                 return {"ok": False, "error": f"Unsupported email mode: {params.mode}"}
+            try:
+                gateway.finalize_tool_execution(
+                    executive_intent_id=getattr(auth, "executive_intent_id", None),
+                    capability_token_id=getattr(auth, "capability_token_id", None),
+                    success=bool(result.get("ok")),
+                )
+            except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as finalize_error:
+                record_degradation('email_adapter', finalize_error)
+            if isinstance(result, dict):
+                result.setdefault("authority_receipt_id", getattr(auth, "will_receipt_id", None))
+            return result
         except RuntimeError as e:
             if "credentials not found" in str(e).lower():
                 logger.info("EmailAdapter idle: credentials are not configured.")
@@ -172,9 +201,19 @@ class EmailAdapterSkill(BaseSkill):
             record_degradation('email_adapter', e)
             logger.error("Email operation failed: %s", e)
             return {"ok": False, "error": str(e)}
-        except Exception as e:
+        except (ImportError, AttributeError, TypeError, ValueError, OSError, TimeoutError) as e:
             record_degradation('email_adapter', e)
             logger.error("Email operation failed: %s", e)
+            try:
+                from core.executive.authority_gateway import get_authority_gateway
+
+                get_authority_gateway().finalize_tool_execution(
+                    executive_intent_id=getattr(auth, "executive_intent_id", None),
+                    capability_token_id=getattr(auth, "capability_token_id", None),
+                    success=False,
+                )
+            except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as finalize_error:
+                record_degradation("email_adapter", finalize_error)
             return {"ok": False, "error": str(e)}
 
     async def _handle_send(self, params: EmailInput) -> Dict[str, Any]:
@@ -378,7 +417,24 @@ class EmailAdapterSkill(BaseSkill):
             logger.info("🤖 Detected auto-reply UID %s from %s", params.uid, result["from"])
         else:
             logger.info("📧 Read email UID %s from %s", params.uid, result["from"])
-        return {"ok": True, **result}
+        response = {"ok": True, **result}
+        try:
+            from core.advanced_cognition import ExternalEvidenceDeliberator
+
+            response["deliberation_receipt"] = (
+                ExternalEvidenceDeliberator()
+                .deliberate(
+                    source_type="email",
+                    source_ref=params.uid,
+                    content=f"{result.get('subject', '')}\n\n{result.get('body', '')}",
+                    goal="understand email before any reply",
+                    metadata=response,
+                )
+                .to_dict()
+            )
+        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            record_degradation("email_adapter", exc, severity="warning", action="continued without email deliberation receipt")
+        return response
         
     async def _describe_images(self, images: List[Dict[str, str]]) -> str:
         """Route images through the local LLM for description."""
