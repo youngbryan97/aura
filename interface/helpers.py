@@ -25,6 +25,14 @@ def _notify_user_spoke(message: str = ""):
     (e.g. "heading to the gym") and suppress autonomous chat accordingly.
     """
     try:
+        from core.runtime.foreground_guard import notify_user_spoke
+
+        notify_user_spoke(message)
+    except Exception as _e:
+        record_degradation('helpers', _e)
+        logger.debug("Foreground guard user-spoke update skipped: %s", _e)
+
+    try:
         orch = ServiceContainer.get("orchestrator", default=None)
         if orch:
             # Phase-30 ProactivePresence — tracks _last_user_interaction_time

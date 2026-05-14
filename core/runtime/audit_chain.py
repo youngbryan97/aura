@@ -129,6 +129,9 @@ class AuditChain:
         self._next_seq: int = 0
         self._unsynced_entries: int = 0
         self._known_chain_signature: Optional[Tuple[int, int, int]] = None
+        self._append_fd: Optional[int] = None
+        self._lock_fd: Optional[int] = None
+        self._root_ready = False
         self._sync_policy = os.environ.get("AURA_AUDIT_CHAIN_SYNC", "batch").strip().lower()
         try:
             self._sync_every = max(1, int(os.environ.get("AURA_AUDIT_CHAIN_FSYNC_EVERY", "32")))
@@ -205,8 +208,7 @@ class AuditChain:
 
     @contextmanager
     def _process_append_lock(self):
-        self.root.mkdir(parents=True, exist_ok=True)
-        fd = os.open(str(self.lock_path), os.O_CREAT | os.O_RDWR, 0o600)
+        fd = self._lock_fd_for_append_locked()
         try:
             try:
                 import fcntl
@@ -222,7 +224,25 @@ class AuditChain:
                 fcntl.flock(fd, fcntl.LOCK_UN)
             except (ImportError, OSError):
                 pass
-            os.close(fd)
+
+    def _ensure_root_ready_locked(self) -> None:
+        if not self._root_ready:
+            self.root.mkdir(parents=True, exist_ok=True)
+            self._root_ready = True
+
+    def _lock_fd_for_append_locked(self) -> int:
+        self._ensure_root_ready_locked()
+        if self._lock_fd is None:
+            self._lock_fd = os.open(str(self.lock_path), os.O_CREAT | os.O_RDWR, 0o600)
+        return self._lock_fd
+
+    def _append_fd_locked(self) -> tuple[int, bool]:
+        self._ensure_root_ready_locked()
+        created = not self.path.exists()
+        if self._append_fd is None:
+            flags = os.O_WRONLY | os.O_CREAT | os.O_APPEND
+            self._append_fd = os.open(str(self.path), flags, 0o600)
+        return self._append_fd, created
 
     def _iter_entries(self) -> Iterator[Dict[str, Any]]:
         """Yield raw records from the chain file. Avoids dataclass overhead."""
@@ -286,23 +306,36 @@ class AuditChain:
                 return entry
 
     def _durable_append(self, entry: ChainEntry) -> None:
-        self.root.mkdir(parents=True, exist_ok=True)
         line = json.dumps(entry.to_dict(), sort_keys=True, ensure_ascii=False) + "\n"
         # O_APPEND on POSIX guarantees the append is atomic for writes
         # under PIPE_BUF; one JSON line is well under that on every Unix.
-        flags = os.O_WRONLY | os.O_CREAT | os.O_APPEND
-        fd = os.open(str(self.path), flags, 0o600)
-        try:
-            os.write(fd, line.encode("utf-8"))
-            self._unsynced_entries += 1
-            if self._should_fsync_now():
-                self._fsync_fd(fd)
-                self._unsynced_entries = 0
-        finally:
-            os.close(fd)
-        if self._sync_policy == "always" or self._unsynced_entries == 0:
+        fd, created = self._append_fd_locked()
+        os.write(fd, line.encode("utf-8"))
+        self._unsynced_entries += 1
+        synced_now = False
+        if self._should_fsync_now():
+            self._fsync_fd(fd)
+            self._unsynced_entries = 0
+            synced_now = True
+        if created and (self._sync_policy == "always" or synced_now):
             self._fsync_dir()
         self._known_chain_signature = self._chain_signature()
+
+    def close(self) -> None:
+        for attr in ("_append_fd", "_lock_fd"):
+            fd = getattr(self, attr, None)
+            if fd is not None:
+                try:
+                    os.close(fd)
+                except OSError:
+                    pass
+                setattr(self, attr, None)
+
+    def __del__(self) -> None:
+        try:
+            self.close()
+        except Exception:
+            pass
 
     def _should_fsync_now(self) -> bool:
         if self._sync_policy in {"0", "false", "off", "none", "never"}:

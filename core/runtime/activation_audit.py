@@ -410,10 +410,13 @@ class ActivationAuditor:
         active = bool(service_hits or task_hits)
         if spec.name == "keep_awake":
             try:
-                from core.runtime.keep_awake import get_keep_awake_controller
+                from core.runtime.keep_awake import (
+                    get_keep_awake_controller,
+                    keep_awake_enabled_from_environment,
+                )
 
                 status = get_keep_awake_controller().status()
-                active = status.active or not self._keep_awake_enabled()
+                active = status.active or not keep_awake_enabled_from_environment()
                 evidence["keep_awake_status"] = status.to_dict()
             except Exception as exc:
                 evidence["keep_awake_error"] = repr(exc)
@@ -469,9 +472,9 @@ class ActivationAuditor:
 
     @staticmethod
     def _keep_awake_enabled() -> bool:
-        import os
+        from core.runtime.keep_awake import keep_awake_enabled_from_environment
 
-        return os.environ.get("AURA_KEEP_AWAKE", "").strip().lower() in {"1", "true", "yes", "on"}
+        return keep_awake_enabled_from_environment()
 
 
 _instance: ActivationAuditor | None = None

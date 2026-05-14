@@ -1339,6 +1339,18 @@ def _collect_conversation_lane_status() -> Dict[str, Any]:
         record_degradation('chat', exc)
         logger.debug("Conversation lane/router status merge failed: %s", exc)
 
+    try:
+        from core.runtime.foreground_guard import snapshot as _foreground_guard_snapshot
+
+        guard = _foreground_guard_snapshot()
+        lane["foreground_guard_active"] = bool(guard.get("active"))
+        lane["foreground_guard_reason"] = guard.get("reason", "")
+        lane["foreground_guard_quiet_remaining_s"] = guard.get("quiet_remaining_s", 0.0)
+        lane["foreground_guard_active_count"] = guard.get("active_count", 0)
+    except Exception as exc:
+        record_degradation('chat', exc)
+        logger.debug("Foreground guard status merge failed: %s", exc)
+
     # Kernel tick staleness — lets the UI detect when the kernel is locked up
     try:
         kernel = ServiceContainer.get("aura_kernel", default=None)
@@ -1477,7 +1489,7 @@ def _conversation_lane_user_message(
     if status_override == "warming_failed":
         return f"{_mood_prefix}warm-up failed before a coherent answer formed. I logged the lane failure and preserved the current turn."
     if timed_out:
-        return f"{_mood_prefix}that answer did not finish inside the live budget. I logged the timeout and preserved the turn context."
+        return f"{_mood_prefix}that answer took too long to finish cleanly. I logged the timeout and preserved the turn context."
     if _conversation_lane_is_standby(lane):
         return "The conversation lane is in standby and ready for the first live turn."
     if state == "recovering":
@@ -4671,6 +4683,13 @@ async def api_chat(
     # directive scaffolding that belong in generation context, not in reply
     # quality classification or conversational memory.
     _semantic_user_message = _original_user_message
+    try:
+        from core.runtime.foreground_guard import notify_user_spoke as _guard_notify_user_spoke
+
+        _guard_notify_user_spoke(_semantic_user_message)
+    except Exception as _guard_notify_exc:
+        record_degradation('chat', _guard_notify_exc)
+        logger.debug("Foreground guard preflight notify skipped: %s", _guard_notify_exc)
 
     # ── Conscience pre-gate ─────────────────────────────────────
     # Hard-line rules apply BEFORE the cognitive pipeline ever sees the
@@ -4713,12 +4732,24 @@ async def api_chat(
     request_started_at = time.monotonic()
     pending_exchange_id: Optional[str] = None
     foreground_slot_acquired = False
+    foreground_lease = None
 
     def _remaining_foreground_budget(*, reserve: float = 0.0) -> float:
         elapsed = time.monotonic() - request_started_at
         return max(2.0, foreground_timeout - elapsed - reserve)
 
     try:
+        try:
+            from core.runtime.foreground_guard import begin_foreground_turn
+
+            foreground_lease = begin_foreground_turn(
+                owner=f"chat_api:{_chat_session_id}",
+                source="chat_api",
+            )
+        except Exception as _lease_exc:
+            record_degradation('chat', _lease_exc)
+            logger.debug("Foreground guard lease skipped: %s", _lease_exc)
+
         # VRAM Circuit Breaker (Limp Mode)
         sys_memory_pressure = False
         try:
@@ -5779,3 +5810,9 @@ async def api_chat(
     finally:
         if foreground_slot_acquired and _foreground_chat_lock.locked():
             _foreground_chat_lock.release()
+        if foreground_lease is not None:
+            try:
+                foreground_lease.close()
+            except Exception as _lease_close_exc:
+                record_degradation('chat', _lease_close_exc)
+                logger.debug("Foreground guard lease close skipped: %s", _lease_close_exc)

@@ -102,6 +102,19 @@ _HEAVY_BACKGROUND_SKILLS = frozenset(
     }
 )
 
+_FOREGROUND_EXCLUSIVE_BACKGROUND_SKILLS = frozenset(
+    {
+        "email_adapter",
+        "free_search",
+        "grounded_search",
+        "reddit_adapter",
+        "search_web",
+        "sovereign_browser",
+        "sovereign_network",
+        "web_search",
+    }
+)
+
 
 def _humanize_skill_name(name: str) -> str:
     raw = str(name or "").strip()
@@ -1596,6 +1609,33 @@ class CapabilityEngine(AuraBaseModule):
             start_time = time.monotonic()
             ctx = self._augment_execution_context(context)
             exec_source = self._resolve_execution_source(ctx)
+            if (
+                skill_name in _FOREGROUND_EXCLUSIVE_BACKGROUND_SKILLS
+                and not self._is_user_facing_origin(exec_source)
+            ):
+                try:
+                    from core.runtime.background_policy import background_activity_reason
+
+                    reason = background_activity_reason(
+                        ctx.get("orchestrator"),
+                        min_idle_seconds=600.0,
+                        max_memory_percent=72.0,
+                        max_failure_pressure=0.20,
+                        require_conversation_ready=False,
+                        allow_no_user_anchor=True,
+                    )
+                    if reason:
+                        return {
+                            "ok": False,
+                            "status": "deferred",
+                            "reason": reason,
+                            "message": (
+                                f"Background {skill_name} deferred while live conversation is protected ({reason})."
+                            ),
+                        }
+                except Exception as policy_exc:
+                    record_degradation('capability_engine', policy_exc)
+                    self.logger.debug("Foreground-exclusive skill preflight skipped: %s", policy_exc)
             
             # 1. Verification
             if skill_name not in self.skills:

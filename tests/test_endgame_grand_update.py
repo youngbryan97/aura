@@ -155,6 +155,28 @@ def test_keep_awake_uses_screen_saver_friendly_caffeinate_flags():
     assert "-d" not in cmd
 
 
+def test_keep_awake_defaults_on_for_live_runtime(monkeypatch):
+    from core.runtime.keep_awake import (
+        keep_awake_enabled_from_environment,
+        require_ac_power_from_environment,
+    )
+
+    monkeypatch.delenv("AURA_KEEP_AWAKE", raising=False)
+    monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
+    monkeypatch.delenv("AURA_KEEP_AWAKE_ON_BATTERY", raising=False)
+    monkeypatch.delenv("AURA_KEEP_AWAKE_REQUIRE_AC", raising=False)
+
+    assert keep_awake_enabled_from_environment() is True
+    assert require_ac_power_from_environment() is True
+
+    monkeypatch.setenv("AURA_KEEP_AWAKE", "0")
+    assert keep_awake_enabled_from_environment() is False
+
+    monkeypatch.setenv("AURA_KEEP_AWAKE", "1")
+    monkeypatch.setenv("AURA_KEEP_AWAKE_ON_BATTERY", "1")
+    assert require_ac_power_from_environment() is False
+
+
 def test_output_gate_routes_background_self_talk_to_secondary():
     from core.utils.output_gate import AutonomousOutputGate
 

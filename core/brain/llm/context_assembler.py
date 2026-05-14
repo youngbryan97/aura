@@ -134,6 +134,45 @@ class ContextAssembler:
             "system_proprioception",
             "toggle_senses",
         }
+        live_dialogue_roles = {"user", "assistant", "aura"}
+        background_sources = {
+            "agency_core",
+            "autonomous_thought",
+            "autonomous_volition",
+            "capability_engine",
+            "cognitive_background",
+            "impulse",
+            "intention_loop",
+            "knowledge_gap_auto_search",
+            "memory_consolidation",
+            "mind_tick",
+            "mind_tick_fallback",
+            "natural_followup",
+            "proactive_presence",
+            "reddit_adapter",
+            "reflection_impulse",
+            "skills.email_adapter",
+            "skills.reddit_adapter",
+            "subconscious_dream",
+            "system",
+        }
+        background_prefixes = (
+            "agency_core_",
+            "autonomy_",
+            "background",
+            "recovery_",
+            "spontaneous:",
+        )
+        internal_message_types = {
+            "action_result",
+            "background_result",
+            "diagnostic",
+            "internal",
+            "log",
+            "skill_result",
+            "system",
+            "tool_result",
+        }
         try:
             from core.conversation.response_reliability import is_non_answer_repair_floor_reply
         except (ImportError, AttributeError):
@@ -142,16 +181,45 @@ class ContextAssembler:
             if not isinstance(message, dict):
                 continue
             role = str(message.get("role", "") or "").strip().lower()
+            metadata = message.get("metadata") or {}
+            if not isinstance(metadata, dict):
+                metadata = {}
+            msg_type = str(metadata.get("type", "") or message.get("type", "") or "").strip().lower()
+            source = str(
+                metadata.get("source")
+                or metadata.get("origin")
+                or message.get("source")
+                or message.get("origin")
+                or ""
+            ).strip().lower()
+
+            if msg_type in {"skill_result", "tool_result"}:
+                skill_name = cls._resolve_skill_name(metadata.get("skill", ""))
+                source_is_background = (
+                    source in background_sources
+                    or any(source.startswith(prefix) for prefix in background_prefixes)
+                )
+                if (
+                    role == "system"
+                    and skill_name
+                    and not source_is_background
+                    and cls._objective_targets_skill(state, objective, skill_name)
+                ):
+                    filtered.append(message)
+                continue
+            if role not in live_dialogue_roles:
+                continue
+            if msg_type in internal_message_types:
+                continue
+            if bool(metadata.get("autonomous") or message.get("autonomous")):
+                continue
+            if source in background_sources or any(source.startswith(prefix) for prefix in background_prefixes):
+                continue
+            if role == "user" and source and not cls._objective_targets_skill(state, objective, source):
+                if source not in {"user", "api", "chat", "desktop", "direct", "external", "gui", "voice", "web", "websocket", "ws"}:
+                    continue
             if role == "assistant" and is_non_answer_repair_floor_reply(message.get("content", "")):
                 continue
-            metadata = message.get("metadata") or {}
-            if str(metadata.get("type", "")).lower() == "skill_result":
-                skill_name = cls._resolve_skill_name(metadata.get("skill", ""))
-                if (
-                    skill_name in deterministic_skill_results
-                    and not cls._objective_targets_skill(state, objective, skill_name)
-                ):
-                    continue
             filtered.append(message)
         return filtered
     
@@ -1047,10 +1115,12 @@ class ContextAssembler:
         
         hist_text = ""
         for block in allocated:
-            role = block.metadata.get("role", "user")
+            role = str(block.metadata.get("role", "user") or "user").strip().lower()
             content = block.content
             if role == "user":
                 hist_text += f"User: {content}\n"
+            elif role == "system":
+                hist_text += f"Context: {content}\n"
             else:
                 hist_text += f"Aura: {content}\n"
         
@@ -1218,7 +1288,16 @@ class ContextAssembler:
             messages.append({"role": "system", "content": summary_notice})
 
         # Assemble final array
-        messages.extend(retained_history)
+        for msg in retained_history:
+            role = str(msg.get("role", "") or "").strip().lower()
+            if role == "aura":
+                role = "assistant"
+            if role not in {"system", "user", "assistant"}:
+                continue
+            content = str(msg.get("content", "") or "").strip()
+            if not content:
+                continue
+            messages.append({"role": role, "content": content})
         messages.append({"role": "user", "content": safe_input})
 
         # Microcompact: strip stale tool noise before hitting the LLM

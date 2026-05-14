@@ -1569,7 +1569,7 @@ class InferenceGate:
         if cls._origin_is_user_facing(origin):
             # Live conversation is allowed a full first reply. Short caps made
             # opening messages look clipped before Aura could finish a thought.
-            return 3072
+            return 4096
         return 512
 
     @classmethod
@@ -1588,15 +1588,15 @@ class InferenceGate:
         shape = analyze_prompt_shape(prompt)
         adapted = int(base_tokens)
         if shape.prefers_extended_answer:
-            adapted = max(adapted, 3072)
+            adapted = max(adapted, 6144)
         if shape.question_parts >= 3:
-            adapted = max(adapted, 3584)
+            adapted = max(adapted, 6144)
         elif shape.requires_single_reply_coverage:
-            adapted = max(adapted, 3072)
+            adapted = max(adapted, 4096)
         try:
-            foreground_cap = int(os.environ.get("AURA_FOREGROUND_CHAT_MAX_TOKENS", "4096"))
+            foreground_cap = int(os.environ.get("AURA_FOREGROUND_CHAT_MAX_TOKENS", "8192"))
         except (TypeError, ValueError):
-            foreground_cap = 4096
+            foreground_cap = 8192
         return min(max(512, foreground_cap), adapted)
 
     @staticmethod
@@ -3398,7 +3398,7 @@ class InferenceGate:
         ):
             foreground_floor = max(
                 384,
-                int(os.environ.get("AURA_FOREGROUND_CHAT_MIN_TOKENS", "2048")),
+                int(os.environ.get("AURA_FOREGROUND_CHAT_MIN_TOKENS", "3072")),
             )
             if max_tokens < foreground_floor:
                 logger.info(

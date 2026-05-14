@@ -175,6 +175,16 @@ def _runtime_uptime_seconds(orchestrator: Any = None) -> float:
 
 def _foreground_activity_reason() -> str:
     try:
+        from core.runtime.foreground_guard import foreground_activity_reason
+
+        guard_reason = foreground_activity_reason()
+        if guard_reason:
+            return guard_reason
+    except Exception as _exc:
+        record_degradation('background_policy', _exc)
+        logger.debug("Suppressed Exception: %s", _exc)
+
+    try:
         from core.container import ServiceContainer
 
         gate = ServiceContainer.get("inference_gate", default=None)

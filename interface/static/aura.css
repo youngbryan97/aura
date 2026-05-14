@@ -1511,8 +1511,7 @@ main {
 
     main {
         grid-template-columns: 1fr;
-        height: calc(100dvh - 56px - 65px);
-        /* 56px header, 65px footer */
+        height: calc(100dvh - 56px);
         overflow: hidden;
     }
 
@@ -1577,7 +1576,7 @@ main {
     }
 
     .mobile-nav {
-        display: flex !important;
+        display: none !important;
     }
 }
 
@@ -4169,7 +4168,7 @@ body.ui-degraded .phenomenal-box {
 :root {
     --header-height: 64px;
     --mobile-header-height: 56px;
-    --mobile-nav-height: calc(65px + env(safe-area-inset-bottom));
+    --mobile-nav-height: 0px;
 }
 
 html,
@@ -4404,7 +4403,7 @@ header {
     }
 
     main {
-        height: calc(100dvh - var(--mobile-header-height) - var(--mobile-nav-height));
+        height: calc(100dvh - var(--mobile-header-height));
         padding: 10px;
         gap: 0;
     }

@@ -31,6 +31,10 @@ const state = {
     lastToolEvent: null,
     isSubmitting: false,
     activeChatRequestId: null,
+    surfaceSuspended: false,
+    resumeInProgress: false,
+    lastSurfaceHiddenAt: 0,
+    lastSurfaceResumeAt: 0,
     lastChatLatencyMs: null,
     commitments: null,
     voiceSummary: null,
@@ -1432,8 +1436,12 @@ function connect() {
     if (state.pingInterval) clearInterval(state.pingInterval);
     state.pingInterval = setInterval(() => {
         if (state.ws && state.ws === ws && state.ws.readyState === WebSocket.OPEN) {
-            // Force close if we haven't received a pong in 35s (handles sleep/offline TCP staleness)
-            if (Date.now() - state.lastPong > 35000) {
+            const hiddenOrSuspended = !!(document.hidden || state.surfaceSuspended);
+            const staleSocketMs = hiddenOrSuspended ? 5 * 60 * 1000 : 35000;
+            // Force close if we haven't received a pong. Hidden/screen-saver
+            // intervals get a wider window because browsers pause timers while
+            // Aura's backend keeps running.
+            if (Date.now() - state.lastPong > staleSocketMs) {
                 console.warn('[WS] Heartbeat timeout, forcing close for recovery');
                 state.ws.close();
                 return;
@@ -1486,13 +1494,14 @@ function connect() {
         if (state.ws !== ws) return;
         state.connected = false;
         if (state.pingInterval) clearInterval(state.pingInterval);
-        showConnToast(true); // Show disconnection toast
-        setConnectionVisual('reconnecting');
+        const surfacePaused = !!(document.hidden || state.surfaceSuspended || state.resumeInProgress || navigator.onLine === false);
+        showConnToast(surfacePaused ? 'paused' : true);
+        setConnectionVisual('reconnecting', surfacePaused ? 'surface paused' : '');
         
         // ZENITH: Infinite Reconnect with Exponential Backoff + Jitter
         if (!state.retryCount) state.retryCount = 0;
         state.retryCount++;
-        const baseDelay = Math.min(30000, 1000 * Math.pow(2, state.retryCount));
+        const baseDelay = state.resumeInProgress ? 250 : Math.min(30000, 1000 * Math.pow(2, state.retryCount));
         const jitter = Math.random() * 500;
         const delay = baseDelay + jitter;
         console.warn(`[WS] Connection closed. Retrying in ${(delay/1000).toFixed(1)}s (Attempt ${state.retryCount})`);
@@ -1507,6 +1516,46 @@ function connect() {
             ws.close();
         }
     };
+}
+
+function reconnectLiveSurface(reason = 'resume') {
+    state.surfaceSuspended = false;
+    state.resumeInProgress = true;
+    state.lastSurfaceResumeAt = Date.now();
+    showConnToast('resuming');
+    setConnectionVisual('reconnecting', 'resuming live surface');
+    hydrateBootstrap({ hydrateConversationHistory: !state.bootstrapLoaded, quiet: true });
+
+    if (state.reconnectTimer) {
+        clearTimeout(state.reconnectTimer);
+        state.reconnectTimer = null;
+    }
+
+    const ws = state.ws;
+    if (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
+        connect();
+    } else if (ws.readyState === WebSocket.OPEN) {
+        try {
+            state.lastPong = Date.now();
+            ws.send(JSON.stringify({ type: 'ping', reason }));
+        } catch (err) {
+            console.warn('[WS] Resume ping failed, reconnecting:', err);
+            try { ws.close(); } catch {}
+            connect();
+        }
+    }
+
+    setTimeout(() => {
+        state.resumeInProgress = false;
+        if (state.connected) showConnToast(false);
+    }, 10000);
+}
+
+function pauseLiveSurface(reason = 'hidden') {
+    state.surfaceSuspended = true;
+    state.lastSurfaceHiddenAt = Date.now();
+    setConnectionVisual('reconnecting', 'surface paused');
+    showConnToast('paused');
 }
 
 // ── Voice Output (SSE Player) ────────────────────────────
@@ -2669,6 +2718,16 @@ function showConnToast(mode) {
         toast.classList.remove('show', 'reconnected');
         toast.textContent = '';
         toast.setAttribute('aria-hidden', 'true');
+    } else if (mode === 'paused') {
+        toast.textContent = 'Live surface paused. Aura keeps running.';
+        toast.setAttribute('aria-hidden', 'false');
+        toast.classList.remove('reconnected');
+        toast.classList.add('show');
+    } else if (mode === 'resuming') {
+        toast.textContent = 'Resuming live surface...';
+        toast.setAttribute('aria-hidden', 'false');
+        toast.classList.remove('reconnected');
+        toast.classList.add('show');
     } else if (mode === 'reconnected') {
         // Brief green "reconnected" toast
         toast.textContent = '✓ Connection restored';
@@ -4116,6 +4175,27 @@ function dismissSplash(finalStatus = 'Neural link established.') {
         setTimeout(() => splash.remove(), 1000);
     }, 400);
 }
+
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+        pauseLiveSurface('visibility_hidden');
+    } else {
+        reconnectLiveSurface('visibility_visible');
+    }
+});
+
+window.addEventListener('pageshow', () => reconnectLiveSurface('pageshow'));
+window.addEventListener('focus', () => {
+    if (!state.connected || state.surfaceSuspended) {
+        reconnectLiveSurface('window_focus');
+    }
+});
+window.addEventListener('online', () => reconnectLiveSurface('browser_online'));
+window.addEventListener('offline', () => {
+    state.surfaceSuspended = true;
+    setConnectionVisual('reconnecting', 'network paused');
+    showConnToast('paused');
+});
 
 // ══════════════════════════════════════════════════════════
 //  MAGNUM OPUS — Textarea Auto-Resize & Keyboard Shortcuts

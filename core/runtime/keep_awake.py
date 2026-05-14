@@ -16,6 +16,9 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
+_ENABLED_VALUES = {"1", "true", "yes", "on", "enabled"}
+_DISABLED_VALUES = {"0", "false", "no", "off", "disabled"}
+
 
 @dataclass
 class KeepAwakeStatus:
@@ -131,13 +134,44 @@ def get_keep_awake_controller() -> MacKeepAwakeController:
     return _controller
 
 
+def keep_awake_enabled_from_environment() -> bool:
+    raw = os.environ.get("AURA_KEEP_AWAKE")
+    if raw is not None:
+        return raw.strip().lower() in _ENABLED_VALUES
+    if os.environ.get("PYTEST_CURRENT_TEST"):
+        return False
+    return True
+
+
+def require_ac_power_from_environment() -> bool:
+    raw = os.environ.get("AURA_KEEP_AWAKE_REQUIRE_AC")
+    if raw is not None:
+        normalized = raw.strip().lower()
+        if normalized in _DISABLED_VALUES:
+            return False
+        if normalized in _ENABLED_VALUES:
+            return True
+    if os.environ.get("AURA_KEEP_AWAKE_ON_BATTERY", "").strip().lower() in _ENABLED_VALUES:
+        return False
+    return True
+
+
 def start_from_environment() -> KeepAwakeStatus:
-    enabled = os.environ.get("AURA_KEEP_AWAKE", "").strip().lower() in {"1", "true", "yes", "on"}
     controller = get_keep_awake_controller()
-    if not enabled:
+    if not keep_awake_enabled_from_environment():
         return controller.status()
     keep_display = os.environ.get("AURA_KEEP_DISPLAY_AWAKE", "").strip().lower() in {"1", "true", "yes", "on"}
-    return controller.start(keep_display_awake=keep_display)
+    return controller.start(
+        keep_display_awake=keep_display,
+        require_ac_power=require_ac_power_from_environment(),
+    )
 
 
-__all__ = ["KeepAwakeStatus", "MacKeepAwakeController", "get_keep_awake_controller", "start_from_environment"]
+__all__ = [
+    "KeepAwakeStatus",
+    "MacKeepAwakeController",
+    "get_keep_awake_controller",
+    "keep_awake_enabled_from_environment",
+    "require_ac_power_from_environment",
+    "start_from_environment",
+]

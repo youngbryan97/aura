@@ -206,7 +206,7 @@ class ResponseGenerationPhase(BasePhase):
             if state.cognition.current_mode == CognitiveMode.DELIBERATE:
                 depth_mod = 1.5
 
-            token_budget = int((4096 if deep_handoff else 2048) * depth_mod) if not is_background else 1024
+            token_budget = int((6144 if deep_handoff else 4096) * depth_mod) if not is_background else 1024
             # [STABILITY v55] Raised thermal from 85°C to 95°C (M-series
             # throttles at 100°C+) and memory pressure from 85% to 94%
             # (32B model normally uses 85-90% of 64GB).
