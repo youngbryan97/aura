@@ -3130,15 +3130,15 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
             # nudges — so the stabilizer raises max_tokens for multi-part
             # prompts but does not coach the model on how to speak.
             stabilizer_length_line = ""
-            stabilizer_max_tokens = 360
+            stabilizer_max_tokens = 1024
             if prefer_extended_answer:
-                stabilizer_max_tokens = 720
+                stabilizer_max_tokens = 2048
             if requires_single_reply_coverage:
-                stabilizer_max_tokens = max(stabilizer_max_tokens, 900)
+                stabilizer_max_tokens = max(stabilizer_max_tokens, 2560)
             if question_parts >= 3:
-                stabilizer_max_tokens = max(stabilizer_max_tokens, 1100)
+                stabilizer_max_tokens = max(stabilizer_max_tokens, 3072)
             if question_parts >= 5:
-                stabilizer_max_tokens = max(stabilizer_max_tokens, 1344)
+                stabilizer_max_tokens = max(stabilizer_max_tokens, 4096)
 
             frame_lines = []
             if frame.get("mood"):

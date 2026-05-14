@@ -134,7 +134,7 @@ class OvertActionLoop:
             synth_result = await self._synthesize(state)
             initiative = dict(getattr(synth_result, "winner", None) or {})
             if not initiative:
-                if os.getenv("AURA_OVERT_ACTION_FALLBACK", "1").strip().lower() in {"0", "false", "off", "no"}:
+                if os.getenv("AURA_OVERT_ACTION_FALLBACK", "0").strip().lower() in {"0", "false", "off", "no"}:
                     return self._record_skip("no_authorized_initiative").to_dict()
                 initiative = self._fallback_initiative()
                 will_receipt_id = self._authorize_fallback(initiative)

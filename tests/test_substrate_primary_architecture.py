@@ -176,3 +176,30 @@ async def test_overt_action_loop_executes_verifies_and_receipts(tmp_path):
     assert result["tool_receipt_id"].startswith("tool_execution-")
     assert result["autonomy_receipt_id"].startswith("autonomy-")
     assert loop.status()["actions_verified"] == 1
+
+
+@pytest.mark.asyncio
+async def test_overt_action_loop_waits_without_intrinsic_initiative(monkeypatch, tmp_path):
+    from core.runtime.overt_action_loop import OvertActionLoop
+    from core.runtime.receipts import ReceiptStore
+
+    class EmptySynth:
+        async def start(self):
+            return None
+
+        async def synthesize(self, state):
+            return SimpleNamespace(winner=None, will_receipt_id="")
+
+    monkeypatch.delenv("AURA_OVERT_ACTION_FALLBACK", raising=False)
+    loop = OvertActionLoop(
+        capability_engine=SimpleNamespace(),
+        synthesizer=EmptySynth(),
+        receipt_store=ReceiptStore(tmp_path / "receipts"),
+        state_provider=lambda: SimpleNamespace(cognition=SimpleNamespace(pending_initiatives=[])),
+    )
+
+    result = await loop.run_once(force=True)
+
+    assert result["status"] == "skipped"
+    assert result["error"] == "no_authorized_initiative"
+    assert loop.status()["actions_started"] == 0

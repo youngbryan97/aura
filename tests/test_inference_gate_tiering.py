@@ -446,6 +446,27 @@ def test_adaptive_max_tokens_expands_budget_for_compound_prompt():
     assert adapted >= 1024
 
 
+def test_user_facing_primary_default_budget_allows_expressive_opening(monkeypatch):
+    monkeypatch.delenv("AURA_FOREGROUND_CHAT_MAX_TOKENS", raising=False)
+
+    base = InferenceGate._default_max_tokens_for_request(
+        "user",
+        "primary",
+        deep_handoff=False,
+        is_background=False,
+    )
+    adapted = InferenceGate._adaptive_max_tokens_for_prompt(
+        "Please introduce yourself fully and respond to every part of this first message.",
+        base_tokens=base,
+        origin="user",
+        requested_tier="primary",
+        is_background=False,
+    )
+
+    assert base >= 3072
+    assert adapted >= 3072
+
+
 @pytest.mark.asyncio
 async def test_user_facing_primary_prewarms_cold_cortex_before_first_generation(monkeypatch):
     monkeypatch.setenv("AURA_FORCE_CORTEX_WARMUP_UNDER_PRESSURE", "1")

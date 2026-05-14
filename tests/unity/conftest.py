@@ -52,7 +52,7 @@ def pytest_sessionfinish(session, exitstatus):
 
     artifact_payload = {
         "timestamp": __import__("time").time(),
-        "unity_layer_version": "1.0",
+        "unity_layer_version": "1.1",
         "tests_passed": int(_UNITY_RESULTS.get("tests_passed", 0) or 0),
         "tests_total": int(_UNITY_RESULTS.get("tests_total", 0) or 0),
         "lesion_effects": {
@@ -70,6 +70,11 @@ def pytest_sessionfinish(session, exitstatus):
         "false_fragmentation_claims": 0 if _passed("test_nominal_state_does_not_force_fragmentation_language") else 1,
         "memory_conflict_preservation_rate": 1.0 if _passed("test_conflicting_drafts_become_conflicted_memory") and _passed("test_memory_metadata_carries_unity_fields") else 0.0,
         "action_gating_success_rate": round(gating_rate, 4),
+        "mind_moment_cases": {
+            "active_present": _passed("test_mind_moment_binds_active_present_and_causal_closure"),
+            "lesion_degradation": _passed("test_mind_moment_lesion_specific_degradation"),
+            "will_gating": _passed("test_will_blocks_external_action_when_mind_moment_closure_collapses"),
+        },
     }
 
     target = Path(session.config.rootpath) / "artifacts" / "unity" / "latest" / "UNITY_RESULTS.json"

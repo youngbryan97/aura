@@ -36,6 +36,14 @@ def unity_summary_payload(
         payload["user_visible_summary"] = report.user_visible_summary
     if repair_plan is not None:
         payload["repair_plan"] = repair_plan.to_dict()
+    moment = dict((unity_state.metadata or {}).get("mind_moment") or {})
+    if moment:
+        payload["mind_moment_id"] = moment.get("moment_id")
+        payload["causal_closure_score"] = moment.get("closure_score")
+        payload["active_subsystems"] = list(moment.get("active_subsystems") or [])
+        payload["closure_missing"] = list(moment.get("closure_missing") or [])
+        payload["attention"] = moment.get("attention")
+        payload["wanting"] = moment.get("wanting")
     return payload
 
 

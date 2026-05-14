@@ -32,8 +32,6 @@ const state = {
     isSubmitting: false,
     activeChatRequestId: null,
     lastChatLatencyMs: null,
-    liveProofActive: null,
-    liveProofHistory: [],
     commitments: null,
     voiceSummary: null,
     desktopAccess: null,
@@ -358,10 +356,6 @@ const DOM = {
         what: $('metric-guide-what'),
         how: $('metric-guide-how'),
         why: $('metric-guide-why')
-    },
-    liveProof: {
-        latency: $('live-proof-latency'),
-        receipt: $('live-proof-receipt')
     }
 };
 
@@ -2219,27 +2213,9 @@ function updateTelemetry(data) {
     refreshMetricGuide();
 }
 
-const LIVE_PROOF_PROMPTS = {
-    snake: 'Live runtime proof: independently create a simple playable Snake game as a real file at artifacts/live_runtime/generated/ui_snake.html. Use your governed coding and file tools, then report the file path, receipt, and how to run it.',
-    desktop: 'Live runtime proof: use your governed computer_use capability to open Calculator on this Mac, read or confirm the frontmost app state if available, then report the action receipt and any permission limits.',
-    novel: 'Live runtime proof: have a coherent conversation about a novel topic called glass arithmetic. Define its rules yourself, reason through one example, and avoid canned reset language.',
-    chain: 'Live runtime proof: perform a chained self-directed check. First create or update artifacts/live_runtime/generated/chain_note.txt with one sentence about what you are doing, then use a local desktop or shell observation if allowed, then answer with receipts and a concise continuity summary.'
-};
-
-function setLiveProofStatus(message, tone = 'idle') {
-    const receipt = DOM.liveProof && DOM.liveProof.receipt;
-    if (receipt) {
-        receipt.textContent = String(message || '');
-        receipt.dataset.tone = tone;
-    }
-}
-
 function setLatencyStatus(message, tone = 'idle') {
-    const latency = DOM.liveProof && DOM.liveProof.latency;
-    if (latency) {
-        latency.textContent = String(message || 'idle');
-        latency.dataset.tone = tone;
-    }
+    void message;
+    void tone;
 }
 
 function recordChatLatency(requestId, latencyMs, ok) {
@@ -2256,37 +2232,16 @@ function recordChatLatency(requestId, latencyMs, ok) {
     }).catch(() => {});
 }
 
-function submitPromptFromUi(prompt, proofLabel = null) {
+function sendMessage(message) {
     const input = $('chat-input');
     const form = $('chat-form');
-    if (!input || !form || !prompt) return;
-    if (proofLabel) {
-        state.liveProofActive = proofLabel;
-        setLiveProofStatus(`${proofLabel} proof running through Aura...`, 'running');
-    }
-    input.value = prompt;
+    if (!input || !form || !message) return;
+    input.value = message;
     input.style.height = 'auto';
     input.style.height = Math.min(input.scrollHeight, 150) + 'px';
     form.requestSubmit();
 }
-
-function sendMessage(message) {
-    submitPromptFromUi(message);
-}
 window.sendMessage = sendMessage;
-
-function initializeLiveProofPanel() {
-    document.querySelectorAll('[data-live-proof]').forEach(button => {
-        if (button.dataset.boundLiveProof === '1') return;
-        button.dataset.boundLiveProof = '1';
-        button.addEventListener('click', () => {
-            const key = button.dataset.liveProof;
-            const prompt = LIVE_PROOF_PROMPTS[key];
-            if (!prompt) return;
-            submitPromptFromUi(prompt, button.textContent.trim() || key);
-        });
-    });
-}
 
 // ── Chat ─────────────────────────────────────────────────
 $('chat-form').onsubmit = async e => {
@@ -2342,9 +2297,6 @@ $('chat-form').onsubmit = async e => {
             } else {
                 appendMsg('aura', '⚠ Communication error. Check connection.');
             }
-            if (state.liveProofActive) {
-                setLiveProofStatus(`${state.liveProofActive} proof returned HTTP ${res.status}.`, 'error');
-            }
             return;
         }
 
@@ -2361,13 +2313,6 @@ $('chat-form').onsubmit = async e => {
                 if (data.thought) chatMeta.thought = data.thought;
                 appendMsg('aura', data.response, false, chatMeta);
             }
-        }
-        if (state.liveProofActive) {
-            const label = state.liveProofActive;
-            state.liveProofHistory.unshift({ label, requestId, latencyMs, ok: true, ts: Date.now() });
-            state.liveProofHistory = state.liveProofHistory.slice(0, 12);
-            setLiveProofStatus(`${label} proof completed in ${(latencyMs / 1000).toFixed(1)}s.`, 'ok');
-            state.liveProofActive = null;
         }
     } catch (err) {
         console.error('[CHAT] Error sending message:', err);
@@ -2389,16 +2334,8 @@ $('chat-form').onsubmit = async e => {
             if (!streamedReplyInFlight && !alreadyShowingRecovery) {
                 appendMsg('aura', 'The live reply timed out before a coherent answer reached the UI. The degraded turn is recorded.');
             }
-            if (state.liveProofActive) {
-                setLiveProofStatus(`${state.liveProofActive} proof timed out before a coherent UI response.`, 'error');
-                state.liveProofActive = null;
-            }
         } else {
             appendMsg('aura', '⚠ Communication error. Check connection.');
-            if (state.liveProofActive) {
-                setLiveProofStatus(`${state.liveProofActive} proof hit a connection error.`, 'error');
-                state.liveProofActive = null;
-            }
         }
     } finally {
         window.clearTimeout(timeoutId);
@@ -3853,7 +3790,6 @@ if ('serviceWorker' in navigator) {
 setConnectionVisual('booting');
 hydrateBootstrap({ hydrateConversationHistory: true, quiet: true });
 initializeMetricGuide();
-initializeLiveProofPanel();
 renderNeuralFeedMode();
 if (DOM.neuralPauseToggle) {
     DOM.neuralPauseToggle.addEventListener('click', toggleNeuralVisualPause);

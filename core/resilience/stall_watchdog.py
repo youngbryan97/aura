@@ -48,6 +48,7 @@ class StallWatchdog(threading.Thread):
         self._task_birth: dict[int, float] = {}
         self._consecutive_long_stalls: int = 0
         self._started_at: float = time.time()
+        self._diagnostic_only_notice_logged: bool = False
 
     def run(self):
         logger.info("🛡️ StallWatchdog: Monitoring loop (Threshold: %.1fs)", self.threshold)
@@ -188,7 +189,12 @@ class StallWatchdog(threading.Thread):
             get_diagnostic_hub()
             # Future: trigger auto-repair or circuit break
         except Exception as _e:
-            record_degradation('stall_watchdog', _e)
+            record_degradation(
+                "stall_watchdog",
+                _e,
+                severity="debug",
+                action="continued after optional stall diagnostic hub was unavailable",
+            )
             logger.debug('Ignored Exception in stall_watchdog.py: %s', _e)
 
     def _attempt_active_recovery(self, elapsed: float) -> None:
@@ -257,10 +263,15 @@ class StallWatchdog(threading.Thread):
                     record_degradation('stall_watchdog', exc)
                     logger.debug("Stall recovery: failed to cancel %s: %s", name, exc)
         else:
-            logger.warning(
+            message = (
                 "💉 [IMMUNE] Stall recovery is diagnostic-only; not bulk-cancelling asyncio tasks. "
                 "Set AURA_WATCHDOG_CANCEL_HUNG_TASKS=1 to enable aggressive cancellation."
             )
+            if self._diagnostic_only_notice_logged:
+                logger.debug(message)
+            else:
+                logger.info(message)
+                self._diagnostic_only_notice_logged = True
 
         if cancelled:
             logger.warning(

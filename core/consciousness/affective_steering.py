@@ -950,6 +950,10 @@ class AffectiveSteeringHook:
         
         # Diagnostic counters
         self._inject_count = 0
+        try:
+            self._phi_sample_every = max(1, int(os.getenv("AURA_PHI_RESIDUAL_SAMPLE_EVERY", "32")))
+        except (TypeError, ValueError):
+            self._phi_sample_every = 32
         self._last_injection_norm = 0.0
         self._last_mask_mode = "none"
         
@@ -1042,6 +1046,23 @@ class AffectiveSteeringHook:
             self._last_mask_mode = f"mask_unavailable:{type(exc).__name__}"
         return None
 
+    def _maybe_record_phi_residual(self, h: Any) -> None:
+        if os.getenv("AURA_PHI_RECORD_RESIDUALS", "1").strip().lower() in {"0", "false", "off", "no"}:
+            return
+        if self._inject_count % self._phi_sample_every != 0:
+            return
+        try:
+            from core.container import ServiceContainer
+
+            if not ServiceContainer.has("phi_core"):
+                return
+            phi_core = ServiceContainer.get("phi_core", default=None)
+            if phi_core is not None and hasattr(phi_core, "record_residual_stream"):
+                phi_core.record_residual_stream(h, layer_idx=self._layer_idx, token_position=-1)
+        except Exception as exc:
+            record_degradation('affective_steering', exc)
+            logger.debug("Residual phi sample failed at layer %d: %s", self._layer_idx, exc)
+
     def install(self):
         """
         Patch the transformer block's forward pass to inject the steering vector.
@@ -1087,6 +1108,7 @@ class AffectiveSteeringHook:
 
                     # Diagnostic
                     hook._inject_count += 1
+                    hook._maybe_record_phi_residual(h)
                     # Note: norm is expensive, only do it occasionally
                     if hook._inject_count % 50 == 0:
                         import mlx.core as mx

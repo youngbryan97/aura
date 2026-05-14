@@ -181,6 +181,8 @@ class WillDecision:
     fragmentation_score: float = 0.0
     ownership_confidence: float = 1.0
     unity_repair_needed: bool = False
+    mind_moment_id: str = ""
+    causal_closure_score: float = 1.0
 
     # Constraints (if outcome is CONSTRAIN)
     constraints: List[str] = field(default_factory=list)
@@ -407,6 +409,8 @@ class UnifiedWill:
             fragmentation_score=float(unity_context.get("fragmentation_score", 0.0) or 0.0),
             ownership_confidence=float(unity_context.get("ownership_confidence", 1.0) or 1.0),
             unity_repair_needed=bool(unity_context.get("repair_needed", False)),
+            mind_moment_id=str(unity_context.get("mind_moment_id", "") or ""),
+            causal_closure_score=float(unity_context.get("causal_closure_score", 1.0) or 1.0),
             constraints=constraints,
             source=source,
             content_hash=content_hash,
@@ -745,6 +749,10 @@ class UnifiedWill:
             "repair_needed": False,
             "memory_commit_mode": "clean",
             "ownership_confidence": 1.0,
+            "mind_moment_id": "",
+            "causal_closure_score": 1.0,
+            "closure_missing": [],
+            "active_subsystems": [],
             "top_causes": [],
         }
         try:
@@ -763,9 +771,28 @@ class UnifiedWill:
                 binding = dict(metadata.get("self_world_binding") or {})
                 if binding:
                     context["ownership_confidence"] = float(binding.get("ownership_confidence", 1.0) or 1.0)
+                moment = dict(metadata.get("mind_moment") or {})
+                if moment:
+                    context["mind_moment_id"] = str(moment.get("moment_id") or "")
+                    context["causal_closure_score"] = float(moment.get("closure_score", 1.0) or 1.0)
+                    context["closure_missing"] = list(moment.get("closure_missing") or [])
+                    context["active_subsystems"] = list(moment.get("active_subsystems") or [])
         except Exception as e:
             record_degradation('will', e)
             logger.debug("Will: unity state read failed: %s", e)
+
+        try:
+            moment = ServiceContainer.get("mind_moment", default=None) if ServiceContainer.has("mind_moment") else None
+            if moment is not None:
+                context["mind_moment_id"] = str(getattr(moment, "moment_id", "") or context.get("mind_moment_id", ""))
+                context["causal_closure_score"] = float(
+                    getattr(moment, "closure_score", context.get("causal_closure_score", 1.0)) or 1.0
+                )
+                context["closure_missing"] = list(getattr(moment, "closure_missing", context.get("closure_missing", [])) or [])
+                context["active_subsystems"] = list(getattr(moment, "active_subsystems", context.get("active_subsystems", [])) or [])
+        except Exception as e:
+            record_degradation('will', e)
+            logger.debug("Will: mind moment read failed: %s", e)
 
         try:
             report = ServiceContainer.get("unity_fragmentation_report", default=None)
@@ -920,9 +947,38 @@ class UnifiedWill:
         safe_to_act = bool(unity_context.get("safe_to_act", True))
         memory_commit_mode = str(unity_context.get("memory_commit_mode", "clean") or "clean")
         ownership_confidence = float(unity_context.get("ownership_confidence", 1.0) or 1.0)
+        causal_closure_score = float(unity_context.get("causal_closure_score", 1.0) or 1.0)
+        closure_missing = [str(item) for item in list(unity_context.get("closure_missing", []) or [])]
 
         if ownership_confidence < 0.45:
             constraints.append(f"ownership_ambiguity: confidence={ownership_confidence:.3f}")
+
+        consequential_domains = {
+            ActionDomain.TOOL_EXECUTION,
+            ActionDomain.EXTERNAL_ACTION,
+            ActionDomain.FILE_WRITE,
+            ActionDomain.NETWORK_CALL,
+            ActionDomain.CLOUD_CALL,
+            ActionDomain.CI_CD,
+            ActionDomain.SELF_MODIFICATION,
+            ActionDomain.ENVIRONMENT_ACTION,
+            ActionDomain.SEMANTIC_WEIGHT_UPDATE,
+            ActionDomain.BELIEF_UPDATE,
+        }
+        if causal_closure_score < 0.35:
+            missing = ",".join(closure_missing[:4]) or "unknown"
+            constraints.append(f"causal_closure_collapse: score={causal_closure_score:.3f} missing={missing}")
+            if domain == ActionDomain.STABILIZATION:
+                return WillOutcome.CONSTRAIN, "causal_closure_repair_lane", constraints
+            if domain in consequential_domains:
+                reasons.append("causal_closure_block: consequential action requires one active present and Will-owned receipt path")
+                return WillOutcome.REFUSE, "; ".join(reasons), constraints
+            if domain == ActionDomain.MEMORY_WRITE:
+                reasons.append("causal_closure_memory_defer: memory write needs integrated present")
+                return WillOutcome.DEFER, "; ".join(reasons), constraints
+        elif causal_closure_score < 0.55:
+            missing = ",".join(closure_missing[:4]) or "unknown"
+            constraints.append(f"causal_closure_strain: score={causal_closure_score:.3f} missing={missing}")
 
         if domain in {ActionDomain.SEMANTIC_WEIGHT_UPDATE, ActionDomain.STATE_MUTATION} and unity_level not in {"coherent", "strained"}:
             if catatonia_relief and domain == ActionDomain.STATE_MUTATION:
@@ -1135,6 +1191,8 @@ class UnifiedWill:
                 "unity_score": round(d.unity_score, 4),
                 "fragmentation_score": round(d.fragmentation_score, 4),
                 "ownership_confidence": round(d.ownership_confidence, 4),
+                "mind_moment_id": d.mind_moment_id,
+                "causal_closure_score": round(d.causal_closure_score, 4),
                 "signature_scheme": d.signature_scheme,
                 "signature": d.signature,
                 "timestamp": d.timestamp,

@@ -1567,9 +1567,9 @@ class InferenceGate:
         if deep_handoff or requested_tier == "secondary":
             return 2048
         if cls._origin_is_user_facing(origin):
-            # [RESTORED] Reverted from 768 back to 1536 to allow rich, coherent,
-            # deeply reasoned responses instead of clipped "slop" replies.
-            return 1536
+            # Live conversation is allowed a full first reply. Short caps made
+            # opening messages look clipped before Aura could finish a thought.
+            return 3072
         return 512
 
     @classmethod
@@ -1588,12 +1588,16 @@ class InferenceGate:
         shape = analyze_prompt_shape(prompt)
         adapted = int(base_tokens)
         if shape.prefers_extended_answer:
-            adapted = max(adapted, 1024)
+            adapted = max(adapted, 3072)
         if shape.question_parts >= 3:
-            adapted = max(adapted, 1344)
+            adapted = max(adapted, 3584)
         elif shape.requires_single_reply_coverage:
-            adapted = max(adapted, 1152)
-        return min(1664, adapted)
+            adapted = max(adapted, 3072)
+        try:
+            foreground_cap = int(os.environ.get("AURA_FOREGROUND_CHAT_MAX_TOKENS", "4096"))
+        except (TypeError, ValueError):
+            foreground_cap = 4096
+        return min(max(512, foreground_cap), adapted)
 
     @staticmethod
     def _split_attempt_timeouts(total_timeout: float, requested_tier: str) -> tuple[float, float]:
@@ -3394,7 +3398,7 @@ class InferenceGate:
         ):
             foreground_floor = max(
                 384,
-                int(os.environ.get("AURA_FOREGROUND_CHAT_MIN_TOKENS", "1024")),
+                int(os.environ.get("AURA_FOREGROUND_CHAT_MIN_TOKENS", "2048")),
             )
             if max_tokens < foreground_floor:
                 logger.info(

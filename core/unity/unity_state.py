@@ -242,6 +242,120 @@ class WorkspaceBroadcastFrame:
 
 
 @dataclass(frozen=True)
+class MindMoment:
+    """One inspectable active-present frame for the whole cognitive loop."""
+
+    moment_id: str = field(default_factory=lambda: _new_id("mind"))
+    created_at: float = field(default_factory=time.time)
+    tick_id: str | None = None
+    state_version: int | None = None
+    unity_id: str = ""
+    continuity_hash: str = ""
+    focus_summary: str = ""
+    attention: str = ""
+    feeling: str = ""
+    wanting: str = ""
+    believing: str = ""
+    preparing: str = ""
+    subsystem_activations: dict[str, float] = field(default_factory=dict)
+    causal_edges: list[dict[str, Any]] = field(default_factory=list)
+    prediction: dict[str, Any] = field(default_factory=dict)
+    prediction_error: float = 0.0
+    closure_score: float = 0.0
+    closure_missing: list[str] = field(default_factory=list)
+    lesion_expectations: dict[str, str] = field(default_factory=dict)
+    active_subsystems: list[str] = field(default_factory=list)
+    will_receipt_id: str | None = None
+    action_receipt_ids: list[str] = field(default_factory=list)
+    world_evidence_refs: list[str] = field(default_factory=list)
+    memory_refs: list[str] = field(default_factory=list)
+    grounding_refs: list[str] = field(default_factory=list)
+    unity_level: UnityLevel = "unknown"
+    unity_score: float = 0.0
+    fragmentation_score: float = 0.0
+    safe_to_act: bool = True
+    receipt_required: bool = True
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "moment_id": self.moment_id,
+            "created_at": self.created_at,
+            "tick_id": self.tick_id,
+            "state_version": self.state_version,
+            "unity_id": self.unity_id,
+            "continuity_hash": self.continuity_hash,
+            "focus_summary": self.focus_summary,
+            "attention": self.attention,
+            "feeling": self.feeling,
+            "wanting": self.wanting,
+            "believing": self.believing,
+            "preparing": self.preparing,
+            "subsystem_activations": dict(self.subsystem_activations),
+            "causal_edges": [dict(edge) for edge in self.causal_edges],
+            "prediction": dict(self.prediction),
+            "prediction_error": self.prediction_error,
+            "closure_score": self.closure_score,
+            "closure_missing": list(self.closure_missing),
+            "lesion_expectations": dict(self.lesion_expectations),
+            "active_subsystems": list(self.active_subsystems),
+            "will_receipt_id": self.will_receipt_id,
+            "action_receipt_ids": list(self.action_receipt_ids),
+            "world_evidence_refs": list(self.world_evidence_refs),
+            "memory_refs": list(self.memory_refs),
+            "grounding_refs": list(self.grounding_refs),
+            "unity_level": self.unity_level,
+            "unity_score": self.unity_score,
+            "fragmentation_score": self.fragmentation_score,
+            "safe_to_act": self.safe_to_act,
+            "receipt_required": self.receipt_required,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Optional[Dict[str, Any]]) -> "MindMoment":
+        payload = dict(data or {})
+        return cls(
+            moment_id=str(payload.get("moment_id") or _new_id("mind")),
+            created_at=float(payload.get("created_at", time.time()) or time.time()),
+            tick_id=payload.get("tick_id"),
+            state_version=payload.get("state_version"),
+            unity_id=str(payload.get("unity_id") or ""),
+            continuity_hash=str(payload.get("continuity_hash") or ""),
+            focus_summary=str(payload.get("focus_summary") or ""),
+            attention=str(payload.get("attention") or ""),
+            feeling=str(payload.get("feeling") or ""),
+            wanting=str(payload.get("wanting") or ""),
+            believing=str(payload.get("believing") or ""),
+            preparing=str(payload.get("preparing") or ""),
+            subsystem_activations={
+                str(key): float(value)
+                for key, value in dict(payload.get("subsystem_activations") or {}).items()
+            },
+            causal_edges=[
+                dict(item) for item in list(payload.get("causal_edges") or []) if isinstance(item, dict)
+            ],
+            prediction=dict(payload.get("prediction") or {}),
+            prediction_error=float(payload.get("prediction_error", 0.0) or 0.0),
+            closure_score=float(payload.get("closure_score", 0.0) or 0.0),
+            closure_missing=[str(item) for item in list(payload.get("closure_missing") or [])],
+            lesion_expectations={
+                str(key): str(value)
+                for key, value in dict(payload.get("lesion_expectations") or {}).items()
+            },
+            active_subsystems=[str(item) for item in list(payload.get("active_subsystems") or [])],
+            will_receipt_id=payload.get("will_receipt_id"),
+            action_receipt_ids=[str(item) for item in list(payload.get("action_receipt_ids") or [])],
+            world_evidence_refs=[str(item) for item in list(payload.get("world_evidence_refs") or [])],
+            memory_refs=[str(item) for item in list(payload.get("memory_refs") or [])],
+            grounding_refs=[str(item) for item in list(payload.get("grounding_refs") or [])],
+            unity_level=str(payload.get("unity_level", "unknown") or "unknown"),
+            unity_score=float(payload.get("unity_score", 0.0) or 0.0),
+            fragmentation_score=float(payload.get("fragmentation_score", 0.0) or 0.0),
+            safe_to_act=bool(payload.get("safe_to_act", True)),
+            receipt_required=bool(payload.get("receipt_required", True)),
+        )
+
+
+@dataclass(frozen=True)
 class UnityState:
     unity_id: str = field(default_factory=lambda: _new_id("unity"))
     created_at: float = field(default_factory=time.time)

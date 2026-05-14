@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -12,6 +13,20 @@ from core.runtime.governance_policy import (
 )
 from core.skills.train_self import TrainSelfSkill as CoreTrainSelfSkill
 from skills.train_self import TrainSelfSkill as LegacyTrainSelfSkill
+
+
+def test_error_intelligence_demotes_omni_log_error_warning(caplog, tmp_path):
+    from core.self_modification.error_intelligence import StructuredErrorLogger
+
+    logger = StructuredErrorLogger(str(tmp_path))
+    caplog.set_level(logging.WARNING, logger="SelfModification.ErrorIntelligence")
+
+    try:
+        raise RuntimeError("telemetry loop failure")
+    except RuntimeError as exc:
+        asyncio.run(logger.log_error(exc, {}, skill_name="omni_log_error"))
+
+    assert "Error logged: RuntimeError in omni_log_error" not in caplog.text
 
 
 @pytest.mark.parametrize("skill_kind", ["core", "legacy"])

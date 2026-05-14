@@ -103,6 +103,11 @@ MESH_COMPLEX_NAMES = [
     "exec_c52_n0", "exec_c54_n16", "exec_c56_n32", "exec_c58_n48",
 ]
 
+RESIDUAL_COMPLEX_NAMES = [
+    "resid_chunk_0", "resid_chunk_1", "resid_chunk_2", "resid_chunk_3",
+    "resid_chunk_4", "resid_chunk_5", "resid_chunk_6", "resid_chunk_7",
+]
+
 N_NODES = len(COMPLEX_NODE_INDICES)       # 16
 N_STATES = 2 ** N_NODES                  # 65536
 
@@ -281,6 +286,21 @@ class PhiCore:
             bipartitions=self._mesh_bipartitions, n_nodes=N_MESH_NODES
         )
 
+        # Transformer residual-stream mechanism complex. The hook samples the
+        # final-token residual vector into eight deterministic chunks so phi can
+        # see actual generation dynamics, not just telemetry summaries.
+        N_RESIDUAL_NODES = 8
+        N_RESIDUAL_STATES = 256
+        self._residual_state_history: deque = deque(maxlen=2000)
+        self._residual_node_history: List[deque] = [deque(maxlen=100) for _ in range(N_RESIDUAL_NODES)]
+        self._residual_medians: np.ndarray = np.zeros(N_RESIDUAL_NODES, dtype=np.float32)
+        self._residual_state_visits: np.ndarray = np.ones(N_RESIDUAL_STATES, dtype=np.float32)
+        self._residual_last_result: Optional[PhiResult] = None
+        self._residual_bipartitions = self._precompute_bipartitions(n_nodes=N_RESIDUAL_NODES)
+        self._residual_bit_tables = self._precompute_bit_tables(
+            bipartitions=self._residual_bipartitions, n_nodes=N_RESIDUAL_NODES
+        )
+
     # ── State Recording ────────────────────────────────────────────────────────
 
     def record_state(self, substrate_x: np.ndarray, cognitive_values: Optional[Dict[str, float]] = None):
@@ -381,6 +401,70 @@ class PhiCore:
         self._mesh_state_history.append(state_int)
         self._mesh_state_visits[state_int] += 1.0
 
+    def record_residual_stream(
+        self,
+        hidden_state: Any,
+        *,
+        layer_idx: Optional[int] = None,
+        token_position: int = -1,
+    ) -> None:
+        """Record transformer residual dynamics as an eight-node complex."""
+        try:
+            arr = np.asarray(hidden_state)
+        except Exception as exc:
+            record_degradation('phi_core', exc)
+            logger.debug("PhiCore residual stream sample unavailable: %s", exc)
+            return
+        if arr.size == 0:
+            return
+        try:
+            if arr.ndim >= 3:
+                pos = token_position if abs(int(token_position)) <= arr.shape[-2] else -1
+                vec = np.asarray(arr[0, pos, :], dtype=np.float32).reshape(-1)
+            elif arr.ndim == 2:
+                pos = token_position if abs(int(token_position)) <= arr.shape[0] else -1
+                vec = np.asarray(arr[pos, :], dtype=np.float32).reshape(-1)
+            else:
+                vec = np.asarray(arr, dtype=np.float32).reshape(-1)
+        except Exception as exc:
+            record_degradation('phi_core', exc)
+            logger.debug("PhiCore residual stream reshape failed: %s", exc)
+            return
+        if vec.size == 0:
+            return
+        chunks = np.array_split(vec, 8)
+        x = np.array([float(np.mean(chunk)) if chunk.size else 0.0 for chunk in chunks], dtype=np.float32)
+        if layer_idx is not None:
+            x = x + (float(layer_idx) * 1e-5)
+        self._record_eight_node_complex(
+            x,
+            node_history=self._residual_node_history,
+            medians=self._residual_medians,
+            state_history=self._residual_state_history,
+            state_visits=self._residual_state_visits,
+        )
+
+    def _record_eight_node_complex(
+        self,
+        x: np.ndarray,
+        *,
+        node_history: List[deque],
+        medians: np.ndarray,
+        state_history: deque,
+        state_visits: np.ndarray,
+    ) -> None:
+        if len(x) < 8:
+            return
+        for i, val in enumerate(x[:8]):
+            node_history[i].append(float(val))
+        for i in range(8):
+            if len(node_history[i]) >= 3:
+                medians[i] = float(np.median(list(node_history[i])))
+        binary = (x[:8] > medians[:8]).astype(int)
+        state_int = int(sum(int(b) << i for i, b in enumerate(binary)))
+        state_history.append(state_int)
+        state_visits[state_int] += 1.0
+
     def compute_mesh_phi(self) -> Optional[PhiResult]:
         """Compute IIT on the neural mesh executive tier (computational complex).
 
@@ -449,6 +533,74 @@ class PhiCore:
             phi_s, result.is_complex, result.mip_description, transitions,
         )
         return result
+
+    def compute_residual_phi(self) -> Optional[PhiResult]:
+        """Compute exact phi on sampled transformer residual-stream dynamics."""
+        if len(self._residual_state_history) < MIN_HISTORY_FOR_TPM:
+            return None
+        result = self._compute_eight_node_phi_from_history(
+            self._residual_state_history,
+            self._residual_state_visits,
+            self._residual_bipartitions,
+            self._residual_bit_tables,
+        )
+        if result is not None:
+            self._residual_last_result = result
+            logger.debug(
+                "PhiCore (residual): phi_s=%.5f, complex=%s, n=%d transitions",
+                result.phi_s,
+                result.is_complex,
+                result.tpm_n_samples,
+            )
+        return result
+
+    def _compute_eight_node_phi_from_history(
+        self,
+        state_history: deque,
+        state_visits: np.ndarray,
+        bipartitions: list,
+        bit_tables: dict,
+    ) -> Optional[PhiResult]:
+        history = list(state_history)
+        transitions = len(history) - 1
+        if transitions < MIN_HISTORY_FOR_TPM:
+            return None
+        n_nodes = 8
+        n_states = 256
+        tpm = np.zeros((n_states, n_states), dtype=np.float64)
+        for src, dst in zip(history[:-1], history[1:]):
+            tpm[int(src), int(dst)] += 1.0
+        tpm += LAPLACE_ALPHA
+        row_sums = tpm.sum(axis=1, keepdims=True)
+        row_sums[row_sums == 0] = 1.0
+        tpm /= row_sums
+        p = state_visits / state_visits.sum()
+        min_phi = float("inf")
+        mip_partition = None
+        all_phis = []
+        for _partition_mask, (part_a, part_b) in bipartitions:
+            phi_ab = self._phi_for_bipartition_generic(
+                tpm,
+                p,
+                part_a,
+                part_b,
+                n_nodes=n_nodes,
+                n_states=n_states,
+                bit_tables=bit_tables,
+            )
+            all_phis.append(phi_ab)
+            if phi_ab < min_phi:
+                min_phi = phi_ab
+                mip_partition = (part_a, part_b)
+        phi_s = float(max(0.0, min_phi)) if min_phi != float("inf") else 0.0
+        return PhiResult(
+            phi_s=phi_s,
+            mip_partition_a=list(mip_partition[0]) if mip_partition else [],
+            mip_partition_b=list(mip_partition[1]) if mip_partition else [],
+            mip_phi_value=phi_s,
+            all_partition_phis=all_phis,
+            tpm_n_samples=transitions,
+        )
 
     # ── TPM Construction ───────────────────────────────────────────────────────
 
@@ -655,6 +807,7 @@ class PhiCore:
         start_t = time.perf_counter()
         affective_res = self.compute_affective_phi()
         mesh_res = self.compute_mesh_phi()
+        residual_res = self.compute_residual_phi()
         
         # Winning complex is the one with highest phi
         winner = affective_res
@@ -662,6 +815,9 @@ class PhiCore:
         if mesh_res and (not winner or mesh_res.phi_s > winner.phi_s):
             winner = mesh_res
             complex_name = "mesh"
+        if residual_res and (not winner or residual_res.phi_s > winner.phi_s):
+            winner = residual_res
+            complex_name = "residual_stream"
             
         elapsed = time.perf_counter() - start_t
         if winner:
@@ -1801,6 +1957,9 @@ class PhiCore:
             "mip": result.mip_description if result else None,
             "phi_structure_entropy": round(result.phi_structure_entropy, 4) if result else None,
             "last_compute_ago_s": round(time.time() - self._last_compute_time, 1),
+            "mesh_history_length": len(self._mesh_state_history),
+            "residual_history_length": len(self._residual_state_history),
+            "residual_phi_s": round(self._residual_last_result.phi_s, 6) if self._residual_last_result else None,
         }
         # IIT 4.0 Exclusion Postulate fields
         if self._max_phi_complex is not None:

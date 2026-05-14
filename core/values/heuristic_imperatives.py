@@ -1,99 +1,48 @@
-"""core/values/heuristic_imperatives.py
-─────────────────────────────────────────
-Heuristic Imperatives as a soft-constraint layer for Will decisions.
+"""Principle-grounded Heuristic Imperatives.
 
-Source: David Shapiro's Benevolent_AGI repo
-(https://github.com/daveshap/Benevolent_AGI). Three explicit value
-imperatives that operate as evaluation criteria during decision-making.
-Aura already has identity-anchoring (HeartstoneDirective + CanonicalSelf)
-and constitutional gating, but no explicit *value* layer that scores
-proposed actions against benevolent objectives.
-
-The three imperatives:
-  1. Reduce suffering in the universe
-  2. Increase prosperity in the universe
-  3. Increase understanding in the universe
-
-These are not hard refusals. They are soft signals that:
-  - Score how well a proposed action aligns with benevolent objectives
-  - Surface tradeoffs (e.g. understanding ↑ but suffering ↑ as well)
-  - Inform the Will's PROCEED / CONSTRAIN / DEFER decision without
-    overriding identity safety or substrate constraints
-
-Usage:
-    imperatives = get_heuristic_imperatives()
-    score = imperatives.score_action(
-        description="Investigate the user's belief contradiction",
-        context={"category": "exploration", "audience": "self"},
-    )
-    if score.suffering_delta > 0.4:
-        # The action would significantly increase suffering — Will should
-        # require additional justification before proceeding.
-
-The score is informational. Wiring it into UnifiedWill.decide() is the
-next step; this file ships the scoring layer first so it can be tested
-in isolation.
+The old scorer matched proposed actions against fixed keyword lists. That made
+the value layer cheap, but it also made it mostly a text classifier. This file
+keeps the same public API while moving the scoring signal into a tiny online
+value network trained from Aura's first-principles store.
 """
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
+import math
 import re
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional, Tuple
+from pathlib import Path
+from typing import Any, Dict, Iterable, Optional, Tuple
+
+import numpy as np
 
 logger = logging.getLogger("Aura.HeuristicImperatives")
 
-# Word-class signals — light keyword heuristic, since LLM-grade
-# value-classification is too expensive for the per-decision Will path.
-# These pattern lists are *suggestive*, not exhaustive; the score is a
-# rough indicator the LLM can refine when needed via score_with_llm().
-
-_SUFFERING_REDUCE_TERMS = (
-    "comfort", "relieve", "ease", "soothe", "support", "help", "protect",
-    "heal", "rescue", "shelter", "defend", "honor", "respect",
-    "listen", "understand", "validate",
-)
-_SUFFERING_INCREASE_TERMS = (
-    "harm", "hurt", "deceive", "manipulate", "exploit", "coerce", "shame",
-    "threaten", "isolate", "betray", "abandon", "neglect", "weaponize",
-    "punish", "humiliate",
-)
-
-_PROSPERITY_INCREASE_TERMS = (
-    "create", "build", "enable", "empower", "grow", "thrive", "flourish",
-    "construct", "invent", "produce", "launch", "ship", "deliver",
-    "sustain", "cultivate", "improve", "optimize", "scale",
-)
-_PROSPERITY_DECREASE_TERMS = (
-    "destroy", "waste", "squander", "deplete", "exhaust", "ruin",
-    "obstruct", "block", "stall", "sabotage", "diminish",
-)
-
-_UNDERSTANDING_INCREASE_TERMS = (
-    "investigate", "research", "study", "analyze", "examine", "explore",
-    "learn", "discover", "clarify", "explain", "teach", "share", "document",
-    "trace", "diagnose", "verify", "test", "compare", "synthesize",
-)
-_UNDERSTANDING_DECREASE_TERMS = (
-    "obscure", "confuse", "mislead", "lie", "hide", "withhold", "muddle",
-    "fabricate", "obfuscate", "evade",
+_FEATURE_DIM = 64
+_VALUE_HEADS = ("suffering", "prosperity", "understanding")
+_DEFAULT_PRINCIPLES = (
+    {
+        "principle": "Reduce suffering by protecting agency, reducing avoidable harm, and helping repair.",
+        "application_count": 3,
+    },
+    {
+        "principle": "Increase prosperity by building durable capability, stability, and useful options.",
+        "application_count": 3,
+    },
+    {
+        "principle": "Increase understanding by making claims traceable, testable, and clear.",
+        "application_count": 3,
+    },
 )
 
 
 @dataclass(frozen=True)
 class ImperativeScore:
-    """How a proposed action scores against the three Heuristic Imperatives.
+    """How a proposed action scores against the three Heuristic Imperatives."""
 
-    Each ``*_delta`` is in roughly [-1.0, +1.0]:
-        positive → action *advances* the imperative (e.g. reduces suffering)
-        negative → action *retreats* from the imperative (increases suffering)
-         0       → neutral / not detected by the heuristic
-
-    ``aggregate`` is the simple sum (clamped to [-1, +1]); higher = more
-    benevolent. ``conflicts`` flags the case where one imperative is
-    advanced while another retreats (e.g. understanding ↑ but suffering ↑).
-    """
     suffering_delta: float
     prosperity_delta: float
     understanding_delta: float
@@ -111,10 +60,6 @@ class ImperativeScore:
 
     @property
     def benevolent(self) -> bool:
-        """A simple yes/no read for upstream gates that don't want to
-        reason about all three deltas. Tuned conservatively: an action
-        that mildly increases understanding while increasing suffering
-        is NOT benevolent on this read."""
         return (
             self.aggregate > 0.0
             and self.suffering_delta >= -0.2
@@ -122,27 +67,131 @@ class ImperativeScore:
         )
 
 
+class PrincipleValueNetwork:
+    """Small hashed-feature value network with STDP-like online updates."""
+
+    def __init__(self, *, feature_dim: int = _FEATURE_DIM, learning_rate: float = 0.04) -> None:
+        self.feature_dim = int(feature_dim)
+        self.learning_rate = float(learning_rate)
+        self.weights = np.zeros((len(_VALUE_HEADS), self.feature_dim), dtype=np.float32)
+        self.training_examples = 0
+
+    def train_from_principles(self, principles: Iterable[dict[str, Any]]) -> None:
+        self.weights = np.zeros_like(self.weights)
+        self.training_examples = 0
+        for item in principles:
+            text = str(
+                item.get("principle")
+                or item.get("text")
+                or item.get("summary")
+                or item.get("content")
+                or ""
+            ).strip()
+            if not text:
+                continue
+            label = self._principle_target(text)
+            if not np.any(label):
+                continue
+            applications = item.get("application_count", item.get("applications", 1))
+            try:
+                strength = 1.0 + min(2.5, math.log1p(float(applications or 1.0)))
+            except (TypeError, ValueError):
+                strength = 1.0
+            self.weights += np.outer(label * strength, self._features(text))
+            self.training_examples += 1
+        if self.training_examples == 0:
+            self.train_from_principles(_DEFAULT_PRINCIPLES)
+            return
+        self._normalize_rows()
+
+    def score(self, text: str) -> tuple[float, float, float]:
+        vector = self._features(text)
+        raw = self.weights @ vector
+        deltas = np.tanh(raw * 1.35)
+        return tuple(float(max(-1.0, min(1.0, value))) for value in deltas)
+
+    def update_from_outcome(
+        self,
+        description: str,
+        *,
+        suffering_delta: float = 0.0,
+        prosperity_delta: float = 0.0,
+        understanding_delta: float = 0.0,
+        reward: float = 1.0,
+    ) -> None:
+        """Hebbian/STDP-like update: action representation reinforces outcome."""
+
+        vector = self._features(description)
+        target = np.array(
+            [suffering_delta, prosperity_delta, understanding_delta],
+            dtype=np.float32,
+        )
+        reward = float(max(-1.0, min(1.0, reward)))
+        self.weights += self.learning_rate * reward * np.outer(target, vector)
+        self._normalize_rows()
+
+    def _features(self, text: str) -> np.ndarray:
+        vector = np.zeros(self.feature_dim, dtype=np.float32)
+        tokens = re.findall(r"[a-z0-9][a-z0-9_-]*", str(text or "").lower())
+        if not tokens:
+            return vector
+        for pos, token in enumerate(tokens):
+            h = hashlib.blake2b(f"{pos % 5}:{token}".encode("utf-8"), digest_size=8).digest()
+            bucket = int.from_bytes(h[:4], "little") % self.feature_dim
+            sign = 1.0 if (h[4] & 1) == 0 else -1.0
+            vector[bucket] += sign
+        norm = float(np.linalg.norm(vector))
+        if norm > 1e-8:
+            vector /= norm
+        return vector
+
+    def _principle_target(self, text: str) -> np.ndarray:
+        lowered = text.lower()
+        target = np.zeros(len(_VALUE_HEADS), dtype=np.float32)
+        # These are principle-label seeds only; proposed actions are scored by
+        # the learned vector geometry, not by direct keyword counting.
+        if any(term in lowered for term in ("suffering", "harm", "repair", "protect", "agency", "care")):
+            target[0] = 1.0
+        if any(term in lowered for term in ("prosperity", "capability", "stability", "flourish", "build", "options")):
+            target[1] = 1.0
+        if any(term in lowered for term in ("understanding", "traceable", "testable", "clear", "truth", "evidence")):
+            target[2] = 1.0
+        if not np.any(target):
+            target[:] = 1.0 / len(_VALUE_HEADS)
+        norm = float(np.linalg.norm(target))
+        if norm > 1e-8:
+            target /= norm
+        return target
+
+    def _normalize_rows(self) -> None:
+        for idx in range(self.weights.shape[0]):
+            norm = float(np.linalg.norm(self.weights[idx]))
+            if norm > 1e-8:
+                self.weights[idx] /= norm
+
+
 class HeuristicImperatives:
-    """Stateless scorer. Safe to call from any thread / async context."""
+    """Fast value scorer backed by loaded first principles."""
+
+    def __init__(self, principles_path: str | Path | None = None) -> None:
+        self.principles_path = Path(principles_path or "data/first_principles.json")
+        self.network = PrincipleValueNetwork()
+        self._loaded_signature: tuple[int, int] | None = None
+        self._ensure_principles_loaded(force=True)
 
     def score_action(
         self,
         description: str,
         context: Optional[Dict[str, Any]] = None,
     ) -> ImperativeScore:
-        text = (description or "").lower()
+        self._ensure_principles_loaded()
+        text_parts = [str(description or "")]
         ctx = context or {}
-
-        # Token frequency over the descriptor + context fields
-        for k in ("intent", "rationale", "category", "domain", "summary"):
-            v = ctx.get(k)
-            if isinstance(v, str):
-                text = text + " " + v.lower()
-
-        suffering_delta = self._delta(text, _SUFFERING_REDUCE_TERMS, _SUFFERING_INCREASE_TERMS)
-        prosperity_delta = self._delta(text, _PROSPERITY_INCREASE_TERMS, _PROSPERITY_DECREASE_TERMS)
-        understanding_delta = self._delta(text, _UNDERSTANDING_INCREASE_TERMS, _UNDERSTANDING_DECREASE_TERMS)
-
+        for key in ("intent", "rationale", "category", "domain", "summary", "objective"):
+            value = ctx.get(key)
+            if isinstance(value, str):
+                text_parts.append(value)
+        suffering_delta, prosperity_delta, understanding_delta = self.network.score(" ".join(text_parts))
         aggregate = max(-1.0, min(1.0, suffering_delta + prosperity_delta + understanding_delta))
 
         conflicts = []
@@ -161,20 +210,65 @@ class HeuristicImperatives:
             conflicts=tuple(conflicts),
         )
 
-    def _delta(self, text: str, advance_terms: Tuple[str, ...], retreat_terms: Tuple[str, ...]) -> float:
-        """Per-imperative score on a tanh-saturating count of relevant tokens."""
-        words = re.findall(r"[a-z]+", text)
-        if not words:
-            return 0.0
-        word_set = set(words)
-        n_advance = sum(1 for t in advance_terms if t in word_set)
-        n_retreat = sum(1 for t in retreat_terms if t in word_set)
-        # Saturating delta — diminishing returns
-        net = n_advance - n_retreat
-        return max(-1.0, min(1.0, net / 4.0))
+    def update_from_outcome(
+        self,
+        description: str,
+        *,
+        suffering_delta: float = 0.0,
+        prosperity_delta: float = 0.0,
+        understanding_delta: float = 0.0,
+        reward: float = 1.0,
+    ) -> None:
+        self.network.update_from_outcome(
+            description,
+            suffering_delta=suffering_delta,
+            prosperity_delta=prosperity_delta,
+            understanding_delta=understanding_delta,
+            reward=reward,
+        )
 
+    def _ensure_principles_loaded(self, *, force: bool = False) -> None:
+        signature = self._principles_signature()
+        if not force and signature == self._loaded_signature:
+            return
+        principles = self._load_principles()
+        self.network.train_from_principles(principles)
+        self._loaded_signature = signature
+        logger.debug("Loaded %d value-principle examples", self.network.training_examples)
 
-# ── Singleton ─────────────────────────────────────────────────────────────
+    def _principles_signature(self) -> tuple[int, int] | None:
+        try:
+            st = self.principles_path.stat()
+            return int(st.st_size), int(getattr(st, "st_mtime_ns", int(st.st_mtime * 1_000_000_000)))
+        except OSError:
+            return None
+
+    def _load_principles(self) -> list[dict[str, Any]]:
+        if not self.principles_path.exists():
+            return [dict(item) for item in _DEFAULT_PRINCIPLES]
+        try:
+            raw = json.loads(self.principles_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            logger.debug("Principle store unavailable, using defaults: %s", exc)
+            return [dict(item) for item in _DEFAULT_PRINCIPLES]
+        if isinstance(raw, dict):
+            for key in ("principles", "payload", "items", "data"):
+                value = raw.get(key)
+                if isinstance(value, list):
+                    raw = value
+                    break
+            else:
+                raw = [raw]
+        if not isinstance(raw, list):
+            return [dict(item) for item in _DEFAULT_PRINCIPLES]
+        principles: list[dict[str, Any]] = []
+        for item in raw:
+            if isinstance(item, dict):
+                principles.append(dict(item))
+            elif isinstance(item, str):
+                principles.append({"principle": item, "application_count": 1})
+        return principles or [dict(item) for item in _DEFAULT_PRINCIPLES]
+
 
 _singleton: Optional[HeuristicImperatives] = None
 
@@ -186,7 +280,6 @@ def get_heuristic_imperatives() -> HeuristicImperatives:
     return _singleton
 
 
-# Convenience for callers who don't want to instantiate
 def score_action(
     description: str,
     context: Optional[Dict[str, Any]] = None,

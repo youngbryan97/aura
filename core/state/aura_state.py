@@ -382,6 +382,7 @@ class CognitiveContext:
     attention_focus: Optional[str] = None   # What is Aura attending to right now
     phenomenal_state: Optional[PhenomenalField | str] = None  # Layer 8: Structured phenomenal claim
     unity_state: Optional["UnityState"] = None
+    mind_moment: Optional[Any] = None       # One reconstructible active-present frame
     current_objective: Optional[str] = None # The specific goal of the current cognitive cycle
     current_origin: str = "system"        # Source of the current objective (user, motivation, etc.)
     rolling_summary: str = ""             # Rolling compacted summary of older context

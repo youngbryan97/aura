@@ -11,6 +11,7 @@ from core.runtime.errors import record_degradation
 
 from .co_presence_graph import CoPresenceGraphBuilder
 from .draft_reconciliation import DraftReconciliationEngine
+from .mind_moment import MindMomentBuilder
 from .self_world_binding import SelfWorldBindingModel
 from .temporal_binding import TemporalBindingField
 from .unity_monitor import UnityMonitor
@@ -53,12 +54,14 @@ class UnityRuntime:
         self.self_world_binder = SelfWorldBindingModel()
         self.monitor = UnityMonitor()
         self.repair_planner = UnityRepairPlanner()
+        self.mind_moment_builder = MindMomentBuilder()
 
         self._last_unity_state: UnityState | None = None
         self._last_report: FragmentationReport | None = None
         self._last_repair_plan: UnityRepairPlan | None = None
         self._last_workspace_frame: WorkspaceBroadcastFrame | None = None
         self._last_draft_set: ReconciledDraftSet | None = None
+        self._last_mind_moment: Any | None = None
 
         ServiceContainer.set("unity_runtime", self, required=False)
 
@@ -77,6 +80,10 @@ class UnityRuntime:
     @property
     def last_workspace_frame(self) -> WorkspaceBroadcastFrame | None:
         return self._last_workspace_frame
+
+    @property
+    def last_mind_moment(self) -> Any | None:
+        return self._last_mind_moment
 
     def _ownership_from_role(self, role: str) -> str:
         normalized = str(role or "").lower()
@@ -410,8 +417,17 @@ class UnityRuntime:
             state_version=getattr(state, "version", None),
         )
         repair_plan = self.repair_planner.plan(unity_state, report) if unity_state.repair_needed else None
+        mind_moment = self.mind_moment_builder.build(
+            state,
+            unity_state,
+            report,
+            repair_plan,
+            objective=current_objective,
+            tick_id=tick_id,
+        )
         metadata = dict(unity_state.metadata or {})
         metadata["fragmentation_report"] = report.to_dict()
+        metadata["mind_moment"] = mind_moment.to_dict()
         if repair_plan is not None:
             metadata["repair_plan"] = repair_plan.to_dict()
         unity_state = replace(unity_state, metadata=metadata)
@@ -419,9 +435,11 @@ class UnityRuntime:
         self._last_unity_state = unity_state
         self._last_report = report
         self._last_repair_plan = repair_plan
+        self._last_mind_moment = mind_moment
         ServiceContainer.set("unity_state", unity_state, required=False)
         ServiceContainer.set("unity_fragmentation_report", report, required=False)
         ServiceContainer.set("unity_repair_plan", repair_plan, required=False)
+        ServiceContainer.set("mind_moment", mind_moment, required=False)
         return unity_state
 
     def apply_to_state(self, state: Any, *, objective: str = "", tick_id: str = "", will_receipt_id: str | None = None) -> Any:
@@ -439,9 +457,13 @@ class UnityRuntime:
         else:
             state.cognition.phenomenal_state = claim
         state.cognition.unity_state = unity_state
+        if hasattr(state.cognition, "mind_moment"):
+            state.cognition.mind_moment = self._last_mind_moment
         state.cognition.coherence_score = max(float(getattr(state.cognition, "coherence_score", 0.0) or 0.0), unity_state.unity_score)
         state.cognition.fragmentation_score = max(float(getattr(state.cognition, "fragmentation_score", 0.0) or 0.0), unity_state.fragmentation_score)
         state.response_modifiers["unity_state"] = unity_state.to_dict()
+        if self._last_mind_moment is not None:
+            state.response_modifiers["mind_moment"] = self._last_mind_moment.to_dict()
         if report is not None:
             state.response_modifiers["unity_report"] = report.to_dict()
         if repair_plan is not None:

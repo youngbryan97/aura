@@ -128,6 +128,7 @@ class AuditChain:
         self._head_hash: str = GENESIS_PREV_HASH
         self._next_seq: int = 0
         self._unsynced_entries: int = 0
+        self._known_chain_signature: Optional[Tuple[int, int, int]] = None
         self._sync_policy = os.environ.get("AURA_AUDIT_CHAIN_SYNC", "batch").strip().lower()
         try:
             self._sync_every = max(1, int(os.environ.get("AURA_AUDIT_CHAIN_FSYNC_EVERY", "32")))
@@ -153,6 +154,25 @@ class AuditChain:
         elif not self.path.exists() or self.path.stat().st_size == 0:
             self._head_hash = GENESIS_PREV_HASH
             self._next_seq = 0
+        self._known_chain_signature = self._chain_signature()
+
+    def _chain_signature(self) -> Optional[Tuple[int, int, int]]:
+        """Return a cheap signature for detecting external chain writes."""
+        try:
+            st = self.path.stat()
+            return (
+                int(getattr(st, "st_ino", 0) or 0),
+                int(st.st_size),
+                int(getattr(st, "st_mtime_ns", int(st.st_mtime * 1_000_000_000))),
+            )
+        except OSError:
+            return None
+
+    def _refresh_head_if_disk_changed_locked(self) -> None:
+        signature = self._chain_signature()
+        if signature == self._known_chain_signature:
+            return
+        self._refresh_head_from_disk_locked()
 
     def _read_last_record(self) -> Optional[Dict[str, Any]]:
         if not self.path.exists():
@@ -239,7 +259,7 @@ class AuditChain:
 
         with self._lock:
             with self._process_append_lock():
-                self._refresh_head_from_disk_locked()
+                self._refresh_head_if_disk_changed_locked()
                 content_hash = hash_receipt_body(body)
                 seq = self._next_seq
                 prev_hash = self._head_hash
@@ -282,6 +302,7 @@ class AuditChain:
             os.close(fd)
         if self._sync_policy == "always" or self._unsynced_entries == 0:
             self._fsync_dir()
+        self._known_chain_signature = self._chain_signature()
 
     def _should_fsync_now(self) -> bool:
         if self._sync_policy in {"0", "false", "off", "none", "never"}:
