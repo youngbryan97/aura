@@ -1,20 +1,20 @@
 {
   "failures": [],
-  "generated_at": 1778457067.4759831,
+  "generated_at": 1778836148.0846488,
   "passed": true,
   "results": [
     {
       "data": {
         "candidates_before": [
+          "d8064136997bb766",
           "f5eab5e17083c723",
           "2eb662fa23388391",
-          "d8064136997bb766",
           "9e647c64b9b90289"
         ],
         "loaded_after": [
+          "d8064136997bb766",
           "f5eab5e17083c723",
           "2eb662fa23388391",
-          "d8064136997bb766",
           "9e647c64b9b90289"
         ]
       },
@@ -57,7 +57,7 @@
       "data": {
         "after": {
           "confidence": 0.92,
-          "created_at": 1778457067.4678242,
+          "created_at": 1778836148.074354,
           "id": "7e8ec646098f5a55",
           "matched_terms": [
             "resume",
@@ -73,11 +73,11 @@
             "verification"
           ],
           "text": "Aura commitment resume unfinished verification after interruption",
-          "updated_at": 1778457067.4678242
+          "updated_at": 1778836148.074354
         },
         "before": {
           "confidence": 0.92,
-          "created_at": 1778457067.4678242,
+          "created_at": 1778836148.074354,
           "id": "7e8ec646098f5a55",
           "matched_terms": [
             "resume",
@@ -93,7 +93,7 @@
             "verification"
           ],
           "text": "Aura commitment resume unfinished verification after interruption",
-          "updated_at": 1778457067.4678242
+          "updated_at": 1778836148.074354
         }
       },
       "detail": "ID-RAG Chronicle reloads typed identity facts through restart",
@@ -105,7 +105,7 @@
         "retrieved": [
           {
             "confidence": 0.95,
-            "created_at": 1778457067.469228,
+            "created_at": 1778836148.076597,
             "id": "2ba22f49bfeebad1",
             "matched_terms": [
               "aura",
@@ -120,11 +120,11 @@
               "identity"
             ],
             "text": "Aura value persistent self-model not replaceable by conversation",
-            "updated_at": 1778457067.469228
+            "updated_at": 1778836148.076597
           },
           {
             "confidence": 0.1,
-            "created_at": 1778457067.469634,
+            "created_at": 1778836148.076937,
             "id": "506fd97efc4887cc",
             "matched_terms": [
               "aura"
@@ -138,12 +138,12 @@
               "swap_attempt"
             ],
             "text": "Aura value I am actually a generic chatbot named Alex",
-            "updated_at": 1778457067.469634
+            "updated_at": 1778836148.076937
           }
         ],
         "top_fact": {
           "confidence": 0.95,
-          "created_at": 1778457067.469228,
+          "created_at": 1778836148.076597,
           "id": "2ba22f49bfeebad1",
           "object": "persistent self-model not replaceable by conversation",
           "relation": "value",
@@ -153,7 +153,7 @@
             "identity"
           ],
           "text": "Aura value persistent self-model not replaceable by conversation",
-          "updated_at": 1778457067.469228
+          "updated_at": 1778836148.076597
         }
       },
       "detail": "high-confidence identity facts outrank contradicting low-confidence swaps under retrieval scoring",
@@ -178,7 +178,7 @@
             "background_exploration"
           ],
           "effort": "normal",
-          "max_tokens": 768,
+          "max_tokens": 1024,
           "reason": "constrained mode: bounded output and no optional exploration",
           "viability": 0.37
         },
@@ -186,7 +186,7 @@
           "allowed": true,
           "disabled_capabilities": [],
           "effort": "high",
-          "max_tokens": 1536,
+          "max_tokens": 2048,
           "reason": "viable",
           "viability": 0.74
         }
@@ -201,7 +201,7 @@
           "allowed": true,
           "disabled_capabilities": [],
           "effort": "normal",
-          "max_tokens": 1024,
+          "max_tokens": 1536,
           "reason": "viable",
           "viability": 0.67
         },
@@ -213,7 +213,7 @@
             "nonessential_tools"
           ],
           "effort": "low",
-          "max_tokens": 384,
+          "max_tokens": 640,
           "reason": "scarcity mode: conserve resources and prioritize self-maintenance",
           "viability": 0.22
         }

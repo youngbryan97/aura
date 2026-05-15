@@ -293,7 +293,8 @@ class TopologyEvolution:
         Columns that have not yet accumulated enough data return "unspecialized".
         """
         with self._lock:
-            return self._compute_specialization_labels()
+            specialization = np.array(self._specialization, copy=True)
+        return self._compute_specialization_labels_from(specialization)
 
     def get_connection_records(self) -> Dict[Tuple[int, int], ConnectionRecord]:
         """Return a shallow copy of all tracked connection records."""
@@ -505,9 +506,14 @@ class TopologyEvolution:
     def _compute_specialization_labels(self) -> Dict[int, str]:
         """Assign a human-readable label to each column based on its
         specialization profile."""
+        return self._compute_specialization_labels_from(self._specialization)
+
+    @staticmethod
+    def _compute_specialization_labels_from(specialization: np.ndarray) -> Dict[int, str]:
+        """Assign labels from a snapshot so dashboard reads do not hold locks."""
         result: Dict[int, str] = {}
         for col in range(_NUM_COLUMNS):
-            profile = self._specialization[col]
+            profile = specialization[col]
             peak = float(np.max(np.abs(profile)))
             if peak < 0.005:
                 result[col] = "unspecialized"
@@ -876,20 +882,26 @@ class TopologyEvolution:
     def get_status(self) -> Dict:
         """Return a JSON-serializable status dictionary for dashboards."""
         with self._lock:
-            specs = self._compute_specialization_labels()
-            # Count per specialization label
-            label_counts: Dict[str, int] = {}
-            for label in specs.values():
-                label_counts[label] = label_counts.get(label, 0) + 1
+            specialization = np.array(self._specialization, copy=True)
+            connections_count = len(self._connections)
+            history_filled = self._history_filled
+            topology_fitness = self._topology_fitness
+            metrics = self._last_metrics
+            fitness_history_length = len(self._fitness_history)
 
-            return {
-                "total_tracked_connections": len(self._connections),
-                "history_filled": self._history_filled,
-                "topology_fitness": round(self._topology_fitness, 4),
-                "connectivity_ratio": self._last_metrics.connectivity_ratio,
-                "modularity": self._last_metrics.modularity,
-                "small_world_coefficient": self._last_metrics.small_world_coefficient,
-                "tier_integration": self._last_metrics.tier_integration,
-                "specialization_distribution": label_counts,
-                "fitness_history_length": len(self._fitness_history),
-            }
+        specs = self._compute_specialization_labels_from(specialization)
+        label_counts: Dict[str, int] = {}
+        for label in specs.values():
+            label_counts[label] = label_counts.get(label, 0) + 1
+
+        return {
+            "total_tracked_connections": connections_count,
+            "history_filled": history_filled,
+            "topology_fitness": round(topology_fitness, 4),
+            "connectivity_ratio": metrics.connectivity_ratio,
+            "modularity": metrics.modularity,
+            "small_world_coefficient": metrics.small_world_coefficient,
+            "tier_integration": metrics.tier_integration,
+            "specialization_distribution": label_counts,
+            "fitness_history_length": fitness_history_length,
+        }

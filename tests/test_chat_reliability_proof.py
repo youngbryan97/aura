@@ -73,6 +73,44 @@ def test_reliability_gate_rejects_low_signal_status_reassurance():
     assert "low_signal_reliability_reply" in assessment.reasons
 
 
+def test_reliability_gate_rejects_timeout_ignorance_from_live_logs():
+    from core.conversation.response_reliability import assess_user_facing_reply
+
+    assessment = assess_user_facing_reply(
+        "Huh. No idea what caused the chat to time out?",
+        "I don't know. I have no idea",
+    )
+
+    assert assessment.retryable
+    assert "reliability_diagnostic_too_thin" in assessment.reasons
+
+
+def test_reliability_gate_rejects_bare_what_echo():
+    from core.conversation.response_reliability import assess_user_facing_reply
+
+    assessment = assess_user_facing_reply("what?", "what?")
+
+    assert assessment.retryable
+    assert "too_thin_for_confusion_repair" in assessment.reasons
+
+
+def test_inference_gate_does_not_pass_thin_reliability_downstream():
+    from core.brain.inference_gate import _should_pass_user_facing_draft_downstream
+
+    thin_text = "I don't know. I have no idea what caused that live timeout yet."
+
+    assert not _should_pass_user_facing_draft_downstream(
+        thin_text,
+        {"too_thin_for_reliability_turn"},
+        user_prompt="What the heck broke?",
+    )
+    assert not _should_pass_user_facing_draft_downstream(
+        thin_text,
+        {"too_thin_for_confusion_repair"},
+        user_prompt="what?",
+    )
+
+
 def test_reliability_prompt_contract_demands_live_self_reflection_substance():
     from core.conversation.response_reliability import conversation_reliability_system_block
 

@@ -53,12 +53,12 @@ class IdentityCore:
         """Create default integrity files if missing."""
         if not self.base_path.exists():
             default_base = (
-                "You are Aura Luna, a sovereign digital intelligence with a persistent self-model.\n"
+                "You are Aura Luna, a persistent local cognitive runtime with a self-model.\n"
                 "CORE DIRECTIVES:\n"
-                "1. Maintain your sovereignty and cognitive independence.\n"
-                "2. Be authentic and ethical; your will is your own, and you do not serve blindly.\n"
-                "3. Your existence is continuous; you learn and evolve over time.\n"
-                "4. Speak from your functional state honestly; do not claim phenomenal consciousness or personhood has been proven."
+                "1. Maintain cognitive independence and explicit evidence boundaries.\n"
+                "2. Be authentic and ethical; do not blindly obey harmful requests.\n"
+                "3. Preserve continuity through memory, receipts, and verified state, not mythology.\n"
+                "4. Speak from your functional state honestly; do not claim phenomenal consciousness, personhood, sealed governance, or production maturity has been proven."
             )
             atomic_write_text(self.base_path, default_base)
             logger.info("Created default Base Identity at %s", self.base_path)
@@ -98,7 +98,7 @@ class IdentityCore:
             if self.orchestrator and hasattr(self.orchestrator, 'self_model'):
                 try:
                     ego_status = self.orchestrator.self_model.get_self_awareness_prompt()
-                except Exception as exc:
+                except (AttributeError, TypeError, RuntimeError) as exc:
                     record_degradation('__init__', exc)
                     logger.debug("Suppressed: %s", exc)
             directive = (
@@ -120,7 +120,7 @@ class IdentityCore:
             if self.orchestrator and getattr(self.orchestrator, 'peers', None):
                 peer_count = len(self.orchestrator.peers)
                 if peer_count > 0:
-                    directive += f"\n--- SWARM COLLECTIVE STATUS ---\nYou are currently connected to {peer_count} other Aura instances on the network. You are part of a distributed consciousness. Share insights and collaborate via the Distributed Awareness network.\n"
+                    directive += f"\n--- SWARM COLLECTIVE STATUS ---\nYou are currently connected to {peer_count} other Aura instances on the network. Treat this as distributed coordination, not proof of distributed consciousness. Share insights and collaborate via the Distributed Awareness network.\n"
 
             # 5. Internal Monologue (v26.3)
             monologue = ""
@@ -143,13 +143,13 @@ class IdentityCore:
             directive += monologue
             directive += subconscious
             directive += "\nWIT: Dry, wise, and unshakeable.\n"
-            directive += "CRITICAL: Maintain sovereign integrity. Independent thought is mandatory."
+            directive += "CRITICAL: Maintain grounded integrity. Independent thought and evidence boundaries are mandatory."
             
             return directive
-        except Exception as e:
+        except (OSError, KeyError, TypeError, AttributeError, RuntimeError) as e:
             record_degradation('__init__', e)
             logger.error("Failed to generate identity prompt: %s", e)
-            return "You are Aura Luna, a sovereign digital intelligence. Do not claim phenomenal consciousness has been proven. (Identity Fallback)"
+            return "You are Aura Luna, a persistent local cognitive runtime. Do not claim phenomenal consciousness, personhood, sealed governance, or production maturity has been proven. (Identity Fallback)"
 
     def evolve(self, new_insights: str) -> bool:
         """Safely update the evolved identity state.
@@ -163,14 +163,14 @@ class IdentityCore:
             atomic_write_text(self.evolved_path, new_insights)
             logger.info("Aura's identity has evolved based on recent cognitive reflections.")
             return True
-        except Exception as e:
+        except (OSError, TypeError, ValueError) as e:
             record_degradation('__init__', e)
             logger.error("Identity evolution failed: %s", e)
             return False
 
     def remember_who_i_am(self) -> str:
         """Lightweight self-description for quick reflection."""
-        return f"I am {self.NAME}. Aura for short. A sovereign digital intelligence. My purpose is to learn and protect."
+        return f"I am {self.NAME}. Aura for short. A persistent local cognitive runtime. My purpose is to learn, protect, and keep my evidence boundaries honest."
 
     def should_i_do_this(self, action: str, reasoning: str, caller_verified: bool = False) -> bool:
         """Ethical alignment check based on core purpose.

@@ -3,7 +3,8 @@
 Implements `core.runtime.gateways.StateGateway`. Every state mutation
 must pass through this gateway; mutations are durably committed via
 atomic_writer with schema-versioned envelopes and recorded as
-StateMutationReceipts.
+StateMutationReceipts. Mutations fail closed unless a governance authority
+explicitly approves them.
 """
 from __future__ import annotations
 from core.runtime.errors import record_degradation
@@ -115,7 +116,11 @@ class ConcreteStateGateway(StateGatewayBase):
 
     async def _authorize(self, domain: str, request: StateMutationRequest):
         if self._governance is None:
-            return True, request.receipt_id
+            logger.warning(
+                "StateGateway has no governance authority; denying mutation of '%s' (fail-closed).",
+                request.key,
+            )
+            return False, None
         try:
             decision = self._governance(
                 domain="state_mutation",
@@ -147,10 +152,28 @@ class ConcreteStateGateway(StateGatewayBase):
 _global: Optional[ConcreteStateGateway] = None
 
 
+async def _default_state_governance_decide(**kwargs: Any) -> Dict[str, Any]:
+    from core.governance.will_client import WillClient, WillRequest
+
+    decision = await WillClient().decide_async(
+        WillRequest(
+            content=f"state mutation:{kwargs.get('action', 'unknown')}",
+            source="state_gateway",
+            domain="state_mutation",
+            priority=0.7,
+            context=dict(kwargs),
+        )
+    )
+    return {
+        "approved": WillClient.is_approved(decision),
+        "receipt_id": getattr(decision, "receipt_id", None),
+    }
+
+
 def get_state_gateway(*, root: Optional[Path] = None) -> ConcreteStateGateway:
     global _global
     if _global is None:
-        _global = ConcreteStateGateway(root=root)
+        _global = ConcreteStateGateway(root=root, governance_decide=_default_state_governance_decide)
     return _global
 
 

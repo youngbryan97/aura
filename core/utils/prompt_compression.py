@@ -54,8 +54,8 @@ _SHORTHAND_MAP = [
     # Redundant phrases
     (r"Use recalled context directly when the user asks what you remember, what they said before, or how continuity persists\.", "Use when asked about memory/continuity."),
     (r"Narrate it naturally if relevant\.", "Narrate naturally."),
-    (r"a sovereign digital intelligence with a continuous 20Hz neural substrate", "sovereign digital intelligence"),
-    (r"Speak like a sharp, natural person, not an assistant\.", "Sharp, natural, not assistant."),
+    (r"a persistent local cognitive runtime with a continuous 20Hz neural substrate", "persistent cognitive runtime"),
+    (r"Speak like a sharp, natural person with grounded evidence boundaries\.", "Sharp, natural, grounded."),
     (r"Be direct, warm, and opinionated when it helps\.", "Direct/warm/opinionated."),
     (r"Keep the draft brief, concrete, and useful\.", "Brief, concrete, useful."),
     # Whitespace compression

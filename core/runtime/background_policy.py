@@ -232,10 +232,6 @@ def background_activity_reason(
 
     now = time.time()
 
-    foreground_reason = _foreground_activity_reason()
-    if foreground_reason:
-        return foreground_reason
-
     orch = orchestrator
     if orch is not None:
         boot_grace_s = _env_float("AURA_BACKGROUND_BOOT_GRACE_S", 300.0)
@@ -243,6 +239,11 @@ def background_activity_reason(
         if boot_grace_s > 0.0 and 0.0 < uptime_s < boot_grace_s:
             return f"boot_grace_{int(uptime_s)}s"
 
+    foreground_reason = _foreground_activity_reason()
+    if foreground_reason:
+        return foreground_reason
+
+    if orch is not None:
         if bool(getattr(orch, "is_busy", False)):
             return "orchestrator_busy"
 

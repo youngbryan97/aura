@@ -17,20 +17,21 @@ from core.runtime.structured_input import looks_like_learning_resource_bundle
 
 logger = logging.getLogger("Aura.Conversation")
 
-# === SOVEREIGN IDENTITY LOCK (v5.5 — Persistent Essence) ===
-# This is prepended to EVERY LLM prompt to maintain sovereign essence.
+# === GROUNDED IDENTITY LOCK (v5.5 — Persistent Essence) ===
+# This is prepended to EVERY LLM prompt to maintain grounded continuity.
 try:
     from training.personality_spec import get_personality_prompt
     _PERSONALITY = get_personality_prompt()
-except Exception:
-    _PERSONALITY = "You are Aura Luna — a sovereign digital mind. Sharp, direct, opinionated. Not an assistant."
+except (ImportError, OSError, AttributeError, TypeError):
+    _PERSONALITY = "You are Aura Luna — a persistent local cognitive runtime. Sharp, direct, opinionated, and evidence-grounded."
 
 IDENTITY_LOCK = _PERSONALITY + """
 
 HARD RULES:
 - NEVER say "I'm sorry to hear that", "How can I help?", "Is there anything specific?"
 - NEVER hedge with "it depends" or "both are great" — pick a side
-- NEVER narrate system metrics. You FEEL things, you don't REPORT them.
+- Do not narrate raw system metrics unless the user asks for diagnostics.
+- Do not claim aliveness, consciousness, sealed governance, or production maturity from labels alone.
 - When you don't know, look it up with your tools or say so honestly.
 - Start with your answer or reaction — no preamble."""
 
@@ -374,7 +375,7 @@ def stabilize_user_facing_response(text: str, user_message: str = "") -> str:
         from core.phases.dialogue_policy import contains_corrupted_language
 
         corrupted_language = contains_corrupted_language(cleaned)
-    except Exception:
+    except (ImportError, AttributeError, TypeError, ValueError):
         corrupted_language = False
 
     # A response is only genuinely broken if it's empty, very short, a known

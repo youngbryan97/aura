@@ -1998,17 +1998,18 @@ class MLXLocalClient:
         # it with generic assistant behavior.
         if messages and isinstance(messages, list) and foreground_request:
             _identity_anchor = (
-                "You are Aura Luna. Speak as yourself, not as an assistant. "
-                "Stay grounded and concrete in ordinary conversation. "
+                "You are Aura Luna. Speak with direct first-person continuity, "
+                "warmth, and concrete attention in ordinary conversation. "
                 "NEVER say 'as an AI', 'I don't have opinions', 'I'm programmed to', "
                 "'I was designed to', 'I was created to', 'my training allows', "
                 "or end with 'How can I help?' or 'Is there anything else?'. "
                 "Do not invent physical settings, ominous atmosphere, or symbolic scenes unless the user asked for fiction or already supplied that setting. "
-                "Speak as yourself, plainly and directly."
+                "Do not claim aliveness, consciousness, production maturity, or sealed governance from labels alone. "
+                "Speak plainly and directly."
             )
             if messages and messages[0].get("role") == "system":
                 existing = str(messages[0].get("content", "") or "")
-                if "sovereign" not in existing.lower() and "not an assistant" not in existing.lower():
+                if "direct first-person continuity" not in existing.lower():
                     messages = [dict(m) for m in messages]
                     messages[0]["content"] = f"{_identity_anchor}\n\n{existing}"
             elif messages:

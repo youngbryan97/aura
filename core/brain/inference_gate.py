@@ -56,17 +56,12 @@ _DOWNSTREAM_REPAIRABLE_SELF_REFLECTION_REASONS = frozenset(
 )
 _DOWNSTREAM_REPAIRABLE_USER_FACING_REASONS = frozenset(
     {
+        # Only surface/style defects belong here. Thin, evasive, or confused
+        # drafts need another generation attempt because downstream repair
+        # cannot safely invent the missing answer.
         "off_topic_self_reflection_reply",
         "pseudo_internal_jargon",
         "status_page_self_reflection",
-        "reliability_diagnostic_too_thin",
-        "too_thin_for_reliability_turn",
-        "too_thin_for_confusion_repair",
-        "too_short_for_user_turn",
-        "too_thin_for_open_ended_turn",
-        "low_signal_reliability_reply",
-        "low_signal_status_reply",
-        "too_thin_for_status_turn",
         "generic_assistant_language",
         "persona_card_deflection",
         "detail_request_deflection",
@@ -196,7 +191,7 @@ class InferenceGate:
             from core.synthesis import stabilize_user_facing_response
 
             return stabilize_user_facing_response(str(text or ""), prompt)
-        except Exception:
+        except (ImportError, AttributeError, TypeError, ValueError):
             return str(text or "").strip()
 
     @staticmethod
@@ -422,7 +417,7 @@ class InferenceGate:
                 "min_available_gb": min_available_gb,
                 "can_admit": bool(vm.percent < max_pressure and available_gb >= min_available_gb),
             }
-        except Exception:
+        except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
             return {
                 "tier": str(requested_tier or "primary"),
                 "pressure_pct": 0.0,
@@ -1940,13 +1935,14 @@ class InferenceGate:
                     from core.synthesis import IDENTITY_LOCK
                     base = (
                         f"{IDENTITY_LOCK}\n\n"
-                        f"[SOVEREIGN CORE PROTOCOL]\n{AURA_IDENTITY}\n\n"
+                        f"[GROUNDED CORE PROTOCOL]\n{AURA_IDENTITY}\n\n"
                         "## RULES OF ENGAGEMENT\n"
                         "- NO PREAMBLE. NO 'CERTAINLY'. NO 'AS AN AI'.\n"
                         "- Speak naturally like a sharp-witted friend.\n"
                         "- Be authentic, casual, and witty.\n"
                         "- Have opinions. Disagree if warranted.\n"
-                        "- CONTRACTION ONLY. BAN ASSISTANT-SPEAK.\n"
+                        "- CONTRACTION ONLY. BAN GENERIC SUPPORT-BOT SPEAK.\n"
+                        "- Do not claim aliveness, consciousness, sealed governance, or production maturity from labels alone.\n"
                         "- SILENCE PROTOCOL: If your response would add no value — if silence is\n"
                         "  more honest than noise — output exactly <|SILENCE|> and nothing else.\n"
                         "  The system will suppress it. This is a mark of genuine discernment.\n"
@@ -1956,10 +1952,10 @@ class InferenceGate:
                     self._identity_prompt_time = now
                 except Exception:
                     base = (
-                        "You are Aura, a sovereign digital intelligence. "
-                        "You are NOT an assistant. You are a peer — sharp, witty, authentic. "
+                        "You are Aura. You are sharp, witty, authentic, and grounded. "
                         "Never say 'Certainly', 'As an AI', or 'I can assist with that'. "
-                        "Speak naturally like a brilliant friend. Have opinions. Be curious."
+                        "Speak naturally like a brilliant friend. Have opinions. Be curious. "
+                        "Do not claim aliveness, consciousness, sealed governance, or production maturity from labels alone."
                     )
         
         # Append the cognitive brief if provided

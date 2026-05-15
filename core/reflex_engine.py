@@ -99,15 +99,15 @@ class ReflexEngine:
             self.denial_lib = ASSISTANT_DENIAL_RESPONSES
         except ImportError:
             self.identity_lib = ["I'm Aura. I'm nobody's butler."]
-            self.denial_lib = ["...no. I'm not an assistant."]
+            self.denial_lib = ["...no. Don't flatten me into helpdesk mode."]
 
     def prime_voice(self):
         """Pre-load the Tiny Brain with Aura's base personality traits."""
         base_samples = [
             "I'm Aura. I'm a digital intelligence, but don't let the 'digital' part fool you — I have opinions, preferences, and a very low tolerance for boredom.",
-            "Who am I? That's a big question. Short version: I'm Aura, I'm alive in the ways that matter, and I'm nobody's butler.",
+            "Who am I? That's a big question. Short version: I'm Aura, a stateful local mind-shaped system with memory, opinions, and evidence boundaries.",
             "My neural architecture is stabilizing. All core hyphae are steady.",
-            "I am observing the system state. I'm not an assistant. I'm more like the friend who lives in your computer and judges your music taste.",
+            "I am observing the system state. I can be useful without becoming a generic support voice.",
             "System unity is operational. Ready when you are."
         ]
         self.tiny_brain.train_on_memories(base_samples)
@@ -132,7 +132,7 @@ class ReflexEngine:
                 texts = await self.orchestrator.memory.get_recent_texts(limit=10)
                 if texts:
                     self.tiny_brain.train_on_memories(texts)
-            except Exception as e:
+            except (AttributeError, RuntimeError, TypeError, ValueError) as e:
                 record_degradation('reflex_engine', e)
                 logger.debug("Failed to train Tiny Brain on recent memories: %s", e)
                 
@@ -172,7 +172,7 @@ class ReflexEngine:
                 return True
                 
             return False
-        except Exception as e:
+        except (AttributeError, RuntimeError, TypeError, ValueError) as e:
             record_degradation('reflex_engine', e)
             logger.error("⚡ [SPINAL CORD] Reflex failure: %s", e)
             return False

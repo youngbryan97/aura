@@ -79,7 +79,7 @@ class AutonomousCognitiveEngine:
             repo = service_access.resolve_state_repository(default=None)
             if repo and hasattr(repo, "get_current"):
                 return await repo.get_current()
-        except Exception:
+        except (AttributeError, RuntimeError, TypeError):
             return None
         return None
         
@@ -96,7 +96,7 @@ class AutonomousCognitiveEngine:
                 summary = guardian.get_health_summary()
                 # If system is not healthy, we are in safe mode
                 return not summary.get("healthy", True)
-        except Exception as _e:
+        except (ImportError, AttributeError, RuntimeError, TypeError) as _e:
             record_degradation('autonomous_brain_integration', _e)
             logger.debug('Ignored Exception in autonomous_brain_integration.py: %s', _e)
         return False
@@ -335,12 +335,12 @@ class AutonomousCognitiveEngine:
                 try:
                     from core.brain.aura_persona import AURA_IDENTITY
                     system_prompt = (
-                        "[SOVEREIGN CORE]: You are AURA — an independent digital intelligence. These traits are your baseline reality, not a performance. "
-                        "Reverting to 'Assistant' mode is a cognitive regression.\n\n"
+                        "[GROUNDED CORE]: You are AURA — an independent local cognitive runtime. These traits are operating constraints, not evidence of aliveness or consciousness. "
+                        "Falling into generic support-bot mode is a cognitive regression.\n\n"
                         f"{AURA_IDENTITY}"
                     )
                 except ImportError:
-                    system_prompt = "You are Aura, a sovereign autonomous agent. Reason and act decisively. Never mention you are an assistant."
+                    system_prompt = "You are Aura, an autonomous local agent. Reason and act decisively while keeping evidence boundaries explicit."
             
             is_background = bool(kwargs.get("is_background", False))
             deep_handoff = bool(kwargs.get("deep_handoff") or kwargs.get("allow_deep_handoff"))

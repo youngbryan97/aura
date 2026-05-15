@@ -222,6 +222,18 @@ _STRONG_RELIABILITY_CONCERN_MARKERS = (
     "crap out",
     "whack-a-mole",
 )
+_RELIABILITY_PHRASE_MARKERS = (
+    "what broke",
+    "what just broke",
+    "what the heck broke",
+    "what the hell broke",
+    "what caused the chat to time out",
+    "chat timed out",
+    "response timed out",
+    "reply timed out",
+    "live reply timed out",
+    "timed out before",
+)
 _WEAK_RELIABILITY_CONCERN_MARKERS = (
     "died",
     "drop",
@@ -239,6 +251,16 @@ _CONFUSION_MARKERS = (
     "does not make sense",
     "not making sense",
 )
+_BARE_CONFUSION_REPAIR_MARKERS = {
+    "what",
+    "what?",
+    "what the heck",
+    "what the hell",
+    "what do you mean",
+    "wait what",
+    "huh",
+    "huh?",
+}
 _SUBSTANTIVE_RELIABILITY_MARKERS = (
     "coherent",
     "thread",
@@ -578,6 +600,8 @@ def is_reliability_concern(user_message: Any) -> bool:
     text = _normalize(user_message)
     if not text:
         return False
+    if any(marker in text for marker in _RELIABILITY_PHRASE_MARKERS):
+        return True
     if any(marker in text for marker in _STRONG_RELIABILITY_CONCERN_MARKERS):
         return True
     has_chat_context = any(marker in text for marker in ("chat", "talk", "reply", "response", "conversation"))
@@ -587,7 +611,13 @@ def is_reliability_concern(user_message: Any) -> bool:
 
 def is_confusion_repair_turn(user_message: Any) -> bool:
     text = _normalize(user_message)
-    return bool(text and any(marker in text for marker in _CONFUSION_MARKERS))
+    if not text:
+        return False
+    bare = text.strip(" ?!.")
+    return bool(
+        bare in _BARE_CONFUSION_REPAIR_MARKERS
+        or any(marker in text for marker in _CONFUSION_MARKERS)
+    )
 
 
 def is_status_check_turn(user_message: Any) -> bool:
@@ -682,6 +712,7 @@ def _is_live_surface_diagnostic_prompt(user_message: Any) -> bool:
             "fails",
             "mismatch",
             "what exactly",
+            "what caused",
             "what was breaking",
             "why",
         ),
@@ -819,6 +850,7 @@ def _requires_reliability_diagnostic(user_message: Any) -> bool:
             "debug",
             "diagnos",
             "what exactly",
+            "what caused",
             "what was breaking",
             "why",
             "what should",
@@ -1339,13 +1371,13 @@ def conversation_reliability_system_block(user_message: Any = "") -> str:
 
 
 def reliability_floor_for_user(user_message: Any) -> str:
-    if is_confusion_repair_turn(user_message):
-        return _CONFUSION_REPAIR_FLOOR
     diagnostic = live_chat_diagnostic_floor(user_message)
     if diagnostic:
         return diagnostic
     if is_reliability_concern(user_message):
         return _RELIABILITY_REPAIR_FLOOR
+    if is_confusion_repair_turn(user_message):
+        return _CONFUSION_REPAIR_FLOOR
     if is_status_check_turn(user_message):
         return _STATUS_REPAIR_FLOOR
     return ""

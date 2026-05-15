@@ -5546,7 +5546,10 @@ async def test_concrete_memory_write_gateway_writes_through_atomic_writer(tmp_pa
     from core.memory.memory_write_gateway import ConcreteMemoryWriteGateway
     from core.runtime.gateways import MemoryWriteRequest
 
-    gateway = ConcreteMemoryWriteGateway(root=tmp_path)
+    def _approve(**kwargs):
+        return {"approved": True, "receipt_id": "rcpt-test"}
+
+    gateway = ConcreteMemoryWriteGateway(root=tmp_path, governance_decide=_approve)
     receipt = await gateway.write(
         MemoryWriteRequest(
             content="hello",
@@ -5585,7 +5588,10 @@ async def test_concrete_state_gateway_round_trip(tmp_path):
     from core.state.state_gateway import ConcreteStateGateway
     from core.runtime.gateways import StateMutationRequest
 
-    gw = ConcreteStateGateway(root=tmp_path)
+    def _approve(**kwargs):
+        return {"approved": True, "receipt_id": "rcpt-test"}
+
+    gw = ConcreteStateGateway(root=tmp_path, governance_decide=_approve)
     await gw.mutate(StateMutationRequest(key="world_state/mood", new_value="curious", cause="probe"))
     snap = await gw.snapshot()
     assert snap["world_state/mood"] == "curious"

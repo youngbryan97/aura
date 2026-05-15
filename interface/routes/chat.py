@@ -3554,6 +3554,7 @@ _PARROT_CALLOUT_MARKERS = (
 
 _CONFUSION_REPAIR_MARKERS = (
     "huh",
+    "what?",
     "wait what",
     "confused",
     "i'm confused",
@@ -3618,7 +3619,15 @@ def _contains_phrase(text: str, phrases: tuple[str, ...]) -> bool:
     return any(phrase in normalized for phrase in phrases)
 
 
-def _build_live_conversation_repair(prefix: str, *, fallback: str) -> str:
+def _build_live_conversation_repair(
+    prefix: str,
+    *,
+    fallback: str,
+    allow_live_grounding: bool = False,
+) -> str:
+    if not allow_live_grounding:
+        return f"{prefix} {fallback}".strip()
+
     live_prompt = "What are you experiencing inside right now?"
     grounded = _sanitize_foreground_continuity_summary(
         _build_grounded_introspection_reply(live_prompt) or ""
@@ -3642,7 +3651,7 @@ def _build_live_conversation_repair(prefix: str, *, fallback: str) -> str:
     if free_energy is not None:
         try:
             details.append(f"Free energy is {float(free_energy):.3f}.")
-        except Exception:
+        except (TypeError, ValueError):
             pass  # no-op: intentional
 
     detail_text = " ".join(details).strip() or fallback
@@ -3654,6 +3663,7 @@ def _maybe_build_conversation_repair_override(user_message: str, reply_text: Any
     reply_text_n = _normalize_user_message(reply_text)
     if not user_text or not reply_text_n:
         return None
+    bare_confusion = user_text.strip(" ?!.") in {"what", "huh", "wait what"}
 
     if _contains_phrase(user_text, _PARROT_CALLOUT_MARKERS):
         if not _contains_phrase(reply_text_n, _PARROT_ACK_MARKERS):
@@ -3665,12 +3675,28 @@ def _maybe_build_conversation_repair_override(user_message: str, reply_text: Any
                 ),
             )
 
-    if _contains_phrase(user_text, _CONFUSION_REPAIR_MARKERS):
+    if bare_confusion or _contains_phrase(user_text, _CONFUSION_REPAIR_MARKERS):
         if not _contains_phrase(reply_text_n, _CLARITY_REPAIR_MARKERS) or _contains_phrase(reply_text_n, _GLIB_REDIRECT_MARKERS):
             if _contains_phrase(reply_text_n, _UNCERTAINTY_REPLY_MARKERS):
+                try:
+                    from core.conversation.response_reliability import (
+                        is_reliability_concern,
+                        reliability_floor_for_user,
+                    )
+
+                    if is_reliability_concern(user_message):
+                        floor = reliability_floor_for_user(user_message)
+                        if floor:
+                            return floor
+                except (ImportError, AttributeError, TypeError) as exc:
+                    record_degradation('chat', exc)
+                    logger.debug("Reliability repair floor unavailable: %s", exc)
                 return _build_live_conversation_repair(
-                    "Let me answer directly from live state instead of dressing it up.",
-                    fallback="I do not have a clean live read yet, so I should not pretend otherwise.",
+                    "Let me answer directly instead of dressing it up.",
+                    fallback=(
+                        "That answer was too thin. I should name the concrete failure signal "
+                        "or say plainly that I do not have enough evidence yet."
+                    ),
                 )
             return (
                 "Let me say it cleanly: I wasn't being clear. "
@@ -3681,7 +3707,8 @@ def _maybe_build_conversation_repair_override(user_message: str, reply_text: Any
         if _contains_phrase(reply_text_n, _UNCERTAINTY_REPLY_MARKERS) and not _contains_phrase(reply_text_n, _CLARITY_REPAIR_MARKERS):
             return _build_live_conversation_repair(
                 "Specifically, the grounded read I have right now is:",
-                fallback="I do not have a specific live read yet, so I should not invent one.",
+                fallback="I do not have a specific enough read yet, so I should not invent one.",
+                allow_live_grounding=True,
             )
 
     return None
@@ -4193,7 +4220,7 @@ async def _execute_governed_live_skill(
     *,
     objective: str,
 ) -> Dict[str, Any]:
-    """Run live-proof actions through Aura's capability engine, never raw IO."""
+    """Run live-proof actions through the agency receipt path, never raw IO."""
     context = {
         "origin": "api",
         "route": "chat.live_runtime_proof",
@@ -4201,24 +4228,88 @@ async def _execute_governed_live_skill(
         "message": objective[:500],
     }
     engine = ServiceContainer.get("capability_engine", default=None)
-    if engine and hasattr(engine, "execute"):
+
+    async def _execute_capability() -> Dict[str, Any]:
+        if not engine or not hasattr(engine, "execute"):
+            return {
+                "ok": False,
+                "receipt": "capability_engine_unavailable",
+                "error": "No governed capability executor is registered.",
+                "status": "capability_engine_unavailable",
+            }
         result = await engine.execute(skill_name, dict(params), context=context)
         if isinstance(result, dict):
             return result
         return {"ok": bool(result), "result": result}
 
-    orch = ServiceContainer.get("orchestrator", default=None)
-    if orch and hasattr(orch, "execute_tool"):
-        result = await orch.execute_tool(skill_name, dict(params), origin="api")
-        if isinstance(result, dict):
-            return result
-        return {"ok": bool(result), "result": result}
+    try:
+        from core.agency.agency_orchestrator import Proposal, get_orchestrator
 
-    return {
-        "ok": False,
-        "error": "No governed capability executor is registered.",
-        "status": "capability_engine_unavailable",
-    }
+        agency = ServiceContainer.get("agency_orchestrator", default=None) or get_orchestrator()
+        proposal = Proposal(
+            drive="live_runtime_proof",
+            intent=f"execute live skill {skill_name}: {objective[:220]}",
+            expected_outcome=f"{skill_name} completes under governed capability execution",
+            primitive="tool_execution",
+            payload={"skill_name": skill_name, "params": dict(params), "context": context},
+            priority=0.85,
+        )
+
+        async def _perceive() -> Dict[str, Any]:
+            return {"route": "chat.live_runtime_proof", "skill_name": skill_name}
+
+        async def _simulate(_proposal, _state_snapshot) -> Dict[str, Any]:
+            return {
+                "ok": True,
+                "mode": "capability_engine_only",
+                "legacy_tool_fallback": False,
+            }
+
+        async def _execute(_proposal, _state_snapshot, _capability_token) -> Dict[str, Any]:
+            return await _execute_capability()
+
+        async def _assess(_proposal, _state_snapshot, exec_result) -> Dict[str, Any]:
+            ok = bool((exec_result or {}).get("ok"))
+            return {
+                "observed": exec_result,
+                "regret": 0.0 if ok else 0.25,
+                "lesson": "live proof capability execution completed" if ok else "live proof capability execution failed",
+            }
+
+        receipt = await agency.run(
+            proposal,
+            perceive=_perceive,
+            simulate=_simulate,
+            execute=_execute,
+            assess=_assess,
+        )
+    except (ImportError, AttributeError, TypeError, RuntimeError) as exc:
+        record_degradation("chat_live_runtime_proof_agency", exc)
+        return {
+            "ok": False,
+            "error": f"agency_orchestrator_unavailable:{exc}",
+            "status": "agency_orchestrator_unavailable",
+        }
+
+    if getattr(receipt, "blocked_at", None):
+        return {
+            "ok": False,
+            "error": getattr(receipt, "blocked_reason", "") or "AgencyOrchestrator blocked live skill execution.",
+            "status": "agency_blocked",
+            "agency_blocked_at": getattr(receipt, "blocked_at", None),
+            "agency_receipt_id": getattr(receipt, "proposal_id", None),
+            "governance_receipt_id": getattr(receipt, "will_receipt_id", None),
+        }
+
+    outcome = getattr(receipt, "outcome_assessment", {}) or {}
+    observed = outcome.get("observed") if isinstance(outcome, dict) else {}
+    result = dict(observed or {}) if isinstance(observed, dict) else {"ok": bool(observed), "result": observed}
+    result.setdefault("ok", bool(result))
+    result["agency_receipt_id"] = getattr(receipt, "proposal_id", None)
+    result["governance_receipt_id"] = getattr(receipt, "will_receipt_id", None)
+    result["authority_receipt_id"] = getattr(receipt, "authority_receipt", None)
+    result["execution_receipt"] = getattr(receipt, "execution_receipt", None)
+    return result
 
 
 async def _write_live_proof_file(path: str, content: str, *, objective: str) -> Dict[str, Any]:

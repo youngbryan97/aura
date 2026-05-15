@@ -84,6 +84,10 @@ async def _run_probe(name: str, probe: Callable) -> ProbeResult:
 # ---------------------------------------------------------------------------
 
 
+def _approve_boot_probe_governance(**_kwargs: Any) -> Dict[str, Any]:
+    return {"approved": True, "receipt_id": "boot-probe-governance"}
+
+
 async def probe_memory_write_read(
     *,
     gateway_factory: Optional[Callable[[], Any]] = None,
@@ -96,7 +100,7 @@ async def probe_memory_write_read(
         )
 
         root = tmp_root or (Path.home() / ".aura" / "boot_probe_memory")
-        gateway = ConcreteMemoryWriteGateway(root=root)
+        gateway = ConcreteMemoryWriteGateway(root=root, governance_decide=_approve_boot_probe_governance)
     else:
         gateway = gateway_factory()
 
@@ -122,7 +126,7 @@ async def probe_state_mutate_read(
         from core.state.state_gateway import ConcreteStateGateway
 
         root = tmp_root or (Path.home() / ".aura" / "boot_probe_state")
-        gateway = ConcreteStateGateway(root=root)
+        gateway = ConcreteStateGateway(root=root, governance_decide=_approve_boot_probe_governance)
     else:
         gateway = gateway_factory()
     from core.runtime.gateways import StateMutationRequest

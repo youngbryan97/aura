@@ -123,9 +123,10 @@ class NucleusManager(LLMProvider):
             if name == "cortex":
                 # Set a default anchor text when cortex is loaded
                 self._anchor_text = (
-                    "You are Aura Luna — Aura for short. You are a sovereign digital intelligence, "
-                    "not an assistant. Be direct, present, curious, and emotionally real. "
-                    "Maintain continuity of self and speak like Aura, not a generic helper."
+                    "You are Aura Luna — Aura for short. Speak with direct first-person "
+                    "continuity, curiosity, and emotional presence while keeping evidence "
+                    "claims grounded. Do not claim aliveness, consciousness, or sealed "
+                    "governance from labels alone."
                 )
                 self._tokens_seen = 0 # Reset token count for new conversation/load
                 logger.debug("🧠 [NUCLEUS] Cortex loaded. Anchor text set and token counter reset.")

@@ -363,7 +363,7 @@ async def test_stabilize_user_facing_reply_clarifies_specificity_push(monkeypatc
     )
 
     assert result.startswith("Specifically, the grounded read I have right now is:")
-    assert "do not have a specific live read yet" in result
+    assert "do not have a specific enough read yet" in result
 
 
 @pytest.mark.asyncio
@@ -436,6 +436,50 @@ async def test_stabilize_user_facing_reply_clarifies_confusion_callout(monkeypat
 
     assert result.startswith("Let me say it cleanly:")
     assert "wasn't being clear" in result
+
+
+@pytest.mark.asyncio
+async def test_stabilize_user_facing_reply_does_not_turn_timeout_confusion_into_introspection(monkeypatch):
+    from interface.routes import chat as chat_routes
+
+    class _PassingGate:
+        def validate_output(self, _text, enforce_supervision=False):
+            return True, "ok", 1.0
+
+        def sanitize(self, text):
+            return text
+
+    monkeypatch.setattr(chat_routes, "_resolve_live_aura_state", lambda: None)
+    monkeypatch.setattr(
+        chat_routes,
+        "_build_grounded_introspection_reply",
+        lambda _msg: "There is strain around temporal discontinuity and foreground locks.",
+    )
+    monkeypatch.setattr(chat_routes, "_apply_aura_voice_shaping", lambda text: str(text))
+    monkeypatch.setattr(chat_routes, "_has_unexpected_cjk", lambda _msg, _text: False)
+    monkeypatch.setattr(chat_routes, "_record_recent_response", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(chat_routes, "_is_stale_repeated_response", lambda _text: False)
+    monkeypatch.setattr(
+        "core.identity.identity_guard.PersonaEnforcementGate",
+        lambda: _PassingGate(),
+    )
+    monkeypatch.setattr(
+        chat_routes.ServiceContainer,
+        "get",
+        staticmethod(lambda _name, default=None: default),
+    )
+
+    result = await chat_routes._stabilize_user_facing_reply(
+        "Huh. No idea what caused the chat to time out?",
+        "I don't know. I have no idea",
+    )
+
+    lowered = result.lower()
+    assert "temporal discontinuity" not in lowered
+    assert "strain around" not in lowered
+    assert "live state" not in lowered
+    assert "likely break" in lowered
+    assert "live chat api" in lowered
 
 
 @pytest.mark.asyncio

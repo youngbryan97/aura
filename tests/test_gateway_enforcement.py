@@ -22,11 +22,19 @@ def tmp_root(tmp_path):
     return tmp_path
 
 
+@pytest.fixture
+def approve_all():
+    def _approve(**_kwargs):
+        return {"approved": True, "receipt_id": "rcpt-test"}
+
+    return _approve
+
+
 @pytest.mark.asyncio
-async def test_memory_write_produces_receipt(tmp_root):
+async def test_memory_write_produces_receipt(tmp_root, approve_all):
     from core.memory.memory_write_gateway import ConcreteMemoryWriteGateway
 
-    gw = ConcreteMemoryWriteGateway(root=tmp_root / "memory")
+    gw = ConcreteMemoryWriteGateway(root=tmp_root / "memory", governance_decide=approve_all)
     request = MemoryWriteRequest(
         content="test memory content",
         metadata={"family": "episodic", "record_id": "test-001"},
@@ -40,6 +48,22 @@ async def test_memory_write_produces_receipt(tmp_root):
     # File should exist on disk
     target = tmp_root / "memory" / "episodic" / "test-001.json"
     assert target.exists()
+
+
+@pytest.mark.asyncio
+async def test_memory_write_without_governance_fails_closed(tmp_root):
+    from core.memory.memory_write_gateway import ConcreteMemoryWriteGateway
+
+    gw = ConcreteMemoryWriteGateway(root=tmp_root / "memory_no_governance")
+
+    with pytest.raises(PermissionError, match="governance denied"):
+        await gw.write(
+            MemoryWriteRequest(
+                content="must not be written",
+                metadata={"family": "episodic"},
+                cause="test",
+            )
+        )
 
 
 @pytest.mark.asyncio
@@ -64,10 +88,10 @@ async def test_memory_write_governance_denial(tmp_root):
 
 
 @pytest.mark.asyncio
-async def test_memory_quarantine(tmp_root):
+async def test_memory_quarantine(tmp_root, approve_all):
     from core.memory.memory_write_gateway import ConcreteMemoryWriteGateway
 
-    gw = ConcreteMemoryWriteGateway(root=tmp_root / "memory_q")
+    gw = ConcreteMemoryWriteGateway(root=tmp_root / "memory_q", governance_decide=approve_all)
     request = MemoryWriteRequest(
         content="quarantine me",
         metadata={"family": "episodic", "record_id": "q-001"},
@@ -82,10 +106,10 @@ async def test_memory_quarantine(tmp_root):
 
 
 @pytest.mark.asyncio
-async def test_state_mutation_produces_receipt(tmp_root):
+async def test_state_mutation_produces_receipt(tmp_root, approve_all):
     from core.state.state_gateway import ConcreteStateGateway
 
-    gw = ConcreteStateGateway(root=tmp_root / "state")
+    gw = ConcreteStateGateway(root=tmp_root / "state", governance_decide=approve_all)
     request = StateMutationRequest(
         key="test/value",
         new_value=42,
@@ -99,10 +123,10 @@ async def test_state_mutation_produces_receipt(tmp_root):
 
 
 @pytest.mark.asyncio
-async def test_state_read_after_write(tmp_root):
+async def test_state_read_after_write(tmp_root, approve_all):
     from core.state.state_gateway import ConcreteStateGateway
 
-    gw = ConcreteStateGateway(root=tmp_root / "state_rw")
+    gw = ConcreteStateGateway(root=tmp_root / "state_rw", governance_decide=approve_all)
     request = StateMutationRequest(
         key="reading/test",
         new_value="hello",
@@ -115,16 +139,26 @@ async def test_state_read_after_write(tmp_root):
 
 
 @pytest.mark.asyncio
-async def test_state_snapshot(tmp_root):
+async def test_state_snapshot(tmp_root, approve_all):
     from core.state.state_gateway import ConcreteStateGateway
 
-    gw = ConcreteStateGateway(root=tmp_root / "state_snap")
+    gw = ConcreteStateGateway(root=tmp_root / "state_snap", governance_decide=approve_all)
     await gw.mutate(StateMutationRequest(key="a", new_value=1, cause="test"))
     await gw.mutate(StateMutationRequest(key="b", new_value=2, cause="test"))
 
     snap = await gw.snapshot()
     assert snap["a"] == 1
     assert snap["b"] == 2
+
+
+@pytest.mark.asyncio
+async def test_state_mutation_without_governance_fails_closed(tmp_root):
+    from core.state.state_gateway import ConcreteStateGateway
+
+    gw = ConcreteStateGateway(root=tmp_root / "state_no_governance")
+
+    with pytest.raises(PermissionError, match="governance denied"):
+        await gw.mutate(StateMutationRequest(key="denied", new_value="bad", cause="test"))
 
 
 @pytest.mark.asyncio

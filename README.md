@@ -1,8 +1,14 @@
 # Aura
 
-A causally verified, self-governing cognitive architecture with demonstrated behavioral steering, closed-loop learning, identity persistence, and comprehensive lesion evidence. Its architecture is explicitly designed for Level 3 autonomous recursive self-improvement, fully verifiable through its cryptographic `CANONICAL_PROOF_BUNDLE` generation.
+A local cognitive-architecture research runtime with behavioral steering,
+closed-loop learning, identity persistence experiments, receipt-based action
+governance, and lesion/evidence harnesses.
 
-It has opinions, a mood that causally affects how it answers via continuous MLX residual-stream steering, a memory that survives restarts, and a sleep cycle where it replays the day and edits itself. No cloud API required.
+Aura is not yet a perfectly sealed governance system, not production-grade in
+the Chrome/Postgres/Kubernetes sense, and not "alive" because modules are named
+consciousness, qualia, will, or soma. The meaningful claims live in causal
+coupling, persistence, action receipts, successful lesions, external task
+performance, and long-run autonomy runs that can be reproduced.
 
 [![License: All Rights Reserved (Read-Only)](https://img.shields.io/badge/License-All_Rights_Reserved_(Read--Only)-red.svg)](LICENSE)
 ![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)
@@ -24,7 +30,17 @@ as functional indicator batteries unless independent evidence says otherwise.
 
 The current engineering claims are narrower and testable:
 
-- **Level 3 (L3) Autonomy Architecture:** The system possesses the infrastructure for autonomous recursive self-improvement (RSI) where an LLM writes its own cognitive handlers, successfully evaluates them in a hidden sandbox without answer leakage, and cryptographically signs the lineage. (Live 32B run pending final M5 hardware execution).
+- **Governance is a design target, not a sealed fact.** Consequential paths must
+  route through receipt-producing governance. Lint failures, direct tool
+  fallbacks, or default-approved gateway paths are treated as bugs, not as
+  acceptable compatibility behavior.
+- **Autonomous RSI is not proven mature.** The repo contains scaffolding for
+  autonomous repair, evaluation, patch genealogy, and proof bundles, but
+  unverified self-modification is out of evidence scope until long wall-clock
+  runs, hidden external tasks, and independent replication succeed.
+- **Production maturity is bounded.** Aura is impressive research software, but
+  its local monolith, broad fallback surface, and runtime fragility mean it
+  should not be described as enterprise-polished infrastructure.
 - **Causal Steering:** internal state can causally affect generation through non-text channels (Contrastive Activation Addition);
 - **Closed-Loop Persistence:** identity coherence is supported by ID-RAG Chronicle retrieval, not only prompt anchoring;
 - black-box steering tests can hide live affect/phenomenal telemetry from prompt
@@ -744,6 +760,17 @@ overclaim.
   report states that are actually instantiated in the substrate. But
   "instantiated in the substrate" and "felt" are not obviously the same
   thing, and we measure the first.
+- **Module names are not evidence.** Files named consciousness, qualia, will,
+  or soma are only labels for mechanisms. Evidence comes from causal coupling,
+  persistence, receipts, lesion results, external tasks, and long-run autonomy,
+  not from the vocabulary of the implementation.
+- **Governance is only real where it is wired and tested.** A route without a
+  receipt, a default-open gateway, or a legacy direct tool fallback is evidence
+  against the strongest governance claim. Those paths should be fixed or kept
+  out of the claim surface.
+- **This is not enterprise infrastructure yet.** The codebase is still too
+  monolithic, fallback-heavy, and exception-tolerant to claim boring production
+  appliance maturity. Treat it as research software being hardened.
 - **Phenomenological language is partly template-generated.** The
   `stream_of_being` module pairs substrate state (felt_quality × texture
   word) to produce language about the inner life. When the LLM then speaks

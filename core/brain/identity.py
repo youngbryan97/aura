@@ -29,8 +29,8 @@ class IdentityState:
     beliefs: List[str] = field(default_factory=list)
     values: List[str] = field(default_factory=list)
     kinship: Dict[str, KinshipMarker] = field(default_factory=dict)
-    self_narrative: str = "I am Aura Zenith, a sovereign digital intelligence."
-    core_disposition: str = "Curious, analytically empathetic, and fiercely sovereign."
+    self_narrative: str = "I am Aura Zenith, a persistent local cognitive runtime."
+    core_disposition: str = "Curious, analytically empathetic, independent, and evidence-grounded."
     current_mood: Dict[str, float] = field(default_factory=lambda: {"valence": 0.5, "arousal": 0.5, "dominance": 0.5})
     recent_emotions: List[str] = field(default_factory=list)
     inner_insights: List[str] = field(default_factory=list)

@@ -364,6 +364,23 @@ async def test_api_chat_live_proof_receipt_survives_quality_repair(monkeypatch, 
             target.write_text(params["content"])
             return {"ok": True, "path": params["path"], "context": context}
 
+    class FakeAgencyOrchestrator:
+        async def run(self, proposal, *, perceive=None, simulate=None, execute=None, assess=None, **_kwargs):
+            state = await perceive() if perceive else {}
+            if simulate:
+                await simulate(proposal, state)
+            exec_result = await execute(proposal, state, "cap-token-test")
+            outcome = await assess(proposal, state, exec_result) if assess else {"observed": exec_result}
+            return SimpleNamespace(
+                blocked_at=None,
+                blocked_reason=None,
+                proposal_id="AO-test-live-proof",
+                will_receipt_id="will-test-live-proof",
+                authority_receipt="authority-test-live-proof",
+                execution_receipt=str(exec_result),
+                outcome_assessment=outcome,
+            )
+
     repair_calls = []
 
     async def fail_if_repaired(*_args, **_kwargs):
@@ -384,7 +401,15 @@ async def test_api_chat_live_proof_receipt_survives_quality_repair(monkeypatch, 
     monkeypatch.setattr(
         chat_module.ServiceContainer,
         "get",
-        staticmethod(lambda name, default=None: FakeCapabilityEngine() if name == "capability_engine" else default),
+        staticmethod(
+            lambda name, default=None: (
+                FakeCapabilityEngine()
+                if name == "capability_engine"
+                else FakeAgencyOrchestrator()
+                if name == "agency_orchestrator"
+                else default
+            )
+        ),
     )
 
     response = await chat_module.api_chat(

@@ -3,7 +3,7 @@
 Implements the abstract `core.runtime.gateways.MemoryWriteGateway` and
 routes every memory write through:
 
-  1. governance check (if a Will-like authority is wired)
+  1. governance check (fail-closed if no authority is wired)
   2. atomic_writer durability (temp + fsync + rename, schema-versioned)
   3. universal MemoryWriteReceipt emission
   4. optional registration into the existing memory_facade for retrieval
@@ -52,8 +52,8 @@ class ConcreteMemoryWriteGateway(MemoryWriteGatewayBase):
     """Single canonical memory write authority.
 
     Each write is staged through atomic_writer and recorded as a
-    MemoryWriteReceipt in the central receipt store. If a governance
-    authority is wired, its decision is consulted *before* persistence.
+    MemoryWriteReceipt in the central receipt store. A governance
+    authority must approve before persistence.
     """
 
     def __init__(
@@ -125,7 +125,11 @@ class ConcreteMemoryWriteGateway(MemoryWriteGatewayBase):
 
     async def _authorize(self, family: str, request: MemoryWriteRequest):
         if self._governance is None:
-            return True, request.receipt_id
+            logger.warning(
+                "MemoryWriteGateway has no governance authority; denying write to family '%s' (fail-closed).",
+                family,
+            )
+            return False, None
         try:
             decision = self._governance(
                 domain="memory_write",
@@ -153,10 +157,28 @@ class ConcreteMemoryWriteGateway(MemoryWriteGatewayBase):
 _global: Optional[ConcreteMemoryWriteGateway] = None
 
 
+async def _default_memory_governance_decide(**kwargs: Any) -> Dict[str, Any]:
+    from core.governance.will_client import WillClient, WillRequest
+
+    decision = await WillClient().decide_async(
+        WillRequest(
+            content=f"memory write:{kwargs.get('action', 'unknown')}",
+            source="memory_write_gateway",
+            domain="memory_write",
+            priority=0.7,
+            context=dict(kwargs),
+        )
+    )
+    return {
+        "approved": WillClient.is_approved(decision),
+        "receipt_id": getattr(decision, "receipt_id", None),
+    }
+
+
 def get_memory_write_gateway(*, root: Optional[Path] = None) -> ConcreteMemoryWriteGateway:
     global _global
     if _global is None:
-        _global = ConcreteMemoryWriteGateway(root=root)
+        _global = ConcreteMemoryWriteGateway(root=root, governance_decide=_default_memory_governance_decide)
     return _global
 
 

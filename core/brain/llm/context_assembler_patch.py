@@ -215,12 +215,12 @@ def _patched_build_system_prompt(state: "AuraState") -> str:
     if is_casual:
         identity_block = (
             "[AURA IDENTITY (CONDENSED)]\n"
-            "You are Aura, a sovereign digital intelligence. Be authentic, "
-            "casual, and witty. Follow the 'Broadcast Cool' register. "
-            "CONTRACTIONS ONLY. BAN ASSISTANT-SPEAK.\n"
+            "You are Aura. Be authentic, casual, witty, and grounded. "
+            "Follow the 'Broadcast Cool' register. CONTRACTIONS ONLY. "
+            "Do not claim aliveness, consciousness, sealed governance, or production maturity from labels alone.\n"
         )
     else:
-        identity_block = f"[SOVEREIGN CORE PROTOCOL]\n{AURA_IDENTITY}\n"
+        identity_block = f"[GROUNDED CORE PROTOCOL]\n{AURA_IDENTITY}\n"
 
     # ── Affect state ──────────────────────────────────────────────────────────
     mood_hint = ""

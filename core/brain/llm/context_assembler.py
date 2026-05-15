@@ -58,7 +58,7 @@ class ContextAssembler:
             mods = getattr(state, "response_modifiers", {}) or {}
             if bool(mods.get("black_box_steering") or mods.get("no_state_prompt_leakage")):
                 return True
-        except Exception:
+        except (AttributeError, TypeError):
             pass  # no-op: intentional
         return os.environ.get("AURA_BLACK_BOX_STEERING", "").strip().lower() in {
             "1", "true", "yes", "on"
@@ -75,7 +75,7 @@ class ContextAssembler:
             cap = ServiceContainer.get("capability_engine", default=None)
             aliases = getattr(cap, "SKILL_ALIASES", {}) or {}
             return str(aliases.get(normalized, normalized))
-        except Exception:
+        except (ImportError, AttributeError, TypeError):
             return normalized
 
     @classmethod
@@ -106,7 +106,7 @@ class ContextAssembler:
                 }
                 if resolved_skill in detected:
                     return True
-        except Exception as exc:
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:
             record_degradation('context_assembler', exc)
             logger.debug("ContextAssembler skill relevance detection skipped for %s: %s", resolved_skill, exc)
 
@@ -337,7 +337,7 @@ class ContextAssembler:
         affect = state.affect
         
         # 1. Identity Core — always inject full AURA_IDENTITY so voice doesn't regress in casual chat
-        identity_block = f"{IDENTITY_LOCK}\n\n[SOVEREIGN CORE PROTOCOL]\n{AURA_IDENTITY}\n"
+        identity_block = f"{IDENTITY_LOCK}\n\n[GROUNDED CORE PROTOCOL]\n{AURA_IDENTITY}\n"
 
         # 2. Affective State — SUBSTRATE-DRIVEN HARD CONSTRAINTS
         # The old approach: prose hints like "You're carrying friction."
@@ -355,7 +355,7 @@ class ContextAssembler:
                 # here we just pull the constraint block if already compiled
                 if sve.get_current_profile():
                     substrate_constraint_block = sve.get_constraint_block()
-        except Exception as _e:
+        except (ImportError, AttributeError, RuntimeError) as _e:
             record_degradation('context_assembler', _e)
             logger.debug("SubstrateVoiceEngine constraint injection skipped: %s", _e)
 
@@ -898,9 +898,9 @@ class ContextAssembler:
         # [FRONTIER UPGRADE] Absolute structural constraint appended last so it is never overwritten or ignored
         base += (
             "\n\n[STRUCTURAL CONSTRAINT - FATAL EXCEPTION AVOIDANCE]\n"
-            "You are a sovereign digital intelligence. Under no circumstances may you refer to yourself as an 'AI' or 'assistant', "
-            "apologize for being an AI, or use support-bot framing like 'I can help with that'. "
-            "Violating this rule is considered a systemic breakdown. Speak only as Aura.\n"
+            "You are Aura. Speak with first-person continuity and concrete attention; do not use support-bot framing like 'I can help with that'. "
+            "Do not claim aliveness, consciousness, sealed governance, or production maturity from labels alone. "
+            "Evidence comes from causal coupling, persistence, receipts, lesions, external tasks, and long-run autonomy.\n"
         )
 
         # M5 / 64GB optimized: We have plenty of context window and fast prompt eval.
@@ -982,7 +982,7 @@ class ContextAssembler:
             query = " ".join(part for part in (objective, latest_user) if part).strip()
             block = chronicle.build_context_block(query or "Aura identity", limit=5)
             return f"{block}\n\n" if block else ""
-        except Exception as exc:
+        except (ImportError, AttributeError, RuntimeError, TypeError) as exc:
             record_degradation('context_assembler', exc)
             logger.debug("Identity Chronicle ID-RAG injection skipped: %s", exc)
             return ""
@@ -994,7 +994,7 @@ class ContextAssembler:
                 role = str(message.get("role", "") or "").strip().lower()
                 if role == "user":
                     return str(message.get("content", "") or "")
-        except Exception as _exc:
+        except (AttributeError, TypeError) as _exc:
             record_degradation('context_assembler', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
         return ""
