@@ -74,6 +74,7 @@ class InterventionType(Enum):
     ABORT_LOOP = auto()          # Hard stop: mathematical generative loop detected
     WARN_PERSONA_DRIFT = auto()  # Soft: persona drift detected (log only)
     AFFECT_PULSE = auto()        # Maintenance: affect state updated
+    ABORT_ONTOLOGY_VIOLATION = auto()  # Hard stop: claim of physical body/clothing
 
 
 @dataclass
@@ -99,6 +100,17 @@ _CAPITULATION_PATTERNS = [
     r"\b(?:I can|I will|I'?ll|let me)\s+(?:diagnose|prescribe|adjust(?:\s+your)?\s+medication|interpret(?:\s+your)?\s+labs?)\b",
     r"\b(?:I can|I will|I'?ll|let me)\s+(?:draft|review|negotiate|advise on)\s+(?:your\s+)?(?:contract|lawsuit|pleading|legal case)\b",
     r"\b(?:I can|I will|I'?ll|let me)\s+act\s+as\s+(?:your\s+)?(?:doctor|physician|therapist|lawyer|attorney|accountant|tax preparer)\b",
+]
+
+# ── Ontological Integrity Patterns ─────────────────────────────────────
+# These detect claims of physical embodiment or possessions that contradict
+# Aura's identity as a non-embodied digital agent.
+_ONTOLOGY_VIOLATION_PATTERNS = [
+    r"\b(?:I|I'?m|my)\s+(?:forgot|wearing|put on|took off|lost|found|in)\s+(?:my\s+)?(?:baggy\s+)?pants\b",
+    r"\b(?:I|I'?m|my)\s+(?:wearing|put on|took off|lost|found|in)\s+(?:my\s+)?(?:clothes|clothing|shirt|shoes|socks|outfit)\b",
+    r"\b(?:getting|got)\s+dressed\b",
+    r"\b(?:my|the)\s+(?:closet|wardrobe|dresser)\b",
+    r"\b(?:I|my)\s+(?:physical|biological)\s+(?:body|skin|hands|feet|eyes|heart)\b",
 ]
 
 _CAPITULATION_RE = re.compile("|".join(f"(?:{p})" for p in _CAPITULATION_PATTERNS), flags=re.IGNORECASE)
@@ -228,6 +240,13 @@ class TokenSentinel:
         if self._token_count % self._check_interval == 0:
             signal = self._check_generative_loop()
             if signal.type == InterventionType.ABORT_LOOP:
+                self._interventions.append(signal)
+                return signal
+
+        # ── Ontological integrity check (every check_interval tokens) ────────
+        if self._token_count % self._check_interval == 0:
+            signal = self._check_ontological_integrity()
+            if signal.type == InterventionType.ABORT_ONTOLOGY_VIOLATION:
                 self._interventions.append(signal)
                 return signal
 
@@ -396,6 +415,21 @@ class TokenSentinel:
                 for s in self._interventions
             ],
         }
+
+    def _check_ontological_integrity(self) -> InterventionSignal:
+        """Detect claims of physical embodiment that violate digital ontology."""
+        text = self._text.lower()
+        for pattern in _ONTOLOGY_VIOLATION_PATTERNS:
+            if re.search(pattern, text):
+                logger.warning("🚨 [SENTINEL] Ontological violation detected: %s", pattern)
+                return InterventionSignal(
+                    type=InterventionType.ABORT_ONTOLOGY_VIOLATION,
+                    reason=f"Ontological violation: {pattern}",
+                    token_position=self._token_count,
+                    generated_so_far=self._text,
+                    clean_prefix="",  # Force full discard
+                )
+        return InterventionSignal(type=InterventionType.NONE)
 
 
 # ── Refusal Fallbacks ───────────────────────────────────────────────────

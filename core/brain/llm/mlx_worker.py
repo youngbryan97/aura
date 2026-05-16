@@ -917,6 +917,8 @@ def _mlx_worker_loop(
                                 last_progress_emit_at = time.time()
                                 sentinel_aborted = False
                                 sentinel_loop_aborted = False
+                                sentinel_ontology_aborted = False
+                                role_continuation_hit = False
                                 
                                 # ── Token Sentinel: mid-generation cognitive intervention ──
                                 # Creates a lightweight monitor that checks for capitulation,
@@ -1020,6 +1022,14 @@ def _mlx_worker_loop(
                                             sentinel_aborted = True
                                             sentinel_loop_aborted = True
                                             break
+                                        elif signal.type == InterventionType.ABORT_ONTOLOGY_VIOLATION:
+                                            logger.warning(
+                                                "🚨 [SENTINEL] Aborting due to ontological violation at token %d: %s",
+                                                token_count, signal.reason,
+                                            )
+                                            sentinel_aborted = True
+                                            sentinel_ontology_aborted = True
+                                            break
                                         elif signal.type in (InterventionType.ABORT_CAPITULATION,
                                                              InterventionType.ABORT_BOUNDARY):
                                             # Mid-generation abort: the LLM started capitulating.
@@ -1093,6 +1103,21 @@ def _mlx_worker_loop(
                                     else:
                                         logger.warning("🚨 [WORKER] Out of retries for loop abort. Returning truncated prefix.")
                                         break
+                                            
+                                        continue
+
+                                    if sentinel_ontology_aborted:
+                                        if internal_attempt < max_internal_retries:
+                                            logger.warning(f"⚠️ [WORKER] Retrying generation cleanly after ontological violation (attempt {internal_attempt + 1})...")
+                                            if prompt_cache_lru is not None: prompt_cache_lru.clear()
+                                            if mx and device != "cpu": _clear_mlx_cache(mx)
+                                            # Add a slight temperature penalty or just start fresh
+                                            _prepare_clean_retry_kwargs(kwargs, structured=bool(schema))
+                                            continue
+                                        else:
+                                            logger.warning("🚨 [WORKER] Out of retries for ontological violation. Returning refusal.")
+                                            response_text = get_refusal_fallback(seed=token_count)
+                                            break
                                         
                                 sanitized_text = _sanitize_telemetry_leakage(response_text)
                                 if sanitized_text is None:
