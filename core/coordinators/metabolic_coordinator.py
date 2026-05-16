@@ -141,6 +141,7 @@ class MetabolicCoordinator:
             return False
             
         self._is_processing = True
+        _tick_start = time.monotonic()
         try:
             orch = self.orch
             if not orch:
@@ -166,7 +167,41 @@ class MetabolicCoordinator:
                 except ImportError as _exc:
                     logger.debug("Suppressed ImportError: %s", _exc)
 
-            return await self._process_metabolic_tasks(volition)
+            result = await self._process_metabolic_tasks(volition)
+
+            # ── Metrics: record tick duration ─────────────────────────
+            try:
+                from core.observability.metrics import get_metrics
+                tick_ms = (time.monotonic() - _tick_start) * 1000.0
+                get_metrics().record_tick(tick_ms)
+            except Exception:
+                pass  # Metrics unavailable
+
+            # ── Boring Mode: periodic check ───────────────────────────
+            # Every ~100 cycles, check if critical incidents warrant
+            # entering boring mode for self-preservation.
+            cycle_count = getattr(getattr(orch, 'status', None), 'cycle_count', 0)
+            if cycle_count > 0 and cycle_count % 100 == 0:
+                try:
+                    from core.resilience.boring_mode import get_boring_mode
+                    from core.resilience.incident_manager import get_incident_manager
+                    bm = get_boring_mode()
+                    if not bm.is_active:
+                        mgr = get_incident_manager()
+                        summary = mgr.get_summary()
+                        critical_count = summary.get("by_severity", {}).get("critical", 0)
+                        if critical_count >= 3:
+                            bm.enter(
+                                f"auto_trigger: {critical_count} critical incidents active"
+                            )
+                            logger.warning(
+                                "🧊 Boring Mode ENTERED: %d critical incidents detected.",
+                                critical_count,
+                            )
+                except Exception:
+                    pass  # Resilience layer unavailable
+
+            return result
         except Exception as e:
             record_degradation('metabolic_coordinator', e)
             record_degradation('metabolic_coordinator', e)

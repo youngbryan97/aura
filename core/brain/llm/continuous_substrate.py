@@ -105,6 +105,9 @@ class ContinuousSubstrate:
         self._arousal_proj = self._rng.standard_normal(NEURONS).astype(np.float32) / math.sqrt(NEURONS)
         self._dominance_proj = self._rng.standard_normal(NEURONS).astype(np.float32) / math.sqrt(NEURONS)
         self._curiosity_proj = self._rng.standard_normal(NEURONS).astype(np.float32) / math.sqrt(NEURONS)
+        # Ring buffer of known-good states for NaN/Inf rollback
+        self._rollback_ring: Deque[np.ndarray] = deque(maxlen=16)
+        self._nan_reset_count = 0
 
     # ── Public API ────────────────────────────────────────────────────────
 
@@ -253,7 +256,55 @@ class ContinuousSubstrate:
             + np.tanh(self._W @ self._state + INPUT_GAIN * self._input_signal)
         ) * STEP_DT
         noise = self._rng.normal(0.0, NOISE_SIGMA, NEURONS).astype(np.float32)
-        self._state = self._state + dx + noise * STEP_DT
+        new_state = self._state + dx + noise * STEP_DT
+
+        # ── NaN/Inf guard with ring buffer rollback ──────────────────
+        if not np.isfinite(new_state).all():
+            self._nan_reset_count += 1
+            logger.warning(
+                "🛑 [SUBSTRATE] NaN/Inf detected at step %d (reset #%d). "
+                "Rolling back to last known-good state.",
+                self._step_count, self._nan_reset_count,
+            )
+            # Roll back
+            if self._rollback_ring:
+                self._state = self._rollback_ring[-1].copy()
+                logger.info(
+                    "🔄 [SUBSTRATE] Rolled back to snapshot %d steps ago.",
+                    len(self._rollback_ring),
+                )
+            else:
+                self._state = np.zeros(NEURONS, dtype=np.float32)
+                logger.warning("🔄 [SUBSTRATE] No rollback available. Reset to zero.")
+            # Zero the input signal that may have caused the divergence
+            self._input_signal = np.zeros(NEURONS, dtype=np.float32)
+            # Report to incident manager
+            try:
+                from core.resilience.incident_manager import (
+                    get_incident_manager,
+                    IncidentSeverity,
+                )
+                get_incident_manager().report(
+                    category="substrate_nan_divergence",
+                    description=(
+                        f"Substrate ODE diverged at step {self._step_count}. "
+                        f"Total resets: {self._nan_reset_count}."
+                    ),
+                    severity=IncidentSeverity.WARNING,
+                    root_cause_hint="unbounded_input_or_weight_explosion",
+                    mitigation_taken="rollback_to_last_good_state",
+                )
+            except Exception:
+                pass
+            # Report to metrics
+            try:
+                from core.observability.metrics import get_metrics
+                get_metrics().record_substrate_reset()
+            except Exception:
+                pass
+            return  # Skip this step entirely
+
+        self._state = new_state
 
         # Soft saturation to keep norms bounded.
         norm = float(np.linalg.norm(self._state))
@@ -261,6 +312,11 @@ class ContinuousSubstrate:
             self._state *= math.sqrt(NEURONS) / norm
 
         self._step_count += 1
+
+        # Save known-good state to rollback ring every 20 steps (1 Hz)
+        if self._step_count % 20 == 0:
+            self._rollback_ring.append(self._state.copy())
+
         self._phi_window.append(self._state.copy())
         if self._step_count % 20 == 0:  # 1 Hz
             self._last_phi_estimate = self._estimate_phi()

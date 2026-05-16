@@ -2,11 +2,13 @@
 
 Features:
 1. Process lifecycle management
-2. Automatic health checks and restart
+2. Automatic health checks and restart with exponential backoff + jitter
 3. Resource monitoring and limits
 4. Graceful shutdown with timeouts
 5. Process isolation and sandboxing
 6. Comprehensive metrics and logging
+7. PERMANENTLY_FAILED terminal state with incident tracking
+8. Incident manager integration for structured failure reporting
 """
 
 from core.runtime.errors import record_degradation
@@ -14,8 +16,10 @@ import asyncio
 import atexit
 import json
 import logging
+import math
 import multiprocessing as mp
 import os
+import random
 import resource  # For Unix resource limits
 import signal
 import threading
@@ -41,6 +45,7 @@ class ProcessState(Enum):
     STOPPED = "stopped"
     FAILED = "failed"
     RESTARTING = "restarting"
+    PERMANENTLY_FAILED = "permanently_failed"  # Terminal: exceeded all retries
 
 
 @dataclass
@@ -89,6 +94,8 @@ class ProcessStats:
     cpu_usage: List[float] = field(default_factory=list)
     memory_usage: List[int] = field(default_factory=list)
     last_health_check: Optional[float] = None
+    restart_timestamps: List[float] = field(default_factory=list)
+    last_backoff_s: float = 0.0
 
 
 class ManagedProcess:
@@ -234,8 +241,24 @@ class ManagedProcess:
                 self.state = ProcessState.FAILED
                 return False
     
+    def _compute_backoff(self) -> float:
+        """Exponential backoff with jitter for restart delays.
+
+        Uses capped exponential: min(base * 2^attempts, max_backoff) + jitter
+        Jitter is ±25% to prevent thundering herd.
+        """
+        base_delay = 2.0  # seconds
+        max_backoff = 120.0  # 2 minutes cap
+        attempt = self.stats.restarts
+
+        backoff = min(base_delay * (2 ** attempt), max_backoff)
+        jitter = backoff * 0.25 * (2 * random.random() - 1)  # ±25%
+        final = max(0.5, backoff + jitter)
+        self.stats.last_backoff_s = final
+        return final
+
     async def restart(self) -> bool:
-        """Restart the process."""
+        """Restart the process with exponential backoff."""
         with self._lock:
             # Check restart limits
             now = time.time()
@@ -247,21 +270,70 @@ class ManagedProcess:
                     self.stats.restarts = 0
                 elif self.stats.restarts >= self.config.max_restarts:
                     logger.error(
-                        "Process %s exceeded max restarts (%s) in %ss",
+                        "Process %s exceeded max restarts (%s) in %ss — PERMANENTLY FAILED",
                         self.config.name, self.config.max_restarts, self.config.restart_window
                     )
+                    self.state = ProcessState.PERMANENTLY_FAILED
+                    # Report to incident manager
+                    try:
+                        from core.resilience.incident_manager import (
+                            get_incident_manager,
+                            IncidentSeverity,
+                        )
+                        get_incident_manager().report(
+                            category=f"process_permanently_failed:{self.config.name}",
+                            description=(
+                                f"Process '{self.config.name}' exceeded {self.config.max_restarts} "
+                                f"restarts in {self.config.restart_window}s window. "
+                                f"Marked PERMANENTLY_FAILED. Manual intervention required."
+                            ),
+                            severity=IncidentSeverity.CRITICAL,
+                            root_cause_hint="repeated_crash_loop",
+                            mitigation_taken="process_disabled",
+                            metadata={
+                                "restarts": self.stats.restarts,
+                                "window_s": self.config.restart_window,
+                                "restart_timestamps": self.stats.restart_timestamps[-5:],
+                            },
+                        )
+                    except Exception:
+                        pass
+                    # Report to metrics
+                    try:
+                        from core.observability.metrics import get_metrics
+                        get_metrics().record_process_restart(self.config.name)
+                    except Exception:
+                        pass
                     return False
             
+            # Apply exponential backoff delay
+            backoff_s = self._compute_backoff()
+            if backoff_s > 1.0:
+                logger.info(
+                    "Process %s restart backoff: %.1fs before attempt %d",
+                    self.config.name, backoff_s, self.stats.restarts + 1
+                )
+
             # Stop if running
             if self.process and self.process.is_alive():
                 self.stop()
+
+        # Backoff delay OUTSIDE the lock
+        if backoff_s > 1.0:
+            await asyncio.sleep(backoff_s)
             
+        with self._lock:
             # Start again
-            self.last_restart_attempt = now
+            self.last_restart_attempt = time.time()
             self.stats.restarts += 1
+            self.stats.restart_timestamps.append(time.time())
+            # Keep only last 20 timestamps
+            if len(self.stats.restart_timestamps) > 20:
+                self.stats.restart_timestamps = self.stats.restart_timestamps[-20:]
             self.state = ProcessState.RESTARTING
             
-            logger.info("Restarting process %s (attempt %s)", self.config.name, self.stats.restarts)
+            logger.info("Restarting process %s (attempt %s, backoff=%.1fs)",
+                        self.config.name, self.stats.restarts, backoff_s)
             return await self.start()
     
     async def _start_health_monitoring(self):

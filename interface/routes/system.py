@@ -602,7 +602,7 @@ async def telemetry_stream(request: Request):
 
 @router.get("/metrics", tags=["metrics"])
 async def metrics(request: Request):
-    """System metrics for monitoring."""
+    """System metrics for monitoring (JSON format, backwards compatible)."""
     _require_internal(request)
     try:
         orch = ServiceContainer.get("orchestrator", default=None)
@@ -621,6 +621,90 @@ async def metrics(request: Request):
         record_degradation('system', e)
         logger.error("Metrics collection failed: %s", e, exc_info=True)
         return ORJSONResponse({"status": "error", "message": "Metrics collection failed"}, status_code=500)
+
+
+@router.get("/metrics/prometheus", tags=["metrics"])
+async def metrics_prometheus(request: Request):
+    """Prometheus-compatible metrics in text exposition format.
+
+    Scrape this endpoint with Prometheus or any compatible collector.
+    """
+    _require_internal(request)
+    try:
+        from core.observability.metrics import get_metrics
+        from fastapi.responses import Response
+
+        text = get_metrics().render_prometheus()
+        return Response(
+            content=text,
+            media_type="text/plain; version=0.0.4; charset=utf-8",
+        )
+    except Exception as e:
+        record_degradation('system', e)
+        logger.error("Prometheus metrics render failed: %s", e, exc_info=True)
+        return ORJSONResponse(
+            {"status": "error", "message": "Prometheus metrics unavailable"},
+            status_code=500,
+        )
+
+
+@router.get("/healthz", tags=["health"])
+async def healthz(request: Request):
+    """Liveness probe: is the process alive and responsive?
+
+    Returns 200 if the server can respond to HTTP at all.
+    Used by orchestrators (systemd, launchd, docker) to detect crashes.
+    """
+    try:
+        from core.observability.metrics import check_liveness
+
+        result = check_liveness()
+        return JSONResponse(result, status_code=200)
+    except Exception:
+        return JSONResponse({"status": "alive", "pid": os.getpid()}, status_code=200)
+
+
+@router.get("/readyz", tags=["health"])
+async def readyz(request: Request):
+    """Readiness probe: can Aura accept and process requests?
+
+    Returns 200 if ready, 503 if not. Checks:
+    - Last tick completed recently
+    - Substrate state is finite
+    - Database is accessible
+    """
+    try:
+        from core.observability.metrics import check_readiness
+
+        result = check_readiness()
+        status_code = 200 if result.get("ready", False) else 503
+        return JSONResponse(result, status_code=status_code)
+    except Exception as e:
+        record_degradation('system', e)
+        return JSONResponse(
+            {"status": "not_ready", "ready": False, "issues": [str(e)]},
+            status_code=503,
+        )
+
+
+@router.get("/incidents", tags=["observability"])
+async def incidents(request: Request):
+    """Active incidents and incident manager summary."""
+    _require_internal(request)
+    try:
+        from core.resilience.incident_manager import get_incident_manager
+
+        manager = get_incident_manager()
+        return JSONResponse({
+            "summary": manager.get_summary(),
+            "active": manager.get_active(),
+        })
+    except Exception as e:
+        record_degradation('system', e)
+        return JSONResponse(
+            {"summary": {}, "active": [], "error": str(e)},
+            status_code=200,
+        )
 
 
 @router.get("/gemini-usage")

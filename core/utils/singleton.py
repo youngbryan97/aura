@@ -74,19 +74,52 @@ def acquire_instance_lock(lock_name: str = "singleton", skip_lock: bool = False)
                     print(message)
                     raise SystemExit(0)
                 except OSError:
-                    # Process is dead. On macOS, flock is associated with the FD.
-                    # If flock failed, SOMEONE has it. But if kill -0 failed, the PID is dead.
-                    # This happens if a child inherited the FD. O_CLOEXEC prevents this.
-                    # For now, we exit to avoid corruption, but tell the user why.
-                    message = f"⚠️  Stale lock found for dead PID {pid} (likely held by child process)."
+                    # Process is dead. Reclaim the stale lock.
+                    logger.warning(
+                        "🔓 Stale lock found for dead PID %d. Reclaiming lock for %s.",
+                        pid, lock_name,
+                    )
+                    # Close and reopen to get a fresh FD
+                    try:
+                        os.close(_LOCK_FD)
+                    except OSError:
+                        pass
+                    flags = os.O_CREAT | os.O_RDWR
+                    if hasattr(os, "O_CLOEXEC"):
+                        flags |= os.O_CLOEXEC
+                    _LOCK_FD = os.open(str(lock_file), flags, 0o600)
+                    try:
+                        fcntl.flock(_LOCK_FD, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    except BlockingIOError:
+                        # If we still can't get it, a child process holds the FD.
+                        # Last resort: unlink and recreate.
+                        try:
+                            lock_file.unlink()
+                            os.close(_LOCK_FD)
+                            _LOCK_FD = os.open(str(lock_file), flags, 0o600)
+                            fcntl.flock(_LOCK_FD, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                            logger.info("🔓 Stale lock reclaimed via unlink+recreate.")
+                        except Exception as reclaim_exc:
+                            message = f"⚠️  Failed to reclaim stale lock for {lock_name}: {reclaim_exc}"
+                            logger.error(message)
+                            print(message)
+                            raise SystemExit(1) from None
+            except (ValueError, UnicodeDecodeError):
+                # PID file is corrupt. Reclaim unconditionally.
+                logger.warning("🔓 Corrupt lock file for %s. Reclaiming.", lock_name)
+                try:
+                    os.close(_LOCK_FD)
+                    lock_file.unlink(missing_ok=True)
+                    flags = os.O_CREAT | os.O_RDWR
+                    if hasattr(os, "O_CLOEXEC"):
+                        flags |= os.O_CLOEXEC
+                    _LOCK_FD = os.open(str(lock_file), flags, 0o600)
+                    fcntl.flock(_LOCK_FD, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except Exception:
+                    message = f"⚠️  Aura ({lock_name}) is already running in another window."
                     logger.error(message)
                     print(message)
-                    raise SystemExit(1) from None
-            except Exception:
-                message = f"⚠️  Aura ({lock_name}) is already running in another window."
-                logger.error(message)
-                print(message)
-                raise SystemExit(0) from None
+                    raise SystemExit(0) from None
         
         # Lock acquired. Write current PID.
         os.ftruncate(_LOCK_FD, 0)

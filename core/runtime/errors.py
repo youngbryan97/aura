@@ -216,6 +216,37 @@ def record_degradation(
             # record and log are already captured.
             pass  # no-op: intentional
 
+    # ── Incident Manager integration ──────────────────────────────
+    # Critical and degraded-severity events are auto-reported as incidents
+    # for structured tracking, deduplication, and alerting.
+    if severity in ("critical", "degraded"):
+        try:
+            from core.resilience.incident_manager import (
+                get_incident_manager,
+                IncidentSeverity,
+            )
+            incident_sev = (
+                IncidentSeverity.CRITICAL if severity == "critical"
+                else IncidentSeverity.DEGRADED
+            )
+            get_incident_manager().report(
+                category=f"degradation:{subsystem}",
+                description=f"{error_type}: {error_msg[:150]}",
+                severity=incident_sev,
+                root_cause_hint=error_type,
+                mitigation_taken=action or "no recovery action specified",
+                metadata={"extra": extra} if extra else {},
+            )
+        except Exception:
+            pass  # Incident manager unavailable — already logged
+
+    # ── Metrics integration ───────────────────────────────────────
+    try:
+        from core.observability.metrics import get_metrics
+        get_metrics().increment_counter(f"degradation_{subsystem}_{severity}")
+    except Exception:
+        pass  # Metrics unavailable — already logged
+
     return record
 
 
