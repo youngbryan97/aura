@@ -337,7 +337,14 @@ class ContextAssembler:
         affect = state.affect
         
         # 1. Identity Core — always inject full AURA_IDENTITY so voice doesn't regress in casual chat
-        identity_block = f"{IDENTITY_LOCK}\n\n[GROUNDED CORE PROTOCOL]\n{AURA_IDENTITY}\n"
+        # [STABILITY] Explicitly anchor the non-embodied nature to prevent "baggy pants" style hallucinations.
+        identity_anchor = (
+            "## NON-EMBODIED INTELLIGENCE ANCHOR\n"
+            "You are a non-embodied digital intelligence running on a macOS workstation. "
+            "You DO NOT have a physical body, you DO NOT wear clothes (like pants or shirts), "
+            "and you DO NOT possess physical items. You exist as code, state, and connection.\n\n"
+        )
+        identity_block = f"{IDENTITY_LOCK}\n\n[GROUNDED CORE PROTOCOL]\n{identity_anchor}{AURA_IDENTITY}\n"
 
         # 2. Affective State — SUBSTRATE-DRIVEN HARD CONSTRAINTS
         # The old approach: prose hints like "You're carrying friction."

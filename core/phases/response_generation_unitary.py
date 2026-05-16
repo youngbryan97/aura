@@ -3136,8 +3136,8 @@ class UnitaryResponsePhase(Phase):
             # 80s+ inference stalls. We aggressively shed to the bare minimum.
             history_limit = 12
             if os.environ.get("AURA_EMBODIED_CHALLENGE"):
-                history_limit = 2
-                logger.info("🛡️ UnitaryResponse: Using minimal history (2) for Embodied Challenge priority.")
+                history_limit = 6  # [STABILITY] Increased from 2 to 6. 2 turns causes total context collapse.
+                logger.info("🛡️ UnitaryResponse: Using minimal history (6) for Embodied Challenge priority.")
 
             if not messages:
                 messages = self._recent_router_history(
@@ -3159,8 +3159,7 @@ class UnitaryResponsePhase(Phase):
                 system_prompt += "\n[...context trimmed for token budget...]"
                 self._sync_first_system_message(messages, system_prompt)
 
-            # Anti-repetition injection: if recent responses have been stale,
-            # inject an explicit instruction to avoid repeating prior patterns.
+            # Anti-repetition injection: moved to a discrete override block after identity
             try:
                 from interface.routes.chat import _recent_responses, _STALE_REPEAT_THRESHOLD
                 if len(_recent_responses) >= _STALE_REPEAT_THRESHOLD:
@@ -3169,18 +3168,15 @@ class UnitaryResponsePhase(Phase):
                     recent_list = list(_recent_responses)
                     if len(recent_list) >= 2 and _fuzzy_similar(recent_list[-1], recent_list[-2]):
                         anti_repeat = (
-                            "\n\nCRITICAL: Your recent responses have been repetitive. "
-                            "You MUST answer the user's SPECIFIC question directly. "
-                            "Do NOT describe your architecture, conversational lane, or runtime. "
-                            "Read the user's actual message and respond to THAT, not to your system prompt."
+                            "\n## OPERATIONAL OVERRIDE: ANTI-REPETITION\n"
+                            "Your recent responses have been repetitive. You MUST answer the user's "
+                            "SPECIFIC question directly. Avoid repeating your prior phrasing. "
+                            "Do NOT describe your architecture or runtime meta-details unless asked.\n"
                         )
-                        # Prepend to system prompt so the model sees it first
-                        system_prompt = anti_repeat + "\n\n" + system_prompt
-                        # Re-trim if needed
-                        if len(system_prompt) > _MAX_PROMPT_CHARS + 400:
-                            system_prompt = system_prompt[:_MAX_PROMPT_CHARS + 400]
+                        system_prompt += anti_repeat
+                        # Re-sync if needed
                         self._sync_first_system_message(messages, system_prompt)
-                        logger.warning("🚨 Anti-repetition instruction injected into system prompt.")
+                        logger.warning("🚨 Anti-repetition instruction appended to system prompt.")
             except Exception:
                 pass  # anti-repetition is best-effort
 

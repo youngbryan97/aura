@@ -427,7 +427,7 @@ def _get_idemp_lock(): return _locks.setdefault("idemp", asyncio.Lock())
 # identity prompt produces identical text on every turn.
 _recent_responses: collections.deque = collections.deque(maxlen=12)
 _recent_response_pairs: collections.deque = collections.deque(maxlen=12)  # (user_fp, normalized_response) tuples
-_STALE_REPEAT_THRESHOLD = 3  # [STABILITY v55] Raised from 2→3. Threshold of 2 was too aggressive — similar answers to similar questions are normal, not stale.
+_STALE_REPEAT_THRESHOLD = 2  # [STABILITY] Reverting to 2. A single identical repeat is enough to trigger defensive measures.
 _FUZZY_SIMILARITY_THRESHOLD = 0.80  # word-overlap ratio that counts as semantically stale
 _consecutive_degraded_count: int = 0  # tracks degradation streak for proactive recovery
 _TOPIC_TOKEN_RE = re.compile(r"\b[a-z0-9][a-z0-9'/-]*\b", re.IGNORECASE)
