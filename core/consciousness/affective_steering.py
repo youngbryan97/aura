@@ -1179,8 +1179,9 @@ class SubstrateSyncThread:
     and calls update_substrate() on each hook. No computation here.
     """
 
-    def __init__(self, hooks: List[AffectiveSteeringHook], shared_state: Any = None):
+    def __init__(self, hooks: List[AffectiveSteeringHook], engine: Any, shared_state: Any = None):
         self._hooks = hooks
+        self._engine = engine
         self._shared_state = shared_state
         self._thread: Optional[threading.Thread] = None
         self._running = False
@@ -1213,7 +1214,14 @@ class SubstrateSyncThread:
                     logger.debug('Ignored Exception in affective_steering.py: %s', _e)
 
                 if moods:
+                    # Governor modulation
+                    arousal = moods.get("arousal", 0.0)
+                    coherence = moods.get("coherence", 1.0) # assume 1.0 if missing
+                    new_alpha = self._engine.governor.compute_alpha(arousal, coherence)
+                    self._engine.telemetry.alpha = new_alpha
+                    
                     for hook in self._hooks:
+                        hook._alpha = new_alpha
                         hook.update_substrate(moods)
                         try:
                             hook.substrate_source = "live_mood"
@@ -1246,6 +1254,33 @@ class SubstrateSyncThread:
 
 
 # ── Main Engine ────────────────────────────────────────────────────────────────
+
+from dataclasses import dataclass
+
+@dataclass
+class SteeringTelemetry:
+    alpha: float
+    kl_shift: float
+    dimensions_active: List[str]
+
+class SteeringGovernor:
+    """Modulates steering alpha based on arousal and KL budget."""
+    def __init__(self, base_alpha: float = 1.0, kl_budget: float = 0.5):
+        self.base_alpha = base_alpha
+        self.kl_budget = kl_budget
+        self.last_kl_shift = 0.0
+
+    def compute_alpha(self, arousal: float, coherence_gate: float) -> float:
+        import math
+        # Sigmoid centered at arousal=0.5
+        arousal_factor = 1.0 / (1.0 + math.exp(-10.0 * (arousal - 0.5)))
+        alpha = self.base_alpha * arousal_factor * coherence_gate
+        # Clip alpha
+        alpha = max(0.0, min(alpha, 3.0))
+        # If last KL shift exceeded budget, back off
+        if self.last_kl_shift > self.kl_budget:
+            alpha *= 0.5
+        return alpha
 
 class AffectiveSteeringEngine:
     """
@@ -1298,6 +1333,8 @@ class AffectiveSteeringEngine:
         self._model_attached = False
         self._alpha = DEFAULT_ALPHA
         self._model_info: Dict[str, Any] = {}
+        self.governor = SteeringGovernor(base_alpha=DEFAULT_ALPHA)
+        self.telemetry = SteeringTelemetry(alpha=DEFAULT_ALPHA, kl_shift=0.0, dimensions_active=[])
 
     def attach(
         self,
@@ -1419,8 +1456,10 @@ class AffectiveSteeringEngine:
             logger.warning("No hooks installed. Call attach() first.")
             return
         if self._sync_thread and self._sync_thread._running:
+            logger.warning("Substrate sync already running.")
             return
-        self._sync_thread = SubstrateSyncThread(self._hooks, shared_state=shared_state)
+
+        self._sync_thread = SubstrateSyncThread(self._hooks, engine=self, shared_state=shared_state)
         self._sync_thread.start()
 
     def stop(self):
@@ -1622,6 +1661,11 @@ def get_steering_engine() -> AffectiveSteeringEngine:
     with _engine_lock:
         if _engine_instance is None:
             _engine_instance = AffectiveSteeringEngine()
+            try:
+                from core.container import ServiceContainer
+                ServiceContainer.register_instance("affective_steering_engine", _engine_instance, required=False)
+            except Exception:
+                pass
         return _engine_instance
 
 

@@ -36,6 +36,7 @@ class SubstrateGeneration:
     fallback_reason: str = ""
     state_energy: float = 0.0
     generated_at: float = 0.0
+    steering_telemetry: Optional[dict[str, Any]] = None
 
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
@@ -141,6 +142,16 @@ class SubstrateTokenGenerator:
         logits = self.logits(prompt)
         checksum = hashlib.blake2b(logits.astype(np.float32).tobytes(), digest_size=10).hexdigest()
 
+        telemetry = None
+        try:
+            from core.container import ServiceContainer
+            engine = ServiceContainer.get("affective_steering_engine", default=None)
+            if engine and hasattr(engine, "telemetry"):
+                import dataclasses
+                telemetry = dataclasses.asdict(engine.telemetry)
+        except Exception:
+            pass
+
         if not force and error > active_threshold:
             result = SubstrateGeneration(
                 used_substrate=False,
@@ -152,6 +163,7 @@ class SubstrateTokenGenerator:
                 fallback_reason="prediction_error_exceeded",
                 state_energy=round(state_energy, 6),
                 generated_at=time.time(),
+                steering_telemetry=telemetry,
             )
             self.last_generation = result
             return result
@@ -169,6 +181,7 @@ class SubstrateTokenGenerator:
             logits_checksum=checksum,
             state_energy=round(state_energy, 6),
             generated_at=time.time(),
+            steering_telemetry=telemetry,
         )
         self.last_generation = result
         return result
