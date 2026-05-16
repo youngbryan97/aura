@@ -3219,9 +3219,13 @@ class UnitaryResponsePhase(Phase):
                     timeout=request_timeout + 5.0,  # Small buffer over router's internal timeout
                 )
             except asyncio.TimeoutError:
-                raise TimeoutError(
-                    f"LLM generation hard-timed-out after {request_timeout + 5.0:.0f}s"
-                )
+                if is_user_facing:
+                    logger.warning("🚨 [STABILITY] LLM generation hard-timed-out. Using sovereign minimal fallback.")
+                    raw = self._build_minimal_live_voice_reply(new_state, objective)
+                else:
+                    raise TimeoutError(
+                        f"LLM generation hard-timed-out after {request_timeout + 5.0:.0f}s"
+                    )
 
             if isinstance(raw, dict):
                 raw = raw.get("content") or raw.get("response") or ""
@@ -3246,9 +3250,8 @@ class UnitaryResponsePhase(Phase):
                     if rescued:
                         raw = rescued
                     else:
-                        raise TimeoutError(
-                            f"Foreground conversation lane returned no text within {request_timeout:.0f}s"
-                        )
+                        logger.warning("🚨 [STABILITY] Foreground conversation lane returned no valid text. Using sovereign minimal fallback.")
+                        raw = self._build_minimal_live_voice_reply(new_state, objective)
                 else:
                     logger.info("UnitaryResponse: background generation returned empty/short text for origin=%s (len=%d)", routing_origin, len(raw) if raw else 0)
                     self._clear_background_generation(new_state, objective)

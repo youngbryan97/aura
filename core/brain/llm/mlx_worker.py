@@ -1094,6 +1094,21 @@ def _mlx_worker_loop(
                                         logger.warning("🚨 [WORKER] Out of retries for loop abort. Returning truncated prefix.")
                                         break
                                         
+                                sanitized_text = _sanitize_telemetry_leakage(response_text)
+                                if sanitized_text is None:
+                                    if internal_attempt < max_internal_retries:
+                                        logger.warning(f"🚨 [WORKER] Hallucination detected by sanitizer. Retrying (attempt {internal_attempt + 1})...")
+                                        if prompt_cache_lru is not None: prompt_cache_lru.clear()
+                                        if mx and device != "cpu": _clear_mlx_cache(mx)
+                                        _prepare_clean_retry_kwargs(kwargs, structured=bool(schema))
+                                        continue
+                                    else:
+                                        logger.warning("🚨 [WORKER] Hallucination detected and out of retries. Returning empty text for caller-side recovery.")
+                                        response_text = ""
+                                        break
+                                        
+                                response_text = sanitized_text
+                                        
                                 if response_text.strip() or not schema:
                                     break # Success or not a structured task
                                 
@@ -1124,24 +1139,6 @@ def _mlx_worker_loop(
                         if mx and device != "cpu":
                             _clear_mlx_cache(mx)
                     
-                    # [v12.0 HARDENING] Post-generation telemetry sanitizer
-                    sanitized_text = _sanitize_telemetry_leakage(response_text)
-                    if sanitized_text is None:
-                        logger.warning(
-                            "🚨 [WORKER] Hallucination detected by sanitizer. "
-                            "Returning empty text for caller-side recovery."
-                        )
-                        try:
-                            if prompt_cache_lru is not None:
-                                prompt_cache_lru.clear()
-                        except (AttributeError, RuntimeError) as exc:
-                            logger.debug("Prompt cache clear failed after sanitizer recovery: %s", exc)
-                        if mx and device != "cpu":
-                            _clear_mlx_cache(mx)
-                        _prepare_clean_retry_kwargs(kwargs, structured=bool(schema))
-                        sanitized_text = ""
-                            
-                    response_text = sanitized_text
                     try:
                         if engine is not None and response_text.strip():
                             engine.observe_generation(response_text)
