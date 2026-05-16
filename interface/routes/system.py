@@ -707,6 +707,54 @@ async def incidents(request: Request):
         )
 
 
+@router.get("/db-maintenance", tags=["observability"])
+async def db_maintenance_status(request: Request):
+    """Database maintenance status and last run results."""
+    _require_internal(request)
+    try:
+        from core.persistence.db_maintenance import get_db_maintenance
+        return JSONResponse(get_db_maintenance().get_status())
+    except Exception as e:
+        record_degradation('system', e)
+        return JSONResponse({"error": str(e)}, status_code=200)
+
+
+@router.get("/resources", tags=["observability"])
+async def resource_status(request: Request):
+    """Resource governor status: thermal, memory, inference."""
+    _require_internal(request)
+    try:
+        from core.resource.resource_governor import get_resource_governor
+        return JSONResponse(get_resource_governor().get_status())
+    except Exception as e:
+        record_degradation('system', e)
+        return JSONResponse({"error": str(e)}, status_code=200)
+
+
+@router.get("/initiative-overflow", tags=["observability"])
+async def initiative_overflow_status(request: Request):
+    """Initiative overflow and skill gap status."""
+    _require_internal(request)
+    try:
+        from core.autonomy.initiative_overflow import get_initiative_overflow
+        return JSONResponse(get_initiative_overflow().get_status())
+    except Exception as e:
+        record_degradation('system', e)
+        return JSONResponse({"error": str(e)}, status_code=200)
+
+
+@router.get("/user-engagement", tags=["observability"])
+async def user_engagement_status(request: Request):
+    """User response tracking and engagement metrics."""
+    _require_internal(request)
+    try:
+        from core.autonomy.user_response_tracker import get_user_response_tracker
+        return JSONResponse(get_user_response_tracker().get_status())
+    except Exception as e:
+        record_degradation('system', e)
+        return JSONResponse({"error": str(e)}, status_code=200)
+
+
 @router.get("/gemini-usage")
 async def gemini_usage(request: Request):
     """Return daily Gemini API usage stats."""

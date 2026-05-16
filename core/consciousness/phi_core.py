@@ -733,6 +733,62 @@ class PhiCore:
 
         return graph
 
+    def _detect_disconnected_graph(self, graph: np.ndarray) -> tuple:
+        """Detect if the causal graph has disconnected components.
+
+        A disconnected graph means some nodes have zero causal influence
+        on the rest, which means φ should be 0 (the system decomposes).
+
+        Returns:
+            (is_connected, n_components, component_sizes)
+        """
+        n = graph.shape[0]
+        # Build adjacency from the causal graph (threshold low MI values)
+        threshold = 1e-6
+        adj = (graph > threshold) | (graph.T > threshold)
+
+        # BFS to find connected components
+        visited = [False] * n
+        components = []
+        for start in range(n):
+            if visited[start]:
+                continue
+            component = []
+            queue = [start]
+            while queue:
+                node = queue.pop(0)
+                if visited[node]:
+                    continue
+                visited[node] = True
+                component.append(node)
+                for neighbor in range(n):
+                    if not visited[neighbor] and adj[node, neighbor]:
+                        queue.append(neighbor)
+            components.append(component)
+
+        is_connected = len(components) == 1
+        component_sizes = [len(c) for c in components]
+
+        if not is_connected:
+            component_names = []
+            for comp in components:
+                names = [COMPLEX_NODE_NAMES[i] if i < len(COMPLEX_NODE_NAMES) else f"node_{i}" for i in comp]
+                component_names.append(names)
+            logger.warning(
+                "PhiCore: DISCONNECTED causal graph detected! "
+                "%d components: %s — φ should be 0.",
+                len(components),
+                [f"{len(c)} nodes" for c in components],
+            )
+            # Report to metrics
+            try:
+                from core.observability.metrics import get_metrics
+                get_metrics().increment_counter("phi_disconnected_graph_total")
+            except Exception:
+                pass
+
+        return is_connected, len(components), component_sizes
+
     # ── MIP Search ─────────────────────────────────────────────────────────────
 
     def compute_phi(self) -> Optional[PhiResult]:

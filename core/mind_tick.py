@@ -314,10 +314,35 @@ class MindTick:
                             dead_tiers = [t for t, s in tier_statuses.items() if s == "dead"]
                             if dead_tiers and self._tick_count % 30 == 0:
                                 logger.warning("LLM health: dead tiers=%s", dead_tiers)
+                                # Report persistent dead tiers to incident manager
+                                try:
+                                    from core.resilience.incident_manager import get_incident_manager
+                                    get_incident_manager().report(
+                                        source="mind_tick",
+                                        title=f"LLM tiers dead: {', '.join(dead_tiers)}",
+                                        detail=f"Dead tiers detected at tick {self._tick_count}",
+                                        severity="warning",
+                                    )
+                                except Exception:
+                                    pass
                         elif gate and hasattr(gate, "_ensure_cortex_recovery"):
                             await gate._ensure_cortex_recovery()
                     except Exception:
                         pass  # no-op: intentional
+
+                # ── RESOURCE GOVERNOR: Check throttle state ──
+                if self._tick_count % 10 == 0:
+                    try:
+                        from core.resource.resource_governor import get_resource_governor
+                        gov = get_resource_governor()
+                        if gov.is_throttled():
+                            if self._tick_count % 30 == 0:
+                                logger.info(
+                                    "💓 MindTick: Resource governor throttled — "
+                                    "deferring heavy background work."
+                                )
+                    except Exception:
+                        pass  # Resource governor unavailable
 
                 # ── BINDING ENGINE: Run coherence tick before phases ──
                 _coherence_report = None

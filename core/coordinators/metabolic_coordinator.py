@@ -201,9 +201,42 @@ class MetabolicCoordinator:
                 except Exception:
                     pass  # Resilience layer unavailable
 
+            # ── DB Maintenance: periodic pass ─────────────────────────
+            # Run every ~50 cycles (checkpoint, retention, vacuum).
+            if cycle_count > 0 and cycle_count % 50 == 0:
+                try:
+                    from core.persistence.db_maintenance import get_db_maintenance
+                    maint = get_db_maintenance()
+                    maint_result = maint.run_maintenance()
+                    if maint_result.total_rows_deleted > 0:
+                        logger.info(
+                            "🗄️ DB Maintenance: deleted %d expired rows.",
+                            maint_result.total_rows_deleted,
+                        )
+                except Exception:
+                    pass  # DB maintenance unavailable
+
+            # ── Resource Governor: periodic sample ────────────────────
+            if cycle_count > 0 and cycle_count % 10 == 0:
+                try:
+                    from core.resource.resource_governor import get_resource_governor
+                    gov = get_resource_governor()
+                    snap = gov.sample()
+                    if snap.eviction_tier.value != "none":
+                        gov.execute_eviction(snap.eviction_tier)
+                except Exception:
+                    pass  # Resource governor unavailable
+
+            # ── Initiative Overflow: cap adjustment ───────────────────
+            if cycle_count > 0 and cycle_count % 60 == 0:
+                try:
+                    from core.autonomy.initiative_overflow import get_initiative_overflow
+                    get_initiative_overflow().adjust_cap()
+                except Exception:
+                    pass  # Initiative overflow unavailable
+
             return result
         except Exception as e:
-            record_degradation('metabolic_coordinator', e)
             record_degradation('metabolic_coordinator', e)
             logger.error(f"Metabolic cycle failed: {e}")
             return False

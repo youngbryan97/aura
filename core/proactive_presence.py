@@ -132,6 +132,12 @@ class ProactivePresence:
             get_substrate_voice_engine().on_user_spoke()
         except Exception:
             pass  # no-op: intentional
+        # Record user response for adaptive backoff
+        try:
+            from core.autonomy.user_response_tracker import get_user_response_tracker
+            get_user_response_tracker().record_user_response()
+        except Exception:
+            pass  # Tracker unavailable
 
     def mark_user_spoke_with_message(self, message: str):
         """Call with message content to detect away signals and update state.
@@ -284,8 +290,14 @@ class ProactivePresence:
         if self._outputs_this_hour >= MAX_SPONTANEOUS_PER_HOUR:
             return False
 
-        # Minimum gap between spontaneous outputs
-        if now - self._last_output_time < MIN_GAP_BETWEEN_OUTPUTS:
+        # Minimum gap between spontaneous outputs (with adaptive backoff)
+        effective_gap = MIN_GAP_BETWEEN_OUTPUTS
+        try:
+            from core.autonomy.user_response_tracker import get_user_response_tracker
+            effective_gap *= get_user_response_tracker().get_backoff_multiplier()
+        except Exception:
+            pass
+        if now - self._last_output_time < effective_gap:
             return False
 
         # --- Phase 30.1: Scalable Thresholds ---
@@ -794,6 +806,12 @@ class ProactivePresence:
         if visible_presence:
             self._consecutive_unprompted += 1
             self._last_visible_output_time = time.time()
+            # Record proactive send for adaptive backoff
+            try:
+                from core.autonomy.user_response_tracker import get_user_response_tracker
+                get_user_response_tracker().record_proactive_sent(source="proactive_presence")
+            except Exception:
+                pass  # Tracker unavailable
 
     def _requeue_visible_retry(
         self,

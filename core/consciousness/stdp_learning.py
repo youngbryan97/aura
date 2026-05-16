@@ -250,6 +250,12 @@ class STDPLearningEngine:
     def apply_to_connectivity(self, W: np.ndarray, dw: np.ndarray) -> np.ndarray:
         """Apply the weight delta to a connectivity matrix.
 
+        Includes:
+          - Weight clipping
+          - Spectral norm cap (prevents runaway growth)
+          - Homeostatic scaling (keeps mean|W| near target)
+          - Symmetry breaking
+
         Args:
             W: Current connectivity matrix (n x n).
             dw: Weight delta from deliver_reward().
@@ -264,6 +270,51 @@ class STDPLearningEngine:
 
         # Zero diagonal (no self-connections)
         np.fill_diagonal(W_new, 0.0)
+
+        # ── Spectral Norm Cap ─────────────────────────────────────────
+        # Prevent the largest singular value from exceeding a safe bound.
+        # This caps the maximum gain of the dynamical system, preventing
+        # explosive state growth that leads to NaN in the substrate ODE.
+        SPECTRAL_NORM_CAP = 3.0
+        try:
+            s_max = np.linalg.norm(W_new, ord=2)  # Largest singular value
+            if s_max > SPECTRAL_NORM_CAP:
+                W_new *= SPECTRAL_NORM_CAP / s_max
+                logger.debug(
+                    "STDP: Spectral norm capped: %.3f -> %.3f",
+                    s_max, SPECTRAL_NORM_CAP,
+                )
+        except np.linalg.LinAlgError:
+            pass  # SVD failed — skip norm cap this tick
+
+        # ── Homeostatic Scaling ───────────────────────────────────────
+        # Keep the mean absolute weight near a target value. This prevents
+        # both mode collapse (all weights → 0) and explosive growth
+        # (all weights → max). The scaling is gentle (0.5% per tick).
+        HOMEOSTATIC_TARGET = 0.3
+        HOMEOSTATIC_RATE = 0.005
+        mean_abs = float(np.mean(np.abs(W_new)))
+        if mean_abs > 1e-8:
+            ratio = HOMEOSTATIC_TARGET / mean_abs
+            # Only apply if drift is significant (>10% from target)
+            if abs(ratio - 1.0) > 0.1:
+                # Gentle correction — move 0.5% toward target per tick
+                correction = 1.0 + HOMEOSTATIC_RATE * (ratio - 1.0)
+                W_new *= correction
+
+        # ── NaN/Inf Guard ─────────────────────────────────────────────
+        if not np.isfinite(W_new).all():
+            nan_count = int(np.sum(~np.isfinite(W_new)))
+            logger.warning(
+                "STDP: %d NaN/Inf values in weight matrix — clamping to zero.",
+                nan_count,
+            )
+            W_new = np.nan_to_num(W_new, nan=0.0, posinf=WEIGHT_CLIP, neginf=-WEIGHT_CLIP)
+            try:
+                from core.observability.metrics import get_metrics
+                get_metrics().increment_counter("stdp_nan_events_total")
+            except Exception:
+                pass
 
         # Symmetry breaking: prevent W from becoming symmetric (W = W^T)
         # which collapses dynamical richness. Add a small antisymmetric
