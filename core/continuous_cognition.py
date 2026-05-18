@@ -27,15 +27,13 @@ system feel like it "exists" rather than merely "responds."
 Runtime: Pure Python, zero LLM calls, <1ms per iteration.
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
 
 import asyncio
 import logging
 import time
-from typing import Any, Optional
 
 from core.container import ServiceContainer
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.ContinuousCognition")
@@ -53,7 +51,7 @@ class ContinuousCognitionLoop:
 
     def __init__(self) -> None:
         self._running = False
-        self._task: Optional[asyncio.Task] = None
+        self._task: asyncio.Task | None = None
         self._tick_count: int = 0
         self._last_initiative_seed: float = 0.0
         self._boot_time = time.time()
@@ -113,16 +111,15 @@ class ContinuousCognitionLoop:
         state evolving so that when the LLM is next called, it
         has a rich, current context to work with.
         """
-        now = time.time()
-
         # 1. WorldState telemetry (every 5th step = ~2.5s)
         if self._tick_count % 5 == 0:
             try:
                 ws = self._get_world_state()
                 if ws:
                     ws.update()
-            except Exception:
-                pass  # no-op: intentional
+            except Exception as exc:
+                record_degradation("continuous_cognition", exc)
+                logger.debug("CognitionLoop: world-state update failed: %s", exc)
 
         # 2. Drive pressure evolution (every step)
         try:
@@ -132,8 +129,9 @@ class ContinuousCognitionLoop:
                 # but we explicitly update to ensure freshness
                 for budget in drive.budgets.values():
                     budget.tick()
-        except Exception:
-            pass  # no-op: intentional
+        except Exception as exc:
+            record_degradation("continuous_cognition", exc)
+            logger.debug("CognitionLoop: drive pressure update failed: %s", exc)
 
         # 3. Neurochemical metabolism (every 2nd step = ~1s)
         if self._tick_count % 2 == 0:
@@ -141,8 +139,9 @@ class ContinuousCognitionLoop:
                 nchem = self._get_neurochemical()
                 if nchem and hasattr(nchem, "tick"):
                     nchem.tick(dt=0.5)
-            except Exception:
-                pass  # no-op: intentional
+            except Exception as exc:
+                record_degradation("continuous_cognition", exc)
+                logger.debug("CognitionLoop: neurochemical tick failed: %s", exc)
 
         # 4. Affect drift toward baseline (every 4th step = ~2s)
         if self._tick_count % 4 == 0:
@@ -150,8 +149,9 @@ class ContinuousCognitionLoop:
                 affect = self._get_affect()
                 if affect and hasattr(affect, "drift_toward_baseline"):
                     affect.drift_toward_baseline(dt=2.0)
-            except Exception:
-                pass  # no-op: intentional
+            except Exception as exc:
+                record_degradation("continuous_cognition", exc)
+                logger.debug("CognitionLoop: affect drift failed: %s", exc)
 
         # 5. Initiative seeding from drive pressure (every 30th step = ~15s)
         if self._tick_count % 30 == 0:
@@ -230,8 +230,9 @@ class ContinuousCognitionLoop:
 
             # Check for time-of-day transitions
             # (WorldState.update() handles this, we just note it)
-        except Exception:
-            pass  # no-op: intentional
+        except Exception as exc:
+            record_degradation("continuous_cognition", exc)
+            logger.debug("CognitionLoop: salient-change check failed: %s", exc)
 
     # ------------------------------------------------------------------
     # Service resolution (cached, lazy)
@@ -247,8 +248,9 @@ class ContinuousCognitionLoop:
             try:
                 from core.world_state import get_world_state
                 self._world_state = get_world_state()
-            except Exception:
-                pass  # no-op: intentional
+            except Exception as exc:
+                record_degradation("continuous_cognition", exc)
+                logger.debug("CognitionLoop: world-state service unavailable: %s", exc)
         return self._world_state
 
     def _get_liquid_substrate(self):
@@ -272,8 +274,9 @@ class ContinuousCognitionLoop:
             try:
                 from core.initiative_synthesis import get_initiative_synthesizer
                 self._synthesizer = get_initiative_synthesizer()
-            except Exception:
-                pass  # no-op: intentional
+            except Exception as exc:
+                record_degradation("continuous_cognition", exc)
+                logger.debug("CognitionLoop: initiative synthesizer unavailable: %s", exc)
         return self._synthesizer
 
     # ------------------------------------------------------------------
@@ -295,7 +298,7 @@ class ContinuousCognitionLoop:
 # Singleton
 # ---------------------------------------------------------------------------
 
-_instance: Optional[ContinuousCognitionLoop] = None
+_instance: ContinuousCognitionLoop | None = None
 
 
 def get_continuous_cognition() -> ContinuousCognitionLoop:

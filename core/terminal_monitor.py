@@ -1,15 +1,16 @@
 """core/terminal_monitor.py — v5.0 PRODUCTION-GRADE"""
 
-from core.runtime.errors import record_degradation
-from core.runtime.atomic_writer import atomic_write_text
+import json
 import logging
 import re
 import time
-import json
 from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
+
+from core.runtime.atomic_writer import atomic_write_text
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.TerminalMonitor")
 
@@ -21,7 +22,7 @@ class ErrorEntry:
     message: str
     level: str
     source: str
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
     timestamp: float = field(default_factory=time.time)
     fingerprint: str = ""
 
@@ -43,10 +44,10 @@ class TerminalMonitor:
 
     def __init__(self):
         self._error_buffer: deque[ErrorEntry] = deque(maxlen=100)
-        self._seen: Dict[str, float] = {}
-        self._fix_attempts: Dict[str, float] = {}
-        self._failures: Dict[str, int] = {}
-        self._fix_window: List[float] = []
+        self._seen: dict[str, float] = {}
+        self._fix_attempts: dict[str, float] = {}
+        self._failures: dict[str, int] = {}
+        self._fix_window: list[float] = []
         
         self._sepsis_mode = False
         self._sepsis_start = 0.0
@@ -104,7 +105,9 @@ class TerminalMonitor:
         if BLACKLIST_PATH.exists():
             try:
                 return set(json.loads(BLACKLIST_PATH.read_text()))
-            except Exception:
+            except (json.JSONDecodeError, OSError) as exc:
+                record_degradation("terminal_monitor", exc)
+                logger.warning("TerminalMonitor blacklist could not be loaded; starting clean: %s", exc)
                 return set()
         return set()
 
@@ -232,10 +235,11 @@ class TerminalMonitor:
                         ttl=1800,
                     )
                     break
-        except Exception:
-            pass  # WorldState not booted yet — degrade gracefully
+        except Exception as exc:
+            record_degradation("terminal_monitor", exc)
+            logger.debug("TerminalMonitor world-state integration skipped: %s", exc)
 
-    def ingest_degraded_event(self, event: Dict[str, Any]):
+    def ingest_degraded_event(self, event: dict[str, Any]):
         """Accept structured degraded events from subsystems without requiring ERROR logs."""
         try:
             severity = str(event.get("severity", "warning") or "warning").lower()
@@ -264,7 +268,7 @@ class TerminalMonitor:
             record_degradation('terminal_monitor', e)
             logger.debug("TerminalMonitor degraded-event ingest failed: %s", e)
 
-    async def check_for_errors(self) -> Optional[Dict[str, Any]]:
+    async def check_for_errors(self) -> dict[str, Any] | None:
         """Orchestrator hook: Returns auto-fix goal if possible."""
         if self._circuit_breaker_open or self._sepsis_mode:
             return None
@@ -334,7 +338,7 @@ class TerminalMonitor:
                 }
         return None
 
-    def _classify_error(self, entry: ErrorEntry) -> Optional[str]:
+    def _classify_error(self, entry: ErrorEntry) -> str | None:
         lowered = str(entry.message or "").lower()
         if "[silent auto-fix]" in lowered:
             return None
@@ -368,7 +372,7 @@ class TerminalMonitor:
 
         return None
 
-    def get_recent_errors(self, n: int = 10) -> List[Dict[str, Any]]:
+    def get_recent_errors(self, n: int = 10) -> list[dict[str, Any]]:
         buffer_list = list(self._error_buffer)
         return [
             {"message": e.message[:200], "source": e.source, "timestamp": e.timestamp}
@@ -376,7 +380,7 @@ class TerminalMonitor:
         ]
 
 # Singleton
-_instance: Optional[TerminalMonitor] = None
+_instance: TerminalMonitor | None = None
 def get_terminal_monitor() -> TerminalMonitor:
     global _instance
     if _instance is None:
