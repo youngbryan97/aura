@@ -1,9 +1,11 @@
+import asyncio
+import logging
+import time
+from typing import Any
+
 from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
-import logging
-import asyncio
-import time
-from typing import Any, Dict, List, Optional
+
 
 class ICELayer:
     """
@@ -35,8 +37,9 @@ class ICELayer:
             try:
                 from core.container import ServiceContainer
                 self._anomaly_detector = ServiceContainer.get("anomaly_detector", default=None)
-            except Exception:
-                pass  # no-op: intentional
+            except Exception as exc:
+                record_degradation("ice_layer", exc)
+                logger.debug("[ICE] Shared anomaly detector lookup failed: %s", exc)
             if self._anomaly_detector is None:
                 try:
                     from core.cognitive.anomaly_detector import AnomalyDetector
@@ -45,8 +48,9 @@ class ICELayer:
                     try:
                         from core.container import ServiceContainer
                         ServiceContainer.register("anomaly_detector", self._anomaly_detector)
-                    except Exception:
-                        pass  # no-op: intentional
+                    except Exception as exc:
+                        record_degradation("ice_layer", exc)
+                        logger.debug("[ICE] Anomaly detector registration failed: %s", exc)
                 except ImportError:
                     pass  # no-op: intentional
         return self._anomaly_detector
@@ -83,7 +87,7 @@ class ICELayer:
                     logger.debug("Suppressed asyncio.QueueEmpty: %s", _exc)
             await asyncio.sleep(1.0) # Heartbeat
 
-    async def _on_audit(self, payload: Dict[str, Any]):
+    async def _on_audit(self, payload: dict[str, Any]):
         """Detect identity drift using both learned anomaly detection and legacy rules.
 
         The anomaly detector provides a data-driven threat score based on how
@@ -98,7 +102,7 @@ class ICELayer:
         detector = self._get_anomaly_detector()
         if detector:
             try:
-                score = await detector.observe({
+                await detector.observe({
                     "type": "audit",
                     "drift": drift,
                     "status": status,
@@ -120,7 +124,7 @@ class ICELayer:
         if self._threat_level > 0.8:
             await self._trigger_neural_hardening()
 
-    async def _on_executive_violation(self, payload: Dict[str, Any]):
+    async def _on_executive_violation(self, payload: dict[str, Any]):
         """Detect identity violations using learned + legacy assessment.
 
         Executive violations are serious events.  The anomaly detector learns
@@ -158,14 +162,18 @@ class ICELayer:
         if self._threat_level >= 1.0:
             await self._trigger_black_ice_escalation(payload)
 
-    def classify_anomaly(self, label: str) -> Dict[str, str]:
+    def classify_anomaly(self, label: str) -> dict[str, str]:
         """[AWE] Categorize anomaly and return containment protocol."""
-        l = label.upper()
+        label_upper = label.upper()
         a_type = "UNKNOWN"
-        if "RECURSION" in l or "LOOP" in l: a_type = "LOGIC_LOOP"
-        elif "DRIFT" in l or "IDENTITY" in l: a_type = "SEMANTIC_DRIFT"
-        elif "ACCESS" in l or "INTRUSION" in l: a_type = "EXTERNAL_INTRUSION"
-        elif "LATENCY" in l or "STALL" in l: a_type = "TEMPORAL_STALL"
+        if "RECURSION" in label_upper or "LOOP" in label_upper:
+            a_type = "LOGIC_LOOP"
+        elif "DRIFT" in label_upper or "IDENTITY" in label_upper:
+            a_type = "SEMANTIC_DRIFT"
+        elif "ACCESS" in label_upper or "INTRUSION" in label_upper:
+            a_type = "EXTERNAL_INTRUSION"
+        elif "LATENCY" in label_upper or "STALL" in label_upper:
+            a_type = "TEMPORAL_STALL"
         
         info = self._anomaly_types.get(a_type, {"desc": "Unknown anomaly.", "containment": "MONITOR"})
         description = info.get("desc", "Unknown anomaly.")
@@ -182,7 +190,7 @@ class ICELayer:
             
         return res
 
-    async def _trigger_black_ice_escalation(self, payload: Dict[str, Any]):
+    async def _trigger_black_ice_escalation(self, payload: dict[str, Any]):
         """[BLACK ICE] Automated SOAR: Identity Blacklisting and Context Flush."""
         logger.critical("💀 [BLACK ICE] CRITICAL COGNITIVE THREAT. Commencing Countermeasures.")
         # Simulated SOAR actions
@@ -207,7 +215,7 @@ class ICELayer:
         # In a real scenario, this would trigger a 'Safe Mode' switch in the kernel.
         self._is_breached = True
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         return {
             "threat_level": self._threat_level,
             "is_breached": self._is_breached

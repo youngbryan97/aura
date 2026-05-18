@@ -3,11 +3,12 @@ and history context for the cognitive loop.
 
 Extracted from orchestrator.py as part of the God Object decomposition.
 """
-from core.runtime.errors import record_degradation
 import datetime
 import logging
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
+
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger(__name__)
 
@@ -22,12 +23,12 @@ class ContextCoordinator:
     # History
     # ------------------------------------------------------------------
 
-    def get_cleaned_history_context(self, limit: int = 12) -> Dict[str, Any]:
+    def get_cleaned_history_context(self, limit: int = 12) -> dict[str, Any]:
         """Filter out internal noise for LLM context while preserving tool results."""
         history = self.orch.conversation_history
         if not isinstance(history, list):
             return {"history": []}
-        cleaned: List[Dict[str, str]] = []
+        cleaned: list[dict[str, str]] = []
         for msg in history[-limit:]:
             content = msg.get("content", "")
             role = msg.get("role", "unknown")
@@ -61,7 +62,6 @@ class ContextCoordinator:
             get_emitter().emit("thought", str(thought))
         except Exception as _exc:
             record_degradation('context_coordinator', _exc)
-            import logging
             logger.debug("Exception caught during execution", exc_info=True)
 
     # ------------------------------------------------------------------
@@ -109,7 +109,9 @@ class ContextCoordinator:
         try:
             from core.brain.personality_engine import get_personality_engine
             return get_personality_engine().current_mood
-        except Exception:
+        except Exception as exc:
+            record_degradation("context_coordinator", exc)
+            logger.debug("Personality mood lookup failed: %s", exc)
             return "balanced"
 
     def get_current_time_str(self) -> str:
@@ -117,14 +119,16 @@ class ContextCoordinator:
         try:
             from core.brain.personality_engine import get_personality_engine
             return get_personality_engine().get_time_context().get("formatted", "")
-        except Exception:
+        except Exception as exc:
+            record_degradation("context_coordinator", exc)
+            logger.debug("Personality time-context lookup failed: %s", exc)
             return ""
 
     # ------------------------------------------------------------------
     # Environment & World
     # ------------------------------------------------------------------
 
-    async def get_environmental_context(self) -> Dict[str, Any]:
+    async def get_environmental_context(self) -> dict[str, Any]:
         """Get rich environment data from EnvironmentAwareness module."""
         try:
             from core.environment_awareness import get_environment
@@ -154,7 +158,7 @@ class ContextCoordinator:
     # Recording helpers
     # ------------------------------------------------------------------
 
-    async def record_reliability(self, tool: str, success: bool, error: Optional[str] = None):
+    async def record_reliability(self, tool: str, success: bool, error: str | None = None):
         try:
             from core.reliability_tracker import reliability_tracker
             reliability_tracker.record_attempt(tool, success, error)
@@ -168,7 +172,7 @@ class ContextCoordinator:
             "content": f"[SKILL OUTPUT: {tool_name}]\n{str(result)}"
         })
 
-    def inject_shortcut_results(self, message: str, result: Dict) -> str:
+    def inject_shortcut_results(self, message: str, result: dict) -> str:
         summary = str(result.get("summary", result.get("result", result)))[:800]
         return f"{message}\n\n[DIRECT RESULT]: {summary}\n\nSynthesize this result for the user."
 

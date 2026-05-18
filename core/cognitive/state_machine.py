@@ -2,24 +2,19 @@
 Executes specific paths based on the IntentRouter classification.
 Replaces the fuzzy, open-ended cognitive loops.
 """
-from core.runtime.errors import record_degradation
-from core.utils.task_tracker import get_task_tracker
-from core.utils.exceptions import capture_and_log
 import asyncio
 import logging
 import re
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
-
-from .router import Intent
+from typing import Any
 
 from core.brain.llm.runtime_wiring import is_user_facing_origin, prepare_runtime_payload
 from core.container import ServiceContainer
 from core.phases.dialogue_policy import enforce_dialogue_contract, validate_dialogue_response
 from core.phases.response_contract import ResponseContract, build_response_contract
+from core.runtime.errors import record_degradation
 from core.runtime.governance_policy import allow_intent_hint_bypass
-from core.utils.prompt_compression import compress_system_prompt, compress_history_block
 from core.runtime.service_access import (
     resolve_affect_engine,
     resolve_attention_schema,
@@ -31,6 +26,12 @@ from core.runtime.service_access import (
     resolve_vector_memory_engine,
     resolve_voice_engine,
 )
+from core.utils.exceptions import capture_and_log
+from core.utils.prompt_compression import compress_history_block, compress_system_prompt
+from core.utils.task_tracker import get_task_tracker
+
+from .router import Intent
+
 logger = logging.getLogger("Aura.StateMachine")
 
 
@@ -67,7 +68,7 @@ class StateMachine:
     # v47 FIX: REFLEX_MAP removed entirely.
     REFLEX_MAP = {}  # Disabled
 
-    class _GenericStreamPreamble(RuntimeError):
+    class _GenericStreamPreambleError(RuntimeError):
         """Raised when a streamed reply starts in generic assistant mode."""
         pass  # no-op: intentional
 
@@ -156,7 +157,7 @@ class StateMachine:
         """Detect if a CHAT-classified input actually needs a skill."""
         return bool(self._ACTION_PATTERNS.search(user_input))
 
-    async def execute(self, intent: Intent, user_input: str, context: Optional[Dict[str, Any]] = None, priority: float = 1.0, origin: str = "user") -> Tuple[str, List[str]]:
+    async def execute(self, intent: Intent, user_input: str, context: dict[str, Any] | None = None, priority: float = 1.0, origin: str = "user") -> tuple[str, list[str]]:
         """Route the user input to the correct hardcoded handler.
         Returns (response_text, list_of_successful_tools).
         """
@@ -192,7 +193,7 @@ class StateMachine:
             response = await self._handle_chat(user_input, context, priority=priority, origin=origin) # Fallback
             return response, []
 
-    async def _handle_chat(self, user_input: str, context: Dict[str, Any], priority: float = 1.0, origin: str = "user") -> str:
+    async def _handle_chat(self, user_input: str, context: dict[str, Any], priority: float = 1.0, origin: str = "user") -> str:
         """Fast path for standard conversation. No skills, no deep reasoning."""
         logger.info("Executing State: CHAT")
         self._emit("State: CHAT", "Generating conversational response...")
@@ -329,7 +330,9 @@ class StateMachine:
             conversational_blocks = ""
             if runtime_state is not None:
                 try:
-                    from core.runtime.conversation_support import build_conversational_context_blocks
+                    from core.runtime.conversation_support import (
+                        build_conversational_context_blocks,
+                    )
 
                     blocks = build_conversational_context_blocks(runtime_state, objective=user_input)
                     normalized = [str(block).strip() for block in blocks[:4] if str(block).strip()]
@@ -379,10 +382,10 @@ class StateMachine:
                 try:
                     # Hard cap: keep system prompt under ~7000 tokens (~28K chars)
                     # to utilize more of the 32K token buffer on M5 hardware.
-                    _MAX_PROMPT_CHARS = 28000
-                    if len(system_prompt) > _MAX_PROMPT_CHARS:
+                    max_prompt_chars = 28000
+                    if len(system_prompt) > max_prompt_chars:
                         # Trim from the middle (keep identity at top + recent context at bottom)
-                        half = _MAX_PROMPT_CHARS // 2
+                        half = max_prompt_chars // 2
                         system_prompt = system_prompt[:half] + "\n[...context trimmed...]\n" + system_prompt[-half:]
 
                     response_chunks = []
@@ -390,13 +393,17 @@ class StateMachine:
                     if hasattr(self.llm, "generate_stream"):
                         # Phase 1: Stream to UI and yield tokens
                         response_chunks = []
-                        async def stream_and_ui():
+                        async def stream_and_ui(
+                            system_prompt_snapshot: str = system_prompt,
+                            attempt_snapshot: int = attempt,
+                            response_chunks_ref: list[str] = response_chunks,
+                        ):
                             nonlocal streaming_started
                             first_chunk = True
                             first_chunk_buffer = ""
                             async for event in self.llm.generate_stream(
                                 prompt=user_input,
-                                system_prompt=system_prompt,
+                                system_prompt=system_prompt_snapshot,
                                 max_tokens=600,
                                 temperature=0.85, # Increased to combat repetitive history loops
                                 priority=priority,
@@ -414,11 +421,11 @@ class StateMachine:
                                         if not preview:
                                             continue
                                         preview_validation = validate_dialogue_response(preview, contract)
-                                        if attempt < max_retries and any(
+                                        if attempt_snapshot < max_retries and any(
                                             violation in preview_validation.violations
                                             for violation in ("generic_assistant_language", "low_signal_preamble")
                                         ):
-                                            raise self._GenericStreamPreamble(preview)
+                                            raise self._GenericStreamPreambleError(preview)
                                         if len(preview) < 120 and not any(mark in preview for mark in ".!?\n:"):
                                             continue
                                         chunk = preview
@@ -428,7 +435,7 @@ class StateMachine:
                                         first_chunk = False
 
                                     if chunk:
-                                        response_chunks.append(chunk)
+                                        response_chunks_ref.append(chunk)
                                         self._emit_telemetry({"type": "chat_stream_chunk", "chunk": chunk})
                                         yield chunk
                                         
@@ -438,14 +445,14 @@ class StateMachine:
                             if first_chunk and first_chunk_buffer.strip():
                                 preview = first_chunk_buffer.lstrip()
                                 preview_validation = validate_dialogue_response(preview, contract)
-                                if attempt < max_retries and any(
+                                if attempt_snapshot < max_retries and any(
                                     violation in preview_validation.violations
                                     for violation in ("generic_assistant_language", "low_signal_preamble")
                                 ):
-                                    raise self._GenericStreamPreamble(preview)
+                                    raise self._GenericStreamPreambleError(preview)
                                 self._emit_telemetry({"type": "chat_stream_start"})
                                 streaming_started = True
-                                response_chunks.append(preview)
+                                response_chunks_ref.append(preview)
                                 self._emit_telemetry({"type": "chat_stream_chunk", "chunk": preview})
                                 yield preview
                                 
@@ -470,14 +477,19 @@ class StateMachine:
                         voice_engine = resolve_voice_engine(default=None)
                         
                         if voice_engine and hasattr(voice_engine, 'speak_stream'):
-                            async def _speak_task():
+                            async def _speak_task(
+                                voice_engine_snapshot=voice_engine,
+                                tts_queue_snapshot=tts_queue,
+                            ):
                                 try:
-                                    await voice_engine.speak_stream(queue_sentence_generator(tts_queue))
+                                    await voice_engine_snapshot.speak_stream(
+                                        queue_sentence_generator(tts_queue_snapshot)
+                                    )
                                 except Exception as e:
                                     record_degradation('state_machine', e)
                                     logger.debug("Background TTS failed: %s", e)
 
-                            tts_task = get_task_tracker().create_task(_speak_task())
+                            get_task_tracker().create_task(_speak_task())
                             
                             # Single consumer loop for the LLM stream
                             async for token in stream_and_ui():
@@ -486,7 +498,8 @@ class StateMachine:
                             await tts_queue.put(None) # Signal completion
                             response = "".join(response_chunks).strip()
                         else:
-                            async for _ in stream_and_ui(): pass
+                            async for _ in stream_and_ui():
+                                pass
                             response = "".join(response_chunks).strip()
                     else:
                         response_gen = await asyncio.wait_for(
@@ -502,10 +515,13 @@ class StateMachine:
                         )
                         response = response_gen.strip()
                         if response:
-                            async def _retry_dialogue(repair_block: str) -> str:
+                            async def _retry_dialogue(
+                                repair_block: str,
+                                system_prompt_snapshot: str = system_prompt,
+                            ) -> str:
                                 retried = await self.llm.generate(
                                     prompt=user_input,
-                                    system_prompt=f"{repair_block}\n\n{system_prompt}".strip(),
+                                    system_prompt=f"{repair_block}\n\n{system_prompt_snapshot}".strip(),
                                     max_tokens=600,
                                     temperature=0.85,
                                     priority=priority,
@@ -552,7 +568,7 @@ class StateMachine:
                     # If we get here, the response is either good or we've run out of retries
                     break
                     
-                except self._GenericStreamPreamble:
+                except self._GenericStreamPreambleError:
                     logger.warning("🚫 Generic stream preamble detected (Attempt %d). Re-aligning...", attempt + 1)
                     if attempt < max_retries:
                         attempt += 1
@@ -563,7 +579,7 @@ class StateMachine:
                         continue
                     response = "I'm here. Let me answer that cleanly."
                     break
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     logger.error("Chat attempt %d timed out", attempt + 1)
                     if attempt < max_retries:
                         attempt += 1
@@ -637,7 +653,7 @@ class StateMachine:
         finally:
             self._emit_activity("Aura is idle.", show=False)
 
-    async def _handle_skill(self, user_input: str, context: Dict[str, Any], priority: float = 1.0, origin: str = "user") -> Tuple[str, List[str]]:
+    async def _handle_skill(self, user_input: str, context: dict[str, Any], priority: float = 1.0, origin: str = "user") -> tuple[str, list[str]]:
         """Determines the skill, extracts JSON deterministically, and executes."""
         logger.info("Executing State: SKILL")
         self._emit("State: SKILL", "Preparing to execute system action...")
@@ -760,7 +776,9 @@ class StateMachine:
                     try:
                         params = json.loads(params_match.group(1)) if params_match else {}
                         return await self._execute_skill_logic(tool_name, params, user_input, priority=priority, origin=origin)
-                    except Exception:
+                    except Exception as exc:
+                        record_degradation("state_machine", exc)
+                        logger.debug("Fallback skill params parse failed for %s: %s", tool_name, exc)
                         return await self._execute_skill_logic(tool_name, {}, user_input, priority=priority, origin=origin)
             
                 # Final fallback: chat instead of crashing with None tool_name
@@ -972,11 +990,11 @@ class StateMachine:
     async def _maybe_execute_live_coding_artifact(
         self,
         user_input: str,
-        context: Dict[str, Any],
+        context: dict[str, Any],
         *,
         priority: float,
         origin: str,
-    ) -> Optional[Tuple[str, List[str]]]:
+    ) -> tuple[str, list[str]] | None:
         if not self._looks_like_live_coding_artifact_request(user_input):
             return None
         if not self.orchestrator or not hasattr(self.orchestrator, "execute_tool"):
@@ -1051,7 +1069,7 @@ class StateMachine:
             ["coding_skill", "file_operation"],
         )
 
-    async def _execute_skill_logic(self, tool_name: str, validated_params: Dict[str, Any], user_input: str, autonomic: bool = False, priority: float = 1.0, origin: str = "user") -> Tuple[str, List[str]]:
+    async def _execute_skill_logic(self, tool_name: str, validated_params: dict[str, Any], user_input: str, autonomic: bool = False, priority: float = 1.0, origin: str = "user") -> tuple[str, list[str]]:
         """Core logic for executing a skill, emitting telemetry, and summarizing."""
         success = False
         try:
@@ -1153,7 +1171,7 @@ class StateMachine:
             self._emit("State: ERROR", "Skill execution failed.")
             return f"I encountered an error while processing the result of {tool_name}.", []
 
-    async def _handle_system(self, user_input: str, context: Dict[str, Any]) -> str:
+    async def _handle_system(self, user_input: str, context: dict[str, Any]) -> str:
         """Hardcoded system commands (reboot, sleep)."""
         logger.info("Executing State: SYSTEM")
         lower_input = user_input.lower()
@@ -1178,7 +1196,7 @@ class StateMachine:
              self.orchestrator.status.running = False
              await self.orchestrator.start() # Re-triggers boot sequence
              
-    def _handle_reflex(self, user_input: str) -> Optional[str]:
+    def _handle_reflex(self, user_input: str) -> str | None:
         """Check for hardcoded persona reflexes."""
         import re
         for pattern, response in self.REFLEX_MAP.items():

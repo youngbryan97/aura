@@ -12,17 +12,21 @@ via ``register_driver`` once they exist.
 """
 from __future__ import annotations
 
-
-import asyncio
+import logging
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
+from typing import Any
+
+from core.runtime.errors import record_degradation
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
 class ComputerUseAction:
     kind: str  # screenshot, click, type, ocr, detect_windows
     target: str
-    payload: Dict[str, Any] = field(default_factory=dict)
+    payload: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -30,13 +34,13 @@ class ComputerUseResult:
     ok: bool
     action: ComputerUseAction
     output: Any = None
-    failure_reason: Optional[str] = None
-    receipt_id: Optional[str] = None
-    verification_evidence: Dict[str, Any] = field(default_factory=dict)
+    failure_reason: str | None = None
+    receipt_id: str | None = None
+    verification_evidence: dict[str, Any] = field(default_factory=dict)
 
 
 DriverFn = Callable[[ComputerUseAction], Awaitable[Any]]
-VerifierFn = Callable[[ComputerUseAction, Any], Awaitable[Tuple[bool, Dict[str, Any]]]]
+VerifierFn = Callable[[ComputerUseAction, Any], Awaitable[tuple[bool, dict[str, Any]]]]
 
 
 class ComputerUseSkill:
@@ -55,8 +59,8 @@ class ComputerUseSkill:
     DESTRUCTIVE_ACTIONS = frozenset({"click", "type", "drag"})
 
     def __init__(self):
-        self._drivers: Dict[str, DriverFn] = {}
-        self._verifiers: Dict[str, VerifierFn] = {}
+        self._drivers: dict[str, DriverFn] = {}
+        self._verifiers: dict[str, VerifierFn] = {}
 
     def register_driver(self, kind: str, driver: DriverFn) -> None:
         self._drivers[kind] = driver
@@ -68,10 +72,10 @@ class ComputerUseSkill:
         self,
         action: ComputerUseAction,
         *,
-        sandbox_check: Callable[[str, str], Tuple[bool, str]],
+        sandbox_check: Callable[[str, str], tuple[bool, str]],
         capability_grant: bool,
         approval_for_destructive: bool = False,
-        receipt_id: Optional[str] = None,
+        receipt_id: str | None = None,
     ) -> ComputerUseResult:
         if not capability_grant:
             return ComputerUseResult(
@@ -99,17 +103,21 @@ class ComputerUseSkill:
             )
         try:
             output = await driver(action)
-        except BaseException as exc:
+        except Exception as exc:
+            record_degradation("computer_use", exc)
+            logger.debug("Computer-use driver failed for %s: %s", action.kind, exc)
             return ComputerUseResult(
                 ok=False, action=action, failure_reason=f"driver failed: {exc!r}"
             )
         verifier = self._verifiers.get(action.kind)
-        evidence: Dict[str, Any] = {}
+        evidence: dict[str, Any] = {}
         verified = True
         if verifier is not None:
             try:
                 verified, evidence = await verifier(action, output)
-            except BaseException as exc:
+            except Exception as exc:
+                record_degradation("computer_use", exc)
+                logger.debug("Computer-use verifier failed for %s: %s", action.kind, exc)
                 return ComputerUseResult(
                     ok=False,
                     action=action,

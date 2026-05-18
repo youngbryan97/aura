@@ -42,22 +42,26 @@ combination.
 """
 from __future__ import annotations
 
+import logging
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any
 
 from core.grounding.grounding_kernel import GroundingKernel, GroundingObservation
 from core.grounding.semiotic_network import SemioticNetwork
 from core.grounding.types import GroundingEvent, new_id
 from core.plasticity.plastic_adapter import GroundingPlasticAdapter
 from core.plasticity.semantic_weight_governor import (
-    PlasticityDecision,
     SemanticWeightGovernor,
 )
+from core.runtime.errors import record_degradation
 from core.runtime.prediction_ledger import PredictionLedger
 from core.runtime.receipts import (
     SemanticWeightUpdateReceipt,
     get_receipt_store,
 )
+
+logger = logging.getLogger(__name__)
 
 
 # Will-decision contract: callers inject a function with this shape.
@@ -66,7 +70,7 @@ from core.runtime.receipts import (
 # wires this to UnifiedWill.decide(); tests pass in stubs.
 WillDecideCallable = Callable[
     [str, str, float],  # (domain_str, module_name, reward)
-    Dict[str, Any],     # {"outcome": str, "reason": str, ...}
+    dict[str, Any],     # {"outcome": str, "reason": str, ...}
 ]
 
 
@@ -78,10 +82,10 @@ class GroundingService:
         data_dir: Path,
         *,
         feature_dim: int = 128,
-        ledger: Optional[PredictionLedger] = None,
-        plastic_adapter: Optional[GroundingPlasticAdapter] = None,
-        governor: Optional[SemanticWeightGovernor] = None,
-        will_decide_fn: Optional[WillDecideCallable] = None,
+        ledger: PredictionLedger | None = None,
+        plastic_adapter: GroundingPlasticAdapter | None = None,
+        governor: SemanticWeightGovernor | None = None,
+        will_decide_fn: WillDecideCallable | None = None,
         emit_receipts: bool = True,
     ):
         data_dir = Path(data_dir)
@@ -95,7 +99,7 @@ class GroundingService:
         self.emit_receipts = bool(emit_receipts)
         # Pending predictions: prediction_id -> context needed to apply a
         # plastic update on confirmation.
-        self._pending: Dict[str, Dict[str, Any]] = {}
+        self._pending: dict[str, dict[str, Any]] = {}
         # Register the default text method on the network.
         self.network.register_method(self.kernel.default_text_method())
 
@@ -108,7 +112,7 @@ class GroundingService:
         modality: str = "text",
         confirmed: bool = True,
         source: str = "user",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         obs = GroundingObservation(
             symbol=symbol,
             modality=modality,
@@ -162,7 +166,7 @@ class GroundingService:
         symbol: str,
         raw: str,
         modality: str = "text",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         obs = GroundingObservation(symbol=symbol, modality=modality, raw=raw)
         evidence = self.kernel.encode(obs)
         # Run features through the plastic adapter when one is wired —
@@ -237,7 +241,7 @@ class GroundingService:
         curiosity: float = 0.5,
         arousal: float = 0.5,
         free_energy: float = 0.0,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Resolve, compute reward, route through governor, update adapter.
 
         The vitality/curiosity/arousal/free_energy parameters are the
@@ -252,7 +256,7 @@ class GroundingService:
         )
 
         ctx = self._pending.pop(prediction_id, None)
-        out: Dict[str, Any] = {
+        out: dict[str, Any] = {
             "prediction_id": prediction_id,
             "brier": record.brier,
             "error": record.error,
@@ -278,7 +282,7 @@ class GroundingService:
         # ---- 1. runtime Will gate (when wired) -----------------
         will_outcome = "proceed"
         will_reason = ""
-        will_receipt_id: Optional[str] = None
+        will_receipt_id: str | None = None
         if self.will_decide_fn is not None:
             try:
                 will_decision = self.will_decide_fn(
@@ -290,6 +294,8 @@ class GroundingService:
             except Exception as e:
                 # Fail-closed: if the Will errors we treat the update
                 # as refused rather than silently bypassing it.
+                record_degradation("grounding_service", e)
+                logger.debug("Grounding Will decision failed: %s", e)
                 will_outcome = "refuse"
                 will_reason = f"will_decide_raised:{type(e).__name__}"
 
@@ -308,13 +314,15 @@ class GroundingService:
             from core.will import is_plastic_target_allowed
 
             target_allowed = is_plastic_target_allowed(self.PLASTIC_MODULE_NAME)
-        except Exception:
+        except Exception as exc:
+            record_degradation("grounding_service", exc)
+            logger.debug("Grounding plastic target allow-list lookup failed: %s", exc)
             target_allowed = True  # be lenient if Will isn't importable
 
         will_proceed = will_outcome == "proceed"
         update_allowed = will_proceed and decision.allowed and target_allowed
 
-        update_info: Optional[Dict[str, Any]] = None
+        update_info: dict[str, Any] | None = None
         if update_allowed:
             update_info = self.plastic_adapter.update_from_reward(
                 reward=reward, modulation=decision.modulation
@@ -356,16 +364,17 @@ class GroundingService:
                         governance_receipt_id=will_receipt_id,
                     )
                 )
-            except Exception:
+            except Exception as exc:
                 # Receipt failure must not break the learning loop.
-                pass
+                record_degradation("grounding_service", exc)
+                logger.debug("Grounding semantic weight receipt emission failed: %s", exc)
 
         return out
 
     # ------------------------------------------------------------------
     # introspection helpers
     # ------------------------------------------------------------------
-    def pending_prediction_ids(self) -> List[str]:
+    def pending_prediction_ids(self) -> list[str]:
         return list(self._pending.keys())
 
     def has_plastic_loop(self) -> bool:
