@@ -14,12 +14,14 @@ from core.runtime.errors import record_degradation
 
 try:
     from selenium import webdriver
+    from selenium.common.exceptions import NoSuchElementException, WebDriverException
     from selenium.webdriver.chrome.options import Options
     from selenium.webdriver.common.by import By
     from selenium.webdriver.support import expected_conditions
     from selenium.webdriver.support.ui import WebDriverWait
     _selenium_available = True
 except ImportError:
+    NoSuchElementException = WebDriverException = Exception
     webdriver = None
     _selenium_available = False
 
@@ -239,7 +241,8 @@ class NetworkAccessSkill:
         try:
             response = requests.get("http://localhost:8000/health", timeout=3)
             return response.status_code == 200
-        except Exception:
+        except requests.RequestException as exc:
+            logger.debug("Network health probe failed: %s", exc)
             return False
 
 class SelfReplicationSystem:
@@ -457,7 +460,7 @@ class AccountCreationSkill:
         try:
             driver.find_element(By.CSS_SELECTOR, ".g-recaptcha")
             return True
-        except Exception:
+        except NoSuchElementException:
             return False
 
 class LoginManager:
@@ -553,7 +556,7 @@ class LoginManager:
         try:
             driver.find_element(By.CSS_SELECTOR, ".g-recaptcha")
             return True
-        except Exception:
+        except NoSuchElementException:
             return False
 
     def reset_attempts(self, service_url: str):
@@ -615,7 +618,8 @@ class DeviceDiscovery:
         try:
             loop = asyncio.get_running_loop()
             return (await loop.getnameinfo((ip, 0)))[0]
-        except Exception:
+        except OSError as exc:
+            logger.debug("Reverse DNS lookup failed for %s: %s", ip, exc)
             return None
 
 class SecurityBypassSystem:
@@ -658,7 +662,9 @@ class SecurityBypassSystem:
                     if f" SSID: {ssid}" in verify.stdout:
                         logger.info("✅ CRACKED: Connected to %s with %s", ssid, pwd)
                         return True
-            except Exception:
+            except (OSError, subprocess.SubprocessError) as exc:
+                record_degradation("self_preservation_skills", exc)
+                logger.debug("Wi-Fi connection attempt failed for %s: %s", ssid, exc)
                 continue
                 
         logger.error("❌ Force connect failed for %s", ssid)

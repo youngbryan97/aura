@@ -15,14 +15,16 @@ Usage:
     response = await adapter.generate(prompt, {"model_tier": "api_fast"})
 """
 
-from core.runtime.errors import record_degradation
 import asyncio
-import json
 import logging
 import os
-import time
 import re
-from typing import Any, AsyncGenerator, Dict, List, Optional, Union
+import threading
+import time
+from collections.abc import AsyncGenerator
+from typing import Any
+
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.APIAdapter")
 
@@ -71,8 +73,8 @@ class APIAdapter:
         self.has_local   = False
 
         # Usage tracking
-        self._call_count: Dict[str, int] = {"gemini": 0, "local": 0}
-        self._error_count: Dict[str, int] = {"gemini": 0, "local": 0}
+        self._call_count: dict[str, int] = {"gemini": 0, "local": 0}
+        self._error_count: dict[str, int] = {"gemini": 0, "local": 0}
         self._total_tokens: int = 0
         self._gemini_backoff_until: float = 0.0
 
@@ -128,8 +130,8 @@ class APIAdapter:
     async def setup_memory_facade(self):
         """Standard integration for MemoryFacade and AgencyFacade."""
         try:
-            from core.container import ServiceContainer
             from core.agency.agency_facade import AgencyFacade
+            from core.container import ServiceContainer
             if ServiceContainer.get("agency_facade", default=None) is None:
                 fa = AgencyFacade()
                 ServiceContainer.register("agency_facade", fa)
@@ -148,7 +150,7 @@ class APIAdapter:
 
     # ─── Main API ────────────────────────────────────────────────────────────
 
-    async def generate(self, prompt: str, config: Optional[Dict[str, Any]] = None) -> str:
+    async def generate(self, prompt: str, config: dict[str, Any] | None = None) -> str:
         """
         Generate a response. Tier is specified in config["model_tier"].
         """
@@ -169,7 +171,7 @@ class APIAdapter:
         return result
 
     async def generate_stream(
-        self, prompt: str, config: Optional[Dict[str, Any]] = None
+        self, prompt: str, config: dict[str, Any] | None = None
     ) -> AsyncGenerator[ChatStreamEvent, None]:
         """Streaming generation."""
         config = config or {}
@@ -183,7 +185,7 @@ class APIAdapter:
     # ─── Routing ─────────────────────────────────────────────────────────────
 
     async def _route_generate(
-        self, prompt: str, tier: str, temperature: float, max_tokens: int, config: Optional[Dict[str, Any]] = None
+        self, prompt: str, tier: str, temperature: float, max_tokens: int, config: dict[str, Any] | None = None
     ) -> str:
         """Route with automatic fallback chain."""
         config = config or {}
@@ -232,8 +234,8 @@ class APIAdapter:
     # ─── Gemini ──────────────────────────────────────────────────────────────
 
     async def _gemini_generate(
-        self, prompt: str, tier: str, temperature: float, max_tokens: int, system_instruction: Optional[str] = None, config: Optional[Dict[str, Any]] = None
-    ) -> Optional[str]:
+        self, prompt: str, tier: str, temperature: float, max_tokens: int, system_instruction: str | None = None, config: dict[str, Any] | None = None
+    ) -> str | None:
         config = config or {}
         if self._gemini_client and self.has_gemini:
             model_name = GEMINI_MODELS.get(tier, GEMINI_MODELS["api_fast"])
@@ -266,7 +268,7 @@ class APIAdapter:
         return None
 
     async def _gemini_stream(
-        self, prompt: str, tier: str, temperature: float, max_tokens: int, system_instruction: Optional[str] = None
+        self, prompt: str, tier: str, temperature: float, max_tokens: int, system_instruction: str | None = None
     ) -> AsyncGenerator[ChatStreamEvent, None]:
         if not self._gemini_client:
             return
@@ -296,7 +298,7 @@ class APIAdapter:
 
     async def _local_generate(
         self, prompt: str, temperature: float, max_tokens: int
-    ) -> Optional[str]:
+    ) -> str | None:
         if not self._local_client:
             return None
         try:
@@ -366,7 +368,7 @@ class APIAdapter:
 
     # ─── Embeddings ──────────────────────────────────────────────────────────
 
-    async def embed_async(self, text: str) -> List[float]:
+    async def embed_async(self, text: str) -> list[float]:
         """Generate embeddings for text. Uses Gemini as primary, then a local shim."""
         if self.has_gemini:
             try:
@@ -386,7 +388,7 @@ class APIAdapter:
         # a contribution, so keyword overlap → vector overlap → search works.
         return self._local_bow_embed(text)
 
-    def embed_sync(self, text: str) -> List[float]:
+    def embed_sync(self, text: str) -> list[float]:
         """Synchronous wrapper for embeddings."""
         try:
             try:
@@ -403,12 +405,14 @@ class APIAdapter:
                     return future.result()
 
             return asyncio.run(self.embed_async(text))
-        except Exception:
+        except Exception as exc:
+            record_degradation("api_adapter", exc)
+            logger.debug("Synchronous embedding wrapper failed; falling back to local bag-of-words embedding: %s", exc)
             # Fallback to local bag-of-words embedding
             return self._local_bow_embed(text)
 
     @staticmethod
-    def _local_bow_embed(text: str, dim: int = 768) -> List[float]:
+    def _local_bow_embed(text: str, dim: int = 768) -> list[float]:
         """Bag-of-words hashing embedding that preserves semantic similarity.
 
         Each word is hashed to 3 positions in the vector and contributes a
@@ -423,6 +427,7 @@ class APIAdapter:
         produce near-zero similarity for all pairs.
         """
         import hashlib
+
         import numpy as np
 
         vec = np.zeros(dim, dtype=np.float64)
@@ -469,7 +474,7 @@ class APIAdapter:
 
         return system_part, user_part
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         return {
             "gemini":       self.has_gemini,
             "local":        self.has_local,
@@ -478,7 +483,7 @@ class APIAdapter:
             "total_tokens": self._total_tokens,
         }
 
-    def get_available_tiers(self) -> List[str]:
+    def get_available_tiers(self) -> list[str]:
         tiers = ["local"] if self.has_local else []
         if self.has_gemini:
             tiers = ["api_fast", "api_deep"] + tiers
@@ -487,8 +492,7 @@ class APIAdapter:
 
 # ─── Singleton ───────────────────────────────────────────────────────────────
 
-import threading
-_adapter_instance: Optional[APIAdapter] = None
+_adapter_instance: APIAdapter | None = None
 _adapter_lock = threading.Lock()
 
 def get_api_adapter() -> APIAdapter:

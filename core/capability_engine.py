@@ -1,18 +1,20 @@
-from core.runtime.errors import record_degradation
-from core.utils.task_tracker import get_task_tracker
 import asyncio
 import importlib
 import inspect
-import logging
 import os
+import re
+import shutil
+import subprocess
 import sys
 import time
-import shutil
-import re
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Union, Callable, Tuple, Type
-import subprocess
+from typing import Any
+
 import requests
+
+from core.runtime.errors import record_degradation
+from core.utils.task_tracker import get_task_tracker
 
 try:
     from RestrictedPython import compile_restricted, safe_builtins, utility_builtins
@@ -22,11 +24,16 @@ except ImportError:
     RESTRICTED_AVAILABLE = False
 
 try:
-    from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+    from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 except ImportError:
     # Use fallback from retry_compat if available, otherwise NO-OP
     try:
-        from core.brain.llm.retry_compat import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+        from core.brain.llm.retry_compat import (
+            retry,
+            retry_if_exception_type,
+            stop_after_attempt,
+            wait_exponential,
+        )
     except ImportError:
         def retry(*args, **kwargs):
             return lambda f: f
@@ -43,10 +50,14 @@ except ImportError:
     class CircuitBreaker:
         def __init__(self, *args, **kwargs):
             return None
-        def __call__(self, f): return f
-    class CircuitBreakerError(Exception): pass
 
-from pydantic import BaseModel, Field, ConfigDict
+        def __call__(self, f):
+            return f
+
+    class CircuitBreakerError(Exception):
+        """Fallback circuit-breaker exception when pybreaker is unavailable."""
+
+from pydantic import BaseModel, ConfigDict, Field
 
 from core.base_module import AuraBaseModule
 from core.config import config
@@ -59,7 +70,6 @@ from core.runtime.service_access import (
     resolve_state_repository,
 )
 from core.utils.intent_normalization import normalize_memory_intent_text
-import psutil
 
 _USER_FACING_CONTEXT_ORIGINS = frozenset({
     "user", "voice", "admin", "api", "gui", "ws", "websocket", "direct", "external",
@@ -124,12 +134,12 @@ def _humanize_skill_name(name: str) -> str:
     return re.sub(r"\s+", " ", split_camel.replace("_", " ")).strip().lower()
 
 
-def _generic_skill_invocation_patterns(name: str) -> List[str]:
+def _generic_skill_invocation_patterns(name: str) -> list[str]:
     variants = {
         str(name or "").strip().lower(),
         _humanize_skill_name(name),
     }
-    patterns: List[str] = []
+    patterns: list[str] = []
     for variant in sorted(part for part in variants if part):
         escaped = re.escape(variant).replace(r"\ ", r"\s+")
         standalone = rf"(?<![\w-]){escaped}(?![\w-])"
@@ -149,11 +159,11 @@ def _skill_class_name(name: str) -> str:
 
 class SkillRequirements(BaseModel):
     """System and package requirements for a skill."""
-    packages: List[str] = Field(default_factory=list)
-    commands: List[str] = Field(default_factory=list)
-    supported_platforms: List[str] = Field(default_factory=lambda: ["linux", "darwin", "win32"])
+    packages: list[str] = Field(default_factory=list)
+    commands: list[str] = Field(default_factory=list)
+    supported_platforms: list[str] = Field(default_factory=lambda: ["linux", "darwin", "win32"])
     
-    def check(self) -> Tuple[bool, List[str]]:
+    def check(self) -> tuple[bool, list[str]]:
         """Verifies if all requirements are met."""
         errors = []
         from core.container import ServiceContainer
@@ -173,16 +183,16 @@ class SkillMetadata(BaseModel):
 
     name: str
     description: str
-    skill_class: Optional[Any] = None
+    skill_class: Any | None = None
     requirements: SkillRequirements = Field(default_factory=SkillRequirements)
     enabled: bool = True
-    input_model: Optional[Any] = None
-    module_path: Optional[str] = None
-    class_name: Optional[str] = None
-    instance: Optional[Any] = None
+    input_model: Any | None = None
+    module_path: str | None = None
+    class_name: str | None = None
+    instance: Any | None = None
     metabolic_cost: int = 1
     is_core_personality: bool = False
-    trigger_patterns: List[str] = Field(default_factory=list)
+    trigger_patterns: list[str] = Field(default_factory=list)
     
     # 2026 Transcendence Fields
     execution_profile: str = "cpu" # cpu, gpu, neural
@@ -191,7 +201,7 @@ class SkillMetadata(BaseModel):
     memory_mb_estimate: int = 256
     
     @property
-    def schema_def(self) -> Dict[str, Any]:
+    def schema_def(self) -> dict[str, Any]:
         """Returns the JSON schema for the skill's input model."""
         if self.input_model and hasattr(self.input_model, 'model_json_schema'):
             return self.input_model.model_json_schema()
@@ -201,7 +211,7 @@ class SkillMetadata(BaseModel):
             "required": []
         }
 
-    def to_json_schema(self) -> Dict[str, Any]:
+    def to_json_schema(self) -> dict[str, Any]:
         """Returns the OpenAI-compatible function definition for this skill."""
         return {
             "name": self.name,
@@ -209,13 +219,12 @@ class SkillMetadata(BaseModel):
             "parameters": self.schema_def
         }
 
-    async def extract_and_validate_args(self, params_raw: str, llm: Any) -> Dict[str, Any]:
+    async def extract_and_validate_args(self, params_raw: str, llm: Any) -> dict[str, Any]:
         """Validates raw JSON parameters against the skill's input model.
         
         If input_model is missing, returns the raw params.
         """
         import json
-        import ast
         
         # Input validation logic remains here, but AST auditing is moved to registration
 
@@ -235,17 +244,18 @@ class SkillMetadata(BaseModel):
             return {"raw_params": params_raw, "_error": str(e)}
 
 class Shell:
-    def __init__(self, cwd: str, allowed_commands: Optional[List[str]] = None, timeout: int = 30):
+    def __init__(self, cwd: str, allowed_commands: list[str] | None = None, timeout: int = 30):
         self.cwd = cwd
         self.allowed_commands = allowed_commands or []
         self.timeout = timeout
 
-    def _is_allowed(self, cmd: List[str]) -> bool:
-        if not self.allowed_commands: return True
+    def _is_allowed(self, cmd: list[str]) -> bool:
+        if not self.allowed_commands:
+            return True
         base_cmd = cmd[0]
         return any(base_cmd == allowed or base_cmd.endswith("/" + allowed) for allowed in self.allowed_commands)
 
-    async def run(self, cmd: List[str]) -> Tuple[bool, str]:
+    async def run(self, cmd: list[str]) -> tuple[bool, str]:
         if not self._is_allowed(cmd):
             return False, f"Command {cmd[0]} not in allowlist"
         auth = None
@@ -297,17 +307,18 @@ class Shell:
             return False, str(e)
 
 class WebClient:
-    def __init__(self, allowed_domains: Optional[List[str]] = None, timeout: int = 10):
+    def __init__(self, allowed_domains: list[str] | None = None, timeout: int = 10):
         self.allowed_domains = allowed_domains or []
         self.timeout = timeout
 
     def _is_allowed(self, url: str) -> bool:
-        if not self.allowed_domains: return True
+        if not self.allowed_domains:
+            return True
         from urllib.parse import urlparse
         domain = urlparse(url).netloc
         return any(domain == d or domain.endswith("." + d) for d in self.allowed_domains)
 
-    async def get(self, url: str, headers: Optional[Dict[str, str]] = None) -> Tuple[bool, str]:
+    async def get(self, url: str, headers: dict[str, str] | None = None) -> tuple[bool, str]:
         if not self._is_allowed(url):
             return False, f"Domain not in allowlist: {url}"
         auth = None
@@ -359,7 +370,6 @@ class WebClient:
 class Sandbox2:
     """Secure sandbox for executing untrusted/forged code."""
     def __init__(self, logger: Any):
-        import logging
         self.logger = logger
 
         # RestrictedPython requires safe builtins to be under '__builtins__'
@@ -375,7 +385,7 @@ class Sandbox2:
             '_write_': lambda obj: obj,
         }
         
-    def execute(self, code: str, func_name: str, params: Dict[str, Any]) -> Any:
+    def execute(self, code: str, func_name: str, params: dict[str, Any]) -> Any:
         if not RESTRICTED_AVAILABLE:
              raise ImportError("RestrictedPython not installed. Cannot run sandbox.")
         
@@ -407,8 +417,8 @@ class CapabilityEngine(AuraBaseModule):
         """
         super().__init__("CapabilityEngine")
         self.orchestrator = orchestrator
-        self.skills: Dict[str, SkillMetadata] = {}
-        self.instances: Dict[str, Any] = {}
+        self.skills: dict[str, SkillMetadata] = {}
+        self.instances: dict[str, Any] = {}
         self._explicitly_deactivated_skills: set[str] = set()
         self.active_skills: set = {
             # Core routing
@@ -442,9 +452,9 @@ class CapabilityEngine(AuraBaseModule):
             "dream_sleep", "force_dream_cycle", "test_generator",
             "free_search", "uplink_local",
         } # ALL skills active — Aura is fully sovereign
-        self.skill_awoken_times: Dict[str, float] = {}
-        self.skill_states: Dict[str, str] = {} # READY, RUNNING, ERROR
-        self.skill_last_errors: Dict[str, str] = {}
+        self.skill_awoken_times: dict[str, float] = {}
+        self.skill_states: dict[str, str] = {} # READY, RUNNING, ERROR
+        self.skill_last_errors: dict[str, str] = {}
         
         # Execution Config
         self.max_retries = 3
@@ -683,13 +693,14 @@ class CapabilityEngine(AuraBaseModule):
                 if pattern not in meta.trigger_patterns:
                     meta.trigger_patterns.append(pattern)
 
-    def detect_intent(self, message: str) -> List[str]:
+    def detect_intent(self, message: str) -> list[str]:
         """Aura's 'Cognitive Proprioception': Detects which skills match the user's intent."""
         triggered = []
         msg = normalize_memory_intent_text(message)
         skip_web_search = self._looks_like_search_capability_question(message)
         for name, meta in self.skills.items():
-            if not meta.enabled: continue
+            if not meta.enabled:
+                continue
             canonical_name = self.resolve_skill_name(name)
             if skip_web_search and canonical_name in {"web_search", "search_web", "free_search", "grounded_search", "sovereign_browser"}:
                 continue
@@ -730,11 +741,11 @@ class CapabilityEngine(AuraBaseModule):
         self,
         *,
         objective: str = "",
-        required_skill: Optional[str] = None,
-        matched_skills: Optional[Iterable[str]] = None,
+        required_skill: str | None = None,
+        matched_skills: Iterable[str] | None = None,
         max_tools: int = 8,
         available_only: bool = False,
-    ) -> List[str]:
+    ) -> list[str]:
         """Return relevant tool names for the current turn, ranked by likely utility."""
         max_tools = max(1, min(int(max_tools or 8), 16))
         objective_text = str(objective or "").strip()
@@ -760,7 +771,7 @@ class CapabilityEngine(AuraBaseModule):
                 continue
             matched.append(resolved)
 
-        heuristic_candidates: List[str] = []
+        heuristic_candidates: list[str] = []
         heuristic_rules = (
             (("latest", "news", "price", "search", "look up", "find online"), ("web_search", "search_web", "free_search", "grounded_search")),
             (("remember", "recall", "memory", "future sessions"), ("memory_ops", "memory_sync")),
@@ -778,9 +789,9 @@ class CapabilityEngine(AuraBaseModule):
             if any(token in objective_lower for token in tokens):
                 heuristic_candidates.extend(names)
 
-        ordered: List[str] = []
+        ordered: list[str] = []
 
-        def _push(name: Optional[str]) -> None:
+        def _push(name: str | None) -> None:
             if not name:
                 return
             resolved = self.resolve_skill_name(name)
@@ -828,9 +839,9 @@ class CapabilityEngine(AuraBaseModule):
         self,
         *,
         objective: str = "",
-        required_skill: Optional[str] = None,
+        required_skill: str | None = None,
         max_tools: int = 8,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Return a bounded, relevance-ranked tool subset for agentic LLM calls.
 
@@ -906,13 +917,15 @@ class CapabilityEngine(AuraBaseModule):
         ]
         
         for s_dir, module_prefix in skill_paths:
-            if not s_dir.exists(): continue
+            if not s_dir.exists():
+                continue
             for filename in os.listdir(s_dir):
-                if not filename.endswith(".py") or filename.startswith("_"): continue
+                if not filename.endswith(".py") or filename.startswith("_"):
+                    continue
                 
                 try:
                     path = s_dir / filename
-                    with open(path, "r", encoding="utf-8") as f:
+                    with open(path, encoding="utf-8") as f:
                         tree = ast.parse(f.read())
                     
                     for node in ast.walk(tree):
@@ -1000,6 +1013,7 @@ class CapabilityEngine(AuraBaseModule):
         self.skills[skill_name] = SkillMetadata(
             name=skill_name,
             description=description,
+            requirements=requirements,
             input_model=input_model,
             instance=instance,
             metabolic_cost=metabolic_cost,
@@ -1067,7 +1081,7 @@ class CapabilityEngine(AuraBaseModule):
             "timestamp": time.time()
         })
 
-    def get_available_skills(self) -> List[str]:
+    def get_available_skills(self) -> list[str]:
         """Returns a list of all registered skill names."""
         return list(self.skills.keys())
 
@@ -1105,7 +1119,9 @@ class CapabilityEngine(AuraBaseModule):
                 continue
             try:
                 return "async" if inspect.iscoroutinefunction(fn) else "sync"
-            except Exception:
+            except Exception as exc:
+                record_degradation("capability_engine", exc)
+                self.logger.debug("Unable to classify route for skill %s attr %s: %s", meta.name, attr, exc)
                 continue
         return "managed_async"
 
@@ -1154,8 +1170,8 @@ class CapabilityEngine(AuraBaseModule):
             return f"use {skill_name} to {description[:80].lower()}"
         return f"use {skill_name} when its capability is needed"
 
-    def get_tool_catalog(self, *, include_inactive: bool = True) -> List[Dict[str, Any]]:
-        catalog: List[Dict[str, Any]] = []
+    def get_tool_catalog(self, *, include_inactive: bool = True) -> list[dict[str, Any]]:
+        catalog: list[dict[str, Any]] = []
         for skill_name, meta in self.skills.items():
             if not meta.enabled and not include_inactive:
                 continue
@@ -1210,9 +1226,9 @@ class CapabilityEngine(AuraBaseModule):
         )
         return catalog
 
-    def get_catalog(self, *, include_inactive: bool = True) -> Dict[str, Dict[str, Any]]:
+    def get_catalog(self, *, include_inactive: bool = True) -> dict[str, dict[str, Any]]:
         """Legacy compatibility wrapper expected by older response guards."""
-        catalog: Dict[str, Dict[str, Any]] = {}
+        catalog: dict[str, dict[str, Any]] = {}
         for tool in self.get_tool_catalog(include_inactive=include_inactive):
             name = str(tool.get("name") or "")
             if not name:
@@ -1231,7 +1247,7 @@ class CapabilityEngine(AuraBaseModule):
         self,
         *,
         objective: str = "",
-        matched_skills: Optional[Iterable[str]] = None,
+        matched_skills: Iterable[str] | None = None,
         max_available: int = 16,
         max_unavailable: int = 8,
         compact: bool = False,
@@ -1296,12 +1312,12 @@ class CapabilityEngine(AuraBaseModule):
             )
         return "\n".join(lines)
 
-    def get(self, skill_name: str) -> Optional[SkillMetadata]:
+    def get(self, skill_name: str) -> SkillMetadata | None:
         """Retrieves metadata for a specific skill (resolves aliases)."""
         skill_name = self.resolve_skill_name(skill_name)
         return self.skills.get(skill_name)
 
-    def get_tool_definitions(self) -> List[Dict[str, Any]]:
+    def get_tool_definitions(self) -> list[dict[str, Any]]:
         """Generates OpenAI-compatible tool definitions for LLM function calling.
         
         Returns:
@@ -1341,10 +1357,12 @@ class CapabilityEngine(AuraBaseModule):
             
         tools = []
         for skill_name, meta in self.skills.items():
-            if not meta.enabled: continue
+            if not meta.enabled:
+                continue
             
             # 1. Check if explicitly active
-            if skill_name not in self.active_skills: continue
+            if skill_name not in self.active_skills:
+                continue
             
             # 2. Check Metabolic Limit (Immune if core_personality)
             cost = meta.metabolic_cost
@@ -1379,12 +1397,12 @@ class CapabilityEngine(AuraBaseModule):
         is only allowed for explicit user request or metabolic emergency."""
         name = self.resolve_skill_name(name)
         # Never sleep core tools under any circumstance
-        NEVER_SLEEP = {
+        never_sleep = {
             "ManageAbilities", "talk", "FinalResponse", "web_search", "sovereign_browser",
             "sovereign_terminal", "system_proprioception", "file_operation", "memory_ops",
             "speak", "clock", "sovereign_network",
         }
-        if name in NEVER_SLEEP:
+        if name in never_sleep:
             return False
         if name in self.active_skills:
             self.active_skills.remove(name)
@@ -1435,7 +1453,7 @@ class CapabilityEngine(AuraBaseModule):
             return False
         return bool(_SEARCH_CAPABILITY_QUESTION_RE.search(raw))
 
-    def _resolve_execution_source(self, context: Optional[Dict[str, Any]]) -> str:
+    def _resolve_execution_source(self, context: dict[str, Any] | None) -> str:
         ctx = context or {}
         for key in ("intent_source", "request_origin", "origin", "source"):
             candidate = self._normalize_context_origin(ctx.get(key))
@@ -1449,7 +1467,7 @@ class CapabilityEngine(AuraBaseModule):
             return self._normalize_context_origin(state_origin)
         return "capability_engine"
 
-    def _augment_execution_context(self, context: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    def _augment_execution_context(self, context: dict[str, Any] | None) -> dict[str, Any]:
         ctx = dict(context or {})
         orchestrator = (
             ctx.get("orchestrator")
@@ -1512,7 +1530,7 @@ class CapabilityEngine(AuraBaseModule):
         return ctx
 
     @staticmethod
-    def _looks_like_unbounded_compute_request(params: Dict[str, Any], context: Optional[Dict[str, Any]]) -> bool:
+    def _looks_like_unbounded_compute_request(params: dict[str, Any], context: dict[str, Any] | None) -> bool:
         ctx = context or {}
         declared = str(ctx.get("resource_intensity", "") or params.get("resource_intensity", "")).strip().lower()
         if declared in {"unbounded", "extreme", "max", "stress"}:
@@ -1543,12 +1561,12 @@ class CapabilityEngine(AuraBaseModule):
         return any(marker in text for marker in risk_markers)
 
     # Skill name aliases — maps legacy/alternate names to actual registered skill names
-    SKILL_ALIASES: Dict[str, str] = {
+    SKILL_ALIASES: dict[str, str] = {
         "generate_image": "sovereign_imagination",
     }
 
     @staticmethod
-    def _normalize_execution_params(params: Dict[str, Any]) -> Dict[str, Any]:
+    def _normalize_execution_params(params: dict[str, Any]) -> dict[str, Any]:
         normalized = dict(params or {})
         if "params" in normalized and isinstance(normalized["params"], dict):
             nested_params = dict(normalized["params"])
@@ -1559,7 +1577,7 @@ class CapabilityEngine(AuraBaseModule):
         return normalized
 
     @staticmethod
-    def _apply_executive_constraints(ctx: Dict[str, Any]) -> Dict[str, Any]:
+    def _apply_executive_constraints(ctx: dict[str, Any]) -> dict[str, Any]:
         constraints = dict(ctx.get("executive_constraints", {}) or {})
         if not constraints:
             return ctx
@@ -1585,8 +1603,8 @@ class CapabilityEngine(AuraBaseModule):
 
         return ctx
 
-    async def execute(self, skill_name: str, params: Dict[str, Any],
-                      context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    async def execute(self, skill_name: str, params: dict[str, Any],
+                      context: dict[str, Any] | None = None) -> dict[str, Any]:
         """Safe execution wrapper with adaptivity, security, and retries."""
 
         # Resolve compatibility aliases without collapsing real registered skills.
@@ -1601,7 +1619,7 @@ class CapabilityEngine(AuraBaseModule):
 
         constitution = None
         tool_handle = None
-        result: Optional[Dict[str, Any]] = None
+        result: dict[str, Any] | None = None
 
         @self.error_boundary
         async def _execute_wrapped():
@@ -1820,8 +1838,10 @@ class CapabilityEngine(AuraBaseModule):
             if edi and hasattr(edi, "can_do"):
                 # Infer risk level: > 2 cost is high risk, system mutations are critical
                 risk = "low"
-                if meta.metabolic_cost >= 3: risk = "high"
-                if skill_name in ["run_bash_command", "self_modify", "manage_abilities"]: risk = "critical"
+                if meta.metabolic_cost >= 3:
+                    risk = "high"
+                if skill_name in ["run_bash_command", "self_modify", "manage_abilities"]:
+                    risk = "critical"
                 
                 allowed, reason = edi.can_do(skill_name, risk_level=risk)
                 if not allowed:
@@ -1833,7 +1853,7 @@ class CapabilityEngine(AuraBaseModule):
             if is_forged and self.sandbox:
                 self.logger.info("🛡️ Executing FORGED skill '%s' in Sandbox 2.0", skill_name)
                 try:
-                    code = Path(meta.module_path).read_text()
+                    code = await asyncio.to_thread(Path(meta.module_path).read_text, encoding="utf-8")
                     # Run in executor to be non-blocking
                     result = await asyncio.get_running_loop().run_in_executor(
                         None, 
@@ -1864,9 +1884,12 @@ class CapabilityEngine(AuraBaseModule):
             try:
                 rt = CoreRuntime.get_sync()
                 gov = rt.container.get("memory_governor")
-                if gov: gov.check()
+                if gov:
+                    gov.check()
                 orm = rt.container.get("persistent_state")
-            except Exception: 
+            except Exception as exc:
+                record_degradation("capability_engine", exc)
+                self.logger.debug("Core runtime memory governance unavailable: %s", exc)
                 rt = None
                 orm = None
 
@@ -2050,18 +2073,18 @@ class CapabilityEngine(AuraBaseModule):
                 record_degradation('capability_engine', _exc)
                 self.logger.debug("Suppressed Exception: %s", _exc)
 
-    def _apply_security(self, skill_name: str, params: Dict[str, Any]) -> Union[Dict[str, Any], Dict[str, str]]:
+    def _apply_security(self, skill_name: str, params: dict[str, Any]) -> dict[str, Any] | dict[str, str]:
         """Issue 54: Scoped security adaptation for skill parameters."""
         if not self.rosetta_stone:
             return params
             
         # Issue 54: Only check keys in COMMAND_PARAM_KEYS to avoid security false positives
-        COMMAND_PARAM_KEYS = {"command", "cmd", "path", "url", "target", "script"}
+        command_param_keys = {"command", "cmd", "path", "url", "target", "script"}
         
-        def scan_recursive(val: Any, key: Optional[str] = None) -> Tuple[bool, Any, Optional[str]]:
+        def scan_recursive(val: Any, key: str | None = None) -> tuple[bool, Any, str | None]:
             if isinstance(val, str):
                 # Issue 54: Limit security scanning to relevant parameter names
-                if key and key.lower() not in COMMAND_PARAM_KEYS:
+                if key and key.lower() not in command_param_keys:
                     return True, val, None
                     
                 # Check for common shell injection patterns
@@ -2075,14 +2098,16 @@ class CapabilityEngine(AuraBaseModule):
                 new_dict = {}
                 for k, v in val.items():
                     ok, new_v, err = scan_recursive(v, k)
-                    if not ok: return False, None, err
+                    if not ok:
+                        return False, None, err
                     new_dict[k] = new_v
                 return True, new_dict, None
             elif isinstance(val, list):
                 new_list = []
                 for item in val:
                     ok, new_item, err = scan_recursive(item, key)
-                    if not ok: return False, None, err
+                    if not ok:
+                        return False, None, err
                     new_list.append(new_item)
                 return True, new_list, None
             return True, val, None
@@ -2094,8 +2119,8 @@ class CapabilityEngine(AuraBaseModule):
         
         return filtered_params
 
-    async def _execute_with_retry(self, skill: Any, skill_name: str, params: Dict[str, Any], 
-                                  context: Dict[str, Any]) -> Dict[str, Any]:
+    async def _execute_with_retry(self, skill: Any, skill_name: str, params: dict[str, Any],
+                                  context: dict[str, Any]) -> dict[str, Any]:
         """Executes a skill method with a retry loop for transient failures."""
         last_error = "Unknown"
         attempt = 0
@@ -2105,7 +2130,7 @@ class CapabilityEngine(AuraBaseModule):
                     await asyncio.sleep(self.retry_delay * attempt)
                     self.logger.info("Retrying %s (attempt %s)...", skill_name, attempt+1)
 
-                if hasattr(skill, "safe_execute") and callable(getattr(skill, "safe_execute")):
+                if hasattr(skill, "safe_execute") and callable(skill.safe_execute):
                     output = await asyncio.wait_for(skill.safe_execute(params, context), timeout=self.timeout)
                 else:
                     inputs = self._prepare_inputs(skill, params, context)
@@ -2137,11 +2162,8 @@ class CapabilityEngine(AuraBaseModule):
         
         return {"ok": False, "error": last_error, "retries": attempt}
 
-    async def _call_method(self, skill: Any, inputs: Dict[str, Any]) -> Any:
+    async def _call_method(self, skill: Any, inputs: dict[str, Any]) -> Any:
         """Calls the skill method, handling both sync and async."""
-        # Phase 4 Sandbox check: If this is an external/forged skill, use Sandbox2
-        is_core = getattr(skill, "is_core_personality", False)
-        
         # If the skill is not core and we have source code (forged), we should sandbox it.
         # For simplicity, we assume skills loaded from skilled_dir aren't core.
         
@@ -2153,12 +2175,12 @@ class CapabilityEngine(AuraBaseModule):
         # but for now we focus on FORGED skills which provide source.
         return await asyncio.get_running_loop().run_in_executor(None, lambda: method(**inputs))
 
-    def _prepare_inputs(self, skill: Any, params: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
+    def _prepare_inputs(self, skill: Any, params: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
         """Maps parameters to the skill's expected signature."""
         method = skill.execute if hasattr(skill, "execute") else skill
         sig = inspect.signature(method)
         if "goal" in sig.parameters:
-            goal_payload: Dict[str, Any]
+            goal_payload: dict[str, Any]
             if isinstance(params, dict):
                 goal_payload = dict(params)
                 nested_params = dict(goal_payload.get("params") or {}) if isinstance(goal_payload.get("params"), dict) else {}
@@ -2202,7 +2224,7 @@ class CapabilityEngine(AuraBaseModule):
         """Checks if an error is likely transient (network, timeout, etc)."""
         return any(x in str(err).lower() for x in ["timeout", "network", "retry", "limit"])
 
-    async def _record_temporal(self, action: str, params: Dict[str, Any], context: Dict[str, Any], result: Dict[str, Any]) -> None:
+    async def _record_temporal(self, action: str, params: dict[str, Any], context: dict[str, Any], result: dict[str, Any]) -> None:
         """Records the skill outcome to the Temporal Learning system."""
         try:
             await self.temporal.record_outcome(
@@ -2216,7 +2238,7 @@ class CapabilityEngine(AuraBaseModule):
             record_degradation('capability_engine', e)
             self.logger.debug("Temporal record failed: %s", e)
 
-    def get_health(self) -> Dict[str, Any]:
+    def get_health(self) -> dict[str, Any]:
         """Provides extended health data for the capability system."""
         report = super().get_health()
         report["skills_total"] = len(self.skills)

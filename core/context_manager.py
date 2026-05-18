@@ -3,16 +3,16 @@ Context window budget manager.
 Tracks token usage and prunes the lowest-value content to stay within limits.
 v2.0: Integrated ChatCompressionService for intelligent history management.
 """
-from core.runtime.errors import record_degradation
+import functools
 import logging
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from core.context.chat_compression import (
     ChatCompressionService,
-    CompressionStatus,
     estimate_tokens_for_messages,
 )
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.ContextManager")
 
@@ -38,8 +38,6 @@ DEFAULT_HEADROOM = 0.80
 
 # ── Tokenizer ───────────────────────────────────────────────────────────────
 
-import functools
-
 # Use tiktoken if available, fallback to char count
 try:
     import tiktoken
@@ -57,8 +55,9 @@ def estimate_tokens(text: str) -> int:
     if HAS_TIKTOKEN and _T_ENCODING:
         try:
             return len(_T_ENCODING.encode(text, disallowed_special=()))
-        except Exception:
-            pass  # no-op: intentional
+        except Exception as exc:
+            record_degradation("context_manager", exc)
+            logger.debug("tiktoken estimate failed; falling back to char estimate: %s", exc)
     return max(1, len(text) // 4)
 
 
@@ -104,9 +103,9 @@ class ContextWindowManager:
 
     async def compress_if_needed(
         self,
-        history: List[Dict[str, str]],
+        history: list[dict[str, str]],
         brain: Any = None,
-    ) -> List[Dict[str, str]]:
+    ) -> list[dict[str, str]]:
         """Auto-compress history if it exceeds the threshold.
 
         Args:
@@ -134,11 +133,11 @@ class ContextWindowManager:
     def build_prompt(
         self,
         system: str,
-        history: List[ContextItem],
+        history: list[ContextItem],
         current_message: str,
         memory_context: str = "",
         tool_context: str = "",
-    ) -> Tuple[List[Dict[str, str]], int]:
+    ) -> tuple[list[dict[str, str]], int]:
         """
         Build a prompt list that fits within the token budget.
 
@@ -146,7 +145,7 @@ class ContextWindowManager:
             (messages_list, total_tokens_used)
         """
         budget = self._limit
-        messages: List[Dict[str, str]] = []
+        messages: list[dict[str, str]] = []
 
         # MUST include — these are never dropped
         system_tokens = estimate_tokens(system)
