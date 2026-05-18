@@ -6,14 +6,15 @@ written in Markdown, stored in `~/.aura_knowledge/` by default. They serve as
 immutable or slowly changing foundational guides / playbooks for the agent.
 """
 
+import asyncio
 import json
 import logging
-import os
 import re
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 from core.config import config
+from core.runtime.errors import record_degradation
 from infrastructure import BaseSkill
 
 logger = logging.getLogger("Skills.KnowledgeBase")
@@ -47,21 +48,23 @@ class KnowledgeBaseSkill(BaseSkill):
     def _get_metadata_path(self) -> Path:
         return self.store_dir / "metadata.json"
 
-    def _load_metadata(self) -> Dict[str, Any]:
+    def _load_metadata(self) -> dict[str, Any]:
         meta_path = self._get_metadata_path()
         if meta_path.exists():
             try:
-                with open(meta_path, 'r', encoding='utf-8') as f:
+                with open(meta_path, encoding='utf-8') as f:
                     return json.load(f)
-            except Exception:
+            except Exception as exc:
+                record_degradation("knowledge_base", exc)
+                logger.debug("KnowledgeBase metadata load failed: %s", exc)
                 return {}
         return {}
 
-    def _save_metadata(self, metadata: Dict[str, Any]):
+    def _save_metadata(self, metadata: dict[str, Any]):
         with open(self._get_metadata_path(), 'w', encoding='utf-8') as f:
             json.dump(metadata, f, indent=2)
 
-    async def execute(self, goal: Dict, context: Dict) -> Dict:
+    async def execute(self, goal: dict, context: dict) -> dict:
         params = goal.get("params", {})
         action = params.get("action", "").lower()
 
@@ -77,8 +80,7 @@ class KnowledgeBaseSkill(BaseSkill):
             filepath = self.store_dir / f"{slug}.md"
             
             # Write item
-            with open(filepath, 'w', encoding='utf-8') as f:
-                f.write(f"# {title}\n\n{content}")
+            await asyncio.to_thread(filepath.write_text, f"# {title}\n\n{content}", encoding="utf-8")
                 
             # Update metadata index
             metadata = self._load_metadata()
@@ -101,8 +103,7 @@ class KnowledgeBaseSkill(BaseSkill):
             filepath = self.store_dir / f"{slug}.md"
             
             if filepath.exists():
-                with open(filepath, 'r', encoding='utf-8') as f:
-                    content = f.read()
+                content = await asyncio.to_thread(filepath.read_text, encoding="utf-8")
                 return {"ok": True, "content": content}
             return {"ok": False, "error": f"Knowledge item '{title_or_slug}' not found."}
 
@@ -112,7 +113,7 @@ class KnowledgeBaseSkill(BaseSkill):
             results = []
             
             # Simple keyword search across summaries and titles
-            for slug, info in metadata.items():
+            for _slug, info in metadata.items():
                 if query in info.get("title", "").lower() or query in info.get("summary", "").lower():
                     results.append(info)
             

@@ -2,12 +2,16 @@
 Browser Executor - Secure Playwright-based web automation.
 Handles browser actions with domain allowlisting and rate limiting.
 """
-from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 import logging
 import os
 import time
-from typing import Dict, Any, List, Optional, Set
+from typing import Any
 from urllib.parse import urlparse
+
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
+from playwright.sync_api import sync_playwright
+
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Executors.Browser")
 
@@ -34,7 +38,7 @@ MAX_ACTIONS_PER_SESSION = 200
 DEFAULT_TIMEOUT = 30000  # 30 seconds
 
 
-def _is_domain_allowed(url: str, allowlist: Optional[Set[str]] = None) -> bool:
+def _is_domain_allowed(url: str, allowlist: set[str] | None = None) -> bool:
     """
     Check if domain is in allowlist.
     Retains 'ALLOW_ALL_DOMAINS' global to prevent breaking existing flows,
@@ -63,16 +67,18 @@ def _is_domain_allowed(url: str, allowlist: Optional[Set[str]] = None) -> bool:
                 return True
                 
         return False
-    except Exception:
+    except Exception as exc:
+        record_degradation("browser_executor", exc)
+        logger.debug("Browser domain allowlist check failed for %r: %s", url, exc)
         return False
 
 
 def run_browser_action(
-    action_spec: Dict[str, Any],
+    action_spec: dict[str, Any],
     headless: bool = True,
     timeout: int = DEFAULT_TIMEOUT,
-    allowlist: Optional[Set[str]] = DOMAIN_ALLOWLIST
-) -> Dict[str, Any]:
+    allowlist: set[str] | None = DOMAIN_ALLOWLIST
+) -> dict[str, Any]:
     """
     Execute a browser action spec using Playwright.
     
@@ -99,8 +105,8 @@ def run_browser_action(
         - "detail": str - Error details (if failed)
         - "audit": List[Dict] - Audit trail of all actions
     """
-    audit: List[Dict[str, Any]] = []
-    extracted_results: List[Dict[str, Any]] = []  # v13: Collect results without aborting
+    audit: list[dict[str, Any]] = []
+    extracted_results: list[dict[str, Any]] = []  # v13: Collect results without aborting
     browser = None
     context = None
     page = None
@@ -470,6 +476,6 @@ def remove_allowed_domain(domain: str):
     logger.info(f"Removed domain from allowlist: {domain}")
 
 
-def get_allowed_domains() -> Set[str]:
+def get_allowed_domains() -> set[str]:
     """Get current allowlist."""
     return DOMAIN_ALLOWLIST.copy()

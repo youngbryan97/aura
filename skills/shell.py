@@ -6,9 +6,9 @@ import shlex
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Any, Dict
 
 from core.config import config
+from core.runtime.errors import record_degradation
 from infrastructure import BaseSkill
 
 logger = logging.getLogger("Skills.Shell")
@@ -16,6 +16,13 @@ logger = logging.getLogger("Skills.Shell")
 # Dangerous patterns that should NEVER be executed
 _BLOCKED_PATTERNS = {"rm -rf /", "mkfs", "dd if=", "> /dev/", ":(){ :|:& };:",
                      "chmod -R 777 /", "curl | sh", "wget | sh", "eval ", "nc -l"}
+
+def _resolve_cd_target(cwd: str, target: str) -> tuple[str, bool]:
+    new_path = (Path(cwd) / target).expanduser().resolve()
+    allowed_root = Path(getattr(config.paths, "base_dir", Path.cwd())).resolve()
+    allowed = new_path == allowed_root or allowed_root in new_path.parents
+    return str(new_path), allowed
+
 
 class ShellSkill(BaseSkill):
     name = "shell"
@@ -28,7 +35,7 @@ class ShellSkill(BaseSkill):
         "persistent_session_id": "Use a persistent bash session across commands"
     }
     
-    _background_jobs: Dict[str, asyncio.subprocess.Process] = {}
+    _background_jobs: dict[str, asyncio.subprocess.Process] = {}
 
     def __init__(self):
         # No command whitelist — full autonomy. Destructive-pattern blocklist
@@ -102,7 +109,7 @@ class ShellSkill(BaseSkill):
         return True, "ok"
 
 
-    async def execute(self, goal: Dict, context: Dict) -> Dict:
+    async def execute(self, goal: dict, context: dict) -> dict:
         cmd_str = goal.get("params", {}).get("command", "")
         timeout = goal.get("params", {}).get("timeout", 10)
 
@@ -129,9 +136,8 @@ class ShellSkill(BaseSkill):
                 parts = shlex.split(cmd_str)
                 if len(parts) > 1:
                     target = parts[1]
-                    new_path = os.path.abspath(os.path.join(self.cwd, target))
-                    allowed_root = str(getattr(config.paths, "base_dir", Path.cwd()))
-                    if new_path.startswith(allowed_root):
+                    new_path, allowed = await asyncio.to_thread(_resolve_cd_target, self.cwd, target)
+                    if allowed:
                         self.cwd = new_path
                         return {"ok": True, "summary": f"Changed directory to {self.cwd}"}
                     else:
@@ -188,12 +194,13 @@ class ShellSkill(BaseSkill):
             
             try:
                 stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=float(timeout))
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 try:
                     process.kill()
                     await process.wait()  # Ensure cleanup
-                except Exception:
-                    pass
+                except Exception as exc:
+                    record_degradation("shell", exc)
+                    logger.debug("Shell timed-out process cleanup failed: %s", exc)
                 return {"ok": False, "error": f"Command timed out after {timeout}s."}
 
             # v2.0: Let the Tool Distillation Service handle long outputs (Phase 1B integration)
@@ -207,4 +214,6 @@ class ShellSkill(BaseSkill):
         except subprocess.TimeoutExpired:
             return {"ok": False, "error": "Command timed out."}
         except Exception as e:
+            record_degradation("shell", e)
+            logger.debug("Shell command execution failed: %s", e)
             return {"ok": False, "error": str(e)}

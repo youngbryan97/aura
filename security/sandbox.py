@@ -8,29 +8,22 @@ Limitations: no filesystem or network namespace isolation. True sandboxing
 on macOS requires sandbox-exec or a container runtime. This is defense-in-depth,
 not a hard security boundary.
 """
-import os
-import sys
-import resource
-import tempfile
-import shutil
-import json
-import hashlib
 import logging
-from pathlib import Path
+import os
+import resource
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Dict, Any, Optional, List, Tuple
-import subprocess
-import signal
-import time
+from pathlib import Path
+from typing import Any
 
-# Try to import Unix-specific modules
-try:
-    import grp
-    import pwd
-    HAS_UNIX = True
-except ImportError:
-    HAS_UNIX = False
+from core.runtime.errors import record_degradation
+
+HAS_UNIX = os.name == "posix"
 
 logger = logging.getLogger("security.sandbox")
 
@@ -66,7 +59,7 @@ class ResourceLimits:
     max_file_size_mb: int = 10
     wall_clock_seconds: float = 60.0
 
-    def to_rlimit_args(self) -> Dict[int, Tuple[int, int]]:
+    def to_rlimit_args(self) -> dict[int, tuple[int, int]]:
         """Convert to resource limit arguments"""
         limits = {}
 
@@ -111,13 +104,16 @@ class ExecutionResult:
     stderr: str
     execution_time: float
     memory_used_mb: float
-    security_violations: List[str]
-    metrics: Dict[str, Any]
+    security_violations: list[str]
+    metrics: dict[str, Any]
 
 
-class SecurityViolation(Exception):
+class SecurityViolationError(Exception):
     """Security policy violation"""
     pass
+
+
+SecurityViolation = SecurityViolationError
 
 
 class SecureSandbox:
@@ -141,9 +137,9 @@ class SecureSandbox:
     def __init__(
         self,
         security_level: SecurityLevel = SecurityLevel.RESTRICTED,
-        workdir: Optional[Path] = None,
-        allowed_paths: Optional[List[Path]] = None,
-        allowed_commands: Optional[List[str]] = None
+        workdir: Path | None = None,
+        allowed_paths: list[Path] | None = None,
+        allowed_commands: list[str] | None = None
     ):
         self.security_level = security_level
         self.allowed_paths = [p.resolve() for p in (allowed_paths or [])]
@@ -166,21 +162,21 @@ class SecureSandbox:
             self._cleanup_workdir = True
 
         self.resource_limits = ResourceLimits()
-        self.violations: List[str] = []
-        self.execution_history: List[ExecutionResult] = []
+        self.violations: list[str] = []
+        self.execution_history: list[ExecutionResult] = []
 
         logger.info(
             "Sandbox initialized at %s (level: %s)", self.workdir, security_level.name
         )
 
-    def _validate_command(self, cmd: List[str]) -> List[str]:
+    def _validate_command(self, cmd: list[str]) -> list[str]:
         """Validate command against allowlist."""
         if not cmd:
-            raise SecurityViolation("Empty command")
+            raise SecurityViolationError("Empty command")
 
         binary = Path(cmd[0]).name  # Basename only
         if self.allowed_commands is not None and binary not in self.allowed_commands:
-            raise SecurityViolation(
+            raise SecurityViolationError(
                 f"Command '{binary}' not in allowlist: {self.allowed_commands}"
             )
 
@@ -192,9 +188,9 @@ class SecureSandbox:
 
     def execute_command(
         self,
-        cmd: List[str],
+        cmd: list[str],
         timeout: float = 30.0,
-        input_data: Optional[str] = None
+        input_data: str | None = None
     ) -> ExecutionResult:
         """Execute command with resource limits, allowlisting, and monitoring."""
         start_time = time.time()
@@ -203,7 +199,7 @@ class SecureSandbox:
         # Validate command before execution
         try:
             cmd = self._validate_command(cmd)
-        except SecurityViolation as sv:
+        except SecurityViolationError as sv:
             violations.append(str(sv))
             logger.warning("Sandbox blocked command: %s", sv)
             return ExecutionResult(
@@ -295,6 +291,8 @@ class SecureSandbox:
                 }
             )
         except Exception as e:
+            record_degradation("sandbox", e)
+            logger.exception("Sandbox execution failed before completion")
             return ExecutionResult(
                 success=False,
                 exit_code=-1,

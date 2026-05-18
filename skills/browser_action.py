@@ -12,18 +12,17 @@ v2.0 Upgrades (from Google Gemini ecosystem):
 """
 import asyncio
 import base64
-import json
 import logging
 import os
 import sys
 import time
+from collections import defaultdict
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 import requests
-import re as _re
-from collections import defaultdict
-from urllib.parse import quote as _url_quote
+
+from core.runtime.errors import record_degradation
 
 try:
     from infrastructure import BaseSkill
@@ -90,7 +89,7 @@ PROXY_SELECT_JS = """
 # ── Rate Limiting (from gemini-cli/web-fetch.ts) ─────────────────────────────
 _RATE_LIMIT_WINDOW = 60  # seconds
 _MAX_REQUESTS_PER_WINDOW = 10
-_host_request_times: Dict[str, List[float]] = defaultdict(list)
+_host_request_times: dict[str, list[float]] = defaultdict(list)
 
 # ── Screenshot Pruning ───────────────────────────────────────────────────────
 MAX_SCREENSHOTS_KEPT = 3
@@ -110,8 +109,10 @@ def _check_rate_limit(url: str) -> bool:
             return False
         _host_request_times[hostname].append(now)
         return True
-    except Exception:
-        return True
+    except Exception as exc:
+        record_degradation("browser_action", exc)
+        logger.debug("Browser rate-limit check failed for %r: %s", url, exc)
+        return False
 
 
 def _is_private_ip(url: str) -> bool:
@@ -127,8 +128,10 @@ def _is_private_ip(url: str) -> bool:
             return ip.is_private or ip.is_loopback
         except ValueError:
             return False
-    except Exception:
-        return False
+    except Exception as exc:
+        record_degradation("browser_action", exc)
+        logger.debug("Browser private-network check failed for %r: %s", url, exc)
+        return True
 
 
 def _convert_github_url(url: str) -> str:
@@ -151,8 +154,6 @@ except ImportError:
 try:
     import undetected_chromedriver as uc
     from selenium.webdriver.common.by import By
-    from selenium.webdriver.support import expected_conditions as EC
-    from selenium.webdriver.support.ui import WebDriverWait
     HAS_SELENIUM = True
 except ImportError:
     logger.warning("Selenium not found.")
@@ -172,7 +173,7 @@ class PrivacyEnhancer:
         return random.choice(agents)
     
     @staticmethod
-    def get_viewport() -> Dict[str, int]:
+    def get_viewport() -> dict[str, int]:
         import random
         return random.choice([
             {'width': 1920, 'height': 1080},
@@ -192,7 +193,7 @@ class UnifiedBrowserSkill(BaseSkill):
         from infrastructure import HealthMonitor
         self.monitor = HealthMonitor()
         
-    async def execute(self, goal: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute(self, goal: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
         """Execute browser action with exponential backoff."""
         max_retries = 3
         base_delay = 2
@@ -221,7 +222,7 @@ class UnifiedBrowserSkill(BaseSkill):
         self.monitor.record_execution("browser_action", False, 0.0, "Max retries exceeded")
         return {"ok": False, "error": "max_retries_exceeded", "message": "Browser automation failed after retries."}
 
-    async def _execute_core(self, goal: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
+    async def _execute_core(self, goal: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
         """Core execution logic"""
         engine_pref = context.get("engine", "auto") # auto, playwright, selenium
         
@@ -262,7 +263,7 @@ class UnifiedBrowserSkill(BaseSkill):
         return {"ok": False, "error": "all_strategies_failed", "message": "Browsers failed and no fallback available"}
 
     # ... _extract_url and _run_text_only methods remain same ...
-    def _extract_url(self, goal: Dict[str, Any]) -> Optional[str]:
+    def _extract_url(self, goal: dict[str, Any]) -> str | None:
         # Try params
         if "params" in goal and "url" in goal["params"]:
             return goal["params"]["url"]
@@ -271,10 +272,11 @@ class UnifiedBrowserSkill(BaseSkill):
         if isinstance(obj, str):
             import re
             urls = re.findall(r'https?://[^\s]+', obj)
-            if urls: return urls[0]
+            if urls:
+                return urls[0]
         return None
 
-    def _run_text_only(self, url: str) -> Dict[str, Any]:
+    def _run_text_only(self, url: str) -> dict[str, Any]:
         """v2.0: Hardened text-only fallback with rate limiting, IP blocking, and HTML conversion."""
         # Security: Block private IPs
         if _is_private_ip(url):
@@ -308,7 +310,6 @@ class UnifiedBrowserSkill(BaseSkill):
             if "text/html" in content_type:
                 try:
                     from html.parser import HTMLParser
-                    import io
 
                     class _TextExtractor(HTMLParser):
                         def __init__(self):
@@ -332,7 +333,9 @@ class UnifiedBrowserSkill(BaseSkill):
                     extractor = _TextExtractor()
                     extractor.feed(raw_content)
                     content = extractor.get_text()
-                except Exception:
+                except Exception as exc:
+                    record_degradation("browser_action", exc)
+                    logger.debug("Text-only HTML extraction failed: %s", exc)
                     content = raw_content
             else:
                 content = raw_content
@@ -358,10 +361,12 @@ class UnifiedBrowserSkill(BaseSkill):
                 "mode": "native_fallback",
                 "message": "Opened in system browser (Automation failed)."
             }
-        except Exception:
+        except Exception as exc:
+            record_degradation("browser_action", exc)
+            logger.debug("Native browser fallback failed: %s", exc)
             return {"ok": False, "error": "all_strategies_failed"}
 
-    async def _run_playwright(self, goal: Dict[str, Any], context: Dict[str, Any], url: str = None) -> Dict[str, Any]:
+    async def _run_playwright(self, goal: dict[str, Any], context: dict[str, Any], url: str = None) -> dict[str, Any]:
         logger.info("Starting Playwright Session...")
         headless = context.get("headless", False) # Default to visible
         
@@ -372,7 +377,8 @@ class UnifiedBrowserSkill(BaseSkill):
                 await phantom.set_visibility(True)
             elif headless and phantom.visible:
                 await phantom.set_visibility(False)
-            if url: await phantom.browse(url)
+            if url:
+                await phantom.browse(url)
             
             return {
                 "ok": True,
@@ -417,10 +423,14 @@ class UnifiedBrowserSkill(BaseSkill):
                 sel = step.get("selector")
                 val = step.get("value")
                 try:
-                    if stype == "click": await page.click(sel)
-                    elif stype == "type": await page.fill(sel, val)
-                    elif stype == "scroll": await page.evaluate("window.scrollBy(0, 500)")
-                    elif stype == "wait": await asyncio.sleep(float(val))
+                    if stype == "click":
+                        await page.click(sel)
+                    elif stype == "type":
+                        await page.fill(sel, val)
+                    elif stype == "scroll":
+                        await page.evaluate("window.scrollBy(0, 500)")
+                    elif stype == "wait":
+                        await asyncio.sleep(float(val))
                     elif stype == "get_html": 
                         params["html"] = await page.content()
                     # v2.0: Re-inject proxy-select after DOM mutations
@@ -447,7 +457,7 @@ class UnifiedBrowserSkill(BaseSkill):
                 "screenshot": screenshot
             }
 
-    def _run_selenium(self, goal: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
+    def _run_selenium(self, goal: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
         logger.info("Starting Selenium Session...")
         # ... reusing the logic from enhanced_browser.py ...
         # Simplified for brevity in this shim, assuming Playwright works 
@@ -474,4 +484,3 @@ class UnifiedBrowserSkill(BaseSkill):
             }
         finally:
             driver.quit()
-

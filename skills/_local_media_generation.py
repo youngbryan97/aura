@@ -1,9 +1,8 @@
 
 import logging
-import os
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 try:
     import torch
@@ -13,6 +12,7 @@ except ImportError:
     DiffusionPipeline = None
 
 from core.config import config
+from core.runtime.errors import record_degradation
 from infrastructure import BaseSkill
 
 logger = logging.getLogger("Skills.LocalMedia")
@@ -68,9 +68,9 @@ class LocalMediaGenerationSkill(BaseSkill):
             # Move to device (some pipelines require .to on underlying torch modules)
             try:
                 self.pipeline.to(self.device)
-            except Exception:
-                # Some pipeline classes may not support direct .to() — ignore if so
-                pass
+            except Exception as exc:
+                record_degradation("local_media_generation", exc)
+                logger.debug("Local media pipeline device move skipped: %s", exc)
 
             # Enable attention slicing for lower memory usage when supported
             try:
@@ -84,7 +84,7 @@ class LocalMediaGenerationSkill(BaseSkill):
             logger.error("Failed to load local model: %s", e)
             return False
 
-    async def execute(self, goal: Dict[str, Any], context: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute(self, goal: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
         """Generate image locally."""
         prompt = goal.get("objective") or goal.get("params", {}).get("prompt")
         
