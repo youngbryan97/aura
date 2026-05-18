@@ -4,36 +4,50 @@ Synthesizes multiple internal states (insights, goals, epistemic status, continu
 into a coherent first-person narrative of 'who I am right now'.
 """
 
-from core.runtime.errors import record_degradation
-import logging
-import time
 import asyncio
+import logging
 import random
-from typing import List, Dict, Any, Optional
+import time
 from dataclasses import dataclass, field
+from typing import Any
+
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.NarrativeThread")
 
+_RECOVERABLE_NARRATIVE_ERRORS = (
+    AttributeError,
+    ImportError,
+    KeyError,
+    RuntimeError,
+    TypeError,
+    ValueError,
+)
+_NARRATIVE_PENDING = "System active; narrative synthesis has not produced an evidence snapshot yet."
+
+
 @dataclass
 class NarrativeSnapshot:
     """A point-in-time snapshot of Aura's self-narrative."""
+
     content: str
     timestamp: float
     version: int
     provenance: str = "deterministic_fallback"  # "llm_synthesized" | "deterministic_fallback" | "hybrid"
     confidence: float = 0.3
-    evidence: Dict[str, Any] = field(default_factory=dict)
+    evidence: dict[str, Any] = field(default_factory=dict)
+
 
 class NarrativeThread:
     """Managing Aura's dynamic self-identity and current preoccupation."""
-    
+
     def __init__(self):
-        self._current_narrative: Optional[NarrativeSnapshot] = None
+        self._current_narrative: NarrativeSnapshot | None = None
         self._last_update = 0.0
         self._version_counter = 0
         self._is_running = False
-        self._task: Optional[asyncio.Task] = None
+        self._task: asyncio.Task | None = None
         logger.info("NarrativeThread initialized.")
 
     async def start(self):
@@ -55,7 +69,7 @@ class NarrativeThread:
             try:
                 await self._task
             except asyncio.CancelledError as _e:
-                logger.debug('Ignored asyncio.CancelledError in narrative_thread.py: %s', _e)
+                logger.debug("NarrativeThread refresh task cancelled: %s", _e)
             self._task = None
         logger.info("🛑 NarrativeThread auto-refresh loop stopped.")
 
@@ -68,22 +82,22 @@ class NarrativeThread:
                 await self.generate_narrative()
                 # Refresh every 30-60 minutes
                 await asyncio.sleep(random.randint(1800, 3600))
-            except Exception as e:
-                record_degradation('narrative_thread', e)
-                logger.error(f"Error in narrative refresh loop: {e}")
+            except _RECOVERABLE_NARRATIVE_ERRORS as exc:
+                record_degradation("narrative_thread", exc)
+                logger.error("Error in narrative refresh loop: %s", exc)
                 await asyncio.sleep(300)
 
     async def generate_narrative(self) -> str:
         """Synthesize a new narrative from all internal organs."""
         from core.container import ServiceContainer
-        
+
         # 1. Gather inputs
         continuity = ServiceContainer.get("continuity", default=None)
         insight_journal = ServiceContainer.get("insight_journal", default=None)
         inquiry_engine = ServiceContainer.get("inquiry_engine", default=None)
         belief_system = ServiceContainer.get("belief_graph", default=None)
-        
-        evidence: Dict[str, Any] = {
+
+        evidence: dict[str, Any] = {
             "continuity_available": continuity is not None,
             "insight_journal_available": insight_journal is not None,
             "inquiry_engine_available": inquiry_engine is not None,
@@ -92,14 +106,14 @@ class NarrativeThread:
 
         try:
             waking_context = continuity.get_waking_context() if continuity else "I am online in this runtime, with no continuity service currently attached."
-        except Exception as exc:
+        except _RECOVERABLE_NARRATIVE_ERRORS as exc:
             record_degradation("narrative_thread", exc, severity="warning", action="used explicit continuity-unavailable wording")
             waking_context = "I am online, but the continuity service did not return evidence for this turn."
             evidence["continuity_error"] = type(exc).__name__
 
         try:
             top_insights = insight_journal.get_highest_confidence_insights(limit=3) if insight_journal else []
-        except Exception as exc:
+        except _RECOVERABLE_NARRATIVE_ERRORS as exc:
             record_degradation("narrative_thread", exc, severity="warning", action="omitted insight claims")
             top_insights = []
             evidence["insight_error"] = type(exc).__name__
@@ -108,7 +122,7 @@ class NarrativeThread:
 
         try:
             active_q = inquiry_engine.get_active_question() if inquiry_engine else None
-        except Exception as exc:
+        except _RECOVERABLE_NARRATIVE_ERRORS as exc:
             record_degradation("narrative_thread", exc, severity="warning", action="omitted inquiry claim")
             active_q = None
             evidence["inquiry_error"] = type(exc).__name__
@@ -117,7 +131,7 @@ class NarrativeThread:
 
         try:
             beliefs = belief_system.get_beliefs() if belief_system else []
-        except Exception as exc:
+        except _RECOVERABLE_NARRATIVE_ERRORS as exc:
             record_degradation("narrative_thread", exc, severity="warning", action="reported belief evidence as unavailable")
             beliefs = []
             evidence["belief_error"] = type(exc).__name__
@@ -146,7 +160,7 @@ class NarrativeThread:
             f"I can describe continuity, attention, and uncertainty as engineered state; "
             f"I will not treat those signals as proof of subjective experience."
         )
-        
+
         self._version_counter += 1
         self._current_narrative = NarrativeSnapshot(
             content=narrative,
@@ -157,17 +171,17 @@ class NarrativeThread:
             evidence=evidence,
         )
         self._last_update = time.time()
-        
-        logger.info(f"Generated Narrative v{self._version_counter} (provenance={self._current_narrative.provenance})")
+
+        logger.info("Generated Narrative v%s (provenance=%s)", self._version_counter, self._current_narrative.provenance)
         return narrative
 
     def get_current_narrative(self) -> str:
         """Fetch the cached narrative or a default."""
         if self._current_narrative:
             return self._current_narrative.content
-        return "[PLACEHOLDER] System active, narrative synthesis deferred."
+        return _NARRATIVE_PENDING
 
-    def get_current_snapshot(self) -> Dict[str, Any]:
+    def get_current_snapshot(self) -> dict[str, Any]:
         """Return the full snapshot with provenance metadata."""
         if self._current_narrative:
             return {
@@ -178,16 +192,17 @@ class NarrativeThread:
                 "evidence": self._current_narrative.evidence,
             }
         return {
-            "narrative": "[PLACEHOLDER] System active, narrative synthesis deferred.",
+            "narrative": _NARRATIVE_PENDING,
             "provenance": "deterministic_fallback",
             "confidence": 0.3,
         }
+
 
 # Service Registration
 def register_narrative_thread():
     """Register the narrative thread service."""
     from core.container import ServiceContainer, ServiceLifetime
-    
+
     async def start_thread():
         thread = NarrativeThread()
         await thread.start()
@@ -195,6 +210,6 @@ def register_narrative_thread():
 
     ServiceContainer.register(
         "narrative_thread",
-        factory=lambda: NarrativeThread(), # Kept simple, start() should be called by lifecycle manager
-        lifetime=ServiceLifetime.SINGLETON
+        factory=lambda: NarrativeThread(),
+        lifetime=ServiceLifetime.SINGLETON,
     )
