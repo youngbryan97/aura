@@ -1,18 +1,28 @@
 """core/state_authority.py — The Single Source of Truth Arbiter.
 
-Fleshed out stub methods to query the DI container for memory and
-vector services. Loaded prime directives from module at init.
-Removed module-level singleton; register via ServiceContainer instead.
-(Resolved: Confirmed unreferenced ghost in March 2026 Audit)
+Queries prime directives, explicit knowledge, current runtime context, and
+vector memory in precedence order. Register through ServiceContainer so every
+caller resolves the same authority instance.
 """
-from core.runtime.errors import record_degradation
 import logging
-from enum import Enum, auto
-from typing import Any, Dict, List, Optional, Tuple
+from enum import Enum
+from typing import Any
 
 from core.container import ServiceContainer, ServiceLifetime
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Core.StateAuthority")
+
+_STATE_AUTHORITY_RECOVERABLE_ERRORS = (
+    AttributeError,
+    TypeError,
+    ValueError,
+    RuntimeError,
+    OSError,
+    ImportError,
+    KeyError,
+    LookupError,
+)
 
 
 class TruthTier(Enum):
@@ -29,14 +39,14 @@ class StateAuthority:
     """
 
     def __init__(self):
-        self.prime_directives_cache: Dict[str, str] = {}
+        self.prime_directives_cache: dict[str, str] = {}
         self._load_prime_directives()
 
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
 
-    def get_truth(self, topic: str, context: Optional[Dict] = None) -> Tuple[Any, TruthTier]:
+    def get_truth(self, topic: str, context: dict | None = None) -> tuple[Any, TruthTier]:
         """Get the authoritative truth about a topic.
         Queries layers in order of precedence (highest tier wins).
         """
@@ -113,12 +123,12 @@ class StateAuthority:
                 "identity": "I am Aura, a sovereign autonomous intelligence.",
                 "safety": "Do no harm. Preserve human life above self-preservation.",
             }
-        except Exception as e:
+        except _STATE_AUTHORITY_RECOVERABLE_ERRORS as e:
             record_degradation('state_authority', e)
             logger.error("Failed to load prime directives: %s", e, exc_info=True)
             self.prime_directives_cache = {}
 
-    def _check_prime_directives(self, topic: str) -> Optional[str]:
+    def _check_prime_directives(self, topic: str) -> str | None:
         """Check immutable directives by keyword matching."""
         topic_lower = topic.lower()
         for key, directive in self.prime_directives_cache.items():
@@ -129,10 +139,9 @@ class StateAuthority:
             return "Bryan is kin."
         return None
 
-    def _check_knowledge_base(self, topic: str) -> Optional[Any]:
+    def _check_knowledge_base(self, topic: str) -> Any | None:
         """Query the knowledge graph / memory nexus via DI container."""
         try:
-            from core.container import ServiceContainer
             memory = ServiceContainer.get("memory", default=None)
             if memory is None:
                 return None
@@ -149,15 +158,12 @@ class StateAuthority:
                 if result:
                     return result
 
-        except (KeyError, ImportError):
-            import logging
-            logger.debug("Exception caught during execution", exc_info=True)
-        except Exception as e:
+        except _STATE_AUTHORITY_RECOVERABLE_ERRORS as e:
             record_degradation('state_authority', e)
             logger.debug("Knowledge base query failed for '%s': %s", topic, e)
         return None
 
-    def _check_runtime_context(self, topic: str, context: Optional[Dict]) -> Optional[Any]:
+    def _check_runtime_context(self, topic: str, context: dict | None) -> Any | None:
         """Check the current runtime context dict."""
         if not context:
             return None
@@ -171,10 +177,9 @@ class StateAuthority:
                 return value
         return None
 
-    def _check_vector_memory(self, topic: str) -> Optional[str]:
+    def _check_vector_memory(self, topic: str) -> str | None:
         """Query the vector memory store via DI container."""
         try:
-            from core.container import ServiceContainer
             vector_mem = ServiceContainer.get("vector_memory", default=None)
             if vector_mem is None:
                 return None
@@ -195,10 +200,7 @@ class StateAuthority:
                 if results:
                     return str(results[0]) if isinstance(results, list) else str(results)
 
-        except (KeyError, ImportError):
-            import logging
-            logger.debug("Exception caught during execution", exc_info=True)
-        except Exception as e:
+        except _STATE_AUTHORITY_RECOVERABLE_ERRORS as e:
             record_degradation('state_authority', e)
             logger.debug("Vector memory query failed for '%s': %s", topic, e)
         return None
@@ -207,20 +209,22 @@ class StateAuthority:
 # Service Registration
 def register_state_authority():
     """Register the state authority in the global container."""
+    if ServiceContainer.has("state_authority"):
+        return
     ServiceContainer.register(
         "state_authority",
         factory=lambda: StateAuthority(),
-        lifetime=ServiceLifetime.SINGLETON
+        lifetime=ServiceLifetime.SINGLETON,
     )
 
 
 def get_state_authority():
     """Resolve or create state authority lazily."""
     try:
-        if not ServiceContainer.get("state_authority", None):
-             register_state_authority()
-        return ServiceContainer.get("state_authority", default=None)
-    except Exception as e:
+        if not ServiceContainer.has("state_authority"):
+            register_state_authority()
+        return ServiceContainer.get("state_authority", default=None) or StateAuthority()
+    except _STATE_AUTHORITY_RECOVERABLE_ERRORS as e:
         record_degradation('state_authority', e)
         logger.debug("ServiceContainer unavailable or failed: %s. Creating standalone StateAuthority.", e)
         return StateAuthority()
