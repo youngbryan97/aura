@@ -4,16 +4,18 @@ OCI ARM Instance Launcher — Multi-Region Edition
 Cycles through regions to find Ampere A1 capacity.
 Creates networking on-the-fly in each region if needed.
 """
-import oci
-import time
-import sys
+import json
 import os
 import subprocess
-import json
+import sys
+import tempfile
+import time
+from pathlib import Path
+
+import oci
 
 # ─── Configuration ──────────────────────────────────────────
 # Configuration
-import os
 COMPARTMENT_ID = os.environ.get("OCI_COMPARTMENT_ID", "")
 SSH_KEY_FILE = os.path.expanduser("~/.ssh/aura-oracle.key.pub")
 
@@ -24,7 +26,8 @@ BOOT_VOLUME_GB = 200
 DISPLAY_NAME = "aura-cloud"
 
 RETRY_INTERVAL = 45   # seconds between attempts (faster with multi-region)
-STATE_FILE = "/tmp/oci_multi_region_state.json"
+STATE_FILE = Path(tempfile.gettempdir()) / "oci_multi_region_state.json"
+CLOUD_IP_FILE = Path(tempfile.gettempdir()) / "aura_cloud_ip.txt"
 
 # Regions most likely to have free-tier A1 capacity
 # Ordered by typical availability (less popular = more capacity)
@@ -97,7 +100,7 @@ def ensure_networking(region, vn_client, identity_client):
             vn_client.get_subnet(state["networks"][region]["subnet_id"])
             return state["networks"][region]
         except oci.exceptions.ServiceError:
-            print(f"    [!] Cached network gone, recreating...")
+            print("    [!] Cached network gone, recreating...")
             del state["networks"][region]
 
     print(f"    [*] Creating networking in {region}...")
@@ -306,7 +309,7 @@ def try_launch(region):
         print(f"\n  ✓ PUBLIC IP: {public_ip}")
         print(f"  ✓ REGION: {region}")
         print(f"\n  SSH: ssh -i ~/.ssh/aura-oracle.key ubuntu@{public_ip}\n")
-        with open("/tmp/aura_cloud_ip.txt", "w") as f:
+        with open(CLOUD_IP_FILE, "w") as f:
             f.write(f"{public_ip}\n{region}\n")
     else:
         print("  [!] Could not get public IP. Check console.")
@@ -343,15 +346,15 @@ while True:
 
     except oci.exceptions.ServiceError as e:
         if e.status == 500 and "capacity" in str(e.message).lower():
-            print(f"Out of capacity.")
+            print("Out of capacity.")
         elif e.status == 429:
-            print(f"Rate limited. Extra wait...")
+            print("Rate limited. Extra wait...")
             time.sleep(RETRY_INTERVAL)
         elif "limit" in str(e.message).lower() or "quota" in str(e.message).lower():
             print(f"Limit reached: {e.message[:80]}")
             skip_regions.add(region)
         elif "NotAuthorizedOrNotFound" in str(e.code):
-            print(f"Not subscribed. Skipping.")
+            print("Not subscribed. Skipping.")
             skip_regions.add(region)
         else:
             print(f"Error ({e.status}): {e.message[:80]}")

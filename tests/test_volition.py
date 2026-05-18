@@ -1,15 +1,12 @@
 ################################################################################
 
-import asyncio
-import json
-import logging
+import tempfile
 import time
 from pathlib import Path
 from unittest.mock import MagicMock, mock_open, patch
 
 import pytest
 
-from core.config import config
 from core.volition import VolitionEngine
 
 
@@ -35,12 +32,13 @@ def mock_orchestrator():
 @pytest.fixture
 def engine(mock_orchestrator):
     with patch("core.volition.config") as mock_config:
+        temp_root = Path(tempfile.gettempdir())
         # Mock the config paths to prevent AttributeError during __init__
         mock_config.paths = MagicMock()
-        mock_config.paths.brain_dir = Path("/tmp/mock_brain")
-        get_task_tracker().create_task(get_storage_gateway().create_dir(mock_config.paths.brain_dir, cause='engine'))
+        mock_config.paths.brain_dir = temp_root / "mock_brain"
+        mock_config.paths.brain_dir.mkdir(parents=True, exist_ok=True)
         # Ensure it behaves like a Path object for .exists() etc.
-        mock_config.paths.data_dir = Path("/tmp/mock_data")
+        mock_config.paths.data_dir = temp_root / "mock_data"
         return VolitionEngine(mock_orchestrator)
 
 def test_init(engine, mock_orchestrator):
@@ -196,13 +194,13 @@ async def test_generate_duty_goal_fallback(engine):
     # Test fall back to task.md when strategic planner is not active
     engine.orchestrator.strategic_planner = None
     
-    with patch("builtins.open", mock_open(read_data="- [ ] Refactor Core")) as mock_file:
+    with patch("builtins.open", mock_open(read_data="- [ ] Refactor Core")):
         with patch("pathlib.Path.exists") as mock_exists:
             mock_exists.return_value = True
             with patch("os.path.getmtime") as mock_mtime:
                 mock_mtime.return_value = time.time()
                 with patch("pathlib.Path.rglob") as mock_rglob:
-                    mock_file_path = Path("/tmp/mock_brain/task.md")
+                    mock_file_path = Path(tempfile.gettempdir()) / "mock_brain" / "task.md"
                     mock_rglob.return_value = [mock_file_path]
                     
                     goal = await engine._generate_duty_goal()

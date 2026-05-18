@@ -1,8 +1,9 @@
-from core.runtime.atomic_writer import atomic_write_text
 import asyncio
 import sys
-import os
+import tempfile
 from pathlib import Path
+
+from core.runtime.atomic_writer import atomic_write_text
 
 # Fix paths
 sys.path.insert(0, str(Path.cwd()))
@@ -60,7 +61,7 @@ async def test_zenith_fixes():
         from core.adaptation.safe_optimizer import get_safe_optimizer
         opt = get_safe_optimizer()
         # Mock a small file
-        test_data = Path("/tmp/lora_test.txt")
+        test_data = Path(tempfile.gettempdir()) / "lora_test.txt"
         atomic_write_text(test_data, "dummy dataset content")
         await opt.optimize_lora(str(test_data), "base_model")
         print("✅ Safe optimizer executed without crash.")

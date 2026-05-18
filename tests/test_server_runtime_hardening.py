@@ -7,8 +7,9 @@ import multiprocessing
 import os
 import subprocess
 import sys
-import threading
+import tempfile
 import textwrap
+import threading
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -26,6 +27,8 @@ from core.bus.shared_mem_bus import SharedMemoryTransport
 from core.conversation_loop import AutonomousConversationLoop
 from core.coordinators.cognitive_coordinator import CognitiveCoordinator
 from core.coordinators.lifecycle_coordinator import LifecycleCoordinator
+from core.coordinators.message_coordinator import MessageCoordinator
+from core.coordinators.metabolic_coordinator import MetabolicCoordinator
 from core.intent_gate import IntentClassifierQueue, RouteKind
 from core.kernel.bridge import AffectBridge
 from core.memory.memory_facade import MemoryFacade
@@ -33,8 +36,6 @@ from core.memory_synthesizer import MemorySynthesizer
 from core.mind_tick import MindTick
 from core.motivation.engine import MotivationEngine
 from core.motivation.intention import DriveType, Intention
-from core.coordinators.metabolic_coordinator import MetabolicCoordinator
-from core.coordinators.message_coordinator import MessageCoordinator
 from core.orchestrator.main import RobustOrchestrator
 from core.proactive_communication import ProactiveCommunicationManager
 from core.process_manager import ManagedProcess, ProcessConfig, ProcessManager
@@ -78,14 +79,15 @@ async def test_memory_facade_add_and_query_memory_compat():
 
 
 def test_reaper_manifest_uses_shared_env_override(monkeypatch):
-    monkeypatch.setenv("AURA_REAPER_MANIFEST", "/tmp/aura-test-reaper-manifest.json")
+    manifest_path = Path(tempfile.gettempdir()) / "aura-test-reaper-manifest.json"
+    monkeypatch.setenv("AURA_REAPER_MANIFEST", str(manifest_path))
 
     import core.reaper as reaper_module
 
     reaper_module = importlib.reload(reaper_module)
 
-    assert reaper_module.resolve_reaper_manifest_path() == Path("/tmp/aura-test-reaper-manifest.json")
-    assert reaper_module.ReaperManifest().path == Path("/tmp/aura-test-reaper-manifest.json")
+    assert reaper_module.resolve_reaper_manifest_path() == manifest_path
+    assert reaper_module.ReaperManifest().path == manifest_path
 
 
 def test_actor_health_gate_counts_only_distinct_miss_windows(monkeypatch):
@@ -2032,8 +2034,8 @@ async def test_scheduler_tracks_main_loop_and_registered_tasks(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_continuous_cognition_loop_is_task_tracked(monkeypatch):
-    from core.continuous_cognition import ContinuousCognitionLoop
     import core.continuous_cognition as continuous_cognition_module
+    from core.continuous_cognition import ContinuousCognitionLoop
 
     created = {}
     loop = ContinuousCognitionLoop()
@@ -2872,7 +2874,6 @@ async def test_metabolic_coordinator_process_world_decay_tracks_archive_and_evol
 
 @pytest.mark.asyncio
 async def test_cognitive_coordinator_voice_tts_is_task_tracked(monkeypatch):
-    import core.coordinators.cognitive_coordinator as cognitive_module
 
     created = {}
     reflections = []
@@ -2925,7 +2926,6 @@ async def test_cognitive_coordinator_voice_tts_is_task_tracked(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_cognitive_coordinator_surprise_learning_is_task_tracked(monkeypatch):
-    import core.coordinators.cognitive_coordinator as cognitive_module
 
     created = {}
 
@@ -3116,6 +3116,7 @@ async def test_state_vault_actor_background_tasks_use_task_tracker(monkeypatch):
     actor = vault_module.StateVaultActor.__new__(vault_module.StateVaultActor)
     actor._background_tasks = set()
     created = {}
+    release = asyncio.Event()
 
     class _Tracker:
         def create_task(self, coro, name=None):
@@ -3148,6 +3149,7 @@ async def test_sensory_gate_actor_background_tasks_use_task_tracker(monkeypatch)
     actor = sensory_gate_module.SensoryGateActor.__new__(sensory_gate_module.SensoryGateActor)
     actor._background_tasks = set()
     created = {}
+    release = asyncio.Event()
 
     class _Tracker:
         def create_task(self, coro, name=None):
@@ -3299,7 +3301,6 @@ class _NamedTracker:
 
 @pytest.mark.asyncio
 async def test_cognitive_background_reflection_uses_named_tracker(monkeypatch):
-    import core.orchestrator.mixins.cognitive_background as cb_module
     from core.orchestrator.mixins.cognitive_background import CognitiveBackgroundMixin
 
     tracker = _NamedTracker()
@@ -3341,7 +3342,6 @@ async def test_cognitive_background_reflection_uses_named_tracker(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_cognitive_background_learning_uses_named_tracker(monkeypatch):
-    import core.orchestrator.mixins.cognitive_background as cb_module
     from core.orchestrator.mixins.cognitive_background import CognitiveBackgroundMixin
 
     tracker = _NamedTracker()
@@ -3732,8 +3732,8 @@ def test_aura_main_strict_runtime_aborts_on_manifest_critical_violation(monkeypa
 @pytest.mark.asyncio
 async def test_shutdown_coordinator_runs_phases_in_canonical_order():
     from core.runtime.shutdown_coordinator import (
-        ShutdownCoordinator,
         SHUTDOWN_PHASES,
+        ShutdownCoordinator,
     )
 
     order = []
@@ -4029,8 +4029,8 @@ def test_actor_health_gate_grace_period_treats_actor_as_healthy():
 
 
 def test_actor_health_gate_records_heartbeat_resets_misses(monkeypatch):
-    from core.supervisor.tree import ActorHealthGate
     import core.supervisor.tree as tree_module
+    from core.supervisor.tree import ActorHealthGate
 
     fake_now = [100.0]
 
@@ -4084,8 +4084,8 @@ def test_supervision_tree_handles_actor_failure_with_backoff(monkeypatch):
 
 
 def test_supervision_tree_stop_all_terminates_orphans(monkeypatch):
-    from core.supervisor.tree import SupervisionTree
     import core.supervisor.tree as tree_module
+    from core.supervisor.tree import SupervisionTree
 
     tree = SupervisionTree()
 
@@ -4158,7 +4158,6 @@ def test_supervision_tree_record_activity_unknown_actor_is_noop():
 @pytest.mark.asyncio
 async def test_self_repair_ladder_rejects_pure_syntax_pass():
     from core.runtime.self_repair_ladder import (
-        SelfRepairProbes,
         patch_is_acceptable,
         validate_patch,
     )
@@ -4572,7 +4571,6 @@ def test_abuse_gauntlet_lists_canonical_stages():
 
 def test_depth_audit_flagship_below_tier4_fails(monkeypatch):
     from core.runtime.depth_audit import (
-        DepthRegistry,
         DepthReport,
         enforce_depth_audit,
         get_depth_registry,
@@ -5482,11 +5480,12 @@ async def test_turn_transaction_optional_effect_failure_does_not_rollback():
 
 @pytest.mark.asyncio
 async def test_turn_transaction_strict_mode_requires_governance():
+    import os
+
     from core.runtime.turn_transaction import (
         TurnTransaction,
         TurnTransactionError,
     )
-    import os
 
     os.environ["AURA_STRICT_RUNTIME"] = "1"
     try:
@@ -5585,8 +5584,8 @@ async def test_concrete_memory_write_gateway_governance_failure_denies_write(tmp
 
 @pytest.mark.asyncio
 async def test_concrete_state_gateway_round_trip(tmp_path):
-    from core.state.state_gateway import ConcreteStateGateway
     from core.runtime.gateways import StateMutationRequest
+    from core.state.state_gateway import ConcreteStateGateway
 
     def _approve(**kwargs):
         return {"approved": True, "receipt_id": "rcpt-test"}
@@ -5601,8 +5600,8 @@ async def test_concrete_state_gateway_round_trip(tmp_path):
 
 @pytest.mark.asyncio
 async def test_concrete_state_gateway_governance_failure_blocks_mutation(tmp_path):
-    from core.state.state_gateway import ConcreteStateGateway
     from core.runtime.gateways import StateMutationRequest
+    from core.state.state_gateway import ConcreteStateGateway
 
     def _decide(**kwargs):
         raise RuntimeError("governance down")
@@ -5614,16 +5613,7 @@ async def test_concrete_state_gateway_governance_failure_blocks_mutation(tmp_pat
 
 def test_universal_receipt_types_importable():
     from core.runtime.receipts import (
-        TurnReceipt,
-        GovernanceReceipt,
-        CapabilityReceipt,
         ToolExecutionReceipt,
-        MemoryWriteReceipt,
-        StateMutationReceipt,
-        OutputReceipt,
-        AutonomyReceipt,
-        SelfRepairReceipt,
-        ComputerUseReceipt,
         get_receipt_store,
         reset_receipt_store,
     )
@@ -6289,7 +6279,6 @@ async def test_day_in_life_aborts_on_invariant_violation():
 def test_telemetry_exporter_null_records_metrics_and_spans():
     from core.runtime.telemetry_exporter import (
         NullExporter,
-        get_exporter,
         metric,
         set_exporter,
         span,
@@ -6341,10 +6330,8 @@ def test_theory_of_mind_correction_lowers_trust_and_updates_belief():
 
 def test_abstraction_validator_retires_failing_principle():
     from core.runtime.abstraction_validator import (
-        HeldOutEpisode,
         PrincipleCandidate,
         PrincipleStore,
-        PrincipleValidator,
         RetirementPolicy,
     )
 

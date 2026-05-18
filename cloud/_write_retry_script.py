@@ -7,9 +7,9 @@ SCRIPT = r'''#!/usr/bin/env bash
 # Retries until ARM capacity opens up in us-sanjose-1
 #
 # Usage:  nohup ./oci_retry_launch.sh &
-# Logs:   /tmp/oci_retry.log
-# PID:    /tmp/oci_retry.pid
-# Stop:   kill $(cat /tmp/oci_retry.pid)
+# Logs:   $TMPDIR/oci_retry.log
+# PID:    $TMPDIR/oci_retry.pid
+# Stop:   kill $(cat "$TMPDIR/oci_retry.pid")
 
 set -euo pipefail
 
@@ -25,14 +25,16 @@ IMAGE="${OCI_IMAGE_ID:-}"
 DISPLAY_NAME="aura-cloud"
 BOOT_VOL_GB=200
 SSH_KEY_FILE="$HOME/.ssh/aura-oracle.key.pub"
+TMP_DIR="${TMPDIR:-/tmp}"
 
 RETRY_INTERVAL=120
 MAX_ATTEMPTS=720
-LOG_FILE="/tmp/oci_retry.log"
-PID_FILE="/tmp/oci_retry.pid"
-RESULT_FILE="/tmp/oci_launch_result.json"
-SHAPE_JSON="/tmp/oci_shape.json"
-META_JSON="/tmp/oci_meta.json"
+LOG_FILE="${TMP_DIR%/}/oci_retry.log"
+PID_FILE="${TMP_DIR%/}/oci_retry.pid"
+RESULT_FILE="${TMP_DIR%/}/oci_launch_result.json"
+SHAPE_JSON="${TMP_DIR%/}/oci_shape.json"
+META_JSON="${TMP_DIR%/}/oci_meta.json"
+export SHAPE_JSON META_JSON
 
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG_FILE"; }
 
@@ -47,12 +49,12 @@ cleanup() { rm -f "$PID_FILE"; log "Script stopped (PID $$)"; }
 write_json_params() {
     python3 << 'PYEOF'
 import json
-with open("/tmp/oci_shape.json", "w") as f:
-    json.dump({"ocpus": 4, "memoryInGBs": 24}, f)
 import os
+with open(os.environ["SHAPE_JSON"], "w") as f:
+    json.dump({"ocpus": 4, "memoryInGBs": 24}, f)
 key_file = os.path.expanduser("~/.ssh/aura-oracle.key.pub")
 key = open(key_file).read().strip()
-with open("/tmp/oci_meta.json", "w") as f:
+with open(os.environ["META_JSON"], "w") as f:
     json.dump({"ssh_authorized_keys": key}, f)
 PYEOF
 }
@@ -129,7 +131,7 @@ while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
                 if [ -n "$IP" ] && [ "$IP" != "None" ] && [ "$IP" != "null" ]; then
                     log "Public IP: $IP"
                     log "SSH: ssh -i ~/.ssh/aura-oracle.key opc@$IP"
-                    echo "$IP" > /tmp/aura_cloud_ip.txt
+                    echo "$IP" > "${TMP_DIR%/}/aura_cloud_ip.txt"
                     notify_success
                     exit 0
                 fi

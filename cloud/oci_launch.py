@@ -3,11 +3,14 @@
 OCI ARM Instance Launcher — Python SDK version
 Avoids CLI "Aborted!" issues. Run and walk away.
 """
-import oci
-import time
-import sys
 import os
 import subprocess
+import sys
+import tempfile
+import time
+from pathlib import Path
+
+import oci
 
 # ─── Configuration ──────────────────────────────────────────
 # Configuration (from Environment)
@@ -29,6 +32,7 @@ DISPLAY_NAME = "aura-cloud"
 
 RETRY_INTERVAL = 60   # seconds between attempts
 MAX_ATTEMPTS = 0       # 0 = infinite
+CLOUD_IP_FILE = Path(tempfile.gettempdir()) / "aura_cloud_ip.txt"
 
 # ─── Setup ──────────────────────────────────────────────────
 config = oci.config.from_file()
@@ -155,9 +159,9 @@ while True:
             print()
 
             # Save IP
-            with open("/tmp/aura_cloud_ip.txt", "w") as f:
+            with open(CLOUD_IP_FILE, "w") as f:
                 f.write(public_ip)
-            print(f"  IP saved to /tmp/aura_cloud_ip.txt")
+            print(f"  IP saved to {CLOUD_IP_FILE}")
         else:
             print("[!] Could not fetch public IP yet. Check Oracle Console.")
 

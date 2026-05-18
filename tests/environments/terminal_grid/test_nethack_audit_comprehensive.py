@@ -6,7 +6,6 @@ capabilities themselves are domain-agnostic.
 """
 from __future__ import annotations
 
-import json
 import tempfile
 from pathlib import Path
 
@@ -18,13 +17,10 @@ from core.environment.belief_graph import BeliefEdge, BeliefNode, EnvironmentBel
 from core.environment.command import ActionIntent
 from core.environment.homeostasis import Homeostasis, Resource
 from core.environment.modal import ModalManager, ModalPolicy, ModalState
-from core.environment.observation import Observation
-from core.environment.ontology import ObjectState, ResourceState
 from core.environment.outcome_attribution import OutcomeAttributor
 from core.environment.parsed_state import ParsedState
 from core.environment.simulation import TacticalSimulator
 from core.environments.terminal_grid import NetHackCommandCompiler, NetHackStateCompiler
-
 
 # =========================================================================
 #  Fixture helpers
@@ -219,7 +215,7 @@ class TestBeliefGraphPersistence:
 
     def test_load_missing_file_does_not_crash(self):
         graph = EnvironmentBeliefGraph()
-        graph.load("/tmp/nonexistent_belief_graph_file.json")
+        graph.load(str(Path(tempfile.gettempdir()) / "nonexistent_belief_graph_file.json"))
         assert len(graph.nodes) == 0
 
     def test_frontier_targets_sorted_by_confidence(self):
@@ -594,6 +590,7 @@ class TestFullIntegration:
         frame1 = await kernel.observe()
         assert frame1.parsed_state.environment_id == "terminal_grid:nethack"
         h1 = kernel.belief.stable_hash()
+        assert h1
 
         # Step with a move intent
         intent = ActionIntent(name="move", parameters={"direction": "east"})

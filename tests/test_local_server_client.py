@@ -1,14 +1,27 @@
 import asyncio
-import pytest
-import httpx
 import subprocess
+import tempfile
 import threading
 from collections import deque
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
+import httpx
+import pytest
+
 from core.brain.llm import local_server_client
-from core.brain.llm.local_server_client import LocalServerClient, _SERVER_CLIENTS, _thread_lock_context
+from core.brain.llm.local_server_client import (
+    _SERVER_CLIENTS,
+    LocalServerClient,
+    _thread_lock_context,
+)
 from core.brain.memory_guard import ContextPruner
+
+TMP_ROOT = Path(tempfile.gettempdir())
+QWEN32_GGUF = str(TMP_ROOT / "qwen2.5-32b-instruct-q5_k_m.gguf")
+QWEN7_GGUF = str(TMP_ROOT / "qwen2.5-7b-instruct-q4_k_m.gguf")
+QWEN72_GGUF = str(TMP_ROOT / "qwen2.5-72b-instruct-q4_k_m.gguf")
+QWEN15_GGUF = str(TMP_ROOT / "qwen2.5-1.5b-instruct-q4_k_m.gguf")
 
 
 def _register(client: LocalServerClient) -> LocalServerClient:
@@ -46,10 +59,10 @@ async def test_thread_lock_context_cancellation_does_not_park_executor_waiter():
 
 @pytest.mark.asyncio
 async def test_background_lane_will_not_evict_ready_cortex():
-    cortex = _register(LocalServerClient("/tmp/qwen2.5-32b-instruct-q5_k_m.gguf"))
+    cortex = _register(LocalServerClient(QWEN32_GGUF))
     cortex._lane_state = "ready"
 
-    brainstem = _register(LocalServerClient("/tmp/qwen2.5-7b-instruct-q4_k_m.gguf"))
+    brainstem = _register(LocalServerClient(QWEN7_GGUF))
 
     original = local_server_client._parallel_lane_runtime_allowed
     local_server_client._parallel_lane_runtime_allowed = lambda: False
@@ -65,10 +78,10 @@ async def test_background_lane_will_not_evict_ready_cortex():
 
 @pytest.mark.asyncio
 async def test_background_brainstem_can_coexist_with_ready_cortex_when_parallel_runtime_allowed():
-    cortex = _register(LocalServerClient("/tmp/qwen2.5-32b-instruct-q5_k_m.gguf"))
+    cortex = _register(LocalServerClient(QWEN32_GGUF))
     cortex._lane_state = "ready"
 
-    brainstem = _register(LocalServerClient("/tmp/qwen2.5-7b-instruct-q4_k_m.gguf"))
+    brainstem = _register(LocalServerClient(QWEN7_GGUF))
 
     original = local_server_client._parallel_lane_runtime_allowed
     local_server_client._parallel_lane_runtime_allowed = lambda: True
@@ -84,7 +97,7 @@ async def test_background_brainstem_can_coexist_with_ready_cortex_when_parallel_
 
 @pytest.mark.asyncio
 async def test_foreground_solver_evicts_existing_cortex_before_start():
-    cortex = _register(LocalServerClient("/tmp/qwen2.5-32b-instruct-q5_k_m.gguf"))
+    cortex = _register(LocalServerClient(QWEN32_GGUF))
     cortex._lane_state = "ready"
 
     calls = []
@@ -95,7 +108,7 @@ async def test_foreground_solver_evicts_existing_cortex_before_start():
 
     cortex.reboot_worker = _fake_reboot_worker
 
-    solver = _register(LocalServerClient("/tmp/qwen2.5-72b-instruct-q4_k_m.gguf"))
+    solver = _register(LocalServerClient(QWEN72_GGUF))
 
     allowed = await solver._yield_runtime_slot(foreground_request=True)
 
@@ -106,15 +119,15 @@ async def test_foreground_solver_evicts_existing_cortex_before_start():
 
 @pytest.mark.asyncio
 async def test_message_payload_sanitization_drops_non_json_metadata():
-    client = LocalServerClient("/tmp/qwen2.5-32b-instruct-q5_k_m.gguf")
+    client = LocalServerClient(QWEN32_GGUF)
     client._lane_state = "ready"
 
     captured = {}
 
     class _FakeHttpClient:
-        async def post(self, _url, json=None, timeout=None):
+        async def post(self, _url, json=None, **kwargs):
             captured["json"] = json
-            captured["timeout"] = timeout
+            captured["timeout"] = kwargs.get("timeout")
             return httpx.Response(
                 200,
                 json={
@@ -150,7 +163,7 @@ async def test_message_payload_sanitization_drops_non_json_metadata():
 
 
 def test_is_alive_repairs_adopted_runtime_without_owned_process():
-    client = LocalServerClient("/tmp/qwen2.5-32b-instruct-q5_k_m.gguf")
+    client = LocalServerClient(QWEN32_GGUF)
     client._lane_state = "recovering"
     client._runtime_identity_ok = True
     client._http_health_check = lambda: True
@@ -161,7 +174,7 @@ def test_is_alive_repairs_adopted_runtime_without_owned_process():
 
 @pytest.mark.asyncio
 async def test_response_parser_handles_part_arrays_and_reasoning_fallback():
-    client = LocalServerClient("/tmp/qwen2.5-32b-instruct-q5_k_m.gguf")
+    client = LocalServerClient(QWEN32_GGUF)
     client._lane_state = "ready"
     client._ensure_runtime_ready = AsyncMock(return_value=True)
 
@@ -185,7 +198,7 @@ async def test_response_parser_handles_part_arrays_and_reasoning_fallback():
     ])
 
     class _FakeHttpClient:
-        async def post(self, _url, json=None, timeout=None):
+        async def post(self, _url, json=None, **_kwargs):
             return responses.popleft()
 
     async def _fake_client():
@@ -202,11 +215,11 @@ async def test_response_parser_handles_part_arrays_and_reasoning_fallback():
 
 @pytest.mark.asyncio
 async def test_warmup_treats_empty_generation_as_benign_runtime_readiness():
-    client = LocalServerClient("/tmp/qwen2.5-32b-instruct-q5_k_m.gguf")
+    client = LocalServerClient(QWEN32_GGUF)
     client._ensure_runtime_ready = AsyncMock(return_value=True)
 
     class _FakeHttpClient:
-        async def post(self, _url, json=None, timeout=None):
+        async def post(self, _url, json=None, **_kwargs):
             return httpx.Response(
                 200,
                 json={
@@ -228,7 +241,7 @@ async def test_warmup_treats_empty_generation_as_benign_runtime_readiness():
 
 @pytest.mark.asyncio
 async def test_solver_background_warmup_preserves_background_runtime_intent():
-    client = LocalServerClient("/tmp/qwen2.5-72b-instruct-q4_k_m.gguf")
+    client = LocalServerClient(QWEN72_GGUF)
     client._ensure_runtime_ready = AsyncMock(return_value=False)
 
     await client.warmup(foreground_request=False)
@@ -238,12 +251,12 @@ async def test_solver_background_warmup_preserves_background_runtime_intent():
 
 @pytest.mark.asyncio
 async def test_single_empty_generation_does_not_immediately_crash_foreground_lane():
-    client = LocalServerClient("/tmp/qwen2.5-32b-instruct-q5_k_m.gguf")
+    client = LocalServerClient(QWEN32_GGUF)
     client._lane_state = "ready"
     client._ensure_runtime_ready = AsyncMock(return_value=True)
 
     class _FakeHttpClient:
-        async def post(self, _url, json=None, timeout=None):
+        async def post(self, _url, json=None, **_kwargs):
             return httpx.Response(
                 200,
                 json={
@@ -266,7 +279,7 @@ async def test_single_empty_generation_does_not_immediately_crash_foreground_lan
 
 @pytest.mark.asyncio
 async def test_restart_server_wait_is_offloaded_from_event_loop(monkeypatch):
-    client = LocalServerClient("/tmp/qwen2.5-32b-instruct-q5_k_m.gguf")
+    client = LocalServerClient(QWEN32_GGUF)
     wait_calls = []
     offload_calls = []
 
@@ -298,10 +311,10 @@ async def test_restart_server_wait_is_offloaded_from_event_loop(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_server_health_detects_wrong_model_on_reserved_lane_port():
-    client = LocalServerClient("/tmp/qwen2.5-32b-instruct-q5_k_m.gguf")
+    client = LocalServerClient(QWEN32_GGUF)
 
     class _FakeHttpClient:
-        async def get(self, url, timeout=None):
+        async def get(self, url, **_kwargs):
             if url.endswith("/health"):
                 return httpx.Response(200, json={"status": "ok"})
             if url.endswith("/v1/models"):
@@ -365,7 +378,7 @@ def test_spawn_server_uses_single_slot_and_disables_prompt_cache_by_default(tmp_
 
 
 def test_fit_messages_to_context_trims_oversized_background_payload():
-    client = LocalServerClient("/tmp/qwen2.5-1.5b-instruct-q4_k_m.gguf")
+    client = LocalServerClient(QWEN15_GGUF)
     messages = [
         {"role": "system", "content": "S" * 6000},
         {"role": "user", "content": "U" * 12000},
@@ -402,7 +415,7 @@ def test_memory_guard_handles_deque_history_without_index_pop_failure():
 
 
 def test_local_server_supervision_status_and_fragmentation_recycle():
-    client = LocalServerClient("/tmp/qwen2.5-32b-instruct-q5_k_m.gguf")
+    client = LocalServerClient(QWEN32_GGUF)
     proc = MagicMock()
     proc.poll.return_value = None
     client._process = proc

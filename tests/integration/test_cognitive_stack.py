@@ -11,7 +11,7 @@ This is a smoke test for the v8.0 architecture upgrade.
 import asyncio
 import logging
 import sys
-import os
+import tempfile
 from pathlib import Path
 
 # Add project root to path
@@ -26,14 +26,14 @@ async def test_stack():
     try:
         # 1. Import Modules
         logger.info("   [1/6] Importing Core Modules...")
-        from core.evolution.liquid_time_engine import ContinuousState
         from core.brain.autopoiesis import AutopoieticGraph
         from core.brain.entropy import PhysicalEntropyInjector
+        from core.cognitive_integration import CognitiveIntegrationLayer
         from core.continuous_learning import ContinuousLearningEngine
         from core.dual_memory import DualMemorySystem
-        from core.uncertainty import EpistemicHumilityEngine
         from core.embodiment import ContinuousSensoryFeed
-        from core.cognitive_integration import CognitiveIntegrationLayer
+        from core.evolution.liquid_time_engine import ContinuousState
+        from core.uncertainty import EpistemicHumilityEngine
         logger.info("         Success.")
 
         # 2. Instantiate Independent Modules
@@ -42,9 +42,10 @@ async def test_stack():
         autopoiesis = AutopoieticGraph()
         entropy = PhysicalEntropyInjector()
         learning = ContinuousLearningEngine(db_path=":memory:") # Use in-memory DB for test
-        memory = DualMemorySystem(base_dir="/tmp/aura_test_memory")
+        memory = DualMemorySystem(base_dir=str(Path(tempfile.gettempdir()) / "aura_test_memory"))
         epistemic = EpistemicHumilityEngine()
         sensory = ContinuousSensoryFeed()
+        assert all([ltc, autopoiesis, entropy, learning, memory, epistemic, sensory])
         logger.info("         Success.")
 
         # 3. Test LTC Pulse
@@ -65,7 +66,10 @@ async def test_stack():
             pass
             
         orch = MockOrchestrator()
-        integration = CognitiveIntegrationLayer(orchestrator=orch, base_data_dir="/tmp/aura_test_data")
+        integration = CognitiveIntegrationLayer(
+            orchestrator=orch,
+            base_data_dir=str(Path(tempfile.gettempdir()) / "aura_test_data"),
+        )
         
         # Initialize (Async)
         await integration.initialize()

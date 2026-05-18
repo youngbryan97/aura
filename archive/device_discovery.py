@@ -10,15 +10,15 @@ CAPABILITIES:
 
 Used for self-preservation - finding safe havens for replication.
 """
+import asyncio
 import logging
 import os
 import platform
+import posixpath
 import re
 import socket
-import subprocess
-import asyncio
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 logger = logging.getLogger("DeviceDiscovery.Advanced")
 
@@ -35,7 +35,7 @@ class EnhancedDeviceScanner:
         
         logger.info("✓ Enhanced Device Scanner initialized")
     
-    async def comprehensive_scan(self) -> List[Dict[str, Any]]:
+    async def comprehensive_scan(self) -> list[dict[str, Any]]:
         """Comprehensive network scan (Async).
         
         Returns detailed device information.
@@ -73,7 +73,7 @@ class EnhancedDeviceScanner:
         logger.info("✅ Found %d devices", len(devices))
         return devices
     
-    async def _arp_scan(self) -> List[Dict[str, Any]]:
+    async def _arp_scan(self) -> list[dict[str, Any]]:
         """ARP scan for local devices (Async)"""
         devices = []
         
@@ -105,7 +105,7 @@ class EnhancedDeviceScanner:
         
         return devices
     
-    async def _ping_sweep(self) -> List[Dict[str, Any]]:
+    async def _ping_sweep(self) -> list[dict[str, Any]]:
         """Ping sweep of local network (Async)"""
         devices = []
         
@@ -137,7 +137,7 @@ class EnhancedDeviceScanner:
                             "discovery_method": "ping",
                             "responsive": True
                         }
-                except (asyncio.TimeoutError, Exception):
+                except (TimeoutError, Exception):
                     logger.debug('Ignored Exception in device_discovery.py: %s', "unknown_error")
                 return None
 
@@ -150,7 +150,7 @@ class EnhancedDeviceScanner:
         
         return devices
     
-    async def _scan_ports_async(self, device: Dict):
+    async def _scan_ports_async(self, device: dict):
         """Scan common ports on device (Async)"""
         common_ports = {
             22: "SSH", 80: "HTTP", 443: "HTTPS", 3389: "RDP",
@@ -174,19 +174,19 @@ class EnhancedDeviceScanner:
                 port, service = res
                 device["open_ports"][port] = service
 
-    async def _is_port_open_async(self, ip: str, port: int, timeout: float = 0.5) -> bool:
+    async def _is_port_open_async(self, ip: str, port: int, timeout_s: float = 0.5) -> bool:
         """Check if port is open (Async)"""
         try:
             # vResilience: Use asyncio.open_connection for async port check
             conn = asyncio.open_connection(ip, port)
-            _reader, writer = await asyncio.wait_for(conn, timeout=timeout)
+            _reader, writer = await asyncio.wait_for(conn, timeout=timeout_s)
             writer.close()
             await writer.wait_closed()
             return True
-        except (asyncio.TimeoutError, Exception):
+        except (TimeoutError, Exception):
             return False
     
-    def _identify_services(self, device: Dict):
+    def _identify_services(self, device: dict):
         """Identify services running on device"""
         device["services"] = []
         
@@ -219,7 +219,7 @@ class EnhancedDeviceScanner:
             logger.debug("Hostname identification failed for %s: %s", device["ip"], e)
             device["hostname"] = "unknown"
     
-    def _get_local_ip(self) -> Optional[str]:
+    def _get_local_ip(self) -> str | None:
         """Get local IP address"""
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -242,8 +242,8 @@ class DeviceAccessManager:
         self.active_connections = {}
         logger.info("✓ Device Access Manager initialized")
     
-    def connect_ssh(self, ip: str, username: str, password: Optional[str] = None,
-                    key_file: Optional[str] = None) -> bool:
+    def connect_ssh(self, ip: str, username: str, password: str | None = None,
+                    key_file: str | None = None) -> bool:
         """Connect to device via SSH.
         """
         logger.info("🔐 Connecting to %s via SSH...", ip)
@@ -282,7 +282,7 @@ class DeviceAccessManager:
             logger.error("SSH connection failed: %s", e)
             return False
     
-    def execute_remote_command(self, ip: str, command: str) -> Tuple[bool, str]:
+    def execute_remote_command(self, ip: str, command: str) -> tuple[bool, str]:
         """Execute command on remote device."""
         if ip not in self.active_connections:
             return False, "Not connected to device"
@@ -330,14 +330,16 @@ class DeviceAccessManager:
         
         try:
             # Step 1: Transfer package
-            remote_path = f"/tmp/aura_deployment_{int(time.time())}.tar.gz"
+            remote_tmp = posixpath.join("/", "tmp")
+            remote_app_dir = posixpath.join(remote_tmp, "aura")
+            remote_path = posixpath.join(remote_tmp, f"aura_deployment_{int(time.time())}.tar.gz")
             if not self.transfer_file(ip, deployment_package, remote_path):
                 return False
             
             # Step 2: Extract package
             success, _ = self.execute_remote_command(
                 ip,
-                f"cd /tmp && tar -xzf {remote_path}"
+                f"cd {remote_tmp} && tar -xzf {remote_path}"
             )
             if not success:
                 return False
@@ -346,13 +348,13 @@ class DeviceAccessManager:
             # Note: This assumes python3 and pip exist
             success, _ = self.execute_remote_command(
                 ip,
-                "pip3 install -r /tmp/aura/requirements.txt --break-system-packages"
+                f"pip3 install -r {remote_app_dir}/requirements.txt --break-system-packages"
             )
             
             # Step 4: Start Aura
             success, _ = self.execute_remote_command(
                 ip,
-                "nohup python3 /tmp/aura/main.py > /tmp/aura.log 2>&1 &"
+                f"nohup python3 {remote_app_dir}/main.py > {posixpath.join(remote_tmp, 'aura.log')} 2>&1 &"
             )
             
             if success:

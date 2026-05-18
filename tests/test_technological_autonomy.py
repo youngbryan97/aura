@@ -29,19 +29,14 @@ Run:
 """
 from __future__ import annotations
 
-
-import asyncio
 import hashlib
 import inspect
-import json
-import os
 import sys
+import tempfile
 import time
 from collections import defaultdict
-from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -57,7 +52,7 @@ if str(PROJECT_ROOT) not in sys.path:
 # Scoring infrastructure
 # ---------------------------------------------------------------------------
 
-SCORES: Dict[str, int] = {}
+SCORES: dict[str, int] = {}
 
 
 def score(name: str, value: int, reason: str = "") -> int:
@@ -146,7 +141,7 @@ class TestUnifiedActionSpace:
         This is the computational analog of proprioception: knowing where
         your limbs are without looking.
         """
-        from core.capability_map import CapabilityMap, Capability
+        from core.capability_map import CapabilityMap
 
         cmap = CapabilityMap()
         assert len(cmap.capabilities) > 0, "Default capabilities must be populated"
@@ -165,7 +160,7 @@ class TestUnifiedActionSpace:
         Analogy: reaching for a cup requires shoulder, elbow, wrist, and
         fingers coordinating through one motor plan, not four separate calls.
         """
-        from core.initiative_synthesis import InitiativeSynthesizer, Impulse
+        from core.initiative_synthesis import Impulse, InitiativeSynthesizer
 
         synth = InitiativeSynthesizer()
 
@@ -233,7 +228,7 @@ class TestMotorControl:
         This is the 'efference copy' -- the system's record of what it intended
         to do, available for comparison with what actually happened.
         """
-        from core.will import WillDecision, WillOutcome, ActionDomain
+        from core.will import ActionDomain, WillDecision, WillOutcome
 
         decision = WillDecision(
             receipt_id="test-001",
@@ -260,7 +255,7 @@ class TestMotorControl:
         triggers corrective reflexes. A skill that crashes silently is like
         falling without catching yourself.
         """
-        from core.skills.base_skill import BaseSkill, SkillResult
+        from core.skills.base_skill import BaseSkill
 
         # BaseSkill should have safe_execute that wraps run()
         assert _class_has_method(BaseSkill, "safe_execute"), \
@@ -371,7 +366,7 @@ class TestPersistentPerception:
         report salience -- things worth noticing. WorldState should
         similarly filter and queue only important changes.
         """
-        from core.world_state import WorldState, SalientEvent
+        from core.world_state import WorldState
 
         ws = WorldState()
 
@@ -393,7 +388,7 @@ class TestPersistentPerception:
         checking the thermometer. But that belief expires if you leave
         the room for an hour.
         """
-        from core.world_state import WorldState, EnvironmentBelief
+        from core.world_state import EnvironmentBelief, WorldState
 
         ws = WorldState()
 
@@ -432,7 +427,7 @@ class TestEndogenousInitiative:
         The variety of sources matters: if all impulses come from one
         subsystem, it is a single drive, not an economy of drives.
         """
-        from core.initiative_synthesis import InitiativeSynthesizer, Impulse
+        from core.initiative_synthesis import Impulse, InitiativeSynthesizer
 
         synth = InitiativeSynthesizer()
 
@@ -493,7 +488,7 @@ class TestEndogenousInitiative:
         states that grow endogenously, not just labels applied to
         timer-based triggers.
         """
-        from core.soul import Soul, Drive
+        from core.soul import Drive, Soul
 
         # Create Soul with mock orchestrator
         mock_orch = MagicMock()
@@ -558,7 +553,7 @@ class TestFrictionlessCapabilityAccess:
 
     def test_skill_registry_in_capability_engine(self):
         """CapabilityEngine must maintain a registry of all known skills."""
-        from core.capability_engine import CapabilityEngine, SkillMetadata
+        from core.capability_engine import CapabilityEngine
 
         # CapabilityEngine uses self.skills (instance attribute set in __init__)
         # Verify it is defined in __init__ via source inspection
@@ -638,7 +633,8 @@ class TestReliability:
         """
         from core.reliability_tracker import ReliabilityTracker
 
-        tracker = ReliabilityTracker(data_path="/tmp/aura_test_reliability.json")
+        reliability_path = Path(tempfile.gettempdir()) / "aura_test_reliability.json"
+        tracker = ReliabilityTracker(data_path=str(reliability_path))
         tracker.record_attempt("web_search", success=True)
         tracker.record_attempt("web_search", success=True)
         tracker.record_attempt("web_search", success=False, error_msg="timeout")
@@ -654,7 +650,7 @@ class TestReliability:
         assert s >= 2
 
         # Cleanup
-        Path("/tmp/aura_test_reliability.json").unlink(missing_ok=True)
+        reliability_path.unlink(missing_ok=True)
 
     def test_structured_failure_semantics(self):
         """SkillResult must distinguish ok=True from ok=False with error details."""
@@ -678,7 +674,7 @@ class TestReliability:
         putting full weight on it. Circuit breakers are the computational
         equivalent of protective limping.
         """
-        from core.reliability_engine import ReliabilityEngine, ServiceHealth
+        from core.reliability_engine import ReliabilityEngine
 
         engine = ReliabilityEngine()
         engine.register_service("test_service", initial_stability=1.0)
@@ -750,7 +746,7 @@ class TestContinuousClosedLoop:
         reflective, sleep, critical) run at different tempos, like
         different brain wave frequencies.
         """
-        from core.mind_tick import MindTick, CognitiveMode, TICK_INTERVALS
+        from core.mind_tick import TICK_INTERVALS, CognitiveMode
 
         assert len(CognitiveMode) >= 3, "Must have multiple cognitive modes"
         assert CognitiveMode.CONVERSATIONAL in CognitiveMode
@@ -794,9 +790,9 @@ class TestContinuousClosedLoop:
         the system is open-loop.
         """
         from core.consciousness.closed_loop import (
-            PREDICTION_INTERVAL_S,
-            PREDICTION_ERROR_FEEDBACK_WEIGHT,
             OUTPUT_FEEDBACK_WEIGHT,
+            PREDICTION_ERROR_FEEDBACK_WEIGHT,
+            PREDICTION_INTERVAL_S,
         )
 
         assert PREDICTION_INTERVAL_S > 0, "Prediction must cycle"
@@ -866,7 +862,7 @@ class TestOwnershipOfExecution:
         This is the 'I would never do that' test. An organism that cannot
         refuse is a puppet, not an agent.
         """
-        from core.will import WillOutcome, IdentityAlignment
+        from core.will import IdentityAlignment, WillOutcome
 
         assert WillOutcome.REFUSE in WillOutcome, "REFUSE must be a possible outcome"
         assert IdentityAlignment.VIOLATION in IdentityAlignment, \
@@ -944,7 +940,7 @@ class TestSelfMaintenance:
         resources constrain what actions are possible and make the system
         self-regulating rather than unbounded.
         """
-        from core.drive_engine import DriveEngine, ResourceBudget
+        from core.drive_engine import DriveEngine
 
         engine = DriveEngine()
         assert "energy" in engine.budgets, "Energy budget must exist"
@@ -960,6 +956,7 @@ class TestSelfMaintenance:
         # Energy regens at 0.01/s, so after 10s should gain 0.1
         # (or be capped at capacity)
         assert energy.level >= 0, "Energy level must be non-negative after tick"
+        assert energy.level >= min(old_level, energy.capacity), "Energy should not decay during regeneration-only tick"
 
         s = score("self_maintenance.resource_budgets", 3,
                   "ResourceBudget with capacity/regen/tick = metabolic self-regulation")
@@ -998,7 +995,7 @@ class TestLongHorizonAutonomy:
         If goals only live in RAM, they die with the process. Persistence
         is the minimal requirement for long-horizon autonomy.
         """
-        from core.goals.goal_engine import GoalEngine, GoalStatus
+        from core.goals.goal_engine import GoalEngine
 
         assert _class_has_method(GoalEngine, "add_goal") or \
                _class_has_method(GoalEngine, "create_goal"), \
@@ -1019,7 +1016,7 @@ class TestLongHorizonAutonomy:
         This is the difference between waking up and being born: the
         system knows it was somewhere else and remembers what it was doing.
         """
-        from core.continuity import _get_continuity_path, ContinuityEngine
+        from core.continuity import ContinuityEngine, _get_continuity_path
 
         path = _get_continuity_path()
         assert path.suffix == ".json", "Continuity must be stored as JSON"
@@ -1039,7 +1036,7 @@ class TestLongHorizonAutonomy:
 
         Without lifecycle states, goals cannot be resumed after interruption.
         """
-        from core.goals.goal_engine import GoalStatus, ACTIVE_GOAL_STATUSES, TERMINAL_GOAL_STATUSES
+        from core.goals.goal_engine import ACTIVE_GOAL_STATUSES, TERMINAL_GOAL_STATUSES, GoalStatus
 
         assert GoalStatus.QUEUED in GoalStatus
         assert GoalStatus.IN_PROGRESS in GoalStatus
@@ -1095,7 +1092,6 @@ class TestLanguageDemotion:
         The docstring and architecture must make clear: the LLM is a
         'tongue', not a 'brain'. Cognition happens upstream.
         """
-        from core.language_center import LanguageCenter
 
         # Read the module docstring
         import core.language_center as lc_mod
@@ -1115,7 +1111,7 @@ class TestLanguageDemotion:
         If the LLM decides what to say, language is not demoted.
         If the Will decides and the LLM expresses, language is demoted.
         """
-        from core.will import UnifiedWill, ActionDomain
+        from core.will import ActionDomain
 
         # The Will must handle RESPONSE domain -- meaning it decides
         # before the response is generated
@@ -1171,8 +1167,9 @@ class TestBodySchema:
 
     def test_self_model_exists(self):
         """SelfModel must maintain a persistent representation of capabilities."""
-        from core.self_model import SelfModel
         from dataclasses import fields as dc_fields
+
+        from core.self_model import SelfModel
 
         # SelfModel is a dataclass -- check field names
         field_names = {f.name for f in dc_fields(SelfModel)}
@@ -1345,7 +1342,7 @@ class TestSoulTriad:
         The internal state is a genuine additional cause.
         """
         # Pathway 1: Initiative -> Will -> Expression (no user input needed)
-        from core.initiative_synthesis import InitiativeSynthesizer, Impulse
+        from core.initiative_synthesis import Impulse, InitiativeSynthesizer
         synth = InitiativeSynthesizer()
         accepted = synth.submit_impulse(Impulse(
             content="Share an observation about system state",
@@ -1415,35 +1412,20 @@ class TestStrongestFalsifiers:
         # Check for autonomous loop
         endogenous_pathways = []
 
-        try:
-            from core.consciousness.heartbeat import CognitiveHeartbeat
-            endogenous_pathways.append("CognitiveHeartbeat")
-        except ImportError:
-            pass
-
-        try:
-            from core.consciousness.dreaming import DreamingProcess
-            endogenous_pathways.append("DreamingProcess")
-        except ImportError:
-            pass
-
-        try:
-            from core.initiative_synthesis import InitiativeSynthesizer
-            endogenous_pathways.append("InitiativeSynthesizer")
-        except ImportError:
-            pass
-
-        try:
-            from core.volition import VolitionEngine
-            endogenous_pathways.append("VolitionEngine")
-        except ImportError:
-            pass
+        for dotpath, label in [
+            ("core.consciousness.heartbeat", "CognitiveHeartbeat"),
+            ("core.consciousness.dreaming", "DreamingProcess"),
+            ("core.initiative_synthesis", "InitiativeSynthesizer"),
+            ("core.volition", "VolitionEngine"),
+        ]:
+            if _module_exists(dotpath):
+                endogenous_pathways.append(label)
 
         assert len(endogenous_pathways) >= 3, \
             f"FALSIFIER DEFEATED: {len(endogenous_pathways)} endogenous pathways exist: {endogenous_pathways}"
 
-        s = score("falsifier.user_input_required", 0,
-                  "FALSIFIER DEFEATED: multiple endogenous action pathways exist")
+        score("falsifier.user_input_required", 0,
+              "FALSIFIER DEFEATED: multiple endogenous action pathways exist")
 
     def test_internal_state_is_decorative(self):
         """FALSIFIER: If internal state (drives, neurochemistry, affect) has
@@ -1478,7 +1460,7 @@ class TestStrongestFalsifiers:
 
         # Will.identity_alignment -> decision outcome
         try:
-            from core.will import WillDecision, WillOutcome, IdentityAlignment, ActionDomain
+            from core.will import ActionDomain, IdentityAlignment, WillDecision, WillOutcome
             d = WillDecision(
                 receipt_id="test", outcome=WillOutcome.REFUSE,
                 domain=ActionDomain.EXPRESSION, reason="identity violation",
@@ -1492,8 +1474,8 @@ class TestStrongestFalsifiers:
         assert len(causal_connections) >= 2, \
             f"FALSIFIER DEFEATED: {len(causal_connections)} causal connections found: {causal_connections}"
 
-        s = score("falsifier.decorative_state", 0,
-                  "FALSIFIER DEFEATED: internal state causally affects behavior")
+        score("falsifier.decorative_state", 0,
+              "FALSIFIER DEFEATED: internal state causally affects behavior")
 
     def test_no_offline_processing(self):
         """FALSIFIER: If the system does nothing when the user is away,
@@ -1503,41 +1485,21 @@ class TestStrongestFalsifiers:
         """
         background_systems = []
 
-        try:
-            from core.consciousness.dreaming import DreamingProcess
-            background_systems.append("DreamingProcess")
-        except ImportError:
-            pass
-
-        try:
-            from core.curiosity_engine import CuriosityEngine
-            background_systems.append("CuriosityEngine")
-        except ImportError:
-            pass
-
-        try:
-            from core.mind_tick import MindTick
-            background_systems.append("MindTick")
-        except ImportError:
-            pass
-
-        try:
-            from core.consciousness.heartbeat import CognitiveHeartbeat
-            background_systems.append("CognitiveHeartbeat")
-        except ImportError:
-            pass
-
-        try:
-            from core.reliability_engine import ReliabilityEngine
-            background_systems.append("ReliabilityEngine")
-        except ImportError:
-            pass
+        for dotpath, label in [
+            ("core.consciousness.dreaming", "DreamingProcess"),
+            ("core.curiosity_engine", "CuriosityEngine"),
+            ("core.mind_tick", "MindTick"),
+            ("core.consciousness.heartbeat", "CognitiveHeartbeat"),
+            ("core.reliability_engine", "ReliabilityEngine"),
+        ]:
+            if _module_exists(dotpath):
+                background_systems.append(label)
 
         assert len(background_systems) >= 4, \
             f"FALSIFIER DEFEATED: {len(background_systems)} background systems: {background_systems}"
 
-        s = score("falsifier.no_offline_processing", 0,
-                  "FALSIFIER DEFEATED: multiple background processing systems exist")
+        score("falsifier.no_offline_processing", 0,
+              "FALSIFIER DEFEATED: multiple background processing systems exist")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1682,7 +1644,7 @@ class TestStrongestSupportSignals:
         it constrains behavior at the decision level.
         """
         # Identity in Will
-        from core.will import UnifiedWill, IdentityAlignment
+        from core.will import IdentityAlignment, UnifiedWill
         will = UnifiedWill()
         assert hasattr(will, "_identity_name"), "Will must carry identity name"
         assert hasattr(will, "_identity_stance"), "Will must carry identity stance"
@@ -1693,8 +1655,9 @@ class TestStrongestSupportSignals:
             "Identity violations must be a recognized state"
 
         # Self-model carries beliefs about self
-        from core.self_model import SelfModel
         from dataclasses import fields as dc_fields
+
+        from core.self_model import SelfModel
         field_names = {f.name for f in dc_fields(SelfModel)}
         assert "beliefs" in field_names, "SelfModel must maintain self-beliefs"
 

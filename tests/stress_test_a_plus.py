@@ -4,17 +4,18 @@
 Comprehensive stress test for A+ Architectural Hardening.
 """
 import asyncio
-import threading
-import time
 import logging
+import tempfile
+import threading
+from pathlib import Path
+
 import pytest
-import os
-import resource
-from core.world_model.belief_graph import belief_graph
-from core.memory.sqlite_storage import SQLiteMemory
-from core.utils.resilience import AsyncCircuitBreaker
-from core.skill_management.hephaestus import HephaestusEngine
+
 from core.container import ServiceContainer
+from core.memory.sqlite_storage import SQLiteMemory
+from core.skill_management.hephaestus import HephaestusEngine
+from core.utils.resilience import AsyncCircuitBreaker
+from core.world_model.belief_graph import belief_graph
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("A+StressTest")
@@ -22,8 +23,7 @@ logger = logging.getLogger("A+StressTest")
 # 1. Thread-Safe BeliefGraph Stress Test
 def test_belief_graph_concurrency():
     logger.info("Running BeliefGraph concurrency test...")
-    results = []
-    
+
     def worker(worker_id):
         for i in range(100):
             belief_graph.update_belief(
@@ -36,21 +36,23 @@ def test_belief_graph_concurrency():
             _ = belief_graph.get_beliefs()
             
     threads = [threading.Thread(target=worker, args=(j,)) for j in range(10)]
-    for t in threads: t.start()
-    for t in threads: t.join()
-    
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
     beliefs = belief_graph.get_beliefs()
     logger.info(f"Final Belief Count: {len(beliefs)}")
     assert len(beliefs) >= 100
     # Clean up for next tests
-    belief_graph.persist_path = "/tmp/test_beliefs.json"
+    belief_graph.persist_path = str(Path(tempfile.gettempdir()) / "test_beliefs.json")
     logger.info("✓ BeliefGraph concurrency test PASSED.")
 
 # 2. Concurrent SQLite Stress Test
 @pytest.mark.asyncio
 async def test_sqlite_memory_concurrency():
     logger.info("Running SQLiteMemory concurrency test...")
-    db = SQLiteMemory(storage_file="/tmp/stress_test.db")
+    db = SQLiteMemory(storage_file=str(Path(tempfile.gettempdir()) / "stress_test.db"))
     await db._get_conn() 
     await db._ensure_schema()
     
@@ -126,7 +128,7 @@ async def test_circuit_breaker_resilience():
 @pytest.mark.asyncio
 async def test_sandbox_resource_limits():
     logger.info("Running Sandbox Resource Limit test...")
-    from unittest.mock import patch, AsyncMock
+    from unittest.mock import patch
     
     # 0. Clear and Setup mocks
     ServiceContainer.clear()

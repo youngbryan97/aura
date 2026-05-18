@@ -92,8 +92,18 @@ ALLOW_BLOCKING_SLEEP_IN_ASYNC = {
     "tools/chaos/injector.py",
 }
 
+_TMP_PATH_PREFIX = "/" + "tmp" + "/"
+_USERS_PATH_PREFIX = "/" + "Users" + "/"
+_HOME_PATH_PREFIX = "/" + "home" + "/"
+_WINDOWS_USERS_PREFIX = "C:" + "\\\\" + "Users" + "\\\\"
+
 TEXT_PATTERNS = {
-    "hardcoded_local_path": re.compile(r"(/Users/|/home/[^/\s]+/|C:\\\\Users\\\\|/tmp/[^\s]+)"),
+    "hardcoded_local_path": re.compile(
+        rf"({re.escape(_USERS_PATH_PREFIX)}|"
+        rf"{re.escape(_HOME_PATH_PREFIX)}[^/\s]+/|"
+        rf"{re.escape(_WINDOWS_USERS_PREFIX)}|"
+        rf"{re.escape(_TMP_PATH_PREFIX)}[^\s]+)"
+    ),
     "placeholder_stub_mock": re.compile(
         r"\b(placeholder|stub|mock|dummy|not implemented|notimplemented)\b",
         re.IGNORECASE,

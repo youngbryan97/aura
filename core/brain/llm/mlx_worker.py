@@ -1,26 +1,23 @@
-from core.runtime.errors import record_degradation
-import sys
+import copy
 import json
 import logging
-import traceback
-import time
-import os
-import signal
 import multiprocessing as mp
+import os
+import queue
+import re
+import signal
+import sys
 import threading
-import copy
+import time
 from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Any
-import numpy as np
-import queue
+from typing import Any
 
 from core.runtime.desktop_boot_safety import compute_mlx_cache_limit
+from core.runtime.errors import record_degradation
+
 from .model_registry import resolve_personality_adapter
-
-
-import re
 
 logger = logging.getLogger("MLXWorker")
 
@@ -73,7 +70,7 @@ def _prepare_clean_retry_kwargs(kwargs: dict[str, Any], *, structured: bool = Fa
     )
 
 
-def _sanitize_telemetry_leakage(text: str) -> Optional[str]:
+def _sanitize_telemetry_leakage(text: str) -> str | None:
     """Strip leaked internal telemetry labels and paths that occasionally 
     slip out from the LoRA fine-tune weights during specific topics.
     Returns None if a fatal hallucination is detected so the caller can retry.
@@ -262,9 +259,9 @@ class HeartbeatThread(threading.Thread):
 
 # Set environment variables for MLX stability
 def _setup_worker_env():
-    import subprocess
-    import platform
     import os
+    import platform
+    import subprocess
     
     # [PERFORMANCE] Fast-path: Use environment if already probed by parent
     cached_sdk = os.environ.get("AURA_SDK_PATH")
@@ -274,7 +271,6 @@ def _setup_worker_env():
     else:
         try:
             sdk_path = subprocess.check_output(["xcrun", "--show-sdk-path"], timeout=2.0).decode().strip()
-            import pathlib
             allowed_prefixes = ("/Library/", "/Applications/Xcode", "/usr/")
             if not any(sdk_path.startswith(pfx) for pfx in allowed_prefixes):
                 raise RuntimeError(f"Suspicious SDK path rejected: {sdk_path}")
@@ -296,8 +292,10 @@ def _setup_worker_env():
         sdk_inc = os.path.join(sdk_path, "usr", "include")
         cpp_inc = "/Library/Developer/CommandLineTools/usr/include/c++/v1"
         cpath_parts = []
-        if sdk_path and os.path.exists(sdk_inc): cpath_parts.append(sdk_inc)
-        if os.path.exists(cpp_inc): cpath_parts.append(cpp_inc)
+        if sdk_path and os.path.exists(sdk_inc):
+            cpath_parts.append(sdk_inc)
+        if os.path.exists(cpp_inc):
+            cpath_parts.append(cpp_inc)
         if cpath_parts:
             os.environ["CPATH"] = ":".join(cpath_parts + [os.environ.get("CPATH", "")]).strip(":")
     except Exception as e:
@@ -597,19 +595,16 @@ def _mlx_worker_loop(
 
     try:
         import mlx.core as mx
-        from mlx_lm import load, generate
+        from mlx_lm import load
         try:
             from mlx_lm.sample_utils import make_sampler
         except ImportError:
-            try: from mlx_lm.sample import make_sampler
-            except ImportError: make_sampler = None
+            try:
+                from mlx_lm.sample import make_sampler
+            except ImportError:
+                make_sampler = None
         
         logger.info("📡 [WORKER] Loading Core modules...")
-        try:
-            from .provider import LLMProvider
-            from core.schemas import ChatStreamEvent
-        except ImportError:
-            logger.debug("[WORKER] Optional core module imports failed (non-fatal in spawn context)")
         
     except ImportError:
         logger.error("mlx-lm not installed in worker environment.")
@@ -627,8 +622,10 @@ def _mlx_worker_loop(
             logger.info(f"Metal cache limit set to {limit // (1024**2)}MB")
         except Exception as e:
             record_degradation('mlx_worker', e)
-            try: mx.metal.set_cache_limit(1024 * 1024 * 1024 * 24)
-            except Exception: pass
+            try:
+                mx.metal.set_cache_limit(1024 * 1024 * 1024 * 24)
+            except Exception:
+                pass
 
     # [PERFORMANCE] Metal probes shifted to after model load or triggered on demand
     # Initializing the model first is more critical for 'perceived' speed.
@@ -751,7 +748,8 @@ def _mlx_worker_loop(
             except (EOFError, BrokenPipeError, OSError) as queue_exc:
                 logger.info("🛑 [WORKER] Request queue closed; exiting quietly (%s).", queue_exc)
                 break
-            if job is None: break
+            if job is None:
+                break
                 
             action = job.get("action")
             if action == "generate":
@@ -854,7 +852,7 @@ def _mlx_worker_loop(
                 if schema:
                     try:
                         brace_id = tokenizer.encode("{", add_special_tokens=False)[0]
-                        def json_start_processor(tokens, logits):
+                        def json_start_processor(tokens, logits, brace_id=brace_id):
                             if len(tokens) == 0:
                                 # Force first token to be '{'
                                 mask = mx.full_like(logits, -float("inf"))
@@ -903,7 +901,8 @@ def _mlx_worker_loop(
                                 if psutil.virtual_memory().percent > 90:  # 64GB — don't panic at 85%
                                     logger.warning("⚠️ High memory pressure detected in worker. Clearing MLX cache.")
                                     mx.clear_cache()
-                            except Exception: pass
+                            except Exception:
+                                pass
 
                         # [v11.5 HARDENING] Internal Worker Retries for Structured Leaks & Loops
                         # We allow up to 2 retries if the LLM gets stuck in a loop or returns empty on a schema.
@@ -924,7 +923,11 @@ def _mlx_worker_loop(
                                 # Creates a lightweight monitor that checks for capitulation,
                                 # persona drift, and live-updates affect state during generation.
                                 try:
-                                    from core.brain.llm.token_sentinel import TokenSentinel, InterventionType, get_refusal_fallback
+                                    from core.brain.llm.token_sentinel import (
+                                        InterventionType,
+                                        TokenSentinel,
+                                        get_refusal_fallback,
+                                    )
                                     sentinel = TokenSentinel(
                                         check_interval=8,
                                         affect_interval=16,
@@ -939,9 +942,12 @@ def _mlx_worker_loop(
                                 tokens = tokenizer.encode(prompt)
                                 import mlx_lm.utils as u
                                 
-                                def _can_trim(pc): return hasattr(u, "trim_prompt_cache")
-                                def _do_trim(pc, num): 
-                                    if hasattr(u, "trim_prompt_cache"): u.trim_prompt_cache(pc, num)
+                                def _can_trim(pc):
+                                    return hasattr(u, "trim_prompt_cache")
+
+                                def _do_trim(pc, num):
+                                    if hasattr(u, "trim_prompt_cache"):
+                                        u.trim_prompt_cache(pc, num)
                                 
                                 model_key = id(model)
                                 cache = None
@@ -964,8 +970,10 @@ def _mlx_worker_loop(
                                         import inspect as _insp
                                         _sparams = _insp.signature(make_sampler).parameters
                                         sampler_kwargs = {"temp": kwargs.get("temperature", 0.7)}
-                                        if "top_p" in _sparams: sampler_kwargs["top_p"] = kwargs.get("top_p", 1.0)
-                                        if "min_p" in _sparams: sampler_kwargs["min_p"] = kwargs.get("min_p", 0.0)
+                                        if "top_p" in _sparams:
+                                            sampler_kwargs["top_p"] = kwargs.get("top_p", 1.0)
+                                        if "min_p" in _sparams:
+                                            sampler_kwargs["min_p"] = kwargs.get("min_p", 0.0)
                                         if "repetition_penalty" in _sparams: 
                                             sampler_kwargs["repetition_penalty"] = kwargs.get("repetition_penalty", 1.0)
                                         if "repetition_context_size" in _sparams: 
@@ -1092,8 +1100,10 @@ def _mlx_worker_loop(
                                 if sentinel_loop_aborted:
                                     if internal_attempt < max_internal_retries:
                                         logger.warning(f"⚠️ [WORKER] Retrying generation cleanly after loop abort (attempt {internal_attempt + 1})...")
-                                        if prompt_cache_lru is not None: prompt_cache_lru.clear()
-                                        if mx and device != "cpu": _clear_mlx_cache(mx)
+                                        if prompt_cache_lru is not None:
+                                            prompt_cache_lru.clear()
+                                        if mx and device != "cpu":
+                                            _clear_mlx_cache(mx)
                                         _prepare_clean_retry_kwargs(kwargs, structured=bool(schema))
                                         if "logits_processors" in kwargs:
                                             # We just recreate the logit processors if they exist so it catches the loop
@@ -1103,37 +1113,30 @@ def _mlx_worker_loop(
                                     else:
                                         logger.warning("🚨 [WORKER] Out of retries for loop abort. Returning truncated prefix.")
                                         break
-                                            
-                                        continue
 
-                                    if sentinel_ontology_aborted:
-                                        if internal_attempt < max_internal_retries:
-                                            logger.warning(f"⚠️ [WORKER] Retrying generation cleanly after ontological violation (attempt {internal_attempt + 1})...")
-                                            if prompt_cache_lru is not None: prompt_cache_lru.clear()
-                                            if mx and device != "cpu": _clear_mlx_cache(mx)
-                                            # Add a slight temperature penalty or just start fresh
-                                            _prepare_clean_retry_kwargs(kwargs, structured=bool(schema))
-                                            continue
-                                        else:
-                                            logger.warning("🚨 [WORKER] Out of retries for ontological violation. Returning refusal.")
-                                            response_text = get_refusal_fallback(seed=token_count)
-                                            break
-                                        
-                                sanitized_text = _sanitize_telemetry_leakage(response_text)
-                                if sanitized_text is None:
+                                if sentinel_ontology_aborted:
                                     if internal_attempt < max_internal_retries:
-                                        logger.warning(f"🚨 [WORKER] Hallucination detected by sanitizer. Retrying (attempt {internal_attempt + 1})...")
-                                        if prompt_cache_lru is not None: prompt_cache_lru.clear()
-                                        if mx and device != "cpu": _clear_mlx_cache(mx)
+                                        logger.warning(f"⚠️ [WORKER] Retrying generation cleanly after ontological violation (attempt {internal_attempt + 1})...")
+                                        if prompt_cache_lru is not None:
+                                            prompt_cache_lru.clear()
+                                        if mx and device != "cpu":
+                                            _clear_mlx_cache(mx)
+                                        # Add a slight temperature penalty or just start fresh
                                         _prepare_clean_retry_kwargs(kwargs, structured=bool(schema))
                                         continue
                                     else:
-                                        logger.warning("🚨 [WORKER] Hallucination detected and out of retries. Returning empty text for caller-side recovery.")
-                                        response_text = ""
+                                        logger.warning("🚨 [WORKER] Out of retries for ontological violation. Returning refusal.")
+                                        response_text = get_refusal_fallback(seed=token_count)
                                         break
-                                        
+
+                                sanitized_text = _sanitize_telemetry_leakage(response_text)
+                                if sanitized_text is None:
+                                    logger.warning("🚨 [WORKER] Hallucination detected by sanitizer. Returning empty text for caller-side recovery.")
+                                    response_text = ""
+                                    break
+
                                 response_text = sanitized_text
-                                        
+
                                 if response_text.strip() or not schema:
                                     break # Success or not a structured task
                                 
@@ -1257,7 +1260,11 @@ def _mlx_worker_loop(
 
                             # ── Token Sentinel for streaming path ─────────
                             try:
-                                from core.brain.llm.token_sentinel import TokenSentinel, InterventionType, get_refusal_fallback
+                                from core.brain.llm.token_sentinel import (
+                                    InterventionType,
+                                    TokenSentinel,
+                                    get_refusal_fallback,
+                                )
                                 stream_sentinel = TokenSentinel(
                                     check_interval=8,
                                     affect_interval=16,

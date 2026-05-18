@@ -5,11 +5,11 @@ Lazarus Protocol - Minimalist Life Support Watchdog
 This script monitors the main Aura process and reboots it if it crashes
 or stops pulsing its heartbeat.
 """
-import time
-import subprocess
 import os
-import signal
+import subprocess
 import sys
+import tempfile
+import time
 from pathlib import Path
 
 # --- Lazarus Version Lock ---------------------------------------
@@ -31,10 +31,10 @@ if sys.version_info.major != REQUIRED_MAJOR or sys.version_info.minor != REQUIRE
 # --- Configuration for the Brainstem ---
 PROJECT_ROOT = Path(__file__).resolve().parent
 MIND_SCRIPT = str(PROJECT_ROOT / "aura_main.py")
-HEARTBEAT_FILE = Path("/tmp/aura_heartbeat.pulse")
+HEARTBEAT_FILE = Path(tempfile.gettempdir()) / "aura_heartbeat.pulse"
 HEARTBEAT_TIMEOUT = 60 # seconds (Extended slightly for heavy M1 Pro boot)
 LOG_DIR = PROJECT_ROOT / "logs"
-get_task_tracker().create_task(get_storage_gateway().create_dir(LOG_DIR, cause=''))
+LOG_DIR.mkdir(parents=True, exist_ok=True)
 COGNITIVE_LOG_FILE = LOG_DIR / "aura_cognitive.log"
 BRAINSTEM_LOG_FILE = LOG_DIR / "aura_brainstem.log"
 
@@ -76,7 +76,7 @@ def main():
     # Ensure heartbeat file is clean on start
     if HEARTBEAT_FILE.exists():
         try:
-            get_task_tracker().create_task(get_storage_gateway().delete(HEARTBEAT_FILE, cause='main'))
+            HEARTBEAT_FILE.unlink()
         except Exception:
             pass
         
@@ -120,7 +120,7 @@ def main():
                     mind_process.kill()
                 
                 try:
-                    get_task_tracker().create_task(get_storage_gateway().delete(HEARTBEAT_FILE, cause='main'))
+                    HEARTBEAT_FILE.unlink()
                 except Exception:
                     pass
                     

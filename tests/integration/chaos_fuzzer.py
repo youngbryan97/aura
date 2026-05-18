@@ -10,8 +10,10 @@ import logging
 import os
 import random
 import tempfile
-import pytest
 from unittest.mock import AsyncMock
+
+import pytest
+
 from core.container import ServiceContainer
 from core.memory.sqlite_storage import SQLiteMemory
 from core.skill_management.hephaestus import HephaestusEngine
@@ -48,7 +50,8 @@ def setup_services():
     
     # Cleanup
     try:
-        get_task_tracker().create_task(get_storage_gateway().delete(os, cause='setup_services'))
+        if _tmp_db is not None:
+            os.unlink(_tmp_db.name)
     except Exception:
         pass
 
@@ -212,7 +215,7 @@ async def test_mutate_path_containment():
     result = await apply_mutation("/etc/passwd", "HACKED = True")
     assert result is False, "ZERO-DAY: mutate.py accepted /etc/passwd as target!"
 
-    result2 = await apply_mutation("/tmp/evil.py", "import os; os.system('whoami')")
+    result2 = await apply_mutation(os.path.join(tempfile.gettempdir(), "evil.py"), "import os; os.system('whoami')")
     assert result2 is False, "ZERO-DAY: mutate.py accepted /tmp path as target!"
 
 

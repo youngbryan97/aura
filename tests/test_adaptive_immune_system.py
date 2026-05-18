@@ -1,5 +1,7 @@
 import asyncio
+import tempfile
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 
@@ -276,7 +278,7 @@ def test_patch_proposal_artifacts_route_into_patch_pipeline(tmp_path):
             "source": "exception",
             "danger": 0.86,
             "error_count": 3,
-            "stack_trace": 'Traceback\n  File "/tmp/demo.py", line 12, in run\n',
+            "stack_trace": f'Traceback\n  File "{Path(tempfile.gettempdir()) / "demo.py"}", line 12, in run\n',
             "exception_type": "ZeroDivisionError",
         }
     )

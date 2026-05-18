@@ -1,10 +1,10 @@
-import pytest
-import os
-import json
-import time
 import multiprocessing
+import os
+import tempfile
 from pathlib import Path
+
 from core.resilience.cognitive_wal import CognitiveWAL
+
 
 def simulate_crash_worker(wal_path):
     """Worker that writes to WAL and then 'crashes' (exits)."""
@@ -19,7 +19,7 @@ def simulate_crash_worker(wal_path):
     os._exit(1)
 
 def test_wal_durability():
-    wal_path = Path("/tmp/test_wal.jsonl")
+    wal_path = Path(tempfile.gettempdir()) / "test_wal.jsonl"
     if wal_path.exists():
         wal_path.unlink()
         

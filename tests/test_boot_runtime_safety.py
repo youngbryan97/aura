@@ -1,14 +1,15 @@
-from pathlib import Path
 import sys
+import tempfile
+from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from core.brain.inference_gate import InferenceGate
 from core.brain.llm_health_router import build_router_from_config
-from core.container import ServiceContainer
 from core.config import PROJECT_ROOT, config
+from core.container import ServiceContainer
 from core.runtime.boot_safety import main_process_camera_policy, uvloop_allowed
 from core.runtime.desktop_boot_safety import (
     compute_mlx_cache_limit,
@@ -18,6 +19,8 @@ from core.runtime.desktop_boot_safety import (
 from core.senses.continuous_vision import ContinuousSensoryBuffer
 from core.sensory_motor_cortex import SensoryMotorCortex
 from core.utils.memory_monitor import AppleSiliconMemoryMonitor
+
+VISION_TEST_ROOT = Path(tempfile.gettempdir()) / "aura-test"
 
 
 def test_config_exports_project_root_alias():
@@ -46,7 +49,7 @@ def test_continuous_vision_blocks_forced_camera_on_darwin(monkeypatch):
     monkeypatch.delenv("AURA_ALLOW_UNSAFE_MAIN_PROCESS_CAMERA", raising=False)
 
     with patch("core.runtime.boot_safety.sys.platform", "darwin"):
-        buffer = ContinuousSensoryBuffer(Path("/tmp/aura-test"))
+        buffer = ContinuousSensoryBuffer(VISION_TEST_ROOT)
 
     assert buffer.camera_enabled is False
 
@@ -249,10 +252,6 @@ def test_inprocess_mlx_metal_can_be_forced_for_debugging(monkeypatch):
     assert reason == "forced"
 
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock
-
-
 @pytest.mark.asyncio
 async def test_continuous_vision_defers_screen_backend_without_permission(monkeypatch):
     class _FakeMSSModule:
@@ -265,7 +264,7 @@ async def test_continuous_vision_defers_screen_backend_without_permission(monkey
     monkeypatch.setitem(sys.modules, "mss", _FakeMSSModule())
 
     with patch("core.container.ServiceContainer.get", return_value=guard):
-        buffer = ContinuousSensoryBuffer(Path("/tmp/aura-test"))
+        buffer = ContinuousSensoryBuffer(VISION_TEST_ROOT)
         ready = await buffer._ensure_screen_backend()
 
     assert ready is False

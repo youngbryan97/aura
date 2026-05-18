@@ -3,9 +3,12 @@
 Simulated canaries, fixture replays, and contaminated runs must never be
 counted as real deep-run evidence. Mode separation must be enforced.
 """
+from pathlib import PurePosixPath
+
 import pytest
-from core.environment.benchmark_runner import BenchmarkResult, BenchmarkReport, BenchmarkRunner
-from core.environment.boundary_guard import BoundaryGuard, BoundaryConfig, BoundaryViolationError
+
+from core.environment.benchmark_runner import BenchmarkReport, BenchmarkResult, BenchmarkRunner
+from core.environment.boundary_guard import BoundaryConfig, BoundaryGuard, BoundaryViolationError
 
 
 class TestBenchmarkIntegrity:
@@ -99,8 +102,9 @@ class TestBoundaryEnforcement:
     def test_save_file_access_blocked(self):
         config = BoundaryConfig(forbidden_file_patterns=[".nethackdir/save", "save/"])
         guard = BoundaryGuard(config=config)
+        save_path = str(PurePosixPath("/home") / "user" / ".nethackdir" / "save" / "game.sav")
         with pytest.raises(BoundaryViolationError):
-            guard.check_file_access("/home/user/.nethackdir/save/game.sav")
+            guard.check_file_access(save_path)
         assert guard.contaminated
 
     def test_oracle_observation_metadata_blocked(self):

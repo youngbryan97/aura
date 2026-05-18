@@ -1,4 +1,5 @@
-import asyncio
+import tempfile
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -98,8 +99,8 @@ async def test_api_chat_warms_cold_lane_before_processing(monkeypatch):
         def __init__(self):
             self.timeout = None
 
-        async def ensure_foreground_ready(self, timeout):
-            self.timeout = timeout
+        async def ensure_foreground_ready(self, *args, **kwargs):
+            self.timeout = kwargs.get("timeout", args[0] if args else None)
             return {
                 "conversation_ready": True,
                 "state": "ready",
@@ -156,8 +157,9 @@ async def test_api_chat_continues_to_kernel_when_lane_warmup_times_out(monkeypat
     from interface import server as server_module
 
     class _FakeGate:
-        async def ensure_foreground_ready(self, timeout):
-            raise asyncio.TimeoutError(f"timed out after {timeout}")
+        async def ensure_foreground_ready(self, *args, **kwargs):
+            timeout = kwargs.get("timeout", args[0] if args else None)
+            raise TimeoutError(f"timed out after {timeout}")
 
     class _FakeKernelInterface:
         def is_ready(self):
@@ -203,7 +205,7 @@ async def test_api_chat_returns_hard_local_failure_without_kernel_fallback(monke
     from interface import server as server_module
 
     class _FakeGate:
-        async def ensure_foreground_ready(self, timeout):
+        async def ensure_foreground_ready(self, *_args, **_kwargs):
             raise RuntimeError("local_runtime_unavailable:exit_124")
 
     class _FakeKernelInterface:
@@ -249,8 +251,8 @@ async def test_api_chat_returns_hard_local_failure_without_kernel_fallback(monke
 
 @pytest.mark.asyncio
 async def test_stabilize_user_facing_reply_blocks_ungrounded_search_turn_fallback(monkeypatch):
-    from interface.routes import chat as chat_routes
     from core.state.aura_state import AuraState
+    from interface.routes import chat as chat_routes
 
     state = AuraState.default()
     state.response_modifiers["last_skill_run"] = "web_search"
@@ -608,7 +610,7 @@ async def test_api_chat_returns_structured_timeout_when_kernel_times_out(monkeyp
             return True
 
         async def process(self, *_args, **_kwargs):
-            raise asyncio.TimeoutError("foreground timeout")
+            raise TimeoutError("foreground timeout")
 
     monkeypatch.setattr(server_module, "_notify_user_spoke", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(
@@ -648,12 +650,12 @@ async def test_api_chat_uses_protected_foreground_lane_when_kernel_lock_is_held(
     gate_calls = []
 
     class _FakeGate:
-        async def generate(self, prompt, context=None, timeout=None):
+        async def generate(self, prompt, context=None, **kwargs):
             gate_calls.append(
                 {
                     "prompt": prompt,
                     "context": dict(context or {}),
-                    "timeout": timeout,
+                    "timeout": kwargs.get("timeout"),
                 }
             )
             return "I'm here with you. My attention is steady, and the thread is intact."
@@ -767,12 +769,12 @@ async def test_api_chat_keeps_protected_foreground_deep_prompts_on_primary_lane(
     gate_calls = []
 
     class _FakeGate:
-        async def generate(self, prompt, context=None, timeout=None):
+        async def generate(self, prompt, context=None, **kwargs):
             gate_calls.append(
                 {
                     "prompt": prompt,
                     "context": dict(context or {}),
-                    "timeout": timeout,
+                    "timeout": kwargs.get("timeout"),
                 }
             )
             return (
@@ -1022,7 +1024,7 @@ async def test_api_chat_answers_recent_activity_from_runtime_state(monkeypatch):
     orch = _mock_orch(
         _demo_last_background_activity={
             "target_name": "shadow_ast_healer.py",
-            "target_path": "/tmp/shadow_ast_healer.py",
+            "target_path": str(Path(tempfile.gettempdir()) / "shadow_ast_healer.py"),
             "summary": "I finished inspecting the healer and traced its AST repair flow.",
         }
     )

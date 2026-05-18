@@ -3,7 +3,6 @@ import importlib.util
 import os
 import signal
 import tempfile
-import time
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -14,31 +13,33 @@ import core.constitution as constitution_module
 import core.executive.authority_gateway as authority_gateway_module
 import core.executive.executive_core as executive_core_module
 from core.adaptation.epistemic_humility import EpistemicHumility, FailureEvent
-from core.agency.capability_system import get_capability_manager
 from core.adaptation.heuristic_synthesizer import HeuristicSynthesizer
+from core.agency.capability_system import get_capability_manager
 from core.agency.self_play import ContinuousSelfPlay
+from core.cognitive.router import Intent, IntentRouter
 from core.consciousness.substrate_authority import (
     AuthorizationDecision,
     SubstrateVerdict,
 )
 from core.constitution import get_constitutional_core
-from core.container import ServiceContainer
+from core.container import ServiceContainer, ServiceNotFoundError
 from core.data.project_store import ProjectStore
 from core.executive.authority_gateway import get_authority_gateway
 from core.global_workspace import GlobalWorkspace, WorkItem
 from core.goals.goal_engine import GoalEngine
-from core.health.degraded_events import clear_degraded_events
-from core.health.degraded_events import get_recent_degraded_events
-from core.health.degraded_events import record_degraded_event
-from core.cognitive.router import IntentRouter, Intent
+from core.health.degraded_events import (
+    clear_degraded_events,
+    get_recent_degraded_events,
+    record_degraded_event,
+)
 from core.orchestrator.main import RobustOrchestrator
 from core.plugin_loader import PluginManager
 from core.runtime.impulse_governance import run_governed_impulse
+from core.runtime.organism_status import get_organism_status
 from core.runtime.proposal_governance import (
     propose_governed_initiative_to_state,
     queue_governed_initiative,
 )
-from core.runtime.organism_status import get_organism_status
 from core.runtime.service_access import resolve_identity_prompt_surface
 from core.senses.sensory_client import SensoryLocalClient
 from core.senses.sensory_instincts import SensoryInstincts
@@ -72,10 +73,10 @@ def test_project_store_transaction_rolls_back_on_error(tmp_path):
 
 def test_metabolism_dir_size_returns_total_for_success_path(tmp_path):
     target = tmp_path / "cache"
-    get_task_tracker().create_task(get_storage_gateway().create_dir(target, cause='test_metabolism_dir_size_returns_total_for_success_path'))
+    target.mkdir(parents=True)
     (target / "a.bin").write_bytes(b"a" * 3)
     nested = target / "nested"
-    get_task_tracker().create_task(get_storage_gateway().create_dir(nested, cause='test_metabolism_dir_size_returns_total_for_success_path'))
+    nested.mkdir(parents=True)
     (nested / "b.bin").write_bytes(b"b" * 5)
 
     assert MetabolismEngine._dir_size(target) == 8
@@ -361,9 +362,10 @@ async def test_filesystem_reality_shortcut_is_disabled_for_user_facing_requests(
         output_gate = SimpleNamespace(emit=AsyncMock())
 
     probe = Probe()
+    example_path = Path(tempfile.gettempdir()) / "example.txt"
 
     handled = await probe._handle_filesystem_reality_check(
-        "check if /tmp/example.txt exists",
+        f"check if {example_path} exists",
         "user",
     )
 
@@ -432,9 +434,9 @@ def test_file_operation_no_longer_allows_desktop_agency_test_escape(tmp_path):
     from core.skills.file_operation import FileOperationSkill
 
     workspace = tmp_path / "workspace"
-    get_task_tracker().create_task(get_storage_gateway().create_dir(workspace, cause='test_file_operation_no_longer_allows_desktop_agency_test_escape'))
+    workspace.mkdir(parents=True)
     outside = tmp_path / "agency_test" / "proof.txt"
-    get_task_tracker().create_task(get_storage_gateway().create_dir(outside.parent, cause='test_file_operation_no_longer_allows_desktop_agency_test_escape'))
+    outside.parent.mkdir(parents=True)
 
     skill = FileOperationSkill()
     skill.root_dir = os.path.realpath(str(workspace))
@@ -567,7 +569,7 @@ def test_global_workspace_history_buffer_is_bounded_and_sliceable():
 def test_service_container_require_fails_loudly_for_missing_service():
     _reset_authority_runtime()
 
-    with pytest.raises(Exception):
+    with pytest.raises(ServiceNotFoundError):
         ServiceContainer.require("missing_service")
 
 

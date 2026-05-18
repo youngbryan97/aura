@@ -1,8 +1,10 @@
 import asyncio
 import subprocess
 import sys
+import tempfile
 import threading
 import time
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -11,6 +13,8 @@ from core.resilience.stability_guardian import StabilityGuardian
 from core.runtime import runtime_hygiene as runtime_hygiene_module
 from core.runtime.runtime_hygiene import MemorySample, RuntimeHygieneManager
 from core.utils.task_tracker import TaskTracker
+
+TMP_ROOT = Path(tempfile.gettempdir())
 
 
 @pytest.mark.asyncio
@@ -67,7 +71,10 @@ async def test_runtime_hygiene_tracks_non_daemon_threads():
 async def test_runtime_hygiene_tracks_subprocesses():
     hygiene = RuntimeHygieneManager()
     await hygiene.start(asyncio.get_running_loop())
-    proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(0.25)"])
+    proc = await asyncio.to_thread(
+        subprocess.Popen,
+        [sys.executable, "-c", "import time; time.sleep(0.25)"],
+    )
 
     try:
         await asyncio.sleep(0.05)
@@ -93,7 +100,10 @@ async def test_runtime_hygiene_adopts_existing_subprocesses_started_before_hygie
     except PermissionError:
         pytest.skip("psutil child-process inspection is blocked in this sandbox")
 
-    proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(1.0)"])
+    proc = await asyncio.to_thread(
+        subprocess.Popen,
+        [sys.executable, "-c", "import time; time.sleep(1.0)"],
+    )
     hygiene = RuntimeHygieneManager()
     await hygiene.start(asyncio.get_running_loop())
 
@@ -188,7 +198,7 @@ def test_runtime_hygiene_treats_recent_model_warmup_as_transient(monkeypatch):
             "last_transition_at": now - 15.0,
         }
     )
-    fake_mlx_module = SimpleNamespace(_CLIENTS={"/tmp/cortex": fake_client})
+    fake_mlx_module = SimpleNamespace(_CLIENTS={str(TMP_ROOT / "cortex"): fake_client})
     fake_server_module = SimpleNamespace(_SERVER_CLIENTS={})
     monkeypatch.setitem(sys.modules, "core.brain.llm.mlx_client", fake_mlx_module)
     monkeypatch.setitem(sys.modules, "core.brain.llm.local_server_client", fake_server_module)

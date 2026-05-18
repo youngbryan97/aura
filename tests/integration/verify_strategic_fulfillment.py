@@ -4,19 +4,22 @@
 Simulation of a multi-step project fulfillment with error recovery.
 """
 import asyncio
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import MagicMock
+
+from core.container import ServiceContainer
 from core.data.project_store import ProjectStore
 from core.strategic_planner import StrategicPlanner
-from core.container import ServiceContainer
+
 
 class TestStrategicFulfillment(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         ServiceContainer.clear()
-        self.db_path = "/tmp/test_strategic_fulfillment.db"
-        import os
-        if os.path.exists(self.db_path):
-            os.remove(self.db_path)
+        db_path = Path(tempfile.gettempdir()) / "test_strategic_fulfillment.db"
+        db_path.unlink(missing_ok=True)
+        self.db_path = str(db_path)
         
         self.store = ProjectStore(self.db_path)
         self.brain = MagicMock()

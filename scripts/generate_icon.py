@@ -1,7 +1,10 @@
 """Generate Aura app icon - dark geometric brain/circuit design."""
-from PIL import Image, ImageDraw, ImageFont
 import math
 import os
+import subprocess
+import tempfile
+
+from PIL import Image, ImageDraw, ImageFont
 
 SIZE = 1024
 img = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
@@ -78,7 +81,7 @@ print(f"Saved PNG: {png_path}")
 
 # Generate .icns for macOS
 icns_path = os.path.join(os.getcwd(), "aura_icon.icns")
-iconset_dir = "/tmp/aura_icon.iconset"
+iconset_dir = os.path.join(tempfile.gettempdir(), "aura_icon.iconset")
 os.makedirs(iconset_dir, exist_ok=True)
 
 for s in [16, 32, 64, 128, 256, 512, 1024]:
@@ -88,7 +91,6 @@ for s in [16, 32, 64, 128, 256, 512, 1024]:
         retina = img.resize((s * 2, s * 2), Image.LANCZOS)
         retina.save(os.path.join(iconset_dir, f"icon_{s}x{s}@2x.png"))
 
-import subprocess
 subprocess.run(["iconutil", "-c", "icns", "-o", icns_path, iconset_dir],
                capture_output=True, timeout=30)
 if os.path.exists(icns_path):

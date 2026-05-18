@@ -1,5 +1,6 @@
 import asyncio
 import json
+import tempfile
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -7,38 +8,42 @@ from unittest.mock import AsyncMock
 import networkx as nx
 import pytest
 
-from core.utils import output_gate as output_gate_module
-from core.container import ServiceContainer
+from core.agency_core import AgencyCore, AgencyState
+from core.autonomous_initiative_loop import AutonomousInitiativeLoop
+from core.brain.identity import IdentityService
 from core.capability_engine import CapabilityEngine, SkillMetadata
+from core.consciousness.executive_closure import ExecutiveClosureEngine
+from core.consciousness.substrate_authority import (
+    ActionCategory,
+    AuthorizationDecision,
+    SubstrateAuthority,
+)
+from core.container import ServiceContainer
 from core.executive.executive_core import DecisionOutcome, DecisionRecord, ExecutiveCore
 from core.executive.executive_ledger import ExecutiveLedger
 from core.health.degraded_events import clear_degraded_events, get_recent_degraded_events
+from core.kernel.aura_kernel import AuraKernel, KernelConfig
+from core.kernel.bridge import LegacyPhase
+from core.long_term_memory_engine import LongTermMemoryEngine
 from core.memory import db_writer_queue as dbw_module
 from core.memory.knowledge_graph import PersistentKnowledgeGraph
 from core.memory.memory_facade import MemoryFacade
+from core.motivation.goal_hierarchy import GoalHierarchy
 from core.proactive_communication import (
     EmotionalState,
     InterruptionUrgency,
     ProactiveCommunicationManager,
     ProactiveMessage,
 )
-from core.consciousness.executive_closure import ExecutiveClosureEngine
-from core.consciousness.substrate_authority import ActionCategory, AuthorizationDecision, SubstrateAuthority
-from core.kernel.aura_kernel import AuraKernel, KernelConfig
-from core.kernel.bridge import LegacyPhase
-from core.agency_core import AgencyCore, AgencyState
-from core.autonomous_initiative_loop import AutonomousInitiativeLoop
-from core.long_term_memory_engine import LongTermMemoryEngine
-from core.motivation.goal_hierarchy import GoalHierarchy
 from core.senses.continuous_perception import ContinuousPerceptionEngine
 from core.social.social_imagination import SocialImagination
 from core.state.aura_state import AuraState
 from core.terminal_chat import TerminalFallbackChat
+from core.utils import output_gate as output_gate_module
 from core.utils.output_gate import AutonomousOutputGate
 from core.world_model.acg import ActionConsequenceGraph
 from core.world_model.belief_graph import BeliefGraph
 from core.world_model.goal_beliefs import GoalBeliefManager
-from core.brain.identity import IdentityService
 
 
 class _FakeBeliefGraph:
@@ -288,8 +293,9 @@ def test_capability_engine_prefers_clock_for_time_queries():
 
 def test_capability_engine_detects_terminal_exec_prefix():
     engine = CapabilityEngine()
+    proof_path = Path(tempfile.gettempdir()) / "aura-proof.txt"
 
-    matched = engine.detect_intent("execute: printf 'hello' > /tmp/aura-proof.txt")
+    matched = engine.detect_intent(f"execute: printf 'hello' > {proof_path}")
 
     assert matched[0] == "sovereign_terminal"
 
@@ -437,7 +443,7 @@ def test_enqueue_message_blocks_unapproved_background_injection(orchestrator, mo
     ServiceContainer.register_instance("executive_core", SimpleNamespace(name="exec"), required=False)
     ServiceContainer.lock_registration()
 
-    orchestrator.message_queue = getattr(asyncio, 'Queue')(maxsize=10)
+    orchestrator.message_queue = asyncio.Queue(maxsize=10)
 
     monkeypatch.setattr(
         "core.constitution.get_constitutional_core",
@@ -493,8 +499,8 @@ async def test_output_gate_reroutes_unauthorized_autonomous_primary_output(servi
 @pytest.mark.asyncio
 async def test_output_gate_tracks_renderer_tasks_without_leaking(service_container):
     output_gate_module._background_tasks.clear()
-    started = getattr(asyncio, 'Event')()
-    release = getattr(asyncio, 'Event')()
+    started = asyncio.Event()
+    release = asyncio.Event()
 
     async def _render(_content, _metadata):
         started.set()
@@ -1215,8 +1221,8 @@ async def test_kernel_clears_completed_foreground_turn_state():
         current_state.cognition.last_response = "Done."
         return current_state
 
-    ResponsePhase = type("UnitaryResponsePhase", (), {"execute": _execute_phase})
-    kernel._phases = [ResponsePhase()]
+    response_phase = type("UnitaryResponsePhase", (), {"execute": _execute_phase})
+    kernel._phases = [response_phase()]
 
     entry = await kernel.tick("Open Terminal and type a command.", priority=True)
 

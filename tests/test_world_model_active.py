@@ -1,11 +1,12 @@
-import pytest
 ################################################################################
-
-
 import asyncio
 import logging
-import sys
 import os
+import sys
+import tempfile
+from pathlib import Path
+
+import pytest
 
 # Set up path for core imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -32,7 +33,8 @@ async def test_active_surprise():
     
     # 2. Mock a situation: Ask Aura to check a file that "should" exist but won't
     # We simulate this by checking a non-existent file path
-    test_msg = "Check if /tmp/ghost_file.txt exists."
+    ghost_file = Path(tempfile.gettempdir()) / "ghost_file.txt"
+    test_msg = f"Check if {ghost_file} exists."
     
     print(f"\n[Test] Message: '{test_msg}'")
     print("Expected Behavior: Aura expects file to exist (potentially), finds it missing (Surprise!), and then reflects.")
@@ -45,7 +47,7 @@ async def test_active_surprise():
     
     # 3. Verify Belief Graph Update
     # After 'ls' or 'cat' fails, BeliefGraph should have a belief about ghost_file.txt state
-    beliefs = belief_graph.get_beliefs_about("/tmp/ghost_file.txt")
+    beliefs = belief_graph.get_beliefs_about(str(ghost_file))
     print(f"\n📊 Extracted Beliefs about ghost_file: {beliefs}")
     
     if beliefs:
@@ -54,11 +56,11 @@ async def test_active_surprise():
         print("❌ FAIL: No beliefs formed.")
 
     # 4. Check Trace logs
-    trace_dir = os.path.expanduser("~/.aura/traces")
-    traces = os.listdir(trace_dir)
+    trace_dir = Path.home() / ".aura" / "traces"
+    traces = list(trace_dir.iterdir()) if trace_dir.exists() else []
     print(f"\n📂 Cognitive Traces generated: {len(traces)}")
     if traces:
-        print(f"✅ PASS: Cognitive Trace saved.")
+        print("✅ PASS: Cognitive Trace saved.")
     else:
         print("❌ FAIL: No trace saved.")
 

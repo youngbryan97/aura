@@ -10,25 +10,23 @@ Single, authoritative source bundler. Replaces:
 Usage:
     python -m utils.bundler                      # full bundle → ~/Downloads/
     python -m utils.bundler --lite               # source only, no binary data
-    python -m utils.bundler --out /tmp/aura.txt  # custom path
+    python -m utils.bundler --out "$TMPDIR/aura.txt"  # custom path
     python -m utils.bundler --check              # dry-run: list files only
 """
 from __future__ import annotations
 
-
 import argparse
 import hashlib
-import os
 import sys
-from datetime import datetime, timezone
+from collections.abc import Iterator
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Iterator
 
 # ── Configuration ────────────────────────────────────────────
 
 # Try to pull version from canonical source; graceful fallback
 try:
-    from core.version import VERSION, CODENAME
+    from core.version import CODENAME, VERSION
     _VERSION_STR = f"{CODENAME} v{VERSION}"
 except ImportError:
     _VERSION_STR = "Unknown (core.version not found)"
@@ -115,7 +113,7 @@ def write_bundle(
     """
     files  = list(iter_source_files(root, lite=lite))
     mode   = "LITE" if lite else "FULL"
-    ts     = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    ts     = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
 
     if check_only:
         print(f"[DRY RUN] {mode} bundle would include {len(files)} files:")
@@ -123,7 +121,7 @@ def write_bundle(
             print(f"  {f.relative_to(root)}")
         return len(files)
 
-    get_task_tracker().create_task(get_storage_gateway().create_dir(output.parent, cause='write_bundle'))
+    output.parent.mkdir(parents=True, exist_ok=True)
     sep = "=" * 80
 
     with output.open("w", encoding="utf-8", errors="replace") as fh:

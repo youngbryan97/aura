@@ -3,14 +3,17 @@
 """tests/test_project_store.py
 Verification for Phase 17.1: ProjectStore persistence and task retrieval.
 """
-import unittest
 import os
-import sqlite3
-from core.data.project_store import ProjectStore, Project, StrategicTask
+import tempfile
+import unittest
+from pathlib import Path
+
+from core.data.project_store import ProjectStore
+
 
 class TestProjectStore(unittest.TestCase):
     def setUp(self):
-        self.db_path = "/tmp/test_aura_projects.db"
+        self.db_path = str(Path(tempfile.gettempdir()) / "test_aura_projects.db")
         if os.path.exists(self.db_path):
             os.remove(self.db_path)
         self.store = ProjectStore(self.db_path)
@@ -25,8 +28,8 @@ class TestProjectStore(unittest.TestCase):
         self.assertEqual(proj.name, "Test Project")
         
         # 2. Add Tasks
-        t1 = self.store.add_task(proj.id, "Gather data", priority=10)
-        t2 = self.store.add_task(proj.id, "Train model", priority=5)
+        self.store.add_task(proj.id, "Gather data", priority=10)
+        self.store.add_task(proj.id, "Train model", priority=5)
         
         # 3. Retrieve and Verify
         active = self.store.get_active_projects()

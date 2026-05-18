@@ -1,22 +1,21 @@
-from __future__ import annotations
 #!/usr/bin/env python3
 """Trace the real unitary-response payload for a single orchestrator turn."""
-
-from core.utils.task_tracker import get_task_tracker
-from core.runtime.atomic_writer import atomic_write_text
+from __future__ import annotations
 
 import asyncio
 import json
 import sys
+import tempfile
 from pathlib import Path
-
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from core.runtime.atomic_writer import atomic_write_text  # noqa: E402
+
 try:
-    from dotenv import load_dotenv
+    from dotenv import load_dotenv  # noqa: E402
 
     load_dotenv(PROJECT_ROOT / ".env", override=False)
 except Exception:
@@ -28,7 +27,7 @@ def _dump(label: str, payload: object) -> None:
     print(json.dumps(payload, indent=2, default=str))
 
 
-TRACE_PATH = Path("/tmp/aura_live_trace.jsonl")
+TRACE_PATH = Path(tempfile.gettempdir()) / "aura_live_trace.jsonl"
 
 
 def _message_chars(messages: object) -> int | None:
@@ -39,17 +38,17 @@ def _message_chars(messages: object) -> int | None:
 
 def _append_trace(event: str, payload: dict) -> None:
     record = {"event": event, **payload}
-    get_task_tracker().create_task(get_storage_gateway().create_dir(TRACE_PATH.parent, cause='_append_trace'))
+    TRACE_PATH.parent.mkdir(parents=True, exist_ok=True)
     with TRACE_PATH.open("a", encoding="utf-8") as fh:
         fh.write(json.dumps(record, default=str) + "\n")
 
 
 async def main() -> int:
-    from core.config import config
-    from core.container import ServiceContainer
     from core.brain.inference_gate import InferenceGate
     from core.brain.llm.mlx_client import MLXLocalClient
     from core.brain.llm_health_router import HealthAwareLLMRouter
+    from core.config import config
+    from core.container import ServiceContainer
     from core.orchestrator import create_orchestrator
 
     prompt = "Reply with exactly OK_KERNEL and nothing else."
@@ -185,12 +184,10 @@ async def main() -> int:
     InferenceGate._generate_with_client = traced_generate_with_client
     MLXLocalClient.generate_text_async = traced_client_generate
 
+    run_task = None
     orchestrator = create_orchestrator()
     await orchestrator.start()
-    run_task = get_task_tracker().create_task(
-        orchestrator.run(),
-        name="live_orchestrator_trace_payload",
-    )
+    run_task = asyncio.create_task(orchestrator.run(), name="live_orchestrator_trace_payload")
     try:
         result = await orchestrator._process_message(prompt)
         router = ServiceContainer.get("llm_router", default=None)
@@ -214,11 +211,12 @@ async def main() -> int:
             trace_lines = [json.loads(line) for line in TRACE_PATH.read_text().splitlines() if line.strip()]
             _dump("trace", trace_lines[-20:])
     finally:
-        run_task.cancel()
-        try:
-            await run_task
-        except asyncio.CancelledError:
-            pass
+        if run_task is not None:
+            run_task.cancel()
+            try:
+                await run_task
+            except asyncio.CancelledError:
+                pass
         await orchestrator.stop()
         HealthAwareLLMRouter.think = original_router_think
         InferenceGate.think = original_gate_think

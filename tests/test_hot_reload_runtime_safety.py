@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import sys
+import tempfile
 import types
+from pathlib import Path
 
 from core.ops.hot_reload import HotReloader
 
@@ -9,7 +11,7 @@ from core.ops.hot_reload import HotReloader
 def _install_modules(monkeypatch, *names: str) -> None:
     for name in names:
         module = types.ModuleType(name)
-        module.__file__ = f"/tmp/{name.replace('.', '/')}.py"
+        module.__file__ = str(Path(tempfile.gettempdir()) / f"{name.replace('.', '/')}.py")
         monkeypatch.setitem(sys.modules, name, module)
 
 

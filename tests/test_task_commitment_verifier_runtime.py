@@ -1,4 +1,5 @@
 import asyncio
+import tempfile
 import time
 from pathlib import Path
 from types import SimpleNamespace
@@ -106,7 +107,8 @@ def test_task_commitment_verifier_rejects_attempt_only_result_as_completed():
 
 
 def test_task_commitment_verifier_estimates_multistep_skill_request_as_long():
-    verifier = TaskCommitmentVerifier(kernel=None, persist_path=Path("/tmp/task_commitment_state_estimate.json"))
+    persist_path = Path(tempfile.gettempdir()) / "task_commitment_state_estimate.json"
+    verifier = TaskCommitmentVerifier(kernel=None, persist_path=persist_path)
     assessment = CapabilityAssessment(can_fulfil=True, matched_skills=["computer_use"], confidence=1.0)
 
     steps = verifier._estimate_steps(

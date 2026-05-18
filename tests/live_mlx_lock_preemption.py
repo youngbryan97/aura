@@ -19,21 +19,22 @@ Run:
 from __future__ import annotations
 
 import asyncio
-import os
 import sys
+import tempfile
 import time
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
+FAKE_MODEL_PATH = str(Path(tempfile.gettempdir()) / "fake-qwen-32b-instruct")
 
 
 def _make_client():
     from core.brain.llm.mlx_client import MLXLocalClient
     # Use a path containing "32b" so the foreground budgets match the Cortex
     # thresholds we validate here (warm first_token_sla=45s, lock_timeout=12s).
-    return MLXLocalClient(model_path="/tmp/fake-qwen-32b-instruct")
+    return MLXLocalClient(model_path=FAKE_MODEL_PATH)
 
 
 async def scenario_a_preemption_fires() -> tuple[bool, str]:

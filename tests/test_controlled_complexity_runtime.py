@@ -1,5 +1,7 @@
 import asyncio
+import tempfile
 from contextlib import asynccontextmanager
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -11,6 +13,8 @@ from core.consciousness.evidence_engine import ConsciousnessEvidenceEngine
 from core.orchestrator.flow_control import CognitiveFlowController
 from core.orchestrator.main import RobustOrchestrator
 from core.tagged_reply_queue import TaggedReplyQueue
+
+TMP_ROOT = Path(tempfile.gettempdir())
 
 
 @pytest.mark.asyncio
@@ -198,19 +202,19 @@ async def test_inference_gate_arbitrates_local_tertiary_lane(monkeypatch):
     )
     monkeypatch.setattr(
         "core.brain.llm.model_registry.get_brainstem_path",
-        lambda: "/tmp/brainstem",
+        lambda: str(TMP_ROOT / "brainstem"),
     )
     monkeypatch.setattr(
         "core.brain.llm.model_registry.get_fallback_path",
-        lambda: "/tmp/fallback",
+        lambda: str(TMP_ROOT / "fallback"),
     )
     monkeypatch.setattr(
         "core.brain.llm.model_registry.get_deep_model_path",
-        lambda: "/tmp/deep",
+        lambda: str(TMP_ROOT / "deep"),
     )
     monkeypatch.setattr(
         "core.brain.llm.model_registry.get_model_path",
-        lambda _model: "/tmp/primary",
+        lambda _model: str(TMP_ROOT / "primary"),
     )
     monkeypatch.setattr("core.brain.llm.model_registry.ACTIVE_MODEL", "primary")
 

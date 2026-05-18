@@ -1,16 +1,17 @@
-import asyncio
-import unittest
-from unittest.mock import MagicMock, AsyncMock, patch
-from pathlib import Path
-import sys
 import os
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 # Add core to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from core.volition import VolitionEngine
-from core.curiosity_engine import CuriosityEngine, CuriosityTopic
+from core.curiosity_engine import CuriosityEngine
 from core.ops.singularity_monitor import SingularityMonitor
+from core.volition import VolitionEngine
+
 
 class TestPhase20(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
@@ -21,12 +22,15 @@ class TestPhase20(unittest.IsolatedAsyncioTestCase):
 
     async def test_roadmap_awareness(self):
         """Verify that VolitionEngine can scan the brain directory for phases."""
+        brain_root = Path(tempfile.gettempdir()) / "brain"
+        phase19 = brain_root / "phase19" / "task.md"
+        phase20 = brain_root / "phase20" / "task.md"
         with patch("pathlib.Path.exists", return_value=True):
-            with patch("pathlib.Path.glob", return_value=[Path("/tmp/brain/phase19/task.md"), Path("/tmp/brain/phase20/task.md")]):
+            with patch("pathlib.Path.glob", return_value=[phase19, phase20]):
                 # Mock file reading
                 mock_content = {
-                    Path("/tmp/brain/phase19/task.md"): "# Phase 19: The Hall of Mirrors",
-                    Path("/tmp/brain/phase20/task.md"): "# Phase 20: Singularity Prep"
+                    phase19: "# Phase 19: The Hall of Mirrors",
+                    phase20: "# Phase 20: Singularity Prep"
                 }
 
                 def mock_open(path, mode="r"):
@@ -41,7 +45,7 @@ class TestPhase20(unittest.IsolatedAsyncioTestCase):
                     self.assertIn("Phase 20: Singularity Prep", milestones)
                     
                     # Verify selected goal objective contains current phase
-                    goal = volition._check_roadmap()
+                    volition._check_roadmap()
                     # We might need to force the random roll or call it until it hits
                     found = False
                     for _ in range(100):

@@ -1,19 +1,23 @@
-import unittest
-from unittest.mock import AsyncMock, MagicMock, patch
 import asyncio
 import os
-from pathlib import Path
 import tempfile
 import time
+import unittest
+from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from core.brain.llm.mlx_client import MLXLocalClient
+from core.container import ServiceContainer
 from core.senses.sensory_client import SensoryLocalClient
+
+TMP_ROOT = Path(tempfile.gettempdir())
+TEST_MODEL = str(TMP_ROOT / "test-model")
 
 
 class TestMLXCompatibility(unittest.IsolatedAsyncioTestCase):
     async def test_warm_up_alias_delegates_to_warmup(self):
-        client = MLXLocalClient(model_path="/tmp/test-model")
+        client = MLXLocalClient(model_path=TEST_MODEL)
         client.warmup = AsyncMock(return_value="ok")
 
         result = await client.warm_up()
@@ -271,7 +275,7 @@ class TestAffectBroadcastBackpressure(unittest.IsolatedAsyncioTestCase):
             engine = AffectEngineV2()
 
         engine._background_llm_should_defer = MagicMock(return_value=False)
-        engine._appraise_with_llm = AsyncMock(side_effect=asyncio.TimeoutError())
+        engine._appraise_with_llm = AsyncMock(side_effect=TimeoutError())
         engine.iot_bridge.broadcast_affect_state = AsyncMock(return_value=None)
 
         with patch("core.brain.llm.mlx_client._foreground_owner_active", return_value=False), \
@@ -514,8 +518,8 @@ class TestNeuralOrganBootSafety(unittest.IsolatedAsyncioTestCase):
 
 class TestBackgroundPolicyGuards(unittest.TestCase):
     def test_background_policy_requires_user_anchor_before_unsolicited_work(self):
-        from core.runtime.background_policy import background_activity_reason
         from core.health.degraded_events import clear_degraded_events
+        from core.runtime.background_policy import background_activity_reason
         clear_degraded_events()
 
         orch = MagicMock()
@@ -779,9 +783,9 @@ class TestSelfModificationBackgroundSafety(unittest.IsolatedAsyncioTestCase):
 
     async def test_self_modification_skips_unlocated_error_patterns_as_unfixable(self):
         from core.self_modification.error_intelligence import (
-            ErrorPatternAnalyzer,
             ErrorEvent,
             ErrorPattern,
+            ErrorPatternAnalyzer,
         )
 
         analyzer = ErrorPatternAnalyzer(SimpleNamespace())
@@ -820,7 +824,8 @@ class TestSelfModificationBackgroundSafety(unittest.IsolatedAsyncioTestCase):
 
 class TestLifecycleDeduplication(unittest.IsolatedAsyncioTestCase):
     async def test_reliability_engine_start_is_idempotent_while_tasks_are_alive(self):
-        from core.reliability_engine import ReliabilityEngine
+        with patch.object(ServiceContainer, "_registration_locked", False):
+            from core.reliability_engine import ReliabilityEngine
 
         engine = ReliabilityEngine()
         engine._started = True
@@ -894,6 +899,7 @@ class TestLiveRuntimeFailureIsolation(unittest.IsolatedAsyncioTestCase):
 
     def _terminal_monitor_without_handler(self):
         from collections import deque
+
         from core.terminal_monitor import TerminalMonitor
 
         monitor = TerminalMonitor.__new__(TerminalMonitor)
@@ -964,11 +970,15 @@ class TestLiveRuntimeFailureIsolation(unittest.IsolatedAsyncioTestCase):
         )
 
     def test_background_failure_pressure_stays_low_for_repeated_warnings(self):
-        from core.health.degraded_events import clear_degraded_events, get_unified_failure_state, record_degraded_event
+        from core.health.degraded_events import (
+            clear_degraded_events,
+            get_unified_failure_state,
+            record_degraded_event,
+        )
 
         clear_degraded_events()
         try:
-            for idx in range(30):
+            for _ in range(30):
                 record_degraded_event(
                     "service_container",
                     "SUBSYSTEM_ABSENT",
@@ -984,7 +994,11 @@ class TestLiveRuntimeFailureIsolation(unittest.IsolatedAsyncioTestCase):
 
     def test_optional_service_absence_stays_out_of_neural_error_stream(self):
         from core.container import ServiceContainer
-        from core.health.degraded_events import clear_degraded_events, get_recent_degraded_events, get_unified_failure_state
+        from core.health.degraded_events import (
+            clear_degraded_events,
+            get_recent_degraded_events,
+            get_unified_failure_state,
+        )
 
         forwarded = []
         clear_degraded_events()
@@ -1049,6 +1063,7 @@ class TestLiveRuntimeFailureIsolation(unittest.IsolatedAsyncioTestCase):
 
     async def test_gemini_auth_failure_disables_adapter_without_runtime_degradation(self):
         import httpx
+
         from core.brain.llm.gemini_adapter import GeminiAdapter, GeminiProviderUnavailable
 
         adapter = GeminiAdapter(api_key="test", model="gemini-2.0-flash")

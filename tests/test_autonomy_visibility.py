@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import tempfile
 import time
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
@@ -10,6 +12,8 @@ from core.autonomous_initiative_loop import AutonomousInitiativeLoop
 from core.orchestrator.mixins.output_formatter import OutputFormatterMixin
 from core.proactive_presence import ProactivePresence
 from core.self_modification.growth_ladder import GrowthLadder, ModificationLevel
+
+PROPOSAL_PATH = str(Path(tempfile.gettempdir()) / "evolution" / "proposal.md")
 
 
 def test_emit_thought_stream_falls_back_to_thought_emitter(monkeypatch):
@@ -194,7 +198,7 @@ async def test_self_development_cycle_runs_scan_tests_and_proposal(monkeypatch):
                 },
                 {
                     "ok": True,
-                    "proposal_path": "/tmp/evolution/proposal.md",
+                    "proposal_path": PROPOSAL_PATH,
                 },
             ]
         )
@@ -227,7 +231,7 @@ async def test_self_development_cycle_keeps_progress_off_visible_chat_by_default
                     "top_issues": [{"file": "export_source.py", "message": "Function is too long."}],
                 },
                 {"ok": False, "error": "sandbox friction"},
-                {"ok": True, "proposal_path": "/tmp/evolution/proposal.md"},
+                {"ok": True, "proposal_path": PROPOSAL_PATH},
             ]
         )
     )
@@ -261,7 +265,7 @@ async def test_self_development_cycle_can_opt_in_visible_updates(monkeypatch):
                     "top_issues": [{"file": "export_source.py", "message": "Function is too long."}],
                 },
                 {"ok": True, "message": "sandbox ok"},
-                {"ok": True, "proposal_path": "/tmp/evolution/proposal.md"},
+                {"ok": True, "proposal_path": PROPOSAL_PATH},
             ]
         )
     )

@@ -1,6 +1,7 @@
 import asyncio
 import contextlib
 import queue
+import tempfile
 import threading
 import time
 import unittest
@@ -15,10 +16,14 @@ from core.brain.llm.mlx_worker import (
 )
 from core.utils.deadlines import get_deadline
 
+TMP_ROOT = Path(tempfile.gettempdir())
+QWEN32_MODEL = str(TMP_ROOT / "Qwen2.5-32B-Instruct-8bit")
+TEST_MODEL = str(TMP_ROOT / "test-model")
+
 
 class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
     async def test_foreground_request_lock_timeout_is_bounded_for_live_chat(self):
-        client = MLXLocalClient(model_path="/tmp/Qwen2.5-32B-Instruct-8bit")
+        client = MLXLocalClient(model_path=QWEN32_MODEL)
 
         self.assertEqual(
             client._request_lock_timeout(deadline=None, foreground_request=True),
@@ -26,7 +31,10 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_worker_sanitizer_finishes_current_request_for_caller_recovery(self):
-        worker_source = Path("core/brain/llm/mlx_worker.py").read_text(encoding="utf-8")
+        worker_source = await asyncio.to_thread(
+            Path("core/brain/llm/mlx_worker.py").read_text,
+            encoding="utf-8",
+        )
         marker = "Hallucination detected by sanitizer."
         start = worker_source.index(marker)
         end = worker_source.index('ipc_writer.put({', start)
@@ -83,7 +91,7 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(solver._init_done)
 
     async def test_ensure_worker_sets_init_future_before_spawn(self):
-        client = MLXLocalClient(model_path="/tmp/test-model")
+        client = MLXLocalClient(model_path=TEST_MODEL)
 
         async def spawn_side_effect():
             self.assertIsNotNone(client._init_future)
@@ -100,7 +108,7 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(client.is_alive())
 
     async def test_ensure_worker_reuses_existing_handshake_future(self):
-        client = MLXLocalClient(model_path="/tmp/test-model")
+        client = MLXLocalClient(model_path=TEST_MODEL)
 
         live_process = MagicMock()
         live_process.is_alive.return_value = True
@@ -121,7 +129,7 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(client._init_done)
 
     async def test_ensure_worker_reuses_cross_loop_handshake_future(self):
-        client = MLXLocalClient(model_path="/tmp/test-model")
+        client = MLXLocalClient(model_path=TEST_MODEL)
 
         live_process = MagicMock()
         live_process.is_alive.return_value = True
@@ -162,7 +170,7 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
         live_process.kill.assert_not_called()
 
     async def test_cancelled_generation_preserves_healthy_worker(self):
-        client = MLXLocalClient(model_path="/tmp/test-model")
+        client = MLXLocalClient(model_path=TEST_MODEL)
         proc = MagicMock()
         proc.is_alive.return_value = True
         client._process = proc
@@ -183,7 +191,7 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
         reboot_mock.assert_not_awaited()
 
     async def test_expected_cancelled_generation_does_not_mark_worker_unhealthy(self):
-        client = MLXLocalClient(model_path="/tmp/test-model")
+        client = MLXLocalClient(model_path=TEST_MODEL)
         client._expected_cancel_reason = "yield_to_Qwen2.5-72B-Instruct-4bit"
         client._expected_cancel_budget = 1
         client._expected_cancel_recorded_at = 10_000.0
@@ -203,7 +211,7 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
     async def test_generate_times_out_waiting_for_foreground_owner(self):
         import core.brain.llm.mlx_client as mlx_module
 
-        client = MLXLocalClient(model_path="/tmp/Qwen2.5-32B-Instruct-8bit")
+        client = MLXLocalClient(model_path=QWEN32_MODEL)
         old_owner = mlx_module._FOREGROUND_OWNER_NAME
         old_owned_at = mlx_module._FOREGROUND_OWNER_ACQUIRED_AT
         mlx_module._FOREGROUND_OWNER_NAME = "warmup:cortex"
@@ -229,7 +237,7 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
     async def test_generate_clears_stale_foreground_owner_and_continues(self):
         import core.brain.llm.mlx_client as mlx_module
 
-        client = MLXLocalClient(model_path="/tmp/Qwen2.5-32B-Instruct-8bit")
+        client = MLXLocalClient(model_path=QWEN32_MODEL)
         old_owner = mlx_module._FOREGROUND_OWNER_NAME
         old_owned_at = mlx_module._FOREGROUND_OWNER_ACQUIRED_AT
         mlx_module._FOREGROUND_OWNER_NAME = "warmup:cortex"
@@ -254,7 +262,7 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
     async def test_reboot_worker_clears_matching_warmup_owner(self):
         import core.brain.llm.mlx_client as mlx_module
 
-        client = MLXLocalClient(model_path="/tmp/Qwen2.5-32B-Instruct-8bit")
+        client = MLXLocalClient(model_path=QWEN32_MODEL)
         old_owner = mlx_module._FOREGROUND_OWNER_NAME
         old_owned_at = mlx_module._FOREGROUND_OWNER_ACQUIRED_AT
         mlx_module._FOREGROUND_OWNER_NAME = "warmup:Qwen2.5-32B-Instruct-8bit"
@@ -270,7 +278,7 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
 
 
     async def test_primary_lane_generate_requires_explicit_foreground_request(self):
-        client = MLXLocalClient(model_path="/tmp/Qwen2.5-32B-Instruct-8bit")
+        client = MLXLocalClient(model_path=QWEN32_MODEL)
 
         with patch.object(client, "_generate_inner", new=AsyncMock(return_value="ok")) as inner:
             result = await client.generate("hello")
@@ -280,7 +288,7 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(inner.await_args.kwargs["request_is_background"])
 
     async def test_generate_suppresses_stale_unlock_in_finally(self):
-        client = MLXLocalClient(model_path="/tmp/test-model")
+        client = MLXLocalClient(model_path=TEST_MODEL)
         fake_lock = MagicMock()
         fake_lock.acquire.return_value = True
         fake_lock.release.side_effect = RuntimeError("release unlocked lock")
@@ -293,7 +301,7 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
         fake_lock.release.assert_called()
 
     async def test_generate_soft_times_out_init_budget_without_killing_worker(self):
-        client = MLXLocalClient(model_path="/tmp/Qwen2.5-32B-Instruct-8bit")
+        client = MLXLocalClient(model_path=QWEN32_MODEL)
         proc = MagicMock()
         proc.is_alive.return_value = True
         client._process = proc
@@ -315,7 +323,7 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(client._lane_state, "recovering")
 
     async def test_listener_routes_init_error_without_action_to_init_future(self):
-        client = MLXLocalClient(model_path="/tmp/test-model")
+        client = MLXLocalClient(model_path=TEST_MODEL)
         client._init_future = asyncio.get_running_loop().create_future()
 
         listener = asyncio.create_task(client._response_listener_loop())
@@ -331,7 +339,7 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["message"], "Init failed: boom")
 
     async def test_generation_waiter_flags_first_token_sla_breach(self):
-        client = MLXLocalClient(model_path="/tmp/Qwen2.5-32B-Instruct-8bit")
+        client = MLXLocalClient(model_path=QWEN32_MODEL)
         proc = MagicMock()
         proc.is_alive.return_value = True
         client._process = proc
@@ -362,7 +370,7 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(client._deferred_reboot_reason, "first_token_sla_exceeded")
 
     async def test_long_prompt_extends_first_token_sla_for_heavy_lane(self):
-        client = MLXLocalClient(model_path="/tmp/Qwen2.5-32B-Instruct-8bit")
+        client = MLXLocalClient(model_path=QWEN32_MODEL)
         cold_sla = client._first_token_sla(foreground_request=True)
 
         client._last_generation_completed_at = 1.0
@@ -374,7 +382,7 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
         self.assertGreater(warm_long_prompt_sla, cold_sla)
 
     async def test_generation_waiter_flags_token_progress_stall(self):
-        client = MLXLocalClient(model_path="/tmp/Qwen2.5-32B-Instruct-8bit")
+        client = MLXLocalClient(model_path=QWEN32_MODEL)
         proc = MagicMock()
         proc.is_alive.return_value = True
         client._process = proc
@@ -401,7 +409,7 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(client._deferred_reboot_reason, "token_progress_stalled")
 
     async def test_generation_waiter_recycles_fresh_heartbeat_token_stall(self):
-        client = MLXLocalClient(model_path="/tmp/Qwen2.5-32B-Instruct-8bit")
+        client = MLXLocalClient(model_path=QWEN32_MODEL)
         proc = MagicMock()
         proc.is_alive.return_value = True
         client._process = proc
@@ -433,7 +441,7 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
     async def test_listener_drops_late_generation_for_previous_request(self):
         import core.brain.llm.mlx_client as mlx_module
 
-        client = MLXLocalClient(model_path="/tmp/Qwen2.5-32B-Instruct-8bit")
+        client = MLXLocalClient(model_path=QWEN32_MODEL)
         current_future = mlx_module._new_shared_future()
         client._current_gen_future = current_future
         client._current_request_id = "new-req"
@@ -455,7 +463,7 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(current_future.done())
 
     async def test_warmup_precompile_accepts_empty_text_as_successful_compile(self):
-        client = MLXLocalClient(model_path="/tmp/Qwen2.5-32B-Instruct-8bit")
+        client = MLXLocalClient(model_path=QWEN32_MODEL)
         client._warmup_in_flight = True
         client._process = MagicMock()
         client._process.is_alive.return_value = True
@@ -472,7 +480,7 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(client.get_lane_status()["state"], "ready")
 
     async def test_foreground_empty_generation_marks_recoverable_reboot(self):
-        client = MLXLocalClient(model_path="/tmp/Qwen2.5-32B-Instruct-8bit")
+        client = MLXLocalClient(model_path=QWEN32_MODEL)
         client._process = MagicMock()
         client._process.is_alive.return_value = True
         client._init_done = True
@@ -496,7 +504,7 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(client._deferred_reboot_reason, "recoverable_empty_generation")
 
     async def test_generate_reboots_recoverable_empty_generation_without_failed_lane(self):
-        client = MLXLocalClient(model_path="/tmp/Qwen2.5-32B-Instruct-8bit")
+        client = MLXLocalClient(model_path=QWEN32_MODEL)
 
         async def _empty_then_request_reboot(*args, **kwargs):
             client._deferred_reboot_reason = "recoverable_empty_generation"
@@ -510,7 +518,7 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
         reboot_mock.assert_awaited_once_with(reason="empty_generation", mark_failed=False)
 
     async def test_supervision_status_reports_recycle_candidate(self):
-        client = MLXLocalClient(model_path="/tmp/Qwen2.5-32B-Instruct-8bit")
+        client = MLXLocalClient(model_path=QWEN32_MODEL)
         proc = MagicMock()
         proc.is_alive.return_value = True
         client._process = proc
@@ -659,7 +667,7 @@ class TestMLXWorkerProgress(unittest.TestCase):
 
 class TestMLXRuntimeProbeFailure(unittest.IsolatedAsyncioTestCase):
     async def test_runtime_probe_failure_marks_lane_failed_without_spawn_loop(self):
-        client = MLXLocalClient(model_path="/tmp/Qwen2.5-32B-Instruct-8bit")
+        client = MLXLocalClient(model_path=QWEN32_MODEL)
 
         with patch.object(
             client,
@@ -677,7 +685,7 @@ class TestMLXRuntimeProbeFailure(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_runtime_probe_recovery_clears_failed_lane_and_backoff(self):
-        client = MLXLocalClient(model_path="/tmp/Qwen2.5-32B-Instruct-8bit")
+        client = MLXLocalClient(model_path=QWEN32_MODEL)
         client.note_lane_failed("mlx_runtime_unavailable:metal_device_enumeration_crash")
         client._spawn_backoff_until = time.time() + 120.0
         client._consecutive_spawn_failures = 3

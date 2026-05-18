@@ -13,6 +13,7 @@ Tests cover:
 """
 
 import asyncio
+import tempfile
 import time
 from pathlib import Path
 
@@ -476,14 +477,15 @@ class TestBrowserURLRouting:
     def test_terminal_prefix_normalizes_into_execute_params(self):
         from core.kernel.upgrades_10x import GodModeToolPhase
 
+        proof_path = Path(tempfile.gettempdir()) / "aura-proof.txt"
         params = GodModeToolPhase._normalize_skill_params(
             "sovereign_terminal",
-            "execute: printf 'hello' > /tmp/aura-proof.txt",
+            f"execute: printf 'hello' > {proof_path}",
             {"query": "wrong"},
         )
 
         assert params["action"] == "execute"
-        assert params["command"] == "printf 'hello' > /tmp/aura-proof.txt"
+        assert params["command"] == f"printf 'hello' > {proof_path}"
 
     def test_manifest_request_normalizes_into_url_params(self):
         from core.kernel.upgrades_10x import GodModeToolPhase

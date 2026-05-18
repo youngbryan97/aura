@@ -155,7 +155,7 @@ class TestShadowASTHealerGovernance:
 
         healer = ShadowASTHealer(codebase_root=PROJECT_ROOT)
         # Attempt to repair a file outside the root
-        outside_path = Path("/tmp/evil_target.py")
+        outside_path = Path(tempfile.gettempdir()) / "evil_target.py"
         outside_path.write_text("x = 1")
         try:
             result = asyncio.run(

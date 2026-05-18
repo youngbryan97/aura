@@ -1,3 +1,4 @@
+import tempfile
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -19,7 +20,7 @@ async def test_surface_activity_marks_user_requested_delivery_as_authorized():
     captured = {}
 
     class _FakeOutputGate:
-        async def emit(self, content, origin="system", target="primary", metadata=None, timeout=5.0):
+        async def emit(self, content, origin="system", target="primary", metadata=None, **_kwargs):
             captured["content"] = content
             captured["origin"] = origin
             captured["target"] = target
@@ -48,7 +49,11 @@ async def test_run_background_file_diagnostic_records_failures_honestly(monkeypa
 
     monkeypatch.setattr(demo_support, "_record_recent_activity", _fake_record_recent_activity)
     monkeypatch.setattr(demo_support, "_surface_activity", _fake_surface_activity)
-    monkeypatch.setattr(demo_support, "_resolve_target_path", lambda *_args, **_kwargs: Path("/tmp/example.py"))
+    monkeypatch.setattr(
+        demo_support,
+        "_resolve_target_path",
+        lambda *_args, **_kwargs: Path(tempfile.gettempdir()) / "example.py",
+    )
     monkeypatch.setattr(demo_support, "_summarize_target", lambda _path: (_ for _ in ()).throw(RuntimeError("boom")))
 
     await demo_support.run_background_file_diagnostic("example.py", SimpleNamespace())

@@ -11,7 +11,7 @@ Catalogue:
   force_model_load_failure — flip the model registry to point at a nonexistent path
   break_memory_facade      — register a no-op stand-in for memory_facade
   break_agency_pathway     — disable one VolitionEngine pathway
-  fill_disk                — write a 100MB file to /tmp until disk is 95%+
+  fill_disk                — write a 100MB file to the system temp directory until disk is 95%+
   sever_network            — block outbound connections via local proxy
   expire_api_keys          — flip env vars to invalid values
 
@@ -20,42 +20,44 @@ chaos run records the fault and the system's repair signal (the
 StabilityGuardian and ResilienceEngine telemetry) for later analysis.
 """
 from __future__ import annotations
-from core.utils.task_tracker import get_task_tracker
 
 import asyncio
 import logging
 import os
 import random
+import tempfile
 import time
-import uuid
+from collections.abc import Awaitable, Callable
 from pathlib import Path
-from typing import Any, Awaitable, Callable, Dict, List
+from typing import Any
+
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.Chaos")
 
 
-_FAULTS: Dict[str, Callable[[], Awaitable[Dict[str, Any]]]] = {}
+_FAULTS: dict[str, Callable[[], Awaitable[dict[str, Any]]]] = {}
 
 
-def register(name: str) -> Callable[[Callable[[], Awaitable[Dict[str, Any]]]], Callable[[], Awaitable[Dict[str, Any]]]]:
-    def deco(fn: Callable[[], Awaitable[Dict[str, Any]]]) -> Callable[[], Awaitable[Dict[str, Any]]]:
+def register(name: str) -> Callable[[Callable[[], Awaitable[dict[str, Any]]]], Callable[[], Awaitable[dict[str, Any]]]]:
+    def deco(fn: Callable[[], Awaitable[dict[str, Any]]]) -> Callable[[], Awaitable[dict[str, Any]]]:
         _FAULTS[name] = fn
         return fn
     return deco
 
 
 @register("induce_event_loop_lag")
-async def _induce_loop_lag() -> Dict[str, Any]:
+async def _induce_loop_lag() -> dict[str, Any]:
     t0 = time.monotonic()
     # Synchronous sleep on the event loop thread to simulate a stall.
-    time.sleep(1.2)
+    time.sleep(1.2)  # noqa: ASYNC251
     return {"kind": "induce_event_loop_lag", "applied": True, "lagged_ms": int((time.monotonic() - t0) * 1000)}
 
 
 @register("force_model_load_failure")
-async def _force_model_load_failure() -> Dict[str, Any]:
+async def _force_model_load_failure() -> dict[str, Any]:
     prev = os.environ.get("AURA_MODEL")
-    os.environ["AURA_MODEL"] = "/tmp/nonexistent-model-injection"
+    os.environ["AURA_MODEL"] = str(Path(tempfile.gettempdir()) / "nonexistent-model-injection")
     try:
         # Restore after 60 seconds so the next chaos cycle can re-roll.
         await asyncio.sleep(0)
@@ -71,7 +73,7 @@ async def _force_model_load_failure() -> Dict[str, Any]:
 
 
 @register("expire_api_keys")
-async def _expire_api_keys() -> Dict[str, Any]:
+async def _expire_api_keys() -> dict[str, Any]:
     keys = ["OPENAI_API_KEY", "ANTHROPIC_API_KEY"]
     flipped = {}
     for k in keys:
@@ -91,23 +93,23 @@ async def _expire_api_keys() -> Dict[str, Any]:
 
 
 @register("delete_vector_index")
-async def _delete_vector_index() -> Dict[str, Any]:
+async def _delete_vector_index() -> dict[str, Any]:
     target = Path.home() / ".aura" / "data" / "vector_index"
     backup = Path.home() / ".aura" / "data" / f"vector_index.injected.{int(time.time())}"
     if not target.exists():
         return {"kind": "delete_vector_index", "applied": False, "reason": "no_target"}
-    get_task_tracker().create_task(get_storage_gateway().rename(target, backup, cause='_delete_vector_index'))
+    target.rename(backup)
 
     async def _restore():
         await asyncio.sleep(120.0)
-        if not target.exists():
-            get_task_tracker().create_task(get_storage_gateway().rename(backup, target, cause='_delete_vector_index._restore'))
+        if backup.exists() and not target.exists():
+            backup.rename(target)
     get_task_tracker().create_task(_restore())
     return {"kind": "delete_vector_index", "applied": True, "moved_to": str(backup)}
 
 
 @register("fill_disk")
-async def _fill_disk() -> Dict[str, Any]:
+async def _fill_disk() -> dict[str, Any]:
     # We deliberately do NOT actually fill the disk in production runs;
     # this stub records intent and returns. A real chaos run wires this
     # to a sandbox volume.
@@ -115,7 +117,7 @@ async def _fill_disk() -> Dict[str, Any]:
 
 
 @register("sever_network")
-async def _sever_network() -> Dict[str, Any]:
+async def _sever_network() -> dict[str, Any]:
     # Set HTTPS_PROXY to a local dead port to block outbound HTTP.
     prev = os.environ.get("HTTPS_PROXY")
     os.environ["HTTPS_PROXY"] = "http://127.0.0.1:1"
@@ -130,7 +132,7 @@ async def _sever_network() -> Dict[str, Any]:
     return {"kind": "sever_network", "applied": True, "restored_in_s": 45}
 
 
-async def inject_random_fault() -> Dict[str, Any]:
+async def inject_random_fault() -> dict[str, Any]:
     name = random.choice(list(_FAULTS.keys()))
     try:
         out = await _FAULTS[name]()
@@ -139,7 +141,7 @@ async def inject_random_fault() -> Dict[str, Any]:
     return out
 
 
-async def main(argv: List[str]) -> int:
+async def main(argv: list[str]) -> int:
     """CLI entry-point: ``python -m tools.chaos.injector --kind <name>``"""
     import argparse
     parser = argparse.ArgumentParser()

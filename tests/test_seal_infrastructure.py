@@ -16,15 +16,15 @@ Tests cover:
 """
 from __future__ import annotations
 
-import asyncio
-import math
 import os
+import tempfile
 import time
 import unittest
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
 
 import numpy as np
+
+MISSING_FLAGS_CONFIG = Path(tempfile.gettempdir()) / "test_flags_nonexistent.json"
 
 # Ensure AURA_TEST_MODE is set before any imports that might check it
 os.environ.setdefault("AURA_TEST_MODE", "1")
@@ -170,7 +170,7 @@ class TestFeatureFlags(unittest.TestCase):
     def test_default_flags_loaded(self):
         from core.governance.feature_flags import FeatureFlags
 
-        flags = FeatureFlags(config_path=Path("/tmp/test_flags_nonexistent.json"))
+        flags = FeatureFlags(config_path=MISSING_FLAGS_CONFIG)
         all_flags = flags.get_all()
         self.assertIn("boring_mode_auto_enter", all_flags)
         self.assertIn("substrate_nan_guard", all_flags)
@@ -179,14 +179,14 @@ class TestFeatureFlags(unittest.TestCase):
     def test_set_flag_runtime(self):
         from core.governance.feature_flags import FeatureFlags
 
-        flags = FeatureFlags(config_path=Path("/tmp/test_flags_nonexistent.json"))
+        flags = FeatureFlags(config_path=MISSING_FLAGS_CONFIG)
         flags.set_flag("boring_mode_auto_enter", False, reason="test")
         self.assertFalse(flags.is_enabled("boring_mode_auto_enter"))
 
     def test_change_log(self):
         from core.governance.feature_flags import FeatureFlags
 
-        flags = FeatureFlags(config_path=Path("/tmp/test_flags_nonexistent.json"))
+        flags = FeatureFlags(config_path=MISSING_FLAGS_CONFIG)
         flags.set_flag("substrate_nan_guard", False, reason="test_toggle")
         log = flags.get_change_log()
         self.assertEqual(len(log), 1)
@@ -198,7 +198,7 @@ class TestFeatureFlags(unittest.TestCase):
 
         os.environ["AURA_FLAG_BORING_MODE_AUTO_ENTER"] = "0"
         try:
-            flags = FeatureFlags(config_path=Path("/tmp/test_flags_nonexistent.json"))
+            flags = FeatureFlags(config_path=MISSING_FLAGS_CONFIG)
             self.assertFalse(flags.is_enabled("boring_mode_auto_enter"))
         finally:
             del os.environ["AURA_FLAG_BORING_MODE_AUTO_ENTER"]
@@ -206,7 +206,7 @@ class TestFeatureFlags(unittest.TestCase):
     def test_descriptions(self):
         from core.governance.feature_flags import FeatureFlags
 
-        flags = FeatureFlags(config_path=Path("/tmp/test_flags_nonexistent.json"))
+        flags = FeatureFlags(config_path=MISSING_FLAGS_CONFIG)
         descriptions = flags.get_descriptions()
         self.assertIn("boring_mode_auto_enter", descriptions)
         self.assertTrue(len(descriptions["boring_mode_auto_enter"]) > 10)
@@ -253,7 +253,7 @@ class TestIncidentManager(unittest.TestCase):
         mgr = IncidentManager()
         mgr.ESCALATION_THRESHOLD = 3  # Lower for test
         for i in range(5):
-            incident = mgr.report(
+            mgr.report(
                 category="escalation_test",
                 description=f"occurrence {i}",
                 severity=IncidentSeverity.INFO,
