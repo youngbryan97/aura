@@ -1,9 +1,12 @@
-from core.runtime.errors import record_degradation
-import subprocess
+from __future__ import annotations
+
 import logging
-from pathlib import Path
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Optional, List
+from pathlib import Path
+
+from core.runtime.errors import record_degradation
+from core.tasks.managed_command import ManagedCommandResult, run_project_command
 
 try:
     from core.utils.aura_logging import core_logger
@@ -11,13 +14,23 @@ except ImportError:
     core_logger = logging.getLogger("Aura.Core")
 
 logger = logging.getLogger("Aura.CodeGuardian")
+_CODE_GUARDIAN_RECOVERABLE_ERRORS = (
+    FileNotFoundError,
+    OSError,
+    RuntimeError,
+    TimeoutError,
+    TypeError,
+    ValueError,
+)
+CommandRunner = Callable[[tuple[str, ...], float], ManagedCommandResult]
+
 
 @dataclass
 class ValidationReport:
     success: bool
-    ruff_output: Optional[str] = None
-    mypy_output: Optional[str] = None
-    error_message: Optional[str] = None
+    ruff_output: str | None = None
+    mypy_output: str | None = None
+    error_message: str | None = None
 
 class CodeGuardian:
     """
@@ -35,7 +48,7 @@ class CodeGuardian:
         return tool_name
 
     @classmethod
-    def validate_code(cls, filepath: Path) -> ValidationReport:
+    def validate_code(cls, filepath: Path, command_runner: CommandRunner | None = None) -> ValidationReport:
         """
         Runs a full QA battery on the given file.
         Returns a ValidationReport.
@@ -47,22 +60,17 @@ class CodeGuardian:
         ruff_path = cls._get_bin_path("ruff")
         logger.info("🛡️ CodeGuardian: Running %s on %s", ruff_path, filepath.name)
         try:
-            ruff_res = subprocess.run(
-                [ruff_path, "check", str(filepath)], 
-                capture_output=True, 
-                text=True, 
-                timeout=10
-            )
-            if ruff_res.returncode != 0:
+            ruff_res = cls._run_command((ruff_path, "check", str(filepath)), 10.0, command_runner)
+            if ruff_res.timed_out:
+                return ValidationReport(success=False, error_message="Ruff check timed out.")
+            if not ruff_res.ok:
                 logger.warning("❌ CodeGuardian: Ruff check failed for %s", filepath.name)
                 return ValidationReport(
-                    success=False, 
+                    success=False,
                     ruff_output=ruff_res.stdout + ruff_res.stderr,
-                    error_message="Syntax or NameError detected by Ruff."
+                    error_message="Syntax or NameError detected by Ruff.",
                 )
-        except subprocess.TimeoutExpired:
-            return ValidationReport(success=False, error_message="Ruff check timed out.")
-        except Exception as e:
+        except _CODE_GUARDIAN_RECOVERABLE_ERRORS as e:
             record_degradation('code_guardian', e)
             return ValidationReport(success=False, error_message=f"Ruff execution error ({ruff_path}): {e}")
 
@@ -70,28 +78,36 @@ class CodeGuardian:
         mypy_path = cls._get_bin_path("mypy")
         logger.info("🛡️ CodeGuardian: Running %s on %s", mypy_path, filepath.name)
         try:
-            # We use --ignore-missing-imports and --follow-imports=silent to avoid noise
-            mypy_res = subprocess.run(
-                [mypy_path, "--ignore-missing-imports", "--follow-imports=silent", str(filepath)], 
-                capture_output=True, 
-                text=True, 
-                timeout=20
+            mypy_res = cls._run_command(
+                (mypy_path, "--ignore-missing-imports", "--follow-imports=silent", str(filepath)),
+                20.0,
+                command_runner,
             )
-            if mypy_res.returncode != 0:
+            if mypy_res.timed_out:
+                return ValidationReport(success=False, error_message="Mypy check timed out.")
+            if not mypy_res.ok:
                 logger.warning("❌ CodeGuardian: Mypy check failed for %s", filepath.name)
                 return ValidationReport(
-                    success=False, 
+                    success=False,
                     mypy_output=mypy_res.stdout + mypy_res.stderr,
-                    error_message="TypeError detected by Mypy."
+                    error_message="TypeError detected by Mypy.",
                 )
-        except subprocess.TimeoutExpired:
-            return ValidationReport(success=False, error_message="Mypy check timed out.")
-        except Exception as e:
+        except _CODE_GUARDIAN_RECOVERABLE_ERRORS as e:
             record_degradation('code_guardian', e)
             return ValidationReport(success=False, error_message=f"Mypy execution error ({mypy_path}): {e}")
 
         logger.info("✅ CodeGuardian: %s passed all checks.", filepath.name)
         return ValidationReport(success=True)
+
+    @staticmethod
+    def _run_command(
+        command: tuple[str, ...],
+        timeout_s: float,
+        command_runner: CommandRunner | None,
+    ) -> ManagedCommandResult:
+        runner = command_runner or (lambda cmd, limit: run_project_command(cmd, timeout_s=limit))
+        return runner(command, timeout_s)
+
 
 if __name__ == "__main__":
     # Self-test logic
