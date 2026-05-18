@@ -1,8 +1,8 @@
-import aiosqlite
 import asyncio
 import logging
 from contextlib import asynccontextmanager
-from typing import Dict
+
+import aiosqlite
 
 logger = logging.getLogger("Aura.DBPool")
 
@@ -17,7 +17,7 @@ class ConnectionPool:
     _MAX_CONNS_PER_PATH = 5
 
     def __init__(self):
-        self._semaphores: Dict[str, asyncio.Semaphore] = {}
+        self._semaphores: dict[str, asyncio.Semaphore] = {}
         self._sem_lock = asyncio.Lock()
 
     async def _get_semaphore(self, path: str) -> asyncio.Semaphore:
@@ -48,7 +48,12 @@ class ConnectionPool:
         await conn.execute("PRAGMA busy_timeout=5000")
         return conn
 
-    async def release(self, path: str):
-        pass  # No-op: connections are now per-caller
+    async def release(self, conn: object | None = None) -> None:
+        """Close a legacy acquired connection when one is supplied."""
+        close = getattr(conn, "close", None)
+        if callable(close):
+            await close()
+        elif conn is not None:
+            logger.debug("ConnectionPool.release() received non-connection legacy token: %r", conn)
 
 pool = ConnectionPool()

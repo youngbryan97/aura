@@ -7,7 +7,6 @@ Updated incrementally from every interaction via exponential moving averages,
 with periodic deep LLM analysis for pattern refinement.
 """
 
-from core.runtime.errors import record_degradation
 import json
 import logging
 import os
@@ -16,7 +15,9 @@ import time
 from collections import defaultdict
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
+
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.Social")
 
@@ -73,7 +74,7 @@ class ConversationalProfile:
 
     # --- Humor Profile ---
     humor_appreciation: float = 0.5  # 0-1
-    humor_types_enjoyed: Dict[str, float] = field(default_factory=lambda: {
+    humor_types_enjoyed: dict[str, float] = field(default_factory=lambda: {
         "sarcasm": 0.5,
         "absurdist": 0.5,
         "dry_wit": 0.5,
@@ -90,7 +91,7 @@ class ConversationalProfile:
     banter_appetite: float = 0.5
     humor_attempts_landed: int = 0
     humor_attempts_missed: int = 0
-    favorite_humor_topics: List[str] = field(default_factory=list)
+    favorite_humor_topics: list[str] = field(default_factory=list)
 
     # --- Emotional / Vulnerability ---
     vulnerability_pace: float = 0.3  # 0-1, how quickly they open up
@@ -101,8 +102,8 @@ class ConversationalProfile:
     # --- Intellectual ---
     intellectual_curiosity: float = 0.5
     debate_enjoyment: float = 0.5
-    topics_of_passion: List[str] = field(default_factory=list)
-    topics_that_bore: List[str] = field(default_factory=list)
+    topics_of_passion: list[str] = field(default_factory=list)
+    topics_that_bore: list[str] = field(default_factory=list)
     preferred_depth: str = "moderate"  # surface | moderate | deep | philosophical
 
     # --- Pacing ---
@@ -113,7 +114,7 @@ class ConversationalProfile:
 
     # --- Linguistic Signature ---
     vocabulary_complexity: float = 0.5
-    favorite_phrases: List[str] = field(default_factory=list)
+    favorite_phrases: list[str] = field(default_factory=list)
     emoji_usage: float = 0.3
     exclamation_frequency: float = 0.3
 
@@ -127,11 +128,11 @@ class ConversationalProfile:
     last_updated: float = field(default_factory=time.time)
     confidence: float = 0.0  # 0-1, grows with interactions
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "ConversationalProfile":
+    def from_dict(cls, data: dict[str, Any]) -> "ConversationalProfile":
         """Reconstruct from serialized dict, ignoring unknown keys."""
         known = {f.name for f in cls.__dataclass_fields__.values()}
         filtered = {k: v for k, v in data.items() if k in known}
@@ -146,7 +147,7 @@ class ConversationalProfile:
 class ConversationalProfiler:
     """Builds and incrementally updates per-user conversational profiles."""
 
-    def __init__(self, storage_path: Optional[Path] = None):
+    def __init__(self, storage_path: Path | None = None):
         if storage_path is None:
             try:
                 from core.config import config
@@ -155,9 +156,9 @@ class ConversationalProfiler:
                 storage_path = Path.home() / ".aura" / "data" / "conversational_profiles.json"
         self._storage_path = Path(storage_path)
         self._storage_path.parent.mkdir(parents=True, exist_ok=True)
-        self._profiles: Dict[str, ConversationalProfile] = {}
-        self._pacing_history: Dict[str, List[float]] = defaultdict(list)  # user_id -> [timestamps]
-        self._phrase_counter: Dict[str, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
+        self._profiles: dict[str, ConversationalProfile] = {}
+        self._pacing_history: dict[str, list[float]] = defaultdict(list)  # user_id -> [timestamps]
+        self._phrase_counter: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
         self._load()
         logger.info("ConversationalProfiler initialized (%d profiles loaded)", len(self._profiles))
 
@@ -169,7 +170,7 @@ class ConversationalProfiler:
         if not self._storage_path.exists():
             return
         try:
-            with open(self._storage_path, "r") as f:
+            with open(self._storage_path) as f:
                 raw = json.load(f)
             for uid, data in raw.get("profiles", {}).items():
                 try:
@@ -216,7 +217,7 @@ class ConversationalProfiler:
         user_id: str,
         user_message: str,
         aura_response: str,
-        reaction_signals: Optional[Dict[str, Any]] = None,
+        reaction_signals: dict[str, Any] | None = None,
     ) -> ConversationalProfile:
         """Main update entry point. Call after every interaction round-trip.
 
@@ -418,7 +419,7 @@ class ConversationalProfiler:
 
     def _detect_humor_reaction(
         self, user_message: str, prev_aura_message: str
-    ) -> Optional[bool]:
+    ) -> bool | None:
         """Did our humor land? Returns True/False/None (no humor attempted)."""
         if not prev_aura_message:
             return None
@@ -557,7 +558,7 @@ class ConversationalProfiler:
         profile.prefers_rapid_exchange = avg_gap < 15.0
 
     def _process_reaction_signals(
-        self, signals: Dict[str, Any], profile: ConversationalProfile
+        self, signals: dict[str, Any], profile: ConversationalProfile
     ) -> None:
         """Interpret explicit reaction signals from the interaction layer."""
         if not signals:
@@ -688,11 +689,14 @@ class ConversationalProfiler:
 
     def on_start(self) -> None:
         """Called by ServiceContainer on initialization."""
-        pass  # no-op: intentional
+        logger.debug(
+            "ConversationalProfileManager ready with %d cached profile(s)",
+            len(self._profiles),
+        )
 
     async def on_start_async(self) -> None:
         """Async lifecycle hook."""
-        pass  # no-op: intentional
+        self.on_start()
 
 
 # ---------------------------------------------------------------------------
@@ -737,7 +741,7 @@ def _label_01(value: float) -> str:
 # Singleton
 # ---------------------------------------------------------------------------
 
-_profiler_instance: Optional[ConversationalProfiler] = None
+_profiler_instance: ConversationalProfiler | None = None
 
 
 def get_conversational_profiler() -> ConversationalProfiler:

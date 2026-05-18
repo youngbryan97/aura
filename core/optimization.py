@@ -1,8 +1,9 @@
-from core.runtime.errors import record_degradation
 import asyncio
 import json
 import logging
-from typing import Any, Dict, List
+from typing import Any
+
+from core.runtime.errors import record_degradation
 
 try:
     from .memory_store import Strategy, StrategyStore, UserMemory, UserMemoryStore
@@ -24,7 +25,7 @@ class StrategyMetaOptimizer:
         self.strategy_store = strategy_store
         self.user_store = user_store
 
-    async def process_turn(self, turn_record: Dict[str, Any]):
+    async def process_turn(self, turn_record: dict[str, Any]):
         """Analyze a completed turn to extract potential learnings.
         """
         try:
@@ -57,7 +58,7 @@ class StrategyMetaOptimizer:
             record_degradation('optimization', e)
             logger.error("Meta-optimization loop failed: %s", e, exc_info=True)
 
-    async def _extract_memories_from_turn(self, turn: Dict[str, Any]) -> Dict[str, Any]:
+    async def _extract_memories_from_turn(self, turn: dict[str, Any]) -> dict[str, Any]:
         """Decide which user memories and strategies to create from a turn.
         """
         # Simplify turn for LLM consumption
@@ -128,8 +129,71 @@ TURN:
             logger.warning("Failed to extract memories: %s", e)
             return {"user_memories": [], "strategies": []}
 
-    def evaluate_strategies(self, logs: List[Dict[str, Any]]):
-        """Offline loop: Reviews logs to enable/disable strategies.
-        (Placeholder for future expansion)
+    def evaluate_strategies(self, logs: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+        """Evaluate observed strategy outcomes and return ranked scorecards.
+
+        The optimizer accepts either explicit ``strategy_key`` fields or common
+        legacy names such as ``strategy``/``action``. Success can be supplied as
+        a bool, numeric score, or textual outcome. When the attached strategy
+        store exposes an ``update_stats`` or ``record_evaluation`` method, the
+        scorecard is persisted there as well.
         """
-        pass  # no-op: intentional
+        scorecards: dict[str, dict[str, Any]] = {}
+
+        for entry in logs or []:
+            strategy_key = (
+                entry.get("strategy_key")
+                or entry.get("strategy")
+                or entry.get("action")
+                or entry.get("key")
+            )
+            if not strategy_key:
+                continue
+
+            score = self._coerce_outcome_score(entry)
+            card = scorecards.setdefault(
+                str(strategy_key),
+                {"attempts": 0, "successes": 0, "score_total": 0.0, "mean_score": 0.0},
+            )
+            card["attempts"] += 1
+            card["successes"] += int(score >= 0.5)
+            card["score_total"] += score
+            card["mean_score"] = card["score_total"] / card["attempts"]
+
+        ranked = dict(
+            sorted(
+                scorecards.items(),
+                key=lambda item: (item[1]["mean_score"], item[1]["attempts"]),
+                reverse=True,
+            )
+        )
+        self._persist_strategy_evaluations(ranked)
+        return ranked
+
+    @staticmethod
+    def _coerce_outcome_score(entry: dict[str, Any]) -> float:
+        raw = entry.get("score", entry.get("success", entry.get("ok", entry.get("outcome", 0.0))))
+        if isinstance(raw, bool):
+            return 1.0 if raw else 0.0
+        if isinstance(raw, (int, float)):
+            return max(0.0, min(1.0, float(raw)))
+        text = str(raw).strip().lower()
+        if text in {"success", "succeeded", "ok", "passed", "complete", "completed"}:
+            return 1.0
+        if text in {"partial", "degraded", "retry", "mixed"}:
+            return 0.5
+        return 0.0
+
+    def _persist_strategy_evaluations(self, scorecards: dict[str, dict[str, Any]]) -> None:
+        if not self.strategy_store:
+            return
+        try:
+            if hasattr(self.strategy_store, "record_evaluation"):
+                for key, card in scorecards.items():
+                    self.strategy_store.record_evaluation(key, dict(card))
+            elif hasattr(self.strategy_store, "update_stats"):
+                for key, card in scorecards.items():
+                    self.strategy_store.update_stats(key, dict(card))
+        except Exception as exc:
+            record_degradation("optimization", exc)
+            logger.warning("Failed to persist strategy evaluations: %s", exc)

@@ -1,14 +1,16 @@
 from __future__ import annotations
-from core.runtime.errors import record_degradation
 
 import asyncio
 import logging
 import time
 from abc import ABC, abstractmethod
-from typing import Any, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
+
+from core.runtime.errors import record_degradation
+
 if TYPE_CHECKING:
-    from core.state.aura_state import AuraState
     from core.kernel.aura_kernel import AuraKernel
+    from core.state.aura_state import AuraState
 
 # Import of Legacy Orchestrator will be added here
 # from core.orchestrator.main import RobustOrchestrator
@@ -21,14 +23,14 @@ def _clamp(value: float, lower: float, upper: float) -> float:
 
 class Phase(ABC):
     """Base class for all Unitary Kernel phases."""
-    def __init__(self, kernel: "AuraKernel" = None):
+    def __init__(self, kernel: AuraKernel = None):
         """Store a reference to the owning kernel."""
         self.kernel = kernel
 
     @abstractmethod
-    async def execute(self, state: AuraState, objective: Optional[str] = None, **kwargs) -> AuraState:
+    async def execute(self, state: AuraState, objective: str | None = None, **kwargs) -> AuraState:
         """Run this phase against the given state and return the updated state."""
-        raise RuntimeError(f"{type(self).__name__}.execute must be implemented by a phase")
+        raise NotImplementedError(f"{type(self).__name__}.execute must be implemented by a phase")
 
     async def __call__(self, state: AuraState) -> AuraState:
         """Execute the phase, pulling the current objective from state if available."""
@@ -42,7 +44,7 @@ class LegacyPhase(Phase):
     Wraps the existing modular chaos as a single Phase within the new Kernel.
     Allows for one-at-a-time migration of modules with zero downtime.
     """
-    def __init__(self, kernel: "AuraKernel"):
+    def __init__(self, kernel: AuraKernel):
         """Initialize the legacy bridge; the orchestrator is lazily constructed on first execute."""
         self.kernel = kernel
         self.legacy_orchestrator: Any = None # To be RobustOrchestrator()
@@ -63,7 +65,7 @@ class LegacyPhase(Phase):
         tokens = {token for token in normalized.split("_") if token}
         return bool(tokens & {"user", "voice", "admin", "api", "gui", "ws", "websocket", "direct", "external"})
 
-    async def execute(self, state: AuraState, objective: Optional[str] = None, **kwargs) -> AuraState:
+    async def execute(self, state: AuraState, objective: str | None = None, **kwargs) -> AuraState:
         """
         Delegates to the old world, but enforces the new state invariants.
         """
@@ -84,11 +86,10 @@ class LegacyPhase(Phase):
 
         if self.legacy_orchestrator is None:
             # Lazy init legacy only once to avoid boot bloat
-            from core.orchestrator.main import RobustOrchestrator
-            
             # Instead of monkey-patching, we use the existing task_tracker
             # and ensure the Orchestrator is aware of the Kernel's hierarchy.
             from core.kernel.kernel_interface import get_kernel_interface
+            from core.orchestrator.main import RobustOrchestrator
             self.legacy_orchestrator = RobustOrchestrator(kernel_interface=get_kernel_interface())
             self.legacy_orchestrator.state = state 
             
@@ -164,14 +165,15 @@ class AffectBridge:
     Allows old modules to 'think' they are talking to a singleton engine,
     while they are actually reading/writing to the monolithic AuraState.
     """
-    def __init__(self, kernel: "AuraKernel"):
+    def __init__(self, kernel: AuraKernel):
         """Store a reference to the kernel for live state access."""
         self.kernel = kernel
 
     def get_status(self) -> dict:
         """Proxies to kernel state affect."""
         state = self.kernel.state # Use live kernel state
-        if not state: return {}
+        if not state:
+            return {}
         aff = state.affect
         return {
             "mood": aff.dominant_emotion.capitalize(),
@@ -191,7 +193,8 @@ class AffectBridge:
         process this on the next tick, ensuring the mutation is persisted.
         """
         state = self.kernel.state
-        if not state: return
+        if not state:
+            return
         
         # Inject as a 'virtual_percept' for the next tick
         state.world.recent_percepts.append({
@@ -256,7 +259,8 @@ class AffectBridge:
         """Support for legacy .current property."""
         from types import SimpleNamespace
         state = self.kernel.state
-        if not state: return SimpleNamespace(energy=0.5, curiosity=0.5, valence=0.0)
+        if not state:
+            return SimpleNamespace(energy=0.5, curiosity=0.5, valence=0.0)
         aff = state.affect
         return SimpleNamespace(
             energy=float((aff.physiology["heart_rate"] - 60) / 40.0),
@@ -268,23 +272,54 @@ class MotivationBridge:
     """
     [PEER BRIDGE] Redirects legacy motivation lookups to the Kernel's Vault.
     """
-    def __init__(self, kernel: "AuraKernel"):
+    def __init__(self, kernel: AuraKernel):
         """Store a reference to the kernel for live state access."""
         self.kernel = kernel
 
-    async def update(self, *args, **kwargs):
-        pass
+    async def update(self, *args, **kwargs) -> dict:
+        """Apply legacy motivation updates to kernel budgets when possible."""
+        state = self.kernel.state
+        if not state:
+            return {}
+
+        updates = dict(kwargs)
+        if args and isinstance(args[0], dict):
+            updates.update(args[0])
+
+        budgets = state.motivation.budgets
+        for drive, amount in updates.get("budget_deltas", {}).items():
+            budget = budgets.get(drive)
+            if budget:
+                budget["level"] = _clamp(
+                    budget.get("level", 0.0) + float(amount),
+                    0.0,
+                    budget.get("capacity", 1.0),
+                )
+
+        drive = updates.get("drive")
+        if drive in budgets and "amount" in updates:
+            amount = float(updates["amount"])
+            budget = budgets[drive]
+            budget["level"] = _clamp(
+                budget.get("level", 0.0) + amount,
+                0.0,
+                budget.get("capacity", 1.0),
+            )
+
+        return budgets
 
     async def get_status(self) -> dict:
         """Return the current motivation budget levels from kernel state."""
         state = self.kernel.state
-        if not state: return {}
+        if not state:
+            return {}
         return state.motivation.budgets
 
     async def satisfy(self, drive: str, amount: float):
         """Increase a motivation drive's level by the given amount, capped at its capacity."""
         state = self.kernel.state
-        if not state: return
+        if not state:
+            return
         # Strict Vault Routing: We derive a new state for the satisfaction
         # ensuring the mutation is versioned.
         b = state.motivation.budgets.get(drive)
@@ -295,7 +330,8 @@ class MotivationBridge:
     async def punish(self, drive: str, amount: float):
         """Decrease a motivation drive's level by the given amount, floored at zero."""
         state = self.kernel.state
-        if not state: return
+        if not state:
+            return
         b = state.motivation.budgets.get(drive)
         if b:
             b["level"] = max(0.0, b["level"] - amount)

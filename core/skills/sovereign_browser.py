@@ -1,32 +1,30 @@
-from core.runtime.errors import record_degradation
 import asyncio
 import logging
-import urllib.parse
-import subprocess
-import os
-import base64
 import random
 import re
-from typing import Any, Dict, List, Optional, Union
+import urllib.parse
+from typing import Any
+
 from pydantic import BaseModel, Field
 
-from core.skills.base_skill import BaseSkill
 from core.phantom_browser import PhantomBrowser
+from core.runtime.errors import record_degradation
 from core.search.research_pipeline import query_requires_source_reading
+from core.skills.base_skill import BaseSkill
 from core.thought_stream import get_emitter
 
 logger = logging.getLogger("Skills.SovereignBrowser")
 
 class BrowserAction(BaseModel):
     type: str = Field(..., description="Action: 'click', 'type', 'scroll', 'wait', 'get_html', 'screenshot'")
-    selector: Optional[str] = Field(None, description="CSS selector or text match for elements.")
-    value: Optional[str] = Field(None, description="Value to type or wait duration.")
+    selector: str | None = Field(None, description="CSS selector or text match for elements.")
+    value: str | None = Field(None, description="Value to type or wait duration.")
 
 class BrowserInput(BaseModel):
     mode: str = Field("search", description="Mode: 'search', 'browse', 'interact'")
-    query: Optional[str] = Field(None, description="Search query for 'search' mode.")
-    url: Optional[str] = Field(None, description="URL for 'browse' or 'interact' mode.")
-    actions: Optional[List[BrowserAction]] = Field(None, description="Sequence of actions for 'interact' mode.")
+    query: str | None = Field(None, description="Search query for 'search' mode.")
+    url: str | None = Field(None, description="URL for 'browse' or 'interact' mode.")
+    actions: list[BrowserAction] | None = Field(None, description="Sequence of actions for 'interact' mode.")
     deep: bool = Field(False, description="Whether to deep-dive by reading the first non-ad search result.")
 
 class SovereignBrowserSkill(BaseSkill):
@@ -65,7 +63,7 @@ class SovereignBrowserSkill(BaseSkill):
         await asyncio.wait_for(browser.ensure_ready(), timeout=30.0)
         return browser
 
-    async def _safe_close(self, browser: Optional[PhantomBrowser]) -> None:
+    async def _safe_close(self, browser: PhantomBrowser | None) -> None:
         """Guaranteed browser teardown — never raises."""
         if browser is None:
             return
@@ -95,7 +93,7 @@ class SovereignBrowserSkill(BaseSkill):
         """Read page content with a timeout to prevent hung-page stalls."""
         try:
             return await asyncio.wait_for(browser.read_content(), timeout=self.READ_TIMEOUT)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning("🕐 read_content() timed out after %.0fs", self.READ_TIMEOUT)
             return ""
         except Exception as e:
@@ -107,7 +105,7 @@ class SovereignBrowserSkill(BaseSkill):
         """Navigate with a timeout."""
         try:
             return await asyncio.wait_for(browser.browse(url), timeout=self.BROWSE_TIMEOUT)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning("🕐 browse(%s) timed out after %.0fs", url[:80], self.BROWSE_TIMEOUT)
             return False
         except Exception as e:
@@ -115,7 +113,7 @@ class SovereignBrowserSkill(BaseSkill):
             logger.warning("browse(%s) error: %s", url[:80], e)
             return False
 
-    async def execute(self, params: BrowserInput, context: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute(self, params: BrowserInput, context: dict[str, Any]) -> dict[str, Any]:
         """Unified entry point for all web activities.
 
         HARDENING: Each invocation creates an ephemeral browser session that is
@@ -129,7 +127,7 @@ class SovereignBrowserSkill(BaseSkill):
                 record_degradation('sovereign_browser', e)
                 return {"ok": False, "error": f"Invalid input schema: {e}"}
 
-        browser: Optional[PhantomBrowser] = None
+        browser: PhantomBrowser | None = None
         try:
             # 1. Try High-Fidelity Playwright (Phantom)
             try:
@@ -152,7 +150,7 @@ class SovereignBrowserSkill(BaseSkill):
                     )
                 else:
                     return {"ok": False, "error": f"Unsupported browser mode: {params.mode}"}
-            except asyncio.TimeoutError as te:
+            except TimeoutError as te:
                 logger.warning("Browser operation timed out: %s", te)
                 return {"ok": False, "error": f"Browser operation timed out: {params.mode}"}
             except Exception as e:
@@ -168,7 +166,7 @@ class SovereignBrowserSkill(BaseSkill):
             # CRITICAL: Always tear down the browser to prevent process leaks
             await self._safe_close(browser)
 
-    async def _execute_fallback(self, params: BrowserInput) -> Dict[str, Any]:
+    async def _execute_fallback(self, params: BrowserInput) -> dict[str, Any]:
         """Technically difficult sites often require Undetected Chromedriver."""
         try:
             import undetected_chromedriver as uc
@@ -185,7 +183,8 @@ class SovereignBrowserSkill(BaseSkill):
                 if params.mode == "search" and params.query:
                     url = f"https://www.google.com/search?q={urllib.parse.quote_plus(params.query)}"
 
-                if not url: return {"ok": False, "error": "No URL for fallback."}
+                if not url:
+                    return {"ok": False, "error": "No URL for fallback."}
 
                 driver.get(url)
                 await asyncio.sleep(3) # Wait for JS/stealth
@@ -208,7 +207,7 @@ class SovereignBrowserSkill(BaseSkill):
             record_degradation('sovereign_browser', e)
             return {"ok": False, "error": f"Fallback failed: {e}"}
 
-    async def _handle_search(self, browser: PhantomBrowser, query: str, deep: bool) -> Dict[str, Any]:
+    async def _handle_search(self, browser: PhantomBrowser, query: str, deep: bool) -> dict[str, Any]:
         if not query:
             return {"ok": False, "error": "Search mode requires a 'query'."}
 
@@ -236,7 +235,7 @@ class SovereignBrowserSkill(BaseSkill):
 
                 await browser._human_delay(2, 3)
                 if deep:
-                    get_emitter().emit("🔍 Deep Search", f"Analyzing search results for organic targets...", category="Browser")
+                    get_emitter().emit("🔍 Deep Search", "Analyzing search results for organic targets...", category="Browser")
                     try:
                         links = await asyncio.wait_for(browser.get_links(), timeout=10.0)
                     except Exception:
@@ -295,7 +294,7 @@ class SovereignBrowserSkill(BaseSkill):
 
         return {"ok": False, "error": "Search engines unreachable or blocked."}
 
-    async def _handle_browse(self, browser: PhantomBrowser, url: str) -> Dict[str, Any]:
+    async def _handle_browse(self, browser: PhantomBrowser, url: str) -> dict[str, Any]:
         if not url:
             return {"ok": False, "error": "Browse mode requires a 'url'."}
 
@@ -306,7 +305,7 @@ class SovereignBrowserSkill(BaseSkill):
             return {"ok": True, "source": url, "content": content, "message": f"I've navigated to {url} and captured the content."}
         return {"ok": False, "error": f"Failed to load {url}"}
 
-    async def _handle_interact(self, browser: PhantomBrowser, url: str, actions: List[BrowserAction]) -> Dict[str, Any]:
+    async def _handle_interact(self, browser: PhantomBrowser, url: str, actions: list[BrowserAction]) -> dict[str, Any]:
         if url and not await self._safe_browse(browser, url):
             return {"ok": False, "error": f"Failed to load start URL: {url}"}
 
@@ -339,7 +338,7 @@ class SovereignBrowserSkill(BaseSkill):
                 else:
                     success = False
                     logger.warning("Unsupported action type: %s", action.type)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.warning("Action '%s' timed out", action.type)
                 success = False
             except Exception as action_exc:
@@ -348,7 +347,8 @@ class SovereignBrowserSkill(BaseSkill):
                 success = False
 
             results.append({"action": action.type, "ok": success})
-            if not success: break
+            if not success:
+                break
 
         final_content = await self._safe_read_content(browser)
         final_url = ""
@@ -379,7 +379,7 @@ class SovereignBrowserSkill(BaseSkill):
         ]
         return sum(1 for s in block_signals if s in lower) >= 2
 
-    def _select_search_result(self, links: List[Dict[str, str]], query: str = "") -> Optional[str]:
+    def _select_search_result(self, links: list[dict[str, str]], query: str = "") -> str | None:
         """Choose the most query-aligned organic result instead of the first link-shaped thing."""
         query_tokens = {
             token for token in re.findall(r"[a-z0-9]+", str(query or "").lower())
@@ -391,7 +391,7 @@ class SovereignBrowserSkill(BaseSkill):
             for phrase in re.findall(r"[\"“”']([^\"“”']{4,200})[\"“”']", str(query or ""))
         ]
 
-        best_url: Optional[str] = None
+        best_url: str | None = None
         best_score = float("-inf")
 
         for link in links:
@@ -434,4 +434,4 @@ class SovereignBrowserSkill(BaseSkill):
 
     async def on_stop_async(self):
         """No-op: browsers are now ephemeral per-invocation."""
-        pass  # no-op: intentional
+        return None

@@ -9,46 +9,52 @@ import inspect
 import json
 import logging
 import os
-import random
-import re
+import sys
 import threading
 import time
-import multiprocessing
-import psutil
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional, Union, List, Dict
+from typing import Any, Optional
 
-# [AURA HARDENING] Final Quick-Win: Disable background telemetry to prevent hangs in sovereign environments
-os.environ["ANONYMIZED_TELEMETRY"] = "False"
+import psutil
 
-from core.autonomy_guardian import AutonomyGuardian
-from core.brain.types import ThinkingMode
-from core.meta.cognitive_trace import CognitiveTrace
-from core.scheduler import TaskSpec, scheduler
+from core.bus.actor_bus import ActorBus
 from core.health.degraded_events import record_degraded_event
 from core.runtime.errors import record_degradation
 from core.runtime.shutdown_coordinator import is_shutdown_requested
-from core.utils.task_tracker import get_task_tracker
+from core.scheduler import TaskSpec, scheduler
+from core.supervisor.tree import ActorSpec
+from core.utils.concurrency import RobustLock, run_io_bound
 from core.utils.exceptions import capture_and_log
-from core.utils.queues import BackpressuredQueue, USER_FACING_ORIGINS
-from core.utils.concurrency import run_io_bound, LOCK_SENTINEL, RobustLock
+from core.utils.queues import USER_FACING_ORIGINS
+from core.utils.task_tracker import get_task_tracker
 
 from ..config import config
 from ..container import ServiceContainer
 from ..state.state_repository import StateRepository
 from .boot import OrchestratorBootMixin
-from .orchestrator_types import SystemStatus
+from .coordinators.affect import AffectCoordinator
+from .coordinators.agency import AgencyCoordinator
+from .coordinators.memory import MemoryCoordinator
 from .handlers.status_manager import StatusManagerMixin
+from .mixins.autonomy import AutonomyMixin
+from .mixins.cognitive_background import CognitiveBackgroundMixin
+from .mixins.context_streaming import ContextStreamingMixin
+from .mixins.incoming_logic import IncomingLogicMixin
+from .mixins.learning_evolution import LearningEvolutionMixin
+from .mixins.message_handling import MessageHandlingMixin
+from .mixins.message_pipeline import MessagePipelineMixin
+from .mixins.output_formatter import OutputFormatterMixin
+from .mixins.personality_bridge import PersonalityBridgeMixin
+from .mixins.response_processing import ResponseProcessingMixin
+from .mixins.tool_execution import ToolExecutionMixin
+from .orchestrator_types import SystemStatus
 from .services import OrchestratorServicesMixin
 from .state import OrchestratorStateMixin
 
-from .coordinators.agency import AgencyCoordinator
-from .coordinators.memory import MemoryCoordinator
-from .coordinators.affect import AffectCoordinator
+# [AURA HARDENING] Final Quick-Win: Disable background telemetry to prevent hangs in sovereign environments
+os.environ["ANONYMIZED_TELEMETRY"] = "False"
 
 logger = logging.getLogger("Aura.Core.Orchestrator")
-from core.brain.llm.continuous_substrate import ContinuousSubstrate
 
 
 def _env_flag(name: str, default: bool = False) -> bool:
@@ -62,16 +68,14 @@ def _foreground_only_runtime() -> bool:
     return _env_flag("AURA_FOREGROUND_ONLY", False)
 
 
-# Phase 2: Supervisor & Registry
-from core.supervisor.tree import get_tree, ActorSpec
-from core.supervisor.registry import get_task_registry, TaskStatus
-from core.bus.actor_bus import ActorBus
-
-
 class AsyncNullContext:
     """Async context manager that does nothing."""
-    async def __aenter__(self): return self
-    async def __aexit__(self, *args): pass
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *args):
+        return False
 
 
 def _bg_task_exception_handler(task: asyncio.Task) -> None:
@@ -96,18 +100,6 @@ def _dispose_awaitable(result: Any) -> None:
     cancel = getattr(result, "cancel", None)
     if callable(cancel):
         cancel()
-
-from .mixins.output_formatter import OutputFormatterMixin
-from .mixins.personality_bridge import PersonalityBridgeMixin
-from .mixins.cognitive_background import CognitiveBackgroundMixin
-from .mixins.message_pipeline import MessagePipelineMixin
-from .mixins.autonomy import AutonomyMixin
-from .mixins.response_processing import ResponseProcessingMixin
-from .mixins.tool_execution import ToolExecutionMixin
-from .mixins.learning_evolution import LearningEvolutionMixin
-from .mixins.context_streaming import ContextStreamingMixin
-from .mixins.message_handling import MessageHandlingMixin
-from .mixins.incoming_logic import IncomingLogicMixin
 
 class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, OrchestratorStateMixin, OrchestratorServicesMixin, OutputFormatterMixin, PersonalityBridgeMixin, CognitiveBackgroundMixin, MessagePipelineMixin, ToolExecutionMixin, LearningEvolutionMixin, AutonomyMixin, ResponseProcessingMixin, ContextStreamingMixin, MessageHandlingMixin, IncomingLogicMixin):
     """The central brain that coordinates everything."""
@@ -137,7 +129,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
     _foreground_user_quiet_until: float = 0.0
     
     # Locks & Synchronization (Audit-Hardened)
-    async def process_user_input(self, message: str, origin: str = "user") -> Optional[str]:
+    async def process_user_input(self, message: str, origin: str = "user") -> str | None:
         """Compatibility alias for the cognitive pipeline."""
         return await self.process_user_input_priority(message, origin)
     _stop_event: threading.Event
@@ -146,10 +138,10 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
     _stats_lock: RobustLock
     _task_lock: RobustLock
     _extension_lock: RobustLock
-    _current_thought_task: Optional[asyncio.Task]
-    _autonomous_task: Optional[asyncio.Task]
+    _current_thought_task: asyncio.Task | None
+    _autonomous_task: asyncio.Task | None
     _autonomous_action_times: collections.deque[float]
-    _thread: Optional[threading.Thread]
+    _thread: threading.Thread | None
     
     # State tracking
     _extensions_initialized: bool = False
@@ -161,16 +153,16 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
     _correction_shards: list[dict[str, Any]]
 
     # Component Attributes (Resolved via setup())
-    _capability_engine: Optional[Any] = None
-    _actor_bus: Optional[ActorBus] = None
-    _sensory_actor: Optional[Any] = None # Process reference managed by supervisor
+    _capability_engine: Any | None = None
+    _actor_bus: ActorBus | None = None
+    _sensory_actor: Any | None = None # Process reference managed by supervisor
     _last_sensory_heartbeat: float = 0.0
     _task_registry: Any = None
     _supervisor_tree: Any = None
-    kernel_interface: Optional[Any] = None
+    kernel_interface: Any | None = None
     
-    meta_cognition: Optional[Any] = None
-    healing_service: Optional[Any] = None
+    meta_cognition: Any | None = None
+    healing_service: Any | None = None
     
     @property
     def live_learner(self) -> Any:
@@ -203,28 +195,28 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
 
         self._autonomous_action_times.append(now)
         return True
-    _scratchpad_engine: Optional[Any] = None
-    _strategic_planner: Optional[Any] = None
-    _project_store: Optional[Any] = None
-    _intent_router: Optional[Any] = None
-    _state_machine: Optional[Any] = None
-    _autonomic_core: Optional[Any] = None
+    _scratchpad_engine: Any | None = None
+    _strategic_planner: Any | None = None
+    _project_store: Any | None = None
+    _intent_router: Any | None = None
+    _state_machine: Any | None = None
+    _autonomic_core: Any | None = None
     _pending_correction: str = ""  # v40: Identity Drift correction injection
-    _ears: Optional[Any] = None
-    _liquid_state: Optional[Any] = None
-    _personality_engine: Optional[Any] = None
-    _knowledge_graph: Optional[Any] = None
-    _meta_learning: Optional[Any] = None
-    _singularity_monitor: Optional[Any] = None
-    _memory_manager: Optional[Any] = None
-    _goal_hierarchy: Optional[Any] = None
-    _identity: Optional[Any] = None
-    _self_model: Optional[Any] = None
-    _global_workspace: Optional[Any] = None
-    _world_state: Optional[Any] = None
-    _memory_optimizer: Optional[Any] = None
-    _self_healer: Optional[Any] = None
-    _metabolic_monitor: Optional[Any] = None
+    _ears: Any | None = None
+    _liquid_state: Any | None = None
+    _personality_engine: Any | None = None
+    _knowledge_graph: Any | None = None
+    _meta_learning: Any | None = None
+    _singularity_monitor: Any | None = None
+    _memory_manager: Any | None = None
+    _goal_hierarchy: Any | None = None
+    _identity: Any | None = None
+    _self_model: Any | None = None
+    _global_workspace: Any | None = None
+    _world_state: Any | None = None
+    _memory_optimizer: Any | None = None
+    _self_healer: Any | None = None
+    _metabolic_monitor: Any | None = None
     
     # Sub-Coordinators (Decomposition Phase)
     agency: AgencyCoordinator
@@ -232,7 +224,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
     affect: AffectCoordinator
     
     state_repo: StateRepository
-    _event_loop_monitor: Optional[Any] = None
+    _event_loop_monitor: Any | None = None
 
     @property
     def actor_bus(self) -> Any:
@@ -244,7 +236,9 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                 try:
                     if not ServiceContainer.has("actor_bus"):
                         ServiceContainer.register_instance("actor_bus", self._actor_bus)
-                except Exception: pass
+                except Exception as exc:
+                    record_degradation("orchestrator", exc)
+                    logger.debug("Actor bus registration skipped: %s", exc)
         return self._actor_bus
 
     @property
@@ -387,9 +381,9 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
         from core.orchestrator.handlers.recovery import retry_cognitive_connection
         return await retry_cognitive_connection(self)
 
-    def __init__(self, config_path: Optional[Path] = None, auto_fix_enabled: Optional[bool] = None, kernel_interface: Optional[Any] = None):
+    def __init__(self, config_path: Path | None = None, auto_fix_enabled: bool | None = None, kernel_interface: Any | None = None):
         """Initializes the orchestrator with required components."""
-        import sys; sys.stdout.flush()
+        sys.stdout.flush()
         # [BOOT FIX] Call Mixin initializer to set up hooks, state_manager, etc.
         self._init_basic_state(config_path, auto_fix_enabled)
         
@@ -459,7 +453,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
             self.status.last_heartbeat = self._last_heartbeat
 
     @staticmethod
-    def _is_user_facing_origin(origin: Optional[str]) -> bool:
+    def _is_user_facing_origin(origin: str | None) -> bool:
         normalized = str(origin or "").strip().lower()
         return normalized in USER_FACING_ORIGINS
 
@@ -498,7 +492,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
             print("------------------------------------------")
             print("       AURORA NEURAL CORE v1.0.0          ")
             print("------------------------------------------")
-            print(f" Integrity: Validated" if not self._boot_warnings else f" Integrity: Validated with {len(self._boot_warnings)} warnings")
+            print(" Integrity: Validated" if not self._boot_warnings else f" Integrity: Validated with {len(self._boot_warnings)} warnings")
             print(f" Environment: {os.uname().sysname} {os.uname().machine}")
             print("------------------------------------------")
             
@@ -853,8 +847,8 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
             # ── AGI Layer ─────────────────────────────────────────────────────
             try:
                 from core.agi.curiosity_explorer import get_curiosity_explorer
-                from core.agi.skill_synthesizer import get_skill_synthesizer
                 from core.agi.hierarchical_planner import get_hierarchical_planner
+                from core.agi.skill_synthesizer import get_skill_synthesizer
                 _cx = get_curiosity_explorer()
                 _ss = get_skill_synthesizer()
                 _hp = get_hierarchical_planner()
@@ -888,10 +882,10 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                 logger.warning("Agency layer boot non-fatal: %s", _e)
             # ── Security Layer ────────────────────────────────────────────────
             try:
-                from core.security.user_recognizer import get_user_recognizer
-                from core.security.trust_engine import get_trust_engine
-                from core.security.integrity_guardian import get_integrity_guardian
                 from core.security.emergency_protocol import get_emergency_protocol
+                from core.security.integrity_guardian import get_integrity_guardian
+                from core.security.trust_engine import get_trust_engine
+                from core.security.user_recognizer import get_user_recognizer
                 _ur  = get_user_recognizer()
                 _te  = get_trust_engine()
                 _ig2 = get_integrity_guardian()
@@ -914,8 +908,8 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
             # ── Substrate & Embodiment Layer ──────────────────────────────────
             try:
                 from core.consciousness.crsm_lora_bridge import get_crsm_lora_bridge
-                from core.senses.circadian import get_circadian
                 from core.consciousness.experience_consolidator import get_experience_consolidator
+                from core.senses.circadian import get_circadian
                 _lora_bridge = get_crsm_lora_bridge()
                 _circadian   = get_circadian()
                 _consolidator = get_experience_consolidator()
@@ -1251,8 +1245,8 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
 
     async def _register_dream_tasks(self, scheduler):
         """Registers all asynchronous memory consolidation systems through the DreamCoordinator singleton."""
-        from core.scheduler import TaskSpec
         from core.maintenance.dream_coordinator import get_dream_coordinator
+        from core.scheduler import TaskSpec
         
         coordinator = get_dream_coordinator()
 
@@ -1298,7 +1292,8 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
     async def _register_scheduled_tasks(self):
         """Standardize all periodic substrate tasks into the Central Scheduler."""
         from core.resilience.circuit_breaker import get_circuit_breaker
-        breaker = get_circuit_breaker()
+
+        get_circuit_breaker()
 
         # 1. Liquid Pacing & Subsystem Audit (High Frequency)
         await scheduler.register(TaskSpec(
@@ -1373,7 +1368,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                 logger.info("🌀 [SCHEDULER] Triggering Meta-Evolution Cycle...")
                 try:
                     await asyncio.wait_for(self.meta_cognition.evolve(), timeout=30.0)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     logger.warning("🌀 Meta-Evolution timed out after 30s — skipping this cycle.")
                 except Exception as exc:
                     record_degradation('main', exc)
@@ -1490,7 +1485,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
     # Zenith: Public alias for legacy tests
     track_metabolic_task = _track_metabolic_task
 
-    def _fire_and_forget(self, coro, name: Optional[str] = None):
+    def _fire_and_forget(self, coro, name: str | None = None):
         """Helper to run an async coroutine in the background without awaiting it."""
         # Import upfront — placing the import after the first use makes Python
         # treat `get_task_tracker` as a local and raises UnboundLocalError on
@@ -1760,7 +1755,9 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
             try:
                 if not ServiceContainer.has("actor_bus"):
                     ServiceContainer.register_instance("actor_bus", self._actor_bus)
-            except Exception: pass
+            except Exception as exc:
+                record_degradation("orchestrator", exc)
+                logger.debug("Actor bus registration skipped: %s", exc)
 
             # 2. Register Actor with Supervisor Tree
             spec = ActorSpec(
@@ -2291,7 +2288,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                 logger.error("Error in event listener loop: %s", e)
 
 
-_orchestrator_instance: Optional[RobustOrchestrator] = None
+_orchestrator_instance: RobustOrchestrator | None = None
 _orchestrator_lock = threading.Lock()
 
 def create_orchestrator(**kwargs) -> RobustOrchestrator:
@@ -2335,7 +2332,7 @@ def create_orchestrator(**kwargs) -> RobustOrchestrator:
                         'health_metrics': {}
                     })()
                     self.error = error_msg
-                    self._stop_event: Optional[asyncio.Event] = None
+                    self._stop_event: asyncio.Event | None = None
                     self.reply_queue = asyncio.Queue()
                     self.message_queue = asyncio.Queue()
                     from pathlib import Path
@@ -2376,7 +2373,7 @@ def create_orchestrator(**kwargs) -> RobustOrchestrator:
                     return f"System is in recovery mode: {self.error}"
 
                 def _publish_telemetry(self, data):
-                    pass  # No-op in fallback mode
+                    logger.debug("FallbackOrchestrator telemetry suppressed: %s", data)
             
             return FallbackOrchestrator(str(exc))
 

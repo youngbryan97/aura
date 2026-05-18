@@ -12,24 +12,29 @@ Strategy: Use Flash for streaming chat (250 RPD budget), Pro for deep
 reasoning only when explicitly requested (100 RPD budget). Automatic
 fallback to local models when daily quota is exhausted.
 """
-from core.runtime.errors import record_degradation
-from core.utils.exceptions import capture_and_log
-import asyncio
 import json
 import logging
 import os
 import time
 from collections import defaultdict, deque
-from datetime import datetime, timezone
-from typing import Any, AsyncIterator, Dict, Optional, Tuple
+from collections.abc import AsyncIterator
+from datetime import datetime
+from typing import Any
 
 import httpx
+
+from core.resilience.factory import circuit_breaker
+from core.runtime.errors import record_degradation
+from core.utils.exceptions import capture_and_log
 
 logger = logging.getLogger("Brain.Gemini")
 
 
-class GeminiProviderUnavailable(RuntimeError):
+class GeminiProviderUnavailableError(RuntimeError):
     """Non-crash provider/configuration failure; local lanes should continue."""
+
+
+GeminiProviderUnavailable = GeminiProviderUnavailableError
 
 
 class DailyRateLimiter:
@@ -56,12 +61,12 @@ class DailyRateLimiter:
         "gemini-2.5-pro": int(os.environ.get("AURA_GEMINI_RPM_THINKING", 50)),
     }
     
-    def __init__(self, state_path: Optional[str] = None):
-        self._counts: Dict[str, int] = defaultdict(int)
+    def __init__(self, state_path: str | None = None):
+        self._counts: dict[str, int] = defaultdict(int)
         self._reset_date: str = self._today()
         self._state_path = state_path
-        self._minute_timestamps: Dict[str, deque] = defaultdict(deque)
-        self._backoff_until: Dict[str, float] = {}  # model -> timestamp
+        self._minute_timestamps: dict[str, deque] = defaultdict(deque)
+        self._backoff_until: dict[str, float] = {}  # model -> timestamp
         self._cluster_backoff_until: float = 0.0     # All Gemini models
         self._boot_time: float = time.monotonic()
         self.COLD_START_GRACE_S: float = 90.0  # 90s boot grace window
@@ -71,7 +76,7 @@ class DailyRateLimiter:
         """Current date in Pacific time (Google's billing day boundary)."""
         import datetime as dt
         # Approximate Pacific time as UTC-8
-        pt = datetime.now(timezone.utc).astimezone(
+        pt = datetime.now(dt.UTC).astimezone(
             dt.timezone(dt.timedelta(hours=-8))
         )
         return pt.strftime("%Y-%m-%d")
@@ -212,7 +217,7 @@ class DailyRateLimiter:
             logger.warning("⚠️ Gemini %s: %d calls remaining today", model, remaining)
         self._save_state()
     
-    def get_usage(self) -> Dict:
+    def get_usage(self) -> dict:
         """Return current usage stats."""
         self._maybe_reset()
         return {
@@ -224,8 +229,6 @@ class DailyRateLimiter:
             for model, limit in self.DEFAULT_LIMITS.items()
         }
 
-
-from core.resilience.factory import circuit_breaker
 
 class GeminiAdapter:
     """Adapter for Google Gemini API — slots into IntelligentLLMRouter as PRIMARY tier.
@@ -242,13 +245,13 @@ class GeminiAdapter:
     THINKING_MODEL = "gemini-2.5-pro"  # Best reasoning model (GA March 2025)
     
     def __init__(self, api_key: str, model: str = None, 
-                 rate_limiter: Optional[DailyRateLimiter] = None,
+                 rate_limiter: DailyRateLimiter | None = None,
                  timeout: float = 120.0):
         self.api_key = api_key
         self.model = model or self.CHAT_MODEL
         self.timeout = timeout
         self.rate_limiter = rate_limiter or DailyRateLimiter()
-        self._client: Optional[httpx.AsyncClient] = None
+        self._client: httpx.AsyncClient | None = None
         self._disabled_until: float = 0.0
         self._disabled_reason: str = ""
         logger.info("✨ GeminiAdapter initialized: model=%s", self.model)
@@ -328,7 +331,7 @@ class GeminiAdapter:
     @circuit_breaker(service_name="gemini-api")
     async def generate_text_stream_async(
         self, prompt: str, 
-        system_prompt: Optional[str] = None,
+        system_prompt: str | None = None,
         cancel_event=None,
         **kwargs
     ) -> AsyncIterator[str]:
@@ -459,7 +462,7 @@ class GeminiAdapter:
     @circuit_breaker(service_name="gemini-api")
     async def call(
         self, prompt: str, **kwargs
-    ) -> Tuple[bool, str, Dict[str, Any]]:
+    ) -> tuple[bool, str, dict[str, Any]]:
         """Non-streaming call — compatible with LLMRouter's _think_internal fallback."""
         is_background = kwargs.get("is_background", False)
         if not self.is_available():
@@ -611,8 +614,8 @@ class GeminiAdapter:
 
     async def generate_text_async(
         self, prompt: str, 
-        system_prompt: Optional[str] = None,
-        model: Optional[str] = None,
+        system_prompt: str | None = None,
+        model: str | None = None,
         **kwargs
     ) -> str:
         """Compatibility method for code paths that call generate_text_async."""
@@ -634,10 +637,10 @@ class GeminiAdapter:
 
     async def think(
         self,
-        prompt: Optional[str] = None,
-        system_prompt: Optional[str] = None,
+        prompt: str | None = None,
+        system_prompt: str | None = None,
         **kwargs
-    ) -> Optional[str]:
+    ) -> str | None:
         """
         Unified interface for non-chat callers.
         Returns the simplified string result from Gemini.
@@ -659,13 +662,13 @@ class GeminiAdapter:
 
     async def unload_models(self):
         """No-op for API models — nothing to unload."""
-        pass  # no-op: intentional
+        return None
     
     async def generate_stream(self, prompt: str, system_prompt: str = None, **kwargs):
         """Alias for generate_text_stream_async — matches the interface expected by LLMRouter.think_stream."""
         async for chunk in self.generate_text_stream_async(prompt, system_prompt=system_prompt, **kwargs):
             yield chunk
 
-    def get_usage_stats(self) -> Dict:
+    def get_usage_stats(self) -> dict:
         """Return human-readable usage stats for the UI."""
         return self.rate_limiter.get_usage()

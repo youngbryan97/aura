@@ -1,15 +1,13 @@
 """Incoming Logic Mixin for RobustOrchestrator.
 Extracts the incoming message handling pipeline, routing, and filesystem checks.
 """
-from core.runtime.errors import record_degradation
 import asyncio
 import logging
-import os
 import re
-import sys
 import time
-from typing import Any, Dict, Optional
+from typing import Any
 
+from core.runtime.errors import record_degradation
 from core.runtime.governance_policy import allow_direct_user_shortcut
 
 logger = logging.getLogger(__name__)
@@ -81,7 +79,7 @@ class IncomingLogicMixin:
         )
         return False
 
-    async def _check_embodied_reflexes(self, message: str) -> Optional[str]:
+    async def _check_embodied_reflexes(self, message: str) -> str | None:
         """Detect and return deterministic responses for standard somatic prompts.
         
         This is a general infrastructural reflex that handles low-level CLI/UI
@@ -128,11 +126,12 @@ class IncomingLogicMixin:
 
     async def _original_handle_incoming_logic(self, message: Any, origin: str = "user", suppress_ui: bool = False):
         """Route an incoming message through the deterministic State Machine pipeline."""
-        from ...container import ServiceContainer
-        from ...config import config
         from core.autonomy_guardian import AutonomyGuardian
-        from core.supervisor.registry import get_task_registry, TaskStatus
         from core.health.degraded_events import record_degraded_event
+        from core.supervisor.registry import TaskStatus
+
+        from ...config import config
+        from ...container import ServiceContainer
 
         payload_context: dict[str, Any] = {}
         if isinstance(message, dict):
@@ -611,7 +610,6 @@ class IncomingLogicMixin:
                         payload_context["will_constraints"] = _will_decision.constraints
                 except Exception as _will_err:
                     record_degradation('incoming_logic', _will_err)
-                    record_degradation('incoming_logic', _will_err)
                     logger.debug("Unified Will gate degraded: %s", _will_err)
 
                 # Task Registry Integration
@@ -624,8 +622,11 @@ class IncomingLogicMixin:
 
                 # Use mycelial context only if available (Enterprise v3.0 path)
                 class AsyncNullContext:
-                    async def __aenter__(self): return self
-                    async def __aexit__(self, *args): pass
+                    async def __aenter__(self):
+                        return self
+
+                    async def __aexit__(self, *args):
+                        return False
 
                 flow_ctx = self.mycelium.rooted_flow("cognition", "response", f"Process: {message[:20]}", priority=priority) if self.mycelium and hasattr(self.mycelium, 'rooted_flow') else AsyncNullContext()
 
@@ -695,7 +696,10 @@ class IncomingLogicMixin:
                                 if pathway.direct_response:
                                     logger.info("⚡ [REFLEX] Direct response triggered for '%s'", pathway.pathway_id)
                                     try:
-                                        from core.constitution import ProposalKind, get_constitutional_core
+                                        from core.constitution import (
+                                            ProposalKind,
+                                            get_constitutional_core,
+                                        )
 
                                         get_constitutional_core(self).record_external_decision(
                                             kind=ProposalKind.EXPRESSION,
@@ -830,7 +834,6 @@ class IncomingLogicMixin:
                         # ══════════════════════════════════════════════════════
                         # PHASE XXII: REACT LOOP INTEGRATION (Reasoning)
                         # ══════════════════════════════════════════════════════
-                        react_engaged = False
                         if hasattr(self, 'react_loop') and self.react_loop and origin in ("user", "admin") and not config.skeletal_mode:
                             # Heuristic for complex reasoning: longer queries, factual/lookup questions,
                             # or any signals that Aura would need external knowledge to answer correctly.
@@ -870,7 +873,9 @@ class IncomingLogicMixin:
                                                 # to output_gate during reasoning (poisons reply_queue).
                                                 self._emit_thought_stream("⏳ Still thinking... exploring deep neural pathways.")
 
-                                    from core.utils.task_tracker import get_task_tracker as _get_tracker_hb
+                                    from core.utils.task_tracker import (
+                                        get_task_tracker as _get_tracker_hb,
+                                    )
                                     heartbeat_task = _get_tracker_hb().create_task(
                                         _reasoning_heartbeat(),
                                         name="incoming_logic.reasoning_heartbeat",
@@ -886,9 +891,7 @@ class IncomingLogicMixin:
                                                 logger.debug("ReAct Observation: %s", event.get("content", "")[:50])
                                             elif event["type"] == "final":
                                                 final_response = event["content"]
-                                                trace_obj = event.get("trace")
                                                 successful_tools = []
-                                                react_engaged = True
                                                 logger.info("✅ ReActLoop reasoning completed.")
                                             elif event["type"] == "error":
                                                 self._emit_thought_stream(f"⚠️ Reasoning friction: {event['content']}")
@@ -1066,7 +1069,7 @@ class IncomingLogicMixin:
                                         logger.info("✅ [KNOWLEDGE GAP] Response grounded via web search.")
                                     else:
                                         logger.warning("🔍 [KNOWLEDGE GAP] Web search returned no usable result.")
-                                except asyncio.TimeoutError:
+                                except TimeoutError:
                                     logger.warning("🔍 [KNOWLEDGE GAP] Web search timed out (25s).")
                                 except Exception as _gap_err:
                                     record_degradation('incoming_logic', _gap_err)
@@ -1113,7 +1116,7 @@ class IncomingLogicMixin:
             async def _watchdog_wrapper():
                 try:
                     return await asyncio.wait_for(_execute_and_reply(), timeout=300.0)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     logger.error("🛑 [WATCHDOG] Thinking task exceeded 300s limit. Force terminating.")
                     await self._handle_thinking_timeout(origin)
                     return "Cognitive process timed out."

@@ -2,27 +2,27 @@
 Sets up and manages local LLM servers for complete autonomy.
 Includes failsafes to ensure the "Titan" model is pulled and loaded.
 """
-from core.runtime.errors import record_degradation
 import asyncio
 import logging
-import os
 import subprocess
-import time
-from pathlib import Path
-from typing import Any, Dict, List, Optional
+from abc import ABC, abstractmethod
 
-import requests
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Brain.LocalLLM")
 
-class LocalLLMServer:
+
+class LocalLLMServer(ABC):
     def __init__(self, model_name: str, port: int):
         self.model_name = model_name
         self.port = port
         self.process = None
 
-    def start(self):
-        raise RuntimeError(f"{type(self).__name__}.start must be implemented by a local server adapter")
+    @abstractmethod
+    async def start(self) -> bool:
+        raise NotImplementedError(
+            f"{type(self).__name__}.start must be implemented by a local server adapter"
+        )
 
     async def is_running(self) -> bool:
         try:
@@ -71,7 +71,12 @@ class OllamaManager(LocalLLMServer):
         try:
             # We don't usually need to start 'ollama serve' manually if the service is running,
             # but for a self-contained system we attempt it.
-            self.process = subprocess.Popen(["ollama", "serve"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            self.process = await asyncio.create_subprocess_exec(
+                "ollama",
+                "serve",
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
             # Poll for readiness instead of blind sleep
             for _ in range(20):  # Up to 10 seconds
                 await asyncio.sleep(0.5)

@@ -1,4 +1,5 @@
 import os
+
 try:
     from celery import Celery
 except ImportError:
@@ -6,15 +7,36 @@ except ImportError:
 from core.config import config
 
 if Celery is None or not getattr(config.redis, "enabled", True):
+    class MockCeleryConfig(dict):
+        """Small Celery config surface used when Redis/Celery are unavailable."""
+
+        def update(self, *args, **kwargs):
+            super().update(*args, **kwargs)
+            return self
+
     class MockCelery:
+        """Synchronous task shim preserving the Celery methods Aura uses."""
+
+        def __init__(self):
+            self.conf = MockCeleryConfig()
+            self.sent_tasks = []
+
         def task(self, *args, **kwargs):
-            return lambda f: f
+            if args and callable(args[0]) and not kwargs:
+                return args[0]
+            return lambda fn: fn
+
         def send_task(self, name, args=None, kwargs=None, **options):
-            return None
-        def conf(self): pass
-        def update(self, *args, **kwargs): pass
+            task = {
+                "name": name,
+                "args": tuple(args or ()),
+                "kwargs": dict(kwargs or {}),
+                "options": dict(options or {}),
+            }
+            self.sent_tasks.append(task)
+            return task
+
     celery_app = MockCelery()
-    celery_app.conf = MockCelery()
 else:
     redis_url = os.environ.get("REDIS_URL", config.redis.url)
     celery_app = Celery("aura_zenith", broker=redis_url, backend=redis_url)

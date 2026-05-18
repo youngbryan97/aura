@@ -1,12 +1,12 @@
-from core.runtime.errors import record_degradation
-from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 import time
-from typing import Any, Dict, Optional
+from typing import Any
+
+from core.runtime.errors import record_degradation
+from core.utils.task_tracker import get_task_tracker
 
 from ..cognitive_interface import AbstractCognitiveAugmentor
-
 
 logger = logging.getLogger("Aura.WebAugmentor")
 
@@ -23,7 +23,7 @@ class SovereignWebAugmentor(AbstractCognitiveAugmentor):
         self._lock = asyncio.Lock()
         self._is_updating = False
 
-    def prepare_context(self, objective: str, context: Dict[str, Any]) -> Dict[str, Any]:
+    def prepare_context(self, objective: str, context: dict[str, Any]) -> dict[str, Any]:
         """Check if we need to trigger an update based on objective."""
         # Reactive Update: If the user asks about 'now', 'today', or 'news'
         keywords = ["now", "today", "news", "current", "latest"]
@@ -33,7 +33,7 @@ class SovereignWebAugmentor(AbstractCognitiveAugmentor):
         
         return context
 
-    def enrich_prompt(self, system_prompt: str, context: Dict[str, Any]) -> str:
+    def enrich_prompt(self, system_prompt: str, context: dict[str, Any]) -> str:
         """Inject the World State into the system prompt."""
         world_block = f"""
 [WORLD STATE]
@@ -91,6 +91,13 @@ Internet Awareness:
             finally:
                 self._is_updating = False
 
-    def post_think_hook(self, thought: Any, context: Dict[str, Any]):
+    def post_think_hook(self, thought: Any, context: dict[str, Any]):
         """Analyze if Aura's thought suggests a need for deeper research."""
-        pass  # no-op: intentional
+        text = str(getattr(thought, "content", thought) or "").lower()
+        objective = str(context.get("objective") or context.get("user_message") or "").lower()
+        research_markers = ("verify", "current", "latest", "today", "news", "look up", "search")
+        if any(marker in text or marker in objective for marker in research_markers):
+            if time.time() - self.last_update > 300 and not self._is_updating:
+                get_task_tracker().create_task(self.refresh_world_state())
+                return {"refresh_scheduled": True, "reason": "current-information marker"}
+        return {"refresh_scheduled": False}

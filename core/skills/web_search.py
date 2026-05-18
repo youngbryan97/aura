@@ -1,13 +1,13 @@
 """Enhanced web search and research skill for Aura."""
 
 
-from core.runtime.errors import record_degradation
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
 from core.container import ServiceContainer
+from core.runtime.errors import record_degradation
 from core.search import ResearchSearchPipeline
 from core.search.research_pipeline import freshness_window_for_query, query_requires_source_reading
 from core.skills.base_skill import BaseSkill
@@ -22,7 +22,7 @@ class _DeepResearchBrainAdapter:
     def __init__(self, engine: Any):
         self.engine = engine
 
-    async def generate(self, prompt: str, **kwargs) -> Dict[str, str]:
+    async def generate(self, prompt: str, **kwargs) -> dict[str, str]:
         raw = await self.engine.generate(
             prompt,
             origin="system",
@@ -41,7 +41,7 @@ class WebSearchInput(BaseModel):
     query: str = Field(..., description="The search query to look up on the web.")
     deep: bool = Field(False, description="If True, fetch and synthesize multiple result pages.")
     num_results: int = Field(5, ge=1, le=20, description="Number of search hits to return.")
-    retain: Optional[bool] = Field(
+    retain: bool | None = Field(
         None,
         description="Whether Aura should retain what she learned from this search.",
     )
@@ -65,7 +65,7 @@ class EnhancedWebSearchSkill(BaseSkill):
         self.pipeline = ResearchSearchPipeline()
         self.browser = _DormantBrowser()
 
-    def _normalize_deep_research_result(self, query: str, result: Dict[str, Any]) -> Dict[str, Any]:
+    def _normalize_deep_research_result(self, query: str, result: dict[str, Any]) -> dict[str, Any]:
         sources = list(result.get("sources") or [])
         citations = []
         evidence = []
@@ -104,7 +104,7 @@ class EnhancedWebSearchSkill(BaseSkill):
         normalized["message"] = self.pipeline._format_message(query, normalized)
         return normalized
 
-    async def execute(self, params: Any, context: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute(self, params: Any, context: dict[str, Any]) -> dict[str, Any]:
         if isinstance(params, dict):
             query = params.get("query") or params.get("q", "")
             deep = bool(params.get("deep", False))
@@ -244,7 +244,7 @@ class EnhancedWebSearchSkill(BaseSkill):
 
     async def on_stop_async(self):
         """Lifecycle hook retained for skill manager shutdown symmetry."""
-        pass  # no-op: intentional
+        return None
 
 
 class _DormantBrowser:
