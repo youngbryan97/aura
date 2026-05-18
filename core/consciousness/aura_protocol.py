@@ -34,20 +34,19 @@ Security:
     - No arbitrary code execution -- only structured data
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
-
 
 import asyncio
+import hashlib
 import json
 import logging
 import struct
 import time
-import hashlib
-from dataclasses import dataclass, field, asdict
-from typing import Any, Callable, Coroutine, Dict, List, Optional
+from collections.abc import Callable, Coroutine
+from dataclasses import asdict, dataclass, field
+from typing import Any
 
 from core.container import ServiceContainer
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Consciousness.AuraProtocol")
 
@@ -70,9 +69,9 @@ class AuraMessage:
     """
     # Core content
     intent: str = ""                           # What the sender wants
-    affect_vector: List[float] = field(default_factory=list)    # Emotional state [valence, arousal, dominance, ...]
-    semantic_embedding: List[float] = field(default_factory=list)  # Thought content as vector
-    episodic_snapshot: Dict[str, Any] = field(default_factory=dict)  # Compressed recent experience
+    affect_vector: list[float] = field(default_factory=list)    # Emotional state [valence, arousal, dominance, ...]
+    semantic_embedding: list[float] = field(default_factory=list)  # Thought content as vector
+    episodic_snapshot: dict[str, Any] = field(default_factory=dict)  # Compressed recent experience
 
     # Metadata
     urgency: float = 0.5                       # 0.0-1.0
@@ -100,17 +99,17 @@ class AuraMessage:
         return header + payload
 
     @classmethod
-    def from_json(cls, data: str) -> "AuraMessage":
+    def from_json(cls, data: str) -> AuraMessage:
         """Deserialize from JSON string."""
         d = json.loads(data)
         return cls(**{k: v for k, v in d.items() if k in cls.__dataclass_fields__})
 
     @classmethod
-    def from_bytes(cls, raw: bytes) -> "AuraMessage":
+    def from_bytes(cls, raw: bytes) -> AuraMessage:
         """Deserialize from wire format bytes (payload only, no header)."""
         return cls.from_json(raw.decode("utf-8"))
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Return a plain dict representation."""
         return asdict(self)
 
@@ -162,13 +161,13 @@ class AuraProtocolServer:
     def __init__(self, host: str = "127.0.0.1", port: int = 9900) -> None:
         self._host = host
         self._port = port
-        self._server: Optional[asyncio.AbstractServer] = None
-        self._handlers: List[MessageHandler] = []
+        self._server: asyncio.AbstractServer | None = None
+        self._handlers: list[MessageHandler] = []
         self._running = False
         self._messages_received: int = 0
         self._messages_rejected: int = 0
         self._last_message_at: float = 0.0
-        self._connected_peers: Dict[str, float] = {}  # identity -> last_seen
+        self._connected_peers: dict[str, float] = {}  # identity -> last_seen
 
         logger.info(
             "AuraProtocolServer created (host=%s, port=%d)",
@@ -252,8 +251,9 @@ class AuraProtocolServer:
             writer.close()
             try:
                 await writer.wait_closed()
-            except Exception:
-                pass  # no-op: intentional
+            except Exception as exc:
+                record_degradation("aura_protocol", exc)
+                logger.debug("AuraProtocol: server writer close failed: %s", exc)
 
     async def _process_message(self, payload: bytes) -> None:
         """Validate and dispatch a received message."""
@@ -332,7 +332,7 @@ class AuraProtocolServer:
     # Status
     # ------------------------------------------------------------------
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Return protocol server status."""
         return {
             "running": self._running,
@@ -371,8 +371,8 @@ class AuraProtocolClient:
     def __init__(self, host: str = "127.0.0.1", port: int = 9900) -> None:
         self._host = host
         self._port = port
-        self._reader: Optional[asyncio.StreamReader] = None
-        self._writer: Optional[asyncio.StreamWriter] = None
+        self._reader: asyncio.StreamReader | None = None
+        self._writer: asyncio.StreamWriter | None = None
         self._connected = False
         self._messages_sent: int = 0
         self._messages_failed: int = 0
@@ -395,7 +395,7 @@ class AuraProtocolClient:
                 self._host, self._port,
             )
             return True
-        except (OSError, asyncio.TimeoutError) as e:
+        except (TimeoutError, OSError) as e:
             logger.warning(
                 "AuraProtocolClient: failed to connect to %s:%d -- %s",
                 self._host, self._port, e,
@@ -409,8 +409,9 @@ class AuraProtocolClient:
             self._writer.close()
             try:
                 await self._writer.wait_closed()
-            except Exception:
-                pass  # no-op: intentional
+            except Exception as exc:
+                record_degradation("aura_protocol", exc)
+                logger.debug("AuraProtocolClient: writer close failed: %s", exc)
         self._connected = False
         self._reader = None
         self._writer = None
@@ -446,7 +447,7 @@ class AuraProtocolClient:
             )
             return True
 
-        except (OSError, asyncio.TimeoutError, ConnectionResetError) as e:
+        except (TimeoutError, OSError, ConnectionResetError) as e:
             logger.warning(
                 "AuraProtocolClient: send failed to %s:%d -- %s",
                 self._host, self._port, e,
@@ -467,7 +468,7 @@ class AuraProtocolClient:
     # Status
     # ------------------------------------------------------------------
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Return client status."""
         return {
             "connected": self._connected,
@@ -492,9 +493,9 @@ def build_message_from_state(
     Pulls affect vector, recent experience, etc. from live services.
     Falls back gracefully if services are unavailable.
     """
-    affect_vector: List[float] = []
-    semantic_embedding: List[float] = []
-    episodic_snapshot: Dict[str, Any] = {}
+    affect_vector: list[float] = []
+    semantic_embedding: list[float] = []
+    episodic_snapshot: dict[str, Any] = {}
 
     # Affect
     try:
@@ -542,8 +543,9 @@ def build_message_from_state(
         if will:
             status = will.get_status()
             identity_name = status.get("identity_name", identity_name)
-    except Exception:
-        pass  # no-op: intentional
+    except Exception as exc:
+        record_degradation("aura_protocol", exc)
+        logger.debug("build_message_from_state: unified will identity read failed: %s", exc)
 
     return AuraMessage(
         intent=intent,
@@ -559,7 +561,7 @@ def build_message_from_state(
 # Singleton accessors
 # ---------------------------------------------------------------------------
 
-_protocol_server: Optional[AuraProtocolServer] = None
+_protocol_server: AuraProtocolServer | None = None
 
 
 def get_protocol_server(host: str = "127.0.0.1", port: int = 9900) -> AuraProtocolServer:

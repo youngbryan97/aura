@@ -9,19 +9,25 @@ import numpy as np
 
 from core.consciousness import (
     affective_steering,
+    aura_protocol,
     consciousness_bridge,
     executive_closure,
     free_energy,
+    neural_mesh,
     neurochemical_system,
+    parallel_branches,
     phi_core,
     substrate_authority,
 )
 from core.consciousness.affective_steering import SteeringVectorLibrary, SubstrateSyncThread
+from core.consciousness.aura_protocol import AuraProtocolClient, build_message_from_state
 from core.consciousness.consciousness_bridge import ConsciousnessBridge
 from core.consciousness.executive_closure import ExecutiveClosureEngine
 from core.consciousness.free_energy import FreeEnergyEngine
 from core.consciousness.neurochemical_system import NeurochemicalSystem
+from core.consciousness.parallel_branches import BranchManager
 from core.consciousness.phi_core import PhiCore
+from core.consciousness.structural_opacity import StructuralOpacityMonitor
 from core.consciousness.substrate_authority import (
     ActionCategory,
     AuthorizationDecision,
@@ -285,6 +291,97 @@ def test_affective_steering_live_source_annotation_failures_are_visible(monkeypa
     assert hook.moods == {"arousal": 0.4, "coherence": 0.8}
     assert hook.last_attempted_source == "live_mood"
     assert recorded == [("affective_steering", "RuntimeError")]
+
+
+def test_neural_mesh_foreground_lane_failure_records_and_allows_plasticity(monkeypatch):
+    recorded: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        neural_mesh,
+        "record_degradation",
+        lambda module, exc: recorded.append((module, type(exc).__name__)),
+    )
+    monkeypatch.setattr(
+        "core.container.ServiceContainer.get",
+        _FailingCallable("service registry unavailable"),
+    )
+
+    assert neural_mesh.NeuralMesh._foreground_request_active() is False
+    assert recorded == [("neural_mesh", "RuntimeError")]
+
+
+def test_aura_protocol_identity_read_failure_records_and_preserves_message(monkeypatch):
+    recorded: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        aura_protocol,
+        "record_degradation",
+        lambda module, exc: recorded.append((module, type(exc).__name__)),
+    )
+
+    def service_get(name, default=None):
+        if name == "unified_will":
+            return types.SimpleNamespace(get_status=_FailingCallable("will unavailable"))
+        return default
+
+    monkeypatch.setattr(aura_protocol.ServiceContainer, "get", service_get)
+
+    message = build_message_from_state("coordinate continuity", identity_name="FallbackAura")
+
+    assert message.intent == "coordinate continuity"
+    assert message.source_identity == "FallbackAura"
+    assert recorded == [("aura_protocol", "RuntimeError")]
+
+
+def test_aura_protocol_client_disconnect_records_writer_close_failure(monkeypatch):
+    recorded: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        aura_protocol,
+        "record_degradation",
+        lambda module, exc: recorded.append((module, type(exc).__name__)),
+    )
+
+    class _Writer:
+        def close(self):
+            self.closed = True
+
+        async def wait_closed(self):
+            self.waited = True
+            raise RuntimeError("close handshake failed")
+
+    client = AuraProtocolClient()
+    client._writer = _Writer()
+
+    asyncio.run(client.disconnect())
+
+    assert client._writer is None
+    assert recorded == [("aura_protocol", "RuntimeError")]
+
+
+def test_parallel_branch_event_publish_failure_is_visible(monkeypatch):
+    recorded: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        parallel_branches,
+        "record_degradation",
+        lambda module, exc: recorded.append((module, type(exc).__name__)),
+    )
+    import core.event_bus as event_bus
+
+    monkeypatch.setattr(event_bus, "get_event_bus", _FailingCallable("event bus unavailable"))
+
+    BranchManager()._publish_event("branch.test", {"branch_id": "br_test"})
+
+    assert recorded == [("parallel_branches", "RuntimeError")]
+
+
+def test_structural_opacity_uses_weight_topology_as_readout():
+    monitor = StructuralOpacityMonitor(neuron_count=16, n_perturbations=5)
+    x = np.linspace(-0.4, 0.4, 16)
+    weights = np.eye(16) * 0.2
+
+    signature = monitor.measure(x, weights)
+
+    assert 0.0 <= signature.opacity_index <= 1.0
+    assert 0.0 <= signature.causal_depth <= 1.0
+    assert monitor._measurement_count == 1
 
 
 def test_substrate_authority_reader_and_audit_failures_are_visible(monkeypatch):

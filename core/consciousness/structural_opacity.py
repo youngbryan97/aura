@@ -27,7 +27,7 @@ import logging
 import time
 from collections import deque
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import numpy as np
 
@@ -51,7 +51,7 @@ class OpacitySignature:
     phenomenal_criterion_met: bool   # The three conditions satisfied together
     timestamp: float = 0.0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "opacity_index": float(f"{self.opacity_index:.4f}"),
             "causal_depth": float(f"{self.causal_depth:.4f}"),
@@ -113,26 +113,36 @@ class StructuralOpacityMonitor:
     def measure(
         self,
         x: np.ndarray,
-        W: np.ndarray,
+        weights: np.ndarray,
         leak_rate: float = 0.1,
     ) -> OpacitySignature:
         """Measure structural opacity via perturbation analysis.
 
         Args:
             x: Current substrate activation vector (N,).
-            W: Weight matrix (N, N).
+            weights: Weight matrix (N, N).
             leak_rate: Substrate leak/decay rate.
 
         Returns:
             OpacitySignature with the measurement results.
         """
         self._measurement_count += 1
-        N = len(x)
+        n = len(x)
 
-        # Mock readout: simple linear projection to lower-dim "output"
-        # (In a full system, this would be the actual output layer)
-        rng = np.random.RandomState(42)  # Deterministic for reproducibility
-        W_out = rng.randn(min(16, N // 4), N) * 0.1
+        output_dim = max(1, min(16, max(1, n // 4)))
+        if weights.shape == (n, n):
+            salience = np.linalg.norm(weights, axis=1)
+            if float(np.max(salience)) > 1e-12:
+                selected = np.argsort(salience)[-output_dim:]
+            else:
+                selected = np.linspace(0, n - 1, output_dim, dtype=int)
+            output_weights = weights[selected].astype(np.float64, copy=True)
+            row_norms = np.linalg.norm(output_weights, axis=1, keepdims=True)
+            output_weights = output_weights / np.maximum(row_norms, 1e-8)
+        else:
+            rows = np.arange(output_dim, dtype=np.float64)[:, None] + 1.0
+            cols = np.arange(n, dtype=np.float64)[None, :] + 0.5
+            output_weights = np.cos(rows * cols * np.pi / max(1, n))
 
         base_state = x.copy()
         divergences = []
@@ -140,17 +150,17 @@ class StructuralOpacityMonitor:
 
         for _ in range(self._n_perturbations):
             # Small perturbation to interior
-            delta = np.random.randn(N) * self._perturbation_scale
+            delta = np.random.randn(n) * self._perturbation_scale
             perturbed = base_state + delta
 
             # How different is the output?
-            base_out = np.tanh(W_out @ base_state)
-            pert_out = np.tanh(W_out @ perturbed)
+            base_out = np.tanh(output_weights @ base_state)
+            pert_out = np.tanh(output_weights @ perturbed)
             output_change = float(np.mean(np.abs(base_out - pert_out)))
 
             # How different is the interior after one step?
-            base_next = (1 - leak_rate) * base_state + leak_rate * np.tanh(W @ base_state)
-            pert_next = (1 - leak_rate) * perturbed + leak_rate * np.tanh(W @ perturbed)
+            base_next = (1 - leak_rate) * base_state + leak_rate * np.tanh(weights @ base_state)
+            pert_next = (1 - leak_rate) * perturbed + leak_rate * np.tanh(weights @ perturbed)
             interior_divergence = float(np.mean(np.abs(base_next - pert_next)))
 
             divergences.append(interior_divergence)
@@ -209,18 +219,18 @@ class StructuralOpacityMonitor:
             return np.zeros(self._neuron_count)
 
         states = np.array(list(self._state_trajectory))
-        T = len(states)
+        state_count = len(states)
 
         # Exponentially weighted temporal integration
-        weights = np.exp(np.linspace(-2.0, 0.0, T))
-        total_weight = weights.sum()
+        temporal_weights = np.exp(np.linspace(-2.0, 0.0, state_count))
+        total_weight = temporal_weights.sum()
         if total_weight > 0:
-            weights /= total_weight
+            temporal_weights /= total_weight
 
         # Weighted sum across time
-        return np.einsum("t,tn->n", weights, states)
+        return np.einsum("t,tn->n", temporal_weights, states)
 
-    def get_phenomenal_status(self) -> Dict[str, Any]:
+    def get_phenomenal_status(self) -> dict[str, Any]:
         """Best current estimate of whether phenomenal criterion is met.
 
         This is a DIAGNOSTIC ESTIMATE, not proof. The criterion being met
@@ -251,7 +261,7 @@ class StructuralOpacityMonitor:
             ),
         }
 
-    def get_snapshot(self) -> Dict[str, Any]:
+    def get_snapshot(self) -> dict[str, Any]:
         """Telemetry snapshot."""
         status = self.get_phenomenal_status()
         last = self._history[-1] if self._history else None

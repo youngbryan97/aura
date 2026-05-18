@@ -29,21 +29,20 @@ Invariants:
     4. A branch without a WillReceipt is invalid and will not run
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
-
-from core.utils.task_tracker import get_task_tracker
 
 import asyncio
 import hashlib
 import logging
 import time
 from collections import deque
+from collections.abc import Callable, Coroutine
 from dataclasses import dataclass, field
-from enum import Enum, auto
-from typing import Any, Callable, Coroutine, Deque, Dict, List, Optional
+from enum import StrEnum
+from typing import Any
 
 from core.container import ServiceContainer
+from core.runtime.errors import record_degradation
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Consciousness.ParallelBranches")
 
@@ -52,7 +51,7 @@ logger = logging.getLogger("Consciousness.ParallelBranches")
 # Enums
 # ---------------------------------------------------------------------------
 
-class BranchState(str, Enum):
+class BranchState(StrEnum):
     """Lifecycle state of a cognitive branch."""
     ACTIVE = "active"
     SUSPENDED = "suspended"
@@ -60,7 +59,7 @@ class BranchState(str, Enum):
     FAILED = "failed"
 
 
-class BranchOrigin(str, Enum):
+class BranchOrigin(StrEnum):
     """Who spawned this branch."""
     WILL = "will"                      # Explicit Will directive
     INITIATIVE = "initiative"          # InitiativeSynthesizer during idle
@@ -77,8 +76,8 @@ class BranchContext:
     """Working context for a single cognitive branch."""
     task_description: str = ""
     progress: float = 0.0             # 0.0 - 1.0
-    partial_results: List[str] = field(default_factory=list)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    partial_results: list[str] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -107,9 +106,9 @@ class CognitiveBranch:
     will_receipt_id: str = ""
 
     # asyncio Task handle (set by BranchManager)
-    _task: Optional[asyncio.Task] = field(default=None, repr=False)
-    _suspend_event: Optional[asyncio.Event] = field(default=None, repr=False)
-    _cancel_event: Optional[asyncio.Event] = field(default=None, repr=False)
+    _task: asyncio.Task | None = field(default=None, repr=False)
+    _suspend_event: asyncio.Event | None = field(default=None, repr=False)
+    _cancel_event: asyncio.Event | None = field(default=None, repr=False)
 
     @property
     def age_seconds(self) -> float:
@@ -119,7 +118,7 @@ class CognitiveBranch:
     def is_runnable(self) -> bool:
         return self.state == BranchState.ACTIVE
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "branch_id": self.branch_id,
             "name": self.name,
@@ -140,7 +139,7 @@ class CognitiveBranch:
 # Branch work function type
 # ---------------------------------------------------------------------------
 
-BranchWorkFn = Callable[["CognitiveBranch"], Coroutine[Any, Any, Optional[str]]]
+BranchWorkFn = Callable[["CognitiveBranch"], Coroutine[Any, Any, str | None]]
 
 
 # ---------------------------------------------------------------------------
@@ -177,14 +176,14 @@ class BranchManager:
     _MAX_HISTORY: int = 100
 
     def __init__(self) -> None:
-        self._branches: Dict[str, CognitiveBranch] = {}
-        self._history: Deque[Dict[str, Any]] = deque(maxlen=self._MAX_HISTORY)
+        self._branches: dict[str, CognitiveBranch] = {}
+        self._history: deque[dict[str, Any]] = deque(maxlen=self._MAX_HISTORY)
         self._tick_count: int = 0
         self._started: bool = False
         self._total_spawned: int = 0
         self._total_completed: int = 0
         self._total_failed: int = 0
-        self._foreground_id: Optional[str] = None
+        self._foreground_id: str | None = None
 
         logger.info("BranchManager created (max_branches=%d)", self.MAX_BRANCHES)
 
@@ -218,8 +217,8 @@ class BranchManager:
         priority: float = 0.5,
         cpu_budget_ms: float = _DEFAULT_CPU_BUDGET_MS,
         memory_budget_mb: float = _DEFAULT_MEMORY_BUDGET_MB,
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> Optional[CognitiveBranch]:
+        metadata: dict[str, Any] | None = None,
+    ) -> CognitiveBranch | None:
         """Spawn a new cognitive branch.
 
         The spawn must be approved by the Unified Will (unless it is a
@@ -515,8 +514,8 @@ class BranchManager:
             branch._task.cancel()
             try:
                 await asyncio.wait_for(asyncio.shield(branch._task), timeout=2.0)
-            except (asyncio.CancelledError, asyncio.TimeoutError):
-                pass  # no-op: intentional
+            except (TimeoutError, asyncio.CancelledError):
+                logger.debug("Branch cancellation acknowledged for %s", branch.branch_id)
         branch.state = BranchState.FAILED
         self._publish_event("branch.cancelled", {
             "branch_id": branch.branch_id,
@@ -551,7 +550,7 @@ class BranchManager:
         Returns the WillReceipt ID if approved, or empty string if refused.
         """
         try:
-            from core.will import get_will, ActionDomain
+            from core.will import ActionDomain, get_will
             will = get_will()
             decision = will.decide(
                 content=f"Spawn cognitive branch: {name} -- {task_description[:200]}",
@@ -577,13 +576,14 @@ class BranchManager:
         raw = f"{time.time():.6f}:{name}"
         return "br_" + hashlib.sha256(raw.encode()).hexdigest()[:12]
 
-    def _publish_event(self, topic: str, data: Dict[str, Any]) -> None:
+    def _publish_event(self, topic: str, data: dict[str, Any]) -> None:
         """Publish a branch lifecycle event to the EventBus."""
         try:
             from core.event_bus import get_event_bus
             get_event_bus().publish_threadsafe(topic, data)
-        except Exception:
-            pass  # no-op: intentional
+        except Exception as exc:
+            record_degradation("parallel_branches", exc)
+            logger.debug("BranchManager: lifecycle event publish failed: %s", exc)
 
     # ------------------------------------------------------------------
     # Public API: yield point for branch work functions
@@ -620,7 +620,7 @@ class BranchManager:
     # Status / Snapshot
     # ------------------------------------------------------------------
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Return current state for health/status endpoints."""
         return {
             "started": self._started,
@@ -644,18 +644,18 @@ class BranchManager:
             },
         }
 
-    def get_branch(self, branch_id: str) -> Optional[CognitiveBranch]:
+    def get_branch(self, branch_id: str) -> CognitiveBranch | None:
         """Get a branch by ID."""
         return self._branches.get(branch_id)
 
-    def get_active_branches(self) -> List[CognitiveBranch]:
+    def get_active_branches(self) -> list[CognitiveBranch]:
         """Get all active (non-suspended, non-completed) branches."""
         return [
             b for b in self._branches.values()
             if b.state == BranchState.ACTIVE
         ]
 
-    def get_history(self, n: int = 20) -> List[Dict[str, Any]]:
+    def get_history(self, n: int = 20) -> list[dict[str, Any]]:
         """Return recent branch history."""
         return list(self._history)[-n:]
 
@@ -664,7 +664,7 @@ class BranchManager:
 # Singleton accessor
 # ---------------------------------------------------------------------------
 
-_branch_manager: Optional[BranchManager] = None
+_branch_manager: BranchManager | None = None
 
 
 def get_branch_manager() -> BranchManager:

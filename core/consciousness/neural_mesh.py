@@ -14,22 +14,19 @@ The mesh feeds a 64-dimensional *projection* back into the existing LiquidSubstr
 so the original 64-neuron core becomes the executive summary of a much larger field.
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
-
-from core.utils.task_tracker import get_task_tracker
 
 import asyncio
 import logging
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
 from core.runtime.desktop_boot_safety import inprocess_mlx_metal_enabled
+from core.runtime.errors import record_degradation
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Consciousness.NeuralMesh")
 
@@ -200,7 +197,7 @@ class NeuralMesh:
         self._lock = threading.Lock()
 
         # Build columns
-        self.columns: List[CorticalColumn] = []
+        self.columns: list[CorticalColumn] = []
         for i in range(self.cfg.columns):
             tier = self._tier_for(i)
             col = CorticalColumn(i, tier, self.cfg.neurons_per_column, self.cfg, self._rng)
@@ -221,24 +218,24 @@ class NeuralMesh:
 
         # Runtime
         self._running = False
-        self._task: Optional[asyncio.Task] = None
+        self._task: asyncio.Task | None = None
         self._tick_count: int = 0
         self._start_time: float = 0.0
 
         # Sensory injection buffer (set externally, consumed each tick)
-        self._sensory_buffer: Optional[np.ndarray] = None
-        self._association_buffer: Optional[np.ndarray] = None
+        self._sensory_buffer: np.ndarray | None = None
+        self._association_buffer: np.ndarray | None = None
 
         # Recurrent Processing Theory (Lamme): explicit top-down feedback
         self._recurrent_feedback_enabled: bool = True
         self._recurrent_feedback_strength: float = 0.8  # relative to feedforward
-        self._feedback_W: Optional[np.ndarray] = None
+        self._feedback_W: np.ndarray | None = None
         self._build_feedback_weights()
 
         # Stats
         self._mean_column_energy: float = 0.0
         self._global_synchrony: float = 0.0
-        self._tier_energies: Dict[CorticalTier, float] = {t: 0.0 for t in CorticalTier}
+        self._tier_energies: dict[CorticalTier, float] = {t: 0.0 for t in CorticalTier}
         initial_state = np.concatenate([col.x for col in self.columns]).astype(np.float32, copy=False)
         self._cached_field_state = initial_state.copy()
         self._cached_executive_projection = np.tanh(
@@ -271,7 +268,7 @@ class NeuralMesh:
         Feedforward (sensory→assoc→exec) is stronger than feedback.
         """
         n = self.cfg.columns
-        W = np.zeros((n, n), dtype=np.float32)
+        weights = np.zeros((n, n), dtype=np.float32)
         for i in range(n):
             for j in range(n):
                 if i == j:
@@ -286,8 +283,8 @@ class NeuralMesh:
                     if (tier_i == CorticalTier.SENSORY and tier_j == CorticalTier.ASSOCIATION) or \
                        (tier_i == CorticalTier.ASSOCIATION and tier_j == CorticalTier.EXECUTIVE):
                         strength *= 1.5
-                    W[i, j] = strength
-        return W
+                    weights[i, j] = strength
+        return weights
 
     def _build_feedback_weights(self):
         """Build the explicit top-down (exec→sensory) feedback pathway.
@@ -301,7 +298,7 @@ class NeuralMesh:
         is configurable and the pathway can be ablated for adversarial testing.
         """
         n = self.cfg.columns
-        W = np.zeros((n, n), dtype=np.float32)
+        weights = np.zeros((n, n), dtype=np.float32)
         for i in range(n):
             tier_i = self._tier_for(i)
             for j in range(n):
@@ -311,21 +308,21 @@ class NeuralMesh:
                     dist = abs(i - j)
                     prob = 0.08 * np.exp(-dist * 0.1)
                     if self._rng.random() < prob:
-                        W[i, j] = self._rng.standard_normal() * 0.04
+                        weights[i, j] = self._rng.standard_normal() * 0.04
                 # Association → Sensory (feedback)
                 elif tier_i == CorticalTier.ASSOCIATION and tier_j == CorticalTier.SENSORY:
                     dist = abs(i - j)
                     prob = 0.06 * np.exp(-dist * 0.1)
                     if self._rng.random() < prob:
-                        W[i, j] = self._rng.standard_normal() * 0.03
+                        weights[i, j] = self._rng.standard_normal() * 0.03
                 # Direct executive → Sensory (long-range feedback, sparser)
                 elif tier_i == CorticalTier.EXECUTIVE and tier_j == CorticalTier.SENSORY:
                     dist = abs(i - j)
                     prob = 0.03 * np.exp(-dist * 0.05)
                     if self._rng.random() < prob:
-                        W[i, j] = self._rng.standard_normal() * 0.02
+                        weights[i, j] = self._rng.standard_normal() * 0.02
 
-        self._feedback_W = W.astype(np.float32)
+        self._feedback_W = weights.astype(np.float32)
 
     def _apply_recurrent_feedback(self, dt: float, gain: float,
                                    noise_sigma: float, now: float):
@@ -384,7 +381,7 @@ class NeuralMesh:
             try:
                 await self._task
             except asyncio.CancelledError:
-                pass  # no-op: intentional
+                logger.debug("NeuralMesh task cancellation acknowledged")
             self._task = None
         logger.info("NeuralMesh STOPPED (ticks=%d)", self._tick_count)
 
@@ -403,7 +400,7 @@ class NeuralMesh:
                 elapsed = time.time() - t0
                 await asyncio.sleep(max(0.0, interval - elapsed))
         except asyncio.CancelledError:
-            pass  # no-op: intentional
+            logger.debug("NeuralMesh run loop cancelled")
         finally:
             self._running = False
 
@@ -421,8 +418,9 @@ class NeuralMesh:
         try:
             from core.consciousness.subcortical_core import get_subcortical_core
             gain *= get_subcortical_core().get_mesh_gain_multiplier()
-        except Exception:
-            pass  # Degrade gracefully if subcortical core unavailable
+        except Exception as exc:
+            record_degradation("neural_mesh", exc)
+            logger.debug("Subcortical mesh gain unavailable, using base gain: %s", exc)
         noise_sigma = cfg.noise_sigma * self._modulatory_noise
         n = cfg.neurons_per_column
 
@@ -435,10 +433,10 @@ class NeuralMesh:
         # ── 2. Batched column step (vectorized) ─────────────────────
         # Gather all column activations into a single (columns, n) matrix.
         # This replaces 64 sequential matmuls with batched numpy operations.
-        X = np.array([c.x for c in self.columns], dtype=np.float32)  # (64, 64)
+        x_matrix = np.array([c.x for c in self.columns], dtype=np.float32)  # (64, 64)
 
         # Inter-column coupling: column means → inter-column drive
-        col_means = X.mean(axis=1)  # (64,) — computed ONCE, reused in stats
+        col_means = x_matrix.mean(axis=1)  # (64,) — computed ONCE, reused in stats
         inter_drive = self._inter_W @ col_means  # (64,)
 
         # Build external input matrix (64, 64)
@@ -467,33 +465,33 @@ class NeuralMesh:
         # Metal GPU acceleration: offload the heavy einsum to Apple Metal via MLX.
         # For 64 columns × (64×64) matmuls, Metal is 5-10x faster than CPU numpy.
         if _HAS_MLX and _MLX_METAL_ENABLED:
-            X_mx = mx.array(X)
+            x_mx = mx.array(x_matrix)
             ext_mx = mx.array(ext)
-            recurrent_mx = mx.einsum('cij,cj->ci', self._W_batch_mx, X_mx)
+            recurrent_mx = mx.einsum('cij,cj->ci', self._W_batch_mx, x_mx)
             activity_mx = mx.tanh(gain * (recurrent_mx + ext_mx))
             mx.eval(activity_mx)  # force Metal evaluation
             activity = np.array(activity_mx, dtype=np.float32)
             recurrent = np.array(recurrent_mx, dtype=np.float32)
         else:
-            recurrent = np.einsum('cij,cj->ci', self._W_batch, X)  # (64, 64)
+            recurrent = np.einsum('cij,cj->ci', self._W_batch, x_matrix)  # (64, 64)
             recurrent = np.nan_to_num(recurrent, nan=0.0, posinf=1.0, neginf=-1.0)
             activity = np.tanh(gain * (recurrent + ext))
 
         # Lateral inhibition: per-column inhibitory pool
         inh_masks = np.array([c.inh_mask for c in self.columns])  # (64, 64) bool
-        inh_activity = np.where(inh_masks, np.abs(X), 0.0).sum(axis=1)
+        inh_activity = np.where(inh_masks, np.abs(x_matrix), 0.0).sum(axis=1)
         inh_counts = inh_masks.sum(axis=1).clip(1)
         inh_mean = inh_activity / inh_counts  # (64,)
         inhibition = np.where(~inh_masks, -cfg.lateral_inhibition_strength * inh_mean[:, None], 0.0)
 
-        noise = self._rng.standard_normal(X.shape).astype(np.float32) * noise_sigma
-        dX = (-cfg.decay * X + activity + inhibition + noise) * dt
-        X_new = np.clip(X + dX, -1.0, 1.0).astype(np.float32)
+        noise = self._rng.standard_normal(x_matrix.shape).astype(np.float32) * noise_sigma
+        dx = (-cfg.decay * x_matrix + activity + inhibition + noise) * dt
+        x_new = np.clip(x_matrix + dx, -1.0, 1.0).astype(np.float32)
 
         # Write back to columns and record spike times
         spike_threshold = 0.5
         for i, col in enumerate(self.columns):
-            col.x = X_new[i]
+            col.x = x_new[i]
             firing = np.abs(col.x) > spike_threshold
             col.last_spike_time[firing] = now
 
@@ -524,7 +522,7 @@ class NeuralMesh:
         self._tick_count += 1
 
     def _consume_buffer(self, attr: str, expected_cols: int,
-                        offset: int = 0) -> Optional[np.ndarray]:
+                        offset: int = 0) -> np.ndarray | None:
         """Atomically consume an injection buffer."""
         buf = getattr(self, attr)
         if buf is None:
@@ -555,7 +553,9 @@ class NeuralMesh:
             started_at = float(lane.get("current_request_started_at", 0.0) or 0.0)
             completed_at = float(lane.get("last_generation_completed_at", 0.0) or 0.0)
             return started_at > 0.0 and started_at > completed_at
-        except Exception:
+        except Exception as exc:
+            record_degradation("neural_mesh", exc)
+            logger.debug("Foreground lane status unavailable, allowing plasticity: %s", exc)
             return False
 
     # ── STDP ─────────────────────────────────────────────────────────
@@ -571,8 +571,8 @@ class NeuralMesh:
 
         lr = self.cfg.stdp_lr * self._modulatory_plasticity
         window = self.cfg.stdp_window
-        A_plus = self.cfg.stdp_potentiation
-        A_minus = self.cfg.stdp_depression
+        a_plus = self.cfg.stdp_potentiation
+        a_minus = self.cfg.stdp_depression
 
         for col in self.columns:
             t = col.last_spike_time
@@ -591,22 +591,22 @@ class NeuralMesh:
 
             potentiate = np.where(
                 (dt_matrix < 0) & (dt_matrix > -window) & active[:, None] & active[None, :],
-                A_plus * np.exp(clamped_pos),
+                a_plus * np.exp(clamped_pos),
                 0.0
             )
             # Depression: post fires before pre
             depress = np.where(
                 (dt_matrix > 0) & (dt_matrix < window) & active[:, None] & active[None, :],
-                -A_minus * np.exp(clamped_neg),
+                -a_minus * np.exp(clamped_neg),
                 0.0
             )
 
-            dW = lr * (potentiate + depress).astype(np.float32)
+            dw = lr * (potentiate + depress).astype(np.float32)
 
             # Respect Dale's law: don't flip inhibitory→excitatory
             # Only modify magnitude, preserve sign
             old_sign = np.sign(col.W)
-            col.W += dW
+            col.W += dw
             # Where sign flipped, reset to zero (hard Dale's law)
             sign_flipped = (np.sign(col.W) != old_sign) & (old_sign != 0)
             col.W[sign_flipped] = 0.0
@@ -625,8 +625,8 @@ class NeuralMesh:
         numpy operations.
         """
         # Vectorized energy: mean(|x|) per column
-        X = np.array([c.x for c in self.columns], dtype=np.float32)
-        energies = np.mean(np.abs(X), axis=1)  # (64,)
+        x_matrix = np.array([c.x for c in self.columns], dtype=np.float32)
+        energies = np.mean(np.abs(x_matrix), axis=1)  # (64,)
 
         self._mean_column_energy = float(energies.mean())
 
@@ -638,12 +638,12 @@ class NeuralMesh:
         # Global synchrony: reuse cached col_means from tick (no recomputation)
         col_means = getattr(self, '_cached_col_means', None)
         if col_means is not None and len(col_means) > 1:
-            stds = np.std(X, axis=1)
+            stds = np.std(x_matrix, axis=1)
             mean_of_stds = stds.mean() + 1e-8
             std_of_means = col_means.std() + 1e-8
             self._global_synchrony = float(np.clip(std_of_means / mean_of_stds, 0.0, 1.0))
 
-        full_state = X.reshape(-1).astype(np.float32, copy=True)
+        full_state = x_matrix.reshape(-1).astype(np.float32, copy=True)
         self._cached_field_state = full_state
         self._cached_executive_projection = np.tanh(
             self._projection @ full_state
@@ -698,7 +698,7 @@ class NeuralMesh:
         self._refresh_cached_snapshots_if_idle()
         return self._cached_field_state.copy()
 
-    def get_column_summary(self, col_idx: int) -> Dict:
+    def get_column_summary(self, col_idx: int) -> dict:
         """Per-column diagnostic."""
         col = self.columns[col_idx]
         return {
@@ -719,7 +719,7 @@ class NeuralMesh:
         """How synchronized are the columns? 0=desynchronized, 1=fully coupled."""
         return self._global_synchrony
 
-    def get_status(self) -> Dict:
+    def get_status(self) -> dict:
         return {
             "running": self._running,
             "tick_count": self._tick_count,
