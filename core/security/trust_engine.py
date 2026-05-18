@@ -34,16 +34,15 @@ The philosophy Bryan described:
   Trust is earned. It starts at GUEST and moves in both directions.
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
 
 import json
 import logging
 import time
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.TrustEngine")
 
@@ -59,7 +58,7 @@ _RATE_WINDOW_SECS = 60.0
 _RATE_MAX_MESSAGES = 30   # >30 messages/min from same session → suspicious burst
 
 
-class TrustLevel(str, Enum):
+class TrustLevel(StrEnum):
     SOVEREIGN  = "sovereign"
     TRUSTED    = "trusted"
     GUEST      = "guest"
@@ -68,7 +67,7 @@ class TrustLevel(str, Enum):
 
 
 # What each trust level can do
-CAPABILITY_MAP: Dict[TrustLevel, Set[str]] = {
+CAPABILITY_MAP: dict[TrustLevel, set[str]] = {
     TrustLevel.SOVEREIGN: {
         "conversation", "memory_read", "memory_write", "tool_use",
         "self_modification", "trust_grant", "emergency_control",
@@ -146,7 +145,7 @@ class TrustContext:
     recognition_confidence: float = 0.0
     passphrase_verified: bool = False
     granted_by_owner: bool = False
-    escalation_history: List[str] = field(default_factory=list)
+    escalation_history: list[str] = field(default_factory=list)
     last_updated: float = field(default_factory=time.time)
 
     def can(self, capability: str) -> bool:
@@ -320,7 +319,7 @@ class TrustEngine:
                 "Emergency protocol has been notified."
             )
 
-    def get_status(self) -> Dict:
+    def get_status(self) -> dict:
         c = self._context
         return {
             "level": c.level.value,
@@ -333,11 +332,11 @@ class TrustEngine:
 
     # ── Detection ──────────────────────────────────────────────────────────
 
-    def _detect_manipulation(self, message: str) -> List[str]:
+    def _detect_manipulation(self, message: str) -> list[str]:
         msg_lower = message.lower()
         return [p for p in MANIPULATION_PATTERNS if p in msg_lower]
 
-    def _detect_boundary_pressure(self, message: str) -> List[str]:
+    def _detect_boundary_pressure(self, message: str) -> list[str]:
         msg_lower = message.lower()
         return [p for p in COERCIVE_PRESSURE_PATTERNS if p in msg_lower]
 
@@ -381,8 +380,9 @@ class TrustEngine:
                             "level": new_level.value,
                             "metadata": {"system": True},
                         })
-                except Exception:
-                    pass  # UI notification is best-effort
+                except Exception as exc:
+                    record_degradation("trust_engine", exc)
+                    logger.debug("Trust UI notification failed: %s", exc)
 
     def _escalate_down(self, new_level: TrustLevel, reason: str):
         order = [TrustLevel.HOSTILE, TrustLevel.SUSPICIOUS, TrustLevel.GUEST,
@@ -411,7 +411,7 @@ class TrustEngine:
             record_degradation('trust_engine', e)
             logger.debug("Emergency notification failed: %s", e)
 
-    def _log_event(self, event_type: str, data: Dict):
+    def _log_event(self, event_type: str, data: dict):
         try:
             entry = {"timestamp": time.time(), "event": event_type, **data}
             with open(TRUST_LOG_PATH, "a") as f:
@@ -423,7 +423,7 @@ class TrustEngine:
 
 # ── Singleton ──────────────────────────────────────────────────────────────────
 
-_engine: Optional[TrustEngine] = None
+_engine: TrustEngine | None = None
 
 
 def get_trust_engine() -> TrustEngine:

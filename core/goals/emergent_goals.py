@@ -23,13 +23,18 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import re
 import sqlite3
 import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, Optional
+from typing import Any
+
+from core.runtime.errors import record_degradation
+
+logger = logging.getLogger("Aura.EmergentGoals")
 
 
 @dataclass(frozen=True)
@@ -39,7 +44,7 @@ class TensionObservation:
     evidence: str
     observed_at: float = field(default_factory=time.time)
 
-    def as_dict(self) -> Dict[str, Any]:
+    def as_dict(self) -> dict[str, Any]:
         return {
             "kind": self.kind,
             "magnitude": round(float(self.magnitude), 4),
@@ -54,12 +59,12 @@ class EmergentGoal:
     name: str
     objective: str
     tension_kind: str
-    evidence: List[str]
+    evidence: list[str]
     priority: float
     created_at: float
     adopted: bool = False
 
-    def as_dict(self) -> Dict[str, Any]:
+    def as_dict(self) -> dict[str, Any]:
         return {
             "goal_id": self.goal_id,
             "name": self.name,
@@ -80,16 +85,18 @@ class EmergentGoalEngine:
     ADOPTION_THRESHOLD = 3
     EXPIRY_SECONDS = 3600 * 24 * 7
 
-    def __init__(self, db_path: Optional[str | Path] = None) -> None:
+    def __init__(self, db_path: str | Path | None = None) -> None:
         self._lock = threading.RLock()
-        self._observations: List[TensionObservation] = []
-        self._candidates: Dict[str, EmergentGoal] = {}
-        self._support_counts: Dict[str, int] = {}
+        self._observations: list[TensionObservation] = []
+        self._candidates: dict[str, EmergentGoal] = {}
+        self._support_counts: dict[str, int] = {}
         if db_path is None:
             try:
                 from core.config import config
                 db_path = Path(config.paths.data_dir) / "emergent_goals.sqlite3"
-            except Exception:
+            except Exception as exc:
+                record_degradation("emergent_goals", exc)
+                logger.debug("EmergentGoalEngine config path lookup failed: %s", exc)
                 db_path = Path.home() / ".aura" / "emergent_goals.sqlite3"
         self._db_path = Path(db_path)
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -113,15 +120,15 @@ class EmergentGoalEngine:
     # ------------------------------------------------------------------
     # Candidate synthesis
     # ------------------------------------------------------------------
-    def synthesize(self) -> List[EmergentGoal]:
+    def synthesize(self) -> list[EmergentGoal]:
         """Return currently viable emergent-goal candidates."""
         with self._lock:
             # Group observations by kind in the rolling window.
-            by_kind: Dict[str, List[TensionObservation]] = {}
+            by_kind: dict[str, list[TensionObservation]] = {}
             for obs in self._observations:
                 by_kind.setdefault(obs.kind, []).append(obs)
 
-            new_candidates: List[EmergentGoal] = []
+            new_candidates: list[EmergentGoal] = []
             for kind, obs_list in by_kind.items():
                 if len(obs_list) < 2:
                     continue
@@ -142,7 +149,7 @@ class EmergentGoalEngine:
     def _compose_candidate(
         self,
         kind: str,
-        observations: List[TensionObservation],
+        observations: list[TensionObservation],
         mean_magnitude: float,
     ) -> EmergentGoal:
         # Build the objective string from observed evidence, not a template.
@@ -152,7 +159,7 @@ class EmergentGoalEngine:
         # Objective text is synthesized from observed evidence phrasing, so it
         # is not drawn from a fixed designer taxonomy.
         objective = f"reduce recurring {kind} tension grounded in: {joined_evidence}"
-        goal_key = hashlib.sha256(f"{kind}|{joined_evidence}".encode("utf-8")).hexdigest()[:16]
+        goal_key = hashlib.sha256(f"{kind}|{joined_evidence}".encode()).hexdigest()[:16]
         name = f"emergent:{kind}:{goal_key[:6]}"
         priority = float(max(0.25, min(0.95, 0.45 + 0.5 * (mean_magnitude - self.TENSION_THRESHOLD))))
         return EmergentGoal(
@@ -169,9 +176,9 @@ class EmergentGoalEngine:
     # ------------------------------------------------------------------
     # Adoption
     # ------------------------------------------------------------------
-    def adoption_ready(self) -> List[EmergentGoal]:
+    def adoption_ready(self) -> list[EmergentGoal]:
         with self._lock:
-            ready: List[EmergentGoal] = []
+            ready: list[EmergentGoal] = []
             for goal_id, goal in list(self._candidates.items()):
                 if goal.adopted:
                     continue
@@ -197,9 +204,9 @@ class EmergentGoalEngine:
             self._candidates[goal_id] = adopted
             self._persist_candidate(adopted)
 
-    async def adopt_into_goal_engine(self, goal_engine: Any) -> List[Dict[str, Any]]:
+    async def adopt_into_goal_engine(self, goal_engine: Any) -> list[dict[str, Any]]:
         """Push ready emergent goals into the main GoalEngine."""
-        adopted: List[Dict[str, Any]] = []
+        adopted: list[dict[str, Any]] = []
         ready = self.adoption_ready()
         for goal in ready:
             try:
@@ -218,14 +225,16 @@ class EmergentGoalEngine:
                 )
                 self.mark_adopted(goal.goal_id)
                 adopted.append(record if isinstance(record, dict) else {"name": goal.name})
-            except Exception:
+            except Exception as exc:
+                record_degradation("emergent_goals", exc)
+                logger.debug("Emergent goal adoption failed for %s: %s", goal.goal_id, exc)
                 continue
         return adopted
 
     # ------------------------------------------------------------------
     # Introspection
     # ------------------------------------------------------------------
-    def snapshot(self) -> Dict[str, Any]:
+    def snapshot(self) -> dict[str, Any]:
         with self._lock:
             return {
                 "observations": [o.as_dict() for o in self._observations[-32:]],
@@ -284,7 +293,9 @@ class EmergentGoalEngine:
             goal_id, name, objective, kind, evidence_json, priority, created_at, adopted, support = row
             try:
                 evidence = list(json.loads(evidence_json or "[]"))
-            except Exception:
+            except Exception as exc:
+                record_degradation("emergent_goals", exc)
+                logger.debug("Emergent goal evidence decode failed for %s: %s", goal_id, exc)
                 evidence = []
             self._candidates[goal_id] = EmergentGoal(
                 goal_id=goal_id,
@@ -307,11 +318,13 @@ class EmergentGoalEngine:
             try:
                 with sqlite3.connect(self._db_path) as conn:
                     conn.execute("DELETE FROM emergent_goal_candidates WHERE goal_id = ?", (gid,))
-            except Exception:
+            except Exception as exc:
+                record_degradation("emergent_goals", exc)
+                logger.debug("Emergent goal expiry delete failed for %s: %s", gid, exc)
                 continue
 
 
-_singleton: Optional[EmergentGoalEngine] = None
+_singleton: EmergentGoalEngine | None = None
 _lock = threading.Lock()
 
 

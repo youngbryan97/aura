@@ -24,19 +24,17 @@ Persistence: saves creative history to ~/.aura/data/aesthetic_journal.json
 Initiative integration: during boredom, may autonomously create art.
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
-
-from core.runtime.atomic_writer import atomic_write_text
 
 import json
 import logging
-import math
 import random
 import time
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
+
+from core.runtime.atomic_writer import atomic_write_text
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Creativity.AestheticEngine")
 
@@ -53,7 +51,7 @@ _MAX_JOURNAL_ENTRIES = 500
 # Base palettes indexed by (valence_zone, arousal_zone)
 # valence_zone: 0=negative, 1=neutral, 2=positive
 # arousal_zone: 0=low, 1=mid, 2=high
-_PALETTE_TABLE: Dict[Tuple[int, int], List[str]] = {
+_PALETTE_TABLE: dict[tuple[int, int], list[str]] = {
     # Low valence
     (0, 0): ["#1a1a2e", "#16213e", "#0f3460", "#533483", "#2c2c54"],  # dark, withdrawn
     (0, 1): ["#4a0e0e", "#7b2d26", "#c0392b", "#e74c3c", "#922b21"],  # uneasy red
@@ -69,7 +67,7 @@ _PALETTE_TABLE: Dict[Tuple[int, int], List[str]] = {
 }
 
 # Composition style descriptors
-_COMPOSITION_STYLES: Dict[Tuple[int, int], str] = {
+_COMPOSITION_STYLES: dict[tuple[int, int], str] = {
     (0, 0): "sparse, heavy negative space, sinking forms",
     (0, 1): "jagged diagonals, fragmented, asymmetric tension",
     (0, 2): "explosive, chaotic, overlapping sharp forms",
@@ -161,11 +159,11 @@ class CreativeImpulse:
     theme: str
     mood: str
     intensity: float       # 0.0-1.0
-    palette: List[str]
+    palette: list[str]
     content: str           # The generated artifact (text)
-    source_state: Dict[str, float]  # Snapshot of internal state
+    source_state: dict[str, float]  # Snapshot of internal state
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
@@ -194,9 +192,9 @@ class AestheticEngine:
         await engine.stop()
     """
 
-    def __init__(self, journal_path: Optional[Path] = None):
+    def __init__(self, journal_path: Path | None = None):
         self._journal_path = journal_path or _DEFAULT_JOURNAL_PATH
-        self._journal: List[Dict[str, Any]] = []
+        self._journal: list[dict[str, Any]] = []
         self._running = False
         self._rng = random.Random(time.time())
 
@@ -206,8 +204,8 @@ class AestheticEngine:
         self._dominance: float = 0.5
         self._free_energy: float = 0.5
         self._phi: float = 0.0
-        self._neurochemicals: Dict[str, float] = {}
-        self._drives: Dict[str, float] = {}
+        self._neurochemicals: dict[str, float] = {}
+        self._drives: dict[str, float] = {}
         self._pri: float = 0.5  # Phenomenal Richness Index
 
         self._load_journal()
@@ -251,8 +249,9 @@ class AestheticEngine:
                 v, a = circ.get_coordinates()
                 self._valence = v
                 self._arousal = a
-        except Exception:
-            pass  # no-op: intentional
+        except Exception as e:
+            record_degradation("aesthetic_engine", e)
+            logger.debug("AestheticEngine: circumplex fallback read failed: %s", e)
 
         # Neurochemical system
         try:
@@ -319,8 +318,9 @@ class AestheticEngine:
             qs = ServiceContainer.get("qualia_synthesizer", default=None)
             if qs:
                 self._pri = getattr(qs, "pri", 0.5)
-        except Exception:
-            pass  # no-op: intentional
+        except Exception as e:
+            record_degradation("aesthetic_engine", e)
+            logger.debug("AestheticEngine: qualia PRI read failed: %s", e)
 
     # ── Zone helpers ─────────────────────────────────────────────────────
 
@@ -370,7 +370,7 @@ class AestheticEngine:
                 return key
         return "curiosity"
 
-    def _tempo_range(self) -> Tuple[int, int]:
+    def _tempo_range(self) -> tuple[int, int]:
         """Derive tempo from neurochemical state."""
         ne = self._neurochemicals.get("norepinephrine", 0.4)
         da = self._neurochemicals.get("dopamine", 0.5)
@@ -398,7 +398,7 @@ class AestheticEngine:
 
     # ── Public API ───────────────────────────────────────────────────────
 
-    def get_color_palette(self) -> List[str]:
+    def get_color_palette(self) -> list[str]:
         """Return a list of 5 hex colors representing current internal state."""
         self._refresh_state()
         vz, az = self._valence_zone(), self._arousal_zone()
@@ -414,7 +414,7 @@ class AestheticEngine:
 
         return base
 
-    def get_creative_impulse(self) -> Dict[str, Any]:
+    def get_creative_impulse(self) -> dict[str, Any]:
         """Return a dict describing the creative impulse from current state."""
         self._refresh_state()
 
@@ -455,6 +455,7 @@ class AestheticEngine:
         style = _COMPOSITION_STYLES.get((vz, az), "balanced forms")
         complexity = self._complexity()
         harmony = self._harmony()
+        mood = self._mood_label()
         drive = self._dominant_drive()
         themes = _DRIVE_THEMES.get(drive, ["becoming"])
         theme = self._rng.choice(themes)
@@ -559,7 +560,6 @@ class AestheticEngine:
         words = list(_POETRY_WORDS.get(bank_key, _POETRY_WORDS["neutral"]))
         self._rng.shuffle(words)
 
-        mood = self._mood_label()
         drive = self._dominant_drive()
         themes = _DRIVE_THEMES.get(drive, ["becoming"])
         theme = self._rng.choice(themes)
@@ -678,7 +678,7 @@ class AestheticEngine:
 
     # ── Boredom / Initiative integration ─────────────────────────────────
 
-    def on_boredom_impulse(self) -> Optional[CreativeImpulse]:
+    def on_boredom_impulse(self) -> CreativeImpulse | None:
         """Called by initiative system during boredom.
         Returns a creative impulse if the internal state merits one."""
         self._refresh_state()
@@ -771,7 +771,7 @@ class AestheticEngine:
 
     # ── Status / Telemetry ───────────────────────────────────────────────
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Return telemetry snapshot for diagnostics."""
         self._refresh_state()
         return {

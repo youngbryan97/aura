@@ -1,6 +1,4 @@
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
 
 import asyncio
 import json
@@ -10,19 +8,21 @@ import sqlite3
 import threading
 import time
 import uuid
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any
 
 from core.container import ServiceContainer
 from core.goals.goal_text import is_actionable_goal_text, is_intrinsic_goal_text
+from core.runtime.errors import record_degradation
 from core.state.aura_state import _origin_is_user_anchored
 
 logger = logging.getLogger("Aura.GoalEngine")
 
 
-class GoalStatus(str, Enum):
+class GoalStatus(StrEnum):
     QUEUED = "queued"
     IN_PROGRESS = "in_progress"
     BLOCKED = "blocked"
@@ -32,7 +32,7 @@ class GoalStatus(str, Enum):
     ABANDONED = "abandoned"
 
 
-class GoalHorizon(str, Enum):
+class GoalHorizon(StrEnum):
     SHORT_TERM = "short_term"
     LONG_TERM = "long_term"
 
@@ -114,10 +114,10 @@ class GoalRecord:
     success_criteria: str = ""
     summary: str = ""
     error: str = ""
-    required_tools: List[str] = field(default_factory=list)
-    required_skills: List[str] = field(default_factory=list)
-    evidence: List[str] = field(default_factory=list)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    required_tools: list[str] = field(default_factory=list)
+    required_skills: list[str] = field(default_factory=list)
+    evidence: list[str] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
     project_id: str = ""
     parent_goal_id: str = ""
     plan_id: str = ""
@@ -126,11 +126,11 @@ class GoalRecord:
     commitment_id: str = ""
     created_at: float = field(default_factory=time.time)
     updated_at: float = field(default_factory=time.time)
-    started_at: Optional[float] = None
-    completed_at: Optional[float] = None
-    last_progress_at: Optional[float] = None
+    started_at: float | None = None
+    completed_at: float | None = None
+    last_progress_at: float | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
         payload["quick_win"] = bool(self.quick_win)
         payload["priority"] = round(float(self.priority or 0.0), 4)
@@ -152,11 +152,11 @@ class GoalEngine:
       - Expose a single, bounded context block for cognition and executive layers.
     """
 
-    def __init__(self, db_path: Optional[str] = None):
+    def __init__(self, db_path: str | None = None):
         self._db_path = Path(db_path) if db_path else self._default_db_path()
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
-        self._conn: Optional[sqlite3.Connection] = None
+        self._conn: sqlite3.Connection | None = None
         self._state_repo = None
         self._gbm = None
         self._last_reconcile_at = 0.0
@@ -171,7 +171,9 @@ class GoalEngine:
             from core.config import config
 
             return config.paths.data_dir / "goals" / "goal_lifecycle.db"
-        except Exception:
+        except Exception as exc:
+            record_degradation("goal_engine", exc)
+            logger.debug("GoalEngine default path lookup failed: %s", exc)
             return Path.home() / ".aura" / "data" / "goals" / "goal_lifecycle.db"
 
     def _initialize(self) -> None:
@@ -241,9 +243,9 @@ class GoalEngine:
         return mapping.get(normalized, normalized or default)
 
     @staticmethod
-    def _normalize_strings(values: Iterable[Any]) -> List[str]:
+    def _normalize_strings(values: Iterable[Any]) -> list[str]:
         seen: set[str] = set()
-        normalized: List[str] = []
+        normalized: list[str] = []
         for value in values:
             text = str(value or "").strip()
             if not text:
@@ -271,9 +273,9 @@ class GoalEngine:
         objective: str,
         source: str,
         horizon: Any,
-        statuses: Optional[Iterable[str]] = None,
+        statuses: Iterable[str] | None = None,
         limit: int = 200,
-    ) -> Optional[GoalRecord]:
+    ) -> GoalRecord | None:
         target_signature = self._goal_signature(objective)
         if not target_signature:
             return None
@@ -282,7 +284,7 @@ class GoalEngine:
         normalized_horizon = self._coerce_horizon(horizon, default="")
         candidates = self._fetch_records(statuses=statuses, limit=max(40, int(limit or 200)))
 
-        best_match: Optional[GoalRecord] = None
+        best_match: GoalRecord | None = None
         best_key: tuple[float, float] | None = None
         for record in candidates:
             if normalized_source and str(record.source or "").strip().lower() != normalized_source:
@@ -301,7 +303,7 @@ class GoalEngine:
                 best_key = key
         return best_match
 
-    def _active_task_engine_plan_ids(self) -> Optional[set[str]]:
+    def _active_task_engine_plan_ids(self) -> set[str] | None:
         try:
             task_engine = ServiceContainer.get("task_engine", default=None)
         except Exception:
@@ -375,7 +377,7 @@ class GoalEngine:
     def _reconcile_duplicate_active_records(self) -> None:
         now = self._now()
         active_records = self._fetch_records(statuses=ACTIVE_GOAL_STATUSES, limit=500)
-        grouped: Dict[tuple[str, str, str], List[GoalRecord]] = {}
+        grouped: dict[tuple[str, str, str], list[GoalRecord]] = {}
 
         for record in active_records:
             signature = self._goal_signature(record.objective or record.name)
@@ -444,7 +446,6 @@ class GoalEngine:
     def _write_record(self, record: GoalRecord) -> GoalRecord:
         if self._conn is None:
             return record
-        payload = record.to_dict()
         with self._lock:
             self._conn.execute(
                 """
@@ -563,12 +564,12 @@ class GoalEngine:
             last_progress_at=row["last_progress_at"],
         )
 
-    def _fetch_records(self, *, statuses: Optional[Iterable[str]] = None, limit: int = 100) -> List[GoalRecord]:
+    def _fetch_records(self, *, statuses: Iterable[str] | None = None, limit: int = 100) -> list[GoalRecord]:
         if self._conn is None:
             return []
         self._conn.row_factory = sqlite3.Row
         query = "SELECT * FROM goals"
-        params: List[Any] = []
+        params: list[Any] = []
         if statuses:
             normalized = [self._coerce_status(status) for status in statuses]
             placeholders = ", ".join("?" for _ in normalized)
@@ -589,12 +590,12 @@ class GoalEngine:
         project_id: str = "",
         intention_id: str = "",
         commitment_id: str = "",
-    ) -> Optional[GoalRecord]:
+    ) -> GoalRecord | None:
         if self._conn is None:
             return None
         self._conn.row_factory = sqlite3.Row
         clauses = []
-        params: List[Any] = []
+        params: list[Any] = []
         for field_name, value in (
             ("id", goal_id),
             ("plan_id", plan_id),
@@ -616,14 +617,14 @@ class GoalEngine:
     def _upsert_goal(
         self,
         *,
-        goal_id: Optional[str] = None,
+        goal_id: str | None = None,
         name: str,
         objective: str,
         status: Any,
         horizon: Any = GoalHorizon.SHORT_TERM.value,
         source: str = "goal_engine",
         priority: float = 0.5,
-        progress: Optional[float] = None,
+        progress: float | None = None,
         quick_win: bool = False,
         attention_policy: str = "sustained",
         steps_done: int = 0,
@@ -631,19 +632,19 @@ class GoalEngine:
         success_criteria: str = "",
         summary: str = "",
         error: str = "",
-        required_tools: Optional[Iterable[Any]] = None,
-        required_skills: Optional[Iterable[Any]] = None,
-        evidence: Optional[Iterable[Any]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        required_tools: Iterable[Any] | None = None,
+        required_skills: Iterable[Any] | None = None,
+        evidence: Iterable[Any] | None = None,
+        metadata: dict[str, Any] | None = None,
         project_id: str = "",
         parent_goal_id: str = "",
         plan_id: str = "",
         task_id: str = "",
         intention_id: str = "",
         commitment_id: str = "",
-        created_at: Optional[float] = None,
-        started_at: Optional[float] = None,
-        completed_at: Optional[float] = None,
+        created_at: float | None = None,
+        started_at: float | None = None,
+        completed_at: float | None = None,
     ) -> GoalRecord:
         now = self._now()
         normalized_status = self._coerce_status(status)
@@ -718,9 +719,9 @@ class GoalEngine:
     async def add_goal(
         self,
         name: str,
-        objective: Optional[str] = None,
+        objective: str | None = None,
         **kwargs: Any,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         objective_text = str(objective or name or "").strip()
         goal_name = str(name or objective_text or "Goal").strip()
         record = await asyncio.to_thread(
@@ -760,11 +761,11 @@ class GoalEngine:
         *,
         task_id: str,
         source: str,
-        commitment_id: Optional[str] = None,
+        commitment_id: str | None = None,
         priority: float = 0.75,
         horizon: str = GoalHorizon.SHORT_TERM.value,
         quick_win: bool = False,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         record = await asyncio.to_thread(
             self._upsert_goal,
             name=objective[:140],
@@ -789,8 +790,8 @@ class GoalEngine:
         status: Any,
         summary: str = "",
         error: str = "",
-        evidence: Optional[Iterable[Any]] = None,
-    ) -> Optional[Dict[str, Any]]:
+        evidence: Iterable[Any] | None = None,
+    ) -> dict[str, Any] | None:
         existing = await asyncio.to_thread(self._find_existing_record, task_id=task_id)
         if existing is None:
             return None
@@ -827,7 +828,7 @@ class GoalEngine:
         self._sync_state_view()
         return record.to_dict()
 
-    def get_goal(self, goal_id: str) -> Optional[Dict[str, Any]]:
+    def get_goal(self, goal_id: str) -> dict[str, Any] | None:
         record = self._find_existing_record(goal_id=str(goal_id or ""))
         return record.to_dict() if record is not None else None
 
@@ -838,10 +839,10 @@ class GoalEngine:
         status: Any,
         summary: str = "",
         error: str = "",
-        progress: Optional[float] = None,
-        evidence: Optional[Iterable[Any]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> Optional[Dict[str, Any]]:
+        progress: float | None = None,
+        evidence: Iterable[Any] | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any] | None:
         existing = await asyncio.to_thread(self._find_existing_record, goal_id=str(goal_id or ""))
         if existing is None:
             return None
@@ -933,7 +934,7 @@ class GoalEngine:
             )
         self._sync_state_view()
 
-    def sync_task_plan(self, plan: Any, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def sync_task_plan(self, plan: Any, context: dict[str, Any] | None = None) -> dict[str, Any]:
         plan_context = dict(getattr(plan, "context", {}) or {})
         plan_context.update(dict(context or {}))
         tools = self._normalize_strings(
@@ -985,7 +986,7 @@ class GoalEngine:
         *,
         include_external: bool = True,
         actionable_only: bool = False,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         snapshot = self.build_snapshot(limit=limit, include_external=include_external)
         active = [
             item
@@ -1002,7 +1003,7 @@ class GoalEngine:
         *,
         include_external: bool = True,
         actionable_only: bool = False,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         return await asyncio.to_thread(
             self.get_active_goals,
             limit,
@@ -1010,7 +1011,7 @@ class GoalEngine:
             actionable_only=actionable_only,
         )
 
-    def get_completed_goals(self, limit: int = 20, *, include_external: bool = True) -> List[Dict[str, Any]]:
+    def get_completed_goals(self, limit: int = 20, *, include_external: bool = True) -> list[dict[str, Any]]:
         snapshot = self.build_snapshot(limit=limit * 3, include_external=include_external)
         completed = [
             item
@@ -1020,14 +1021,14 @@ class GoalEngine:
         completed.sort(key=lambda item: float(item.get("completed_at") or item.get("updated_at") or 0.0), reverse=True)
         return completed[: max(1, int(limit or 20))]
 
-    def build_snapshot(self, limit: int = 30, *, include_external: bool = True) -> Dict[str, Any]:
+    def build_snapshot(self, limit: int = 30, *, include_external: bool = True) -> dict[str, Any]:
         self._maybe_reconcile_runtime_records()
         internal_items = [record.to_dict() for record in self._fetch_records(limit=max(40, int(limit or 30) * 2))]
         items = list(internal_items)
         if include_external:
             items.extend(self._external_goal_items())
 
-        deduped: List[Dict[str, Any]] = []
+        deduped: list[dict[str, Any]] = []
         seen_ids: set[str] = set()
         seen_active_signatures: set[str] = set()
         for item in self._sort_items(items):
@@ -1070,7 +1071,7 @@ class GoalEngine:
         snapshot = self.build_snapshot(limit=max(12, limit * 2), include_external=True)
         objective_tokens = set(self._normalize_tokens(objective))
 
-        def _relevance(item: Dict[str, Any]) -> float:
+        def _relevance(item: dict[str, Any]) -> float:
             if not objective_tokens:
                 return 0.0
             item_tokens = set(
@@ -1138,7 +1139,7 @@ class GoalEngine:
         )
         return "\n".join(lines)
 
-    def _sort_items(self, items: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _sort_items(self, items: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
         status_order = {
             GoalStatus.IN_PROGRESS.value: 0,
             GoalStatus.QUEUED.value: 1,
@@ -1149,7 +1150,7 @@ class GoalEngine:
             GoalStatus.ABANDONED.value: 6,
         }
 
-        def _key(item: Dict[str, Any]) -> tuple[Any, ...]:
+        def _key(item: dict[str, Any]) -> tuple[Any, ...]:
             status = str(item.get("status", "") or "")
             horizon = str(item.get("horizon", "") or GoalHorizon.SHORT_TERM.value)
             quick_win = 0 if bool(item.get("quick_win", False)) and status in ACTIVE_GOAL_STATUSES else 1
@@ -1170,7 +1171,7 @@ class GoalEngine:
         return sorted(list(items), key=_key)
 
     @staticmethod
-    def _is_actionable_item(item: Dict[str, Any]) -> bool:
+    def _is_actionable_item(item: dict[str, Any]) -> bool:
         text = (
             item.get("objective")
             or item.get("goal")
@@ -1228,21 +1229,21 @@ class GoalEngine:
             record_degradation('goal_engine', exc)
             logger.debug("GoalEngine state sync skipped: %s", exc)
 
-    def _external_goal_items(self) -> List[Dict[str, Any]]:
-        items: List[Dict[str, Any]] = []
+    def _external_goal_items(self) -> list[dict[str, Any]]:
+        items: list[dict[str, Any]] = []
         items.extend(self._hierarchical_goal_items())
         items.extend(self._strategic_project_items())
         items.extend(self._commitment_items())
         items.extend(self._intention_items())
         return items
 
-    def _hierarchical_goal_items(self) -> List[Dict[str, Any]]:
+    def _hierarchical_goal_items(self) -> list[dict[str, Any]]:
         try:
             planner = ServiceContainer.get("hierarchical_planner", default=None)
             goals = list(getattr(planner, "_goals", {}).values()) if planner is not None else []
         except Exception:
             goals = []
-        items: List[Dict[str, Any]] = []
+        items: list[dict[str, Any]] = []
         for goal in goals:
             level = str(getattr(getattr(goal, "level", None), "value", getattr(goal, "level", "")) or "")
             horizon = GoalHorizon.LONG_TERM.value if level in {"strategic", "tactical"} else GoalHorizon.SHORT_TERM.value
@@ -1286,8 +1287,8 @@ class GoalEngine:
             )
         return items
 
-    def _strategic_project_items(self) -> List[Dict[str, Any]]:
-        items: List[Dict[str, Any]] = []
+    def _strategic_project_items(self) -> list[dict[str, Any]]:
+        items: list[dict[str, Any]] = []
         try:
             planner = ServiceContainer.get("strategic_planner", default=None)
             store = getattr(planner, "store", None)
@@ -1301,7 +1302,7 @@ class GoalEngine:
                 task_rows = conn.execute(
                     "SELECT id, project_id, description, status, priority, metadata, created_at, updated_at FROM tasks ORDER BY updated_at DESC LIMIT 120"
                 ).fetchall()
-            task_map: Dict[str, List[Any]] = {}
+            task_map: dict[str, list[Any]] = {}
             for row in task_rows:
                 task_map.setdefault(str(row[1]), []).append(row)
             for row in project_rows:
@@ -1358,8 +1359,8 @@ class GoalEngine:
             logger.debug("Strategic project snapshot skipped: %s", exc)
         return items
 
-    def _commitment_items(self) -> List[Dict[str, Any]]:
-        items: List[Dict[str, Any]] = []
+    def _commitment_items(self) -> list[dict[str, Any]]:
+        items: list[dict[str, Any]] = []
         try:
             from core.agency.commitment_engine import get_commitment_engine
 
@@ -1413,8 +1414,8 @@ class GoalEngine:
             )
         return items
 
-    def _intention_items(self) -> List[Dict[str, Any]]:
-        items: List[Dict[str, Any]] = []
+    def _intention_items(self) -> list[dict[str, Any]]:
+        items: list[dict[str, Any]] = []
         try:
             loop = ServiceContainer.get("intention_loop", default=None)
             active = list(getattr(loop, "_active_intentions", {}).values()) if loop is not None else []
@@ -1467,7 +1468,7 @@ class GoalEngine:
         return items
 
     @staticmethod
-    def _normalize_tokens(text: str) -> List[str]:
+    def _normalize_tokens(text: str) -> list[str]:
         stopwords = {
             "a", "an", "and", "are", "for", "i", "in", "is", "it", "of", "on",
             "or", "the", "to", "we", "why",
@@ -1475,7 +1476,7 @@ class GoalEngine:
         tokens = re.findall(r"[a-z0-9]+", str(text or "").lower())
         return [token for token in tokens if token not in stopwords]
 
-    def _shows_goal_progress(self, objective: str, messages: List[str]) -> bool:
+    def _shows_goal_progress(self, objective: str, messages: list[str]) -> bool:
         objective_tokens = self._normalize_tokens(objective)
         if not objective_tokens:
             return False

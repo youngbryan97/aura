@@ -26,11 +26,12 @@ import hashlib
 import logging
 import time
 from collections import deque
-from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any, Deque, Dict, List, Optional, Tuple
+from dataclasses import dataclass
+from enum import StrEnum
+from typing import Any
 
 from core.container import ServiceContainer
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.PreLinguistic")
 
@@ -39,7 +40,7 @@ logger = logging.getLogger("Aura.PreLinguistic")
 # Enums
 # ---------------------------------------------------------------------------
 
-class RationaleClass(str, Enum):
+class RationaleClass(StrEnum):
     """Why is Aura acting?"""
     DRIVE = "drive"                # Internal need (curiosity, social hunger, growth)
     OPPORTUNITY = "opportunity"    # External stimulus worth seizing
@@ -50,7 +51,7 @@ class RationaleClass(str, Enum):
     OBLIGATION = "obligation"      # Promise / commitment fulfillment
 
 
-class ActionVerb(str, Enum):
+class ActionVerb(StrEnum):
     """High-level action categories (the "limbs" of agency)."""
     RESPOND = "respond"            # Generate a user-facing reply
     SEARCH = "search"              # Web search / knowledge lookup
@@ -63,7 +64,7 @@ class ActionVerb(str, Enum):
     COMPENSATE = "compensate"      # Recovery after failure
 
 
-class StopCondition(str, Enum):
+class StopCondition(StrEnum):
     """When should the action terminate?"""
     AFTER_ONE_SHOT = "after_one_shot"        # Single execution
     UNTIL_SUCCESS = "until_success"          # Retry until success
@@ -92,7 +93,7 @@ class DecisionPackage:
     chosen_action: ActionVerb
     rationale_class: RationaleClass
     selected_limb: str                   # Which capability / skill / tool
-    constraints: Tuple[str, ...] = ()    # What limits apply
+    constraints: tuple[str, ...] = ()    # What limits apply
     stop_condition: StopCondition = StopCondition.AFTER_ONE_SHOT
     fallback: str = ""                   # What if it fails
     expected_world_change: str = ""      # Predicted outcome
@@ -135,7 +136,7 @@ class DecisionPackage:
             lines.append(f"- Driving motivation: {self.strongest_drive} (urgency {self.drive_urgency:.2f})")
         return "\n".join(lines)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "decision_id": self.decision_id,
             "chosen_action": self.chosen_action.value,
@@ -180,11 +181,15 @@ class PreLinguisticEngine:
     _MAX_DECISION_TRAIL = 200
 
     def __init__(self) -> None:
-        self._decision_trail: Deque[DecisionPackage] = deque(maxlen=self._MAX_DECISION_TRAIL)
+        self._decision_trail: deque[DecisionPackage] = deque(maxlen=self._MAX_DECISION_TRAIL)
         self._started = False
         self._boot_time = time.time()
         self._total_decisions = 0
         logger.info("PreLinguisticEngine created -- awaiting start()")
+
+    def _record_signal_degradation(self, signal: str, exc: Exception) -> None:
+        record_degradation("pre_linguistic", exc)
+        logger.debug("PreLinguistic %s signal read failed: %s", signal, exc)
 
     async def start(self) -> None:
         """Register in ServiceContainer."""
@@ -198,7 +203,7 @@ class PreLinguisticEngine:
     # Signal Reading (all fail-safe with defaults)
     # ------------------------------------------------------------------
 
-    def _read_affect(self) -> Tuple[float, float, str]:
+    def _read_affect(self) -> tuple[float, float, str]:
         """Returns (valence, arousal, dominant_emotion)."""
         try:
             affect = ServiceContainer.get("affect_engine", default=None)
@@ -218,10 +223,11 @@ class PreLinguisticEngine:
             a = float(getattr(affect, "arousal", 0.5))
             e = str(getattr(affect, "dominant_emotion", "neutral"))
             return v, a, e
-        except Exception:
+        except Exception as exc:
+            self._record_signal_degradation("affect", exc)
             return 0.0, 0.5, "neutral"
 
-    def _read_drives(self) -> Tuple[str, float]:
+    def _read_drives(self) -> tuple[str, float]:
         """Returns (strongest_drive_name, urgency)."""
         try:
             state = ServiceContainer.get("aura_state", default=None)
@@ -250,7 +256,8 @@ class PreLinguisticEngine:
                         max_urgency = depletion
                         strongest = drive_name
             return strongest, round(max_urgency, 3)
-        except Exception:
+        except Exception as exc:
+            self._record_signal_degradation("drives", exc)
             return "", 0.0
 
     def _read_world_salience(self) -> float:
@@ -267,10 +274,11 @@ class PreLinguisticEngine:
                 if not getattr(ev, "expired", True):
                     max_sal = max(max_sal, float(getattr(ev, "salience", 0.0)))
             return round(max_sal, 3)
-        except Exception:
+        except Exception as exc:
+            self._record_signal_degradation("world_salience", exc)
             return 0.0
 
-    def _read_substrate(self) -> Tuple[float, float]:
+    def _read_substrate(self) -> tuple[float, float]:
         """Returns (field_coherence, somatic_approach)."""
         try:
             sa = ServiceContainer.get("substrate_authority", default=None)
@@ -279,7 +287,8 @@ class PreLinguisticEngine:
             coherence = float(getattr(sa, "field_coherence", 0.6))
             approach = float(getattr(sa, "somatic_approach", 0.0))
             return coherence, approach
-        except Exception:
+        except Exception as exc:
+            self._record_signal_degradation("substrate", exc)
             return 0.6, 0.0
 
     def _read_memory_relevance(self, objective: str) -> float:
@@ -293,7 +302,8 @@ class PreLinguisticEngine:
             if hasattr(memory, "has_relevant_context"):
                 return float(memory.has_relevant_context(objective[:100]))
             return 0.3
-        except Exception:
+        except Exception as exc:
+            self._record_signal_degradation("memory_relevance", exc)
             return 0.0
 
     def _read_motor_cortex_failures(self) -> int:
@@ -304,7 +314,8 @@ class PreLinguisticEngine:
                 return 0
             reports = mc.drain_pending_reports()
             return sum(1 for r in reports if not r.success)
-        except Exception:
+        except Exception as exc:
+            self._record_signal_degradation("motor_cortex", exc)
             return 0
 
     # ------------------------------------------------------------------
@@ -317,8 +328,8 @@ class PreLinguisticEngine:
         *,
         is_user_facing: bool = False,
         has_tool_result: bool = False,
-        matched_skills: Optional[List[str]] = None,
-        response_modifiers: Optional[Dict[str, Any]] = None,
+        matched_skills: list[str] | None = None,
+        response_modifiers: dict[str, Any] | None = None,
     ) -> DecisionPackage:
         """Synthesize all signals into a DecisionPackage.
 
@@ -425,8 +436,8 @@ class PreLinguisticEngine:
                 "limb": limb,
                 "latency_ms": round(latency_ms, 3),
             })
-        except Exception:
-            pass  # no-op: intentional
+        except Exception as exc:
+            self._record_signal_degradation("event_publish", exc)
 
         logger.debug(
             "PreLinguistic: %s via %s (%s) -- %.1fms",
@@ -441,10 +452,10 @@ class PreLinguisticEngine:
     def _select_user_facing_action(
         self,
         objective: str,
-        matched_skills: List[str],
-        modifiers: Dict[str, Any],
+        matched_skills: list[str],
+        modifiers: dict[str, Any],
         has_tool_result: bool,
-    ) -> Tuple[ActionVerb, RationaleClass, str]:
+    ) -> tuple[ActionVerb, RationaleClass, str]:
         """Determine action for a user-facing turn."""
         obj_lower = objective.lower() if objective else ""
 
@@ -479,8 +490,8 @@ class PreLinguisticEngine:
         coherence: float,
         somatic: float,
         valence: float,
-        modifiers: Dict[str, Any],
-    ) -> List[str]:
+        modifiers: dict[str, Any],
+    ) -> list[str]:
         """Derive action constraints from system state."""
         constraints = []
         if coherence < 0.4:
@@ -534,18 +545,18 @@ class PreLinguisticEngine:
     # Public API
     # ------------------------------------------------------------------
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         return {
             "total_decisions": self._total_decisions,
             "trail_size": len(self._decision_trail),
             "uptime_s": round(time.time() - self._boot_time, 1),
         }
 
-    def get_recent_decisions(self, n: int = 20) -> List[Dict[str, Any]]:
+    def get_recent_decisions(self, n: int = 20) -> list[dict[str, Any]]:
         recent = list(self._decision_trail)[-n:]
         return [d.to_dict() for d in recent]
 
-    def get_last_decision(self) -> Optional[DecisionPackage]:
+    def get_last_decision(self) -> DecisionPackage | None:
         if self._decision_trail:
             return self._decision_trail[-1]
         return None
@@ -555,7 +566,7 @@ class PreLinguisticEngine:
 # Singleton
 # ---------------------------------------------------------------------------
 
-_pre_linguistic_instance: Optional[PreLinguisticEngine] = None
+_pre_linguistic_instance: PreLinguisticEngine | None = None
 
 
 def get_pre_linguistic() -> PreLinguisticEngine:

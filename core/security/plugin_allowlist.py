@@ -27,21 +27,23 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
+import logging
 import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
+from core.runtime.errors import record_degradation
 
 SCHEMA_VERSION = 1
+logger = logging.getLogger("Aura.PluginAllowlist")
 
 
 class PluginPolicyError(RuntimeError):
     """Raised when a plugin is refused by the allowlist policy."""
 
-    def __init__(self, *, reason: str, plugin_path: Path, expected_hash: Optional[str] = None, actual_hash: Optional[str] = None):
+    def __init__(self, *, reason: str, plugin_path: Path, expected_hash: str | None = None, actual_hash: str | None = None):
         super().__init__(f"plugin policy refused {plugin_path}: {reason}")
         self.reason = reason
         self.plugin_path = Path(plugin_path)
@@ -56,8 +58,8 @@ class AllowlistEntry:
     approved_by: str
     approved_at: float
     reason: str = ""
-    revoked_at: Optional[float] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    revoked_at: float | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def is_active(self) -> bool:
         return self.revoked_at is None
@@ -75,7 +77,7 @@ def compute_sha256(path: Path) -> str:
 class PluginAllowlist:
     """JSON-backed plugin SHA-256 allowlist."""
 
-    def __init__(self, path: Optional[Path] = None, *, plugin_root: Optional[Path] = None):
+    def __init__(self, path: Path | None = None, *, plugin_root: Path | None = None):
         self.path = (
             Path(path)
             if path is not None
@@ -84,7 +86,7 @@ class PluginAllowlist:
         self.plugin_root = Path(plugin_root) if plugin_root is not None else None
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
-        self._entries: Dict[str, AllowlistEntry] = {}
+        self._entries: dict[str, AllowlistEntry] = {}
         self._load()
 
     # ------------------------------------------------------------------
@@ -108,7 +110,9 @@ class PluginAllowlist:
                     revoked_at=blob.get("revoked_at"),
                     metadata=dict(blob.get("metadata", {}) or {}),
                 )
-            except Exception:
+            except Exception as exc:
+                record_degradation("plugin_allowlist", exc)
+                logger.debug("Skipping malformed plugin allowlist entry %s: %s", sha, exc)
                 continue
 
     def _save(self) -> None:
@@ -140,7 +144,7 @@ class PluginAllowlist:
         *,
         approved_by: str,
         reason: str = "",
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> AllowlistEntry:
         plugin_path = Path(plugin_path)
         if not plugin_path.exists():
@@ -204,7 +208,7 @@ class PluginAllowlist:
             )
         return entry
 
-    def list_entries(self, *, include_revoked: bool = False) -> List[AllowlistEntry]:
+    def list_entries(self, *, include_revoked: bool = False) -> list[AllowlistEntry]:
         with self._lock:
             entries = list(self._entries.values())
         if not include_revoked:
@@ -212,7 +216,7 @@ class PluginAllowlist:
         entries.sort(key=lambda e: e.approved_at, reverse=True)
         return entries
 
-    def stats(self) -> Dict[str, int]:
+    def stats(self) -> dict[str, int]:
         with self._lock:
             total = len(self._entries)
             active = sum(1 for e in self._entries.values() if e.is_active())

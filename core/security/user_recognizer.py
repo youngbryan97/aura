@@ -34,21 +34,18 @@ Recognition in conversation:
   Anomalous patterns = SUSPICIOUS.
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
-from core.runtime.atomic_writer import atomic_write_text
 
 import hashlib
 import hmac
 import json
 import logging
 import os
-import re
 import time
-from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+
+from core.runtime.atomic_writer import atomic_write_text
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.UserRecognizer")
 
@@ -80,7 +77,7 @@ class RecognitionResult:
     passphrase_verified: bool
     behavioral_confidence: float   # 0.0–1.0
     combined_confidence: float     # weighted combination
-    signals: List[str]             # human-readable signals detected
+    signals: list[str]             # human-readable signals detected
     timestamp: float = field(default_factory=time.time)
 
 
@@ -90,23 +87,23 @@ class UserRecognizer:
     """
 
     def __init__(self):
-        self._passphrase_hash: Optional[bytes] = None
-        self._salt: Optional[bytes] = None
-        self._fingerprint: Dict = dict(_DEFAULT_FINGERPRINT)
+        self._passphrase_hash: bytes | None = None
+        self._salt: bytes | None = None
+        self._fingerprint: dict = dict(_DEFAULT_FINGERPRINT)
         self._session_verified: bool = False
         # PERF: Cache PBKDF2 results to avoid repeated 260K-iteration derivations
         # on the event loop. Key = candidate string, Value = derived hash bytes.
         # Bounded to prevent memory leak from brute-force attempts.
-        self._derivation_cache: Dict[str, bytes] = {}
+        self._derivation_cache: dict[str, bytes] = {}
         self._derivation_cache_max = 64
-        self._passphrase_len_range: Optional[Tuple[int, int]] = None  # (min, max) word count
+        self._passphrase_len_range: tuple[int, int] | None = None  # (min, max) word count
         self._load_credentials()
         self._load_fingerprint()
         logger.info("UserRecognizer online — owner recognition active.")
 
     # ── Public API ─────────────────────────────────────────────────────────
 
-    def recognize(self, message: str, session_context: Optional[List[str]] = None) -> RecognitionResult:
+    def recognize(self, message: str, session_context: list[str] | None = None) -> RecognitionResult:
         """
         Analyze a message and session context to determine if this is the owner.
 
@@ -184,7 +181,7 @@ class UserRecognizer:
 
     # ── Passphrase Layer ───────────────────────────────────────────────────
 
-    def _extract_and_verify_passphrase(self, message: str) -> Tuple[bool, str]:
+    def _extract_and_verify_passphrase(self, message: str) -> tuple[bool, str]:
         """
         Look for the passphrase in the edges of the message (first 5 / last 5 words).
 
@@ -252,7 +249,9 @@ class UserRecognizer:
                 self._derivation_cache[candidate] = candidate_hash
 
             return hmac.compare_digest(candidate_hash, self._passphrase_hash)
-        except Exception:
+        except Exception as exc:
+            record_degradation("user_recognizer", exc)
+            logger.debug("Passphrase verification failed safely: %s", exc)
             return False
 
     @staticmethod
@@ -261,7 +260,7 @@ class UserRecognizer:
 
     # ── Behavioral Layer ───────────────────────────────────────────────────
 
-    def _behavioral_score(self, message: str, context: List[str]) -> float:
+    def _behavioral_score(self, message: str, context: list[str]) -> float:
         """
         Score how Bryan-like this message is. Returns 0.0–1.0.
         """
@@ -326,7 +325,7 @@ class UserRecognizer:
         weighted = sum(s * w for _, s, w in scores) / max(total_weight, 1)
         return max(0.0, min(1.0, weighted))
 
-    def _behavioral_signals(self, message: str) -> List[str]:
+    def _behavioral_signals(self, message: str) -> list[str]:
         signals = []
         if "i " in message.lower() and "I " not in message:
             signals.append("lowercase_i")
@@ -436,7 +435,7 @@ def _cli_setup():
 
 # ── Singleton ──────────────────────────────────────────────────────────────────
 
-_recognizer: Optional[UserRecognizer] = None
+_recognizer: UserRecognizer | None = None
 
 
 def get_user_recognizer() -> UserRecognizer:

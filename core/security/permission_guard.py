@@ -1,11 +1,12 @@
-from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import os
 import subprocess
 import time
 from enum import Enum, auto
-from typing import Any, Dict, Optional
+from typing import Any
+
+from core.runtime.errors import record_degradation
 
 from ..base_module import AuraBaseModule
 
@@ -23,15 +24,15 @@ class PermissionGuard(AuraBaseModule):
 
     def __init__(self):
         super().__init__("PermissionGuard")
-        self._cache: Dict[PermissionType, Dict[str, Any]] = {}
-        self._cache_ts: Dict[PermissionType, float] = {}
+        self._cache: dict[PermissionType, dict[str, Any]] = {}
+        self._cache_ts: dict[PermissionType, float] = {}
         # Granted TCC permissions don't get revoked silently, so we cache for
         # 5 minutes once active. Denied/deferred entries still re-probe in 15s.
         self._cache_ttl_s: float = 15.0
         self._cache_ttl_granted_s: float = 300.0
         self._force_refresh_floor_s: float = 20.0
 
-    async def check_permission(self, ptype: PermissionType, force: bool = False) -> Dict[str, Any]:
+    async def check_permission(self, ptype: PermissionType, force: bool = False) -> dict[str, Any]:
         """Check if a hardware permission is granted.
 
         Returns:
@@ -84,7 +85,7 @@ class PermissionGuard(AuraBaseModule):
         self._cache_ts[ptype] = now
         return result
 
-    _ENV_OVERRIDE_KEYS: Dict[PermissionType, str] = {
+    _ENV_OVERRIDE_KEYS: dict[PermissionType, str] = {
         PermissionType.SCREEN: "AURA_ASSUME_SCREEN_PERMISSION",
         PermissionType.ACCESSIBILITY: "AURA_ASSUME_ACCESSIBILITY_PERMISSION",
         PermissionType.AUTOMATION: "AURA_ASSUME_AUTOMATION_PERMISSION",
@@ -92,7 +93,7 @@ class PermissionGuard(AuraBaseModule):
         PermissionType.CAMERA: "AURA_ASSUME_CAMERA_PERMISSION",
     }
 
-    def _env_override(self, ptype: PermissionType) -> Optional[Dict[str, Any]]:
+    def _env_override(self, ptype: PermissionType) -> dict[str, Any] | None:
         """Return a granted result if the user has explicitly asserted the
         permission via env var. Lets users bypass TCC parent-process
         inheritance when launching from a non-standard host."""
@@ -103,7 +104,7 @@ class PermissionGuard(AuraBaseModule):
             return None
         return {"granted": True, "status": "asserted_env", "guidance": ""}
 
-    def _screen_preflight_probe(self) -> Optional[Dict[str, Any]]:
+    def _screen_preflight_probe(self) -> dict[str, Any] | None:
         """Use Quartz preflight when available so we don't trigger a capture prompt."""
         try:
             import Quartz  # type: ignore
@@ -121,7 +122,7 @@ class PermissionGuard(AuraBaseModule):
             self.logger.debug("Quartz screen preflight unavailable: %s", exc)
         return None
 
-    def _accessibility_preflight_probe(self) -> Optional[Dict[str, Any]]:
+    def _accessibility_preflight_probe(self) -> dict[str, Any] | None:
         """Use AXIsProcessTrusted without prompting so desktop-control checks stay passive."""
         try:
             import ctypes
@@ -141,7 +142,7 @@ class PermissionGuard(AuraBaseModule):
             self.logger.debug("Accessibility preflight unavailable: %s", exc)
         return None
 
-    def _automation_preflight_probe(self) -> Dict[str, Any]:
+    def _automation_preflight_probe(self) -> dict[str, Any]:
         """Probe Apple Events access to System Events with a harmless frontmost-app query."""
         script = 'tell application "System Events" to get name of first application process whose frontmost is true'
         try:
@@ -162,7 +163,7 @@ class PermissionGuard(AuraBaseModule):
         stdout = (result.stdout or "").strip()
         stderr = (result.stderr or "").strip()
         if result.returncode == 0:
-            payload: Dict[str, Any] = {
+            payload: dict[str, Any] = {
                 "granted": True,
                 "status": "active",
                 "guidance": "",
@@ -185,7 +186,7 @@ class PermissionGuard(AuraBaseModule):
             "guidance": stderr[:240] or "System Events automation probe failed.",
         }
 
-    async def _check_screen_permission(self) -> Dict[str, Any]:
+    async def _check_screen_permission(self) -> dict[str, Any]:
         """Probe screen-recording status without forcing a screenshot during boot."""
         loop = asyncio.get_running_loop()
         result = await loop.run_in_executor(None, self._screen_preflight_probe)
@@ -208,14 +209,14 @@ class PermissionGuard(AuraBaseModule):
             ),
         }
 
-    async def _check_mic_permission(self) -> Dict[str, Any]:
+    async def _check_mic_permission(self) -> dict[str, Any]:
         try:
             return {"granted": True, "status": "active", "guidance": ""}
         except Exception as e:
             record_degradation('permission_guard', e)
             return {"granted": False, "status": "error", "guidance": f"Mic check failed: {e}"}
 
-    async def _check_accessibility_permission(self) -> Dict[str, Any]:
+    async def _check_accessibility_permission(self) -> dict[str, Any]:
         loop = asyncio.get_running_loop()
         result = await loop.run_in_executor(None, self._accessibility_preflight_probe)
         if result is not None:
@@ -226,7 +227,7 @@ class PermissionGuard(AuraBaseModule):
             "guidance": self.get_guidance(PermissionType.ACCESSIBILITY),
         }
 
-    async def _check_automation_permission(self) -> Dict[str, Any]:
+    async def _check_automation_permission(self) -> dict[str, Any]:
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, self._automation_preflight_probe)
 
@@ -262,7 +263,7 @@ class PermissionGuard(AuraBaseModule):
         return "Check your macOS Privacy & Security settings."
 
 
-_SHARED_PERMISSION_GUARD: Optional[PermissionGuard] = None
+_SHARED_PERMISSION_GUARD: PermissionGuard | None = None
 
 
 def get_permission_guard() -> PermissionGuard:
@@ -271,20 +272,28 @@ def get_permission_guard() -> PermissionGuard:
 
     try:
         from core.container import ServiceContainer
+        service_container = ServiceContainer
 
-        existing = ServiceContainer.get("permission_guard", default=None)
+        existing = service_container.get("permission_guard", default=None)
         if existing is not None:
             return existing
-    except Exception:
-        ServiceContainer = None  # type: ignore[assignment]
+    except Exception as exc:
+        record_degradation("permission_guard", exc)
+        logging.getLogger("Aura.PermissionGuard").debug(
+            "Shared permission guard lookup failed: %s", exc
+        )
+        service_container = None
 
     if _SHARED_PERMISSION_GUARD is None:
         _SHARED_PERMISSION_GUARD = PermissionGuard()
 
     try:
-        if ServiceContainer is not None:
-            ServiceContainer.register_instance("permission_guard", _SHARED_PERMISSION_GUARD, required=False)
-    except Exception:
-        pass  # no-op: intentional
+        if service_container is not None:
+            service_container.register_instance("permission_guard", _SHARED_PERMISSION_GUARD, required=False)
+    except Exception as exc:
+        record_degradation("permission_guard", exc)
+        _SHARED_PERMISSION_GUARD.logger.debug(
+            "Shared permission guard registration failed: %s", exc
+        )
 
     return _SHARED_PERMISSION_GUARD
