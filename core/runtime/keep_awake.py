@@ -11,20 +11,30 @@ from __future__ import annotations
 import os
 import platform
 import shutil
-import subprocess
+import signal
 import time
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 
 _ENABLED_VALUES = {"1", "true", "yes", "on", "enabled"}
 _DISABLED_VALUES = {"0", "false", "no", "off", "disabled"}
+_KEEP_AWAKE_RECOVERABLE_ERRORS = (
+    ChildProcessError,
+    FileNotFoundError,
+    OSError,
+    ProcessLookupError,
+    RuntimeError,
+    TimeoutError,
+    TypeError,
+    ValueError,
+)
 
 
 @dataclass
 class KeepAwakeStatus:
     supported: bool
     active: bool
-    pid: Optional[int] = None
+    pid: int | None = None
     command: tuple[str, ...] = ()
     reason: str = ""
     started_at: float | None = None
@@ -42,16 +52,78 @@ class KeepAwakeStatus:
         }
 
 
+@dataclass
+class AssertionProcess:
+    pid: int
+    args: tuple[str, ...]
+    returncode: int | None = None
+
+    def poll(self) -> int | None:
+        if self.returncode is not None:
+            return self.returncode
+        try:
+            waited_pid, status = os.waitpid(self.pid, os.WNOHANG)
+        except ChildProcessError:
+            self.returncode = 0
+            return self.returncode
+        if waited_pid == 0:
+            return None
+        self.returncode = os.waitstatus_to_exitcode(status)
+        return self.returncode
+
+    def terminate(self) -> None:
+        os.kill(self.pid, signal.SIGTERM)
+
+    def kill(self) -> None:
+        os.kill(self.pid, signal.SIGKILL)
+
+    def wait(self, timeout: float) -> int:
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            code = self.poll()
+            if code is not None:
+                return code
+            time.sleep(0.05)
+        code = self.poll()
+        if code is not None:
+            return code
+        raise TimeoutError(f"process {self.pid} did not exit within {timeout:.1f}s")
+
+
+def _spawn_assertion_process(command: tuple[str, ...]) -> AssertionProcess:
+    devnull_fd = os.open(os.devnull, os.O_RDWR)
+    try:
+        file_actions = (
+            (os.POSIX_SPAWN_DUP2, devnull_fd, 0),
+            (os.POSIX_SPAWN_DUP2, devnull_fd, 1),
+            (os.POSIX_SPAWN_DUP2, devnull_fd, 2),
+        )
+        pid = os.posix_spawnp(command[0], command, os.environ.copy(), file_actions=file_actions, setsid=True)
+    finally:
+        os.close(devnull_fd)
+    return AssertionProcess(pid=pid, args=command)
+
+
 class MacKeepAwakeController:
     """Owns a caffeinate assertion process."""
 
-    def __init__(self) -> None:
-        self._process: subprocess.Popen[str] | None = None
+    def __init__(
+        self,
+        *,
+        process_launcher=None,
+        platform_name: str | None = None,
+        path_resolver=None,
+    ) -> None:
+        self._process: AssertionProcess | None = None
+        self._process_launcher = process_launcher or _spawn_assertion_process
+        self._platform_name = platform_name
+        self._path_resolver = path_resolver or shutil.which
         self._reason = ""
         self._started_at: float | None = None
 
     def supported(self) -> bool:
-        return platform.system() == "Darwin" and shutil.which("caffeinate") is not None
+        system = self._platform_name or platform.system()
+        return system == "Darwin" and self._path_resolver("caffeinate") is not None
 
     def build_command(self, *, keep_display_awake: bool = False, require_ac_power: bool = True) -> tuple[str, ...]:
         flags = ["-i", "-m"]
@@ -78,26 +150,32 @@ class MacKeepAwakeController:
                 constraints=self.constraints(),
             )
         cmd = self.build_command(keep_display_awake=keep_display_awake, require_ac_power=require_ac_power)
-        self._process = subprocess.Popen(
-            cmd,
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            text=True,
-            start_new_session=True,
-        )
-        self._reason = reason
-        self._started_at = time.time()
+        try:
+            self._process = self._process_launcher(cmd)
+            self._reason = reason
+            self._started_at = time.time()
+        except _KEEP_AWAKE_RECOVERABLE_ERRORS as exc:
+            self._process = None
+            self._reason = f"caffeinate start failed: {exc}"
+            self._started_at = None
+            return KeepAwakeStatus(
+                supported=True,
+                active=False,
+                reason=self._reason,
+                constraints=self.constraints(),
+            )
         return self.status()
 
     def stop(self) -> KeepAwakeStatus:
         if self._process is not None and self._process.poll() is None:
-            self._process.terminate()
             try:
+                self._process.terminate()
                 self._process.wait(timeout=3)
-            except subprocess.TimeoutExpired:
+            except TimeoutError:
                 self._process.kill()
                 self._process.wait(timeout=3)
+            except _KEEP_AWAKE_RECOVERABLE_ERRORS as exc:
+                self._reason = f"caffeinate stop failed: {exc}"
         self._process = None
         return self.status()
 
