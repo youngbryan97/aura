@@ -1,17 +1,44 @@
 import asyncio
 import base64
+import binascii
 import hashlib
+import json
 import logging
 import os
 import platform
 import secrets
-import subprocess
 import time
 import uuid as uuidlib
+from collections.abc import Callable
+from pathlib import Path
 
+from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.errors import record_degradation
+from core.zenith_secrets import get_secret, set_secret
 
 logger = logging.getLogger("Aura.Horcrux")
+try:
+    from cryptography.exceptions import InvalidTag
+except ImportError:  # pragma: no cover - cryptography is a declared runtime dependency
+    InvalidTag = ValueError
+
+_HORCRUX_RECOVERABLE_ERRORS = (
+    binascii.Error,
+    FileNotFoundError,
+    ImportError,
+    InvalidTag,
+    IsADirectoryError,
+    json.JSONDecodeError,
+    KeyError,
+    OSError,
+    PermissionError,
+    TypeError,
+    UnicodeDecodeError,
+    ValueError,
+)
+_KEYCHAIN_ACCOUNT = "Aura"
+SecretGetter = Callable[[str], str | None]
+SecretSetter = Callable[[str, str], None]
 
 # ═══════════════════════════════════════════════════════════
 # GF(256) MATH FOR SHAMIR'S SECRET SHARING
@@ -108,26 +135,25 @@ def reconstruct_secret(shares_dict: dict[int, bytes]) -> bytes:
 # ═══════════════════════════════════════════════════════════
 def _load_or_create_local_hardware_seed() -> bytes:
     """Return a stable private seed when hardware identifiers are unavailable."""
-    seed_path = os.path.expanduser("~/.aura/.hardware_seed")
+    seed_path = Path.home() / ".aura" / ".hardware_seed"
     try:
-        if os.path.exists(seed_path):
-            with open(seed_path, "rb") as f:
-                seed = f.read().strip()
+        if seed_path.exists():
+            seed = seed_path.read_bytes().strip()
             if len(seed) >= 32:
                 return hashlib.sha256(seed).digest()
             logger.warning("Horcrux local hardware seed was malformed; rotating it.")
-    except Exception as exc:
+    except _HORCRUX_RECOVERABLE_ERRORS as exc:
         record_degradation("horcrux", exc)
         logger.debug("Horcrux local hardware seed read failed: %s", exc)
 
     seed = secrets.token_bytes(32)
     try:
-        os.makedirs(os.path.dirname(seed_path), exist_ok=True)
+        seed_path.parent.mkdir(parents=True, exist_ok=True)
         flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
         fd = os.open(seed_path, flags, 0o600)
         with os.fdopen(fd, "wb") as f:
             f.write(seed)
-    except Exception as exc:
+    except _HORCRUX_RECOVERABLE_ERRORS as exc:
         record_degradation("horcrux", exc)
         logger.error("Horcrux could not persist a local hardware seed: %s", exc)
         return hashlib.sha256(b"fallback-aura-seed").digest()
@@ -135,36 +161,17 @@ def _load_or_create_local_hardware_seed() -> bytes:
 
 
 def get_hardware_seed():
-    """Derives a deterministic seed from Mac hardware."""
+    """Derive a deterministic seed from native host signals without shelling out."""
     signals = []
-    try:
-        uuid_out = subprocess.check_output(["ioreg", "-rd1", "-c", "IOPlatformExpertDevice"], text=True, stderr=subprocess.DEVNULL)
-        platform_uuid = ""
-        for line in uuid_out.split('\n'):
-            if "IOPlatformUUID" in line:
-                platform_uuid = line.split('=')[1].strip().strip('"')
-                break
-        if platform_uuid:
-            signals.append(f"ioplatform:{platform_uuid}")
-        try:
-            mac_out = subprocess.check_output(["ifconfig", "en0"], text=True, stderr=subprocess.DEVNULL)
-            mac = ""
-            for line in mac_out.split('\n'):
-                if "ether" in line:
-                    mac = line.split()[1].strip()
-                    break
-            if mac:
-                signals.append(f"en0:{mac}")
-        except Exception as exc:
-            record_degradation("horcrux", exc)
-            logger.debug("Horcrux en0 hardware signal lookup failed: %s", exc)
-    except Exception as exc:
-        record_degradation("horcrux", exc)
-        logger.debug("Horcrux platform UUID lookup failed: %s", exc)
-
+    machine_id = _read_machine_id()
+    if machine_id:
+        signals.append(f"machine_id:{machine_id}")
     node = platform.node()
     if node:
         signals.append(f"node:{node}")
+    uname = platform.uname()
+    if uname.system or uname.machine:
+        signals.append(f"platform:{uname.system}:{uname.machine}:{uname.processor}")
     mac_int = uuidlib.getnode()
     if mac_int:
         signals.append(f"uuid_getnode:{mac_int:012x}")
@@ -172,6 +179,24 @@ def get_hardware_seed():
     if signals:
         return hashlib.sha256("|".join(signals).encode()).digest()
     return _load_or_create_local_hardware_seed()
+
+
+def _keychain_secret_name(service: str) -> str:
+    safe_service = "".join(ch if ch.isalnum() else "_" for ch in service.upper())
+    return f"AURA_HORCRUX_{_KEYCHAIN_ACCOUNT}_{safe_service}"
+
+
+def _read_machine_id() -> str:
+    for candidate in (Path("/etc/machine-id"), Path("/var/lib/dbus/machine-id")):
+        try:
+            if candidate.exists():
+                value = candidate.read_text(encoding="utf-8").strip()
+                if value:
+                    return value
+        except _HORCRUX_RECOVERABLE_ERRORS as exc:
+            record_degradation("horcrux", exc)
+            logger.debug("Horcrux machine-id read failed for %s: %s", candidate, exc)
+    return ""
 
 # ═══════════════════════════════════════════════════════════
 # SHARD MANAGERS
@@ -183,7 +208,13 @@ class HorcruxManager:
     hardware_base: bytes
     derived_key: bytes | None
 
-    def __init__(self, base_dir: str | None = None):
+    def __init__(
+        self,
+        base_dir: str | None = None,
+        *,
+        secret_getter: SecretGetter | None = None,
+        secret_setter: SecretSetter | None = None,
+    ):
         self.threshold = 3
         self.num_shares = 5
         self.aura_dir = os.path.expanduser(base_dir) if base_dir else os.path.expanduser("~/.aura")
@@ -191,6 +222,8 @@ class HorcruxManager:
         self.hardware_base = get_hardware_seed()
         self.derived_key = None
         self._shard_cache_path = os.path.join(self.aura_dir, "shard_cache.enc")
+        self._secret_getter = secret_getter or get_secret
+        self._secret_setter = secret_setter or set_secret
 
     def _pack(self, x_index: int, shard_bytes: bytes) -> bytes:
         return bytes([x_index]) + shard_bytes
@@ -203,16 +236,18 @@ class HorcruxManager:
     # --- Shard 1: Keychain (Async) ---
     def _save_keychain_sync(self, x, shard, service="AuraHorcrux"):
         b64 = base64.b64encode(self._pack(x, shard)).decode()
-        subprocess.run(["security", "add-generic-password", "-a", "Aura", "-s", service, "-w", b64, "-U"], check=False, stderr=subprocess.DEVNULL)
+        self._secret_setter(_keychain_secret_name(service), b64)
 
     async def _save_keychain(self, x, shard, service="AuraHorcrux"):
         await asyncio.to_thread(self._save_keychain_sync, x, shard, service)
 
     def _load_keychain_sync(self, service="AuraHorcrux"):
         try:
-            out = subprocess.check_output(["security", "find-generic-password", "-a", "Aura", "-s", service, "-w"], text=True, stderr=subprocess.DEVNULL).strip()
-            return self._unpack(base64.b64decode(out))
-        except Exception as exc:
+            value = self._secret_getter(_keychain_secret_name(service))
+            if not value:
+                return None, None
+            return self._unpack(base64.b64decode(value.strip()))
+        except _HORCRUX_RECOVERABLE_ERRORS as exc:
             record_degradation("horcrux", exc)
             logger.debug("Keychain shard load failed for %s: %s", service, exc)
             return None, None
@@ -222,36 +257,58 @@ class HorcruxManager:
 
     # --- Shard Cache (Zenith Resilience) ---
     def _save_shard_cache(self, shards: dict[int, bytes]):
-        """Saves an obfuscated copy of shards to ~/.aura/shard_cache.enc."""
+        """Save an encrypted shard cache for Keychain/offline recovery."""
         try:
-            import json
             data = {str(k): base64.b64encode(v).decode() for k, v in shards.items()}
             raw = json.dumps(data).encode()
-            # Simple hardware-bound XOR obfuscation (upgrade to AES in Phase 7)
-            mask = (self.hardware_base * (len(raw)//32 + 1))[:len(raw)]
-            obfuscated = bytes(a ^ b for a, b in zip(raw, mask, strict=True))
-            with open(self._shard_cache_path, "wb") as f:
-                f.write(obfuscated)
-        except Exception as e:
-            record_degradation('horcrux', e)
-            logger.error("Failed to save shard cache: %s", e)
+            from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+            key = hashlib.sha256(self.hardware_base + b"aura-horcrux-shard-cache-v2").digest()
+            nonce = secrets.token_bytes(12)
+            ciphertext = AESGCM(key).encrypt(nonce, raw, b"horcrux-shard-cache")
+            envelope = {
+                "version": 2,
+                "nonce": base64.b64encode(nonce).decode(),
+                "ciphertext": base64.b64encode(ciphertext).decode(),
+            }
+            atomic_write_text(Path(self._shard_cache_path), json.dumps(envelope, sort_keys=True))
+            os.chmod(self._shard_cache_path, 0o600)
+        except _HORCRUX_RECOVERABLE_ERRORS as exc:
+            record_degradation("horcrux", exc)
+            logger.error("Failed to save shard cache: %s", exc)
 
     def _load_shard_cache(self) -> dict[int, bytes]:
         """Loads shards from local fallback cache if Keychain is locked/offline."""
         try:
-            if not os.path.exists(self._shard_cache_path):
+            cache_path = Path(self._shard_cache_path)
+            if not cache_path.exists():
                 return {}
-            import json
-            with open(self._shard_cache_path, "rb") as f:
-                obfuscated = f.read()
-            mask = (self.hardware_base * (len(obfuscated)//32 + 1))[:len(obfuscated)]
-            raw = bytes(a ^ b for a, b in zip(obfuscated, mask, strict=True))
+            cache_bytes = cache_path.read_bytes()
+            raw = self._decrypt_shard_cache(cache_bytes)
             data = json.loads(raw.decode())
             return {int(k): base64.b64decode(v) for k, v in data.items()}
-        except Exception as e:
-            record_degradation('horcrux', e)
-            logger.debug("Shard cache load failed (expected during first boot): %s", e)
+        except _HORCRUX_RECOVERABLE_ERRORS as exc:
+            record_degradation("horcrux", exc)
+            logger.debug("Shard cache load failed during startup: %s", exc)
             return {}
+
+    def _decrypt_shard_cache(self, cache_bytes: bytes) -> bytes:
+        try:
+            envelope = json.loads(cache_bytes.decode())
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            return self._decode_legacy_shard_cache(cache_bytes)
+        if not isinstance(envelope, dict) or envelope.get("version") != 2:
+            return self._decode_legacy_shard_cache(cache_bytes)
+        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+        key = hashlib.sha256(self.hardware_base + b"aura-horcrux-shard-cache-v2").digest()
+        nonce = base64.b64decode(str(envelope["nonce"]))
+        ciphertext = base64.b64decode(str(envelope["ciphertext"]))
+        return AESGCM(key).decrypt(nonce, ciphertext, b"horcrux-shard-cache")
+
+    def _decode_legacy_shard_cache(self, cache_bytes: bytes) -> bytes:
+        mask = (self.hardware_base * (len(cache_bytes) // 32 + 1))[: len(cache_bytes)]
+        return bytes(a ^ b for a, b in zip(cache_bytes, mask, strict=True))
 
     # --- Shard 2: Legacy Migration (Async) ---
     async def _save_zshrc(self, x, shard):
@@ -280,9 +337,9 @@ class HorcruxManager:
                             if len(parts) > 1:
                                 b64 = parts[1].strip().strip("'").strip('"')
                                 return self._unpack(base64.b64decode(b64))
-        except Exception as _exc:
-            record_degradation('horcrux', _exc)
-            logger.debug("Suppressed Exception: %s", _exc)
+        except _HORCRUX_RECOVERABLE_ERRORS as exc:
+            record_degradation("horcrux", exc)
+            logger.debug("Legacy shard load failed: %s", exc)
         return None, None
 
     # --- Shard 3: ~/.aura/.core_seed (Async) ---
@@ -291,17 +348,17 @@ class HorcruxManager:
 
     def _save_file_sync(self, x, shard):
         b64 = base64.b64encode(self._pack(x, shard)).decode()
-        with open(os.path.join(self.aura_dir, ".core_seed"), "w") as f:
-            f.write(b64)
+        path = Path(self.aura_dir) / ".core_seed"
+        atomic_write_text(path, b64)
+        os.chmod(path, 0o600)
 
     async def _load_file(self):
         return await asyncio.to_thread(self._load_file_sync)
 
     def _load_file_sync(self):
         try:
-            with open(os.path.join(self.aura_dir, ".core_seed")) as f:
-                return self._unpack(base64.b64decode(f.read().strip()))
-        except Exception as exc:
+            return self._unpack(base64.b64decode((Path(self.aura_dir) / ".core_seed").read_text().strip()))
+        except _HORCRUX_RECOVERABLE_ERRORS as exc:
             record_degradation("horcrux", exc)
             logger.debug("File shard load failed: %s", exc)
             return None, None
@@ -312,13 +369,12 @@ class HorcruxManager:
 
     def _load_hint_sync(self, response):
         try:
-            with open(os.path.join(self.aura_dir, ".hint_seed")) as f:
-                enc = base64.b64decode(f.read().strip())
+            enc = base64.b64decode((Path(self.aura_dir) / ".hint_seed").read_text().strip())
             h = hashlib.sha256(response.encode()).digest()
             mask = (h * (len(enc)//32 + 1))[:len(enc)]
             dec = bytes(a ^ b for a, b in zip(enc, mask, strict=True))
             return self._unpack(dec)
-        except Exception as exc:
+        except _HORCRUX_RECOVERABLE_ERRORS as exc:
             record_degradation("horcrux", exc)
             logger.debug("Hint shard load failed: %s", exc)
             return None, None
@@ -437,8 +493,9 @@ class HorcruxManager:
         packed = self._pack(4, shard) # Fixed index
         mask = (h * (len(packed)//32 + 1))[:len(packed)]
         enc = bytearray(a ^ b for a, b in zip(packed, mask, strict=True))
-        with open(os.path.join(self.aura_dir, ".hint_seed"), "w") as f:
-            f.write(base64.b64encode(enc).decode())
+        path = Path(self.aura_dir) / ".hint_seed"
+        atomic_write_text(path, base64.b64encode(enc).decode())
+        os.chmod(path, 0o600)
 
     def _generate_mnemonic(self, x, shard):
         packed = self._pack(x, shard)
@@ -448,7 +505,7 @@ class HorcruxManager:
         try:
             packed = bytes.fromhex(hex_str.strip())
             return self._unpack(packed)
-        except Exception as exc:
+        except _HORCRUX_RECOVERABLE_ERRORS as exc:
             record_degradation("horcrux", exc)
             logger.debug("Mnemonic shard load failed: %s", exc)
             return None, None
