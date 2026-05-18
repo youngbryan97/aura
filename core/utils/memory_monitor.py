@@ -1,9 +1,25 @@
-from core.runtime.errors import record_degradation
 import asyncio
+import contextlib
 import logging
+
 import psutil
 
+from core.runtime.errors import record_degradation
+
 logger = logging.getLogger("Aura.MemoryMonitor")
+_MEMORY_MONITOR_RECOVERABLE_ERRORS = (
+    AttributeError,
+    OSError,
+    RuntimeError,
+    TypeError,
+    ValueError,
+    psutil.Error,
+)
+
+
+def _clamp_pressure(value: float) -> int:
+    return max(0, min(100, int(value)))
+
 
 class AppleSiliconMemoryMonitor:
     """Monitors Unified Memory pressure on Apple Silicon (M1/M2/M3/M4/M5).
@@ -29,6 +45,8 @@ class AppleSiliconMemoryMonitor:
         self.is_running = False
         if self._loop_task:
             self._loop_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._loop_task
 
     @property
     def pressure(self) -> int:
@@ -65,31 +83,25 @@ class AppleSiliconMemoryMonitor:
                 await asyncio.sleep(self.interval)
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except _MEMORY_MONITOR_RECOVERABLE_ERRORS as e:
                 record_degradation('memory_monitor', e)
                 logger.error(f"Memory monitor error: {e}")
                 await asyncio.sleep(5)
 
     def _get_pressure_sysctl(self) -> int:
-        """Return a safe process-wide pressure sample using macOS native tools."""
+        """Return a safe system memory pressure sample using psutil."""
         try:
-            # Prefer psutil's process-wide sample; tests and Linux both patch
-            # this path, and it avoids spawning `memory_pressure` in tight loops.
-            import psutil
             mem = psutil.virtual_memory()
-            if getattr(mem, "percent", None) is not None:
-                return int(mem.percent)
+            percent = getattr(mem, "percent", None)
+            if percent is not None:
+                return _clamp_pressure(float(percent))
 
-            import sys
-            if sys.platform == "darwin":
-                import subprocess
-                import re
-                output = subprocess.check_output(['memory_pressure'], timeout=1.0).decode('utf-8')
-                match = re.search(r"System-wide memory free percentage:\s*(\d+)", output)
-                if match:
-                    free_pct = int(match.group(1))
-                    return 100 - free_pct
-            
+            total = int(getattr(mem, "total", 0) or 0)
+            available = int(getattr(mem, "available", 0) or 0)
+            if total > 0:
+                return _clamp_pressure((1.0 - (available / total)) * 100.0)
             return 0
-        except Exception:
+        except _MEMORY_MONITOR_RECOVERABLE_ERRORS as exc:
+            record_degradation("memory_monitor", exc)
+            logger.debug("Memory pressure sample failed: %s", exc)
             return 0
