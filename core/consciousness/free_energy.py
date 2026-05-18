@@ -21,15 +21,17 @@ Deepened Implementation:
   - Richer action determination with hysteresis
 """
 
-from core.runtime.errors import record_degradation
-import math
-import time
 import logging
-import psutil
+import math
 import threading
+import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Deque, Dict, Optional, Tuple, Any
+from typing import Any
+
+import psutil
+
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger(__name__)
 
@@ -55,9 +57,9 @@ class FreeEnergyEngine:
     _HISTORY = 120  # 2 minutes of state history
 
     def __init__(self):
-        self._history: Deque[FreeEnergyState] = deque(maxlen=self._HISTORY)
-        self._belief_baseline: Dict[str, float] = {}  # Prior belief confidences
-        self._current: Optional[FreeEnergyState] = None
+        self._history: deque[FreeEnergyState] = deque(maxlen=self._HISTORY)
+        self._belief_baseline: dict[str, float] = {}  # Prior belief confidences
+        self._current: FreeEnergyState | None = None
         self._smoothed_fe: float = 0.3  # Start at moderate free energy
         self._alpha = 0.15  # EMA smoothing
 
@@ -70,8 +72,8 @@ class FreeEnergyEngine:
         self._surprise_signal_age: float = 0.0        # When last signal arrived
 
         # ── Rolling System Metrics (replace noisy instant readings) ───────
-        self._cpu_history: Deque[float] = deque(maxlen=10)
-        self._mem_history: Deque[float] = deque(maxlen=10)
+        self._cpu_history: deque[float] = deque(maxlen=10)
+        self._mem_history: deque[float] = deque(maxlen=10)
 
         # ── Action Hysteresis ─────────────────────────────────────────────
         # Prevent rapid action-switching: keep the current action for at
@@ -83,7 +85,7 @@ class FreeEnergyEngine:
 
         # ── Cumulative Metrics ────────────────────────────────────────────
         self._total_computes: int = 0
-        self._action_counts: Dict[str, int] = {}
+        self._action_counts: dict[str, int] = {}
         self._peak_fe: float = 0.0
 
         logger.info("Free Energy Engine initialized (Active Inference mode)")
@@ -98,7 +100,7 @@ class FreeEnergyEngine:
         belief_system=None,               # BeliefSystem / EpistemicState instance
         recent_action_count: int = 0,     # Actions taken in last minute
         user_present: bool = False,
-        telemetry: Dict[str, Any] = None  # Optional manual telemetry override
+        telemetry: dict[str, Any] = None  # Optional manual telemetry override
     ) -> FreeEnergyState:
         """Compute variational free energy using actual information-theoretic measures.
 
@@ -265,7 +267,9 @@ class FreeEnergyEngine:
 
             # Normalize by max entropy (log(4))
             return min(1.0, entropy / math.log(4))
-        except Exception:
+        except Exception as exc:
+            record_degradation("free_energy", exc)
+            logger.debug("System entropy computation failed, using neutral fallback: %s", exc)
             return 0.3
 
     # ──────────────────────────────────────────────────────────────────────
@@ -406,7 +410,7 @@ class FreeEnergyEngine:
     # ──────────────────────────────────────────────────────────────────────
 
     @property
-    def current(self) -> Optional[FreeEnergyState]:
+    def current(self) -> FreeEnergyState | None:
         return self._current
 
     @property
@@ -431,7 +435,7 @@ class FreeEnergyEngine:
             return "falling"
         return "stable"
 
-    def get_snapshot(self) -> Dict:
+    def get_snapshot(self) -> dict:
         if not self._current:
             return {}
         c = self._current
@@ -450,7 +454,7 @@ class FreeEnergyEngine:
         }
 
 
-_engine: Optional[FreeEnergyEngine] = None
+_engine: FreeEnergyEngine | None = None
 _engine_lock = threading.Lock()
 
 def get_free_energy_engine() -> FreeEnergyEngine:

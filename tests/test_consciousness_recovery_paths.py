@@ -1,12 +1,25 @@
 from __future__ import annotations
 
+import asyncio
 import sys
 import types
 from collections import deque
 
 import numpy as np
 
-from core.consciousness import neurochemical_system, phi_core, substrate_authority
+from core.consciousness import (
+    affective_steering,
+    consciousness_bridge,
+    executive_closure,
+    free_energy,
+    neurochemical_system,
+    phi_core,
+    substrate_authority,
+)
+from core.consciousness.affective_steering import SteeringVectorLibrary, SubstrateSyncThread
+from core.consciousness.consciousness_bridge import ConsciousnessBridge
+from core.consciousness.executive_closure import ExecutiveClosureEngine
+from core.consciousness.free_energy import FreeEnergyEngine
 from core.consciousness.neurochemical_system import NeurochemicalSystem
 from core.consciousness.phi_core import PhiCore
 from core.consciousness.substrate_authority import (
@@ -80,6 +93,198 @@ def test_adaptive_mood_failures_fall_back_with_receipts(monkeypatch):
         ("neurochemical_system", "RuntimeError"),
         ("neurochemical_system", "RuntimeError"),
     ]
+
+
+def test_consciousness_bridge_prediction_hook_records_failures(monkeypatch):
+    recorded: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        consciousness_bridge,
+        "record_degradation",
+        lambda module, exc: recorded.append((module, type(exc).__name__)),
+    )
+
+    class _Predictor:
+        async def tick(self, **_kwargs):
+            return "tick-ok"
+
+        def get_surprise_signal(self):
+            return 0.9
+
+    bridge = ConsciousnessBridge.__new__(ConsciousnessBridge)
+    bridge.neurochemical = types.SimpleNamespace(
+        on_prediction_error=_FailingCallable("prediction coupling unavailable")
+    )
+    bridge._cs = types.SimpleNamespace(self_prediction=_Predictor())
+
+    bridge._hook_neurochemical_events()
+
+    result = asyncio.run(bridge._cs.self_prediction.tick())
+
+    assert result == "tick-ok"
+    assert recorded == [("consciousness_bridge", "RuntimeError")]
+
+
+def test_free_energy_entropy_fallback_records_degradation(monkeypatch):
+    recorded: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        free_energy,
+        "record_degradation",
+        lambda module, exc: recorded.append((module, type(exc).__name__)),
+    )
+    monkeypatch.setattr(
+        free_energy.psutil,
+        "cpu_percent",
+        _FailingCallable("cpu telemetry unavailable"),
+    )
+
+    engine = FreeEnergyEngine()
+
+    assert engine._compute_system_entropy() == 0.3
+    assert recorded == [("free_energy", "RuntimeError")]
+
+
+def test_executive_closure_substrate_reads_record_recoverable_failures(monkeypatch):
+    recorded: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        executive_closure,
+        "record_degradation",
+        lambda module, exc: recorded.append((module, type(exc).__name__)),
+    )
+
+    def service_get(name, default=None):
+        services = {
+            "unified_field": types.SimpleNamespace(
+                get_experiential_quality=_FailingCallable("field unavailable")
+            ),
+            "neurochemical_system": types.SimpleNamespace(
+                get_mood_vector=_FailingCallable("chemistry unavailable")
+            ),
+            "embodied_interoception": types.SimpleNamespace(
+                get_body_budget=_FailingCallable("body budget unavailable")
+            ),
+        }
+        return services.get(name, default)
+
+    monkeypatch.setattr(executive_closure.ServiceContainer, "get", service_get)
+
+    state = types.SimpleNamespace(
+        motivation=types.SimpleNamespace(budgets={}),
+        soma=types.SimpleNamespace(hardware={}),
+        affect=types.SimpleNamespace(social_hunger=0.5),
+    )
+    pressures = ExecutiveClosureEngine()._compute_pressures(
+        state,
+        homeostasis_status={"will_to_live": 1.0, "metabolism": 1.0},
+        closed_loop_status={"free_energy": 0.1},
+        prediction_error=0.2,
+    )
+
+    assert {"stability", "integrity", "curiosity", "social", "growth"} <= set(pressures)
+    assert recorded == [
+        ("executive_closure", "RuntimeError"),
+        ("executive_closure", "RuntimeError"),
+        ("executive_closure", "RuntimeError"),
+    ]
+
+
+def test_executive_closure_completion_checks_record_failures(monkeypatch):
+    recorded: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        executive_closure,
+        "record_degradation",
+        lambda module, exc: recorded.append((module, type(exc).__name__)),
+    )
+    monkeypatch.setattr(
+        executive_closure.ServiceContainer,
+        "get",
+        lambda name, default=None: types.SimpleNamespace(
+            get_all_active=_FailingCallable("verifier unavailable")
+        )
+        if name == "task_commitment_verifier"
+        else default,
+    )
+
+    class _Cognition:
+        @property
+        def modifiers(self):
+            self._seen = True
+            raise RuntimeError("modifiers unavailable")
+
+    state = types.SimpleNamespace(cognition=_Cognition())
+
+    assert ExecutiveClosureEngine()._task_completion_observed(state) is False
+    assert recorded == [
+        ("executive_closure", "RuntimeError"),
+        ("executive_closure", "RuntimeError"),
+    ]
+
+
+def test_affective_steering_source_fallback_records_degradation(monkeypatch):
+    recorded: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        affective_steering,
+        "record_degradation",
+        lambda module, exc: recorded.append((module, type(exc).__name__)),
+    )
+
+    library = SteeringVectorLibrary.__new__(SteeringVectorLibrary)
+    library._cache_dir = types.SimpleNamespace(
+        resolve=_FailingCallable("vector path unavailable")
+    )
+
+    assert library._infer_source() == "configured_caa"
+    assert recorded == [("affective_steering", "RuntimeError")]
+
+
+def test_affective_steering_live_source_annotation_failures_are_visible(monkeypatch):
+    recorded: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        affective_steering,
+        "record_degradation",
+        lambda module, exc: recorded.append((module, type(exc).__name__)),
+    )
+    monkeypatch.setattr(
+        "core.container.ServiceContainer.get",
+        lambda name, default=None: types.SimpleNamespace(
+            get_mood_vector=lambda: {"arousal": 0.4, "coherence": 0.8}
+        )
+        if name == "neurochemical_system"
+        else default,
+    )
+
+    class _ReadOnlySourceHook:
+        def update_substrate(self, moods):
+            self.moods = moods
+
+        @property
+        def substrate_source(self):
+            return ""
+
+        @substrate_source.setter
+        def substrate_source(self, value):
+            self.last_attempted_source = value
+            raise RuntimeError("source annotation unavailable")
+
+    hook = _ReadOnlySourceHook()
+    thread = SubstrateSyncThread(
+        [hook],
+        types.SimpleNamespace(
+            governor=types.SimpleNamespace(compute_alpha=lambda *_args: 0.2),
+            telemetry=types.SimpleNamespace(alpha=0.0),
+        ),
+    )
+    thread._running = True
+
+    def stop_after_one_sleep(_seconds):
+        thread._running = False
+
+    monkeypatch.setattr(affective_steering.time, "sleep", stop_after_one_sleep)
+
+    thread._loop()
+
+    assert hook.moods == {"arousal": 0.4, "coherence": 0.8}
+    assert hook.last_attempted_source == "live_mood"
+    assert recorded == [("affective_steering", "RuntimeError")]
 
 
 def test_substrate_authority_reader_and_audit_failures_are_visible(monkeypatch):

@@ -100,9 +100,6 @@ Integration:
 ════════════════════════════════════════════════════════════════════════════════
 """
 
-from core.runtime.errors import record_degradation
-import asyncio
-import json
 import logging
 import math
 import os
@@ -111,11 +108,12 @@ import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 
 from core.consciousness.caa import ProductionCAA, RegisteredVector, VectorProvenance, VectorRegistry
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.AffectiveSteering")
 
@@ -346,7 +344,7 @@ class SteeringVector:
             return mx.array(self.v, dtype=dtype)
         return self._v_mx
 
-    def compute_weight(self, moods: Dict[str, float]) -> float:
+    def compute_weight(self, moods: dict[str, float]) -> float:
         """
         Map the learned mood coefficient directly to a scalar steering weight.
         """
@@ -372,7 +370,7 @@ class SteeringVector:
         else:
             return float(np.tanh(raw))
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         return {
             "key": self.key,
             "layer_idx": self.layer_idx,
@@ -417,10 +415,10 @@ class SteeringVectorLibrary:
 
     def __init__(
         self,
-        cache_dir: Optional[Path] = None,
-        source_dirs: Optional[List[Path]] = None,
+        cache_dir: Path | None = None,
+        source_dirs: list[Path] | None = None,
     ):
-        discovered_source_dirs: List[Path] = []
+        discovered_source_dirs: list[Path] = []
         if cache_dir is None:
             env_dir = os.environ.get("AURA_STEERING_DIR")
             if env_dir and Path(env_dir).exists():
@@ -433,7 +431,9 @@ class SteeringVectorLibrary:
             try:
                 from core.config import config as aura_config
                 cache_dir = aura_config.paths.data_dir / "steering_vectors"
-            except Exception:
+            except Exception as exc:
+                record_degradation("affective_steering", exc)
+                logger.debug("Steering vector cache config unavailable, using user cache: %s", exc)
                 cache_dir = Path.home() / ".aura" / "steering_vectors"
 
         self._cache_dir = cache_dir
@@ -450,10 +450,10 @@ class SteeringVectorLibrary:
                 self._cache_dir,
                 len(self._source_dirs),
             )
-        self._vectors: Dict[str, SteeringVector] = {}
-        self._vectors_by_layer: Dict[int, Dict[str, SteeringVector]] = {}
+        self._vectors: dict[str, SteeringVector] = {}
+        self._vectors_by_layer: dict[int, dict[str, SteeringVector]] = {}
         self._registry = VectorRegistry()
-        self._path_dim_cache: Dict[str, int] = {}
+        self._path_dim_cache: dict[str, int] = {}
         self._source = self._infer_source()
 
     def _infer_source(self) -> str:
@@ -465,12 +465,13 @@ class SteeringVectorLibrary:
                 return "extracted_caa"
             if "steering_vectors" in parts:
                 return "cached_caa"
-        except Exception:
-            pass
+        except Exception as exc:
+            record_degradation("affective_steering", exc)
+            logger.debug("Steering vector source inference failed: %s", exc)
         return "configured_caa"
 
-    def _candidate_paths_for_key(self, key: str) -> List[Tuple[int, Path]]:
-        candidates: List[Tuple[int, Path]] = []
+    def _candidate_paths_for_key(self, key: str) -> list[tuple[int, Path]]:
+        candidates: list[tuple[int, Path]] = []
         for root in [self._cache_dir, *self._source_dirs]:
             for path in sorted(root.glob(f"{key}_layer*.np*")):
                 match = re.match(rf"^{re.escape(key)}_layer_?(?P<layer>\d+)$", path.stem)
@@ -493,7 +494,7 @@ class SteeringVectorLibrary:
         key: str,
         requested_layer: int,
         d_model: int,
-    ) -> Optional[Tuple[int, Path, bool]]:
+    ) -> tuple[int, Path, bool] | None:
         candidates = self._candidate_paths_for_key(key)
         if not candidates:
             return None
@@ -526,7 +527,7 @@ class SteeringVectorLibrary:
         layer, path = candidates[0]
         return layer, path, False
 
-    def _read_cached_array(self, path: Path) -> Tuple[np.ndarray, Dict[str, Any]]:
+    def _read_cached_array(self, path: Path) -> tuple[np.ndarray, dict[str, Any]]:
         if path.suffix == ".npy":
             return np.load(path), {}
         with np.load(path, allow_pickle=True) as data:
@@ -537,7 +538,7 @@ class SteeringVectorLibrary:
                     break
             if vector is None:
                 raise ValueError(f"no vector payload in {path}")
-            meta: Dict[str, Any] = {}
+            meta: dict[str, Any] = {}
             for key in data.files:
                 if key in {"v", "vector", "direction", "arr_0"}:
                     continue
@@ -554,7 +555,7 @@ class SteeringVectorLibrary:
         selected_layer: int,
         path: Path,
         d_model: int,
-        dim_spec: Dict[str, Any],
+        dim_spec: dict[str, Any],
         exact_match: bool,
     ) -> SteeringVector:
         vector, meta = self._read_cached_array(path)
@@ -615,7 +616,7 @@ class SteeringVectorLibrary:
         *,
         model: Any,
         tokenizer: Any,
-        dim_spec: Dict[str, Any],
+        dim_spec: dict[str, Any],
         target_layer: int,
         d_model: int,
     ) -> SteeringVector:
@@ -666,16 +667,13 @@ class SteeringVectorLibrary:
         except Exception as e:
             record_degradation('affective_steering', e)
             logger.error("❌ Failed to derive vector %s at layer %d: %s", key, target_layer, e)
-            try:
-                from core.evaluation.evidence_mode import require
+            from core.evaluation.evidence_mode import require
 
-                require(
-                    "steering_vector_derivation",
-                    False,
-                    f"vector {key} failed to derive from hidden states at layer {target_layer}: {e}",
-                )
-            except Exception:
-                raise
+            require(
+                "steering_vector_derivation",
+                False,
+                f"vector {key} failed to derive from hidden states at layer {target_layer}: {e}",
+            )
             fallback = np.random.randn(d_model).astype(np.float32)
             fallback /= max(np.linalg.norm(fallback), 1e-8)
             return SteeringVector(
@@ -699,10 +697,10 @@ class SteeringVectorLibrary:
         self,
         model,
         tokenizer,
-        target_layers: List[int],
+        target_layers: list[int],
         d_model: int,
         force_rederive: bool = False,
-    ) -> Dict[int, Dict[str, SteeringVector]]:
+    ) -> dict[int, dict[str, SteeringVector]]:
         """
         Load cached vectors if available, derive if not.
         
@@ -720,7 +718,7 @@ class SteeringVectorLibrary:
             self._vectors_by_layer[layer_idx] = {}
             for dim_spec in AFFECTIVE_DIMENSIONS:
                 key = dim_spec["key"]
-                vector: Optional[SteeringVector] = None
+                vector: SteeringVector | None = None
                 if not force_rederive:
                     cached = self._resolve_cached_path(key, layer_idx, d_model)
                     if cached is not None:
@@ -769,8 +767,8 @@ class SteeringVectorLibrary:
         self,
         model,
         tokenizer,
-        positive_prompts: List[str],
-        negative_prompts: List[str],
+        positive_prompts: list[str],
+        negative_prompts: list[str],
         target_layer: int,
         d_model: int,
     ) -> np.ndarray:
@@ -790,7 +788,7 @@ class SteeringVectorLibrary:
         pos_activations = []
         neg_activations = []
 
-        def _extract_hidden_state_at_layer(prompt_text: str) -> Optional[np.ndarray]:
+        def _extract_hidden_state_at_layer(prompt_text: str) -> np.ndarray | None:
             """Run prompt, extract last-token hidden state at target_layer."""
             captured = [None]
 
@@ -862,7 +860,7 @@ class SteeringVectorLibrary:
 
         return vec.astype(np.float32)
 
-    def _get_model_layers(self, model) -> Optional[List[Any]]:
+    def _get_model_layers(self, model) -> list[Any] | None:
         """Helper to find the layers list in various MLX model structures."""
         # Standard mlx-lm structure: model.model.layers
         # But some versions (e.g. Qwen, Phi) use model.layers directly
@@ -872,14 +870,14 @@ class SteeringVectorLibrary:
         return layers
 
     @property
-    def vectors(self) -> Dict[str, SteeringVector]:
+    def vectors(self) -> dict[str, SteeringVector]:
         return self._vectors
 
-    def get_vectors_for_layer(self, layer_idx: int) -> Dict[str, SteeringVector]:
+    def get_vectors_for_layer(self, layer_idx: int) -> dict[str, SteeringVector]:
         return dict(self._vectors_by_layer.get(int(layer_idx), {}))
 
     @property
-    def vectors_by_layer(self) -> Dict[int, Dict[str, SteeringVector]]:
+    def vectors_by_layer(self) -> dict[int, dict[str, SteeringVector]]:
         return {layer: dict(vectors) for layer, vectors in self._vectors_by_layer.items()}
 
     @property
@@ -935,7 +933,7 @@ class AffectiveSteeringHook:
         self,
         block,
         layer_idx: int,
-        vectors: Dict[str, SteeringVector],
+        vectors: dict[str, SteeringVector],
         alpha: float = DEFAULT_ALPHA,
     ):
         self._block = block
@@ -945,8 +943,8 @@ class AffectiveSteeringHook:
         self._installed = False
         
         # Shared substrate state (updated by SubstrateSyncThread)
-        self._substrate_x: Optional[np.ndarray] = None
-        self._latest_moods: Dict[str, float] = {}
+        self._substrate_x: np.ndarray | None = None
+        self._latest_moods: dict[str, float] = {}
         self._substrate_lock = threading.Lock()
         
         # Active flag
@@ -963,10 +961,10 @@ class AffectiveSteeringHook:
         
         # [OPTIMIZATION] Cached composite vector to avoid redundant MLX uploads
         self._cached_composite_mx: Any = None
-        self._last_composite_np: Optional[np.ndarray] = None
+        self._last_composite_np: np.ndarray | None = None
         self._cached_substrate_hash: int = 0
 
-    def update_substrate(self, moods: Dict[str, float]):
+    def update_substrate(self, moods: dict[str, float]):
         """Called by SubstrateSyncThread at ~20Hz. [OPTIMIZED]"""
         import mlx.core as mx
         with self._substrate_lock:
@@ -1016,7 +1014,7 @@ class AffectiveSteeringHook:
                 # This prevents lazy evaluation from stalling the main generation thread
                 mx.eval(self._cached_composite_mx)
 
-    def compute_composite_vector_mx(self, dtype=None) -> Optional[Any]:
+    def compute_composite_vector_mx(self, dtype=None) -> Any | None:
         """
         [ZERO-COST] Return the pre-computed MLX array from the background sync.
         """
@@ -1028,7 +1026,7 @@ class AffectiveSteeringHook:
                 return mx.astype(composite, dtype)
             return composite
 
-    def _completion_position_mask(self, h: Any) -> Optional[Any]:
+    def _completion_position_mask(self, h: Any) -> Any | None:
         """Return a broadcast mask for the completion/current token position."""
         try:
             import mlx.core as mx
@@ -1076,7 +1074,6 @@ class AffectiveSteeringHook:
         if self._installed:
             return
 
-        import mlx.core as mx
         block = self._block
         hook = self  # capture self
 
@@ -1129,7 +1126,7 @@ class AffectiveSteeringHook:
 
         # Use dynamic subclassing to ensure interception
         class SteeredBlock(block.__class__): # type: ignore
-            pass  # no-op: intentional
+            __module__ = block.__class__.__module__
         
         # Override the target method
         setattr(SteeredBlock, target_name, lambda self, *args, **kwargs: steered_call(*args, **kwargs))
@@ -1148,7 +1145,7 @@ class AffectiveSteeringHook:
         self._active = False
         logger.info("🔕 Steering hook disabled at layer %d", self._layer_idx)
 
-    def get_diagnostics(self) -> Dict[str, Any]:
+    def get_diagnostics(self) -> dict[str, Any]:
         with self._substrate_lock:
             x = self._substrate_x
             moods = dict(self._latest_moods)
@@ -1179,11 +1176,11 @@ class SubstrateSyncThread:
     and calls update_substrate() on each hook. No computation here.
     """
 
-    def __init__(self, hooks: List[AffectiveSteeringHook], engine: Any, shared_state: Any = None):
+    def __init__(self, hooks: list[AffectiveSteeringHook], engine: Any, shared_state: Any = None):
         self._hooks = hooks
         self._engine = engine
         self._shared_state = shared_state
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
         self._running = False
 
     def start(self):
@@ -1225,26 +1222,26 @@ class SubstrateSyncThread:
                         hook.update_substrate(moods)
                         try:
                             hook.substrate_source = "live_mood"
-                        except Exception:
-                            pass
+                        except Exception as exc:
+                            record_degradation("affective_steering", exc)
+                            logger.debug("Live mood substrate source annotation failed: %s", exc)
                 else:
                     # Evidence mode
-                    try:
-                        from core.evaluation.evidence_mode import require
-                        require(
-                            "substrate_sync",
-                            False,
-                            "no live mood available; neutral fallback would leak",
-                        )
-                    except Exception:
-                        raise
+                    from core.evaluation.evidence_mode import require
+
+                    require(
+                        "substrate_sync",
+                        False,
+                        "no live mood available; neutral fallback would leak",
+                    )
                     neutral_moods = {"valence": 0.0, "arousal": 0.0, "motivation": 0.0, "stress": 0.0}
                     for hook in self._hooks:
                         hook.update_substrate(neutral_moods)
                         try:
                             hook.substrate_source = "neutral_fallback"
-                        except Exception:
-                            pass
+                        except Exception as exc:
+                            record_degradation("affective_steering", exc)
+                            logger.debug("Neutral substrate source annotation failed: %s", exc)
 
             except Exception as e:
                 record_degradation('affective_steering', e)
@@ -1254,14 +1251,11 @@ class SubstrateSyncThread:
 
 
 # ── Main Engine ────────────────────────────────────────────────────────────────
-
-from dataclasses import dataclass
-
 @dataclass
 class SteeringTelemetry:
     alpha: float
     kl_shift: float
-    dimensions_active: List[str]
+    dimensions_active: list[str]
 
 class SteeringGovernor:
     """Modulates steering alpha based on arousal and KL budget."""
@@ -1326,13 +1320,13 @@ class AffectiveSteeringEngine:
     """
 
     def __init__(self):
-        self._hooks: List[AffectiveSteeringHook] = []
-        self._sync_thread: Optional[SubstrateSyncThread] = None
-        self._library: Optional[SteeringVectorLibrary] = None
-        self._production_caa: Optional[ProductionCAA] = None
+        self._hooks: list[AffectiveSteeringHook] = []
+        self._sync_thread: SubstrateSyncThread | None = None
+        self._library: SteeringVectorLibrary | None = None
+        self._production_caa: ProductionCAA | None = None
         self._model_attached = False
         self._alpha = DEFAULT_ALPHA
-        self._model_info: Dict[str, Any] = {}
+        self._model_info: dict[str, Any] = {}
         self.governor = SteeringGovernor(base_alpha=DEFAULT_ALPHA)
         self.telemetry = SteeringTelemetry(alpha=DEFAULT_ALPHA, kl_shift=0.0, dimensions_active=[])
 
@@ -1340,7 +1334,7 @@ class AffectiveSteeringEngine:
         self,
         model,
         tokenizer,
-        alpha: Optional[float] = None,
+        alpha: float | None = None,
         force_rederive: bool = False,
     ):
         """
@@ -1482,7 +1476,7 @@ class AffectiveSteeringEngine:
             hook._alpha = alpha
         logger.info("⚙️  Steering alpha set to %.1f", alpha)
 
-    def observe_generation(self, text: str) -> Dict[str, Any]:
+    def observe_generation(self, text: str) -> dict[str, Any]:
         """Feed completed text back into collapse detection and adaptive alpha."""
         if not self._production_caa:
             return {}
@@ -1508,16 +1502,18 @@ class AffectiveSteeringEngine:
             from core.config import config as aura_config
 
             base = aura_config.paths.data_dir / "steering_vectors"
-        except Exception:
+        except Exception as exc:
+            record_degradation("affective_steering", exc)
+            logger.debug("Runtime steering cache config unavailable, using user cache: %s", exc)
             base = Path.home() / ".aura" / "steering_vectors"
         return base / f"dmodel_{int(d_model)}_layers_{int(n_layers)}"
 
-    def _discover_model_geometry(self, model) -> Tuple[int, int]:
+    def _discover_model_geometry(self, model) -> tuple[int, int]:
         """Determine n_layers and d_model from the loaded model."""
         try:
             # Pre-initialize d_model so the fallback ``return`` on line ~1107
             # never raises UnboundLocalError when no inner branch assigned it.
-            d_model: Optional[int] = None
+            d_model: int | None = None
             # Flexible layer discovery (handles model.layers and model.model.layers)
             layers = self._discover_model_layers(model)
             if not layers:
@@ -1559,14 +1555,14 @@ class AffectiveSteeringEngine:
             logger.error("Error discovering model geometry: %s", e)
             return 0, 0
 
-    def _discover_model_layers(self, model) -> Optional[List[Any]]:
+    def _discover_model_layers(self, model) -> list[Any] | None:
         """Helper to find the layers list in various MLX model structures."""
         layers = getattr(model, "layers", None)
         if not layers and hasattr(model, "model"):
             layers = getattr(model.model, "layers", None)
         return layers
 
-    def _compute_target_layers(self, n_layers: int) -> List[int]:
+    def _compute_target_layers(self, n_layers: int) -> list[int]:
         """
         Compute which layers to hook based on total model depth.
         
@@ -1590,7 +1586,7 @@ class AffectiveSteeringEngine:
             # 3 evenly spaced layers in the target range
             return [lo, lo + span // 3, lo + 2 * span // 3]
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         return {
             "attached": self._model_attached,
             "alpha": self._alpha,
@@ -1652,7 +1648,7 @@ class AffectiveSteeringEngine:
 
 # ── Singleton and Integration Helpers ─────────────────────────────────────────
 
-_engine_instance: Optional[AffectiveSteeringEngine] = None
+_engine_instance: AffectiveSteeringEngine | None = None
 _engine_lock = threading.Lock()
 
 
@@ -1664,8 +1660,9 @@ def get_steering_engine() -> AffectiveSteeringEngine:
             try:
                 from core.container import ServiceContainer
                 ServiceContainer.register_instance("affective_steering_engine", _engine_instance, required=False)
-            except Exception:
-                pass
+            except Exception as exc:
+                record_degradation("affective_steering", exc)
+                logger.debug("Affective steering engine registration failed: %s", exc)
         return _engine_instance
 
 
@@ -1753,7 +1750,7 @@ class SteeringCalibrator:
         self._model = model
         self._tokenizer = tokenizer
 
-    def run_calibration(self, test_alphas: List[float] = None) -> Dict[str, Any]:
+    def run_calibration(self, test_alphas: list[float] = None) -> dict[str, Any]:
         """
         Run the model with different alpha values and compare outputs.
         Higher alpha = stronger steering. Find the right balance.

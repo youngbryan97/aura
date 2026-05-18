@@ -31,19 +31,17 @@ After boot, a continuous integration loop runs at 10 Hz that:
   - Pushes neurochemical mood into the substrate's VAD indices
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
-
-from core.utils.task_tracker import get_task_tracker
 
 import asyncio
 import logging
 import time
-from typing import Any, Dict, Optional
+from typing import Any
 
 import numpy as np
 
 from core.container import ServiceContainer
+from core.runtime.errors import record_degradation
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Consciousness.Bridge")
 
@@ -76,11 +74,11 @@ class ConsciousnessBridge:
 
         # Integration loop
         self._running = False
-        self._task: Optional[asyncio.Task] = None
+        self._task: asyncio.Task | None = None
         self._tick_count: int = 0
         self._start_time: float = 0.0
         self._boot_errors: list = []
-        self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self._loop: asyncio.AbstractEventLoop | None = None
 
         logger.info("ConsciousnessBridge created")
 
@@ -277,7 +275,7 @@ class ConsciousnessBridge:
             try:
                 await self._task
             except asyncio.CancelledError:
-                pass  # no-op: intentional
+                logger.debug("ConsciousnessBridge integration task cancelled during shutdown")
 
         # Stop in reverse order
         for component, name in [
@@ -320,7 +318,7 @@ class ConsciousnessBridge:
                 elapsed = time.time() - t0
                 await asyncio.sleep(max(0.0, interval - elapsed))
         except asyncio.CancelledError:
-            pass  # no-op: intentional
+            logger.debug("ConsciousnessBridge integration loop cancelled")
 
     def _integration_tick(self):
         """One integration step — cross-wires all subsystems."""
@@ -671,8 +669,9 @@ class ConsciousnessBridge:
                         surprise = predictor.get_surprise_signal()
                         if surprise > 0.3:
                             ncs.on_prediction_error(surprise)
-                    except Exception:
-                        pass  # no-op: intentional
+                    except Exception as exc:
+                        record_degradation("consciousness_bridge", exc)
+                        logger.debug("Prediction surprise neurochemical hook failed: %s", exc)
                     return result
 
                 predictor.tick = enhanced_tick
@@ -747,7 +746,7 @@ class ConsciousnessBridge:
 
     # ── Status ───────────────────────────────────────────────────────────
 
-    def get_status(self) -> Dict:
+    def get_status(self) -> dict:
         components = {}
         for name, ref in [
             ("neural_mesh", self.neural_mesh),
@@ -761,7 +760,9 @@ class ConsciousnessBridge:
             if ref and hasattr(ref, "get_status"):
                 try:
                     components[name] = ref.get_status()
-                except Exception:
+                except Exception as exc:
+                    record_degradation("consciousness_bridge", exc)
+                    logger.debug("%s status read failed: %s", name, exc)
                     components[name] = {"error": "status failed"}
             else:
                 components[name] = {"status": "not_booted"}

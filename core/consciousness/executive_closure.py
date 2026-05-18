@@ -1,18 +1,17 @@
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
 
 import asyncio
 import logging
 import time
 from dataclasses import asdict, dataclass, field
-from typing import Any, Dict, Optional
+from typing import Any
 
 import numpy as np
 
 from core.container import ServiceContainer
 from core.goals.goal_text import is_actionable_goal_text, is_intrinsic_goal_text
 from core.predictive.predictive_self_model import PredictiveSelfModel
+from core.runtime.errors import record_degradation
 from core.runtime.proposal_governance import propose_governed_initiative_to_state
 from core.state.aura_state import _origin_is_user_anchored
 
@@ -65,7 +64,7 @@ class ExecutiveClosureSnapshot:
     closure_score: float = 0.0
     active_goal_count: int = 0
     pending_initiatives: int = 0
-    motivation_pressures: Dict[str, float] = field(default_factory=dict)
+    motivation_pressures: dict[str, float] = field(default_factory=dict)
     # Hysteresis tracking
     committed_objective: str = ""
     commitment_age_s: float = 0.0
@@ -104,10 +103,10 @@ class ExecutiveClosureEngine:
         self._last_goal_sync = 0.0
         self._last_volition_seed = 0.0
         self._last_homeostasis_pulse = 0.0
-        self._cached_homeostasis_status: Dict[str, float] = {}
-        self._self_model_sync_task: Optional[asyncio.Task[Any]] = None
+        self._cached_homeostasis_status: dict[str, float] = {}
+        self._self_model_sync_task: asyncio.Task[Any] | None = None
         # Hysteresis: commitment tracking
-        self._commitment: Optional[ObjectiveCommitment] = None
+        self._commitment: ObjectiveCommitment | None = None
         self._MIN_USER_TASK_HOLD_S = 240.0
         self._MAX_USER_TASK_HOLD_S = 1200.0
         self._SWITCH_COOLDOWN_S = 45.0
@@ -317,14 +316,14 @@ class ExecutiveClosureEngine:
 
         return state
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         return asdict(self._last_snapshot)
 
     def _observe_state_vector(
         self,
         state: Any,
-        closed_loop_status: Dict[str, Any],
-        homeostasis_status: Dict[str, float],
+        closed_loop_status: dict[str, Any],
+        homeostasis_status: dict[str, float],
     ) -> float:
         vec = np.zeros((32,), dtype=np.float32)
 
@@ -374,10 +373,10 @@ class ExecutiveClosureEngine:
     def _compute_pressures(
         self,
         state: Any,
-        homeostasis_status: Dict[str, float],
-        closed_loop_status: Dict[str, Any],
+        homeostasis_status: dict[str, float],
+        closed_loop_status: dict[str, Any],
         prediction_error: float,
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         budgets = getattr(state.motivation, "budgets", {}) or {}
 
         def deficit(name: str) -> float:
@@ -406,10 +405,11 @@ class ExecutiveClosureEngine:
             unified_field = ServiceContainer.get("unified_field", default=None)
             if unified_field:
                 quality = unified_field.get_experiential_quality()
-                field_coherence = quality.get("coherence", 0.6)
-                field_valence = quality.get("valence", 0.0)
-        except Exception:
-            pass  # no-op: intentional
+                field_coherence = float(quality.get("coherence", 0.6))
+                field_valence = float(quality.get("valence", 0.0))
+        except Exception as exc:
+            record_degradation("executive_closure", exc)
+            logger.debug("Unified field pressure read failed: %s", exc)
 
         try:
             ncs = ServiceContainer.get("neurochemical_system", default=None)
@@ -418,20 +418,24 @@ class ExecutiveClosureEngine:
                 chem_stress = mood.get("stress", 0.0)
                 chem_motivation = mood.get("motivation", 0.5)
                 chem_sociality = mood.get("sociality", 0.4)
-        except Exception:
-            pass  # no-op: intentional
+        except Exception as exc:
+            record_degradation("executive_closure", exc)
+            logger.debug("Neurochemical pressure read failed: %s", exc)
 
         try:
             intero = ServiceContainer.get("embodied_interoception", default=None)
             if intero:
                 bb = intero.get_body_budget()
-                body_budget = bb.get("budget", 0.0)
-                body_energy = bb.get("energy_reserves", 0.5)
-        except Exception:
-            pass  # no-op: intentional
+                body_budget = float(bb.get("budget", 0.0))
+                body_energy = float(bb.get("energy_reserves", 0.5))
+        except Exception as exc:
+            record_degradation("executive_closure", exc)
+            logger.debug("Interoceptive pressure read failed: %s", exc)
 
         # Stability pressure: now includes field incoherence + chemical stress +
         # body energy deficit — the substrate IS the stability signal.
+        field_distress = _clamp01((1.0 - max(-1.0, min(1.0, field_valence))) * 0.5)
+        body_budget_deficit = 1.0 - _clamp01(body_budget)
         stability_pressure = max(
             deficit("energy"),
             1.0 - float(homeostasis_status.get("metabolism", 1.0)),
@@ -441,6 +445,8 @@ class ExecutiveClosureEngine:
             1.0 - field_coherence,       # incoherent field = instability
             chem_stress,                  # chemical stress = instability
             1.0 - body_energy,            # low body energy = instability
+            field_distress,               # negative valence = distress
+            body_budget_deficit,          # exhausted body budget = instability
         )
 
         integrity_pressure = max(
@@ -488,7 +494,7 @@ class ExecutiveClosureEngine:
         *,
         dominant_need: str,
         need_pressure: float,
-        workspace_snapshot: Dict[str, Any],
+        workspace_snapshot: dict[str, Any],
     ) -> str:
         current_objective = str(getattr(state.cognition, "current_objective", "") or "")
         if current_objective and not is_intrinsic_goal_text(current_objective):
@@ -570,7 +576,7 @@ class ExecutiveClosureEngine:
         state.cognition.active_goals = active[:5]
         return len(getattr(state.cognition, "active_goals", []) or [])
 
-    async def _get_homeostasis_status(self, *, warmup: bool = False) -> Dict[str, float]:
+    async def _get_homeostasis_status(self, *, warmup: bool = False) -> dict[str, float]:
         homeostasis = ServiceContainer.get("homeostasis", default=None)
         if homeostasis is None:
             return dict(self._cached_homeostasis_status)
@@ -594,14 +600,14 @@ class ExecutiveClosureEngine:
             if hasattr(homeostasis, "get_status"):
                 self._cached_homeostasis_status = dict(homeostasis.get_status() or {})
                 return dict(self._cached_homeostasis_status)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.debug("ExecutiveClosure: homeostasis pulse timed out; using cached status.")
         except Exception as exc:
             record_degradation('executive_closure', exc)
             logger.debug("ExecutiveClosure: homeostasis pulse failed: %s", exc)
         return dict(self._cached_homeostasis_status)
 
-    def _get_closed_loop_status(self) -> Dict[str, Any]:
+    def _get_closed_loop_status(self) -> dict[str, Any]:
         closed_loop = ServiceContainer.get("closed_causal_loop", default=None)
         if closed_loop is None:
             consciousness = ServiceContainer.get("consciousness", default=None)
@@ -619,7 +625,7 @@ class ExecutiveClosureEngine:
                 logger.debug("ExecutiveClosure: closed-loop read failed: %s", exc)
         return {"cycle_count": 0, "free_energy": 0.0, "phi_estimate": 0.0}
 
-    def _get_workspace_snapshot(self) -> Dict[str, Any]:
+    def _get_workspace_snapshot(self) -> dict[str, Any]:
         workspace = ServiceContainer.get("global_workspace", default=None)
         if workspace and hasattr(workspace, "get_snapshot"):
             try:
@@ -629,7 +635,7 @@ class ExecutiveClosureEngine:
                 logger.debug("ExecutiveClosure: workspace snapshot failed: %s", exc)
         return {}
 
-    def _get_interaction_signals_status(self) -> Dict[str, Any]:
+    def _get_interaction_signals_status(self) -> dict[str, Any]:
         interaction_signals = ServiceContainer.get("interaction_signals", default=None)
         if interaction_signals and hasattr(interaction_signals, "get_status"):
             try:
@@ -692,7 +698,7 @@ class ExecutiveClosureEngine:
             record_degradation('executive_closure', exc)
             logger.debug("ExecutiveClosure: self-model sync failed: %s", exc)
 
-    async def _sync_self_model_payload(self, self_model: Any, payload: Dict[str, Any]) -> None:
+    async def _sync_self_model_payload(self, self_model: Any, payload: dict[str, Any]) -> None:
         try:
             if hasattr(self_model, "update_belief"):
                 await self_model.update_belief(
@@ -797,7 +803,7 @@ class ExecutiveClosureEngine:
         )
         self._last_objective_switch = now
 
-    def _active_commitment(self, now: float) -> Optional[ObjectiveCommitment]:
+    def _active_commitment(self, now: float) -> ObjectiveCommitment | None:
         if self._commitment and self._commitment.active(now):
             return self._commitment
         return None
@@ -808,8 +814,9 @@ class ExecutiveClosureEngine:
             mods = getattr(state.cognition, "modifiers", {}) or {}
             if mods.get("task_completed") or mods.get("response_completed_task"):
                 return True
-        except Exception:
-            pass  # no-op: intentional
+        except Exception as exc:
+            record_degradation("executive_closure", exc)
+            logger.debug("Task completion modifier read failed: %s", exc)
 
         try:
             verifier = ServiceContainer.get("task_commitment_verifier", default=None)
@@ -818,17 +825,18 @@ class ExecutiveClosureEngine:
                 if not active and self._commitment:
                     # Don't instantly release; allow the response phase to finish.
                     return self._commitment.age_s(time.time()) > self._commitment.min_hold_s
-        except Exception:
-            pass  # no-op: intentional
+        except Exception as exc:
+            record_degradation("executive_closure", exc)
+            logger.debug("Task commitment verifier read failed: %s", exc)
 
         return False
 
     def _critical_interrupt_reason(
         self,
         *,
-        pressures: Dict[str, float],
-        homeostasis_status: Dict[str, float],
-        closed_loop_status: Dict[str, Any],
+        pressures: dict[str, float],
+        homeostasis_status: dict[str, float],
+        closed_loop_status: dict[str, Any],
     ) -> str:
         """Return reason if homeostasis is severe enough to interrupt user work."""
         vitality = _clamp01(float(homeostasis_status.get("will_to_live", 1.0) or 1.0))
@@ -852,10 +860,10 @@ class ExecutiveClosureEngine:
 
     def _apply_executive_hysteresis(
         self,
-        pressures: Dict[str, float],
+        pressures: dict[str, float],
         *,
         commitment: ObjectiveCommitment,
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """Dampen minor drive fluctuations while committed to foreground work.
 
         This does NOT ignore homeostasis — it caps non-critical pressures
@@ -875,4 +883,3 @@ class ExecutiveClosureEngine:
         adjusted["integrity"] = pressures.get("integrity", 0.0)
 
         return adjusted
-
