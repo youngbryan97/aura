@@ -1,14 +1,23 @@
+import logging
+from typing import TYPE_CHECKING, Any
+
+import numpy as np
+
 from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
-import hashlib
-import logging
-import numpy as np
-from typing import TYPE_CHECKING, Dict, Any, Optional
 
 if TYPE_CHECKING:
     from core.orchestrator import RobustOrchestrator
 
 logger = logging.getLogger("LiquidSubstrate.Bridge")
+
+_RECOVERABLE_SUBSTRATE_BRIDGE_ERRORS = (
+    AttributeError,
+    LookupError,
+    RuntimeError,
+    TypeError,
+    ValueError,
+)
 
 def encode_message_to_stimulus(text: str, neuron_count: int = 512) -> np.ndarray:
     """
@@ -56,12 +65,12 @@ def bridge_to_orchestrator(orchestrator: "RobustOrchestrator"):
             stimulus = encode_message_to_stimulus(message, neuron_count)
             substrate.inject_stimulus(stimulus, weight=0.5)
             logger.debug("Stimulus injected for message (%d chars)", len(message))
-        except Exception as e:
+        except _RECOVERABLE_SUBSTRATE_BRIDGE_ERRORS as e:
             record_degradation('liquid_substrate_bridge', e)
             logger.warning("Stimulus injection failed: %s", e)
     orchestrator.enqueue_message = enqueue_with_stimulus
 
-    def get_substrate_affect() -> Dict[str, float]:
+    def get_substrate_affect() -> dict[str, float]:
         try:
             # Fix: get_state_summary is async — use sync get_substrate_affect instead
             summary = substrate.get_substrate_affect()
@@ -72,7 +81,9 @@ def bridge_to_orchestrator(orchestrator: "RobustOrchestrator"):
                 "energy":     float(summary.get("global_energy", 0.5)),
                 "volatility": float(min(1.0, summary.get("volatility", 0.0) / 10.0)),
             }
-        except Exception:
+        except _RECOVERABLE_SUBSTRATE_BRIDGE_ERRORS as exc:
+            record_degradation("liquid_substrate_bridge", exc)
+            logger.debug("Substrate affect read failed: %s", exc)
             return {"valence": 0.0, "arousal": 0.3, "dominance": 0.0, "energy": 0.5, "volatility": 0.0}
     orchestrator.get_substrate_affect = get_substrate_affect
 
@@ -83,7 +94,6 @@ def bridge_to_orchestrator(orchestrator: "RobustOrchestrator"):
             sub_affect = get_substrate_affect()
             affect_engine = getattr(orchestrator, 'affect_engine', None)
             if affect_engine and hasattr(affect_engine, 'modify'):
-                import asyncio
                 get_task_tracker().create_task(
                     affect_engine.modify(
                         dv=sub_affect["valence"] * 0.01,
@@ -92,13 +102,13 @@ def bridge_to_orchestrator(orchestrator: "RobustOrchestrator"):
                         source="liquid_substrate"
                     )
                 )
-        except Exception as e:
+        except _RECOVERABLE_SUBSTRATE_BRIDGE_ERRORS as e:
             record_degradation('liquid_substrate_bridge', e)
             logger.debug("Substrate cross-feed error: %s", e)
     orchestrator._update_liquid_pacing = _update_with_substrate_crossfeed
 
     _original_gather = orchestrator._gather_agentic_context
-    async def _gather_with_substrate(message: str) -> Dict[str, Any]:
+    async def _gather_with_substrate(message: str) -> dict[str, Any]:
         ctx = await _original_gather(message)
         try:
             sub_affect = get_substrate_affect()
@@ -109,15 +119,16 @@ def bridge_to_orchestrator(orchestrator: "RobustOrchestrator"):
                 "neural_energy":    round(sub_affect["energy"],    3),
                 "neural_volatility": round(sub_affect["volatility"], 3),
             }
-        except Exception as e:
+        except _RECOVERABLE_SUBSTRATE_BRIDGE_ERRORS as e:
             record_degradation('liquid_substrate_bridge', e)
             logger.debug("Substrate formatting error: %s", e)
         return ctx
     orchestrator._gather_agentic_context = _gather_with_substrate
     logger.info("✅ LiquidSubstrate bridged to orchestrator.")
 
-def format_substrate_for_prompt(substrate_ctx: Dict[str, Any]) -> str:
-    if not substrate_ctx: return ""
+def format_substrate_for_prompt(substrate_ctx: dict[str, Any]) -> str:
+    if not substrate_ctx:
+        return ""
     v = substrate_ctx.get("neural_valence", 0.0)
     a = substrate_ctx.get("neural_arousal", 0.3)
     vo = substrate_ctx.get("neural_volatility", 0.0)

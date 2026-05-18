@@ -30,9 +30,6 @@ Integration:
   - Draft competition history is kept for "why did I say that?" debugging
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
-
 
 import hashlib
 import logging
@@ -40,11 +37,21 @@ import math
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 
+from core.runtime.errors import record_degradation
+
 logger = logging.getLogger("Consciousness.MultipleDrafts")
+
+_RECOVERABLE_DRAFT_ERRORS = (
+    AttributeError,
+    LookupError,
+    RuntimeError,
+    TypeError,
+    ValueError,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -68,7 +75,7 @@ class Draft:
     coherence: float                   # Internal coherence score (0 to 1)
     created_at: float = field(default_factory=time.time)
     mesh_energy: float = 0.0           # Energy from the association columns that produced it
-    association_pattern: Optional[np.ndarray] = field(default=None, repr=False)
+    association_pattern: np.ndarray | None = field(default=None, repr=False)
 
     def age_secs(self) -> float:
         return time.time() - self.created_at
@@ -78,8 +85,8 @@ class Draft:
 class DraftCompetition:
     """Record of one draft competition for the ring buffer."""
     input_text: str                    # The original input
-    drafts: List[Draft]                # All competing drafts
-    winner: Optional[Draft]            # The draft that was elevated
+    drafts: list[Draft]                # All competing drafts
+    winner: Draft | None            # The draft that was elevated
     probe_source: str                  # What triggered elevation ("user", "executive_closure", etc.)
     probe_delay_ms: float              # Time between input and probe (key MD metric)
     divergence: float                  # How much the drafts disagreed
@@ -139,10 +146,10 @@ class MultipleDraftsEngine:
     _DRAFT_EXPIRY_S = 30.0   # Drafts older than this are stale
 
     def __init__(self):
-        self._current_drafts: List[Draft] = []
+        self._current_drafts: list[Draft] = []
         self._current_input: str = ""
         self._input_time: float = 0.0
-        self._last_winner: Optional[Draft] = None
+        self._last_winner: Draft | None = None
         self._last_divergence: float = 0.0
         self._competition_history: deque[DraftCompetition] = deque(maxlen=self._MAX_HISTORY)
         self._mesh_ref: Any = None  # Set externally or lazily resolved
@@ -158,13 +165,14 @@ class MultipleDraftsEngine:
         try:
             from core.container import ServiceContainer
             self._mesh_ref = ServiceContainer.get("neural_mesh", default=None)
-        except Exception:
-            pass  # no-op: intentional
+        except _RECOVERABLE_DRAFT_ERRORS as exc:
+            record_degradation("multiple_drafts", exc)
+            logger.debug("NeuralMesh lookup failed: %s", exc)
         return self._mesh_ref
 
     # ── Input submission ─────────────────────────────────────────────
 
-    def submit_input(self, text: str, state: Any = None) -> List[Draft]:
+    def submit_input(self, text: str, state: Any = None) -> list[Draft]:
         """Start parallel draft generation for a new input.
 
         Each of the 3 streams generates a competing interpretation through
@@ -258,7 +266,7 @@ class MultipleDraftsEngine:
                     patterns.append(float(summary.get("mean_activation", 0.0)))
                 mesh_energy = float(np.mean(energies)) if energies else 0.0
                 association_pattern = np.array(patterns, dtype=np.float32)
-            except Exception as exc:
+            except _RECOVERABLE_DRAFT_ERRORS as exc:
                 record_degradation('multiple_drafts', exc)
                 logger.debug("MultipleDrafts: mesh read failed for stream %d: %s", stream_index, exc)
 
@@ -353,7 +361,6 @@ class MultipleDraftsEngine:
         This is NOT an LLM call -- it's a structured interpretation
         that captures the draft's "take" on the input.
         """
-        text_short = text[:100].strip()
         affect_note = ""
         if text_features["affect_density"] > 0.1:
             affect_note = " [emotionally loaded input]"
@@ -410,7 +417,7 @@ class MultipleDraftsEngine:
 
     # ── Probe / elevation ────────────────────────────────────────────
 
-    def probe(self, source: str = "user") -> Optional[Draft]:
+    def probe(self, source: str = "user") -> Draft | None:
         """Elevate the best draft retroactively based on probe timing.
 
         This is the core MD mechanism: the probe arrives at some delay
@@ -520,12 +527,12 @@ class MultipleDraftsEngine:
         """Number of unresolved drafts in the buffer."""
         return len(self._current_drafts)
 
-    def get_current_drafts(self) -> List[Draft]:
+    def get_current_drafts(self) -> list[Draft]:
         """Inspect pending drafts (for debugging/testing)."""
         return list(self._current_drafts)
 
     @property
-    def last_winner(self) -> Optional[Draft]:
+    def last_winner(self) -> Draft | None:
         return self._last_winner
 
     @property
@@ -570,7 +577,7 @@ class MultipleDraftsEngine:
 
         return "\n".join(lines)
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Diagnostic status for telemetry."""
         return {
             "pending_drafts": len(self._current_drafts),
@@ -588,7 +595,7 @@ class MultipleDraftsEngine:
 # Singleton
 # ---------------------------------------------------------------------------
 
-_engine: Optional[MultipleDraftsEngine] = None
+_engine: MultipleDraftsEngine | None = None
 
 
 def get_multiple_drafts_engine() -> MultipleDraftsEngine:

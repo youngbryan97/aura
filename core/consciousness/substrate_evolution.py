@@ -26,21 +26,27 @@ Safety:
   • Generational history logged for analysis
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
-
-from core.utils.task_tracker import get_task_tracker
 
 import asyncio
-import copy
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
+from core.runtime.errors import record_degradation
+from core.utils.task_tracker import get_task_tracker
+
 logger = logging.getLogger("Consciousness.Evolution")
+
+_RECOVERABLE_EVOLUTION_ERRORS = (
+    AttributeError,
+    FloatingPointError,
+    LookupError,
+    RuntimeError,
+    TypeError,
+    ValueError,
+)
 
 
 @dataclass(frozen=True)
@@ -65,9 +71,9 @@ class Genome:
     inter_weights: np.ndarray        # (columns, columns) inter-column weights
     fitness: float = 0.0
     generation: int = 0
-    parent_ids: List[int] = field(default_factory=list)
+    parent_ids: list[int] = field(default_factory=list)
 
-    def copy(self, new_id: int) -> "Genome":
+    def copy(self, new_id: int) -> Genome:
         return Genome(
             id=new_id,
             inter_weights=self.inter_weights.copy(),
@@ -106,11 +112,11 @@ class SubstrateEvolution:
         self.cfg = cfg or EvolutionConfig()
         self._rng = np.random.default_rng(seed=None)  # non-deterministic
 
-        self._population: List[Genome] = []
-        self._champion: Optional[Genome] = None
+        self._population: list[Genome] = []
+        self._champion: Genome | None = None
         self._generation: int = 0
         self._next_id: int = 0
-        self._history: List[GenerationRecord] = []
+        self._history: list[GenerationRecord] = []
 
         # External refs (set by bridge)
         self._mesh_ref = None          # NeuralMesh
@@ -119,7 +125,7 @@ class SubstrateEvolution:
         self._substrate_ref = None     # LiquidSubstrate
 
         self._running = False
-        self._task: Optional[asyncio.Task] = None
+        self._task: asyncio.Task | None = None
         self._pre_apply_fitness: float = 0.0  # for rollback detection
 
         logger.info("SubstrateEvolution initialized (pop=%d, gen_interval=%.0fs)",
@@ -139,7 +145,7 @@ class SubstrateEvolution:
             seed_weights = np.zeros((64, 64), dtype=np.float32)
 
         self._population = []
-        for i in range(self.cfg.population_size):
+        for _i in range(self.cfg.population_size):
             genome = Genome(
                 id=self._next_id,
                 inter_weights=seed_weights + self._rng.standard_normal(seed_weights.shape).astype(np.float32) * 0.01,
@@ -161,7 +167,7 @@ class SubstrateEvolution:
             try:
                 await self._task
             except asyncio.CancelledError:
-                pass  # no-op: intentional
+                logger.debug("SubstrateEvolution task cancelled during shutdown")
             self._task = None
         logger.info("SubstrateEvolution STOPPED (generations=%d)", self._generation)
 
@@ -181,7 +187,7 @@ class SubstrateEvolution:
                     record_degradation('substrate_evolution', e)
                     logger.error("Evolution generation error: %s", e, exc_info=True)
         except asyncio.CancelledError:
-            pass  # no-op: intentional
+            logger.debug("SubstrateEvolution loop cancelled")
 
     async def _run_generation(self):
         """Execute one full evolutionary generation."""
@@ -206,7 +212,7 @@ class SubstrateEvolution:
                         best.id, best.fitness, gen)
 
         # ── 4. Selection + Reproduction ───────────────────────────────
-        new_pop: List[Genome] = []
+        new_pop: list[Genome] = []
 
         # Elitism: preserve top-k
         for i in range(min(self.cfg.elite_count, len(self._population))):
@@ -326,7 +332,9 @@ class SubstrateEvolution:
             result = np.tanh(genome.inter_weights @ test_state)
             if np.any(np.isnan(result)) or np.any(np.isinf(result)):
                 return 0.0
-        except Exception:
+        except _RECOVERABLE_EVOLUTION_ERRORS as exc:
+            record_degradation("substrate_evolution", exc)
+            logger.debug("Genome stability simulation failed: %s", exc)
             return 0.0
         stability_penalty = 0.0
 
@@ -504,7 +512,7 @@ class SubstrateEvolution:
 
     # ── Status ───────────────────────────────────────────────────────────
 
-    def get_status(self) -> Dict:
+    def get_status(self) -> dict:
         champion_fitness = self._champion.fitness if self._champion else 0.0
         return {
             "running": self._running,

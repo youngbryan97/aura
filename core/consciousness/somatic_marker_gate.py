@@ -29,19 +29,25 @@ The gate produces a SomaticVerdict that modifies the decision's priority,
 confidence, and adds a somatic annotation visible to downstream processing.
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
-
 
 import logging
 import time
 from collections import deque
-from dataclasses import dataclass, field
-from typing import Deque, Dict, List, Optional, Tuple
+from dataclasses import dataclass
 
 import numpy as np
 
+from core.runtime.errors import record_degradation
+
 logger = logging.getLogger("Consciousness.SomaticGate")
+
+_RECOVERABLE_SOMATIC_ERRORS = (
+    AttributeError,
+    LookupError,
+    RuntimeError,
+    TypeError,
+    ValueError,
+)
 
 
 @dataclass
@@ -94,7 +100,7 @@ class SomaticMarkerGate:
     }
 
     def __init__(self):
-        self._outcome_patterns: Deque[OutcomeRecord] = deque(maxlen=self._MAX_PATTERNS)
+        self._outcome_patterns: deque[OutcomeRecord] = deque(maxlen=self._MAX_PATTERNS)
 
         # External refs (set by bridge)
         self._mesh_ref = None            # NeuralMesh
@@ -188,7 +194,7 @@ class SomaticMarkerGate:
 
     # ── Gut feeling ──────────────────────────────────────────────────────
 
-    def _gut_feeling(self, content: str, source: str) -> Tuple[float, float]:
+    def _gut_feeling(self, content: str, source: str) -> tuple[float, float]:
         """Match current executive mesh state against stored outcome patterns.
 
         Returns (approach_score [-1, 1], confidence [0, 1]).
@@ -201,7 +207,9 @@ class SomaticMarkerGate:
             exec_state = self._get_executive_state()
             current_proj = self._proj @ exec_state
             current_proj = current_proj / (np.linalg.norm(current_proj) + 1e-8)
-        except Exception:
+        except _RECOVERABLE_SOMATIC_ERRORS as exc:
+            record_degradation("somatic_marker_gate", exc)
+            logger.debug("Somatic gut-feeling projection failed: %s", exc)
             return 0.0, 0.1
 
         # Compare against stored patterns using cosine similarity
@@ -236,7 +244,7 @@ class SomaticMarkerGate:
 
     # ── Body budget ──────────────────────────────────────────────────────
 
-    def _body_budget_check(self, content: str, source: str) -> Dict:
+    def _body_budget_check(self, content: str, source: str) -> dict:
         """Check if we have metabolic resources for this action."""
         # Estimate cost
         action_type = self._infer_action_type(content, source)
@@ -314,7 +322,7 @@ class SomaticMarkerGate:
                 source=source,
             )
             self._outcome_patterns.append(record)
-        except Exception as e:
+        except _RECOVERABLE_SOMATIC_ERRORS as e:
             record_degradation('somatic_marker_gate', e)
             logger.debug("Failed to record somatic outcome: %s", e)
 
@@ -375,12 +383,14 @@ class SomaticMarkerGate:
                 return False
             hyst = getattr(state.cognition, "modifiers", {}).get("executive_hysteresis", {}) or {}
             return bool(hyst.get("active") and hyst.get("committed_objective"))
-        except Exception:
+        except _RECOVERABLE_SOMATIC_ERRORS as exc:
+            record_degradation("somatic_marker_gate", exc)
+            logger.debug("Foreground commitment lookup failed: %s", exc)
             return False
 
     # ── Status ───────────────────────────────────────────────────────────
 
-    def get_status(self) -> Dict:
+    def get_status(self) -> dict:
         return {
             "evaluations": self._evaluations,
             "approach_count": self._approach_count,

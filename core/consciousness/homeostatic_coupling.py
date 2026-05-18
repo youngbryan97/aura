@@ -32,16 +32,25 @@ Integration points:
     to adjust its behavior (requires a small patch to cognitive_engine.py)
 """
 
-from core.runtime.errors import record_degradation
-from core.utils.exceptions import capture_and_log
 import asyncio
 import logging
 import time
-from dataclasses import asdict, dataclass, field
-from typing import Any, Dict, Optional
+from dataclasses import dataclass
+from typing import Any
 
 from core.container import ServiceContainer
+from core.runtime.errors import record_degradation
+from core.utils.exceptions import capture_and_log
+
 logger = logging.getLogger("Consciousness.Homeostasis")
+
+_RECOVERABLE_HOMEOSTATIC_ERRORS = (
+    AttributeError,
+    LookupError,
+    RuntimeError,
+    TypeError,
+    ValueError,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -93,7 +102,7 @@ class HomeostaticCoupling:
     def __init__(self, orchestrator):
         self.orch = orchestrator
         self._modifiers = CognitiveModifiers()
-        self._lock: Optional[asyncio.Lock] = None
+        self._lock: asyncio.Lock | None = None
         self._last_update = 0.0
         self._prospective_dread = 0.0   # 0.0–1.0: aversion to current trajectory
         
@@ -103,10 +112,10 @@ class HomeostaticCoupling:
         self._stress_timestamp = 0.0
         
         # v7.2: Liquid Substrate link
+        self.substrate = None
         try:
-            from core.consciousness.liquid_substrate import LiquidSubstrate
             self.substrate = ServiceContainer.get("liquid_substrate", default=None)
-        except Exception as e:
+        except _RECOVERABLE_HOMEOSTATIC_ERRORS as e:
             record_degradation('homeostatic_coupling', e)
             logger.debug("Substrate link unavailable: %s", e)
             
@@ -146,7 +155,8 @@ class HomeostaticCoupling:
     async def update(self, attention_modifier: float = 1.0) -> CognitiveModifiers:
         """Recompute CognitiveModifiers based on current drive, affect, and attention state.
         """
-        if self._lock is None: self._lock = asyncio.Lock()
+        if self._lock is None:
+            self._lock = asyncio.Lock()
         async with self._lock:
             drives = await self._read_drives()
             affect = await self._read_affect()
@@ -200,9 +210,10 @@ class HomeostaticCoupling:
                 elif fe and fe.smoothed_fe > 0.85:
                     # Dampen to prevent manic state from sustained high surprise
                     # (handled by existing homeostatic coupling — no extra action needed)
-                    pass  # no-op: intentional
-            except Exception:
-                pass  # no-op: intentional
+                    logger.debug("High free-energy state already covered by homeostatic modifiers")
+            except _RECOVERABLE_HOMEOSTATIC_ERRORS as exc:
+                record_degradation("homeostatic_coupling", exc)
+                logger.debug("Entropy floor modulation failed: %s", exc)
 
             return mods
 
@@ -247,7 +258,7 @@ class HomeostaticCoupling:
         """Synchronous read — safe to call from cognitive_engine."""
         return self._modifiers
 
-    def get_snapshot(self) -> Dict[str, Any]:
+    def get_snapshot(self) -> dict[str, Any]:
         m = self._modifiers
         return {
             "temperature_mod": round(m.temperature_mod, 3),
@@ -308,7 +319,7 @@ class HomeostaticCoupling:
     # Internal: read existing systems
     # ------------------------------------------------------------------
 
-    async def _read_drives(self) -> Dict[str, float]:
+    async def _read_drives(self) -> dict[str, float]:
         """Read current drive levels from the HomeostasisEngine."""
         try:
             homeostasis = ServiceContainer.get("homeostasis", default=None)
@@ -320,7 +331,7 @@ class HomeostaticCoupling:
             logger.debug("Could not read homeostasis drives: %s", e)
             return {}
 
-    async def _read_affect(self) -> Dict[str, float]:
+    async def _read_affect(self) -> dict[str, float]:
         """Read current affect state from existing AffectEngine."""
         try:
             affect_engine = getattr(self.orch, 'affect_engine', None)
@@ -347,8 +358,8 @@ class HomeostaticCoupling:
 
     def _compute_modifiers(
         self,
-        drives: Dict[str, float],
-        affect: Dict[str, float],
+        drives: dict[str, float],
+        affect: dict[str, float],
         attention_mod: float,
     ) -> CognitiveModifiers:
         m = CognitiveModifiers()
@@ -424,7 +435,7 @@ class HomeostaticCoupling:
         # Project drive trajectory: if drives are decaying fast, flag dread
         dread = 0.0
         low_drive_threshold = self._LOW_DRIVE / 100.0
-        for drive_name, level in drives.items():
+        for _drive_name, level in drives.items():
             if level < low_drive_threshold:
                 # How far below the threshold? Normalize to 0–1
                 dread = max(dread, (low_drive_threshold - level) / low_drive_threshold)
@@ -444,7 +455,7 @@ class HomeostaticCoupling:
 
         return m
 
-    def _compute_vitality(self, drives: Dict[str, float], affect: Dict[str, float]) -> float:
+    def _compute_vitality(self, drives: dict[str, float], affect: dict[str, float]) -> float:
         """Single 0.0–1.0 composite vitality score.
         Readable on the telemetry HUD as "system health".
         """
@@ -455,11 +466,13 @@ class HomeostaticCoupling:
         if drives:
             relevant = {k: v for k, v in drives.items() if k in ("energy", "curiosity", "persistence", "metabolism")}
             if relevant:
-                try: 
-                   # Drives are now 0.0 - 1.0 from HomeostasisEngine
-                   drive_score = sum(relevant.values()) / len(relevant)
-                except Exception:
-                   drive_score = 0.5
+                try:
+                    # Drives are now 0.0 - 1.0 from HomeostasisEngine
+                    drive_score = sum(relevant.values()) / len(relevant)
+                except _RECOVERABLE_HOMEOSTATIC_ERRORS as exc:
+                    record_degradation("homeostatic_coupling", exc)
+                    logger.debug("Vitality drive score failed: %s", exc)
+                    drive_score = 0.5
 
         affect_score = 0.5 + affect.get('valence', 0.0) * 0.3 + affect.get('engagement', 0.5) * 0.2
         affect_score = max(0.0, min(1.0, affect_score))

@@ -12,24 +12,30 @@ from core.consciousness import (
     aura_protocol,
     closed_loop,
     consciousness_bridge,
+    counterfactual_engine,
     endogenous_fitness,
     executive_closure,
     experience_consolidator,
     free_energy,
     global_workspace,
     heartbeat,
+    homeostatic_coupling,
     liquid_substrate,
+    liquid_substrate_bridge,
     loop_monitor,
     mesh_cognition,
     mhaf_field,
+    multiple_drafts,
     neural_mesh,
     neurochemical_system,
     parallel_branches,
     phi_core,
     precision_sampler,
     resource_stakes,
+    somatic_marker_gate,
     stdp_learning,
     substrate_authority,
+    substrate_evolution,
     system,
     time_dilation,
     unified_field,
@@ -47,6 +53,7 @@ from core.consciousness.heartbeat import CognitiveHeartbeat
 from core.consciousness.liquid_substrate import LiquidSubstrate, SubstrateConfig
 from core.consciousness.loop_monitor import ConsciousnessLoopMonitor
 from core.consciousness.mesh_cognition import MeshCognition
+from core.consciousness.mhaf import phi_estimator
 from core.consciousness.neurochemical_system import NeurochemicalSystem
 from core.consciousness.parallel_branches import BranchManager
 from core.consciousness.phi_core import PhiCore
@@ -360,6 +367,220 @@ def test_consciousness_bridge_lookup_and_dispatch_failures_are_visible(monkeypat
         ("consciousness_bridge", "RuntimeError"),
     ]
     assert loop.calls == 1
+
+
+def test_somatic_marker_gate_recovery_paths_are_visible(monkeypatch):
+    recorded: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        somatic_marker_gate,
+        "record_degradation",
+        lambda module, exc: recorded.append((module, type(exc).__name__)),
+    )
+
+    gate = somatic_marker_gate.SomaticMarkerGate()
+    gate._mesh_ref = object()
+    gate._outcome_patterns.extend(
+        somatic_marker_gate.OutcomeRecord(
+            pattern=np.zeros(gate._PATTERN_DIM, dtype=np.float32),
+            outcome_valence=0.1,
+            timestamp=1.0,
+            source=f"source-{idx}",
+        )
+        for idx in range(3)
+    )
+    gate._get_executive_state = _FailingCallable("executive mesh unavailable")
+
+    monkeypatch.setattr(
+        "core.container.ServiceContainer.get",
+        _FailingCallable("state repository unavailable"),
+    )
+
+    assert gate._gut_feeling("act", "unit") == (0.0, 0.1)
+    assert gate._foreground_commitment_active() is False
+    assert recorded == [
+        ("somatic_marker_gate", "RuntimeError"),
+        ("somatic_marker_gate", "RuntimeError"),
+    ]
+
+
+def test_counterfactual_llm_simulation_failure_records_fallback(monkeypatch):
+    recorded: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        counterfactual_engine,
+        "record_degradation",
+        lambda module, exc: recorded.append((module, type(exc).__name__)),
+    )
+
+    router = types.SimpleNamespace(
+        think=_FailingCallable("router unavailable"),
+    )
+    engine = counterfactual_engine.CounterfactualEngine()
+
+    result = asyncio.run(
+        engine._llm_simulate(
+            action_type="search",
+            description="look for evidence",
+            context={"valence": 0.1, "curiosity": 0.8},
+            router=router,
+        )
+    )
+
+    assert result == "Expected outcome of search"
+    assert recorded == [("counterfactual_engine.llm_simulate", "RuntimeError")]
+
+
+def test_homeostatic_entropy_floor_failure_is_visible(monkeypatch):
+    recorded: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        homeostatic_coupling,
+        "record_degradation",
+        lambda module, exc: recorded.append((module, type(exc).__name__)),
+    )
+    monkeypatch.setattr(
+        homeostatic_coupling.ServiceContainer,
+        "get",
+        _FailingCallable("free energy unavailable"),
+    )
+
+    async def read_drives():
+        return {"energy": 0.8, "curiosity": 0.7, "persistence": 0.7}
+
+    async def read_affect():
+        return {"valence": 0.1, "engagement": 0.5, "arousal": 0.3}
+
+    coupling = homeostatic_coupling.HomeostaticCoupling.__new__(
+        homeostatic_coupling.HomeostaticCoupling
+    )
+    coupling._lock = None
+    coupling.substrate = None
+    coupling._modifiers = homeostatic_coupling.CognitiveModifiers()
+    coupling._last_update = 0.0
+    coupling._prospective_dread = 0.0
+    coupling._cpu_stress = 0.0
+    coupling._mem_stress = 0.0
+    coupling._stress_timestamp = 0.0
+    coupling._read_drives = read_drives
+    coupling._read_affect = read_affect
+    coupling._pulse_root = lambda *_args, **_kwargs: None
+
+    mods = asyncio.run(coupling.update())
+
+    assert isinstance(mods, homeostatic_coupling.CognitiveModifiers)
+    assert recorded == [("homeostatic_coupling", "RuntimeError")]
+
+
+def test_homeostatic_constructor_preserves_substrate_default_on_lookup_failure(
+    monkeypatch,
+):
+    recorded: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        homeostatic_coupling,
+        "record_degradation",
+        lambda module, exc: recorded.append((module, type(exc).__name__)),
+    )
+    monkeypatch.setattr(
+        homeostatic_coupling.ServiceContainer,
+        "get",
+        _FailingCallable("substrate unavailable"),
+    )
+
+    coupling = homeostatic_coupling.HomeostaticCoupling(types.SimpleNamespace())
+
+    assert coupling.substrate is None
+    assert recorded == [("homeostatic_coupling", "RuntimeError")]
+
+
+def test_liquid_substrate_bridge_affect_failure_is_visible(monkeypatch):
+    recorded: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        liquid_substrate_bridge,
+        "record_degradation",
+        lambda module, exc: recorded.append((module, type(exc).__name__)),
+    )
+
+    substrate = types.SimpleNamespace(
+        running=True,
+        config=types.SimpleNamespace(neuron_count=4),
+        get_substrate_affect=_FailingCallable("substrate affect unavailable"),
+        inject_stimulus=lambda *_args, **_kwargs: None,
+    )
+    orchestrator = types.SimpleNamespace(
+        enqueue_message=lambda _message: None,
+        _update_liquid_pacing=lambda: None,
+        _gather_agentic_context=lambda _message: {},
+    )
+    monkeypatch.setattr(
+        "core.container.ServiceContainer.get",
+        lambda name, default=None: substrate if name == "liquid_substrate" else default,
+    )
+
+    liquid_substrate_bridge.bridge_to_orchestrator(orchestrator)
+
+    assert orchestrator.get_substrate_affect() == {
+        "valence": 0.0,
+        "arousal": 0.3,
+        "dominance": 0.0,
+        "energy": 0.5,
+        "volatility": 0.0,
+    }
+    assert recorded == [("liquid_substrate_bridge", "RuntimeError")]
+
+
+def test_substrate_evolution_stability_failure_is_visible(monkeypatch):
+    recorded: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        substrate_evolution,
+        "record_degradation",
+        lambda module, exc: recorded.append((module, type(exc).__name__)),
+    )
+
+    engine = substrate_evolution.SubstrateEvolution()
+    engine._mesh_ref = types.SimpleNamespace(
+        columns=[types.SimpleNamespace(x=np.array([1.0], dtype=np.float32))],
+        get_global_synchrony=lambda: 0.5,
+    )
+    genome = substrate_evolution.Genome(
+        id=1,
+        inter_weights=np.eye(2, dtype=np.float32),
+    )
+
+    assert asyncio.run(engine._evaluate_fitness(genome)) == 0.0
+    assert recorded == [("substrate_evolution", "ValueError")]
+
+
+def test_multiple_drafts_mesh_lookup_failure_is_visible(monkeypatch):
+    recorded: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        multiple_drafts,
+        "record_degradation",
+        lambda module, exc: recorded.append((module, type(exc).__name__)),
+    )
+    monkeypatch.setattr(
+        "core.container.ServiceContainer.get",
+        _FailingCallable("mesh unavailable"),
+    )
+
+    engine = multiple_drafts.MultipleDraftsEngine()
+
+    assert engine._get_mesh() is None
+    assert recorded == [("multiple_drafts", "RuntimeError")]
+
+
+def test_mhaf_phi_logdet_failure_is_visible(monkeypatch):
+    recorded: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        phi_estimator,
+        "record_degradation",
+        lambda module, exc: recorded.append((module, type(exc).__name__)),
+    )
+    monkeypatch.setattr(
+        phi_estimator.np.linalg,
+        "slogdet",
+        _FailingCallable("logdet unavailable"),
+    )
+
+    assert phi_estimator._safe_logdet(np.eye(2, dtype=np.float64)) == float("-inf")
+    assert recorded == [("mhaf_phi_estimator", "RuntimeError")]
 
 
 def test_free_energy_entropy_fallback_records_degradation(monkeypatch):

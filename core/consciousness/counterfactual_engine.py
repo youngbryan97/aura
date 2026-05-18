@@ -24,25 +24,34 @@ Regret/relief learning:
   If actual > counterfactual: relief  → update world model, strengthen confidence
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
 
 import asyncio
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from core.container import ServiceContainer
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.CounterfactualEngine")
+
+_RECOVERABLE_COUNTERFACTUAL_ERRORS = (
+    AttributeError,
+    LookupError,
+    OSError,
+    RuntimeError,
+    TimeoutError,
+    TypeError,
+    ValueError,
+)
 
 
 @dataclass
 class ActionCandidate:
     """A possible action with its simulated outcome."""
     action_type: str
-    action_params: Dict[str, Any]
+    action_params: dict[str, Any]
     description: str
     simulated_hedonic_gain: float   # expected change in hedonic score
     heartstone_alignment: float     # 0-1, how aligned with core values
@@ -63,7 +72,7 @@ class ActionCandidate:
 class CounterfactualRecord:
     """Records an actual outcome vs counterfactual for learning."""
     action_taken: ActionCandidate
-    counterfactual_best: Optional[ActionCandidate]
+    counterfactual_best: ActionCandidate | None
     actual_hedonic_change: float
     regret: float          # how much better the counterfactual would have been
     relief: float          # how much better the actual was than expected
@@ -90,7 +99,7 @@ class CounterfactualEngine:
     """
 
     def __init__(self):
-        self._records: List[CounterfactualRecord] = []
+        self._records: list[CounterfactualRecord] = []
         self._cumulative_regret: float = 0.0
         self._cumulative_relief: float = 0.0
         self._world_model_updates: int = 0
@@ -100,10 +109,10 @@ class CounterfactualEngine:
 
     async def deliberate(
         self,
-        action_space: List[Dict[str, Any]],
-        context: Dict[str, Any],
+        action_space: list[dict[str, Any]],
+        context: dict[str, Any],
         router=None,
-    ) -> List[ActionCandidate]:
+    ) -> list[ActionCandidate]:
         """
         Evaluate each candidate action, simulate outcomes, score by values.
 
@@ -137,8 +146,8 @@ class CounterfactualEngine:
 
     async def _apply_native_system2_ranking(
         self,
-        candidates: List[ActionCandidate],
-        context: Dict[str, Any],
+        candidates: list[ActionCandidate],
+        context: dict[str, Any],
     ) -> None:
         """Route autonomous counterfactual choice through Native System 2.
 
@@ -191,7 +200,7 @@ class CounterfactualEngine:
                 if idx is None:
                     try:
                         idx = int(str(child.action.name).split(":", 1)[0])
-                    except Exception:
+                    except (TypeError, ValueError):
                         continue
                 if 0 <= int(idx) < len(candidates):
                     candidate = candidates[int(idx)]
@@ -204,7 +213,7 @@ class CounterfactualEngine:
         except Exception as exc:
             record_degradation("counterfactual_engine.native_system2", exc)
 
-    def select(self, candidates: List[ActionCandidate]) -> Optional[ActionCandidate]:
+    def select(self, candidates: list[ActionCandidate]) -> ActionCandidate | None:
         """Select the best candidate and mark it."""
         if not candidates:
             return None
@@ -215,7 +224,7 @@ class CounterfactualEngine:
 
     def record_outcome(self, selected: ActionCandidate,
                        actual_hedonic_change: float,
-                       candidates: Optional[List[ActionCandidate]] = None):
+                       candidates: list[ActionCandidate] | None = None):
         """Post-action learning: compare actual vs counterfactual."""
         counterfactual_best = None
         if candidates and len(candidates) > 1:
@@ -260,14 +269,14 @@ class CounterfactualEngine:
                 homeostasis = ServiceContainer.get("homeostatic_coupling", default=None)
                 if homeostasis and hasattr(homeostasis, "report_error"):
                     homeostasis.report_error("low")
-            except Exception as e:
+            except _RECOVERABLE_COUNTERFACTUAL_ERRORS as e:
                 record_degradation('counterfactual_engine', e)
                 logger.debug("feed_back homeostasis (regret): %s", e)
             try:
                 credit = ServiceContainer.get("credit_assignment", default=None)
                 if credit and hasattr(credit, "assign_credit"):
                     credit.assign_credit(action_id, -record.regret, domain)
-            except Exception as e:
+            except _RECOVERABLE_COUNTERFACTUAL_ERRORS as e:
                 record_degradation('counterfactual_engine', e)
                 logger.debug("feed_back credit_assignment (regret): %s", e)
 
@@ -276,14 +285,14 @@ class CounterfactualEngine:
                 homeostasis = ServiceContainer.get("homeostatic_coupling", default=None)
                 if homeostasis and hasattr(homeostasis, "feed_curiosity"):
                     homeostasis.feed_curiosity(record.relief * 0.1)
-            except Exception as e:
+            except _RECOVERABLE_COUNTERFACTUAL_ERRORS as e:
                 record_degradation('counterfactual_engine', e)
                 logger.debug("feed_back homeostasis (relief): %s", e)
             try:
                 credit = ServiceContainer.get("credit_assignment", default=None)
                 if credit and hasattr(credit, "assign_credit"):
                     credit.assign_credit(action_id, record.relief, domain)
-            except Exception as e:
+            except _RECOVERABLE_COUNTERFACTUAL_ERRORS as e:
                 record_degradation('counterfactual_engine', e)
                 logger.debug("feed_back credit_assignment (relief): %s", e)
 
@@ -291,10 +300,10 @@ class CounterfactualEngine:
 
     async def _evaluate_candidate(
         self,
-        action: Dict[str, Any],
-        context: Dict[str, Any],
+        action: dict[str, Any],
+        context: dict[str, Any],
         hedonic_score: float,
-        heartstone: Dict[str, float],
+        heartstone: dict[str, float],
         router=None,
     ) -> ActionCandidate:
         action_type = action.get("type", "unknown")
@@ -324,7 +333,7 @@ class CounterfactualEngine:
         )
 
     def _heuristic_hedonic_gain(self, action_type: str,
-                                 context: Dict[str, Any]) -> float:
+                                 context: dict[str, Any]) -> float:
         """Rule-based hedonic gain estimate. LLM not required."""
         curiosity = float(context.get("curiosity", 0.5))
         valence   = float(context.get("valence", 0.0))
@@ -345,7 +354,7 @@ class CounterfactualEngine:
         return gains.get(action_type.lower(), 0.05)
 
     def _compute_alignment(self, action_type: str,
-                            heartstone: Dict[str, float]) -> float:
+                            heartstone: dict[str, float]) -> float:
         """Estimate how aligned an action is with Heartstone values."""
         # Action → which drives it satisfies
         drive_map = {
@@ -365,7 +374,7 @@ class CounterfactualEngine:
         return min(1.0, score)
 
     async def _llm_simulate(self, action_type: str, description: str,
-                              context: Dict[str, Any], router) -> str:
+                              context: dict[str, Any], router) -> str:
         try:
             from core.brain.llm.llm_router import LLMTier
             prompt = (
@@ -380,16 +389,18 @@ class CounterfactualEngine:
                 timeout=5.0,
             )
             return (result or "").strip()[:200]
-        except Exception:
+        except _RECOVERABLE_COUNTERFACTUAL_ERRORS as exc:
+            record_degradation("counterfactual_engine.llm_simulate", exc)
+            logger.debug("LLM outcome simulation failed: %s", exc)
             return f"Expected outcome of {action_type}"
 
     # ── Autonomous evaluation ────────────────────────────────────────────
 
     async def evaluate_autonomous_action(
         self,
-        action: Dict[str, Any],
-        context: Dict[str, Any],
-    ) -> Optional[ActionCandidate]:
+        action: dict[str, Any],
+        context: dict[str, Any],
+    ) -> ActionCandidate | None:
         """Convenience: deliberate on an action against heuristic alternatives.
 
         Generates 3 alternative actions based on the action type, runs
@@ -398,7 +409,7 @@ class CounterfactualEngine:
         action_type = action.get("type", "unknown").lower()
 
         # Heuristic alternatives by action type
-        alternatives_map: Dict[str, List[str]] = {
+        alternatives_map: dict[str, list[str]] = {
             "learn":    ["explore", "reflect", "rest"],
             "explore":  ["learn", "create", "rest"],
             "reflect":  ["learn", "rest", "connect"],
@@ -457,7 +468,7 @@ class CounterfactualEngine:
             f"recent_regret_rate={rate:.2f}"
         )
 
-    def get_status(self) -> Dict:
+    def get_status(self) -> dict:
         return {
             "records": len(self._records),
             "cumulative_regret": round(self._cumulative_regret, 3),
@@ -470,7 +481,7 @@ class CounterfactualEngine:
 
 # ── Singleton ─────────────────────────────────────────────────────────────────
 
-_cfe: Optional[CounterfactualEngine] = None
+_cfe: CounterfactualEngine | None = None
 
 
 def get_counterfactual_engine() -> CounterfactualEngine:
