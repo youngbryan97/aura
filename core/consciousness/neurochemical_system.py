@@ -42,25 +42,22 @@ The system runs at 2 Hz and pushes modulatory state into the NeuralMesh and
 other consciousness subsystems every tick.
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
-
-from core.utils.task_tracker import get_task_tracker
 
 import asyncio
 import logging
-import math
 import time
-from dataclasses import dataclass, field
-from typing import Dict, Optional, Callable
+from dataclasses import dataclass
 
 import numpy as np
 
+from core.runtime.errors import record_degradation
+from core.utils.task_tracker import get_task_tracker
+
 logger = logging.getLogger("Consciousness.Neurochemical")
-_latest_instance: Optional["NeurochemicalSystem"] = None
+_latest_instance: NeurochemicalSystem | None = None
 
 
-def get_latest_neurochemical_system() -> Optional["NeurochemicalSystem"]:
+def get_latest_neurochemical_system() -> NeurochemicalSystem | None:
     """Return the most recently constructed neurochemical system.
 
     Runtime wiring should still prefer the ServiceContainer registration, but
@@ -105,7 +102,7 @@ class Chemical:
     adaptation_rate: float = 0.005       # how fast receptors adapt
     proximity_weight: float = 1.0        # spatial bias: soma(>1) vs spine(<1)
     # Receptor subtypes (None = single homogeneous receptor)
-    subtypes: Optional[Dict[str, ReceptorSubtype]] = None
+    subtypes: dict[str, ReceptorSubtype] | None = None
     # Tonic vs phasic state
     tonic_level: float = 0.5             # slow background concentration
     phasic_burst: float = 0.0            # acute burst component (decays fast)
@@ -286,7 +283,7 @@ class NeurochemicalSystem:
 
     def __init__(self):
         global _latest_instance
-        self.chemicals: Dict[str, Chemical] = {
+        self.chemicals: dict[str, Chemical] = {
             # Fast neurotransmitters (ms timescale, high uptake rate)
             "glutamate": Chemical(
                 "glutamate", level=0.5, baseline=0.5, uptake_rate=0.06,
@@ -359,13 +356,13 @@ class NeurochemicalSystem:
             c.tonic_level = c.level
         self._order = _INTERACTION_NAMES  # consistent ordering
         self._running = False
-        self._task: Optional[asyncio.Task] = None
+        self._task: asyncio.Task | None = None
         self._tick_count: int = 0
         self._start_time: float = 0.0
 
         # External driver hooks (set by bridge)
-        self._mesh_ref: Optional[object] = None  # NeuralMesh
-        self._workspace_ref: Optional[object] = None  # GlobalWorkspace
+        self._mesh_ref: object | None = None  # NeuralMesh
+        self._workspace_ref: object | None = None  # GlobalWorkspace
 
         _latest_instance = self
         logger.info("NeurochemicalSystem initialized (10 modulators, receptor subtypes active)")
@@ -521,8 +518,9 @@ class NeurochemicalSystem:
             drive = ServiceContainer.get("drive_engine", default=None)
             if drive and hasattr(drive, "relieve_boredom"):
                 drive.relieve_boredom("tool_success")
-        except Exception:
-            pass  # no-op: intentional
+        except Exception as exc:
+            record_degradation("neurochemical_system", exc)
+            logger.debug("Drive boredom relief after success failed: %s", exc)
 
     def on_frustration(self, amount: float = 0.3):
         """Frustration event."""
@@ -549,8 +547,9 @@ class NeurochemicalSystem:
                 drive = ServiceContainer.get("drive_engine", default=None)
                 if drive and hasattr(drive, "relieve_boredom"):
                     drive.relieve_boredom("novelty")
-            except Exception:
-                pass  # no-op: intentional
+            except Exception as exc:
+                record_degradation("neurochemical_system", exc)
+                logger.debug("Drive boredom relief after novelty failed: %s", exc)
 
     def on_flow_state(self):
         """Entering or sustaining flow."""
@@ -607,7 +606,6 @@ class NeurochemicalSystem:
         noise: stochastic exploration (NE inverted-U per Yerkes-Dodson)
         """
         glu = self.chemicals["glutamate"].effective
-        gaba = self.chemicals["gaba"].effective
         da = self.chemicals["dopamine"].effective
         ne = self.chemicals["norepinephrine"].effective
         ach = self.chemicals["acetylcholine"].effective
@@ -679,7 +677,7 @@ class NeurochemicalSystem:
         ne = self.chemicals["norepinephrine"].effective
         return (da * 0.5) - (srt * 0.3) - (ne * 0.2)
 
-    def get_mood_vector(self) -> Dict[str, float]:
+    def get_mood_vector(self) -> dict[str, float]:
         """Mood derived from chemical balance via learned coefficients.
 
         The legacy formula was a fixed weighted sum, which guaranteed
@@ -692,7 +690,9 @@ class NeurochemicalSystem:
             from core.consciousness.adaptive_mood import get_adaptive_mood
 
             return get_adaptive_mood().predict(chem)
-        except Exception:
+        except Exception as exc:
+            record_degradation("neurochemical_system", exc)
+            logger.debug("Adaptive mood prediction failed, using legacy fallback: %s", exc)
             # Defensive fallback: degrade to legacy formula if adaptive layer
             # is unavailable (boot order, test isolation, etc.).
             da = chem.get("dopamine", 0.0)
@@ -714,7 +714,7 @@ class NeurochemicalSystem:
                 "wakefulness": orx * 0.5 + ne * 0.2 + glu * 0.15 - gaba * 0.3,
             }
 
-    def learn_mood_from_outcome(self, observed_mood: Dict[str, float]) -> Dict[str, float]:
+    def learn_mood_from_outcome(self, observed_mood: dict[str, float]) -> dict[str, float]:
         """Feed an outcome-based mood signal back to the adaptive layer.
 
         Callers (e.g. action evaluator, homeostasis monitor) pass an empirical
@@ -726,10 +726,12 @@ class NeurochemicalSystem:
             from core.consciousness.adaptive_mood import get_adaptive_mood
 
             return get_adaptive_mood().update_from_outcome(chem, observed_mood)
-        except Exception:
+        except Exception as exc:
+            record_degradation("neurochemical_system", exc)
+            logger.debug("Adaptive mood outcome update failed: %s", exc)
             return {}
 
-    def get_snapshot(self) -> Dict[str, Dict[str, float]]:
+    def get_snapshot(self) -> dict[str, dict[str, float]]:
         """Full chemical state for telemetry/diagnostics."""
         return {
             name: {
@@ -741,15 +743,18 @@ class NeurochemicalSystem:
             for name, c in self.chemicals.items()
         }
 
-    def get_status(self) -> Dict:
+    def get_status(self) -> dict:
         return {
             "running": self._running,
             "tick_count": self._tick_count,
             "chemicals": {n: round(c.effective, 3) for n, c in self.chemicals.items()},
             "mood": {k: round(v, 3) for k, v in self.get_mood_vector().items()},
             "mesh_modulation": {
-                k: round(v, 3) for k, v in
-                zip(["gain", "plasticity", "noise"], self.get_mesh_modulation())
+                k: round(v, 3) for k, v in zip(
+                    ["gain", "plasticity", "noise"],
+                    self.get_mesh_modulation(),
+                    strict=True,
+                )
             },
             "gwt_threshold_adj": round(self.get_gwt_modulation(), 3),
             "attention_span_s": round(self.get_attention_span(), 1),

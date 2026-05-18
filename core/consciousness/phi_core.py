@@ -43,16 +43,16 @@ References:
   PyPhi: pyphi.readthedocs.io
 """
 
-from core.runtime.errors import record_degradation
-import asyncio
 import logging
 import math
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
+
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.PhiCore")
 
@@ -131,10 +131,10 @@ class PhiResult:
     the bipartition that represents the system's "weakest seam."
     """
     phi_s: float                   # System integrated information (the key scalar)
-    mip_partition_a: List[int]     # Node indices of partition A at MIP
-    mip_partition_b: List[int]     # Node indices of partition B at MIP
+    mip_partition_a: list[int]     # Node indices of partition A at MIP
+    mip_partition_b: list[int]     # Node indices of partition B at MIP
     mip_phi_value: float           # φ at the MIP (should equal phi_s)
-    all_partition_phis: List[float] # φ for every bipartition (the Φ-structure shape)
+    all_partition_phis: list[float] # φ for every bipartition (the Φ-structure shape)
     tpm_n_samples: int             # How many transitions the TPM was built from
     computed_at: float = field(default_factory=time.time)
 
@@ -208,11 +208,11 @@ class PhiCore:
         self._state_history: deque = deque(maxlen=2000)
 
         # Running medians for binarization (one per node)
-        self._node_value_history: List[deque] = [deque(maxlen=100) for _ in range(N_NODES)]
+        self._node_value_history: list[deque] = [deque(maxlen=100) for _ in range(N_NODES)]
         self._running_medians: np.ndarray = np.zeros(N_NODES, dtype=np.float32)
 
         # Current TPM (built from history)
-        self._tpm: Optional[np.ndarray] = None
+        self._tpm: np.ndarray | None = None
         self._tpm_built_at: float = 0.0
         self._tpm_n_samples: int = 0
 
@@ -221,7 +221,7 @@ class PhiCore:
         self._state_visits: np.ndarray = np.ones(N_STATES, dtype=np.float32)
 
         # Last computation result
-        self._last_result: Optional[PhiResult] = None
+        self._last_result: PhiResult | None = None
         self._last_compute_time: float = 0.0
 
         # ── Affective 8-node subset (exact validation baseline) ───────────
@@ -231,7 +231,7 @@ class PhiCore:
         )
         self._affective_state_history: deque = deque(maxlen=2000)
         self._affective_state_visits: np.ndarray = np.ones(N_AFFECTIVE_STATES, dtype=np.float32)
-        self._affective_last_result: Optional[PhiResult] = None
+        self._affective_last_result: PhiResult | None = None
         self._affective_last_compute_time: float = 0.0
 
         # ── Spectral approximator for 16-node complex ────────────────────
@@ -265,45 +265,45 @@ class PhiCore:
             logger.warning("TimescaleStabilityAnalyzer unavailable: %s", e)
 
         # IIT 4.0 Exclusion Postulate: maximum phi complex tracking
-        self._max_phi_complex: Optional[Tuple[int, ...]] = None  # Node indices of max-phi subset
+        self._max_phi_complex: tuple[int, ...] | None = None  # Node indices of max-phi subset
         self._max_phi_value: float = 0.0                          # Phi of that subset
-        self._max_phi_complex_names: List[str] = []               # Human-readable node names
+        self._max_phi_complex_names: list[str] = []               # Human-readable node names
         self._exclusion_last_compute: float = 0.0
         self._exclusion_compute_interval_s: float = 60.0          # Expensive; run less often
 
         # Computational complex (neural mesh executive tier) — still 8-node
-        N_MESH_NODES = 8
-        N_MESH_STATES = 256
+        n_mesh_nodes = 8
+        n_mesh_states = 256
         self._mesh_state_history: deque = deque(maxlen=2000)
-        self._mesh_node_history: List[deque] = [deque(maxlen=100) for _ in range(N_MESH_NODES)]
-        self._mesh_medians: np.ndarray = np.zeros(N_MESH_NODES, dtype=np.float32)
-        self._mesh_tpm: Optional[np.ndarray] = None
+        self._mesh_node_history: list[deque] = [deque(maxlen=100) for _ in range(n_mesh_nodes)]
+        self._mesh_medians: np.ndarray = np.zeros(n_mesh_nodes, dtype=np.float32)
+        self._mesh_tpm: np.ndarray | None = None
         self._mesh_tpm_n_samples: int = 0
-        self._mesh_state_visits: np.ndarray = np.ones(N_MESH_STATES, dtype=np.float32)
-        self._mesh_last_result: Optional[PhiResult] = None
-        self._mesh_bipartitions = self._precompute_bipartitions(n_nodes=N_MESH_NODES)
+        self._mesh_state_visits: np.ndarray = np.ones(n_mesh_states, dtype=np.float32)
+        self._mesh_last_result: PhiResult | None = None
+        self._mesh_bipartitions = self._precompute_bipartitions(n_nodes=n_mesh_nodes)
         self._mesh_bit_tables = self._precompute_bit_tables(
-            bipartitions=self._mesh_bipartitions, n_nodes=N_MESH_NODES
+            bipartitions=self._mesh_bipartitions, n_nodes=n_mesh_nodes
         )
 
         # Transformer residual-stream mechanism complex. The hook samples the
         # final-token residual vector into eight deterministic chunks so phi can
         # see actual generation dynamics, not just telemetry summaries.
-        N_RESIDUAL_NODES = 8
-        N_RESIDUAL_STATES = 256
+        n_residual_nodes = 8
+        n_residual_states = 256
         self._residual_state_history: deque = deque(maxlen=2000)
-        self._residual_node_history: List[deque] = [deque(maxlen=100) for _ in range(N_RESIDUAL_NODES)]
-        self._residual_medians: np.ndarray = np.zeros(N_RESIDUAL_NODES, dtype=np.float32)
-        self._residual_state_visits: np.ndarray = np.ones(N_RESIDUAL_STATES, dtype=np.float32)
-        self._residual_last_result: Optional[PhiResult] = None
-        self._residual_bipartitions = self._precompute_bipartitions(n_nodes=N_RESIDUAL_NODES)
+        self._residual_node_history: list[deque] = [deque(maxlen=100) for _ in range(n_residual_nodes)]
+        self._residual_medians: np.ndarray = np.zeros(n_residual_nodes, dtype=np.float32)
+        self._residual_state_visits: np.ndarray = np.ones(n_residual_states, dtype=np.float32)
+        self._residual_last_result: PhiResult | None = None
+        self._residual_bipartitions = self._precompute_bipartitions(n_nodes=n_residual_nodes)
         self._residual_bit_tables = self._precompute_bit_tables(
-            bipartitions=self._residual_bipartitions, n_nodes=N_RESIDUAL_NODES
+            bipartitions=self._residual_bipartitions, n_nodes=n_residual_nodes
         )
 
     # ── State Recording ────────────────────────────────────────────────────────
 
-    def record_state(self, substrate_x: np.ndarray, cognitive_values: Optional[Dict[str, float]] = None):
+    def record_state(self, substrate_x: np.ndarray, cognitive_values: dict[str, float] | None = None):
         """
         Record the current substrate state for the full 16-node complex.
 
@@ -405,7 +405,7 @@ class PhiCore:
         self,
         hidden_state: Any,
         *,
-        layer_idx: Optional[int] = None,
+        layer_idx: int | None = None,
         token_position: int = -1,
     ) -> None:
         """Record transformer residual dynamics as an eight-node complex."""
@@ -448,7 +448,7 @@ class PhiCore:
         self,
         x: np.ndarray,
         *,
-        node_history: List[deque],
+        node_history: list[deque],
         medians: np.ndarray,
         state_history: deque,
         state_visits: np.ndarray,
@@ -465,7 +465,7 @@ class PhiCore:
         state_history.append(state_int)
         state_visits[state_int] += 1.0
 
-    def compute_mesh_phi(self) -> Optional[PhiResult]:
+    def compute_mesh_phi(self) -> PhiResult | None:
         """Compute IIT on the neural mesh executive tier (computational complex).
 
         This is the non-proxy computation: φ measured on actual computational
@@ -505,7 +505,7 @@ class PhiCore:
         mip_partition = None
         all_phis = []
 
-        for partition_mask, (part_a, part_b) in self._mesh_bipartitions:
+        for _partition_mask, (part_a, part_b) in self._mesh_bipartitions:
             phi_ab = self._phi_for_bipartition_generic(
                 tpm, p, part_a, part_b,
                 n_nodes=n_mesh, n_states=n_mesh_states,
@@ -534,7 +534,7 @@ class PhiCore:
         )
         return result
 
-    def compute_residual_phi(self) -> Optional[PhiResult]:
+    def compute_residual_phi(self) -> PhiResult | None:
         """Compute exact phi on sampled transformer residual-stream dynamics."""
         if len(self._residual_state_history) < MIN_HISTORY_FOR_TPM:
             return None
@@ -560,7 +560,7 @@ class PhiCore:
         state_visits: np.ndarray,
         bipartitions: list,
         bit_tables: dict,
-    ) -> Optional[PhiResult]:
+    ) -> PhiResult | None:
         history = list(state_history)
         transitions = len(history) - 1
         if transitions < MIN_HISTORY_FOR_TPM:
@@ -568,7 +568,7 @@ class PhiCore:
         n_nodes = 8
         n_states = 256
         tpm = np.zeros((n_states, n_states), dtype=np.float64)
-        for src, dst in zip(history[:-1], history[1:]):
+        for src, dst in zip(history[:-1], history[1:], strict=True):
             tpm[int(src), int(dst)] += 1.0
         tpm += LAPLACE_ALPHA
         row_sums = tpm.sum(axis=1, keepdims=True)
@@ -604,7 +604,7 @@ class PhiCore:
 
     # ── TPM Construction ───────────────────────────────────────────────────────
 
-    def build_tpm(self) -> Optional[np.ndarray]:
+    def build_tpm(self) -> np.ndarray | None:
         """
         Build the empirical TPM for the full 16-node complex as a sparse matrix.
 
@@ -656,7 +656,7 @@ class PhiCore:
         self._tpm_n_samples = n_transitions
         return tpm_sparse
 
-    def build_affective_tpm(self) -> Optional[np.ndarray]:
+    def build_affective_tpm(self) -> np.ndarray | None:
         """
         Build a dense empirical TPM for the 8-node affective subset.
 
@@ -784,14 +784,15 @@ class PhiCore:
             try:
                 from core.observability.metrics import get_metrics
                 get_metrics().increment_counter("phi_disconnected_graph_total")
-            except Exception:
-                pass
+            except Exception as exc:
+                record_degradation("phi_core", exc)
+                logger.debug("Disconnected phi metric emission failed: %s", exc)
 
         return is_connected, len(components), component_sizes
 
     # ── MIP Search ─────────────────────────────────────────────────────────────
 
-    def compute_phi(self) -> Optional[PhiResult]:
+    def compute_phi(self) -> PhiResult | None:
         """
         Compute φs for the full 16-node cognitive-affective complex.
 
@@ -858,7 +859,7 @@ class PhiCore:
 
         return None
 
-    def compute_full_kernel(self) -> Optional[PhiResult]:
+    def compute_full_kernel(self) -> PhiResult | None:
         """Compute the exact 8-node MIP across both affective and mesh layers."""
         start_t = time.perf_counter()
         affective_res = self.compute_affective_phi()
@@ -898,7 +899,7 @@ class PhiCore:
         if do_full_kernel:
             self.compute_full_kernel()
 
-    def _compute_spectral_phi_16(self) -> Optional[PhiResult]:
+    def _compute_spectral_phi_16(self) -> PhiResult | None:
         """Compute phi for the 16-node complex using spectral approximation.
 
         Builds the 16x16 causal graph directly from binarized history
@@ -953,8 +954,8 @@ class PhiCore:
 
     def _estimate_phi_for_partition_from_history(
         self,
-        history: List[int],
-        partition: Tuple[Tuple[int, ...], Tuple[int, ...]],
+        history: list[int],
+        partition: tuple[tuple[int, ...], tuple[int, ...]],
     ) -> float:
         """Estimate phi for a bipartition directly from transition history.
 
@@ -1027,7 +1028,7 @@ class PhiCore:
 
         return phi
 
-    def compute_affective_phi(self) -> Optional[PhiResult]:
+    def compute_affective_phi(self) -> PhiResult | None:
         """
         Compute exact φs for the 8-node affective subset.
 
@@ -1047,7 +1048,7 @@ class PhiCore:
         mip_partition = None
         all_phis = []
 
-        for partition_mask, (part_a, part_b) in self._affective_bipartitions:
+        for _partition_mask, (part_a, part_b) in self._affective_bipartitions:
             phi_ab = self._phi_for_bipartition_generic(
                 tpm, p_stationary, part_a, part_b,
                 n_nodes=N_AFFECTIVE_NODES, n_states=N_AFFECTIVE_STATES,
@@ -1080,7 +1081,7 @@ class PhiCore:
 
     # ── IIT 4.0 Exclusion Postulate ──────────────────────────────────────────
 
-    def compute_max_phi_complex(self) -> Optional[Tuple[Tuple[int, ...], float]]:
+    def compute_max_phi_complex(self) -> tuple[tuple[int, ...], float] | None:
         """
         IIT 4.0 Exclusion Postulate: find the subset of nodes with MAXIMUM phi.
 
@@ -1110,7 +1111,7 @@ class PhiCore:
         causal_graph = self._build_causal_graph_from_history()
 
         best_phi = -1.0
-        best_subset: Optional[Tuple[int, ...]] = None
+        best_subset: tuple[int, ...] | None = None
 
         # Strategy: evaluate candidate subsets derived from the causal graph
         # 1. Full system phi (already computed)
@@ -1179,8 +1180,8 @@ class PhiCore:
 
     def _estimate_subset_phi_from_history(
         self,
-        history: List[int],
-        subset: Tuple[int, ...],
+        history: list[int],
+        subset: tuple[int, ...],
     ) -> float:
         """Estimate phi for a subset of nodes using history-based spectral approach.
 
@@ -1225,7 +1226,7 @@ class PhiCore:
         fiedler_partition = approx._fiedler_partition(sub_graph, k)
 
         # Map local indices back to global node indices
-        def map_partition(part: Tuple[int, ...]) -> Tuple[int, ...]:
+        def map_partition(part: tuple[int, ...]) -> tuple[int, ...]:
             return tuple(subset[i] for i in part)
 
         candidates = approx._generate_refinement_candidates(fiedler_partition, k)
@@ -1243,7 +1244,7 @@ class PhiCore:
         self,
         full_tpm: np.ndarray,
         full_p_stationary: np.ndarray,
-        subset: Tuple[int, ...],
+        subset: tuple[int, ...],
     ) -> float:
         """
         Compute phi for a specific subset of nodes.
@@ -1299,7 +1300,7 @@ class PhiCore:
                 subset_history[idx] = projected_state
 
             counts = np.zeros((k_states, k_states), dtype=np.float64)
-            for src, dst in zip(subset_history[:-1], subset_history[1:]):
+            for src, dst in zip(subset_history[:-1], subset_history[1:], strict=True):
                 counts[int(src), int(dst)] += 1.0
 
             counts += LAPLACE_ALPHA
@@ -1425,8 +1426,8 @@ class PhiCore:
         self,
         tpm_sub: np.ndarray,
         p_sub: np.ndarray,
-        part_a: Tuple[int, ...],
-        part_b: Tuple[int, ...],
+        part_a: tuple[int, ...],
+        part_b: tuple[int, ...],
         k: int,
     ) -> float:
         """
@@ -1593,8 +1594,8 @@ class PhiCore:
         self,
         tpm: np.ndarray,
         p_stationary: np.ndarray,
-        part_a: Tuple[int, ...],
-        part_b: Tuple[int, ...],
+        part_a: tuple[int, ...],
+        part_b: tuple[int, ...],
     ) -> float:
         """
         Compute φ for bipartition (A, B).
@@ -1644,7 +1645,7 @@ class PhiCore:
 
     # ── Causal Interventions (do-calculus) ─────────────────────────────
 
-    def compute_interventional_phi(self) -> Optional[PhiResult]:
+    def compute_interventional_phi(self) -> PhiResult | None:
         """Compute φ using causal interventions (do-calculus), not just observations.
 
         Standard IIT uses observational distributions: P(s'|s).
@@ -1672,7 +1673,7 @@ class PhiCore:
         mip_partition = None
         all_phis = []
 
-        for partition_mask, (part_a, part_b) in self._bipartitions:
+        for _partition_mask, (part_a, part_b) in self._bipartitions:
             bit_table = self._bit_tables[frozenset(part_a)]
             n_a = len(part_a)
             n_b = len(part_b)
@@ -1800,7 +1801,9 @@ class PhiCore:
         if include_surrogate and len(self._state_history) >= 20:
             try:
                 return float(self.compute_surrogate_phi())
-            except Exception:
+            except Exception as exc:
+                record_degradation("phi_core", exc)
+                logger.debug("Live surrogate phi computation failed: %s", exc)
                 return 0.0
         return 0.0
 
@@ -1808,8 +1811,8 @@ class PhiCore:
         self,
         tpm: np.ndarray,
         p_stationary: np.ndarray,
-        target_nodes: List[int],
-        other_nodes: List[int],
+        target_nodes: list[int],
+        other_nodes: list[int],
     ) -> np.ndarray:
         """
         Compute the marginal TPM for `target_nodes`, averaging over `other_nodes`.
@@ -1856,8 +1859,8 @@ class PhiCore:
         self,
         tpm: np.ndarray,
         p_stationary: np.ndarray,
-        target_nodes: List[int],
-        other_nodes: List[int],
+        target_nodes: list[int],
+        other_nodes: list[int],
         n_states: int = None,
         bit_tables: dict = None,
     ) -> np.ndarray:
@@ -1906,7 +1909,7 @@ class PhiCore:
 
     # ── Precomputed Lookup Tables ──────────────────────────────────────────────
 
-    def _precompute_bipartitions(self, n_nodes: int = N_NODES) -> List[Tuple[int, Tuple]]:
+    def _precompute_bipartitions(self, n_nodes: int = N_NODES) -> list[tuple[int, tuple]]:
         """Precompute all 2^(N-1) - 1 nontrivial bipartitions for n_nodes."""
         bipartitions = []
         nodes = list(range(n_nodes))
@@ -1922,9 +1925,9 @@ class PhiCore:
 
     def _precompute_bit_tables(
         self,
-        bipartitions: Optional[List] = None,
+        bipartitions: list | None = None,
         n_nodes: int = N_NODES,
-    ) -> Dict[frozenset, Dict]:
+    ) -> dict[frozenset, dict]:
         """
         Precompute bit extraction lookup tables for each possible partition A.
         Converts the inner loop from O(N) bit operations to O(1) lookups.
@@ -2003,7 +2006,7 @@ class PhiCore:
     def history_length(self) -> int:
         return len(self._state_history)
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         result = self._last_result
         status = {
             "phi_s": round(self.current_phi, 6),

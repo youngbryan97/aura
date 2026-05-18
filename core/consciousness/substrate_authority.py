@@ -41,12 +41,12 @@ Integration points:
 """
 from __future__ import annotations
 
-
 import logging
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Dict, List, Optional, Tuple
+
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Consciousness.SubstrateAuthority")
 
@@ -84,7 +84,7 @@ class SubstrateVerdict:
     somatic_confidence: float    # somatic confidence [0, 1]
     neurochemical_state: str     # "normal" | "cortisol_crisis" | "gaba_collapse" | "dopamine_crash"
     body_budget_available: bool
-    constraints: List[str]       # specific constraints applied
+    constraints: list[str]       # specific constraints applied
     receipt_id: str = ""         # unique audit receipt ID for provenance matching
     timestamp: float = 0.0
     latency_ms: float = 0.0
@@ -156,7 +156,7 @@ class SubstrateAuthority:
         self._critical_passes: int = 0
 
         # Recent verdicts for audit
-        self._recent_verdicts: List[SubstrateVerdict] = []
+        self._recent_verdicts: list[SubstrateVerdict] = []
         self._MAX_VERDICTS = 100
 
         logger.info("SubstrateAuthority initialized (mandatory gate)")
@@ -227,14 +227,14 @@ class SubstrateAuthority:
         chem_state, chem_constraints = self._get_neurochemical_constraints(category)
         user_facing_request = self._is_user_facing_source(source)
 
-        constraints: List[str] = list(chem_constraints)
-        reasons: List[str] = []
+        constraints: list[str] = list(chem_constraints)
+        reasons: list[str] = []
 
         # ── Gate 1: Field coherence ──────────────────────────────────
         field_decision = AuthorizationDecision.ALLOW
         if field_coherence < self.thresholds.field_crisis:
             is_exempt = (
-                (category == ActionCategory.STABILIZATION and self.thresholds.stabilization_exempt_from_field)
+                category == ActionCategory.STABILIZATION and self.thresholds.stabilization_exempt_from_field
             )
             if is_exempt:
                 field_decision = AuthorizationDecision.CONSTRAIN
@@ -352,11 +352,13 @@ class SubstrateAuthority:
             return 0.6  # neutral default if field not booted
         try:
             return self._field_ref.get_coherence()
-        except Exception:
+        except Exception as exc:
+            record_degradation("substrate_authority", exc)
+            logger.debug("Field coherence read failed: %s", exc)
             return 0.5
 
     def _get_somatic_state(self, content: str, source: str,
-                           priority: float) -> Tuple[float, float, bool]:
+                           priority: float) -> tuple[float, float, bool]:
         """Returns (approach, confidence, budget_available)."""
         if self._somatic_ref is None:
             return 0.0, 0.0, True  # neutral default
@@ -364,10 +366,12 @@ class SubstrateAuthority:
         try:
             verdict = self._somatic_ref.evaluate(content, source, priority)
             return verdict.approach_score, verdict.confidence, verdict.budget_available
-        except Exception:
+        except Exception as exc:
+            record_degradation("substrate_authority", exc)
+            logger.debug("Somatic state read failed: %s", exc)
             return 0.0, 0.0, True
 
-    def _get_neurochemical_constraints(self, category: ActionCategory) -> Tuple[str, List[str]]:
+    def _get_neurochemical_constraints(self, category: ActionCategory) -> tuple[str, list[str]]:
         """Returns (crisis_state, constraint_list)."""
         if self._neurochemical_ref is None:
             return "normal", []
@@ -391,7 +395,9 @@ class SubstrateAuthority:
                 return "norepinephrine_overload", [f"norepinephrine={ne:.3f}"]
 
             return "normal", constraints
-        except Exception:
+        except Exception as exc:
+            record_degradation("substrate_authority", exc)
+            logger.debug("Neurochemical constraint read failed: %s", exc)
             return "normal", []
 
     # ── Neurochemical feedback ───────────────────────────────────────
@@ -408,8 +414,9 @@ class SubstrateAuthority:
                 self._neurochemical_ref.chemicals["dopamine"].surge(0.03)
             elif decision == AuthorizationDecision.CONSTRAIN:
                 self._neurochemical_ref.chemicals["norepinephrine"].surge(0.05)
-        except Exception:
-            pass  # no-op: intentional
+        except Exception as exc:
+            record_degradation("substrate_authority", exc)
+            logger.debug("Neurochemical feedback failed: %s", exc)
 
     # ── Audit ────────────────────────────────────────────────────────
 
@@ -432,10 +439,11 @@ class SubstrateAuthority:
                 decision=verdict.decision.name,
                 reason=verdict.reason,
             )
-        except Exception:
-            pass  # no-op: intentional
+        except Exception as exc:
+            record_degradation("substrate_authority", exc)
+            logger.debug("Substrate authority audit record failed: %s", exc)
 
-    def get_status(self) -> Dict:
+    def get_status(self) -> dict:
         return {
             "total_requests": self._total_requests,
             "allowed": self._allowed,
@@ -449,7 +457,7 @@ class SubstrateAuthority:
             "has_neurochemical": self._neurochemical_ref is not None,
         }
 
-    def get_recent_blocks(self, n: int = 10) -> List[Dict]:
+    def get_recent_blocks(self, n: int = 10) -> list[dict]:
         """Return recent BLOCK verdicts for audit."""
         blocks = [v for v in self._recent_verdicts if v.decision == AuthorizationDecision.BLOCK]
         return [
