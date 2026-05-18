@@ -19,9 +19,9 @@ import subprocess
 import sys
 import tempfile
 import time
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Iterable
 
 EXCLUDED_DIRS = {
     ".git",
@@ -82,6 +82,12 @@ ALLOW_SUBPROCESS = {
     "core/skills/sovereign_terminal.py",
     "security/sandbox.py",
     "skills/shell.py",
+}
+
+ALLOW_BLOCKING_SLEEP_IN_ASYNC = {
+    # This chaos fault deliberately stalls the loop to verify lag detection
+    # and recovery alarms. It is not production request handling.
+    "tools/chaos/injector.py",
 }
 
 TEXT_PATTERNS = {
@@ -290,7 +296,12 @@ class AstGate(ast.NodeVisitor):
             is_abstract_function(node) and is_not_implemented_only(node)
         ):
             self.add("high" if is_production(self.rel) else "medium", "raise_only_function", node, node.name)
-        self.generic_visit(node)
+        previous_async_depth = self.async_depth
+        self.async_depth = 0
+        try:
+            self.generic_visit(node)
+        finally:
+            self.async_depth = previous_async_depth
 
     def visit_Call(self, node: ast.Call) -> None:
         name = dotted_call_name(node)
@@ -321,7 +332,7 @@ class AstGate(ast.NodeVisitor):
                 )
         if name in {"dill.load", "dill.loads", "pickle.load", "pickle.loads"}:
             self.add("critical" if is_production(self.rel) else "high", "unsafe_deserialization", node, name)
-        if name == "time.sleep" and self.async_depth:
+        if name == "time.sleep" and self.async_depth and self.rel not in ALLOW_BLOCKING_SLEEP_IN_ASYNC:
             self.add("high", "blocking_sleep_in_async", node)
         self.generic_visit(node)
 

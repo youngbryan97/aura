@@ -1,14 +1,14 @@
 import asyncio
-import threading
-import time
 import sys
+import threading
 from pathlib import Path
 
 # Add project root to sys.path
 PROJECT_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from core.utils.concurrency import RobustLock
+from core.utils.concurrency import RobustLock  # noqa: E402
+
 
 async def worker(name, lock, duration=0.1):
     print(f"[{name}] Attempting to acquire lock...")
@@ -34,11 +34,11 @@ async def main():
     t2 = threading.Thread(target=run_loop, args=("LoopB", lock), name="Thread-B")
     
     t1.start()
-    time.sleep(0.05) # Give A a head start
+    await asyncio.sleep(0.05) # Give A a head start
     t2.start()
     
-    t1.join()
-    t2.join()
+    await asyncio.to_thread(t1.join)
+    await asyncio.to_thread(t2.join)
     print("\nVerification Complete: RobustLock handled cross-loop acquisition successfully.")
 
 if __name__ == "__main__":

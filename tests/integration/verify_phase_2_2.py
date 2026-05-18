@@ -1,10 +1,8 @@
 import asyncio
-import time
-import logging
-import sys
-import multiprocessing
-import os
 import json
+import logging
+import os
+import sys
 from pathlib import Path
 
 # Path setup
@@ -45,7 +43,7 @@ def crashing_actor_entry(conn):
 
 async def test_circuit_breaker():
     logger.info("🧪 Testing Circuit Breaker (Fork Bomb Protection)...")
-    from core.supervisor.tree import SupervisionTree, ActorSpec
+    from core.supervisor.tree import ActorSpec, SupervisionTree
     
     supervisor = SupervisionTree()
     
@@ -63,7 +61,7 @@ async def test_circuit_breaker():
     # Run the poller manually to monitor
     for _ in range(10): 
         supervisor._poll_health()
-        time.sleep(0.5)
+        await asyncio.sleep(0.5)
             
     actor = supervisor._actors["bomb_actor"]
     if actor.is_circuit_broken:
@@ -73,9 +71,9 @@ async def test_circuit_breaker():
 
 async def test_pipe_hotswap():
     logger.info("🧪 Testing Pipe Hot-Swap (Ghost Pipe Fix)...")
-    from core.supervisor.tree import SupervisionTree, ActorSpec
     from core.bus.actor_bus import ActorBus
     from core.container import ServiceContainer
+    from core.supervisor.tree import ActorSpec, SupervisionTree
     
     supervisor = SupervisionTree()
     actor_bus = ActorBus()
@@ -164,7 +162,7 @@ async def test_shm_atomicity():
         data = transport_r.read()
         if data and not isinstance(data, dict):
              errors += 1
-        time.sleep(0.001)
+        await asyncio.sleep(0.001)
         
     stop_event.set()
     w.join()

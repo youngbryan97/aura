@@ -1,8 +1,6 @@
 """Tests for the code graph (AST-based symbol index)."""
 import asyncio
 import os
-import tempfile
-from pathlib import Path
 
 import pytest
 
@@ -148,6 +146,7 @@ async def test_get_stats(graph):
 async def test_incremental_build(graph, sample_codebase):
     await graph.build(incremental=False)
     stats1 = graph.get_stats()
+    assert stats1["files"] == 2
 
     # Second build should be fast (nothing changed)
     graph._stats = {"files": 0, "symbols": 0, "relationships": 0, "errors": 0}
@@ -160,8 +159,7 @@ async def test_incremental_detects_changes(graph, sample_codebase):
     await graph.build(incremental=False)
 
     # Modify a file
-    import time
-    time.sleep(0.1)
+    await asyncio.sleep(0.1)
     (sample_codebase / "module_a.py").write_text("""
 class Cat:
     def meow(self):

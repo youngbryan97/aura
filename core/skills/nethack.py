@@ -24,12 +24,14 @@ Proprioceptive feedback:
   fire-and-forget keystrokes; she feels the result.
 """
 
-from pydantic import BaseModel, Field
-from typing import Any, Dict
-from core.skills.base_skill import BaseSkill
-from core.container import ServiceContainer
+import asyncio
 import logging
-import time
+from typing import Any
+
+from pydantic import BaseModel, Field
+
+from core.container import ServiceContainer
+from core.skills.base_skill import BaseSkill
 
 logger = logging.getLogger("Skills.NetHack")
 
@@ -78,7 +80,7 @@ class ExecuteNethackActionSkill(BaseSkill):
     metabolic_cost = 0  # Core: must be fast and cheap
     timeout_seconds = 5.0
 
-    async def execute(self, params: Any, context: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute(self, params: Any, context: dict[str, Any]) -> dict[str, Any]:
         if isinstance(params, dict):
             params = NetHackParams(**params)
 
@@ -163,7 +165,7 @@ class ExecuteNethackActionSkill(BaseSkill):
         # Execute the action
         try:
             adapter.send_action(physical_key)
-            time.sleep(0.15)  # Let terminal settle
+            await asyncio.sleep(0.15)  # Let terminal settle
         except Exception as e:
             return {"ok": False, "error": f"Failed to send keystroke: {e}"}
 
@@ -176,7 +178,7 @@ class ExecuteNethackActionSkill(BaseSkill):
             lines = screen_after.split('\n')
             msg_after = lines[0].strip() if lines else ""
             # Status line is typically the last 2 non-empty lines
-            non_empty = [l.strip() for l in lines if l.strip()]
+            non_empty = [line.strip() for line in lines if line.strip()]
             if len(non_empty) >= 2:
                 status_line = non_empty[-2] + " | " + non_empty[-1]
             elif non_empty:

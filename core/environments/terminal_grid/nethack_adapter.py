@@ -7,13 +7,19 @@ without cheating or environment-specific bypasses.
 """
 from __future__ import annotations
 
+import asyncio
 import os
 import shutil
 import time
 from enum import Enum
 from pathlib import Path
 
-from core.environment.adapter import EnvironmentCapabilities, EnvironmentUnavailableError, ExecutionResult, ensure_command_spec
+from core.environment.adapter import (
+    EnvironmentCapabilities,
+    EnvironmentUnavailableError,
+    ExecutionResult,
+    ensure_command_spec,
+)
 from core.environment.command import CommandSpec
 from core.environment.observation import Observation
 
@@ -62,7 +68,8 @@ class NetHackTerminalGridAdapter(TerminalGridAdapter):
             self._simulated = True
             return
             
-        if not Path(self.nethack_path).exists():
+        nethack_path = Path(self.nethack_path)
+        if not await asyncio.to_thread(nethack_path.exists):
             if self.mode == EnvironmentMode.STRICT_REAL:
                 raise EnvironmentUnavailableError(f"NetHack binary not found at {self.nethack_path} but STRICT_REAL mode was requested.")
             self._simulated = True
@@ -70,6 +77,7 @@ class NetHackTerminalGridAdapter(TerminalGridAdapter):
         try:
             import pexpect  # type: ignore
             import pyte  # type: ignore
+
             from core.environment.runtime_workspace import environment_runtime_file
             from core.runtime.atomic_writer import atomic_write_text
 
@@ -89,7 +97,7 @@ class NetHackTerminalGridAdapter(TerminalGridAdapter):
             self.child = pexpect.spawn(f"{self.nethack_path} -u Aura", env=env, encoding="utf-8", timeout=0.2)
             self.child.setwinsize(24, 80)
             self._simulated = False
-            time.sleep(0.5)
+            await asyncio.sleep(0.5)
             self._update_screen()
             self._resolve_startup_prompt()
         except Exception as exc:
@@ -131,17 +139,19 @@ class NetHackTerminalGridAdapter(TerminalGridAdapter):
             return await super().execute(command)
         try:
             for step in command.steps:
+                settle_s = min(0.2, max(0.0, step.timeout_s))
                 if step.kind == "key":
                     self.child.send(step.value)
                 elif step.kind == "text":
                     self.child.send(step.value)
                 elif step.kind == "wait":
-                    time.sleep(min(0.2, step.timeout_s))
+                    await asyncio.sleep(settle_s)
                 elif step.kind == "observe":
                     pass
                 else:
                     return ExecutionResult(False, command.command_id, None, error=f"unsupported_terminal_step:{step.kind}")
-                time.sleep(min(0.2, step.timeout_s))
+                if step.kind != "wait":
+                    await asyncio.sleep(settle_s)
                 self._update_screen()
             observation = await self.observe()
             return ExecutionResult(True, command.command_id, observation, raw_result={"simulated": False})
