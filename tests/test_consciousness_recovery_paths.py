@@ -158,6 +158,210 @@ def test_consciousness_bridge_prediction_hook_records_failures(monkeypatch):
     assert recorded == [("consciousness_bridge", "RuntimeError")]
 
 
+def test_consciousness_bridge_stop_handles_sync_and_async_components(monkeypatch):
+    recorded: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        consciousness_bridge,
+        "record_degradation",
+        lambda module, exc: recorded.append((module, type(exc).__name__)),
+    )
+
+    class _SyncStop:
+        def __init__(self):
+            self.calls = 0
+
+        def stop(self):
+            self.calls += 1
+
+    class _AsyncFailingStop:
+        def __init__(self):
+            self.calls = 0
+
+        async def stop(self):
+            self.calls += 1
+            raise RuntimeError("stop unavailable")
+
+    sync_stop = _SyncStop()
+    failing_stop = _AsyncFailingStop()
+    bridge = ConsciousnessBridge.__new__(ConsciousnessBridge)
+    bridge._running = True
+    bridge._task = None
+    bridge.unified_will = sync_stop
+    bridge.substrate_evolution = failing_stop
+    bridge.unified_field = None
+    bridge.oscillatory_binding = None
+    bridge.interoception = None
+    bridge.neurochemical = None
+    bridge.neural_mesh = None
+
+    asyncio.run(bridge.stop())
+
+    assert bridge._running is False
+    assert sync_stop.calls == 1
+    assert failing_stop.calls == 1
+    assert recorded == [("consciousness_bridge", "RuntimeError")]
+
+
+def test_consciousness_bridge_somatic_gate_hook_is_idempotent_and_visible(monkeypatch):
+    recorded: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        consciousness_bridge,
+        "record_degradation",
+        lambda module, exc: recorded.append((module, type(exc).__name__)),
+    )
+    monkeypatch.setattr(
+        consciousness_bridge.ServiceContainer,
+        "get",
+        lambda _name, default=None: default,
+    )
+
+    class _Workspace:
+        def __init__(self):
+            self.submits = 0
+
+        async def submit(self, _candidate):
+            self.submits += 1
+            return True
+
+    class _Authority:
+        def __init__(self):
+            self.calls = 0
+
+        def authorize(self, **_kwargs):
+            self.calls += 1
+            raise RuntimeError("authority unavailable")
+
+    workspace = _Workspace()
+    authority = _Authority()
+    bridge = ConsciousnessBridge.__new__(ConsciousnessBridge)
+    bridge._cs = types.SimpleNamespace(global_workspace=workspace)
+    bridge.substrate_authority = authority
+
+    bridge._hook_somatic_into_gwt()
+    installed_submit = workspace.submit
+    bridge._hook_somatic_into_gwt()
+    candidate = types.SimpleNamespace(
+        source="curiosity_engine",
+        content="inspect an unexpected signal",
+        effective_priority=0.8,
+        priority=0.8,
+    )
+
+    assert workspace.submit is installed_submit
+    assert asyncio.run(workspace.submit(candidate)) is True
+    assert workspace.submits == 1
+    assert authority.calls == 1
+    assert recorded == [("consciousness_bridge", "RuntimeError")]
+
+
+def test_consciousness_bridge_neurochemical_hook_supports_sync_tick_once():
+    class _Predictor:
+        def __init__(self):
+            self.tick_calls = 0
+
+        def tick(self, **_kwargs):
+            self.tick_calls += 1
+            return "tick-ok"
+
+        def get_surprise_signal(self):
+            return 0.5
+
+    class _Neurochemical:
+        def __init__(self):
+            self.prediction_errors: list[float] = []
+
+        def on_prediction_error(self, surprise):
+            self.prediction_errors.append(surprise)
+
+    predictor = _Predictor()
+    neurochemical = _Neurochemical()
+    bridge = ConsciousnessBridge.__new__(ConsciousnessBridge)
+    bridge.neurochemical = neurochemical
+    bridge._cs = types.SimpleNamespace(self_prediction=predictor)
+
+    bridge._hook_neurochemical_events()
+    installed_tick = predictor.tick
+    bridge._hook_neurochemical_events()
+
+    assert predictor.tick is installed_tick
+    assert asyncio.run(predictor.tick()) == "tick-ok"
+    assert predictor.tick_calls == 1
+    assert neurochemical.prediction_errors == [0.5]
+
+
+def test_consciousness_bridge_status_reports_authority_and_will_layers():
+    class _Status:
+        def get_status(self):
+            return {"status": "online"}
+
+    bridge = ConsciousnessBridge.__new__(ConsciousnessBridge)
+    bridge.neural_mesh = _Status()
+    bridge.neurochemical = _Status()
+    bridge.interoception = _Status()
+    bridge.oscillatory_binding = _Status()
+    bridge.somatic_gate = _Status()
+    bridge.unified_field = _Status()
+    bridge.substrate_evolution = _Status()
+    bridge.substrate_authority = _Status()
+    bridge.unified_will = _Status()
+    bridge._running = False
+    bridge._tick_count = 3
+    bridge._start_time = 0.0
+    bridge._boot_errors = []
+
+    status = bridge.get_status()
+
+    assert status["layers_active"] == 9
+    assert status["layers_total"] == 9
+    assert status["components"]["substrate_authority"] == {"status": "online"}
+    assert status["components"]["unified_will"] == {"status": "online"}
+
+
+def test_consciousness_bridge_lookup_and_dispatch_failures_are_visible(monkeypatch):
+    recorded: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        consciousness_bridge,
+        "record_degradation",
+        lambda module, exc: recorded.append((module, type(exc).__name__)),
+    )
+    monkeypatch.setattr(
+        consciousness_bridge.ServiceContainer,
+        "get",
+        _FailingCallable("service lookup unavailable"),
+    )
+
+    class _ClosedLoop:
+        def __init__(self):
+            self.calls = 0
+
+        def is_running(self):
+            return True
+
+        def call_soon_threadsafe(self, _callback):
+            self.calls += 1
+            raise RuntimeError("loop closed")
+
+    loop = _ClosedLoop()
+    bridge = ConsciousnessBridge.__new__(ConsciousnessBridge)
+    bridge._cs = types.SimpleNamespace(
+        liquid_substrate="substrate-fallback",
+        global_workspace="workspace-fallback",
+    )
+    bridge.substrate_evolution = types.SimpleNamespace()
+    bridge._loop = loop
+
+    assert bridge._get_substrate() == "substrate-fallback"
+    assert bridge._get_workspace() == "workspace-fallback"
+    bridge._dispatch_micro_evolve("coherence_collapse", 0.9)
+
+    assert recorded == [
+        ("consciousness_bridge", "RuntimeError"),
+        ("consciousness_bridge", "RuntimeError"),
+        ("consciousness_bridge", "RuntimeError"),
+    ]
+    assert loop.calls == 1
+
+
 def test_free_energy_entropy_fallback_records_degradation(monkeypatch):
     recorded: list[tuple[str, str]] = []
     monkeypatch.setattr(

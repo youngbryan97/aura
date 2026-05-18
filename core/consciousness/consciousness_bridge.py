@@ -1,6 +1,6 @@
 """core/consciousness/consciousness_bridge.py — The Consciousness Bridge
 
-Wires the seven new subsystems into Aura's existing consciousness stack.
+Wires the nine bridge layers into Aura's existing consciousness stack.
 
 This module:
   1. Instantiates and starts all bridge components
@@ -18,6 +18,8 @@ Boot order (respects dependencies):
   5. SomaticMarkerGate    (needs mesh + interoception + chemicals)
   6. UnifiedField         (needs all of the above)
   7. SubstrateEvolution   (needs mesh + binding + workspace + substrate)
+  8. SubstrateAuthority   (mandatory action gate)
+  9. UnifiedWill          (single decision authority)
 
 After boot, a continuous integration loop runs at 10 Hz that:
   - Reads the NeuralMesh executive projection and pushes it into the LiquidSubstrate
@@ -27,12 +29,14 @@ After boot, a continuous integration loop runs at 10 Hz that:
   - Reads binding state and pushes it into the UnifiedField
   - Reports phases to OscillatoryBinding from each subsystem
   - Applies somatic marker evaluation to GWT candidates
+  - Enforces SubstrateAuthority before GWT competition
   - Applies unified field back-pressure to input subsystems
   - Pushes neurochemical mood into the substrate's VAD indices
 """
 from __future__ import annotations
 
 import asyncio
+import inspect
 import logging
 import time
 from typing import Any
@@ -44,6 +48,16 @@ from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Consciousness.Bridge")
+
+_RECOVERABLE_BRIDGE_ERRORS = (
+    AttributeError,
+    ImportError,
+    LookupError,
+    OSError,
+    RuntimeError,
+    TypeError,
+    ValueError,
+)
 
 
 class ConsciousnessBridge:
@@ -57,6 +71,7 @@ class ConsciousnessBridge:
     """
 
     _INTEGRATION_HZ = 10.0  # 10 Hz integration loop
+    _BRIDGE_LAYER_COUNT = 9
 
     def __init__(self, consciousness_system: Any):
         self._cs = consciousness_system  # ConsciousnessSystem reference
@@ -71,16 +86,51 @@ class ConsciousnessBridge:
         self.unified_field = None
         self.substrate_evolution = None
         self.substrate_authority = None
+        self.unified_will = None
 
         # Integration loop
         self._running = False
         self._task: asyncio.Task | None = None
         self._tick_count: int = 0
         self._start_time: float = 0.0
-        self._boot_errors: list = []
+        self._boot_errors: list[tuple[str, str]] = []
         self._loop: asyncio.AbstractEventLoop | None = None
 
         logger.info("ConsciousnessBridge created")
+
+    async def _call_component_method(
+        self,
+        component: Any,
+        method_name: str,
+    ) -> bool:
+        method = getattr(component, method_name, None)
+        if not callable(method):
+            return False
+        result = method()
+        if inspect.isawaitable(result):
+            await result
+        return True
+
+    def _record_boot_error(self, name: str, error: BaseException) -> None:
+        record_degradation("consciousness_bridge", error)
+        self._boot_errors.append((name, str(error)))
+
+    def _layers_active(self) -> int:
+        return sum(
+            1
+            for ref in [
+                self.neural_mesh,
+                self.neurochemical,
+                self.interoception,
+                self.oscillatory_binding,
+                self.somatic_gate,
+                self.unified_field,
+                self.substrate_evolution,
+                self.substrate_authority,
+                self.unified_will,
+            ]
+            if ref is not None
+        )
 
     # ── Boot ─────────────────────────────────────────────────────────────
 
@@ -95,13 +145,12 @@ class ConsciousnessBridge:
         try:
             from .neural_mesh import NeuralMesh
             self.neural_mesh = NeuralMesh()
-            await self.neural_mesh.start()
+            await self._call_component_method(self.neural_mesh, "start")
             ServiceContainer.register_instance("neural_mesh", self.neural_mesh)
             logger.info("🧬 Bridge Layer 1: NeuralMesh ONLINE (4096 neurons)")
-        except Exception as e:
-            record_degradation('consciousness_bridge', e)
+        except _RECOVERABLE_BRIDGE_ERRORS as e:
+            self._record_boot_error("neural_mesh", e)
             logger.error("Failed to boot NeuralMesh: %s", e, exc_info=True)
-            self._boot_errors.append(("neural_mesh", str(e)))
 
         # ── 2. Neurochemical System ──────────────────────────────────
         try:
@@ -115,13 +164,12 @@ class ConsciousnessBridge:
                  getattr(self._cs, "global_workspace", None)
             if gw:
                 self.neurochemical._workspace_ref = gw
-            await self.neurochemical.start()
+            await self._call_component_method(self.neurochemical, "start")
             ServiceContainer.register_instance("neurochemical_system", self.neurochemical)
             logger.info("🧬 Bridge Layer 2: NeurochemicalSystem ONLINE (8 modulators)")
-        except Exception as e:
-            record_degradation('consciousness_bridge', e)
+        except _RECOVERABLE_BRIDGE_ERRORS as e:
+            self._record_boot_error("neurochemical", e)
             logger.error("Failed to boot NeurochemicalSystem: %s", e, exc_info=True)
-            self._boot_errors.append(("neurochemical", str(e)))
 
         # ── 3. Embodied Interoception ────────────────────────────────
         try:
@@ -132,25 +180,23 @@ class ConsciousnessBridge:
                 self.interoception._mesh_ref = self.neural_mesh
             if self.neurochemical:
                 self.interoception._neurochemical_ref = self.neurochemical
-            await self.interoception.start()
+            await self._call_component_method(self.interoception, "start")
             ServiceContainer.register_instance("embodied_interoception", self.interoception)
             logger.info("🧬 Bridge Layer 3: EmbodiedInteroception ONLINE (8 channels)")
-        except Exception as e:
-            record_degradation('consciousness_bridge', e)
+        except _RECOVERABLE_BRIDGE_ERRORS as e:
+            self._record_boot_error("interoception", e)
             logger.error("Failed to boot EmbodiedInteroception: %s", e, exc_info=True)
-            self._boot_errors.append(("interoception", str(e)))
 
         # ── 4. Oscillatory Binding ───────────────────────────────────
         try:
             from .oscillatory_binding import OscillatoryBinding
             self.oscillatory_binding = OscillatoryBinding()
-            await self.oscillatory_binding.start()
+            await self._call_component_method(self.oscillatory_binding, "start")
             ServiceContainer.register_instance("oscillatory_binding", self.oscillatory_binding)
             logger.info("🧬 Bridge Layer 4: OscillatoryBinding ONLINE (γ=40Hz, θ=8Hz)")
-        except Exception as e:
-            record_degradation('consciousness_bridge', e)
+        except _RECOVERABLE_BRIDGE_ERRORS as e:
+            self._record_boot_error("oscillatory_binding", e)
             logger.error("Failed to boot OscillatoryBinding: %s", e, exc_info=True)
-            self._boot_errors.append(("oscillatory_binding", str(e)))
 
         # ── 5. Somatic Marker Gate ───────────────────────────────────
         try:
@@ -164,10 +210,9 @@ class ConsciousnessBridge:
                 self.somatic_gate._neurochemical_ref = self.neurochemical
             ServiceContainer.register_instance("somatic_marker_gate", self.somatic_gate)
             logger.info("🧬 Bridge Layer 5: SomaticMarkerGate ONLINE")
-        except Exception as e:
-            record_degradation('consciousness_bridge', e)
+        except _RECOVERABLE_BRIDGE_ERRORS as e:
+            self._record_boot_error("somatic_gate", e)
             logger.error("Failed to boot SomaticMarkerGate: %s", e, exc_info=True)
-            self._boot_errors.append(("somatic_gate", str(e)))
 
         # ── 6. Unified Field ─────────────────────────────────────────
         try:
@@ -175,13 +220,12 @@ class ConsciousnessBridge:
             self.unified_field = UnifiedField()
             if self.oscillatory_binding:
                 self.unified_field._binding_ref = self.oscillatory_binding
-            await self.unified_field.start()
+            await self._call_component_method(self.unified_field, "start")
             ServiceContainer.register_instance("unified_field", self.unified_field)
             logger.info("🧬 Bridge Layer 6: UnifiedField ONLINE (256-d experiential field)")
-        except Exception as e:
-            record_degradation('consciousness_bridge', e)
+        except _RECOVERABLE_BRIDGE_ERRORS as e:
+            self._record_boot_error("unified_field", e)
             logger.error("Failed to boot UnifiedField: %s", e, exc_info=True)
-            self._boot_errors.append(("unified_field", str(e)))
 
         # ── 7. Substrate Evolution ───────────────────────────────────
         try:
@@ -200,14 +244,13 @@ class ConsciousnessBridge:
                         getattr(self._cs, "liquid_substrate", None)
             if substrate:
                 self.substrate_evolution._substrate_ref = substrate
-            await self.substrate_evolution.start()
+            await self._call_component_method(self.substrate_evolution, "start")
             ServiceContainer.register_instance("substrate_evolution", self.substrate_evolution)
             logger.info("🧬 Bridge Layer 7: SubstrateEvolution ONLINE (pop=%d)",
                         self.substrate_evolution.cfg.population_size)
-        except Exception as e:
-            record_degradation('consciousness_bridge', e)
+        except _RECOVERABLE_BRIDGE_ERRORS as e:
+            self._record_boot_error("substrate_evolution", e)
             logger.error("Failed to boot SubstrateEvolution: %s", e, exc_info=True)
-            self._boot_errors.append(("substrate_evolution", str(e)))
 
         # ── 8. Substrate Authority (THE SINGLE NARROW WAIST) ────────
         try:
@@ -229,10 +272,9 @@ class ConsciousnessBridge:
                 self.substrate_authority._interoception_ref = self.interoception
                 
             logger.info("🧬 Bridge Layer 8: SubstrateAuthority ONLINE (mandatory gate)")
-        except Exception as e:
-            record_degradation('consciousness_bridge', e)
+        except _RECOVERABLE_BRIDGE_ERRORS as e:
+            self._record_boot_error("substrate_authority", e)
             logger.error("Failed to boot SubstrateAuthority: %s", e, exc_info=True)
-            self._boot_errors.append(("substrate_authority", str(e)))
             # Do NOT nullify if we have an instance, just log the wiring failure
             if not self.substrate_authority:
                 self.substrate_authority = None
@@ -241,12 +283,12 @@ class ConsciousnessBridge:
         try:
             from core.will import get_will
             self.unified_will = get_will()
-            await self.unified_will.start()
+            await self._call_component_method(self.unified_will, "start")
             logger.info("🧬 Bridge Layer 9: UnifiedWill ONLINE (single locus of authority)")
-        except Exception as e:
-            record_degradation('consciousness_bridge', e)
+        except _RECOVERABLE_BRIDGE_ERRORS as e:
+            self._record_boot_error("unified_will", e)
             logger.error("Failed to boot UnifiedWill: %s", e, exc_info=True)
-            self._boot_errors.append(("unified_will", str(e)))
+            self.unified_will = None
 
         # ── Start integration loop ───────────────────────────────────
         self._running = True
@@ -258,10 +300,12 @@ class ConsciousnessBridge:
         # ── Hook neurochemical events into existing systems ──────────
         self._hook_neurochemical_events()
 
-        boot_count = 8 - len(self._boot_errors)
+        boot_count = self._layers_active()
         logger.info(
-            "🧬 ConsciousnessBridge ONLINE — %d/8 layers active, %d errors (Will: single locus)",
-            boot_count, len(self._boot_errors),
+            "🧬 ConsciousnessBridge ONLINE — %d/%d layers active, %d errors (Will: single locus)",
+            boot_count,
+            self._BRIDGE_LAYER_COUNT,
+            len(self._boot_errors),
         )
         if self._boot_errors:
             for name, err in self._boot_errors:
@@ -276,9 +320,15 @@ class ConsciousnessBridge:
                 await self._task
             except asyncio.CancelledError:
                 logger.debug("ConsciousnessBridge integration task cancelled during shutdown")
+            except _RECOVERABLE_BRIDGE_ERRORS as e:
+                record_degradation("consciousness_bridge", e)
+                logger.debug("ConsciousnessBridge integration task shutdown failed: %s", e)
+            finally:
+                self._task = None
 
         # Stop in reverse order
         for component, name in [
+            (self.unified_will, "UnifiedWill"),
             (self.substrate_evolution, "SubstrateEvolution"),
             (self.unified_field, "UnifiedField"),
             (self.oscillatory_binding, "OscillatoryBinding"),
@@ -288,8 +338,8 @@ class ConsciousnessBridge:
         ]:
             if component and hasattr(component, "stop"):
                 try:
-                    await component.stop()
-                except Exception as e:
+                    await self._call_component_method(component, "stop")
+                except _RECOVERABLE_BRIDGE_ERRORS as e:
                     record_degradation('consciousness_bridge', e)
                     logger.debug("Error stopping %s: %s", name, e)
 
@@ -310,7 +360,7 @@ class ConsciousnessBridge:
                 t0 = time.time()
                 try:
                     await asyncio.to_thread(self._integration_tick)
-                except Exception as e:
+                except _RECOVERABLE_BRIDGE_ERRORS as e:
                     record_degradation('consciousness_bridge', e)
                     logger.error("Bridge integration error: %s", e, exc_info=True)
 
@@ -343,7 +393,7 @@ class ConsciousnessBridge:
                         substrate.x * 0.65 + projection * 0.35,
                         -1.0, 1.0
                     ).astype(np.float64)
-            except Exception as e:
+            except _RECOVERABLE_BRIDGE_ERRORS as e:
                 record_degradation('consciousness_bridge', e)
                 logger.debug("Mesh→Substrate integration failed: %s", e)
 
@@ -353,7 +403,7 @@ class ConsciousnessBridge:
                 state = substrate.x.copy()
                 state64 = self._fit_vector(state, 64, mode="truncate", dtype=np.float32)
                 self.unified_field.receive_substrate(state64)
-            except Exception as e:
+            except _RECOVERABLE_BRIDGE_ERRORS as e:
                 record_degradation('consciousness_bridge', e)
                 logger.debug("Substrate→Field failed: %s", e)
 
@@ -363,7 +413,7 @@ class ConsciousnessBridge:
                 proj = self.neural_mesh.get_executive_projection()
                 proj64 = self._fit_vector(proj, 64, mode="truncate", dtype=np.float32)
                 self.unified_field.receive_mesh(proj64)
-            except Exception as e:
+            except _RECOVERABLE_BRIDGE_ERRORS as e:
                 record_degradation('consciousness_bridge', e)
                 logger.debug("Mesh→Field failed: %s", e)
 
@@ -378,7 +428,7 @@ class ConsciousnessBridge:
                     ]
                 ], dtype=np.float32)
                 self.unified_field.receive_chemicals(chem_vec)
-            except Exception as e:
+            except _RECOVERABLE_BRIDGE_ERRORS as e:
                 record_degradation('consciousness_bridge', e)
                 logger.debug("Chemicals→Field failed: %s", e)
 
@@ -392,7 +442,7 @@ class ConsciousnessBridge:
                     self.oscillatory_binding.get_coupling_strength(),
                 ], dtype=np.float32)
                 self.unified_field.receive_binding(bind_vec)
-            except Exception as e:
+            except _RECOVERABLE_BRIDGE_ERRORS as e:
                 record_degradation('consciousness_bridge', e)
                 logger.debug("Binding→Field failed: %s", e)
 
@@ -402,7 +452,7 @@ class ConsciousnessBridge:
                 intero = self.interoception.get_interoceptive_state()
                 intero_vec = np.array(list(intero.values()), dtype=np.float32)
                 self.unified_field.receive_interoception(intero_vec)
-            except Exception as e:
+            except _RECOVERABLE_BRIDGE_ERRORS as e:
                 record_degradation('consciousness_bridge', e)
                 logger.debug("Interoception→Field failed: %s", e)
 
@@ -459,7 +509,7 @@ class ConsciousnessBridge:
                     self.oscillatory_binding.compute_subsystem_phase(
                         self.unified_field.get_coherence(), "unified_field"
                     )
-            except Exception as e:
+            except _RECOVERABLE_BRIDGE_ERRORS as e:
                 record_degradation('consciousness_bridge', e)
                 logger.debug("Phase reporting failed: %s", e)
 
@@ -483,7 +533,7 @@ class ConsciousnessBridge:
                     substrate.x[substrate.idx_frustration] = (
                         substrate.x[substrate.idx_frustration] * 0.75 + stress * 0.25
                     )
-            except Exception as e:
+            except _RECOVERABLE_BRIDGE_ERRORS as e:
                 record_degradation('consciousness_bridge', e)
                 logger.debug("Chemicals→Substrate VAD failed: %s", e)
 
@@ -524,7 +574,7 @@ class ConsciousnessBridge:
                         substrate.x *= 0.995  # gentle damping each tick
                         substrate.v *= 0.99   # reduce velocity
 
-            except Exception as e:
+            except _RECOVERABLE_BRIDGE_ERRORS as e:
                 record_degradation('consciousness_bridge', e)
                 logger.debug("Back-pressure application failed: %s", e)
 
@@ -549,7 +599,7 @@ class ConsciousnessBridge:
                     dtype=np.float32,
                 )
                 self.neural_mesh.inject_association(expanded * 0.3)
-            except Exception as e:
+            except _RECOVERABLE_BRIDGE_ERRORS as e:
                 record_degradation('consciousness_bridge', e)
                 logger.debug("LLM→Mesh association injection failed: %s", e)
 
@@ -572,7 +622,7 @@ class ConsciousnessBridge:
                         self._dispatch_micro_evolve("phi_drop", 0.7)
                     self._prev_phi_for_evolution = current_phi
 
-            except Exception as e:
+            except _RECOVERABLE_BRIDGE_ERRORS as e:
                 record_degradation('consciousness_bridge', e)
                 logger.debug("Micro-evolution trigger failed: %s", e)
 
@@ -596,7 +646,15 @@ class ConsciousnessBridge:
             return
 
         # Monkey-patch GWT.submit to enforce mandatory gate
-        original_submit = gw.submit
+        original_submit = getattr(gw, "submit", None)
+        if getattr(original_submit, "_aura_bridge_gated", False):
+            logger.debug("SubstrateAuthority GWT gate already installed")
+            return
+        if not callable(original_submit):
+            error = AttributeError("global workspace has no callable submit")
+            record_degradation("consciousness_bridge", error)
+            logger.warning("SubstrateAuthority gate not installed: %s", error)
+            return
 
         async def gated_submit(candidate) -> bool:
             """Mandatory substrate gate before GWT competition entry."""
@@ -641,13 +699,23 @@ class ConsciousnessBridge:
                     # Reduce priority — candidate still competes but disadvantaged
                     candidate.priority = max(0.05, candidate.priority * 0.5)
 
-            except Exception as e:
+            except _RECOVERABLE_BRIDGE_ERRORS as e:
                 record_degradation('consciousness_bridge', e)
                 logger.debug("Substrate gate error (allowing through): %s", e)
 
-            return await original_submit(candidate)
+            result = original_submit(candidate)
+            if inspect.isawaitable(result):
+                return await result
+            return bool(result)
 
-        gw.submit = gated_submit
+        gated_submit._aura_bridge_gated = True
+        gated_submit._aura_original_submit = original_submit
+        try:
+            gw.submit = gated_submit
+        except _RECOVERABLE_BRIDGE_ERRORS as e:
+            record_degradation("consciousness_bridge", e)
+            logger.warning("SubstrateAuthority gate install failed: %s", e)
+            return
         logger.info("🛡️ SubstrateAuthority wired as MANDATORY GWT pre-competition gate")
 
     def _hook_neurochemical_events(self):
@@ -658,23 +726,41 @@ class ConsciousnessBridge:
         # Wire prediction errors from self_prediction
         predictor = getattr(self._cs, "self_prediction", None)
         if predictor:
-            original_tick = getattr(predictor, "tick", None)
+            try:
+                original_tick = getattr(predictor, "tick", None)
+            except _RECOVERABLE_BRIDGE_ERRORS as exc:
+                record_degradation("consciousness_bridge", exc)
+                logger.debug("Prediction tick hook lookup failed: %s", exc)
+                return
             ncs = self.neurochemical
 
             if original_tick and callable(original_tick):
+                if getattr(original_tick, "_aura_bridge_neurochemical_hook", False):
+                    logger.debug("Neurochemical prediction hook already installed")
+                    return
+
                 async def enhanced_tick(**kwargs):
-                    result = await original_tick(**kwargs)
+                    result = original_tick(**kwargs)
+                    if inspect.isawaitable(result):
+                        result = await result
                     # After prediction tick, feed surprise to neurochemicals
                     try:
                         surprise = predictor.get_surprise_signal()
                         if surprise > 0.3:
                             ncs.on_prediction_error(surprise)
-                    except Exception as exc:
+                    except _RECOVERABLE_BRIDGE_ERRORS as exc:
                         record_degradation("consciousness_bridge", exc)
                         logger.debug("Prediction surprise neurochemical hook failed: %s", exc)
                     return result
 
-                predictor.tick = enhanced_tick
+                enhanced_tick._aura_bridge_neurochemical_hook = True
+                enhanced_tick._aura_original_tick = original_tick
+                try:
+                    predictor.tick = enhanced_tick
+                except _RECOVERABLE_BRIDGE_ERRORS as exc:
+                    record_degradation("consciousness_bridge", exc)
+                    logger.debug("Prediction tick hook install failed: %s", exc)
+                    return
                 logger.info("Neurochemical system wired to prediction surprise")
 
     def _dispatch_micro_evolve(self, reason: str, intensity: float):
@@ -683,30 +769,48 @@ class ConsciousnessBridge:
             return
 
         def _submit():
-            if self._loop and self._loop.is_running():
-                get_task_tracker().create_task(
-                    self.substrate_evolution.micro_evolve(reason, intensity),
-                    name=f"MicroEvolve:{reason}"
-                )
+            try:
+                if self._loop and self._loop.is_running():
+                    get_task_tracker().create_task(
+                        self.substrate_evolution.micro_evolve(reason, intensity),
+                        name=f"MicroEvolve:{reason}",
+                    )
+            except _RECOVERABLE_BRIDGE_ERRORS as exc:
+                record_degradation("consciousness_bridge", exc)
+                logger.debug("Micro-evolution dispatch failed: %s", exc)
 
         if self._loop:
-            self._loop.call_soon_threadsafe(_submit)
+            try:
+                self._loop.call_soon_threadsafe(_submit)
+            except _RECOVERABLE_BRIDGE_ERRORS as exc:
+                record_degradation("consciousness_bridge", exc)
+                logger.debug("Micro-evolution loop dispatch failed: %s", exc)
 
     # ── Helpers ───────────────────────────────────────────────────────────
 
     def _get_substrate(self):
         """Get the LiquidSubstrate reference."""
-        return (
-            ServiceContainer.get("liquid_substrate", default=None) or
-            ServiceContainer.get("conscious_substrate", default=None) or
-            getattr(self._cs, "liquid_substrate", None)
-        )
+        try:
+            return (
+                ServiceContainer.get("liquid_substrate", default=None) or
+                ServiceContainer.get("conscious_substrate", default=None) or
+                getattr(self._cs, "liquid_substrate", None)
+            )
+        except _RECOVERABLE_BRIDGE_ERRORS as exc:
+            record_degradation("consciousness_bridge", exc)
+            logger.debug("LiquidSubstrate lookup failed: %s", exc)
+            return getattr(self._cs, "liquid_substrate", None)
 
     def _get_workspace(self):
-        return (
-            ServiceContainer.get("global_workspace", default=None) or
-            getattr(self._cs, "global_workspace", None)
-        )
+        try:
+            return (
+                ServiceContainer.get("global_workspace", default=None) or
+                getattr(self._cs, "global_workspace", None)
+            )
+        except _RECOVERABLE_BRIDGE_ERRORS as exc:
+            record_degradation("consciousness_bridge", exc)
+            logger.debug("GlobalWorkspace lookup failed: %s", exc)
+            return getattr(self._cs, "global_workspace", None)
 
     @staticmethod
     def _fit_vector(
@@ -756,11 +860,13 @@ class ConsciousnessBridge:
             ("somatic_gate", self.somatic_gate),
             ("unified_field", self.unified_field),
             ("substrate_evolution", self.substrate_evolution),
+            ("substrate_authority", self.substrate_authority),
+            ("unified_will", self.unified_will),
         ]:
             if ref and hasattr(ref, "get_status"):
                 try:
                     components[name] = ref.get_status()
-                except Exception as exc:
+                except _RECOVERABLE_BRIDGE_ERRORS as exc:
                     record_degradation("consciousness_bridge", exc)
                     logger.debug("%s status read failed: %s", name, exc)
                     components[name] = {"error": "status failed"}
@@ -772,12 +878,7 @@ class ConsciousnessBridge:
             "tick_count": self._tick_count,
             "uptime_s": round(time.time() - self._start_time, 1) if self._start_time else 0,
             "boot_errors": self._boot_errors,
-            "layers_active": sum(
-                1 for r in [
-                    self.neural_mesh, self.neurochemical, self.interoception,
-                    self.oscillatory_binding, self.somatic_gate,
-                    self.unified_field, self.substrate_evolution
-                ] if r is not None
-            ),
+            "layers_active": self._layers_active(),
+            "layers_total": self._BRIDGE_LAYER_COUNT,
             "components": components,
         }
