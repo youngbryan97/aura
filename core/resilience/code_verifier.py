@@ -1,14 +1,27 @@
-from core.runtime.errors import record_degradation
+from __future__ import annotations
+
 import ast
 import logging
-import os
-import re
-import subprocess
 import sys
 import tempfile
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 
+from core.runtime.atomic_writer import atomic_write_text
+from core.runtime.errors import record_degradation
+from core.tasks.managed_command import ManagedCommandResult, run_project_command
+
 logger = logging.getLogger("Aura.Verifier")
+_CODE_VERIFIER_RECOVERABLE_ERRORS = (
+    FileNotFoundError,
+    OSError,
+    RuntimeError,
+    TimeoutError,
+    TypeError,
+    ValueError,
+)
+CommandRunner = Callable[[tuple[str, ...], float], ManagedCommandResult]
 
 # Dangerous AST node types that indicate potentially harmful code
 _DANGEROUS_IMPORTS = frozenset({
@@ -29,14 +42,26 @@ _BANNED_ATTRS = frozenset({
 })
 
 
+@dataclass(frozen=True)
+class ImportabilityReport:
+    ok: bool
+    syntax_ok: bool
+    safety_ok: bool
+    warnings: tuple[str, ...] = ()
+    stdout: str = ""
+    stderr: str = ""
+    timed_out: bool = False
+    error: str = ""
+
+
 class CodeVerifier:
     """Implements Automated Program Repair (APR) safety patterns.
     Pattern: Generate -> Static Analysis -> Sandboxed Dry Run -> Deploy.
 
-    SECURITY (v5.0): verify_importability no longer uses exec_module
-    (which executed arbitrary top-level code). Instead it:
+    SECURITY (v5.0): verify_importability avoids dynamic import execution
+    (which would execute arbitrary top-level code). Instead it:
       1. Uses AST analysis to detect dangerous patterns
-      2. Runs a subprocess with timeout + restricted permissions for import checking
+      2. Runs isolated bytecode compilation with timeout for import-shape checking
     """
 
     @staticmethod
@@ -98,60 +123,90 @@ class CodeVerifier:
         return {"safe": len(warnings) == 0, "warnings": warnings}
 
     @staticmethod
-    def verify_importability(code: str, module_name: str = "temp_module", timeout: int = 10) -> bool:
-        """Stage 2: Sandboxed Dry Run.
-        Writes code to a temp file and attempts to import it in a
-        SUBPROCESS with a strict timeout. Never executes code in the
-        main process.
+    def verify_importability_report(
+        code: str,
+        module_name: str = "temp_module",
+        timeout: int = 10,
+        command_runner: CommandRunner | None = None,
+    ) -> ImportabilityReport:
+        """Stage 2: isolated compile dry run.
+
+        The check writes code to a temporary module and runs ``py_compile`` in
+        a bounded child process. It intentionally does not import or execute
+        top-level code; runtime smoke tests belong in a governed sandbox.
         """
-        tmp_path = None
+        syntax_ok = CodeVerifier.verify_syntax(code)
+        if not syntax_ok:
+            return ImportabilityReport(ok=False, syntax_ok=False, safety_ok=False, warnings=("Syntax error",))
+
+        safety = CodeVerifier.analyze_safety(code)
+        safety_ok = bool(safety["safe"])
+        warnings = tuple(str(item) for item in safety["warnings"])
+        if not safety_ok:
+            logger.warning("Code failed safety analysis: %s", warnings)
+
+        safe_name = CodeVerifier._safe_module_stem(module_name)
         try:
-            # First do a fast AST safety check
-            safety = CodeVerifier.analyze_safety(code)
-            if not safety["safe"]:
-                logger.warning("Code failed safety analysis: %s", safety['warnings'])
-                # Still allow import check but log the warnings
+            with tempfile.TemporaryDirectory(prefix="aura_code_verify_") as tmpdir:
+                tmp_path = Path(tmpdir) / f"{safe_name}.py"
+                atomic_write_text(tmp_path, code, encoding="utf-8")
+                runner = command_runner or (lambda command, limit: run_project_command(command, timeout_s=limit))
+                result = runner((sys.executable, "-m", "py_compile", str(tmp_path)), float(timeout))
 
-            with tempfile.NamedTemporaryFile(suffix=".py", delete=False, mode='w') as tmp:
-                tmp.write(code)
-                tmp_path = tmp.name
-
-            # Run import check in isolated subprocess with timeout
-            check_script = (
-                f"import importlib.util, sys; "
-                f"spec = importlib.util.spec_from_file_location('{module_name}', '{tmp_path}'); "
-                f"mod = importlib.util.module_from_spec(spec); "
-                f"spec.loader.exec_module(mod); "
-                f"print('OK')"
-            )
-
-            result = subprocess.run(
-                [sys.executable, "-c", check_script],
-                capture_output=True,
-                text=True,
-                timeout=timeout,
-                env={
-                    "PATH": os.environ.get("PATH", ""),
-                    "HOME": os.environ.get("HOME", "/tmp"),
-                    "PYTHONPATH": os.environ.get("PYTHONPATH", ""),
-                },
-            )
-
-            if result.returncode == 0 and "OK" in result.stdout:
-                return True
-            else:
+            if result.timed_out:
+                logger.warning("Verification timed out after %ss", timeout)
+                return ImportabilityReport(
+                    ok=False,
+                    syntax_ok=syntax_ok,
+                    safety_ok=safety_ok,
+                    warnings=warnings,
+                    stdout=result.stdout,
+                    stderr=result.stderr,
+                    timed_out=True,
+                )
+            if not result.ok:
                 stderr_sample = result.stderr[:500] if result.stderr else "No stderr"
-                logger.warning("Verification Import Failed: %s", stderr_sample)
-                return False
+                logger.warning("Verification compile failed: %s", stderr_sample)
+                return ImportabilityReport(
+                    ok=False,
+                    syntax_ok=syntax_ok,
+                    safety_ok=safety_ok,
+                    warnings=warnings,
+                    stdout=result.stdout,
+                    stderr=result.stderr,
+                )
+            return ImportabilityReport(
+                ok=safety_ok,
+                syntax_ok=syntax_ok,
+                safety_ok=safety_ok,
+                warnings=warnings,
+                stdout=result.stdout,
+                stderr=result.stderr,
+            )
 
-        except subprocess.TimeoutExpired:
-            logger.warning("Verification timed out after %ss — possible infinite loop", timeout)
-            return False
-        except Exception as e:
+        except _CODE_VERIFIER_RECOVERABLE_ERRORS as e:
             record_degradation('code_verifier', e)
             logger.error("Verifier internal error: %s", e)
-            return False
-        finally:
-            # Cleanup
-            if 'tmp_path' in locals() and os.path.exists(tmp_path):
-                os.remove(tmp_path)
+            return ImportabilityReport(
+                ok=False,
+                syntax_ok=syntax_ok,
+                safety_ok=safety_ok,
+                warnings=warnings,
+                error=str(e),
+            )
+
+    @staticmethod
+    def verify_importability(
+        code: str,
+        module_name: str = "temp_module",
+        timeout: int = 10,
+        command_runner: CommandRunner | None = None,
+    ) -> bool:
+        return CodeVerifier.verify_importability_report(code, module_name, timeout, command_runner).ok
+
+    @staticmethod
+    def _safe_module_stem(module_name: str) -> str:
+        stem = module_name.rsplit(".", 1)[-1]
+        if stem.isidentifier():
+            return stem
+        return "candidate_module"
