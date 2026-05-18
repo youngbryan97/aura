@@ -1,25 +1,26 @@
-from core.runtime.errors import record_degradation
 import asyncio
 import logging
-import time
 import os
-from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Awaitable
-import psutil
+import time
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
+from typing import Any
 
-from .state.aura_state import AuraState
-from core.brain.predictive_engine import PredictiveEngine
 from core.brain.metacognitive_monitor import MetacognitiveMonitor
-from core.predictive.trajectory_predictor import TrajectoryPredictor
+from core.brain.predictive_engine import PredictiveEngine
+from core.config import get_config
 from core.container import ServiceContainer
 from core.health.degraded_events import record_degraded_event
+from core.predictive.trajectory_predictor import TrajectoryPredictor
+from core.runtime.errors import record_degradation
 from core.runtime.pipeline_blueprint import instantiate_legacy_runtime_phases
 from core.runtime.shutdown_coordinator import is_shutdown_requested
-from core.utils.resilience import CircuitBreaker, run_with_watchdog
+from core.utils.resilience import CircuitBreaker
 from core.utils.task_tracker import get_task_tracker
-from core.config import get_config
+
+from .state.aura_state import AuraState
 
 config = get_config()
 logger = logging.getLogger(__name__)
@@ -45,8 +46,8 @@ class TickMetadata:
     mode: CognitiveMode
     start_time: float
     duration: float = 0.0
-    phases_executed: List[str] = field(default_factory=list)
-    phase_durations: Dict[str, float] = field(default_factory=dict)
+    phases_executed: list[str] = field(default_factory=list)
+    phase_durations: dict[str, float] = field(default_factory=dict)
 
 
 def _authorize_state_mutation_through_will(content: str, source: str, *, priority: float = 0.5):
@@ -84,11 +85,11 @@ class MindTick:
     def __init__(self, orchestrator: Any):
         self.orchestrator = orchestrator
         self.mode = CognitiveMode.CONVERSATIONAL
-        self.phases: List[tuple[str, PhaseCallable]] = []
+        self.phases: list[tuple[str, PhaseCallable]] = []
         self._running = False
         self._tick_count = 0
-        self._task: Optional[asyncio.Task] = None
-        self._last_tick_metadata: Optional[TickMetadata] = None
+        self._task: asyncio.Task | None = None
+        self._last_tick_metadata: TickMetadata | None = None
         
         # Cognitive Deepening Components
         self.predictive_engine = PredictiveEngine()
@@ -104,10 +105,10 @@ class MindTick:
             "audit": CircuitBreaker("metacognitive_monitor", max_failures=5, reset_timeout=60.0),  # More tolerant on 32B
             "immune_audit": CircuitBreaker("immune_pulse_audit", max_failures=2, reset_timeout=60.0),
         }
-        self.phase_breakers: Dict[str, CircuitBreaker] = {}
+        self.phase_breakers: dict[str, CircuitBreaker] = {}
         
         # Initiative re-promotion cooldown
-        self._last_initiative_goal: Optional[str] = None
+        self._last_initiative_goal: str | None = None
         self._last_initiative_time: float = 0.0
         self._initiative_cooldown: float = 30.0  # seconds
         self._missing_state_streak: int = 0
@@ -151,7 +152,6 @@ class MindTick:
     def reload_phases(self):
         """Dynamically reloads all phase modules and re-bootstraps the pipeline."""
         logger.info("🔄 MindTick: Hot-reloading cognitive phases...")
-        import importlib
         import sys
         
         # Clear cached phase modules to force fresh import
@@ -167,7 +167,7 @@ class MindTick:
         self._bootstrap_phases()
         logger.info("✅ MindTick: Hot-reload complete. %d phases active.", len(self.phases))
 
-    def _background_reasoning_pause_reason(self, state: Optional[AuraState] = None) -> str:
+    def _background_reasoning_pause_reason(self, state: AuraState | None = None) -> str:
         try:
             from core.runtime.background_policy import background_activity_reason
 
@@ -177,6 +177,7 @@ class MindTick:
                 max_memory_percent=78.0,
                 max_failure_pressure=0.25,
                 require_conversation_ready=False,
+                allow_no_user_anchor=True,
             )
             if reason:
                 return reason
@@ -251,7 +252,7 @@ class MindTick:
     async def _run_loop(self):
         """The main execution loop for the cognitive rhythm."""
         while self._running:
-            sleep_time_override: Optional[float] = None
+            sleep_time_override: float | None = None
             try:
                 start_time = asyncio.get_running_loop().time()
                 
@@ -302,8 +303,9 @@ class MindTick:
                 try:
                     from core.world_state import get_world_state
                     get_world_state().update()
-                except Exception:
-                    pass  # no-op: intentional
+                except Exception as exc:
+                    record_degradation("mind_tick", exc)
+                    logger.debug("MindTick: World state update failed: %s", exc)
 
                 # ── LLM HEALTH: Proactive recovery for ALL tiers every 10 ticks ──
                 if self._tick_count % 10 == 0:
@@ -316,19 +318,23 @@ class MindTick:
                                 logger.warning("LLM health: dead tiers=%s", dead_tiers)
                                 # Report persistent dead tiers to incident manager
                                 try:
-                                    from core.resilience.incident_manager import get_incident_manager
+                                    from core.resilience.incident_manager import (
+                                        get_incident_manager,
+                                    )
                                     get_incident_manager().report(
                                         source="mind_tick",
                                         title=f"LLM tiers dead: {', '.join(dead_tiers)}",
                                         detail=f"Dead tiers detected at tick {self._tick_count}",
                                         severity="warning",
                                     )
-                                except Exception:
-                                    pass
+                                except Exception as exc:
+                                    record_degradation("mind_tick", exc)
+                                    logger.debug("MindTick: LLM health incident report failed: %s", exc)
                         elif gate and hasattr(gate, "_ensure_cortex_recovery"):
                             await gate._ensure_cortex_recovery()
-                    except Exception:
-                        pass  # no-op: intentional
+                    except Exception as exc:
+                        record_degradation("mind_tick", exc)
+                        logger.debug("MindTick: LLM health recovery check failed: %s", exc)
 
                 # ── RESOURCE GOVERNOR: Check throttle state ──
                 if self._tick_count % 10 == 0:
@@ -341,8 +347,9 @@ class MindTick:
                                     "💓 MindTick: Resource governor throttled — "
                                     "deferring heavy background work."
                                 )
-                    except Exception:
-                        pass  # Resource governor unavailable
+                    except Exception as exc:
+                        record_degradation("mind_tick", exc)
+                        logger.debug("MindTick: Resource governor check failed: %s", exc)
 
                 # ── BINDING ENGINE: Run coherence tick before phases ──
                 _coherence_report = None
@@ -385,7 +392,9 @@ class MindTick:
                                     if objective == self._last_initiative_goal:
                                         continue
                                     # Use governed proposal path (constitutional compliance)
-                                    from core.runtime.proposal_governance import propose_governed_initiative_to_state
+                                    from core.runtime.proposal_governance import (
+                                        propose_governed_initiative_to_state,
+                                    )
                                     state, _ = await propose_governed_initiative_to_state(
                                         state,
                                         objective,
@@ -459,7 +468,7 @@ class MindTick:
                             self._last_prediction_time = time.time()
                             breaker.record_success()
                             logger.info(f"🔮 MindTick: Predicted: {prediction.content[:50]}...")
-                        except (asyncio.TimeoutError, Exception) as e:
+                        except (TimeoutError, Exception) as e:
                             detail = f"{type(e).__name__}: {e}" if str(e) else type(e).__name__
                             logger.warning("⚠️ MindTick: Prediction failed/stalled: %s", detail)
                             breaker.record_failure()
@@ -493,7 +502,7 @@ class MindTick:
 
                 current_state = state
 
-                async def execute_tick():
+                async def execute_tick(tick_metadata=metadata):
                     nonlocal current_state
                     # ── CONSTITUTIONAL UNIFICATION ──────────────────────────────
                     # MindTick is the heartbeat; the kernel is the sole authority.
@@ -562,7 +571,7 @@ class MindTick:
                                 committed = await self.orchestrator.state_repo.get_current()
                                 if committed:
                                     current_state = committed
-                                    metadata.phases_executed.append("kernel_sovereign_tick")
+                                    tick_metadata.phases_executed.append("kernel_sovereign_tick")
                                     logger.debug("💓 MindTick: Kernel sovereign tick completed (cycle %d).", self._tick_count)
                                 return current_state
                             else:
@@ -599,7 +608,7 @@ class MindTick:
                     # ── DEGRADED MODE: MindTick runs its own phases ──
                     # Only reached when kernel is not yet booted or tick acquisition fails.
                     logger.debug("💓 MindTick: Running degraded-mode phase pipeline (kernel unavailable).")
-                    async with asyncio.TaskGroup() as tg:
+                    async with asyncio.TaskGroup():
                         for name, phase_fn in self.phases:
                             # Relaxed failure threshold for complex phases
                             max_f = 5 if name == "response_generation" else 2
@@ -623,14 +632,14 @@ class MindTick:
                                 current_state = await asyncio.wait_for(phase_fn(current_state), timeout=timeout)
                                 phase_duration = time.perf_counter() - phase_start
                                 
-                                metadata.phases_executed.append(name)
-                                metadata.phase_durations[name] = phase_duration
+                                tick_metadata.phases_executed.append(name)
+                                tick_metadata.phase_durations[name] = phase_duration
                                 
                                 if phase_duration > 1.0:
                                     logger.warning(f"🐢 MindTick: Slow phase detected: '{name}' took {phase_duration:.3f}s")
                                 
                                 breaker.record_success()
-                            except asyncio.TimeoutError:
+                            except TimeoutError:
                                 logger.error(f"🛑 MindTick: Phase '{name}' STALLED (timeout). Tripping circuit.")
                                 breaker.record_failure()
                             except Exception as phase_err:
@@ -646,7 +655,7 @@ class MindTick:
                                         b.reset()
                     
                         # [REFLEXIVE FALLBACK]
-                        if "response_generation" not in metadata.phases_executed:
+                        if "response_generation" not in tick_metadata.phases_executed:
                             user_origins = ("user", "voice", "admin", "external", "gui", "api", "websocket", "direct")
                             current_origin = getattr(current_state.cognition, "current_origin", None)
                             if current_origin in user_origins:
@@ -673,7 +682,9 @@ class MindTick:
                     # [WHOLESALE FIX] Clear objective AFTER all phases complete
                     try:
                         if current_state:
-                            from core.consciousness.executive_authority import get_executive_authority
+                            from core.consciousness.executive_authority import (
+                                get_executive_authority,
+                            )
 
                             authority = get_executive_authority(self.orchestrator)
                             current_state, _ = await authority.complete_current_objective(
@@ -705,7 +716,7 @@ class MindTick:
                         "total_duration": metadata.duration,
                         "timestamp": time.time()
                     }), timeout=5.0)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     logger.warning("⚠️ MindTick: EventBus publish stalled (timeout). Continuing tick.")
                 except Exception as e:
                     record_degradation('mind_tick', e)
@@ -726,10 +737,10 @@ class MindTick:
                                     self._last_audit_time = time.time()
                                     breaker.record_success()
                                     if report.revision_needed and report.revised_response:
-                                        logger.warning(f"⚖️ MindTick: Metacognitive violation! Revising...")
+                                        logger.warning("⚖️ MindTick: Metacognitive violation! Revising...")
                                         current_state.cognition.working_memory[-1]["content"] = report.revised_response
                                         current_state = current_state.derive("metacognitive_revision")
-                                except (asyncio.TimeoutError, Exception) as e:
+                                except (TimeoutError, Exception) as e:
                                     detail = f"{type(e).__name__}: {e}" if str(e) else type(e).__name__
                                     logger.warning("⚠️ MindTick: Metacognitive audit failed: %s", detail)
                                     breaker.record_failure()
@@ -777,10 +788,10 @@ class MindTick:
                                         name = str(goal.get("name", goal.get("objective", "unknown")))
                                         success = str(goal.get("status", "")).lower() in ("completed", "succeeded")
                                         im.record_competence(name, success)
-                            except (TypeError, ValueError, AttributeError):
-                                pass  # no-op: IM not available or goal engine doesn't support it
+                            except (TypeError, ValueError, AttributeError) as exc:
+                                logger.debug("MindTick: Intrinsic motivation competence update skipped: %s", exc)
 
-                    except asyncio.TimeoutError:
+                    except TimeoutError:
                         logger.debug("MindTick: Goal evaluation timed out.")
                     except Exception as _ge_err:
                         record_degradation('mind_tick', _ge_err)
@@ -790,8 +801,9 @@ class MindTick:
                 try:
                     from core.consciousness.resource_stakes import get_resource_stakes
                     get_resource_stakes().tick()
-                except Exception:
-                    pass  # no-op: intentional
+                except Exception as exc:
+                    record_degradation("mind_tick", exc)
+                    logger.debug("MindTick: Resource stakes tick failed: %s", exc)
 
                 # 6. Synchronize Persistence Metrics
                 # Save all circuit breaker states into the state object before commit
@@ -861,7 +873,9 @@ class MindTick:
                                 if is_meaty and not has_null and not has_action:
                                     # [CONSTITUTIONAL] Route through ExecutiveAuthority — not output_gate
                                     try:
-                                        from core.consciousness.executive_authority import get_executive_authority
+                                        from core.consciousness.executive_authority import (
+                                            get_executive_authority,
+                                        )
                                         authority = get_executive_authority(self.orchestrator)
                                         await authority.release_expression(
                                             content,
@@ -912,8 +926,9 @@ class MindTick:
                             else:
                                 try:
                                     current_state.response_modifiers["dream_consolidation_will_receipt"] = decision.receipt_id
-                                except Exception:
-                                    pass  # no-op: intentional
+                                except Exception as exc:
+                                    record_degradation("mind_tick", exc)
+                                    logger.debug("MindTick: Dream consolidation receipt annotation failed: %s", exc)
                                 # Run as fire-and-forget task so we don't block the tick
                                 # Ensure background flag is passed
                                 get_task_tracker().track_task(
@@ -970,8 +985,9 @@ class MindTick:
                     if hasattr(self.orchestrator, 'status') and self.orchestrator.status:
                         current_c = getattr(self.orchestrator.status, 'cycle_count', 0)
                         self.orchestrator.status.cycle_count = current_c + 1
-                except Exception:
-                    pass  # Non-critical; never let this block the loop
+                except Exception as exc:
+                    record_degradation("mind_tick", exc)
+                    logger.debug("MindTick: Cycle count increment failed: %s", exc)
                 
                 # Wait for the next tick based on mode.
                 # Adaptive pacing: if the last tick was slow (> 5s), back off
@@ -990,7 +1006,7 @@ class MindTick:
                 sleep_time = max(1.0, interval - elapsed)
                 await asyncio.sleep(sleep_time)
 
-    def _get_actual_from_state(self, state: AuraState) -> Optional[str]:
+    def _get_actual_from_state(self, state: AuraState) -> str | None:
         """Extract the last actual cognitive output for prediction evaluation."""
         if state.cognition.working_memory:
             # We look for the most recent message
@@ -1106,9 +1122,10 @@ class MindTick:
             
             # 1. PID File Integrity
             pid_file = Path("aura.pid")
-            if pid_file.exists():
+            if await asyncio.to_thread(pid_file.exists):
                 try:
-                    pid = int(pid_file.read_text().strip())
+                    pid_text = await asyncio.to_thread(pid_file.read_text)
+                    pid = int(pid_text.strip())
                     try:
                         os.kill(pid, 0)
                     except ProcessLookupError:
@@ -1140,4 +1157,5 @@ class MindTick:
         except Exception as e:
             record_degradation('mind_tick', e)
             logger.error("💉 [IMMUNE] Pulse Audit failed: %s", e)
-            if breaker: breaker.record_failure()
+            if breaker:
+                breaker.record_failure()

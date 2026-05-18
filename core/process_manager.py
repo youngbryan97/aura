@@ -657,7 +657,7 @@ class ProcessManager:
         # Log results
         successful = sum(1 for success in stop_results.values() if success)
         total = len(stop_results)
-        logger.info("ProcessManager cleanup stopped %d/%d processes", successful, total)
+        self._last_cleanup_summary = {"successful": successful, "total": total}
     
     def get_status(self) -> dict[str, Any]:
         """Get status of all processes."""
