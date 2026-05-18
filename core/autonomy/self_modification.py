@@ -26,23 +26,19 @@ MODIFIABLE (with Will authorization):
   - Self-modification engine     (self_modification/)
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
 
-
-import asyncio
-import copy
+import ast
 import hashlib
 import json
 import logging
-import os
-import tempfile
 import time
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from core.container import ServiceContainer
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.SelfModification.Autonomous")
 
@@ -54,14 +50,14 @@ _MAX_AUDIT_ENTRIES = 2000
 
 # ── Classification ──────────────────────────────────────────────────────────
 
-class ModuleZone(str, Enum):
+class ModuleZone(StrEnum):
     """Classification of a module's modifiability."""
     PROTECTED = "protected"       # Never touch
     MODIFIABLE = "modifiable"     # Allowed with Will approval
     UNKNOWN = "unknown"           # Not in allowlist -- treat as protected
 
 
-class ProposalOutcome(str, Enum):
+class ProposalOutcome(StrEnum):
     APPROVED = "approved"
     REFUSED_BY_WILL = "refused_by_will"
     REFUSED_PROTECTED = "refused_protected"
@@ -107,7 +103,7 @@ class ModificationProposal:
     target_path: str              # Relative to project root
     description: str              # Why this change
     diff_summary: str             # Human-readable description of what changes
-    changes: Dict[str, Any]       # Structured change data
+    changes: dict[str, Any]       # Structured change data
     source: str                   # Which subsystem proposed this
     priority: float = 0.5         # 0-1
     timestamp: float = field(default_factory=time.time)
@@ -132,7 +128,7 @@ class ModificationReceipt:
     simulation_result: str = ""
     timestamp: float = field(default_factory=time.time)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "proposal_id": self.proposal_id,
             "target_path": self.target_path,
@@ -162,8 +158,8 @@ class AutonomousSelfModification:
     _MAX_RECEIPTS = 500
 
     def __init__(self) -> None:
-        self._pending: List[ModificationProposal] = []
-        self._receipts: List[ModificationReceipt] = []
+        self._pending: list[ModificationProposal] = []
+        self._receipts: list[ModificationReceipt] = []
         self._started = False
         _DATA_DIR.mkdir(parents=True, exist_ok=True)
         logger.info("AutonomousSelfModification created -- awaiting start()")
@@ -271,7 +267,7 @@ class AutonomousSelfModification:
 
         # 3. Consult the Unified Will
         try:
-            from core.will import get_will, ActionDomain
+            from core.will import ActionDomain, get_will
             will = get_will()
             decision = will.decide(
                 content=(
@@ -357,7 +353,7 @@ class AutonomousSelfModification:
         """Simulate a proposed modification.
 
         For value/weight changes: validate ranges.
-        For code changes: syntax check via compile().
+        For code changes: syntax check via ast.parse().
         """
         changes = proposal.changes or {}
         change_type = changes.get("type", "unknown")
@@ -385,7 +381,7 @@ class AutonomousSelfModification:
                 if not new_code.strip():
                     return False, "Empty code patch"
                 try:
-                    compile(new_code, "<self_modification_patch>", "exec")
+                    ast.parse(new_code, filename="<self_modification_patch>")
                 except SyntaxError as se:
                     return False, f"Syntax error in patch: {se}"
                 return True, f"Code patch syntax valid ({len(new_code)} chars)"
@@ -394,7 +390,7 @@ class AutonomousSelfModification:
                 return True, "Config update (low risk)"
 
             else:
-                return True, f"Untyped change -- passed basic validation"
+                return True, "Untyped change -- passed basic validation"
 
         except Exception as exc:
             record_degradation('self_modification', exc)
@@ -426,7 +422,7 @@ class AutonomousSelfModification:
             logger.error("Self-modification apply failed: %s", exc)
             return f"Apply error: {exc}"
 
-    async def _apply_value_adjustment(self, changes: Dict[str, Any]) -> str:
+    async def _apply_value_adjustment(self, changes: dict[str, Any]) -> str:
         """Apply value/weight adjustments to HeartstoneValues or DriveEngine."""
         new_values = changes.get("new_values", {})
         target_system = changes.get("target_system", "heartstone")
@@ -462,7 +458,7 @@ class AutonomousSelfModification:
         return f"Applied {len(applied)} value change(s): {'; '.join(applied)}"
 
     async def _apply_threshold_adjustment(
-        self, target_path: str, changes: Dict[str, Any]
+        self, target_path: str, changes: dict[str, Any]
     ) -> str:
         """Apply a threshold adjustment to a named attribute."""
         attr_path = changes.get("attribute_path", "")
@@ -497,11 +493,11 @@ class AutonomousSelfModification:
 
     # ── Public API ──────────────────────────────────────────────────────
 
-    def get_recent_receipts(self, n: int = 20) -> List[Dict[str, Any]]:
+    def get_recent_receipts(self, n: int = 20) -> list[dict[str, Any]]:
         """Return recent modification receipts for audit."""
         return [r.to_dict() for r in self._receipts[-n:]]
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Return current status."""
         approved = sum(1 for r in self._receipts if r.outcome == ProposalOutcome.APPROVED)
         refused = sum(1 for r in self._receipts if r.outcome != ProposalOutcome.APPROVED)
@@ -522,7 +518,7 @@ class AutonomousSelfModification:
 
 # ── Singleton ───────────────────────────────────────────────────────────────
 
-_instance: Optional[AutonomousSelfModification] = None
+_instance: AutonomousSelfModification | None = None
 
 
 def get_autonomous_self_modification() -> AutonomousSelfModification:

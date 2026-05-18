@@ -6,9 +6,11 @@ code.  Direct callers without an active Will/governance receipt fail closed via
 """
 from __future__ import annotations
 
+import ast
 import subprocess
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any
 
 from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.effect_boundary import effect_sink
@@ -34,7 +36,7 @@ def guarded_memory_write(writer: Any, payload: Mapping[str, Any]) -> Any:
 
 @effect_sink("primitive.code_mutation", allowed_domains=("state_mutation", "file_write"))
 def guarded_code_mutation(path: str | Path, source: str) -> None:
-    compile(source, str(path), "exec")
+    ast.parse(source, filename=str(path))
     atomic_write_text(Path(path), source, encoding="utf-8")
 
 

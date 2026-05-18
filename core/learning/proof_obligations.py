@@ -10,14 +10,14 @@ import ast
 import py_compile
 import tempfile
 from dataclasses import asdict, dataclass, field
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from core.self_modification.formal_verifier import VerificationResult, verify_mutation
+from core.self_modification.formal_verifier import verify_mutation
 
 
-class ProofStatus(str, Enum):
+class ProofStatus(StrEnum):
     PROVED = "PROVED"
     NOT_PROVEN = "NOT_PROVEN"
     BLOCKED_UNSAFE = "BLOCKED_UNSAFE"
@@ -26,16 +26,16 @@ class ProofStatus(str, Enum):
 @dataclass(frozen=True)
 class ProofObligationResult:
     status: ProofStatus
-    obligations: List[str]
-    discharged: List[str]
-    violations: List[str]
-    certificate: Dict[str, Any] = field(default_factory=dict)
+    obligations: list[str]
+    discharged: list[str]
+    violations: list[str]
+    certificate: dict[str, Any] = field(default_factory=dict)
 
     @property
     def ok(self) -> bool:
         return self.status == ProofStatus.PROVED
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
         payload["status"] = self.status.value
         return payload
@@ -63,7 +63,7 @@ class ProofObligationEngine:
         before_source: str,
         after_source: str,
         arbitrary_scope: bool = False,
-        machine_receipts: Optional[Dict[str, bool]] = None,
+        machine_receipts: dict[str, bool] | None = None,
     ) -> ProofObligationResult:
         machine_receipts = dict(machine_receipts or {})
         verifier = verify_mutation(
@@ -134,7 +134,7 @@ class ProofObligationEngine:
     @staticmethod
     def _bytecode_compiles(source: str, file_path: str) -> tuple[bool, dict[str, Any]]:
         try:
-            compile(source, file_path, "exec")
+            ast.parse(source, filename=file_path)
             with tempfile.TemporaryDirectory(prefix="aura-proof-") as tmp:
                 target = Path(tmp) / Path(file_path).name
                 target.write_text(source, encoding="utf-8")

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import runpy
 from pathlib import Path
 
 import pytest
@@ -47,7 +48,7 @@ def test_fault_pipeline_builds_precise_bug_packet_and_eligible_nameerror_patch(t
     source_path.write_text("def broken():\n    return get_mlx_client()\n\nbroken()\n", encoding="utf-8")
 
     try:
-        exec(compile(source_path.read_text(), str(source_path), "exec"), {})
+        runpy.run_path(str(source_path), run_name="__aura_fault_probe__")
     except Exception as exc:
         from core.self_modification.fault_pipeline import FaultToPatchPipeline
 
@@ -97,7 +98,11 @@ def test_stdp_external_validation_external_signal_beats_controls():
 
 
 def test_substrate_policy_head_outputs_decision_weights_and_ablation_delta():
-    from core.consciousness.substrate_policy_head import POLICY_KEYS, SubstratePolicyHead, SubstratePolicyInput
+    from core.consciousness.substrate_policy_head import (
+        POLICY_KEYS,
+        SubstratePolicyHead,
+        SubstratePolicyInput,
+    )
 
     head = SubstratePolicyHead()
     inputs = SubstratePolicyInput(
@@ -194,13 +199,13 @@ def test_output_gate_routes_background_self_talk_to_secondary():
 
 def test_governance_primitives_fail_closed_when_runtime_active(tmp_path):
     from core.container import ServiceContainer
-    from core.governance_context import governed_scope_sync
+    from core.governance_context import GovernanceViolation, governed_scope_sync
     from core.runtime.consequential_primitives import guarded_write_text
 
     old_locked = getattr(ServiceContainer, "_registration_locked", False)
     ServiceContainer._registration_locked = True
     try:
-        with pytest.raises(Exception):
+        with pytest.raises(GovernanceViolation):
             guarded_write_text(tmp_path / "blocked.txt", "no receipt")
 
         class Decision:
@@ -216,7 +221,13 @@ def test_governance_primitives_fail_closed_when_runtime_active(tmp_path):
 
 
 def test_memory_benchmark_graph_selective_reduces_tokens():
-    from core.memory.memory_benchmarking import GraphMemoryIndex, MemoryBenchmarkCase, MemoryBenchmarkRunner, MemoryScope, ScopedMemoryRecord
+    from core.memory.memory_benchmarking import (
+        GraphMemoryIndex,
+        MemoryBenchmarkCase,
+        MemoryBenchmarkRunner,
+        MemoryScope,
+        ScopedMemoryRecord,
+    )
 
     index = GraphMemoryIndex()
     index.add(ScopedMemoryRecord("a", "python repair traceback import mlx client", MemoryScope.APPLICATION, "bryan", "coder", links=("b",)))

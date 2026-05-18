@@ -4,26 +4,27 @@ Version control integration with automatic rollback on failure.
 v5.2: Added path allowlisting, risk gating, backup integrity verification,
       and event bus integration for modification proposals.
 """
-from core.runtime.errors import record_degradation
-from core.runtime.atomic_writer import atomic_write_text
+import ast
+import asyncio
 import hashlib
 import json
 import logging
 import os
-import sys
 import shutil
 import subprocess
-import asyncio
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
+
+from core.config import config
+from core.runtime.atomic_writer import atomic_write_text
+from core.runtime.errors import record_degradation
+
 from .boot_validator import GhostBootValidator
 from .mutation_tiers import MutationTier, classify_mutation_path
 
 logger = logging.getLogger("SelfModification.SafeModification")
-
-from core.config import config
 
 
 @dataclass
@@ -34,9 +35,9 @@ class ModificationRecord:
     file_path: str
     fix_description: str
     success: bool
-    commit_hash: Optional[str] = None
-    error: Optional[str] = None
-    test_results: Optional[Dict[str, Any]] = None
+    commit_hash: str | None = None
+    error: str | None = None
+    test_results: dict[str, Any] | None = None
     
     def to_dict(self):
         return {
@@ -55,7 +56,7 @@ class LogicTransplant:
     """Represents a multi-block architectural shift."""
     target_file: str
     explanation: str
-    chunks: List[Dict[str, str]]  # List of {"original": "...", "fixed": "..."}
+    chunks: list[dict[str, str]]  # List of {"original": "...", "fixed": "..."}
     risk_level: int = 5
     lines_changed: int = 0
     
@@ -123,7 +124,8 @@ class GitIntegration:
                 raise ValueError(f"Path escaped project root via symlink: {file_path!r}")
         except Exception as e:
             record_degradation('safe_modification', e)
-            if isinstance(e, ValueError): raise
+            if isinstance(e, ValueError):
+                raise
             # If path doesn't exist yet, we can't realpath it fully, but we checked ..
             logger.debug("Path validation exception (likely non-existent): %s", e)
 
@@ -202,7 +204,7 @@ class GitIntegration:
             logger.error("Branch creation exception: %s", e)
             return False
     
-    async def commit_changes(self, file_path: str, message: str) -> Optional[str]:
+    async def commit_changes(self, file_path: str, message: str) -> str | None:
         """Commit changes to current branch (Async)."""
         if not self.git_available:
             return None
@@ -327,7 +329,7 @@ class GitIntegration:
         except Exception:
             return False
     
-    async def get_current_branch(self) -> Optional[str]:
+    async def get_current_branch(self) -> str | None:
         """Get name of current branch (Async)"""
         if not self.git_available:
             return None
@@ -350,7 +352,7 @@ class BackupSystem:
     """File-based backup system for when git is unavailable.
     """
     
-    def __init__(self, backup_dir: Optional[str] = None):
+    def __init__(self, backup_dir: str | None = None):
         if backup_dir is None:
             from core.config import config
             self.backup_dir = config.paths.data_dir / "backups"
@@ -359,7 +361,7 @@ class BackupSystem:
         self.backup_dir.mkdir(parents=True, exist_ok=True)
         logger.info("BackupSystem initialized at %s", self.backup_dir)
     
-    def create_backup(self, file_path: str) -> Optional[str]:
+    def create_backup(self, file_path: str) -> str | None:
         """Create backup of file.
         
         Args:
@@ -419,7 +421,7 @@ class BackupSystem:
         
         try:
             # Read metadata
-            with open(metadata_path, 'r') as f:
+            with open(metadata_path) as f:
                 metadata = json.load(f)
             
             original_path = Path(metadata["original_path"])
@@ -467,7 +469,7 @@ class SafeSelfModification:
     def __init__(
         self,
         code_base_path: str = ".",
-        modification_log: Optional[str] = None,
+        modification_log: str | None = None,
         event_bus=None,
     ):
         self.code_base = Path(code_base_path)
@@ -540,7 +542,7 @@ class SafeSelfModification:
         resolved = self._resolve_target_path(file_path)
         return resolved.relative_to(self.code_base.resolve()).as_posix()
 
-    def validate_proposal(self, fix) -> Tuple[bool, str]:
+    def validate_proposal(self, fix) -> tuple[bool, str]:
         """Gate a modification proposal before it reaches apply_fix.
 
         Returns:
@@ -618,7 +620,7 @@ class SafeSelfModification:
         content = getattr(fix, "replacement_content", getattr(fix, "content", None))
         if content:
             try:
-                compile(content, "<self-modification-proposal>", "exec")
+                ast.parse(content, filename="<self-modification-proposal>")
             except SyntaxError as e:
                 logger.error("Proposed fix contains syntax error: %s", e)
                 return False, f"Proposed fix contains syntax error: {e.msg} (Line {e.lineno})"
@@ -662,8 +664,8 @@ class SafeSelfModification:
     async def apply_fix(
         self,
         fix,  # CodeFix object
-        test_results: Dict[str, Any]
-    ) -> Tuple[bool, str]:
+        test_results: dict[str, Any]
+    ) -> tuple[bool, str]:
         """Apply a validated fix with full safety protocol.
 
         Args:
@@ -821,8 +823,8 @@ class SafeSelfModification:
         
         try:
             # Read original
-            with open(file_path, 'r') as f:
-                lines = f.readlines()
+            content = await asyncio.to_thread(file_path.read_text, encoding="utf-8")
+            lines = content.splitlines(keepends=True)
             
             original_lines = fix.original_code.splitlines(keepends=True)
             fixed_lines = fix.fixed_code.splitlines(keepends=True)
@@ -849,23 +851,14 @@ class SafeSelfModification:
                 modified_content = "".join(modified_lines)
             
             # Validate syntax before writing
-            import ast as _ast
             try:
-                _ast.parse(modified_content)
+                ast.parse(modified_content, filename=str(file_path))
             except SyntaxError as syn_err:
                 logger.error("Syntax error in modified content: %s", syn_err)
                 return False
 
             # Atomic write
-            import tempfile as _tmpf
-            fd, tmp_path = _tmpf.mkstemp(dir=os.path.dirname(file_path), suffix='.py.tmp')
-            try:
-                with os.fdopen(fd, 'w') as f:
-                    f.write(modified_content)
-                os.replace(tmp_path, file_path)
-            except Exception:
-                if os.path.exists(tmp_path): os.remove(tmp_path)
-                raise
+            await asyncio.to_thread(atomic_write_text, file_path, modified_content)
             
             return True
             
@@ -880,8 +873,7 @@ class SafeSelfModification:
         
         try:
             # Read original
-            with open(file_path, 'r') as f:
-                content = f.read()
+            content = await asyncio.to_thread(file_path.read_text, encoding="utf-8")
             
             modified_content = content
             for chunk in transplant.chunks:
@@ -894,23 +886,14 @@ class SafeSelfModification:
                 modified_content = modified_content.replace(original, fixed, 1)
             
             # Validate syntax
-            import ast
             try:
-                ast.parse(modified_content)
+                ast.parse(modified_content, filename=str(file_path))
             except SyntaxError as e:
                 logger.error("Transplant caused syntax error: %s", e)
                 return False
                 
             # Atomic write
-            import tempfile
-            fd, tmp_path = tempfile.mkstemp(dir=os.path.dirname(file_path), suffix='.py.tmp')
-            try:
-                with os.fdopen(fd, 'w') as f:
-                    f.write(modified_content)
-                os.replace(tmp_path, file_path)
-            except Exception:
-                if os.path.exists(tmp_path): os.remove(tmp_path)
-                raise
+            await asyncio.to_thread(atomic_write_text, file_path, modified_content)
                 
             return True
             
@@ -919,8 +902,8 @@ class SafeSelfModification:
             logger.error("Logic transplant failed for %s: %s", transplant.target_file, e)
             return False
     
-    async def _rollback(self, backup_id: str, branch_name: Optional[str],
-                  expected_hash: Optional[str] = None):
+    async def _rollback(self, backup_id: str, branch_name: str | None,
+                  expected_hash: str | None = None):
         """Rollback a failed modification with integrity verification (Async)."""
         logger.warning("Rolling back changes...")
 
@@ -934,8 +917,8 @@ class SafeSelfModification:
             if expected_hash:
                 metadata_path = self.backup.backup_dir / f"{backup_id}.meta"
                 try:
-                    with open(metadata_path) as f:
-                        meta = json.load(f)
+                    raw_meta = await asyncio.to_thread(metadata_path.read_text, encoding="utf-8")
+                    meta = json.loads(raw_meta)
                     restored_path = Path(meta["original_path"])
                     actual_hash = self._file_hash(restored_path)
                     if actual_hash == expected_hash:
@@ -983,7 +966,7 @@ class SafeSelfModification:
             record_degradation('safe_modification', e)
             logger.error("Failed to log modification: %s", e)
     
-    def get_modification_history(self, limit: int = 10) -> List[Dict[str, Any]]:
+    def get_modification_history(self, limit: int = 10) -> list[dict[str, Any]]:
         """Get recent modification history"""
         history = []
         
@@ -991,7 +974,7 @@ class SafeSelfModification:
             return history
         
         try:
-            with open(self.modification_log, 'r') as f:
+            with open(self.modification_log) as f:
                 lines = f.readlines()
             
             # Get last N lines
@@ -1007,7 +990,7 @@ class SafeSelfModification:
         
         return history
     
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get modification statistics"""
         success_rate = 0
         if self.stats["total_attempts"] > 0:
@@ -1017,21 +1000,10 @@ class SafeSelfModification:
             "success_rate": f"{success_rate:.1f}%"
         }
 
-    async def _run_full_test_suite(self) -> bool:
-        """Verify modified files using AST parsing (Async)."""
-        """Verify modified files using AST parsing instead of executing tests.
-
-        C-05 FIX: Replaced subprocess pytest execution with static AST
-        validation. Running pytest in production is dangerous because:
-        1. Tests may not exist in production deployments
-        2. Test imports can execute production code with side effects
-        3. The 60s timeout blocks the calling thread
-        """
-        import ast
+    def _validate_python_tree_parse(self) -> bool:
+        """Validate all production Python files parse without importing them."""
         logger.info("Running static validation on modified files...")
         try:
-            # Validate all Python files in the codebase parse correctly
-            modified_files = []
             base = Path(self.code_base)
             for py_file in base.rglob("*.py"):
                 # Skip test files, venv, and build dirs
@@ -1055,3 +1027,14 @@ class SafeSelfModification:
             record_degradation('safe_modification', e)
             logger.error("Static validation failed: %s", e)
             return False
+
+    async def _run_full_test_suite(self) -> bool:
+        """Verify modified files using AST parsing instead of executing tests.
+
+        C-05 FIX: Replaced subprocess pytest execution with static AST
+        validation. Running pytest in production is dangerous because:
+        1. Tests may not exist in production deployments
+        2. Test imports can execute production code with side effects
+        3. The 60s timeout blocks the calling thread
+        """
+        return await asyncio.to_thread(self._validate_python_tree_parse)
