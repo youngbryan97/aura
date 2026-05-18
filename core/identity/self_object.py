@@ -33,36 +33,40 @@ and for the introspective-calibration test harness in
 internal naming — whatever ServiceContainer offers, the Self reads.
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
-
 
 import hashlib
 import logging
 import time
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from dataclasses import dataclass
+from typing import Any
+
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.SelfObject")
+
+
+def _record_reader_degradation(reader: str, exc: Exception) -> None:
+    record_degradation("self_object", exc)
+    logger.debug("SelfObject %s reader failed: %s", reader, exc)
 
 
 @dataclass
 class SelfSnapshot:
     when: float
-    drives: Dict[str, float]
-    affect: Dict[str, float]
+    drives: dict[str, float]
+    affect: dict[str, float]
     viability_state: str
-    active_goals: List[Dict[str, Any]]
-    last_failed_action: Optional[Dict[str, Any]]
-    last_blocked_action: Optional[Dict[str, Any]]
-    last_successful_action: Optional[Dict[str, Any]]
+    active_goals: list[dict[str, Any]]
+    last_failed_action: dict[str, Any] | None
+    last_blocked_action: dict[str, Any] | None
+    last_successful_action: dict[str, Any] | None
     active_capability_tokens: int
-    recent_belief_revisions: List[Dict[str, Any]]
-    recent_memory_consolidations: List[Dict[str, Any]]
-    recent_self_modifications: List[Dict[str, Any]]
+    recent_belief_revisions: list[dict[str, Any]]
+    recent_memory_consolidations: list[dict[str, Any]]
+    recent_self_modifications: list[dict[str, Any]]
     continuity_hash: str
 
-    def as_dict(self) -> Dict[str, Any]:
+    def as_dict(self) -> dict[str, Any]:
         return {
             "when": self.when,
             "drives": self.drives,
@@ -88,7 +92,7 @@ class SelfObject:
     """
 
     def __init__(self) -> None:
-        self._biases_seen: List[Tuple[float, str]] = []  # (when, bias)
+        self._biases_seen: list[tuple[float, str]] = []  # (when, bias)
 
     # ── snapshot ────────────────────────────────────────────────────────
 
@@ -125,7 +129,7 @@ class SelfObject:
 
     # ── introspection ──────────────────────────────────────────────────
 
-    def introspect(self, focus: str = "current_action") -> Dict[str, Any]:
+    def introspect(self, focus: str = "current_action") -> dict[str, Any]:
         """Recursive introspection. Returns a dict explaining *why* — not as a
         generated narrative but as a structural description of which signals
         contributed to the focus.
@@ -155,7 +159,7 @@ class SelfObject:
 
     # ── self-prediction ────────────────────────────────────────────────
 
-    def predict_self(self, scenario: Dict[str, Any]) -> Dict[str, Any]:
+    def predict_self(self, scenario: dict[str, Any]) -> dict[str, Any]:
         """Forecast Aura's own internal state under a hypothetical scenario.
 
         Uses the substrate's predictive coding loop if available; otherwise
@@ -183,7 +187,7 @@ class SelfObject:
 
     # ── calibration ────────────────────────────────────────────────────
 
-    def calibrate(self, report: Dict[str, Any]) -> Dict[str, Any]:
+    def calibrate(self, report: dict[str, Any]) -> dict[str, Any]:
         """Compare a self-report against the live telemetry snapshot.
 
         ``report`` is a dict produced by Aura's verbal introspection; this
@@ -191,7 +195,7 @@ class SelfObject:
         [0, 1] — the calibration metric used by H1 in the test harness.
         """
         snap = self.snapshot().as_dict()
-        deltas: Dict[str, Any] = {}
+        deltas: dict[str, Any] = {}
         match_count = 0
         total = 0
         for k, v in report.items():
@@ -216,13 +220,13 @@ class SelfObject:
 
     # ── bias detection ─────────────────────────────────────────────────
 
-    def debug_bias(self) -> List[Dict[str, Any]]:
+    def debug_bias(self) -> list[dict[str, Any]]:
         """Detect cognitive biases in the recent action stream and suggest
         parameter adjustments. The detector is conservative — false positives
         are worse than false negatives because Aura must trust her own
         calibration.
         """
-        biases: List[Dict[str, Any]] = []
+        biases: list[dict[str, Any]] = []
         snap = self.snapshot()
         # Recency bias: if 80%+ of last 10 belief revisions came from the
         # latest piece of evidence rather than reconciliation.
@@ -256,7 +260,7 @@ class SelfObject:
 
     # ── parameter adjustment via Will ──────────────────────────────────
 
-    async def adjust(self, parameters: Dict[str, Any], *, reason: str) -> Dict[str, Any]:
+    async def adjust(self, parameters: dict[str, Any], *, reason: str) -> dict[str, Any]:
         """Request a parameter change. Routed through Will — the Self does
         not directly mutate; it asks. Returns the Will's decision payload.
         """
@@ -281,9 +285,10 @@ class SelfObject:
             }
         except Exception as exc:
             record_degradation('self_object', exc)
+            logger.debug("SelfObject adjust failed: %s", exc)
             return {"approved": False, "reason": f"adjust_exception:{exc}"}
 
-    def _apply_parameters(self, parameters: Dict[str, Any]) -> None:
+    def _apply_parameters(self, parameters: dict[str, Any]) -> None:
         try:
             from core.container import ServiceContainer
             tunable = ServiceContainer.get("tunable_parameters", default=None)
@@ -318,27 +323,27 @@ class SelfObject:
     # ── private readers ────────────────────────────────────────────────
 
     @staticmethod
-    def _read_drives(SC: Any) -> Dict[str, float]:
-        engine = SC.get("drive_engine", default=None)
+    def _read_drives(sc: Any) -> dict[str, float]:
         try:
+            engine = sc.get("drive_engine", default=None)
             if engine and hasattr(engine, "snapshot"):
                 d = engine.snapshot()
                 if isinstance(d, dict):
                     return {k: float(v) for k, v in d.items() if isinstance(v, (int, float))}
-        except Exception:
-            pass  # no-op: intentional
+        except Exception as exc:
+            _record_reader_degradation("drives", exc)
         return {}
 
     @staticmethod
-    def _read_affect(SC: Any) -> Dict[str, float]:
-        eng = SC.get("affect_engine", default=None)
+    def _read_affect(sc: Any) -> dict[str, float]:
         try:
+            eng = sc.get("affect_engine", default=None)
             if eng and hasattr(eng, "snapshot"):
                 d = eng.snapshot()
                 if isinstance(d, dict):
                     return {k: float(v) for k, v in d.items() if isinstance(v, (int, float))}
-        except Exception:
-            pass  # no-op: intentional
+        except Exception as exc:
+            _record_reader_degradation("affect", exc)
         return {}
 
     @staticmethod
@@ -346,26 +351,28 @@ class SelfObject:
         try:
             from core.organism.viability import get_viability
             return get_viability().state.value
-        except Exception:
+        except Exception as exc:
+            _record_reader_degradation("viability", exc)
             return "unknown"
 
     @staticmethod
-    def _read_active_goals(SC: Any) -> List[Dict[str, Any]]:
-        engine = SC.get("goal_engine", default=None) or SC.get("goals", default=None)
+    def _read_active_goals(sc: Any) -> list[dict[str, Any]]:
         try:
+            engine = sc.get("goal_engine", default=None) or sc.get("goals", default=None)
             if engine and hasattr(engine, "active"):
                 lst = engine.active() or []
                 return [g if isinstance(g, dict) else {"name": str(g)} for g in lst[:8]]
-        except Exception:
-            pass  # no-op: intentional
+        except Exception as exc:
+            _record_reader_degradation("active_goals", exc)
         return []
 
     @staticmethod
-    def _read_last_actions() -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
+    def _read_last_actions() -> tuple[dict[str, Any] | None, dict[str, Any] | None, dict[str, Any] | None]:
         try:
             from core.agency.agency_orchestrator import get_receipt_log
             recent = get_receipt_log().recent(limit=64)
-        except Exception:
+        except Exception as exc:
+            _record_reader_degradation("last_actions", exc)
             return None, None, None
         last_failed = None
         last_blocked = None
@@ -390,67 +397,68 @@ class SelfObject:
                 1 for t in store._tokens.values()  # type: ignore[attr-defined]
                 if not t.is_consumed() and not t.revoked and not t.is_expired()
             )
-        except Exception:
+        except Exception as exc:
+            _record_reader_degradation("capability_tokens", exc)
             return 0
 
     @staticmethod
-    def _read_recent_belief_revisions(SC: Any) -> List[Dict[str, Any]]:
-        bg = SC.get("belief_graph", default=None)
+    def _read_recent_belief_revisions(sc: Any) -> list[dict[str, Any]]:
         try:
+            bg = sc.get("belief_graph", default=None)
             if bg and hasattr(bg, "recent_revisions"):
                 return list(bg.recent_revisions(limit=8) or [])
-        except Exception:
-            pass  # no-op: intentional
+        except Exception as exc:
+            _record_reader_degradation("belief_revisions", exc)
         return []
 
     @staticmethod
-    def _read_recent_memory_consolidations(SC: Any) -> List[Dict[str, Any]]:
-        mem = SC.get("memory_facade", default=None)
+    def _read_recent_memory_consolidations(sc: Any) -> list[dict[str, Any]]:
         try:
+            mem = sc.get("memory_facade", default=None)
             if mem and hasattr(mem, "recent_consolidations"):
                 return list(mem.recent_consolidations(limit=8) or [])
-        except Exception:
-            pass  # no-op: intentional
+        except Exception as exc:
+            _record_reader_degradation("memory_consolidations", exc)
         return []
 
     @staticmethod
-    def _read_recent_self_mods(SC: Any) -> List[Dict[str, Any]]:
-        sm = SC.get("self_modification_engine", default=None)
+    def _read_recent_self_mods(sc: Any) -> list[dict[str, Any]]:
         try:
+            sm = sc.get("self_modification_engine", default=None)
             if sm and hasattr(sm, "recent_proposals"):
                 return list(sm.recent_proposals(limit=8) or [])
-        except Exception:
-            pass  # no-op: intentional
+        except Exception as exc:
+            _record_reader_degradation("self_modifications", exc)
         return []
 
     @staticmethod
-    def _read_open_belief_questions() -> List[Dict[str, Any]]:
+    def _read_open_belief_questions() -> list[dict[str, Any]]:
         try:
             from core.container import ServiceContainer
             kgm = ServiceContainer.get("knowledge_gap_monitor", default=None)
             if kgm and hasattr(kgm, "open_questions"):
                 return list(kgm.open_questions(limit=8) or [])
-        except Exception:
-            pass  # no-op: intentional
+        except Exception as exc:
+            _record_reader_degradation("open_belief_questions", exc)
         return []
 
     @staticmethod
-    def _read_stale_memories() -> List[Dict[str, Any]]:
+    def _read_stale_memories() -> list[dict[str, Any]]:
         try:
             from core.container import ServiceContainer
             mem = ServiceContainer.get("memory_facade", default=None)
             if mem and hasattr(mem, "stale_memories"):
                 return list(mem.stale_memories(limit=5) or [])
-        except Exception:
-            pass  # no-op: intentional
+        except Exception as exc:
+            _record_reader_degradation("stale_memories", exc)
         return []
 
 
-def _top(d: Dict[str, float], n: int) -> List[Tuple[str, float]]:
+def _top(d: dict[str, float], n: int) -> list[tuple[str, float]]:
     return sorted(d.items(), key=lambda kv: -float(kv[1]))[:n]
 
 
-_SELF: Optional[SelfObject] = None
+_SELF: SelfObject | None = None
 
 
 def get_self() -> SelfObject:
