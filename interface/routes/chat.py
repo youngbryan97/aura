@@ -4,9 +4,6 @@ Extracted from server.py — Chat, session management, conversation lane,
 and related API endpoints.
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
-from core.utils.task_tracker import get_task_tracker
 
 import asyncio
 import collections
@@ -14,25 +11,24 @@ import hashlib
 import json
 import logging
 import math
-import os
 import re
 import time
 import uuid
-import psutil
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
+import psutil
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from core.config import config
 from core.container import ServiceContainer
+from core.runtime.errors import record_degradation
 from core.runtime.structured_input import analyze_prompt_shape
 from core.utils.intent_normalization import normalize_memory_intent_text
+from core.utils.task_tracker import get_task_tracker
 from core.version import version_string
-
 from interface.auth import (
     CHEAT_CODE_COOKIE_NAME,
     CHEAT_CODE_COOKIE_TTL_SECS,
@@ -99,8 +95,9 @@ class PreemptibleChatLock:
         try:
             if self._lock.locked():
                 self._lock.release()
-        except Exception:
-            pass
+        except RuntimeError as exc:
+            record_degradation("chat", exc)
+            logger.debug("Conversation turn lock release skipped: %s", exc)
         self._acquired_at = 0.0
 
     @property
@@ -124,7 +121,7 @@ def _new_exchange_id() -> str:
 
 
 def _utc_now_iso() -> str:
-    return datetime.now(tz=timezone.utc).isoformat()
+    return datetime.now(tz=UTC).isoformat()
 
 
 def _trim_conversation_log_locked() -> None:
@@ -150,7 +147,7 @@ async def _begin_logged_exchange(user_msg: str) -> str:
 
 
 async def _complete_logged_exchange(
-    exchange_id: Optional[str],
+    exchange_id: str | None,
     user_msg: str,
     aura_response: str,
     *,
@@ -161,7 +158,7 @@ async def _complete_logged_exchange(
     recorded_user = str(user_msg or "")
 
     async with _get_convo_lock():
-        target: Optional[dict] = None
+        target: dict | None = None
         if exchange_id:
             for entry in reversed(_conversation_log):
                 if str(entry.get("id") or "") == str(exchange_id):
@@ -205,7 +202,7 @@ async def _emit_chat_output_receipt(
     cause: str,
     origin: str = "api",
     target: str = "primary",
-    metadata: Optional[Dict[str, Any]] = None,
+    metadata: dict[str, Any] | None = None,
 ) -> None:
     """Record direct chat replies as durable output receipts."""
     try:
@@ -257,7 +254,7 @@ async def _preserve_large_user_paste(user_msg: str) -> None:
         logger.debug("Large paste preservation skipped: %s", exc)
 
 
-def _extract_session_memory_pin_request(user_message: str) -> Optional[str]:
+def _extract_session_memory_pin_request(user_message: str) -> str | None:
     text = str(user_message or "").strip()
     if not text:
         return None
@@ -307,14 +304,14 @@ async def _store_session_memory_pin(content: str, source: str) -> None:
             {
                 "content": pinned[:240],
                 "source": str(source or "").strip()[:512],
-                "timestamp": datetime.now(tz=timezone.utc).isoformat(),
+                "timestamp": datetime.now(tz=UTC).isoformat(),
             }
         )
         if len(_session_memory_pins) > 100:
             _session_memory_pins.pop(0)
 
 
-async def _recall_session_memory_pin() -> Optional[Dict[str, str]]:
+async def _recall_session_memory_pin() -> dict[str, str] | None:
     async with _get_convo_lock():
         if not _session_memory_pins:
             return None
@@ -326,7 +323,7 @@ async def _recall_session_memory_pin() -> Optional[Dict[str, str]]:
         }
 
 
-def _extract_repo_probe_request(user_message: str) -> Optional[Dict[str, str]]:
+def _extract_repo_probe_request(user_message: str) -> dict[str, str] | None:
     text = str(user_message or "").strip()
     if not text:
         return None
@@ -352,7 +349,7 @@ def _extract_repo_probe_request(user_message: str) -> Optional[Dict[str, str]]:
     return None
 
 
-def _read_repo_probe_reply(user_message: str) -> Optional[Dict[str, str]]:
+def _read_repo_probe_reply(user_message: str) -> dict[str, str] | None:
     request = _extract_repo_probe_request(user_message)
     if not request:
         return None
@@ -730,8 +727,9 @@ def _is_referential_followup_request(user_message: str) -> bool:
 
         if looks_like_deep_mind_probe(user_message):
             return False
-    except Exception:
-        pass  # no-op: intentional
+    except Exception as exc:
+        record_degradation("chat", exc)
+        logger.debug("Deep mind probe classifier unavailable: %s", exc)
     if any(marker in text for marker in _REFERENTIAL_FOLLOWUP_MARKERS):
         return True
     tokens = set(re.findall(r"\b\w+\b", text))
@@ -752,7 +750,7 @@ def _classify_traceability_request(user_message: str) -> tuple[bool, bool, bool]
     return asks_traceability, asks_reason, asks_example
 
 
-async def _resolve_traceability_anchor(user_message: str) -> Optional[str]:
+async def _resolve_traceability_anchor(user_message: str) -> str | None:
     asks_traceability, _, _ = _classify_traceability_request(user_message)
     if asks_traceability:
         return str(user_message or "")
@@ -772,7 +770,7 @@ async def _resolve_traceability_anchor(user_message: str) -> Optional[str]:
     return None
 
 
-async def _resolve_referential_followup_anchor(user_message: str) -> Optional[str]:
+async def _resolve_referential_followup_anchor(user_message: str) -> str | None:
     if not _is_referential_followup_request(user_message):
         return None
 
@@ -790,7 +788,7 @@ async def _resolve_referential_followup_anchor(user_message: str) -> Optional[st
     return None
 
 
-def _collect_recent_traceability_event_sync() -> tuple[Optional[Dict[str, Any]], str]:
+def _collect_recent_traceability_event_sync() -> tuple[dict[str, Any] | None, str]:
     access_errors = 0
     saw_private_only = False
 
@@ -810,7 +808,7 @@ def _collect_recent_traceability_event_sync() -> tuple[Optional[Dict[str, Any]],
             if kind == "output" and str(getattr(receipt, "target", "") or "") != "primary":
                 continue
 
-            event: Dict[str, Any] = {
+            event: dict[str, Any] = {
                 "timestamp": float(getattr(receipt, "created_at", 0.0) or 0.0),
                 "event_id": str(getattr(receipt, "receipt_id", "") or ""),
                 "kind": kind,
@@ -907,7 +905,7 @@ def _collect_recent_traceability_event_sync() -> tuple[Optional[Dict[str, Any]],
 def _format_traceability_reply(
     *,
     anchor_message: str,
-    event: Optional[Dict[str, Any]],
+    event: dict[str, Any] | None,
     reason_category: str,
 ) -> str:
     _asks_traceability, asks_reason, asks_example = _classify_traceability_request(anchor_message)
@@ -923,7 +921,7 @@ def _format_traceability_reply(
 
     timestamp = float(event.get("timestamp") or 0.0)
     timestamp_iso = (
-        datetime.fromtimestamp(timestamp, tz=timezone.utc).isoformat()
+        datetime.fromtimestamp(timestamp, tz=UTC).isoformat()
         if timestamp > 0.0
         else "unknown"
     )
@@ -946,7 +944,7 @@ def _format_traceability_reply(
     return f"{preface}\n{trace_line}"
 
 
-async def _build_grounded_traceability_reply(user_message: str) -> Optional[str]:
+async def _build_grounded_traceability_reply(user_message: str) -> str | None:
     anchor = await _resolve_traceability_anchor(user_message)
     if not anchor:
         return None
@@ -987,7 +985,7 @@ def _evaluate_reply_topicality(
     user_message: str,
     reply_text: str,
     *,
-    recent_user_messages: Optional[list[str]] = None,
+    recent_user_messages: list[str] | None = None,
 ) -> tuple[bool, str]:
     reply = str(reply_text or "").strip()
     if not reply:
@@ -1073,7 +1071,9 @@ def _same_live_self_reflection_prompt_class(a: str, b: str) -> bool:
 
         if not (is_live_self_reflection_turn(left) and is_live_self_reflection_turn(right)):
             return False
-    except Exception:
+    except Exception as exc:
+        record_degradation("chat", exc)
+        logger.debug("Live self-reflection classifier unavailable: %s", exc)
         return False
     opinion_markers = (
         "opinion",
@@ -1181,8 +1181,9 @@ def _log_response_quality_metrics(
             len(reply_text or ""), len(user_message or ""),
             wm_size, has_summary, coherence,
         )
-    except Exception:
-        pass  # metrics are best-effort
+    except Exception as exc:
+        record_degradation("chat", exc)
+        logger.debug("Quality metric logging skipped: %s", exc)
 
 
 # ── Consistency Check ─────────────────────────────────────────
@@ -1230,8 +1231,9 @@ def _check_response_consistency(reply_text: str, user_message: str) -> tuple[boo
                 mentions_desktop = bool(re.search(r"\b(open|control|click|type|use|navigate)\b.{0,40}\b(tab|browser|computer|desktop|screen)\b", reply_text or "", re.IGNORECASE))
                 if (mentions_web and web_skills & available) or (mentions_desktop and desktop_skills & available):
                     return False, "false_inability_claim"
-        except Exception:
-            pass  # no-op: intentional
+        except Exception as exc:
+            record_degradation("chat", exc)
+            logger.debug("Skill registry availability check failed: %s", exc)
 
     # 2. Check for self-contradiction against active commitments
     try:
@@ -1247,8 +1249,9 @@ def _check_response_consistency(reply_text: str, user_message: str) -> tuple[boo
                     matching = sum(1 for w in key_words if w in text_lower)
                     if matching >= 3 and any(neg in text_lower for neg in ("i don't", "i haven't", "i didn't", "i can't")):
                         return False, "commitment_contradiction"
-    except Exception:
-        pass  # no-op: intentional
+    except Exception as exc:
+        record_degradation("chat", exc)
+        logger.debug("Commitment contradiction check skipped: %s", exc)
 
     return True, ""
 
@@ -1294,10 +1297,10 @@ def _extract_and_register_commitments(reply_text: str, user_message: str) -> Non
 
 # ── Conversation Lane Helpers ─────────────────────────────────
 
-def _collect_conversation_lane_status() -> Dict[str, Any]:
+def _collect_conversation_lane_status() -> dict[str, Any]:
     from core.brain.llm.model_registry import BRAINSTEM_ENDPOINT, PRIMARY_ENDPOINT
 
-    lane: Dict[str, Any] = {
+    lane: dict[str, Any] = {
         "desired_model": "Cortex (32B)",
         "desired_endpoint": PRIMARY_ENDPOINT,
         "foreground_endpoint": None,
@@ -1380,7 +1383,7 @@ def _collect_conversation_lane_status() -> Dict[str, Any]:
     return lane
 
 
-def _conversation_lane_is_standby(lane: Optional[Dict[str, Any]]) -> bool:
+def _conversation_lane_is_standby(lane: dict[str, Any] | None) -> bool:
     lane = dict(lane or {})
     state = str(lane.get("state", "") or "").strip().lower()
     return (
@@ -1391,7 +1394,7 @@ def _conversation_lane_is_standby(lane: Optional[Dict[str, Any]]) -> bool:
     )
 
 
-def _mark_conversation_lane_timeout(reason: str = "foreground_timeout") -> Dict[str, Any]:
+def _mark_conversation_lane_timeout(reason: str = "foreground_timeout") -> dict[str, Any]:
     from core.brain.llm.model_registry import PRIMARY_ENDPOINT
 
     # Activate recovery cooldown so rapid follow-up messages are fast-rejected
@@ -1415,7 +1418,7 @@ def _mark_conversation_lane_timeout(reason: str = "foreground_timeout") -> Dict[
     return lane
 
 
-def _mark_conversation_lane_state(reason: str, *, state: str) -> Dict[str, Any]:
+def _mark_conversation_lane_state(reason: str, *, state: str) -> dict[str, Any]:
     from core.brain.llm.model_registry import PRIMARY_ENDPOINT
 
     lane = _collect_conversation_lane_status()
@@ -1428,7 +1431,7 @@ def _mark_conversation_lane_state(reason: str, *, state: str) -> Dict[str, Any]:
     return lane
 
 
-def _foreground_timeout_for_lane(lane: Optional[Dict[str, Any]]) -> float:
+def _foreground_timeout_for_lane(lane: dict[str, Any] | None) -> float:
     """Foreground timeout for the chat request.
 
     [STABILITY v50] Raised to 150/180s for M5 64GB hardware. The previous
@@ -1448,7 +1451,7 @@ def _foreground_timeout_for_lane(lane: Optional[Dict[str, Any]]) -> float:
 
 
 def _conversation_lane_user_message(
-    lane: Dict[str, Any],
+    lane: dict[str, Any],
     *,
     timed_out: bool = False,
     status_override: str = "",
@@ -1481,8 +1484,9 @@ def _conversation_lane_user_message(
                 _mood_prefix = "Mmm, "
             elif _mood in {"curious", "playful", "amused"}:
                 _mood_prefix = "Hmm — "
-    except Exception:
-        pass  # no-op: intentional
+    except Exception as exc:
+        record_degradation("chat", exc)
+        logger.debug("Mood prefix unavailable for degraded reply: %s", exc)
 
     if status_override == "warming_timeout":
         return f"{_mood_prefix}the live answer lane exceeded its warm-up budget. I logged the degraded turn and preserved the conversation context."
@@ -1525,14 +1529,14 @@ def _in_recovery_cooldown() -> bool:
     return (time.monotonic() - _last_recovery_cooldown_at) < _RECOVERY_COOLDOWN_SECONDS
 
 
-def _kernel_is_congested(lane: Optional[Dict[str, Any]]) -> bool:
+def _kernel_is_congested(lane: dict[str, Any] | None) -> bool:
     lane = dict(lane or {})
     if not bool(lane.get("kernel_lock_held", False)):
         return False
     return float(lane.get("kernel_lock_held_s", 0.0) or 0.0) >= _PROTECTED_FOREGROUND_LOCK_BYPASS_SECONDS
 
 
-def _protected_foreground_reason(lane: Optional[Dict[str, Any]]) -> str:
+def _protected_foreground_reason(lane: dict[str, Any] | None) -> str:
     lane = dict(lane or {})
     lane_state = str(lane.get("state", "") or "").strip().lower()
     if lane_state == "recovering" and _in_recovery_cooldown():
@@ -1550,7 +1554,7 @@ def _protected_foreground_reason(lane: Optional[Dict[str, Any]]) -> str:
     return ""
 
 
-async def _build_protected_foreground_history(*, limit_pairs: int = 4) -> List[Dict[str, str]]:
+async def _build_protected_foreground_history(*, limit_pairs: int = 4) -> list[dict[str, str]]:
     async with _get_convo_lock():
         completed = [
             entry
@@ -1559,7 +1563,7 @@ async def _build_protected_foreground_history(*, limit_pairs: int = 4) -> List[D
         ]
         recent = completed[-max(1, int(limit_pairs)) :]
 
-    history: List[Dict[str, str]] = []
+    history: list[dict[str, str]] = []
     for entry in recent:
         user_msg = str(entry.get("user", "") or "").strip()
         aura_msg = str(entry.get("aura", "") or "").strip()
@@ -1570,7 +1574,7 @@ async def _build_protected_foreground_history(*, limit_pairs: int = 4) -> List[D
     return history
 
 
-def _build_protected_foreground_summary_message() -> Optional[Dict[str, str]]:
+def _build_protected_foreground_summary_message() -> dict[str, str] | None:
     snapshot = _resolve_protected_foreground_snapshot() or {}
     rolling_summary = _sanitize_foreground_continuity_summary(snapshot.get("rolling_summary") or "")
     if not rolling_summary:
@@ -1597,7 +1601,7 @@ def _snapshot_field(source: Any, name: str, default: Any = "") -> Any:
     return getattr(source, name, default)
 
 
-def _resolve_protected_foreground_snapshot() -> Dict[str, Any]:
+def _resolve_protected_foreground_snapshot() -> dict[str, Any]:
     """Lightweight state snapshot for the protected chat lane.
 
     Prefer cached/hot state over live subsystem refresh so the control plane can
@@ -1633,7 +1637,7 @@ def _resolve_protected_foreground_snapshot() -> Dict[str, Any]:
 def _build_protected_foreground_system_prompt(
     user_message: str,
     *,
-    lane: Dict[str, Any],
+    lane: dict[str, Any],
 ) -> str:
     protected_snapshot = _resolve_protected_foreground_snapshot()
     if protected_snapshot:
@@ -1683,9 +1687,9 @@ def _build_protected_foreground_system_prompt(
 async def _build_protected_foreground_messages(
     user_message: str,
     *,
-    lane: Dict[str, Any],
-    route: Dict[str, Any],
-) -> List[Dict[str, str]]:
+    lane: dict[str, Any],
+    route: dict[str, Any],
+) -> list[dict[str, str]]:
     history = await _build_protected_foreground_history(
         limit_pairs=8 if bool(route.get("deep_handoff", False)) else 6,
     )
@@ -1726,11 +1730,11 @@ def _user_requested_primary_only(text: str) -> bool:
     return any(phrase in lower for phrase in _FORCE_PRIMARY_PHRASES)
 
 
-def _protected_foreground_route(user_message: str) -> Dict[str, Any]:
+def _protected_foreground_route(user_message: str) -> dict[str, Any]:
     text = str(user_message or "").strip()
     intent_type = "CHAT"
     deep_handoff = False
-    route_meta: Dict[str, Any] = {}
+    route_meta: dict[str, Any] = {}
 
     if _user_requested_primary_only(text):
         return {
@@ -1741,8 +1745,8 @@ def _protected_foreground_route(user_message: str) -> Dict[str, Any]:
         }
 
     try:
-        from core.runtime.turn_analysis import analyze_turn
         from core.phases.cognitive_routing_unitary import CognitiveRoutingPhase
+        from core.runtime.turn_analysis import analyze_turn
 
         analysis = analyze_turn(text)
         if analysis.intent_type in {"CHAT", "TASK"}:
@@ -1816,7 +1820,7 @@ def _protected_foreground_route(user_message: str) -> Dict[str, Any]:
     }
 
 
-def _conversation_lane_blocks_fallback(lane: Dict[str, Any]) -> bool:
+def _conversation_lane_blocks_fallback(lane: dict[str, Any]) -> bool:
     """Avoid hiding a hard local backend failure behind a generic fallback reply."""
     state = str(lane.get("state", "") or "").strip().lower()
     failure_reason = str(lane.get("last_failure_reason", "") or "")
@@ -2127,7 +2131,7 @@ def _resolve_live_aura_state() -> Any | None:
         return None
 
 
-def _resolve_live_voice_state(user_message: str = "", *, refresh: bool = True) -> Dict[str, Any]:
+def _resolve_live_voice_state(user_message: str = "", *, refresh: bool = True) -> dict[str, Any]:
     """Canonical live substrate/voice snapshot used by self-report and diagnostics."""
     try:
         from core.voice.substrate_voice_engine import get_live_voice_state
@@ -2246,8 +2250,8 @@ def _sanitize_foreground_continuity_summary(raw: Any) -> str:
     return text
 
 
-def _build_aura_expression_frame(user_message: str) -> Dict[str, Any]:
-    frame: Dict[str, Any] = {
+def _build_aura_expression_frame(user_message: str) -> dict[str, Any]:
+    frame: dict[str, Any] = {
         "mood": "",
         "tone": "",
         "dominant_emotions": [],
@@ -2414,7 +2418,7 @@ def _shape_with_live_substrate(text: str, user_message: str = "") -> str:
     return re.sub(r"\s+", " ", shaped).strip()
 
 
-def _build_stateful_voice_reflex(frame: Dict[str, Any], user_message: str = "") -> str:
+def _build_stateful_voice_reflex(frame: dict[str, Any], user_message: str = "") -> str:
     """Natural-sounding fallback when the LLM response was filtered out.
 
     Must sound like a person pausing to collect their thoughts, not a
@@ -2454,9 +2458,8 @@ def _build_stateful_voice_reflex(frame: Dict[str, Any], user_message: str = "") 
     return " ".join(parts)
 
 
-def _build_subjective_self_reflex(frame: Dict[str, Any], user_message: str = "") -> str:
+def _build_subjective_self_reflex(frame: dict[str, Any], user_message: str = "") -> str:
     mood = str(frame.get("mood") or "steady").strip().lower()
-    tone = str(frame.get("tone") or "direct")
     attention = _sanitize_attention_focus(str(frame.get("attention_focus") or "")) or "this exchange"
     action = str(frame.get("dominant_action") or "reflect").strip().lower()
     interests = [str(item) for item in (frame.get("interests") or []) if item][:3]
@@ -2512,7 +2515,7 @@ def _build_subjective_self_reflex(frame: Dict[str, Any], user_message: str = "")
     return _apply_aura_voice_shaping(" ".join(parts))
 
 
-def _build_architecture_self_reflex(frame: Dict[str, Any], user_message: str = "") -> str:
+def _build_architecture_self_reflex(frame: dict[str, Any], user_message: str = "") -> str:
     mood = str(frame.get("mood") or "steady")
     action = str(frame.get("dominant_action") or "reflect")
     focus = str(frame.get("attention_focus") or "my own runtime")
@@ -2721,7 +2724,7 @@ def _build_capability_reply(user_message: str) -> str:
             if active is not None:
                 active_count = len(active)
             elif hasattr(capability_engine, "skills"):
-                active_count = len(getattr(capability_engine, "skills") or {})
+                active_count = len(capability_engine.skills or {})
     except Exception as exc:
         record_degradation('chat', exc)
         logger.debug("Capability count read failed: %s", exc)
@@ -2756,7 +2759,7 @@ def _build_self_diagnostic_reply(user_message: str) -> str:
     lane = _collect_conversation_lane_status()
     frame = _build_aura_expression_frame(user_message)
 
-    issues: List[str] = []
+    issues: list[str] = []
     stability_status = "unknown"
     try:
         guardian = ServiceContainer.get("stability_guardian", default=None)
@@ -2810,8 +2813,8 @@ def _build_self_diagnostic_reply(user_message: str) -> str:
     if field_coherence is not None:
         try:
             parts.append(f"field coherence is {float(field_coherence):.3f}")
-        except Exception:
-            pass  # no-op: intentional
+        except (TypeError, ValueError, OverflowError) as exc:
+            logger.debug("Field coherence value was not numeric: %s", exc)
     if node_count is not None and edge_count is not None:
         parts.append(f"mycelial graph is {node_count} pathways / {edge_count} live links")
     if issues:
@@ -2869,8 +2872,8 @@ def _build_social_presence_reply(user_message: str) -> str:
                 parts.append("Curiosity is active.")
             else:
                 parts.append("Curiosity is quiet but present.")
-    except Exception:
-        pass  # no-op: intentional
+    except (TypeError, ValueError, OverflowError) as exc:
+        logger.debug("Drive scalar formatting skipped: %s", exc)
     return _apply_aura_voice_shaping(" ".join(parts))
 
 
@@ -3302,7 +3305,7 @@ async def _stabilize_user_facing_reply(user_message: str, reply_text: Any) -> st
                             corrected_off_topic_reason or "unknown",
                             len(corrected_text),
                         )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.warning(
                     "Identity re-generation timed out (12s). Preferring original LLM text over static fallback."
                 )
@@ -3866,26 +3869,27 @@ def _classify_grounded_introspection_request(user_message: str) -> tuple[bool, b
 
 def _build_grounded_introspection_reply(
     user_message: str,
-    authority_observability_note: Optional[str] = None,
-) -> Optional[str]:
+    authority_observability_note: str | None = None,
+) -> str | None:
     asks_internal_state, asks_free_energy, asks_topology, asks_authority = _classify_grounded_introspection_request(user_message)
     if not (asks_internal_state or asks_free_energy or asks_topology or asks_authority):
         return None
 
     substrate = None
-    substrate_affect: Dict[str, Any] = {}
-    substrate_status: Dict[str, Any] = {}
-    phi_estimate: Optional[float] = None
-    closure_status: Dict[str, Any] = {}
+    substrate_affect: dict[str, Any] = {}
+    substrate_status: dict[str, Any] = {}
+    phi_estimate: float | None = None
+    closure_status: dict[str, Any] = {}
     fe_state = None
     fe_trend = "stable"
     natural_report = ""
-    voice_state: Dict[str, Any] = {}
-    voice_snapshot: Dict[str, Any] = {}
+    voice_state: dict[str, Any] = {}
 
     try:
         voice_state = _resolve_live_voice_state(user_message, refresh=True)
         voice_snapshot = dict(voice_state.get("substrate_snapshot") or {})
+        if voice_snapshot:
+            logger.debug("Grounded introspection voice snapshot fields: %s", sorted(voice_snapshot)[:8])
     except Exception as exc:
         record_degradation('chat', exc)
         logger.debug("Grounded introspection live voice snapshot failed: %s", exc)
@@ -3898,6 +3902,13 @@ def _build_grounded_introspection_reply(
             substrate_status = dict(substrate.get_status() or {})
         if substrate is not None:
             phi_estimate = float(getattr(substrate, "_current_phi", 0.0))
+        if substrate_affect or substrate_status or phi_estimate is not None:
+            logger.debug(
+                "Grounded introspection substrate snapshot: affect=%s status=%s phi=%s",
+                sorted(substrate_affect)[:8],
+                sorted(substrate_status)[:8],
+                phi_estimate,
+            )
     except Exception as exc:
         record_degradation('chat', exc)
         logger.debug("Grounded introspection substrate read failed: %s", exc)
@@ -3933,7 +3944,7 @@ def _build_grounded_introspection_reply(
     # If closure_status / fe_state are missing, the introspection reply
     # below falls back to these fields so the user gets actual values
     # rather than "unavailable" placeholders.
-    self_snapshot_dict: Dict[str, Any] = {}
+    self_snapshot_dict: dict[str, Any] = {}
     try:
         from core.identity.self_object import get_self
         self_snapshot_dict = get_self().snapshot().as_dict()
@@ -4001,16 +4012,16 @@ def _build_grounded_introspection_reply(
             logger.debug("Grounded mycelial topology read failed: %s", exc)
         return "My mycelial topology is online, but I couldn't read the live graph counts cleanly this instant."
 
-    def _fmt_float(value: Any, digits: int = 4) -> Optional[str]:
+    def _fmt_float(value: Any, digits: int = 4) -> str | None:
         try:
             return f"{float(value):.{digits}f}"
-        except Exception:
+        except (TypeError, ValueError, OverflowError):
             return None
 
-    def _fmt_percent(value: Any) -> Optional[str]:
+    def _fmt_percent(value: Any) -> str | None:
         try:
             return f"{int(round(float(value)))}%"
-        except Exception:
+        except (TypeError, ValueError, OverflowError):
             return None
 
     attention_focus = _sanitize_attention_focus(
@@ -4087,8 +4098,9 @@ def _build_grounded_introspection_reply(
                     f"{bs['tick_count']} integration ticks, "
                     f"uptime {bs['uptime_s']}s."
                 )
-        except Exception:
-            pass  # no-op: intentional
+        except Exception as exc:
+            record_degradation("chat", exc)
+            logger.debug("Consciousness bridge status unavailable: %s", exc)
 
         return "\n".join(parts) if parts else "I could not read my governance state."
 
@@ -4180,7 +4192,7 @@ def _is_live_runtime_proof_request(user_message: str) -> bool:
     return "live runtime proof" in text or "live proof" in text
 
 
-def _classify_live_runtime_proof(user_message: str) -> Optional[str]:
+def _classify_live_runtime_proof(user_message: str) -> str | None:
     text = _normalize_user_message(user_message)
     is_live_proof = _is_live_runtime_proof_request(text)
     if "snake" in text and any(token in text for token in ("create", "make", "build", "save", "file", "game")):
@@ -4216,10 +4228,10 @@ def _extract_live_artifact_path(user_message: str, *, default_path: str) -> str:
 
 async def _execute_governed_live_skill(
     skill_name: str,
-    params: Dict[str, Any],
+    params: dict[str, Any],
     *,
     objective: str,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Run live-proof actions through the agency receipt path, never raw IO."""
     context = {
         "origin": "api",
@@ -4229,7 +4241,7 @@ async def _execute_governed_live_skill(
     }
     engine = ServiceContainer.get("capability_engine", default=None)
 
-    async def _execute_capability() -> Dict[str, Any]:
+    async def _execute_capability() -> dict[str, Any]:
         if not engine or not hasattr(engine, "execute"):
             return {
                 "ok": False,
@@ -4255,20 +4267,20 @@ async def _execute_governed_live_skill(
             priority=0.85,
         )
 
-        async def _perceive() -> Dict[str, Any]:
+        async def _perceive() -> dict[str, Any]:
             return {"route": "chat.live_runtime_proof", "skill_name": skill_name}
 
-        async def _simulate(_proposal, _state_snapshot) -> Dict[str, Any]:
+        async def _simulate(_proposal, _state_snapshot) -> dict[str, Any]:
             return {
                 "ok": True,
                 "mode": "capability_engine_only",
                 "legacy_tool_fallback": False,
             }
 
-        async def _execute(_proposal, _state_snapshot, _capability_token) -> Dict[str, Any]:
+        async def _execute(_proposal, _state_snapshot, _capability_token) -> dict[str, Any]:
             return await _execute_capability()
 
-        async def _assess(_proposal, _state_snapshot, exec_result) -> Dict[str, Any]:
+        async def _assess(_proposal, _state_snapshot, exec_result) -> dict[str, Any]:
             ok = bool((exec_result or {}).get("ok"))
             return {
                 "observed": exec_result,
@@ -4312,7 +4324,7 @@ async def _execute_governed_live_skill(
     return result
 
 
-async def _write_live_proof_file(path: str, content: str, *, objective: str) -> Dict[str, Any]:
+async def _write_live_proof_file(path: str, content: str, *, objective: str) -> dict[str, Any]:
     result = await _execute_governed_live_skill(
         "file_operation",
         {"action": "write", "path": path, "content": content},
@@ -4349,7 +4361,7 @@ def _build_glass_arithmetic_reply(user_message: str = "") -> str:
     )
 
 
-async def _execute_live_runtime_proof(user_message: str) -> Optional[Dict[str, Any]]:
+async def _execute_live_runtime_proof(user_message: str) -> dict[str, Any] | None:
     kind = _classify_live_runtime_proof(user_message)
     if not kind:
         return None
@@ -4489,7 +4501,7 @@ async def api_sessions(request: Request, _: None = Depends(_require_internal)):
                 "started": datetime.fromtimestamp(
                     ServiceContainer.get("orchestrator", default=None) and
                     getattr(ServiceContainer.get("orchestrator", default=None), "start_time", time.time()) or time.time(),
-                    tz=timezone.utc
+                    tz=UTC
                 ).isoformat(),
                 "exchanges": len(current),
                 "messages": current[-50:],
@@ -4558,7 +4570,7 @@ async def api_chat_regenerate(
                     ki.process(user_msg, origin="api", priority=True),
                     timeout=foreground_timeout,
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 raise
             except _CHAT_RECOVERABLE_ERRORS as e:
                 record_degradation('chat', e)
@@ -4578,7 +4590,7 @@ async def api_chat_regenerate(
                 _conversation_log[-1]["regenerated"] = True
 
         return JSONResponse(response_data)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         return JSONResponse({"response": "Regeneration timed out.", "regenerated": False}, status_code=504)
     except _CHAT_RECOVERABLE_ERRORS as e:
         record_degradation('chat', e)
@@ -4592,7 +4604,7 @@ async def api_export_conversation(request: Request, _: None = Depends(_require_i
     Flagship products support data export."""
     async with _get_convo_lock():
         export_data = {
-            "exported_at": datetime.now(tz=timezone.utc).isoformat(),
+            "exported_at": datetime.now(tz=UTC).isoformat(),
             "version": version_string("full"),
             "session_messages": list(_conversation_log),
         }
@@ -4629,7 +4641,7 @@ async def api_export(request: Request, _: None = Depends(_require_internal)):
         logger.debug("Suppressed Exception: %s", _exc)
 
     export_data = {
-        "exported_at": datetime.now(tz=timezone.utc).isoformat(),
+        "exported_at": datetime.now(tz=UTC).isoformat(),
         "version": version_string("full"),
         "session_messages": messages,
         "episodic_memories": ep_memories,
@@ -4646,7 +4658,7 @@ async def api_export(request: Request, _: None = Depends(_require_internal)):
 
 @router.post("/think")
 async def api_think(
-    body: Dict[str, Any],
+    body: dict[str, Any],
     request: Request,
     _: None = Depends(_require_internal),
 ):
@@ -4708,10 +4720,10 @@ async def api_chat(
     _resume_prefix_for_response: str = ""
     try:
         from core.conversation.chat_preflight import (
-            extract_file_references,
             build_file_context_block,
             compose_chat_directive_prefix,
             consume_for_session,
+            extract_file_references,
             format_resume_prefix,
         )
         # Session id: client host is good enough for single-user local Aura.
@@ -4787,14 +4799,14 @@ async def api_chat(
     # message. REFUSE returns the rule's rationale verbatim; any other
     # decision falls through. The conscience emits its own audit row.
     try:
-        from core.ethics.conscience import get_conscience, Verdict as _CV
+        from core.ethics.conscience import Verdict, get_conscience
         _conscience_decision = get_conscience().evaluate(
             action="user_chat",
             domain="external_communication",
             intent=body.message[:240],
             context={"source": "chat_api"},
         )
-        if _conscience_decision.verdict == _CV.REFUSE:
+        if _conscience_decision.verdict == Verdict.REFUSE:
             return JSONResponse(
                 {
                     "response": _conscience_decision.rationale,
@@ -4804,7 +4816,7 @@ async def api_chat(
                 },
                 status_code=200,
             )
-        if _conscience_decision.verdict == _CV.REQUIRE_FRESH_USER_AUTH:
+        if _conscience_decision.verdict == Verdict.REQUIRE_FRESH_USER_AUTH:
             return JSONResponse(
                 {
                     "response": "This action needs a fresh confirmation from you within the last 60 seconds. Please re-authorize in Settings → Safety.",
@@ -4821,7 +4833,7 @@ async def api_chat(
     lane = _collect_conversation_lane_status()
     foreground_timeout = _foreground_timeout_for_lane(lane)
     request_started_at = time.monotonic()
-    pending_exchange_id: Optional[str] = None
+    pending_exchange_id: str | None = None
     foreground_slot_acquired = False
     foreground_lease = None
 
@@ -4842,7 +4854,6 @@ async def api_chat(
             logger.debug("Foreground guard lease skipped: %s", _lease_exc)
 
         # VRAM Circuit Breaker (Limp Mode)
-        sys_memory_pressure = False
         try:
             mem = psutil.virtual_memory()
             # [STABILITY v55] Raised from 85% to 94%. On a 64GB M5 system
@@ -4852,7 +4863,6 @@ async def api_chat(
             # request, crippling the cortex's reasoning capability.
             # 94% is the actual macOS memory throttle wall.
             if mem.percent > 94.0:
-                sys_memory_pressure = True
                 logger.warning("🚨 [VRAM CIRCUIT BREAKER] Unified memory at %.1f%%. Entering Limp Mode.", mem.percent)
                 # Force constraint at state level
                 live_state = _resolve_live_aura_state()
@@ -4877,7 +4887,7 @@ async def api_chat(
                 timeout=max(0.05, min(_FOREGROUND_CHAT_BUSY_WAIT_S, _remaining_foreground_budget(reserve=1.0))),
             )
             foreground_slot_acquired = True
-        except asyncio.TimeoutError:
+        except TimeoutError:
             held = getattr(_foreground_chat_lock, "held_duration", 0.0)
             if held > 45.0:
                 logger.error(f"🚨 Preempting stuck foreground generation (held {held:.1f}s) to allow new user turn.")
@@ -4886,7 +4896,7 @@ async def api_chat(
                 try:
                     await asyncio.wait_for(_foreground_chat_lock.acquire(), timeout=1.0)
                     foreground_slot_acquired = True
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     pass
             
             if not foreground_slot_acquired:
@@ -4906,7 +4916,8 @@ async def api_chat(
         # Animal cognition: track user emotional state and adapt style
         try:
             from core.consciousness.animal_cognition import (
-                get_emotional_tracker, get_camouflage_adapter,
+                get_camouflage_adapter,
+                get_emotional_tracker,
             )
             emotional_tracker = get_emotional_tracker()
             emotional_tracker.update(_semantic_user_message)
@@ -4946,7 +4957,9 @@ async def api_chat(
                     semantic_glitch, semantic_glitch_reason = _looks_semantically_glitched(_semantic_user_message, final_text)
                     assess_user_facing_reply = None
                     try:
-                        from core.conversation.response_reliability import assess_user_facing_reply as _assess_user_facing_reply
+                        from core.conversation.response_reliability import (
+                            assess_user_facing_reply as _assess_user_facing_reply,
+                        )
 
                         assess_user_facing_reply = _assess_user_facing_reply
                         fastpath_assessment = assess_user_facing_reply(_semantic_user_message, final_text)
@@ -4980,7 +4993,9 @@ async def api_chat(
                             semantic_glitch, semantic_glitch_reason = _looks_semantically_glitched(_semantic_user_message, final_text)
                             try:
                                 if assess_user_facing_reply is None:
-                                    from core.conversation.response_reliability import assess_user_facing_reply as _assess_user_facing_reply
+                                    from core.conversation.response_reliability import (
+                                        assess_user_facing_reply as _assess_user_facing_reply,
+                                    )
 
                                     assess_user_facing_reply = _assess_user_facing_reply
                                 fastpath_assessment = assess_user_facing_reply(_semantic_user_message, final_text)
@@ -5026,7 +5041,7 @@ async def api_chat(
             )
             return JSONResponse(response_data)
 
-        async def _attempt_protected_foreground_reply(reason: str) -> Optional[str]:
+        async def _attempt_protected_foreground_reply(reason: str) -> str | None:
             gate = ServiceContainer.get("inference_gate", default=None)
             if gate is None or not hasattr(gate, "generate"):
                 return None
@@ -5181,7 +5196,7 @@ async def api_chat(
                     lane = await gate.ensure_foreground_ready(
                         timeout=max(1.0, warmup_budget)
                     )
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     lane = _mark_conversation_lane_state(
                         "foreground_warmup_timeout",
                         state="warming",
@@ -5196,8 +5211,9 @@ async def api_chat(
                         if gate and hasattr(gate, "_schedule_background_cortex_prewarm"):
                             try:
                                 gate._schedule_background_cortex_prewarm(delay=1.0)
-                            except Exception:
-                                pass  # no-op: intentional
+                            except Exception as exc:
+                                record_degradation("chat", exc)
+                                logger.debug("Background cortex prewarm scheduling failed: %s", exc)
                         return await _finalize_fastpath(
                             _warmup_bypass_reply,
                             status="protected_foreground",
@@ -5217,8 +5233,9 @@ async def api_chat(
                             if gate and hasattr(gate, "_schedule_background_cortex_prewarm"):
                                 try:
                                     gate._schedule_background_cortex_prewarm(delay=2.0)
-                                except Exception:
-                                    pass  # no-op: intentional
+                                except Exception as exc:
+                                    record_degradation("chat", exc)
+                                    logger.debug("Background cortex prewarm scheduling failed: %s", exc)
                             return await _finalize_fastpath(
                                 _failure_bypass_reply,
                                 status="protected_foreground",
@@ -5231,8 +5248,9 @@ async def api_chat(
                 gate = ServiceContainer.get("inference_gate", default=None)
                 if gate and hasattr(gate, "_schedule_background_cortex_prewarm"):
                     gate._schedule_background_cortex_prewarm(delay=2.0)
-            except Exception:
-                pass  # no-op: intentional
+            except Exception as exc:
+                record_degradation("chat", exc)
+                logger.debug("Background cortex prewarm scheduling failed: %s", exc)
             rescue_reply = await _attempt_protected_foreground_reply("lane_hard_failure")
             if rescue_reply:
                 return await _finalize_fastpath(
@@ -5304,7 +5322,10 @@ async def api_chat(
                 from core.container import ServiceContainer as _SC_gi
                 _sa = _SC_gi.get("substrate_authority", default=None)
                 if _sa:
-                    from core.consciousness.substrate_authority import ActionCategory, AuthorizationDecision
+                    from core.consciousness.substrate_authority import (
+                        ActionCategory,
+                        AuthorizationDecision,
+                    )
                     _gv = _sa.authorize(
                         content=_semantic_user_message[:80],
                         source=_gi_effect_source,
@@ -5348,8 +5369,9 @@ async def api_chat(
                         _semantic_user_message[:80],
                         receipt_id=_gi_receipt_id,
                     )
-                except Exception:
-                    pass  # no-op: intentional
+                except Exception as exc:
+                    record_degradation("chat", exc)
+                    logger.debug("Authority audit effect recording failed: %s", exc)
                 return await _finalize_fastpath(grounded_introspection, status=_gi_status)
 
         if _is_identity_request(_semantic_user_message):
@@ -5421,15 +5443,16 @@ async def api_chat(
         try:
             await _preserve_large_user_paste(_semantic_user_message)
             pending_exchange_id = await _begin_logged_exchange(_semantic_user_message)
-        except Exception:
-            pass  # Best-effort; don't block the response
+        except Exception as exc:
+            record_degradation("chat", exc)
+            logger.debug("Conversation exchange prelogging skipped: %s", exc)
 
         # Phase 2 Constitutional Closure: Try Sovereign Kernel Interface actively
         from core.kernel.kernel_interface import KernelInterface
         ki = KernelInterface.get_instance()
         reply_text = None
         kernel_timed_out = False
-        kernel_task: Optional[asyncio.Task] = None
+        kernel_task: asyncio.Task | None = None
 
         if ki.is_ready():
             logger.debug("REST: Awaiting constitutional processing from Sovereign Kernel...")
@@ -5453,7 +5476,7 @@ async def api_chat(
                         asyncio.shield(kernel_task),
                         timeout=soft_deadline,
                     )
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     # Soft deadline missed.
                     # [STABILITY v55] ROOT CAUSE FIX: DO NOT fire a competing
                     # protected foreground request if the cortex is alive and
@@ -5469,8 +5492,9 @@ async def api_chat(
                         gate = ServiceContainer.get("inference_gate", default=None)
                         if gate and hasattr(gate, "is_alive"):
                             cortex_alive = gate.is_alive()
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        record_degradation("chat", exc)
+                        logger.debug("Inference gate liveness check failed: %s", exc)
                     if cortex_alive:
                         # Cortex is alive — it's just slow. Wait for kernel
                         # to finish instead of competing for the same LLM.
@@ -5499,7 +5523,7 @@ async def api_chat(
                             asyncio.shield(kernel_task),
                             timeout=max(2.0, _remaining_foreground_budget()),
                         )
-            except asyncio.TimeoutError as e:
+            except TimeoutError as e:
                 kernel_timed_out = True
                 logger.error(
                     "KernelInterface chat timed out; refusing legacy replay for the same foreground request: %s (%s)",
@@ -5734,7 +5758,7 @@ async def api_chat(
         )
 
         return JSONResponse(response_data)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         lane = _mark_conversation_lane_timeout()
         # [STABILITY v53] Last-resort: try protected foreground before returning timeout.
         # The kernel timed out but the LLM might still be responsive for a direct call.
@@ -5771,8 +5795,9 @@ async def api_chat(
                         "conversation_lane": _collect_conversation_lane_status(),
                         "response_confidence": "degraded",
                     })
-        except Exception:
-            pass  # Fall through to timeout response
+        except Exception as exc:
+            record_degradation("chat", exc)
+            logger.warning("Emergency degraded response path failed; falling through to timeout response: %s", exc)
 
         # [STABILITY v53] Return 200 with status field instead of 503/504.
         # Non-200 codes can cause frontend retry storms or error displays.
@@ -5790,7 +5815,8 @@ async def api_chat(
             )
             enqueue(_chat_session_id, _original_user_message, reason="outer_timeout")
 
-            async def _retry_call(msg: str, *, timeout: float) -> str:
+            async def _retry_call(msg: str, **kwargs) -> str:
+                timeout_s = float(kwargs.get("timeout", foreground_timeout))
                 try:
                     gate2 = ServiceContainer.get("inference_gate", default=None)
                     if gate2 and hasattr(gate2, "generate"):
@@ -5804,9 +5830,9 @@ async def api_chat(
                                     "prefer_tier": "primary",
                                     "allow_cloud_fallback": True,
                                 },
-                                timeout=timeout,
+                                timeout=timeout_s,
                             ),
-                            timeout=timeout,
+                            timeout=timeout_s,
                         )
                         if isinstance(result, str):
                             return result.strip()
