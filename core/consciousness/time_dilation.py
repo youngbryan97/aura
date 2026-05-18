@@ -20,14 +20,13 @@ Integration:
 """
 
 import logging
-import math
-import time
 import threading
+import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Deque, Dict, Optional
 
 from core.container import ServiceContainer
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Consciousness.TimeDilation")
 
@@ -108,10 +107,10 @@ class TimeDilationEngine:
         self._subjective_elapsed: float = 0.0  # Accumulated subjective seconds
 
         # History for trend analysis
-        self._history: Deque[DilationState] = deque(maxlen=_HISTORY_SIZE)
+        self._history: deque[DilationState] = deque(maxlen=_HISTORY_SIZE)
 
         # Cached signals (updated each evaluation)
-        self._last_signals: Optional[_DilationSignals] = None
+        self._last_signals: _DilationSignals | None = None
 
         logger.info(
             "TimeDilationEngine initialized (base=%.1fHz, range=[%.1f, %.1f]Hz)",
@@ -153,7 +152,7 @@ class TimeDilationEngine:
         with self._lock:
             return 1.0 / max(0.01, self._smoothed_hz)
 
-    def get_snapshot(self) -> Dict:
+    def get_snapshot(self) -> dict:
         """Full snapshot for telemetry / consciousness stack."""
         with self._lock:
             return {
@@ -256,23 +255,26 @@ class TimeDilationEngine:
                 signals.free_energy = fe.current.free_energy
                 signals.prediction_error = fe.current.surprise
                 signals.fe_distressed = fe.is_distressed()
-        except Exception:
-            pass  # no-op: intentional
+        except Exception as exc:
+            record_degradation("time_dilation", exc)
+            logger.debug("TimeDilation free-energy signal read failed: %s", exc)
 
         # Drive Engine
         try:
             drive = ServiceContainer.get("drive_engine", default=None)
             if drive:
-                vector = drive.get_drive_vector()
-                # Urgency = inverse of lowest drive level
-                min_level = min(
-                    (v for k, v in vector.items() if k != "uptime_value"),
-                    default=0.5,
-                )
-                signals.drive_urgency = max(0.0, 1.0 - min_level)
-                signals.boredom_level = drive.boredom_level
-        except Exception:
-            pass  # no-op: intentional
+                if hasattr(drive, "get_drive_vector"):
+                    vector = drive.get_drive_vector()
+                    # Urgency = inverse of lowest drive level
+                    min_level = min(
+                        (v for k, v in vector.items() if k != "uptime_value"),
+                        default=0.5,
+                    )
+                    signals.drive_urgency = max(0.0, 1.0 - min_level)
+                signals.boredom_level = getattr(drive, "boredom_level", 0.0)
+        except Exception as exc:
+            record_degradation("time_dilation", exc)
+            logger.debug("TimeDilation drive signal read failed: %s", exc)
 
         # World State
         try:
@@ -282,20 +284,32 @@ class TimeDilationEngine:
                 signals.user_waiting = ws.user_idle_seconds < 10.0 and ws.user_message_count > 0
                 signals.thermal_pressure = ws.thermal_pressure
                 signals.memory_pressure = ws.memory_percent
-        except Exception:
-            pass  # no-op: intentional
+        except Exception as exc:
+            record_degradation("time_dilation", exc)
+            logger.debug("TimeDilation world-state signal read failed: %s", exc)
 
         # Embodiment / body integrity
         try:
-            homeostasis = ServiceContainer.get("homeostasis", default=None)
+            homeostasis = ServiceContainer.get("homeostatic_coupling", default=None)
+            if not homeostasis:
+                homeostasis = ServiceContainer.get("homeostasis", default=None)
+
             if homeostasis:
-                mods = homeostasis.get_modifiers()
-                if hasattr(mods, "urgency_flag") and mods.urgency_flag:
-                    signals.critical_maintenance = True
-                if hasattr(mods, "overall_vitality") and mods.overall_vitality < 0.3:
-                    signals.critical_maintenance = True
-        except Exception:
-            pass  # no-op: intentional
+                if hasattr(homeostasis, "get_modifiers"):
+                    mods = homeostasis.get_modifiers()
+                    if hasattr(mods, "urgency_flag") and mods.urgency_flag:
+                        signals.critical_maintenance = True
+                    if hasattr(mods, "overall_vitality") and mods.overall_vitality < 0.3:
+                        signals.critical_maintenance = True
+                elif hasattr(homeostasis, "get_inference_modifiers"):
+                    mods = homeostasis.get_inference_modifiers()
+                    if mods.get("caution_level", 0.0) > 0.8:
+                        signals.critical_maintenance = True
+                    if mods.get("vitality", 1.0) < 0.3:
+                        signals.critical_maintenance = True
+        except Exception as exc:
+            record_degradation("time_dilation", exc)
+            logger.debug("TimeDilation homeostasis signal read failed: %s", exc)
 
         return signals
 
@@ -416,7 +430,7 @@ class TimeDilationEngine:
 # Module-level singleton
 # ---------------------------------------------------------------------------
 
-_engine: Optional[TimeDilationEngine] = None
+_engine: TimeDilationEngine | None = None
 _engine_lock = threading.Lock()
 
 
