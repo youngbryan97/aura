@@ -6,10 +6,11 @@ Hierarchy (highest priority first):
   3. .env file (development)
   4. config.yaml (least secure — warns if used for secrets)
 """
-from core.runtime.errors import record_degradation
 import logging
 import os
 from pathlib import Path
+
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.Secrets")
 
@@ -85,8 +86,13 @@ def _keychain_set(key: str, value: str) -> bool:
             ],
             capture_output=True, text=True, timeout=5,
         )
-        return result.returncode == 0
-    except Exception:
+        if result.returncode != 0:
+            logger.debug("Keychain write failed for key '%s' with exit code %s", key, result.returncode)
+            return False
+        return True
+    except Exception as exc:
+        record_degradation("zenith_secrets", exc)
+        logger.debug("Keychain write unavailable for key '%s': %s", key, exc)
         return False
 
 

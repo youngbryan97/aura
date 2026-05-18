@@ -11,12 +11,9 @@ Features:
 8. Incident manager integration for structured failure reporting
 """
 
-from core.runtime.errors import record_degradation
 import asyncio
 import atexit
-import json
 import logging
-import math
 import multiprocessing as mp
 import os
 import random
@@ -24,12 +21,15 @@ import resource  # For Unix resource limits
 import signal
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 import psutil
+
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Kernel.ProcessManager")
@@ -55,15 +55,15 @@ class ProcessConfig:
     name: str
     target: Callable
     args: tuple = ()
-    kwargs: Dict[str, Any] = field(default_factory=dict)
+    kwargs: dict[str, Any] = field(default_factory=dict)
     daemon: bool = False
     max_restarts: int = 3
     restart_window: int = 300  # seconds
     health_check_interval: int = 30  # seconds
     startup_timeout: int = 30  # seconds
     shutdown_timeout: int = 10  # seconds
-    cpu_limit: Optional[float] = None  # percentage
-    memory_limit: Optional[int] = None  # bytes
+    cpu_limit: float | None = None  # percentage
+    memory_limit: int | None = None  # bytes
     priority: int = 0  # Process priority (0 = normal)
     
     def __post_init__(self):
@@ -91,10 +91,10 @@ class ProcessStats:
     start_time: float
     restarts: int = 0
     total_uptime: float = 0.0
-    cpu_usage: List[float] = field(default_factory=list)
-    memory_usage: List[int] = field(default_factory=list)
-    last_health_check: Optional[float] = None
-    restart_timestamps: List[float] = field(default_factory=list)
+    cpu_usage: list[float] = field(default_factory=list)
+    memory_usage: list[int] = field(default_factory=list)
+    last_health_check: float | None = None
+    restart_timestamps: list[float] = field(default_factory=list)
     last_backoff_s: float = 0.0
 
 
@@ -103,13 +103,13 @@ class ManagedProcess:
     
     def __init__(self, config: ProcessConfig):
         self.config = config
-        self.process: Optional[mp.Process] = None
+        self.process: mp.Process | None = None
         self.state = ProcessState.INITIALIZING
         self.stats = ProcessStats(start_time=time.time())
-        self.last_restart_attempt: Optional[float] = None
+        self.last_restart_attempt: float | None = None
         self._lock = threading.RLock()
-        self._health_check_thread: Optional[threading.Thread] = None
-        self._health_check_task: Optional[asyncio.Task] = None
+        self._health_check_thread: threading.Thread | None = None
+        self._health_check_task: asyncio.Task | None = None
         self._stop_health_check = threading.Event()
     
     async def start(self) -> bool:
@@ -163,7 +163,7 @@ class ManagedProcess:
                 logger.error("Failed to start process %s: %s", self.config.name, e, exc_info=True)
                 return False
     
-    def _process_wrapper(self, target: Callable, args: tuple, kwargs: Dict[str, Any]):
+    def _process_wrapper(self, target: Callable, args: tuple, kwargs: dict[str, Any]):
         """Wrapper for process execution with error handling."""
         process_name = mp.current_process().name
         
@@ -211,7 +211,6 @@ class ManagedProcess:
                         psutil_process = psutil.Process(self.process.pid)
                         psutil_process.terminate()  # SIGTERM
                     except psutil.NoSuchProcess:
-                        import logging
                         logger.debug("Exception caught during execution", exc_info=True)
                 
                 # Wait for graceful shutdown
@@ -277,8 +276,8 @@ class ManagedProcess:
                     # Report to incident manager
                     try:
                         from core.resilience.incident_manager import (
-                            get_incident_manager,
                             IncidentSeverity,
+                            get_incident_manager,
                         )
                         get_incident_manager().report(
                             category=f"process_permanently_failed:{self.config.name}",
@@ -296,14 +295,16 @@ class ManagedProcess:
                                 "restart_timestamps": self.stats.restart_timestamps[-5:],
                             },
                         )
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        record_degradation("process_manager", exc)
+                        logger.debug("Incident report failed for permanent process failure %s: %s", self.config.name, exc)
                     # Report to metrics
                     try:
                         from core.observability.metrics import get_metrics
                         get_metrics().record_process_restart(self.config.name)
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        record_degradation("process_manager", exc)
+                        logger.debug("Process restart metric failed for %s: %s", self.config.name, exc)
                     return False
             
             # Apply exponential backoff delay
@@ -354,16 +355,14 @@ class ManagedProcess:
         if self._health_check_task and not self._health_check_task.done():
             try:
                 await asyncio.wait_for(self._health_check_task, timeout=5)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.warning("Health monitoring task for %s did not stop gracefully, cancelling.", self.config.name)
                 self._health_check_task.cancel()
                 try:
                     await self._health_check_task
                 except asyncio.CancelledError:
-                    import logging
                     logger.debug("Exception caught during execution", exc_info=True)
             except asyncio.CancelledError:
-                import logging
                 logger.debug("Exception caught during execution", exc_info=True)
         self._health_check_task = None
     
@@ -427,7 +426,7 @@ class ManagedProcess:
             record_degradation('process_manager', e)
             logger.error("Health check error for %s: %s", self.config.name, e)
     
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Get process status."""
         with self._lock:
             pid = self.process.pid if self.process else None
@@ -462,11 +461,11 @@ class ProcessManager:
     """
     
     def __init__(self):
-        self.processes: Dict[str, ManagedProcess] = {}
+        self.processes: dict[str, ManagedProcess] = {}
         self.shutdown_event = threading.Event()
         self._lock = threading.RLock()
-        self._monitor_thread: Optional[threading.Thread] = None
-        self._event_loop: Optional[asyncio.AbstractEventLoop] = None
+        self._monitor_thread: threading.Thread | None = None
+        self._event_loop: asyncio.AbstractEventLoop | None = None
         self._register_signal_handlers()
         atexit.register(self.cleanup)
     
@@ -570,7 +569,7 @@ class ProcessManager:
             
             return await self.processes[name].restart()
     
-    async def start_all(self) -> Dict[str, bool]:
+    async def start_all(self) -> dict[str, bool]:
         """Start all registered processes."""
         results = {}
         try:
@@ -582,7 +581,7 @@ class ProcessManager:
                 results[name] = await self.start_process(name)
         return results
     
-    def stop_all(self, force: bool = False) -> Dict[str, bool]:
+    def stop_all(self, force: bool = False) -> dict[str, bool]:
         """Stop all registered processes."""
         results = {}
         with self._lock:
@@ -658,8 +657,9 @@ class ProcessManager:
         # Log results
         successful = sum(1 for success in stop_results.values() if success)
         total = len(stop_results)
+        logger.info("ProcessManager cleanup stopped %d/%d processes", successful, total)
     
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Get status of all processes."""
         with self._lock:
             processes_status = {}
@@ -673,7 +673,7 @@ class ProcessManager:
                 "shutdown_initiated": self.shutdown_event.is_set()
             }
     
-    def get_process_stats(self, name: str) -> Optional[Dict[str, Any]]:
+    def get_process_stats(self, name: str) -> dict[str, Any] | None:
         """Get detailed statistics for a process."""
         with self._lock:
             if name not in self.processes:
@@ -697,7 +697,7 @@ class ProcessManager:
                 }
             }
     
-    def export_metrics(self) -> Dict[str, Any]:
+    def export_metrics(self) -> dict[str, Any]:
         """Export metrics for monitoring systems."""
         with self._lock:
             metrics = {

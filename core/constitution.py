@@ -6,8 +6,6 @@ tool execution, belief mutation, state mutation, and continuity restoration
 can all flow through one constitutional service.
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
 
 import asyncio
 import logging
@@ -15,15 +13,16 @@ import time
 import uuid
 from collections import deque
 from dataclasses import asdict, dataclass, field
-from enum import Enum
-from typing import Any, Deque, Dict, List, Optional
+from enum import StrEnum
+from typing import Any
 
 from core.container import ServiceContainer
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.ConstitutionalCore")
 
 
-class ProposalKind(str, Enum):
+class ProposalKind(StrEnum):
     INITIATIVE = "initiative"
     EXPRESSION = "expression"
     TOOL = "tool"
@@ -33,7 +32,7 @@ class ProposalKind(str, Enum):
     CONTINUITY = "continuity"
 
 
-class ProposalOutcome(str, Enum):
+class ProposalOutcome(StrEnum):
     APPROVED = "approved"
     REJECTED = "rejected"
     DEGRADED = "degraded"
@@ -45,7 +44,7 @@ class ConstitutionalProposal:
     kind: ProposalKind
     source: str
     summary: str
-    payload: Dict[str, Any] = field(default_factory=dict)
+    payload: dict[str, Any] = field(default_factory=dict)
     urgency: float = 0.5
     confidence: float = 0.5
     proposal_id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
@@ -59,15 +58,15 @@ class ConstitutionalDecision:
     outcome: ProposalOutcome
     reason: str
     source: str
-    will_receipt_id: Optional[str] = None
+    will_receipt_id: str | None = None
     target: str = ""
-    intent_id: Optional[str] = None
-    commitment_id: Optional[str] = None
-    constraints: Dict[str, Any] = field(default_factory=dict)
-    snapshot: Dict[str, Any] = field(default_factory=dict)
+    intent_id: str | None = None
+    commitment_id: str | None = None
+    constraints: dict[str, Any] = field(default_factory=dict)
+    snapshot: dict[str, Any] = field(default_factory=dict)
     decided_at: float = field(default_factory=time.time)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
@@ -76,12 +75,12 @@ class ToolExecutionHandle:
     proposal: ConstitutionalProposal
     decision: ConstitutionalDecision
     approved: bool
-    constraints: Dict[str, Any] = field(default_factory=dict)
-    executive_intent_id: Optional[str] = None
-    intention_id: Optional[str] = None
-    capability_token_id: Optional[str] = None
-    authority_receipt_id: Optional[str] = None
-    will_receipt_id: Optional[str] = None
+    constraints: dict[str, Any] = field(default_factory=dict)
+    executive_intent_id: str | None = None
+    intention_id: str | None = None
+    capability_token_id: str | None = None
+    authority_receipt_id: str | None = None
+    will_receipt_id: str | None = None
 
 
 @dataclass
@@ -93,15 +92,15 @@ class BeliefMutationRecord:
     allowed: bool = True
     status: str = "tentative"
     confidence: float = 0.35
-    evidence: List[str] = field(default_factory=list)
-    contradictions: List[str] = field(default_factory=list)
+    evidence: list[str] = field(default_factory=list)
+    contradictions: list[str] = field(default_factory=list)
     recorded_at: float = field(default_factory=time.time)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
-def unpack_governance_result(result: Any) -> tuple[bool, str, Optional[Any]]:
+def unpack_governance_result(result: Any) -> tuple[bool, str, Any | None]:
     """Support legacy 2-tuples and new 3-tuples from governance APIs."""
     if isinstance(result, tuple):
         if len(result) >= 3:
@@ -117,16 +116,16 @@ class BeliefAuthority:
     """Single epistemic entry point for durable belief writes."""
 
     def __init__(self) -> None:
-        self._history: Deque[BeliefMutationRecord] = deque(maxlen=300)
-        self._beliefs: Dict[str, BeliefMutationRecord] = {}
+        self._history: deque[BeliefMutationRecord] = deque(maxlen=300)
+        self._beliefs: dict[str, BeliefMutationRecord] = {}
 
     def review_update(
         self,
         namespace: str,
         key: str,
         value: Any,
-        note: Optional[str] = None,
-        evidence: Optional[List[str]] = None,
+        note: str | None = None,
+        evidence: list[str] | None = None,
     ) -> BeliefMutationRecord:
         normalized_key = str(key or "").strip().lower().replace(" ", "_")
         normalized_value = value
@@ -136,7 +135,7 @@ class BeliefAuthority:
             evidence_refs.append(str(note))
         status = "tentative"
         confidence = 0.35
-        contradictions: List[str] = []
+        contradictions: list[str] = []
 
         try:
             state_authority = ServiceContainer.get("state_authority", default=None)
@@ -191,11 +190,11 @@ class BeliefAuthority:
         self._history.append(record)
         return record
 
-    def recent(self, limit: int = 25) -> List[Dict[str, Any]]:
+    def recent(self, limit: int = 25) -> list[dict[str, Any]]:
         items = list(self._history)[-limit:]
         return [item.to_dict() for item in items]
 
-    def summary(self) -> Dict[str, Any]:
+    def summary(self) -> dict[str, Any]:
         records = list(self._beliefs.values())
         contested = [record for record in records if record.status == "contested"]
         trusted = [record for record in records if record.status == "trusted"]
@@ -218,14 +217,14 @@ class ConstitutionalCore:
     def __init__(self, orchestrator: Any = None) -> None:
         self.orchestrator = orchestrator
         self.belief_authority = BeliefAuthority()
-        self._decision_history: Deque[ConstitutionalDecision] = deque(maxlen=500)
+        self._decision_history: deque[ConstitutionalDecision] = deque(maxlen=500)
         self._lock = asyncio.Lock()
 
     def bind(self, orchestrator: Any) -> None:
         if orchestrator is not None:
             self.orchestrator = orchestrator
 
-    def snapshot(self, state: Any = None) -> Dict[str, Any]:
+    def snapshot(self, state: Any = None) -> dict[str, Any]:
         current_state = state
         if current_state is None:
             repo = self._get_state_repository()
@@ -247,7 +246,7 @@ class ConstitutionalCore:
         coherence_score = float(getattr(cognition, "coherence_score", 1.0) or 1.0)
         fragmentation_score = float(getattr(cognition, "fragmentation_score", 0.0) or 0.0)
         contradiction_count = int(getattr(cognition, "contradiction_count", 0) or 0)
-        health_flags: List[str] = []
+        health_flags: list[str] = []
         if thermal_guard:
             health_flags.append("thermal_guard")
         if coherence_score < 0.72:
@@ -282,13 +281,13 @@ class ConstitutionalCore:
         tool_name: str,
         *,
         source: str,
-        args: Optional[Dict[str, Any]] = None,
-        decision: Optional[ConstitutionalDecision] = None,
-        handle: Optional[ToolExecutionHandle] = None,
+        args: dict[str, Any] | None = None,
+        decision: ConstitutionalDecision | None = None,
+        handle: ToolExecutionHandle | None = None,
         result: Any = None,
-        success: Optional[bool] = None,
-        error: Optional[str] = None,
-        duration_ms: Optional[float] = None,
+        success: bool | None = None,
+        error: str | None = None,
+        duration_ms: float | None = None,
     ) -> None:
         try:
             from core.event_bus import get_event_bus
@@ -327,7 +326,7 @@ class ConstitutionalCore:
     async def begin_tool_execution(
         self,
         tool_name: str,
-        args: Dict[str, Any],
+        args: dict[str, Any],
         *,
         source: str = "unknown",
         objective: str = "",
@@ -472,7 +471,7 @@ class ConstitutionalCore:
         result: Any,
         success: bool,
         duration_ms: float,
-        error: Optional[str] = None,
+        error: str | None = None,
     ) -> None:
         if handle is None:
             return
@@ -627,7 +626,7 @@ class ConstitutionalCore:
         *,
         source: str = "unknown",
         importance: float = 0.5,
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
         state: Any = None,
         return_decision: bool = False,
     ) -> tuple[bool, str] | tuple[bool, str, ConstitutionalDecision]:
@@ -720,7 +719,7 @@ class ConstitutionalCore:
         *,
         source: str = "unknown",
         importance: float = 0.5,
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
         state: Any = None,
         return_decision: bool = False,
     ) -> tuple[bool, str] | tuple[bool, str, ConstitutionalDecision]:
@@ -840,7 +839,7 @@ class ConstitutionalCore:
         key: str,
         value: Any,
         *,
-        note: Optional[str] = None,
+        note: str | None = None,
         source: str = "unknown",
         importance: float = 0.7,
         state: Any = None,
@@ -1058,7 +1057,7 @@ class ConstitutionalCore:
         outcome: str,
         reason: str,
         target: str = "",
-        payload: Optional[Dict[str, Any]] = None,
+        payload: dict[str, Any] | None = None,
         state: Any = None,
     ) -> ConstitutionalDecision:
         decision_outcome = {
@@ -1382,9 +1381,9 @@ class ConstitutionalCore:
         )
         return authority_decision.approved, authority_decision.reason, authority_decision
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         failure_state = {"pressure": 0.0, "count": 0, "critical": 0, "errors": 0, "warnings": 0, "top_subsystems": []}
-        temporal_state: Dict[str, Any] = {}
+        temporal_state: dict[str, Any] = {}
         identity_integrity = True
         try:
             exec_core = self._get_executive_core()
@@ -1408,7 +1407,7 @@ class ConstitutionalCore:
         self._decision_history.append(decision)
         return decision
 
-    def _authority_constraints(self, authority_decision: Any) -> Dict[str, Any]:
+    def _authority_constraints(self, authority_decision: Any) -> dict[str, Any]:
         constraints = dict(getattr(authority_decision, "constraints", {}) or {})
         receipt_id = getattr(authority_decision, "substrate_receipt_id", None)
         will_receipt_id = getattr(authority_decision, "will_receipt_id", None)
@@ -1442,7 +1441,9 @@ class ConstitutionalCore:
                 or ServiceContainer.has("kernel_interface")
                 or bool(getattr(ServiceContainer, "_registration_locked", False))
             )
-        except Exception:
+        except Exception as exc:
+            record_degradation("constitution", exc)
+            logger.debug("Strict enforcement state lookup failed: %s", exc)
             return False
 
     def _get_executive_core(self) -> Any:
@@ -1476,7 +1477,7 @@ class ConstitutionalCore:
             return None
 
 
-_instance: Optional[ConstitutionalCore] = None
+_instance: ConstitutionalCore | None = None
 
 
 def get_constitutional_core(orchestrator: Any = None) -> ConstitutionalCore:

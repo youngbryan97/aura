@@ -5,14 +5,15 @@ it gets logged here with its source generation, gate status, and outcome.
 This makes the three-generation overlap (VolitionEngine, AgencyCore,
 Gen3 constitutional) visible and debuggable.
 """
-from core.runtime.errors import record_degradation
 import json
 import logging
-import time
 import threading
+import time
 from collections import deque
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
+
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.ActionLog")
 
@@ -25,7 +26,7 @@ class UnifiedActionLog:
     def __init__(self):
         self._entries: deque = deque(maxlen=_MAX_ENTRIES)
         self._lock = threading.Lock()
-        self._persist_path: Optional[Path] = None
+        self._persist_path: Path | None = None
         try:
             from core.config import config
             self._persist_path = config.paths.data_dir / "unified_action_log.jsonl"
@@ -40,7 +41,9 @@ class UnifiedActionLog:
             return
         try:
             lines = self._persist_path.read_text(encoding="utf-8").splitlines()
-        except Exception:
+        except (OSError, UnicodeDecodeError) as exc:
+            record_degradation("unified_action_log", exc)
+            logger.debug("Failed to read persisted action log %s: %s", self._persist_path, exc)
             return
 
         restored = []
@@ -50,7 +53,9 @@ class UnifiedActionLog:
                 continue
             try:
                 entry = json.loads(raw)
-            except Exception:
+            except json.JSONDecodeError as exc:
+                record_degradation("unified_action_log", exc)
+                logger.debug("Skipping corrupt action log line: %s", exc)
                 continue
             if isinstance(entry, dict):
                 restored.append(entry)
@@ -65,7 +70,7 @@ class UnifiedActionLog:
         generation: str,
         gate_status: str = "approved",
         outcome: str = "",
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ):
         """Record a behavioral assertion.
 
@@ -105,7 +110,7 @@ class UnifiedActionLog:
             items = list(self._entries)
         return items[-limit:]
 
-    def stats(self) -> Dict[str, Any]:
+    def stats(self) -> dict[str, Any]:
         with self._lock:
             items = list(self._entries)
         if not items:
@@ -124,7 +129,7 @@ class UnifiedActionLog:
         }
 
 
-_instance: Optional[UnifiedActionLog] = None
+_instance: UnifiedActionLog | None = None
 
 
 def get_action_log() -> UnifiedActionLog:

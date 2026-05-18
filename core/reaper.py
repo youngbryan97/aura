@@ -92,8 +92,9 @@ def reaper_loop(kernel_pid: int, manifest_path: Path):
     """
     try:
         signal.signal(signal.SIGINT, signal.SIG_IGN)
-    except Exception:
-        pass
+    except (OSError, RuntimeError, ValueError) as exc:
+        record_degradation("reaper", exc)
+        logger.debug("[REAPER] Unable to ignore SIGINT: %s", exc)
     # Configure logging for the detached process
     logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(name)s: %(message)s')
     manifest = ReaperManifest(manifest_path)
