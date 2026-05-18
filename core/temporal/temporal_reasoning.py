@@ -6,7 +6,6 @@ Enables Aura to:
 3. Model confidence levels (certain/maybe/uncertain)
 4. Consider externalities and impacts
 """
-from core.runtime.errors import record_degradation
 import asyncio
 import json
 import logging
@@ -14,9 +13,23 @@ import time
 from dataclasses import asdict, dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
+
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Cognition.TemporalReasoning")
+
+
+def _strip_json_fence(value: Any) -> str:
+    text = str(value or "").strip()
+    if not text.startswith("```"):
+        return text
+    lines = text.splitlines()
+    if lines and lines[0].strip().startswith("```"):
+        lines = lines[1:]
+    if lines and lines[-1].strip() == "```":
+        lines = lines[:-1]
+    return "\n".join(lines).strip()
 
 
 class ConfidenceLevel(Enum):
@@ -44,13 +57,13 @@ class PastEvent:
 
     timestamp: float
     action: str
-    context: Dict[str, Any]
+    context: dict[str, Any]
     intended_outcome: str
     actual_outcome: str
     outcome_type: OutcomeType
     success: bool
-    externalities: List[str]  # Unintended consequences
-    lessons_learned: List[str]
+    externalities: list[str]  # Unintended consequences
+    lessons_learned: list[str]
     
     def to_dict(self):
         d = asdict(self)
@@ -63,12 +76,12 @@ class FuturePrediction:
     """Predicted outcome of a potential action"""
 
     action: str
-    predicted_outcomes: List[Dict[str, Any]]  # Multiple possible outcomes
+    predicted_outcomes: list[dict[str, Any]]  # Multiple possible outcomes
     confidence: ConfidenceLevel
     confidence_score: float  # 0.0-1.0
-    expected_externalities: List[str]
-    risks: List[str]
-    opportunities: List[str]
+    expected_externalities: list[str]
+    risks: list[str]
+    opportunities: list[str]
     recommended: bool
     reasoning: str
     
@@ -94,7 +107,7 @@ class PastReflectionEngine:
         self.memory_path.parent.mkdir(parents=True, exist_ok=True)
         
         # In-memory cache
-        self.past_events: List[PastEvent] = []
+        self.past_events: list[PastEvent] = []
         self.max_cache = 1000
         
         # Load existing memories
@@ -105,7 +118,7 @@ class PastReflectionEngine:
     async def record_event(
         self,
         action: str,
-        context: Dict[str, Any],
+        context: dict[str, Any],
         intended_outcome: str,
         actual_outcome: str,
         success: bool
@@ -172,7 +185,7 @@ class PastReflectionEngine:
         
         return event
     
-    async def reflect_on_similar(self, current_situation: str) -> Dict[str, Any]:
+    async def reflect_on_similar(self, current_situation: str) -> dict[str, Any]:
         """Reflect on past events similar to current situation.
         
         Args:
@@ -207,7 +220,7 @@ class PastReflectionEngine:
             "recommendation": self._extract_recommendation(reflection)
         }
     
-    async def learn_from_failure(self, failed_action: str, context: Dict[str, Any]) -> Dict[str, Any]:
+    async def learn_from_failure(self, failed_action: str, context: dict[str, Any]) -> dict[str, Any]:
         """Deep analysis of why something failed.
         
         Args:
@@ -255,8 +268,7 @@ Return JSON:
         
         try:
             thought = await self.brain.think(prompt)
-            response = thought.content.strip()
-            analysis = json.loads(response.strip('```json').strip('```'))
+            analysis = json.loads(_strip_json_fence(thought.content))
             
             return {
                 "failure_count": len(similar_failures),
@@ -294,8 +306,8 @@ Return JSON:
         action: str,
         intended: str,
         actual: str,
-        context: Dict[str, Any]
-    ) -> List[str]:
+        context: dict[str, Any]
+    ) -> list[str]:
         """Identify unintended consequences using LLM"""
         prompt = f"""Identify unintended consequences of this action.
 
@@ -311,16 +323,16 @@ Ensure valid JSON."""
         
         try:
             thought = await self.brain.think(prompt)
-            response = thought.content.strip()
-            # Clean markdown
-            response = response.strip('```json').strip('```').strip()
+            response = _strip_json_fence(thought.content)
             # Handle potential non-json output
             if not response.startswith('['):
                  # Fallback if LLM chats
                  import re
                  match = re.search(r'\[.*\]', response, re.DOTALL)
-                 if match: response = match.group(0)
-                 else: return []
+                 if match:
+                     response = match.group(0)
+                 else:
+                     return []
 
             externalities = json.loads(response)
             return externalities if isinstance(externalities, list) else []
@@ -335,8 +347,8 @@ Ensure valid JSON."""
         intended: str,
         actual: str,
         success: bool,
-        externalities: List[str]
-    ) -> List[str]:
+        externalities: list[str]
+    ) -> list[str]:
         """Extract actionable lessons from event"""
         prompt = f"""Extract actionable lessons from this event.
 
@@ -351,14 +363,15 @@ Format as JSON array: ["lesson1", "lesson2"]"""
         
         try:
             thought = await self.brain.think(prompt)
-            response = thought.content.strip()
-            response = response.strip('```json').strip('```').strip()
+            response = _strip_json_fence(thought.content)
             # Handle potential non-json output
             if not response.startswith('['):
                  import re
                  match = re.search(r'\[.*\]', response, re.DOTALL)
-                 if match: response = match.group(0)
-                 else: return [f"Document {'success' if success else 'failure'} of {action}"]
+                 if match:
+                     response = match.group(0)
+                 else:
+                     return [f"Document {'success' if success else 'failure'} of {action}"]
 
             lessons = json.loads(response)
             return lessons if isinstance(lessons, list) else []
@@ -367,7 +380,7 @@ Format as JSON array: ["lesson1", "lesson2"]"""
             logger.debug("Failed to extract lessons: %s", e)
             return [f"Document {'success' if success else 'failure'} of {action}"]
     
-    def _find_similar_events(self, situation: str, limit: int = 10) -> List[PastEvent]:
+    def _find_similar_events(self, situation: str, limit: int = 10) -> list[PastEvent]:
         """Find past events similar to current situation"""
         # Fast associative keyword clustering (heavy embeddings are deferred to Vector Memory)
         
@@ -391,7 +404,7 @@ Format as JSON array: ["lesson1", "lesson2"]"""
         
         return [event for _, event in scored_events[:limit]]
     
-    def _analyze_event_pattern(self, events: List[PastEvent]) -> Dict[str, Any]:
+    def _analyze_event_pattern(self, events: list[PastEvent]) -> dict[str, Any]:
         """Analyze patterns in a set of events"""
         if not events:
             return {}
@@ -429,8 +442,8 @@ Format as JSON array: ["lesson1", "lesson2"]"""
     async def _generate_reflection(
         self,
         current_situation: str,
-        similar_events: List[PastEvent],
-        analysis: Dict[str, Any]
+        similar_events: list[PastEvent],
+        analysis: dict[str, Any]
     ) -> str:
         """Generate reflective analysis using LLM"""
         prompt = f"""Reflect on past experience to guide current decision.
@@ -476,7 +489,7 @@ Be specific and actionable."""
         overlap = words1 & words2
         return len(overlap) >= 2
     
-    def _format_events(self, events: List[PastEvent]) -> str:
+    def _format_events(self, events: list[PastEvent]) -> str:
         """Format events for LLM prompts"""
         formatted = []
         for i, event in enumerate(events, 1):
@@ -508,7 +521,7 @@ Event {i}:
             return
         
         try:
-            with open(self.memory_path, 'r') as f:
+            with open(self.memory_path) as f:
                 for line in f:
                     data = json.loads(line)
                     # Convert outcome_type back to enum
@@ -546,8 +559,8 @@ class FuturePredictionEngine:
     async def predict_outcome(
         self,
         action: str,
-        context: Dict[str, Any],
-        goal: Optional[str] = None
+        context: dict[str, Any],
+        goal: str | None = None
     ) -> FuturePrediction:
         """Predict what will happen if action is taken.
         
@@ -592,10 +605,10 @@ class FuturePredictionEngine:
     
     async def compare_options(
         self,
-        options: List[str],
-        context: Dict[str, Any],
+        options: list[str],
+        context: dict[str, Any],
         goal: str
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Compare multiple possible actions.
         
         Args:
@@ -632,10 +645,10 @@ class FuturePredictionEngine:
     async def _generate_prediction(
         self,
         action: str,
-        context: Dict[str, Any],
-        goal: Optional[str],
-        past_reflection: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        context: dict[str, Any],
+        goal: str | None,
+        past_reflection: dict[str, Any]
+    ) -> dict[str, Any]:
         """Generate prediction using LLM"""
         past_info = ""
         if past_reflection.get('found_similar'):
@@ -694,9 +707,9 @@ Return JSON:
     
     def _calculate_confidence(
         self,
-        prediction_data: Dict[str, Any],
-        past_reflection: Dict[str, Any]
-    ) -> Tuple[ConfidenceLevel, float]:
+        prediction_data: dict[str, Any],
+        past_reflection: dict[str, Any]
+    ) -> tuple[ConfidenceLevel, float]:
         """Calculate confidence level and score"""
         # Start with LLM's stated confidence
         stated = prediction_data.get('confidence', 'maybe').lower()
@@ -744,7 +757,7 @@ Return JSON:
         
         return level, final_score
     
-    def _should_recommend(self, prediction_data: Dict[str, Any], confidence_score: float) -> bool:
+    def _should_recommend(self, prediction_data: dict[str, Any], confidence_score: float) -> bool:
         """Decide whether to recommend this action"""
         # Don't recommend if confidence is too low
         if confidence_score < 0.4:
@@ -770,7 +783,7 @@ Return JSON:
         
         return False
     
-    def _rank_options(self, predictions: List[FuturePrediction]) -> List[Dict[str, Any]]:
+    def _rank_options(self, predictions: list[FuturePrediction]) -> list[dict[str, Any]]:
         """Rank options by desirability"""
         ranked = []
         
@@ -793,11 +806,11 @@ Return JSON:
     
     async def _generate_comparison(
         self,
-        options: List[str],
-        predictions: List[FuturePrediction],
-        ranked: List[Dict[str, Any]],
+        options: list[str],
+        predictions: list[FuturePrediction],
+        ranked: list[dict[str, Any]],
         goal: str
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Generate comparison summary"""
         prompt = f"""Compare these action options for the goal.
 
@@ -828,7 +841,9 @@ Be concise (2-3 sentences)."""
                 "recommendation": ranked[0]['action'],
                 "reasoning": thought.content
             }
-        except Exception:
+        except Exception as exc:
+            record_degradation("temporal_reasoning", exc)
+            logger.debug("Temporal option comparison analysis failed: %s", exc)
             return {
                 "recommendation": ranked[0]['action'] if ranked else "No clear recommendation",
                 "reasoning": "Comparison analysis unavailable"

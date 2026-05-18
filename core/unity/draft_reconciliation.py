@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import itertools
-import math
-from typing import Any, Iterable
+from collections.abc import Iterable
+from typing import Any
 
 from .unity_state import DraftBinding, ReconciledDraftSet
 
@@ -19,7 +19,7 @@ def _support_value(draft: Any) -> float:
         if value is not None:
             try:
                 return max(0.0, min(1.0, float(value)))
-            except Exception:
+            except (TypeError, ValueError):
                 continue
     return 0.5
 
@@ -47,7 +47,7 @@ def _valence_value(draft: Any) -> float:
         value = draft.get("valence")
     try:
         return float(value or 0.0)
-    except Exception:
+    except (TypeError, ValueError):
         return 0.0
 
 

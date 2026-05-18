@@ -13,15 +13,17 @@ import asyncio
 import functools
 import json
 import logging
-import os
 import sys
 import threading
 import time
 from collections import deque
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, is_dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Union, cast
+from typing import Any, cast
+
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Infrastructure.Hardening")
 
@@ -43,10 +45,10 @@ class HealthCheck:
     component: str
     state: ComponentState
     timestamp: float
-    error: Optional[str] = None
-    latency_ms: Optional[float] = None
+    error: str | None = None
+    latency_ms: float | None = None
     
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         # Satisfy type checkers that this is a dataclass
         if is_dataclass(self):
             d = asdict(self) # type: ignore
@@ -124,7 +126,7 @@ class CircuitBreaker:
         """Public method to record success"""
         self._on_success()
 
-    def record_failure(self, error: Optional[str] = None):
+    def record_failure(self, error: str | None = None):
         """Public method to record failure"""
         if error:
             logger.debug("Circuit '%s' recorded failure: %s", self.name, error)
@@ -172,7 +174,7 @@ class RetryPolicy:
     
     async def execute(self, func: Callable, *args, **kwargs):
         """Execute function with retry (Async)"""
-        last_exception: Optional[BaseException] = None
+        last_exception: BaseException | None = None
         
         for attempt in range(self.max_retries + 1):
             try:
@@ -207,7 +209,7 @@ class StateManager:
     """Manages system state with checkpointing and recovery.
     """
     
-    def __init__(self, checkpoint_dir: Optional[str] = None):
+    def __init__(self, checkpoint_dir: str | None = None):
         if checkpoint_dir:
             self.checkpoint_dir = Path(checkpoint_dir)
         else:
@@ -224,12 +226,12 @@ class StateManager:
 
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         
-        self.state: Dict[str, Any] = {}
+        self.state: dict[str, Any] = {}
         self.checkpoint_interval = 300  # 5 minutes
         self.last_checkpoint: float = 0.0
         
         # Auto-checkpoint in background
-        self.checkpoint_thread: Optional[threading.Thread] = None
+        self.checkpoint_thread: threading.Thread | None = None
         self.running = False
         
         logger.info("StateManager initialized")
@@ -280,7 +282,7 @@ class StateManager:
             
             latest = checkpoints[-1]
             
-            with open(latest, 'r') as f:
+            with open(latest) as f:
                 loaded_state = json.load(f)
                 
             # Basic schema/type validation to prevent unsafe deserialization
@@ -297,7 +299,7 @@ class StateManager:
             logger.error("Restore failed: %s", e)
             return False
 
-    def create_snapshot(self, orchestrator: Any) -> Dict[str, Any]:
+    def create_snapshot(self, orchestrator: Any) -> dict[str, Any]:
         """Watchdog compatibility: capture system snapshot"""
         task_queue = getattr(orchestrator, 'task_queue', None)
         container = getattr(orchestrator, 'container', None)
@@ -312,7 +314,7 @@ class StateManager:
         }
         return snapshot
 
-    def push_checkpoint(self, snapshot: Dict[str, Any]):
+    def push_checkpoint(self, snapshot: dict[str, Any]):
         """Watchdog compatibility: push snapshot as state"""
         self.set("last_system_snapshot", snapshot)
         self.checkpoint()
@@ -352,18 +354,18 @@ class HealthMonitor:
     """
     
     def __init__(self):
-        self.components: Dict[str, ComponentState] = {}
+        self.components: dict[str, ComponentState] = {}
         self.health_history: deque = deque(maxlen=1000)
-        self.monitors: Dict[str, Callable] = {}
+        self.monitors: dict[str, Callable] = {}
         
         # Background monitoring
-        self.monitor_thread: Optional[threading.Thread] = None
+        self.monitor_thread: threading.Thread | None = None
         self.running = False
         self.check_interval = 30  # 30 seconds
         
         logger.info("HealthMonitor initialized")
     
-    def record_execution(self, component: str, success: bool, latency_ms: float = 0.0, error: Optional[str] = None):
+    def record_execution(self, component: str, success: bool, latency_ms: float = 0.0, error: str | None = None):
         """Record a manual execution result for health tracking."""
         state = ComponentState.HEALTHY if success else ComponentState.DEGRADED
         if not success and error:
@@ -430,7 +432,7 @@ class HealthMonitor:
         
         return result
     
-    def check_all(self) -> Dict[str, HealthCheck]:
+    def check_all(self) -> dict[str, HealthCheck]:
         """Check health of all components"""
         results = {}
         
@@ -439,7 +441,7 @@ class HealthMonitor:
         
         return results
     
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Get overall system health status"""
         all_checks = self.check_all()
         
@@ -489,7 +491,6 @@ class HealthMonitor:
     
     async def _monitor_loop(self):
         """Background monitoring loop (Async)."""
-        import concurrent.futures
         while self.running:
             # Execute health checks as tasks
             try:
@@ -506,8 +507,8 @@ class ResourceManager:
     """
     
     def __init__(self):
-        self.resources: Dict[str, Any] = {}
-        self.limits: Dict[str, int] = {
+        self.resources: dict[str, Any] = {}
+        self.limits: dict[str, int] = {
             "max_memory_mb": 1024,
             "max_connections": 100,
             "max_threads": 50
@@ -544,8 +545,9 @@ class ResourceManager:
             if hasattr(resource, 'close'):
                 try:
                     resource.close()
-                except Exception:
-                    pass
+                except Exception as exc:
+                    record_degradation("infrastructure_hardening", exc)
+                    logger.debug("Resource cleanup failed for %s:%s: %s", resource_type, key, exc)
             
             del self.resources[resource_type][key]
             logger.debug("Released %s: %s", resource_type, key)
@@ -585,7 +587,7 @@ class InfrastructureHardeningSystem:
     """
     
     def __init__(self):
-        self.circuit_breakers: Dict[str, CircuitBreaker] = {}
+        self.circuit_breakers: dict[str, CircuitBreaker] = {}
         self.retry_policy = RetryPolicy()
         self.state_manager = StateManager()
         self.health_monitor = HealthMonitor()
@@ -636,7 +638,7 @@ class InfrastructureHardeningSystem:
         self.health_monitor.stop_monitoring()
         logger.info("Background services stopped")
     
-    def get_system_health(self) -> Dict[str, Any]:
+    def get_system_health(self) -> dict[str, Any]:
         """Get comprehensive system health"""
         return self.health_monitor.get_status()
 

@@ -1,18 +1,21 @@
 from __future__ import annotations
 
 import hashlib
-import time
+import logging
 from typing import Any
 
 from core.container import ServiceContainer
+from core.runtime.errors import record_degradation
 
 from .unity_state import FragmentationReport, MindMoment, UnityRepairPlan, UnityState
+
+logger = logging.getLogger(__name__)
 
 
 def _clamp(value: Any, lower: float = 0.0, upper: float = 1.0) -> float:
     try:
         return max(lower, min(upper, float(value)))
-    except Exception:
+    except (TypeError, ValueError):
         return lower
 
 
@@ -136,8 +139,9 @@ class MindMomentBuilder:
                     text = _norm(getattr(affect, method)())
                     if text:
                         return text
-                except Exception:
-                    pass
+                except Exception as exc:
+                    record_degradation("unity_mind_moment", exc)
+                    logger.debug("MindMoment affect summary failed via %s: %s", method, exc)
         valence = getattr(affect, "valence", None)
         arousal = getattr(affect, "arousal", None)
         if valence is not None or arousal is not None:
@@ -202,7 +206,7 @@ class MindMomentBuilder:
                 elif hasattr(service, "get_status"):
                     snapshot = service.get_status()
                 elif hasattr(service, "current"):
-                    snapshot = getattr(service, "current")
+                    snapshot = service.current
                 if snapshot is None:
                     continue
                 if hasattr(snapshot, "to_dict"):
@@ -214,7 +218,9 @@ class MindMomentBuilder:
                     if key in snapshot:
                         error = max(error, _clamp(snapshot.get(key)))
                         break
-            except Exception:
+            except Exception as exc:
+                record_degradation("unity_mind_moment", exc)
+                logger.debug("MindMoment prediction snapshot failed for %s: %s", service_name, exc)
                 continue
         return prediction, error
 
@@ -266,7 +272,9 @@ class MindMomentBuilder:
                 if not ServiceContainer.has(name):
                     continue
                 service = ServiceContainer.get(name, default=None)
-            except Exception:
+            except Exception as exc:
+                record_degradation("unity_mind_moment", exc)
+                logger.debug("MindMoment service lookup failed for %s: %s", name, exc)
                 service = None
             if service is None:
                 continue
@@ -276,7 +284,9 @@ class MindMomentBuilder:
                 if callable(value):
                     try:
                         value = value()
-                    except Exception:
+                    except Exception as exc:
+                        record_degradation("unity_mind_moment", exc)
+                        logger.debug("MindMoment service activity read failed for %s.%s: %s", name, attr, exc)
                         value = None
                 if value:
                     score = max(score, 0.65)
@@ -337,7 +347,9 @@ class MindMomentBuilder:
         try:
             if hasattr(state, "get_continuity_hash"):
                 state_hash = str(state.get_continuity_hash())
-        except Exception:
+        except Exception as exc:
+            record_degradation("unity_mind_moment", exc)
+            logger.debug("MindMoment continuity hash read failed: %s", exc)
             state_hash = ""
         seed = "|".join(
             [
@@ -367,6 +379,7 @@ class MindMomentBuilder:
         try:
             recent = getattr(getattr(state, "cognition", None), "recent_action_receipts", [])
             refs.extend(str(item) for item in list(recent or [])[:6])
-        except Exception:
-            pass
+        except Exception as exc:
+            record_degradation("unity_mind_moment", exc)
+            logger.debug("MindMoment recent action receipt read failed: %s", exc)
         return sorted(set(refs))[:8]

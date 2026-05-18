@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import replace
 import hashlib
+import logging
 import time
 from collections.abc import Iterable
+from dataclasses import replace
 from typing import Any
 
 from core.container import ServiceContainer
@@ -26,11 +27,13 @@ from .unity_state import (
     WorkspaceBroadcastFrame,
 )
 
+logger = logging.getLogger(__name__)
+
 
 def _clamp(value: Any, lower: float = 0.0, upper: float = 1.0) -> float:
     try:
         return max(lower, min(upper, float(value)))
-    except Exception:
+    except (TypeError, ValueError):
         return lower
 
 
@@ -282,7 +285,9 @@ class UnityRuntime:
             from core.consciousness.multiple_drafts import get_multiple_drafts_engine
 
             engine = get_multiple_drafts_engine()
-        except Exception:
+        except Exception as exc:
+            record_degradation("unity_runtime", exc)
+            logger.debug("UnityRuntime draft engine lookup failed: %s", exc)
             return []
 
         pending = list(engine.get_current_drafts() or [])
@@ -380,7 +385,7 @@ class UnityRuntime:
     def compute(self, state: Any, *, objective: str = "", tick_id: str = "", will_receipt_id: str | None = None) -> UnityState:
         current_objective = objective or str(getattr(getattr(state, "cognition", None), "current_objective", "") or "")
         contents = self.gather_contents(state, current_objective)
-        setattr(state, "_unity_contents", contents)
+        state._unity_contents = contents
 
         previous_ids = [item.content_id for item in self._last_unity_state.contents] if self._last_unity_state else []
         tick_id = tick_id or f"tick_{int(time.time() * 1000)}"
@@ -492,7 +497,9 @@ class UnityRuntime:
         try:
             stream = ServiceContainer.get("continuous_experience_stream", default=None)
             if stream is None:
-                from core.consciousness.continuous_experience import get_continuous_experience_stream
+                from core.consciousness.continuous_experience import (
+                    get_continuous_experience_stream,
+                )
 
                 stream = get_continuous_experience_stream()
             frame = stream.append_from_unity(

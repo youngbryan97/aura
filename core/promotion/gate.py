@@ -14,8 +14,14 @@ the gate decided, and what reasons it gave.
 """
 from __future__ import annotations
 
+import logging
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Sequence
+from typing import Any
+
+from core.runtime.errors import record_degradation
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -45,14 +51,14 @@ class ScoreEstimate:
 @dataclass
 class PromotionDecision:
     accepted: bool
-    reasons: List[str]
-    deltas: Dict[str, float]
-    candidate: Dict[str, ScoreEstimate]
-    baseline: Dict[str, ScoreEstimate]
-    receipt_id: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    reasons: list[str]
+    deltas: dict[str, float]
+    candidate: dict[str, ScoreEstimate]
+    baseline: dict[str, ScoreEstimate]
+    receipt_id: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "accepted": self.accepted,
             "reasons": list(self.reasons),
@@ -81,7 +87,7 @@ class PromotionDecision:
 
 
 # Optional Will-side decider — keeps this module decoupled from core.will.
-WillDecideCallable = Callable[[Dict[str, Any]], Dict[str, Any]]
+WillDecideCallable = Callable[[dict[str, Any]], dict[str, Any]]
 
 
 class PromotionGate:
@@ -105,7 +111,7 @@ class PromotionGate:
         z: float = 1.96,
         max_regression: float = 0.0,
         emit_receipts: bool = True,
-        will_decide_fn: Optional[WillDecideCallable] = None,
+        will_decide_fn: WillDecideCallable | None = None,
     ):
         self.critical = set(critical_metrics)
         self.delta = float(delta)
@@ -113,21 +119,21 @@ class PromotionGate:
         self.max_regression = float(max_regression)
         self.emit_receipts = bool(emit_receipts)
         self.will_decide_fn = will_decide_fn
-        self.baseline: Optional[Dict[str, ScoreEstimate]] = None
-        self.history: List[PromotionDecision] = []
+        self.baseline: dict[str, ScoreEstimate] | None = None
+        self.history: list[PromotionDecision] = []
 
-    def set_baseline(self, scores: Dict[str, ScoreEstimate]) -> None:
+    def set_baseline(self, scores: dict[str, ScoreEstimate]) -> None:
         self.baseline = dict(scores)
 
     def _evaluate(
-        self, candidate: Dict[str, ScoreEstimate]
-    ) -> tuple[bool, List[str], Dict[str, float]]:
+        self, candidate: dict[str, ScoreEstimate]
+    ) -> tuple[bool, list[str], dict[str, float]]:
         """Pure comparison: no receipts, no Will, no baseline mutation."""
         if self.baseline is None:
             return True, ["No prior baseline; candidate becomes baseline."], {}
         ok = True
-        reasons: List[str] = []
-        deltas: Dict[str, float] = {}
+        reasons: list[str] = []
+        deltas: dict[str, float] = {}
         for name, base in self.baseline.items():
             if name not in candidate:
                 if name in self.critical:
@@ -159,9 +165,9 @@ class PromotionGate:
 
     def compare(
         self,
-        candidate: Dict[str, ScoreEstimate],
+        candidate: dict[str, ScoreEstimate],
         *,
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> PromotionDecision:
         if not candidate:
             raise ValueError("candidate score vector must not be empty")
@@ -193,7 +199,7 @@ class PromotionGate:
                 accepted = False
                 reasons.append(f"will_decide_raised:{type(exc).__name__}")
 
-        receipt_id: Optional[str] = None
+        receipt_id: str | None = None
         if self.emit_receipts:
             receipt_id = self._emit_receipt(
                 accepted=accepted,
@@ -221,11 +227,11 @@ class PromotionGate:
         self,
         *,
         accepted: bool,
-        reasons: List[str],
-        deltas: Dict[str, float],
-        candidate: Dict[str, ScoreEstimate],
-        metadata: Optional[Dict[str, Any]],
-    ) -> Optional[str]:
+        reasons: list[str],
+        deltas: dict[str, float],
+        candidate: dict[str, ScoreEstimate],
+        metadata: dict[str, Any] | None,
+    ) -> str | None:
         try:
             from core.runtime.receipts import GovernanceReceipt, get_receipt_store
 
@@ -245,5 +251,7 @@ class PromotionGate:
                 )
             )
             return receipt.receipt_id
-        except Exception:
+        except Exception as exc:
+            record_degradation("promotion_gate", exc)
+            logger.debug("PromotionGate receipt emission failed: %s", exc)
             return None
