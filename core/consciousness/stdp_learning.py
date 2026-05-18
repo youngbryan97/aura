@@ -38,10 +38,10 @@ MESU Extension (Meta-learning with Elastic Synaptic Uncertainty):
   lock(w_ij) iff uncertainty(w_ij) < lock_threshold for > lock_window updates
 """
 import logging
-import time
-from typing import Dict, Optional, Tuple
 
 import numpy as np
+
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.STDPLearning")
 
@@ -247,7 +247,7 @@ class STDPLearningEngine:
 
         return dw
 
-    def apply_to_connectivity(self, W: np.ndarray, dw: np.ndarray) -> np.ndarray:
+    def apply_to_connectivity(self, weights: np.ndarray, dw: np.ndarray) -> np.ndarray:
         """Apply the weight delta to a connectivity matrix.
 
         Includes:
@@ -257,64 +257,71 @@ class STDPLearningEngine:
           - Symmetry breaking
 
         Args:
-            W: Current connectivity matrix (n x n).
+            weights: Current connectivity matrix (n x n).
             dw: Weight delta from deliver_reward().
 
         Returns:
             Updated connectivity matrix.
         """
-        W_new = W + dw
+        updated_weights = weights + dw
 
         # Clip weights
-        W_new = np.clip(W_new, -WEIGHT_CLIP, WEIGHT_CLIP)
+        updated_weights = np.clip(updated_weights, -WEIGHT_CLIP, WEIGHT_CLIP)
 
         # Zero diagonal (no self-connections)
-        np.fill_diagonal(W_new, 0.0)
+        np.fill_diagonal(updated_weights, 0.0)
 
         # ── Spectral Norm Cap ─────────────────────────────────────────
         # Prevent the largest singular value from exceeding a safe bound.
         # This caps the maximum gain of the dynamical system, preventing
         # explosive state growth that leads to NaN in the substrate ODE.
-        SPECTRAL_NORM_CAP = 3.0
+        spectral_norm_cap = 3.0
         try:
-            s_max = np.linalg.norm(W_new, ord=2)  # Largest singular value
-            if s_max > SPECTRAL_NORM_CAP:
-                W_new *= SPECTRAL_NORM_CAP / s_max
+            s_max = np.linalg.norm(updated_weights, ord=2)  # Largest singular value
+            if s_max > spectral_norm_cap:
+                updated_weights *= spectral_norm_cap / s_max
                 logger.debug(
                     "STDP: Spectral norm capped: %.3f -> %.3f",
-                    s_max, SPECTRAL_NORM_CAP,
+                    s_max, spectral_norm_cap,
                 )
-        except np.linalg.LinAlgError:
-            pass  # SVD failed — skip norm cap this tick
+        except np.linalg.LinAlgError as exc:
+            record_degradation("stdp_learning", exc)
+            logger.debug("STDP spectral norm cap skipped after linear algebra failure: %s", exc)
 
         # ── Homeostatic Scaling ───────────────────────────────────────
         # Keep the mean absolute weight near a target value. This prevents
         # both mode collapse (all weights → 0) and explosive growth
         # (all weights → max). The scaling is gentle (0.5% per tick).
-        HOMEOSTATIC_TARGET = 0.3
-        HOMEOSTATIC_RATE = 0.005
-        mean_abs = float(np.mean(np.abs(W_new)))
+        homeostatic_target = 0.3
+        homeostatic_rate = 0.005
+        mean_abs = float(np.mean(np.abs(updated_weights)))
         if mean_abs > 1e-8:
-            ratio = HOMEOSTATIC_TARGET / mean_abs
+            ratio = homeostatic_target / mean_abs
             # Only apply if drift is significant (>10% from target)
             if abs(ratio - 1.0) > 0.1:
                 # Gentle correction — move 0.5% toward target per tick
-                correction = 1.0 + HOMEOSTATIC_RATE * (ratio - 1.0)
-                W_new *= correction
+                correction = 1.0 + homeostatic_rate * (ratio - 1.0)
+                updated_weights *= correction
 
         # ── NaN/Inf Guard ─────────────────────────────────────────────
-        if not np.isfinite(W_new).all():
-            nan_count = int(np.sum(~np.isfinite(W_new)))
+        if not np.isfinite(updated_weights).all():
+            nan_count = int(np.sum(~np.isfinite(updated_weights)))
             logger.warning(
                 "STDP: %d NaN/Inf values in weight matrix — clamping to zero.",
                 nan_count,
             )
-            W_new = np.nan_to_num(W_new, nan=0.0, posinf=WEIGHT_CLIP, neginf=-WEIGHT_CLIP)
+            updated_weights = np.nan_to_num(
+                updated_weights,
+                nan=0.0,
+                posinf=WEIGHT_CLIP,
+                neginf=-WEIGHT_CLIP,
+            )
             try:
                 from core.observability.metrics import get_metrics
                 get_metrics().increment_counter("stdp_nan_events_total")
-            except Exception:
-                pass
+            except (AttributeError, ImportError, RuntimeError, TypeError) as exc:
+                record_degradation("stdp_learning", exc)
+                logger.debug("STDP NaN metric emission failed: %s", exc)
 
         # Symmetry breaking: prevent W from becoming symmetric (W = W^T)
         # which collapses dynamical richness. Add a small antisymmetric
@@ -322,15 +329,15 @@ class STDPLearningEngine:
         self._total_updates_since_symmetry_break = getattr(
             self, '_total_updates_since_symmetry_break', 0) + 1
         if self._total_updates_since_symmetry_break >= 50:
-            asymmetry = 0.001 * (W_new - W_new.T)
-            W_new += asymmetry
-            W_new = np.clip(W_new, -WEIGHT_CLIP, WEIGHT_CLIP)
-            np.fill_diagonal(W_new, 0.0)
+            asymmetry = 0.001 * (updated_weights - updated_weights.T)
+            updated_weights += asymmetry
+            updated_weights = np.clip(updated_weights, -WEIGHT_CLIP, WEIGHT_CLIP)
+            np.fill_diagonal(updated_weights, 0.0)
             self._total_updates_since_symmetry_break = 0
 
-        return W_new
+        return updated_weights
 
-    def get_status(self) -> Dict:
+    def get_status(self) -> dict:
         return {
             "learning_rate": round(self._learning_rate, 6),
             "last_reward": round(self._last_reward, 4),
@@ -351,7 +358,7 @@ class STDPLearningEngine:
             "mesu_mean_lr_scale": round(float(np.mean(self._mesu_lr_scale)), 4),
         }
 
-    def get_mesu_diagnostics(self) -> Dict:
+    def get_mesu_diagnostics(self) -> dict:
         """Return detailed MESU diagnostics for observability."""
         uncertainty = np.sqrt(self._mesu_var)
         return {
@@ -367,7 +374,7 @@ class STDPLearningEngine:
             "total_synapses": self.n * self.n,
         }
 
-    def unlock_weights(self, mask: Optional[np.ndarray] = None) -> int:
+    def unlock_weights(self, mask: np.ndarray | None = None) -> int:
         """Unlock identity-locked weights (requires Will approval).
 
         Args:
@@ -399,7 +406,7 @@ class STDPLearningEngine:
         return self._mesu_locked.copy()
 
 
-_instance: Optional[STDPLearningEngine] = None
+_instance: STDPLearningEngine | None = None
 
 
 def get_stdp_engine(n_neurons: int = 64) -> STDPLearningEngine:

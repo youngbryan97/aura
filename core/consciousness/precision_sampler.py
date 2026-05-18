@@ -9,9 +9,9 @@ Also implements top-p adjustment based on topological attractor count:
 many attractors → wider p (exploration), few attractors → tighter p (exploitation).
 """
 
-from core.runtime.errors import record_degradation
 import logging
-from typing import Optional
+
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Consciousness.PrecisionSampler")
 
@@ -63,7 +63,7 @@ class ActiveInferenceSampler:
             pneuma = get_pneuma()
             temp = pneuma.get_llm_temperature(base_temp=0.72)
             return max(self.temp_min, min(self.temp_max, temp))
-        except Exception as _exc:
+        except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as _exc:
             record_degradation('precision_sampler', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
         # Fallback to circumplex
@@ -71,7 +71,7 @@ class ActiveInferenceSampler:
             from core.affect.affective_circumplex import get_circumplex
             params = get_circumplex().get_llm_params()
             return max(self.temp_min, min(self.temp_max, params.get("temperature", 0.72)))
-        except Exception as _exc:
+        except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as _exc:
             record_degradation('precision_sampler', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
         return 0.72
@@ -85,7 +85,7 @@ class ActiveInferenceSampler:
             try:
                 from core.pneuma import get_pneuma
                 attractor_count = get_pneuma().topo_memory.attractor_count
-            except Exception as _exc:
+            except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as _exc:
                 record_degradation('precision_sampler', _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
             phi = mhaf.get_phi()
@@ -93,7 +93,9 @@ class ActiveInferenceSampler:
             base = 0.85
             top_p = base + 0.05 * min(1.0, attractor_count / 5.0) + 0.05 * phi
             return max(self.top_p_min, min(self.top_p_max, top_p))
-        except Exception:
+        except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation("precision_sampler", exc)
+            logger.debug("MHAF top-p computation failed, using default top_p: %s", exc)
             return 0.85
 
     def _compute_rep_penalty(self, temperature: float) -> float:
@@ -104,7 +106,7 @@ class ActiveInferenceSampler:
 
 
 # Singleton
-_sampler: Optional[ActiveInferenceSampler] = None
+_sampler: ActiveInferenceSampler | None = None
 
 
 def get_active_inference_sampler() -> ActiveInferenceSampler:

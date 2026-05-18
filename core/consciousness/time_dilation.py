@@ -255,7 +255,7 @@ class TimeDilationEngine:
                 signals.free_energy = fe.current.free_energy
                 signals.prediction_error = fe.current.surprise
                 signals.fe_distressed = fe.is_distressed()
-        except Exception as exc:
+        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
             record_degradation("time_dilation", exc)
             logger.debug("TimeDilation free-energy signal read failed: %s", exc)
 
@@ -272,7 +272,7 @@ class TimeDilationEngine:
                     )
                     signals.drive_urgency = max(0.0, 1.0 - min_level)
                 signals.boredom_level = getattr(drive, "boredom_level", 0.0)
-        except Exception as exc:
+        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
             record_degradation("time_dilation", exc)
             logger.debug("TimeDilation drive signal read failed: %s", exc)
 
@@ -284,7 +284,7 @@ class TimeDilationEngine:
                 signals.user_waiting = ws.user_idle_seconds < 10.0 and ws.user_message_count > 0
                 signals.thermal_pressure = ws.thermal_pressure
                 signals.memory_pressure = ws.memory_percent
-        except Exception as exc:
+        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
             record_degradation("time_dilation", exc)
             logger.debug("TimeDilation world-state signal read failed: %s", exc)
 
@@ -307,7 +307,7 @@ class TimeDilationEngine:
                         signals.critical_maintenance = True
                     if mods.get("vitality", 1.0) < 0.3:
                         signals.critical_maintenance = True
-        except Exception as exc:
+        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
             record_degradation("time_dilation", exc)
             logger.debug("TimeDilation homeostasis signal read failed: %s", exc)
 

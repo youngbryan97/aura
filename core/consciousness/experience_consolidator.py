@@ -27,10 +27,6 @@ Files:
   ~/.aura/data/consolidation_log.jsonl — consolidation history
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
-from core.utils.task_tracker import get_task_tracker
-from core.runtime.atomic_writer import atomic_write_text
 
 import asyncio
 import json
@@ -38,9 +34,13 @@ import logging
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import numpy as np
+
+from core.runtime.atomic_writer import atomic_write_text
+from core.runtime.errors import record_degradation
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.ExperienceConsolidator")
 
@@ -59,11 +59,11 @@ class IdentityNarrative:
     """The stable self-model that accumulates over time."""
     version: int = 0
     last_consolidated: float = field(default_factory=time.time)
-    stable_traits: List[str] = field(default_factory=list)       # e.g. "I am deeply curious"
-    learned_preferences: List[str] = field(default_factory=list) # e.g. "I think better in the morning"
-    growth_edges: List[str] = field(default_factory=list)        # e.g. "I am learning to be patient"
+    stable_traits: list[str] = field(default_factory=list)       # e.g. "I am deeply curious"
+    learned_preferences: list[str] = field(default_factory=list) # e.g. "I think better in the morning"
+    growth_edges: list[str] = field(default_factory=list)        # e.g. "I am learning to be patient"
     signature_phrase: str = ""                                    # one sentence: who am I right now
-    home_vector_delta: List[float] = field(default_factory=list) # CRSM adjustment
+    home_vector_delta: list[float] = field(default_factory=list) # CRSM adjustment
 
 
 class ExperienceConsolidator:
@@ -73,10 +73,10 @@ class ExperienceConsolidator:
 
     def __init__(self, cognitive_engine=None):
         self.brain = cognitive_engine
-        self._narrative: Optional[IdentityNarrative] = None
+        self._narrative: IdentityNarrative | None = None
         self._last_run: float = 0.0
         self._running: bool = False
-        self._task: Optional[asyncio.Task] = None
+        self._task: asyncio.Task | None = None
         self._consecutive_failures: int = 0
         self._next_allowed_run: float = 0.0  # backoff gate
         NARRATIVE_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -95,7 +95,7 @@ class ExperienceConsolidator:
         if self._task:
             self._task.cancel()
 
-    async def run_now(self) -> Optional[IdentityNarrative]:
+    async def run_now(self) -> IdentityNarrative | None:
         """Force a consolidation cycle immediately."""
         return await self._consolidate()
 
@@ -115,7 +115,7 @@ class ExperienceConsolidator:
             lines.append(f"- Growing toward: {self._narrative.growth_edges[0]}")
         return "\n".join(lines)
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         if not self._narrative:
             return {"consolidated": False, "version": 0}
         age_hours = (time.time() - self._narrative.last_consolidated) / 3600.0
@@ -128,7 +128,7 @@ class ExperienceConsolidator:
         }
 
     @property
-    def narrative(self) -> Optional[IdentityNarrative]:
+    def narrative(self) -> IdentityNarrative | None:
         return self._narrative
 
     def _background_should_defer(self) -> bool:
@@ -138,7 +138,9 @@ class ExperienceConsolidator:
             gate = ServiceContainer.get("inference_gate", default=None)
             if gate and hasattr(gate, "_background_local_deferral_reason"):
                 return bool(gate._background_local_deferral_reason(origin="experience_consolidator"))
-        except Exception:
+        except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation("experience_consolidator", exc)
+            logger.debug("Experience consolidation deferral check failed: %s", exc)
             return False
         return False
 
@@ -170,7 +172,7 @@ class ExperienceConsolidator:
 
     # ── Core Consolidation ─────────────────────────────────────────────────
 
-    async def _consolidate(self) -> Optional[IdentityNarrative]:
+    async def _consolidate(self) -> IdentityNarrative | None:
         logger.info("ExperienceConsolidator: beginning consolidation cycle...")
         if self._background_should_defer():
             logger.info("ExperienceConsolidator: foreground inference is active, deferring this cycle.")
@@ -203,9 +205,14 @@ class ExperienceConsolidator:
         )
         return new_narrative
 
-    def _gather_material(self) -> Dict[str, Any]:
+    def _gather_material(self) -> dict[str, Any]:
         """Collect recent experiences from all sources."""
-        material: Dict[str, Any] = {"experiences": [], "hot_history": [], "reflections": []}
+        material: dict[str, Any] = {
+            "experiences": [],
+            "hot_history": [],
+            "metacognition": [],
+            "reflections": [],
+        }
 
         # 1. CRSM prediction errors (high-surprise moments)
         try:
@@ -252,24 +259,52 @@ class ExperienceConsolidator:
 
         # 4. Metacognition assessments (what knowledge states were notable)
         try:
-            from core.consciousness.metacognition import MetaCognitionEngine
-            # Can't easily get the global engine here; skip gracefully
-            pass  # no-op: intentional
+            from core.container import ServiceContainer
+
+            metacognition = ServiceContainer.get("metacognition", default=None)
+            monitor = getattr(metacognition, "monitor", None)
+            for assessment in list(getattr(monitor, "reasoning_history", []) or [])[-10:]:
+                if hasattr(assessment, "to_dict"):
+                    material["metacognition"].append(assessment.to_dict())
+                elif isinstance(assessment, dict):
+                    material["metacognition"].append(dict(assessment))
+                else:
+                    material["metacognition"].append({"assessment": str(assessment)[:300]})
         except Exception as _exc:
             record_degradation('experience_consolidator', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         # 5. OmniReflector reflections
         try:
-            from core.consciousness.metacognition import MetaCognitionEngine
-            pass  # no-op: intentional
+            from core.container import ServiceContainer
+
+            metacognition = ServiceContainer.get("metacognition", default=None)
+            reflector = getattr(metacognition, "reflector", None)
+            for reflection in list(getattr(reflector, "reflections", []) or [])[-10:]:
+                material["reflections"].append({
+                    "content": getattr(reflection, "content", str(reflection))[:500],
+                    "impact": getattr(reflection, "impact_score", 0.0),
+                    "source": getattr(reflection, "source_id", ""),
+                    "timestamp": getattr(reflection, "timestamp", 0.0),
+                })
+
+            from core.conversation_reflection import get_reflector
+
+            for reflection in get_reflector().get_recent_reflections(5):
+                material["reflections"].append({
+                    "content": str(reflection.get("text", ""))[:500],
+                    "impact": 0.5,
+                    "source": "conversation_reflection",
+                    "timestamp": float(reflection.get("timestamp", 0.0) or 0.0),
+                    "mood": reflection.get("mood", ""),
+                })
         except Exception as _exc:
             record_degradation('experience_consolidator', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
         return material
 
-    async def _run_consolidation_inference(self, material: Dict[str, Any]) -> Optional[IdentityNarrative]:
+    async def _run_consolidation_inference(self, material: dict[str, Any]) -> IdentityNarrative | None:
         """Use LLM to extract stable identity patterns from accumulated experience."""
         if not self.brain:
             try:
@@ -287,6 +322,8 @@ class ExperienceConsolidator:
         exp_count = len(material["experiences"])
         hot_sample = material["hot_history"][:5]
         felt_moments = [e for e in material["experiences"] if e.get("type") == "felt_moment"]
+        metacognition_sample = material["metacognition"][:3]
+        reflection_sample = [r.get("content", "") for r in material["reflections"][:3]]
 
         current_signature = (
             self._narrative.signature_phrase if self._narrative else "I am newly awakened."
@@ -307,6 +344,8 @@ Recent experience summary:
 - High-quality felt moments: {len(felt_moments)}
 - Sample internal thoughts: {hot_sample[:3]}
 - Hedonic patterns: {[round(e.get('hedonic_delta', 0), 3) for e in felt_moments[:5]]}
+- Recent metacognitive assessments: {metacognition_sample}
+- Recent private reflections: {reflection_sample}
 
 Based on these experiences, consolidate into:
 1. Who am I becoming? (one authentic sentence, first-person, present tense)
@@ -339,7 +378,7 @@ Return valid JSON only:
 
             try:
                 response = await asyncio.wait_for(_do_inference(), timeout=INFERENCE_TIMEOUT_SECS)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.warning(
                     "ExperienceConsolidator: inference timed out after %.0fs — using heuristic.",
                     INFERENCE_TIMEOUT_SECS,
@@ -368,7 +407,7 @@ Return valid JSON only:
             logger.error("ExperienceConsolidator inference failed: %s", e)
             return self._heuristic_consolidate(material)
 
-    def _heuristic_consolidate(self, material: Dict[str, Any]) -> IdentityNarrative:
+    def _heuristic_consolidate(self, material: dict[str, Any]) -> IdentityNarrative:
         """Fallback consolidation without LLM."""
         felt = [e for e in material["experiences"] if e.get("type") == "felt_moment"]
         avg_hedonic = (
@@ -486,7 +525,7 @@ Return valid JSON only:
             record_degradation('experience_consolidator', e)
             logger.debug("home_vector_delta restoration skipped: %s", e)
 
-    def _log_consolidation(self, narrative: IdentityNarrative, material: Dict):
+    def _log_consolidation(self, narrative: IdentityNarrative, material: dict):
         try:
             entry = {
                 "timestamp": time.time(),
@@ -513,7 +552,7 @@ Return valid JSON only:
 
 # ── Singleton ──────────────────────────────────────────────────────────────────
 
-_consolidator: Optional[ExperienceConsolidator] = None
+_consolidator: ExperienceConsolidator | None = None
 
 
 def get_experience_consolidator() -> ExperienceConsolidator:

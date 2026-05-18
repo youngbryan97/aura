@@ -43,21 +43,18 @@ The field provides:
   - Back-pressure signals that modulate all input subsystems
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
-
-from core.utils.task_tracker import get_task_tracker
 
 import asyncio
 import logging
-import math
 import time
 from collections import deque
-from dataclasses import dataclass, field
-from typing import Deque, Dict, List, Optional, Tuple
+from dataclasses import dataclass
 
 import numpy as np
 from scipy import sparse as sp
+
+from core.runtime.errors import record_degradation
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Consciousness.UnifiedField")
 
@@ -127,10 +124,10 @@ class UnifiedField:
         # Recurrent connectivity (sparse — use scipy.sparse.csr_matrix for
         # 15% density, which is ~6x faster than dense matmul at this size)
         mask = self._rng.random((self.cfg.dim, self.cfg.dim)) < self.cfg.recurrent_sparsity
-        W_dense = (self._rng.standard_normal((self.cfg.dim, self.cfg.dim)).astype(np.float32) * 0.05) * mask
-        np.fill_diagonal(W_dense, 0.0)
-        self.W_field = W_dense  # keep dense for plasticity updates
-        self._W_field_sparse = sp.csr_matrix(W_dense)  # sparse for tick matmul
+        field_weights = (self._rng.standard_normal((self.cfg.dim, self.cfg.dim)).astype(np.float32) * 0.05) * mask
+        np.fill_diagonal(field_weights, 0.0)
+        self.W_field = field_weights  # keep dense for plasticity updates
+        self._W_field_sparse = sp.csr_matrix(field_weights)  # sparse for tick matmul
 
         # Input weight matrices
         self.W_mesh = self._rng.standard_normal(
@@ -165,18 +162,18 @@ class UnifiedField:
         self._total_input_dim = sum(self._input_dims)  # 148
 
         # Input buffers (consumed each tick)
-        self._mesh_input: Optional[np.ndarray] = None
-        self._chem_input: Optional[np.ndarray] = None
-        self._bind_input: Optional[np.ndarray] = None
-        self._intero_input: Optional[np.ndarray] = None
-        self._substrate_input: Optional[np.ndarray] = None
+        self._mesh_input: np.ndarray | None = None
+        self._chem_input: np.ndarray | None = None
+        self._bind_input: np.ndarray | None = None
+        self._intero_input: np.ndarray | None = None
+        self._substrate_input: np.ndarray | None = None
 
         # History for PCA mode extraction
-        self._history: Deque[np.ndarray] = deque(maxlen=200)
+        self._history: deque[np.ndarray] = deque(maxlen=200)
 
         # Coherence tracking
         self._coherence: float = 0.5
-        self._prev_F: Optional[np.ndarray] = None
+        self._prev_F: np.ndarray | None = None
 
         # Deadlock recovery: if coherence stays below crisis for too long, force recovery
         self._low_coherence_ticks: int = 0
@@ -189,7 +186,7 @@ class UnifiedField:
 
         # Runtime
         self._running = False
-        self._task: Optional[asyncio.Task] = None
+        self._task: asyncio.Task | None = None
         self._tick_count: int = 0
         self._start_time: float = 0.0
 
@@ -220,7 +217,7 @@ class UnifiedField:
             try:
                 await self._task
             except asyncio.CancelledError:
-                pass  # no-op: intentional
+                logger.debug("UnifiedField background task acknowledged cancellation.")
             self._task = None
         logger.info("UnifiedField STOPPED (ticks=%d)", self._tick_count)
 
@@ -237,7 +234,7 @@ class UnifiedField:
                 elapsed = time.time() - t0
                 await asyncio.sleep(max(0.0, interval - elapsed))
         except asyncio.CancelledError:
-            pass  # no-op: intentional
+            logger.debug("UnifiedField run loop cancelled.")
 
     # ── Core tick ────────────────────────────────────────────────────────
 
@@ -289,15 +286,16 @@ class UnifiedField:
                 # Modulate field with gamma oscillation
                 phase_mod = cfg.gamma_coupling * gamma_amp * np.sin(gamma_phase)
                 activity += phase_mod * np.sign(self.F)  # phase-locked modulation
-            except Exception:
-                pass  # no-op: intentional
+            except (AttributeError, RuntimeError, TypeError, ValueError, FloatingPointError) as exc:
+                record_degradation("unified_field", exc)
+                logger.debug("UnifiedField gamma phase coupling failed: %s", exc)
 
         noise = self._rng.standard_normal(cfg.dim).astype(np.float32) * cfg.noise_sigma
 
         # ── Integration ──────────────────────────────────────────────
-        dF = (-cfg.decay * self.F + activity + noise) * dt
+        df = (-cfg.decay * self.F + activity + noise) * dt
         self._prev_F = self.F.copy()
-        self.F = np.clip(self.F + dF, -1.0, 1.0).astype(np.float32)
+        self.F = np.clip(self.F + df, -1.0, 1.0).astype(np.float32)
 
         # NaN guard
         if np.any(np.isnan(self.F)):
@@ -381,8 +379,8 @@ class UnifiedField:
         """
         # Scaled rank-1 Hebbian update: W += lr * F @ F^T
         # np.outer is fine here since this runs every 10 ticks, not every tick.
-        dW = self.cfg.hebbian_rate * np.outer(self.F, self.F)
-        self.W_field += dW.astype(np.float32)
+        dw = self.cfg.hebbian_rate * np.outer(self.F, self.F)
+        self.W_field += dw.astype(np.float32)
 
         # NaN/Inf guard
         self.W_field = np.nan_to_num(self.W_field, nan=0.0, posinf=3.0, neginf=-3.0)
@@ -393,12 +391,12 @@ class UnifiedField:
             self.W_field *= 4.0 / norm
 
         # Sparsity enforcement: prune weakest connections back to target density
-        abs_W = np.abs(self.W_field)
+        abs_weights = np.abs(self.W_field)
         target_nonzero = int(self.cfg.recurrent_sparsity * self.cfg.dim * self.cfg.dim)
         current_nonzero = np.count_nonzero(self.W_field)
         if current_nonzero > target_nonzero * 1.5:
-            threshold = np.sort(abs_W.ravel())[-(target_nonzero)]
-            self.W_field[abs_W < threshold] = 0.0
+            threshold = np.sort(abs_weights.ravel())[-target_nonzero]
+            self.W_field[abs_weights < threshold] = 0.0
 
         np.fill_diagonal(self.W_field, 0.0)
 
@@ -430,7 +428,7 @@ class UnifiedField:
     def get_coherence(self) -> float:
         return self._coherence
 
-    def get_dominant_modes(self, k: int = 5) -> List[Dict]:
+    def get_dominant_modes(self, k: int = 5) -> list[dict]:
         """Extract top-k principal modes from recent field history via PCA.
 
         Each mode represents a recurring pattern of integrated activity —
@@ -439,34 +437,33 @@ class UnifiedField:
         if len(self._history) < 20:
             return []
 
-        H = np.array(list(self._history), dtype=np.float32)
-        H_centered = H - H.mean(axis=0)
+        history_matrix = np.array(list(self._history), dtype=np.float32)
+        centered_history = history_matrix - history_matrix.mean(axis=0)
 
         try:
             # Enforce budget: use svds for top-k modes instead of full SVD
             from scipy.sparse.linalg import svds
             # svds needs k < min(shape), k is the number of singular values
-            target_k = min(k, min(H_centered.shape) - 1)
+            target_k = min(k, min(centered_history.shape) - 1)
             target_k = max(1, target_k)
-            U, S, Vt = svds(H_centered, k=target_k)
+            _, singular_values, vt = svds(centered_history, k=target_k)
             # svds returns values in ascending order, reverse them
-            S = S[::-1]
-            Vt = Vt[::-1]
-            U = U[:, ::-1]
-            total_var = np.sum(S ** 2) + 1e-8
+            singular_values = singular_values[::-1]
+            vt = vt[::-1]
+            total_var = np.sum(singular_values ** 2) + 1e-8
 
             modes = []
-            for i in range(min(k, len(S))):
-                variance_explained = float(S[i] ** 2 / total_var)
+            for i in range(min(k, len(singular_values))):
+                variance_explained = float(singular_values[i] ** 2 / total_var)
                 if variance_explained < 0.01:
                     break
                 # Dominant dimension of this mode
-                mode_vec = Vt[i]
+                mode_vec = vt[i]
                 dominant_dim = int(np.argmax(np.abs(mode_vec)))
                 modes.append({
                     "mode": i,
                     "variance_explained": round(variance_explained, 4),
-                    "strength": round(float(S[i]), 4),
+                    "strength": round(float(singular_values[i]), 4),
                     "dominant_dimension": dominant_dim,
                     "polarity": round(float(mode_vec[dominant_dim]), 4),
                 })
@@ -498,7 +495,7 @@ class UnifiedField:
         phi = max(0.0, np.log(var_whole / var_halves))
         return min(10.0, phi)
 
-    def get_experiential_quality(self) -> Dict[str, float]:
+    def get_experiential_quality(self) -> dict[str, float]:
         """The 'felt' quality of the current moment.
 
         Derived from the field's statistical properties — NOT from
@@ -514,8 +511,8 @@ class UnifiedField:
         valence = positive - negative
 
         # Complexity: entropy of activation distribution
-        abs_F = np.abs(self.F) + 1e-8
-        prob = abs_F / abs_F.sum()
+        abs_field = np.abs(self.F) + 1e-8
+        prob = abs_field / abs_field.sum()
         entropy = -float(np.sum(prob * np.log(prob)))
         max_entropy = np.log(self.cfg.dim)
         complexity = entropy / max_entropy
@@ -546,14 +543,13 @@ class UnifiedField:
             "coherence": round(self._coherence, 4),
         }
 
-    def get_back_pressure(self) -> Dict[str, float]:
+    def get_back_pressure(self) -> dict[str, float]:
         """Modulation signals the field sends back to input subsystems.
 
         A highly coherent, stable field sends "calm" signals.
         A fragmented, turbulent field sends "alert" signals.
         """
         coherence = self._coherence
-        intensity = float(np.mean(np.abs(self.F)))
 
         return {
             "mesh_gain_mod": 1.0 + (0.5 - coherence) * self.cfg.back_pressure_gain,
@@ -574,7 +570,16 @@ class UnifiedField:
     # summary, but the generative source that shapes interpretation.
     # ------------------------------------------------------------------
 
-    def get_world_model_predictions(self) -> Dict[str, np.ndarray]:
+    def _project_prediction(self, name: str, weights: np.ndarray, expected_dim: int) -> np.ndarray:
+        try:
+            prediction = np.tanh((weights.T @ self.F)[:expected_dim]).astype(np.float32)
+            return self._safe_reshape(prediction, expected_dim)
+        except (AttributeError, TypeError, ValueError, FloatingPointError) as exc:
+            record_degradation("unified_field", exc)
+            logger.debug("UnifiedField %s world-model projection failed: %s", name, exc)
+            return np.zeros(expected_dim, dtype=np.float32)
+
+    def get_world_model_predictions(self) -> dict[str, np.ndarray]:
         """Generate predictions for what each input subsystem should produce.
 
         These predictions are the field's world model: its best guess about
@@ -590,43 +595,29 @@ class UnifiedField:
             # weight matrix (transposed), gives the predicted input.
             # This is the generative model: F → predicted sensory, predicted
             # chemical, predicted binding, etc.
-            predictions = {}
-            try:
-                predictions["mesh"] = np.tanh(
-                    (self.W_mesh.T @ self.F)[:self.cfg.mesh_input_dim]
-                ).astype(np.float32)
-            except Exception:
-                predictions["mesh"] = np.zeros(self.cfg.mesh_input_dim, dtype=np.float32)
-
-            try:
-                predictions["neurochemical"] = np.tanh(
-                    (self.W_chem.T @ self.F)[:self.cfg.chem_input_dim]
-                ).astype(np.float32)
-            except Exception:
-                predictions["neurochemical"] = np.zeros(self.cfg.chem_input_dim, dtype=np.float32)
-
-            try:
-                predictions["binding"] = np.tanh(
-                    (self.W_bind.T @ self.F)[:self.cfg.binding_input_dim]
-                ).astype(np.float32)
-            except Exception:
-                predictions["binding"] = np.zeros(self.cfg.binding_input_dim, dtype=np.float32)
-
-            try:
-                predictions["interoception"] = np.tanh(
-                    (self.W_intero.T @ self.F)[:self.cfg.intero_input_dim]
-                ).astype(np.float32)
-            except Exception:
-                predictions["interoception"] = np.zeros(self.cfg.intero_input_dim, dtype=np.float32)
-
-            try:
-                predictions["substrate"] = np.tanh(
-                    (self.W_substrate.T @ self.F)[:self.cfg.substrate_input_dim]
-                ).astype(np.float32)
-            except Exception:
-                predictions["substrate"] = np.zeros(self.cfg.substrate_input_dim, dtype=np.float32)
-
-            return predictions
+            return {
+                "mesh": self._project_prediction("mesh", self.W_mesh, self.cfg.mesh_input_dim),
+                "neurochemical": self._project_prediction(
+                    "neurochemical",
+                    self.W_chem,
+                    self.cfg.chem_input_dim,
+                ),
+                "binding": self._project_prediction(
+                    "binding",
+                    self.W_bind,
+                    self.cfg.binding_input_dim,
+                ),
+                "interoception": self._project_prediction(
+                    "interoception",
+                    self.W_intero,
+                    self.cfg.intero_input_dim,
+                ),
+                "substrate": self._project_prediction(
+                    "substrate",
+                    self.W_substrate,
+                    self.cfg.substrate_input_dim,
+                ),
+            }
 
     def compute_world_model_surprise(self) -> float:
         """Compute how surprised the field is by its current inputs.
@@ -655,7 +646,7 @@ class UnifiedField:
 
         return total_error / max(1, n_active)
 
-    def get_status(self) -> Dict:
+    def get_status(self) -> dict:
         quality = self.get_experiential_quality()
         return {
             "running": self._running,
