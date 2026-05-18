@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import os
-import subprocess
+import sys
 import time
 from enum import Enum, auto
 from typing import Any
@@ -9,6 +9,22 @@ from typing import Any
 from core.runtime.errors import record_degradation
 
 from ..base_module import AuraBaseModule
+
+_PERMISSION_RECOVERABLE_ERRORS = (
+    AttributeError,
+    ImportError,
+    LookupError,
+    OSError,
+    RuntimeError,
+    TypeError,
+    ValueError,
+)
+
+
+def _load_scripting_bridge_application() -> Any:
+    from ScriptingBridge import SBApplication  # type: ignore
+
+    return SBApplication
 
 
 class PermissionType(Enum):
@@ -117,8 +133,8 @@ class PermissionGuard(AuraBaseModule):
                     "status": "active" if granted else "denied",
                     "guidance": "" if granted else self.get_guidance(PermissionType.SCREEN),
                 }
-        except Exception as exc:
-            record_degradation('permission_guard', exc)
+        except _PERMISSION_RECOVERABLE_ERRORS as exc:
+            record_degradation("permission_guard", exc)
             self.logger.debug("Quartz screen preflight unavailable: %s", exc)
         return None
 
@@ -137,54 +153,53 @@ class PermissionGuard(AuraBaseModule):
                 "status": "active" if granted else "denied",
                 "guidance": "" if granted else self.get_guidance(PermissionType.ACCESSIBILITY),
             }
-        except Exception as exc:
-            record_degradation('permission_guard', exc)
+        except _PERMISSION_RECOVERABLE_ERRORS as exc:
+            record_degradation("permission_guard", exc)
             self.logger.debug("Accessibility preflight unavailable: %s", exc)
         return None
 
     def _automation_preflight_probe(self) -> dict[str, Any]:
-        """Probe Apple Events access to System Events with a harmless frontmost-app query."""
-        script = 'tell application "System Events" to get name of first application process whose frontmost is true'
-        try:
-            result = subprocess.run(
-                ["osascript", "-e", script],
-                capture_output=True,
-                text=True,
-                timeout=5,
-            )
-        except Exception as exc:
-            record_degradation('permission_guard', exc)
+        """Probe Apple Events access to System Events without shelling out."""
+        if sys.platform != "darwin":
             return {
-                "granted": False,
-                "status": "error",
-                "guidance": f"Automation probe failed: {exc}",
+                "granted": True,
+                "status": "not_applicable",
+                "guidance": "",
             }
-
-        stdout = (result.stdout or "").strip()
-        stderr = (result.stderr or "").strip()
-        if result.returncode == 0:
+        try:
+            application_bridge = _load_scripting_bridge_application()
+            system_events = application_bridge.applicationWithBundleIdentifier_("com.apple.systemevents")
+            processes = system_events.processes()
+            frontmost_name = ""
+            for process in processes:
+                if bool(process.frontmost()):
+                    frontmost_name = str(process.name())
+                    break
             payload: dict[str, Any] = {
                 "granted": True,
                 "status": "active",
                 "guidance": "",
             }
-            if stdout:
-                payload["detail"] = stdout[:160]
+            if frontmost_name:
+                payload["detail"] = frontmost_name[:160]
             return payload
-
-        normalized = stderr.lower()
-        if "not authorized to send apple events" in normalized or "(-1743)" in normalized:
+        except _PERMISSION_RECOVERABLE_ERRORS as exc:
+            record_degradation("permission_guard", exc)
+            detail = str(exc)
+            normalized = detail.lower()
+            if "not authorized" in normalized or "-1743" in normalized:
+                return {
+                    "granted": False,
+                    "status": "denied",
+                    "guidance": self.get_guidance(PermissionType.AUTOMATION),
+                    "detail": detail[:240],
+                }
             return {
                 "granted": False,
-                "status": "denied",
+                "status": "deferred",
                 "guidance": self.get_guidance(PermissionType.AUTOMATION),
-                "detail": stderr[:240],
+                "detail": detail[:240] or "Native Automation probe unavailable.",
             }
-        return {
-            "granted": False,
-            "status": "error",
-            "guidance": stderr[:240] or "System Events automation probe failed.",
-        }
 
     async def _check_screen_permission(self) -> dict[str, Any]:
         """Probe screen-recording status without forcing a screenshot during boot."""
@@ -210,11 +225,7 @@ class PermissionGuard(AuraBaseModule):
         }
 
     async def _check_mic_permission(self) -> dict[str, Any]:
-        try:
-            return {"granted": True, "status": "active", "guidance": ""}
-        except Exception as e:
-            record_degradation('permission_guard', e)
-            return {"granted": False, "status": "error", "guidance": f"Mic check failed: {e}"}
+        return {"granted": True, "status": "assumed", "guidance": ""}
 
     async def _check_accessibility_permission(self) -> dict[str, Any]:
         loop = asyncio.get_running_loop()
@@ -277,7 +288,7 @@ def get_permission_guard() -> PermissionGuard:
         existing = service_container.get("permission_guard", default=None)
         if existing is not None:
             return existing
-    except Exception as exc:
+    except _PERMISSION_RECOVERABLE_ERRORS as exc:
         record_degradation("permission_guard", exc)
         logging.getLogger("Aura.PermissionGuard").debug(
             "Shared permission guard lookup failed: %s", exc
@@ -290,7 +301,7 @@ def get_permission_guard() -> PermissionGuard:
     try:
         if service_container is not None:
             service_container.register_instance("permission_guard", _SHARED_PERMISSION_GUARD, required=False)
-    except Exception as exc:
+    except _PERMISSION_RECOVERABLE_ERRORS as exc:
         record_degradation("permission_guard", exc)
         _SHARED_PERMISSION_GUARD.logger.debug(
             "Shared permission guard registration failed: %s", exc
