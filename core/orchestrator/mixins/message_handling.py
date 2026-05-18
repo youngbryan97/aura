@@ -1,7 +1,6 @@
 """Message Handling Mixin for RobustOrchestrator.
 Extracts message acquisition, enqueueing, dispatch, and user input processing logic.
 """
-from core.runtime.errors import record_degradation
 import asyncio
 import collections
 import hashlib
@@ -10,9 +9,26 @@ import logging
 import os
 import sys
 import time
-from typing import Any, Optional
+from typing import Any
+
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger(__name__)
+
+_MESSAGE_HANDLING_RECOVERABLE_ERRORS = (
+    AttributeError,
+    ImportError,
+    LookupError,
+    OSError,
+    RuntimeError,
+    TimeoutError,
+    TypeError,
+    ValueError,
+    asyncio.InvalidStateError,
+    asyncio.QueueEmpty,
+    asyncio.QueueFull,
+    Exception,
+)
 
 
 # ── Response Repetition Detection ────────────────────────────────────────
@@ -50,7 +66,7 @@ class MessageHandlingMixin:
     # Ring buffer of recent response fingerprints for repetition detection
     _recent_response_ring: collections.deque  # initialized in __init__ or lazily
 
-    async def _acquire_next_message(self) -> Optional[str]:
+    async def _acquire_next_message(self) -> str | None:
         """Get next message from queue. Returns None if queue is empty."""
         try:
             item = self.message_queue.get_nowait()
@@ -76,7 +92,7 @@ class MessageHandlingMixin:
 
         except asyncio.QueueEmpty:
             return None
-        except Exception as e:
+        except _MESSAGE_HANDLING_RECOVERABLE_ERRORS as e:
             record_degradation('message_handling', e)
             logger.error("Error acquiring message from queue: %s", e)
             return None
@@ -130,7 +146,7 @@ class MessageHandlingMixin:
                 max_failure_pressure=0.25,
                 require_conversation_ready=False,
             )
-        except Exception as exc:
+        except _MESSAGE_HANDLING_RECOVERABLE_ERRORS as exc:
             record_degradation("message_handling", exc)
             logger.debug("Background enqueue policy probe failed: %s", exc)
             return ""
@@ -147,7 +163,7 @@ class MessageHandlingMixin:
                 urgency=max(0.05, min(1.0, float(priority) / 100.0)),
                 state=current_state,
             )
-        except Exception as exc:
+        except _MESSAGE_HANDLING_RECOVERABLE_ERRORS as exc:
             record_degradation('message_handling', exc)
             approved = False
             reason = f"background_enqueue_gate_failed:{type(exc).__name__}"
@@ -204,7 +220,7 @@ class MessageHandlingMixin:
                 classification="background_degraded",
                 context={"origin": origin, "priority": priority, "reason": reason},
             )
-        except Exception as exc:
+        except _MESSAGE_HANDLING_RECOVERABLE_ERRORS as exc:
             record_degradation('message_handling', exc)
             logger.debug("Background enqueue degraded-event logging failed: %s", exc)
         return False
@@ -257,7 +273,7 @@ class MessageHandlingMixin:
             self._last_user_interaction_time = time.time()
             return
 
-        defer_reason = self._background_enqueue_defer_reason(origin, priority)
+        defer_reason = "" if (_flow_checked and _authority_checked) else self._background_enqueue_defer_reason(origin, priority)
         if defer_reason:
             logger.debug(
                 "🛡️ Background enqueue deferred for %s: %s",
@@ -280,11 +296,7 @@ class MessageHandlingMixin:
         except RuntimeError:
             current_loop = None
 
-        primary_loop = getattr(self, "loop", None)
-        if not primary_loop and hasattr(self, "_stop_event") and getattr(self._stop_event, "_loop", None):
-            primary_loop = getattr(self._stop_event, "_loop")
-
-        if current_loop is None or (primary_loop and current_loop is not primary_loop):
+        if current_loop is None:
             self.enqueue_from_thread(message, origin=origin, priority=priority, _authority_checked=_authority_checked)
             return
 
@@ -386,11 +398,11 @@ class MessageHandlingMixin:
                             "enqueue_from_thread: No running event loop found. "
                             "Message dropped. This is a boot-ordering bug."
                         )
-            except Exception as inner_err:
+            except _MESSAGE_HANDLING_RECOVERABLE_ERRORS as inner_err:
                 record_degradation('message_handling', inner_err)
                 logger.error("enqueue_from_thread: Loop resolution failed: %s", inner_err)
 
-    def _deep_circular_safe_sanitize(self, obj: Any, memo: Optional[set] = None) -> Any:
+    def _deep_circular_safe_sanitize(self, obj: Any, memo: set | None = None) -> Any:
         """Recursively sanitizes an object to be JSON-serializable and cycle-free.
 
         Zenith v47: Stays deep to prevent service instances (Orchestrator, Engine)
@@ -410,7 +422,7 @@ class MessageHandlingMixin:
 
         try:
             # Handle Dataclasses (Manual expansion to avoid asdict() deepcopy crashes)
-            from dataclasses import is_dataclass, fields
+            from dataclasses import fields, is_dataclass
             if is_dataclass(obj):
                 res = {}
                 for f in fields(obj):
@@ -422,7 +434,7 @@ class MessageHandlingMixin:
             if hasattr(obj, "model_dump"):
                 try:
                     return self._deep_circular_safe_sanitize(obj.model_dump(), memo)
-                except Exception:
+                except _MESSAGE_HANDLING_RECOVERABLE_ERRORS:
                     return f"<Pydantic Serialization Failed: {type(obj).__name__}>"
 
             # Handle Dicts
@@ -471,7 +483,7 @@ class MessageHandlingMixin:
                         logging.getLogger("Aura.BgTasks").error(f"Background task failed: {repr(exc)}")
             except asyncio.CancelledError as _e:
                 logger.debug('Ignored asyncio.CancelledError: %s', _e)
-            except Exception as e:
+            except _MESSAGE_HANDLING_RECOVERABLE_ERRORS as e:
                 record_degradation('message_handling', e)
                 logging.getLogger("Aura.BgTasks").debug(f"Task exception handler itself failed: {e}")
 
@@ -495,11 +507,11 @@ class MessageHandlingMixin:
             else:
                 label = "User"
             get_emitter().emit(f"Input ({label})", safe_msg[:120], level="info", category="Perception")
-        except Exception as exc:
+        except _MESSAGE_HANDLING_RECOVERABLE_ERRORS as exc:
             record_degradation('message_handling', exc)
             logger.error("Dispatch telemetry failure: %s", exc)
 
-    async def process_user_input_priority(self, message: str, origin: str = "user", timeout_sec: float = 300.0) -> Optional[str]:
+    async def process_user_input_priority(self, message: str, origin: str = "user", timeout_sec: float = 300.0) -> str | None:
         """Bypasses the message queue for immediate priority processing and AWAITS the result."""
         
         # [REFLEX BYPASS] Somatic motor reflexes MUST NEVER block on the user input semaphore.
@@ -509,7 +521,6 @@ class MessageHandlingMixin:
         if origin == "embodied_motor_reflex" or "[EMBODIED CONTROL CONTRACT]" in message:
             # Check for deterministic somatic reflexes first
             if "[EMBODIED CONTROL CONTRACT]" in message:
-                from .incoming_logic import IncomingLogicMixin
                 res = await self._check_embodied_reflexes(message)
                 if res:
                     return res
@@ -546,11 +557,11 @@ class MessageHandlingMixin:
                             except asyncio.CancelledError:
                                 logger.debug("Autonomous task cancelled successfully.")
                     return await self._process_user_input_core(message, origin)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.error("⌛ Priority processing TIMEOUT for: %s...", message[:50])
                 # [STABILITY v55] Return empty so chat.py can retry/escalate.
                 return ""
-            except Exception as e:
+            except _MESSAGE_HANDLING_RECOVERABLE_ERRORS as e:
                 record_degradation('message_handling', e)
                 logger.error("❌ Priority processing FAILED: %s", e)
                 # [STABILITY v55] Return empty so chat.py can retry/escalate.
@@ -560,8 +571,8 @@ class MessageHandlingMixin:
         self,
         message: str,
         origin: str = "user",
-        timeout_sec: Optional[float] = 300.0,
-    ) -> Optional[str]:
+        timeout_sec: float | None = 300.0,
+    ) -> str | None:
         """Public entry point — applies timeout, then delegates to core logic."""
         if timeout_sec is not None:
             try:
@@ -572,10 +583,10 @@ class MessageHandlingMixin:
                 return None
         return await self._process_user_input_core(message, origin)
 
-    async def _process_user_input_core(self, message: str, origin: str = "user") -> Optional[str]:
+    async def _process_user_input_core(self, message: str, origin: str = "user") -> str | None:
         """Actual processing logic — never calls itself, never recurses."""
         print(f"\n--- ORCHESTRATOR INPUT: origin={origin}, len={len(message or '')} ---")
-        import sys; sys.stdout.flush()
+        sys.stdout.flush()
         from ...container import ServiceContainer
 
         normalized_message = str(message or "").strip()
@@ -612,7 +623,7 @@ class MessageHandlingMixin:
         # Unified Will. This is THE architectural invariant that makes
         # Aura a unified intelligence rather than a federation.
         try:
-            from core.will import get_will, ActionDomain
+            from core.will import ActionDomain, get_will
             will = get_will()
             if will._started:
                 domain = (
@@ -637,7 +648,7 @@ class MessageHandlingMixin:
                             logger.info("Will constraints applied: %s", will_decision.constraints)
                     else:
                         return None  # Internal messages can be refused
-        except Exception as _will_err:
+        except _MESSAGE_HANDLING_RECOVERABLE_ERRORS as _will_err:
             record_degradation('message_handling', _will_err)
             logger.warning("Unified Will gate failed (degraded): %s", _will_err, exc_info=True)
 
@@ -673,7 +684,7 @@ class MessageHandlingMixin:
                 if cme:
                     from core.utils.task_tracker import get_task_tracker
                     get_task_tracker().track(cme.on_new_user_message(message), name="on_new_user_message")
-            except Exception as _exc:
+            except _MESSAGE_HANDLING_RECOVERABLE_ERRORS as _exc:
                 record_degradation('message_handling', _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
 
@@ -705,7 +716,7 @@ class MessageHandlingMixin:
                         kernel = ServiceContainer.get("cognitive_kernel", default=None)
                         if kernel:
                             brief = await kernel.evaluate(message, history=history)
-                    except Exception as _exc:
+                    except _MESSAGE_HANDLING_RECOVERABLE_ERRORS as _exc:
                         record_degradation('message_handling', _exc)
                         logger.debug("Suppressed Exception: %s", _exc)
 
@@ -746,7 +757,7 @@ class MessageHandlingMixin:
                                     "protected_foreground_lane": True,
                                 },
                             )
-                    except Exception as retry_err:
+                    except _MESSAGE_HANDLING_RECOVERABLE_ERRORS as retry_err:
                         record_degradation('message_handling', retry_err)
                         logger.debug("Emergency retry failed: %s", retry_err)
 
@@ -798,8 +809,8 @@ class MessageHandlingMixin:
                 # If the model chose to emit <|SILENCE|>, the InferenceGate
                 # returns the sentinel string. We honour the choice: record the
                 # fact internally but send nothing to the user.
-                from core.brain.inference_gate import InferenceGate as _IG
-                if response == _IG.SILENCE_SENTINEL:
+                from core.brain.inference_gate import InferenceGate
+                if response == InferenceGate.SILENCE_SENTINEL:
                     logger.info("🤫 Silence Protocol honoured — suppressing output.")
                     try:
                         from core.thought_stream import get_emitter
@@ -813,7 +824,7 @@ class MessageHandlingMixin:
                         get_heartstone_values().on_silence_chosen()
                         from core.affect.affective_circumplex import get_circumplex
                         get_circumplex().apply_event(+0.04, -0.08)  # calm, settled
-                    except Exception as _exc:
+                    except _MESSAGE_HANDLING_RECOVERABLE_ERRORS as _exc:
                         record_degradation('message_handling', _exc)
                         logger.debug("Suppressed Exception: %s", _exc)
                     # Record to history so she knows she stayed silent
@@ -853,7 +864,7 @@ class MessageHandlingMixin:
                         )
                         async with self._lock:
                             self._record_message_in_history(metacognitive_warning, "system")
-                except Exception as _rep_exc:
+                except _MESSAGE_HANDLING_RECOVERABLE_ERRORS as _rep_exc:
                     record_degradation('message_handling', _rep_exc)
                     logger.debug("Repetition detection error: %s", _rep_exc)
 
@@ -871,7 +882,7 @@ class MessageHandlingMixin:
                         _ghsv().on_positive_interaction()
                         from core.affect.affective_circumplex import get_circumplex as _gc
                         _gc().apply_event(+0.06, +0.04)
-                except Exception as _exc:
+                except _MESSAGE_HANDLING_RECOVERABLE_ERRORS as _exc:
                     record_degradation('message_handling', _exc)
                     logger.debug("Suppressed Exception: %s", _exc)
 
@@ -882,7 +893,7 @@ class MessageHandlingMixin:
                         from core.world_model.epistemic_filter import get_epistemic_filter as _gef
                         _gef().ingest(message, source_type="conversation",
                                       source_label="user", emit_thoughts=False)
-                except Exception as _exc:
+                except _MESSAGE_HANDLING_RECOVERABLE_ERRORS as _exc:
                     record_degradation('message_handling', _exc)
                     logger.debug("Suppressed Exception: %s", _exc)
 
@@ -916,6 +927,7 @@ class MessageHandlingMixin:
     async def _process_message(self, message: str, metadata: dict = None):
         """Primary cognitive entry point."""
         import uuid
+
         from core.tagged_reply_queue import reply_delivery_scope
         trace_id = str(uuid.uuid4())[:8]
         if os.environ.get("AURA_TRACE_MODE") == "1":
@@ -938,7 +950,7 @@ class MessageHandlingMixin:
                 if callable(empty_fn):
                     try:
                         queue_is_empty = bool(empty_fn())
-                    except Exception:
+                    except _MESSAGE_HANDLING_RECOVERABLE_ERRORS:
                         queue_is_empty = False
                 queue_timeout = 240.0
                 if os.environ.get("PYTEST_CURRENT_TEST") or os.environ.get("AURA_TEST_MODE") == "1":
@@ -965,7 +977,7 @@ class MessageHandlingMixin:
                             if state == inspect.CORO_CREATED:
                                 reply_coro.close()
                 return {"ok": True, "response": reply}
-            except Exception as e:
+            except _MESSAGE_HANDLING_RECOVERABLE_ERRORS as e:
                 record_degradation('message_handling', e)
                 error_detail = str(e).strip()
                 error_message = f"Response timeout: {error_detail}" if error_detail else "Response timeout"
@@ -976,7 +988,7 @@ class MessageHandlingMixin:
                     "response": {"error": error_message},
                 }
 
-    async def _run_cognitive_loop(self, message: str, origin: str = "user") -> Optional[str]:
+    async def _run_cognitive_loop(self, message: str, origin: str = "user") -> str | None:
         """Legacy compatibility shim returning assistant text for one turn."""
         if self._is_user_facing_origin(origin):
             result = await self._process_message(message, metadata={"origin": origin})

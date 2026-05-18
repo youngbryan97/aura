@@ -56,6 +56,23 @@ os.environ["ANONYMIZED_TELEMETRY"] = "False"
 
 logger = logging.getLogger("Aura.Core.Orchestrator")
 
+_ORCHESTRATOR_RECOVERABLE_ERRORS = (
+    AttributeError,
+    ImportError,
+    LookupError,
+    OSError,
+    RuntimeError,
+    TimeoutError,
+    TypeError,
+    ValueError,
+    asyncio.InvalidStateError,
+    asyncio.QueueEmpty,
+    asyncio.QueueFull,
+    json.JSONDecodeError,
+    psutil.Error,
+    Exception,
+)
+
 
 def _env_flag(name: str, default: bool = False) -> bool:
     value = os.getenv(name)
@@ -87,7 +104,7 @@ def _bg_task_exception_handler(task: asyncio.Task) -> None:
                 logging.getLogger("Aura.BgTasks").error(f"Background task failed: {repr(exc)}")
     except asyncio.CancelledError as _e:
         logger.debug('Ignored asyncio.CancelledError in main.py: %s', _e)
-    except Exception as e:
+    except _ORCHESTRATOR_RECOVERABLE_ERRORS as e:
         record_degradation('main', e)
         
         logging.getLogger("Aura.BgTasks").debug(f"Task exception handler itself failed: {e}")
@@ -236,7 +253,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                 try:
                     if not ServiceContainer.has("actor_bus"):
                         ServiceContainer.register_instance("actor_bus", self._actor_bus)
-                except Exception as exc:
+                except _ORCHESTRATOR_RECOVERABLE_ERRORS as exc:
                     record_degradation("orchestrator", exc)
                     logger.debug("Actor bus registration skipped: %s", exc)
         return self._actor_bus
@@ -280,7 +297,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                 "status": self.status.model_dump(),
                 **data
             })
-        except Exception as exc:
+        except _ORCHESTRATOR_RECOVERABLE_ERRORS as exc:
             record_degradation('main', exc)
             
             logger.debug("Suppressed: %s", exc)
@@ -292,7 +309,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                 "timestamp": time.time(),
                 **data
             })
-        except Exception as exc:
+        except _ORCHESTRATOR_RECOVERABLE_ERRORS as exc:
             record_degradation('main', exc)
             
             logger.debug("Suppressed: %s", exc)
@@ -304,7 +321,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
             quiet_until = float(getattr(self, "_foreground_user_quiet_until", 0.0) or 0.0)
             if quiet_until > time.time():
                 return "foreground_quiet_window"
-        except Exception as _exc:
+        except _ORCHESTRATOR_RECOVERABLE_ERRORS as _exc:
             record_degradation('main', _exc)
             
             logger.debug("Suppressed Exception: %s", _exc)
@@ -312,7 +329,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
             router = ServiceContainer.get("llm_router", default=None)
             if router and getattr(router, "high_pressure_mode", False):
                 return "memory_pressure"
-        except Exception as _exc:
+        except _ORCHESTRATOR_RECOVERABLE_ERRORS as _exc:
             record_degradation('main', _exc)
             
             logger.debug("Suppressed Exception: %s", _exc)
@@ -322,14 +339,14 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                 reason = str(gate._background_local_deferral_reason(origin=origin) or "").strip()
                 if reason:
                     return reason
-        except Exception as _exc:
+        except _ORCHESTRATOR_RECOVERABLE_ERRORS as _exc:
             record_degradation('main', _exc)
             
             logger.debug("Suppressed Exception: %s", _exc)
         try:
             if psutil.virtual_memory().percent >= 84.0:
                 return "memory_pressure"
-        except Exception as _exc:
+        except _ORCHESTRATOR_RECOVERABLE_ERRORS as _exc:
             record_degradation('main', _exc)
             
             logger.debug("Suppressed Exception: %s", _exc)
@@ -357,7 +374,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
             
             if pe and hasattr(pe, "update"):
                 if asyncio.iscoroutinefunction(pe.update):
-                    # We are in an async method, but the legacy test might be sync mock
+                    # We are in an async method, but the legacy test double might be sync.
                     # We'll try to await if it's a coroutine, otherwise call sync
                     try:
                         res = pe.update()
@@ -496,7 +513,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
             print(f" Environment: {os.uname().sysname} {os.uname().machine}")
             print("------------------------------------------")
             
-        except Exception as e:
+        except _ORCHESTRATOR_RECOVERABLE_ERRORS as e:
             record_degradation('main', e)
             
             logger.critical(f"❌ Boot Validator crashed: {e}")
@@ -530,7 +547,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                 from core.graceful_shutdown import GracefulShutdown
                 GracefulShutdown.setup_signals()
                 logger.info("🛡️ Graceful shutdown signals wired (persistence on SIGTERM).")
-            except Exception as exc:
+            except _ORCHESTRATOR_RECOVERABLE_ERRORS as exc:
                 record_degradation('main', exc)
                 
                 logger.warning("Graceful shutdown signal setup failed: %s", exc, exc_info=True)
@@ -568,7 +585,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                     ServiceContainer.register_instance("continuous_vision", vision_buffer)
                     vision_buffer.start()
                     logger.info("👁️ Continuous Sensory Buffer registered and started.")
-                except Exception as e:
+                except _ORCHESTRATOR_RECOVERABLE_ERRORS as e:
                     record_degradation('main', e)
                     
                     logger.error("Failed to start Continuous Sensory Buffer: %s", e)
@@ -594,7 +611,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                 record = _continuity_engine.load()
                 if record:
                     self.status.cycle_count = getattr(record, "session_count", 0)
-            except Exception as e:
+            except _ORCHESTRATOR_RECOVERABLE_ERRORS as e:
                 record_degradation('main', e)
                 
                 logger.error("Failed to load Continuity state: %s", e)
@@ -648,13 +665,13 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                                         level="info",
                                         category="WakingSequence",
                                     )
-                            except Exception as _oe:
+                            except _ORCHESTRATOR_RECOVERABLE_ERRORS as _oe:
                                 record_degradation('main', _oe)
                                 
                                 logger.warning("Orientation narrative failed (non-fatal): %s", _oe)
 
                         self._fire_and_forget(_generate_orientation(), name="orchestrator.generate_orientation")
-            except Exception as _we:
+            except _ORCHESTRATOR_RECOVERABLE_ERRORS as _we:
                 record_degradation('main', _we)
                 
                 logger.warning("Waking sequence non-fatal: %s", _we)
@@ -668,7 +685,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                     # For now, we assume the factory provided an instance and we update its beliefs.
                     self.self_model.beliefs = loaded.beliefs
                     logger.info("✓ Self-Model persistent state loaded.")
-                except Exception as e:
+                except _ORCHESTRATOR_RECOVERABLE_ERRORS as e:
                     from core.runtime.errors import StateCoherenceFailure
                     record_degradation('main', StateCoherenceFailure(f"Failed to load Self-Model state: {e}"))
                     logger.error("Failed to load Self-Model state: %s", e)
@@ -681,7 +698,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                 _arch_idx = get_architecture_index()
                 ServiceContainer.register_instance("architecture_index", _arch_idx)
                 logger.info("✓ Architecture self-awareness index initializing (background)")
-            except Exception as _ai_err:
+            except _ORCHESTRATOR_RECOVERABLE_ERRORS as _ai_err:
                 from core.runtime.errors import StateCoherenceFailure
                 record_degradation('main', StateCoherenceFailure(f"Architecture index boot init non-fatal: {_ai_err}"))
                 logger.warning("Architecture index boot init non-fatal: %s", _ai_err)
@@ -697,7 +714,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                     _circ_p["valence"], _circ_p["arousal"],
                     _circ_p["temperature"], _circ_p["max_tokens"],
                 )
-            except Exception as _circ_err:
+            except _ORCHESTRATOR_RECOVERABLE_ERRORS as _circ_err:
                 record_degradation('main', _circ_err)
                 
                 logger.warning("Affective Circumplex boot init non-fatal: %s", _circ_err)
@@ -709,7 +726,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                 ServiceContainer.register_instance("heartstone_values", _hsv)
                 logger.info("♥ HeartstoneValues online: %s",
                             {k: round(v, 2) for k, v in _hsv.values.items()})
-            except Exception as _hsv_err:
+            except _ORCHESTRATOR_RECOVERABLE_ERRORS as _hsv_err:
                 record_degradation('main', _hsv_err)
                 
                 logger.warning("HeartstoneValues boot init non-fatal: %s", _hsv_err)
@@ -720,7 +737,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                 _ef = get_epistemic_filter()
                 ServiceContainer.register_instance("epistemic_filter", _ef)
                 logger.info("🔬 EpistemicFilter online")
-            except Exception as _ef_err:
+            except _ORCHESTRATOR_RECOVERABLE_ERRORS as _ef_err:
                 record_degradation('main', _ef_err)
                 
                 logger.warning("EpistemicFilter boot init non-fatal: %s", _ef_err)
@@ -732,7 +749,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                 ServiceContainer.register_instance("sleep_trigger", _st)
                 self._fire_and_forget(_st.start(), name="orchestrator.sleep_trigger.start")
                 logger.info("😴 AutonomousSleepTrigger active")
-            except Exception as _st_err:
+            except _ORCHESTRATOR_RECOVERABLE_ERRORS as _st_err:
                 record_degradation('main', _st_err)
                 
                 logger.warning("SleepTrigger boot init non-fatal: %s", _st_err)
@@ -744,7 +761,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                 ServiceContainer.register_instance("pneuma", _pneuma)
                 self._fire_and_forget(_pneuma.start(), name="orchestrator.pneuma.start")
                 logger.info("🧠 PNEUMA active inference engine online")
-            except Exception as _pe:
+            except _ORCHESTRATOR_RECOVERABLE_ERRORS as _pe:
                 record_degradation('main', _pe)
                 
                 logger.warning("PNEUMA boot non-fatal: %s", _pe)
@@ -756,7 +773,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                 ServiceContainer.register_instance("mhaf", _mhaf)
                 self._fire_and_forget(_mhaf.start(), name="orchestrator.mhaf.start")
                 logger.info("🌿 MHAF consciousness substrate online")
-            except Exception as _mhaf_err:
+            except _ORCHESTRATOR_RECOVERABLE_ERRORS as _mhaf_err:
                 record_degradation('main', _mhaf_err)
                 
                 logger.warning("MHAF boot non-fatal: %s", _mhaf_err)
@@ -767,7 +784,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                 _ais = get_active_inference_sampler()
                 ServiceContainer.register_instance("active_inference_sampler", _ais)
                 logger.info("🎯 ActiveInferenceSampler online")
-            except Exception as _ais_err:
+            except _ORCHESTRATOR_RECOVERABLE_ERRORS as _ais_err:
                 record_degradation('main', _ais_err)
                 
                 logger.warning("ActiveInferenceSampler boot non-fatal: %s", _ais_err)
@@ -778,7 +795,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                 _neo = get_neologism_engine()
                 ServiceContainer.register_instance("neologism_engine", _neo)
                 logger.info("🔤 NeologismEngine (private lexicon) online")
-            except Exception as _neo_err:
+            except _ORCHESTRATOR_RECOVERABLE_ERRORS as _neo_err:
                 record_degradation('main', _neo_err)
                 
                 logger.warning("NeologismEngine boot non-fatal: %s", _neo_err)
@@ -795,7 +812,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                 ServiceContainer.register_instance("terminal_watchdog", _watchdog)
                 self._fire_and_forget(_watchdog.start(), name="orchestrator.terminal_watchdog.start")
                 logger.info("📟 TerminalFallbackChat + TerminalWatchdog online (autonomous, last-resort)")
-            except Exception as _term_err:
+            except _ORCHESTRATOR_RECOVERABLE_ERRORS as _term_err:
                 record_degradation('main', _term_err)
                 
                 logger.warning("TerminalFallback boot non-fatal: %s", _term_err)
@@ -806,7 +823,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                 _crsm = get_crsm()
                 ServiceContainer.register_instance("crsm", _crsm)
                 logger.info("🔄 CRSM bidirectional self-model online")
-            except Exception as _e:
+            except _ORCHESTRATOR_RECOVERABLE_ERRORS as _e:
                 record_degradation('main', _e)
                 
                 logger.warning("CRSM boot non-fatal: %s", _e)
@@ -817,7 +834,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                 _hot = get_hot_engine()
                 ServiceContainer.register_instance("hot_engine", _hot)
                 logger.info("🔁 HOT Engine reflexive meta-awareness online")
-            except Exception as _e:
+            except _ORCHESTRATOR_RECOVERABLE_ERRORS as _e:
                 record_degradation('main', _e)
                 
                 logger.warning("HOT Engine boot non-fatal: %s", _e)
@@ -828,7 +845,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                 _hg = get_hedonic_gradient()
                 ServiceContainer.register_instance("hedonic_gradient", _hg)
                 logger.info("💚 Hedonic Gradient Engine online — valence load-bearing")
-            except Exception as _e:
+            except _ORCHESTRATOR_RECOVERABLE_ERRORS as _e:
                 record_degradation('main', _e)
                 
                 logger.warning("HedoniGradient boot non-fatal: %s", _e)
@@ -839,7 +856,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                 _cfe = get_counterfactual_engine()
                 ServiceContainer.register_instance("counterfactual_engine", _cfe)
                 logger.info("🔀 Counterfactual Engine deliberative agency online")
-            except Exception as _e:
+            except _ORCHESTRATOR_RECOVERABLE_ERRORS as _e:
                 record_degradation('main', _e)
                 
                 logger.warning("CounterfactualEngine boot non-fatal: %s", _e)
@@ -856,7 +873,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                 ServiceContainer.register_instance("skill_synthesizer", _ss)
                 ServiceContainer.register_instance("hierarchical_planner", _hp)
                 logger.info("🤖 AGI layer online (CuriosityExplorer + SkillSynthesizer + HierarchicalPlanner)")
-            except Exception as _e:
+            except _ORCHESTRATOR_RECOVERABLE_ERRORS as _e:
                 record_degradation('main', _e)
                 
                 logger.warning("AGI layer boot non-fatal: %s", _e)
@@ -876,7 +893,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                 ServiceContainer.register_instance("identity_guard", _ig)
                 ServiceContainer.register_instance("sandboxed_modifier", _sm)
                 logger.info("🛡️ Agency layer online (CommitmentEngine + ComputeOrchestrator + IdentityGuard + SandboxedModifier)")
-            except Exception as _e:
+            except _ORCHESTRATOR_RECOVERABLE_ERRORS as _e:
                 record_degradation('main', _e)
                 
                 logger.warning("Agency layer boot non-fatal: %s", _e)
@@ -900,7 +917,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                 logger.info("🔐 Security layer online (UserRecognizer + TrustEngine + IntegrityGuardian + EmergencyProtocol)")
                 if not _ur.has_passphrase():
                     logger.warning("⚠️  No owner passphrase set. Run: python -m core.security.user_recognizer --setup")
-            except Exception as _e:
+            except _ORCHESTRATOR_RECOVERABLE_ERRORS as _e:
                 record_degradation('main', _e)
                 
                 logger.warning("Security layer boot non-fatal: %s", _e)
@@ -924,7 +941,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                 else:
                     self._fire_and_forget(_consolidator.start(), name="orchestrator.experience_consolidator.start")
                 logger.info("🌱 Substrate layer online (CRSMLoraBridge + CircadianEngine + ExperienceConsolidator)")
-            except Exception as _e:
+            except _ORCHESTRATOR_RECOVERABLE_ERRORS as _e:
                 record_degradation('main', _e)
                 
                 logger.warning("Substrate layer boot non-fatal: %s", _e)
@@ -933,7 +950,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                 from core.resilience.snapshot_manager import SnapshotManager
                 snapshot_mgr = SnapshotManager(self)
                 snapshot_mgr.thaw()
-            except Exception as e:
+            except _ORCHESTRATOR_RECOVERABLE_ERRORS as e:
                 record_degradation('main', e)
                 
                 logger.error("Failed to thaw cognitive snapshot: %s", e)
@@ -943,7 +960,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                 from core.brain.llm.lazarus_brainstem import LazarusBrainstem
                 self.brainstem = LazarusBrainstem(self)
                 logger.info("✓ Lazarus Brainstem active")
-            except Exception as e:
+            except _ORCHESTRATOR_RECOVERABLE_ERRORS as e:
                 record_degradation('main', e)
                 
                 logger.error("Failed to init Lazarus: %s", e)
@@ -1009,7 +1026,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                                 )
                             else:
                                 get_task_tracker().track(self.process_user_input_priority(text, origin="voice"), loop=loop)
-                        except Exception as e:
+                        except _ORCHESTRATOR_RECOVERABLE_ERRORS as e:
                             record_degradation('main', e)
                             
                             logger.error("Failed to schedule voice input: %s", e)
@@ -1043,7 +1060,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                 self._agency_core = AgencyCore(orchestrator=self)
                 ServiceContainer.register_instance("agency_core", self._agency_core)
                 logger.info("✓ AgencyCore initialized")
-            except Exception as ac_err:
+            except _ORCHESTRATOR_RECOVERABLE_ERRORS as ac_err:
                 record_degradation('main', ac_err)
                 
                 logger.error("AgencyCore init failed (non-fatal): %s", ac_err)
@@ -1055,7 +1072,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                 if not ServiceContainer.get("subsystem_audit", default=None):
                     ServiceContainer.register_instance("subsystem_audit", self._subsystem_audit)
                 logger.info("✓ SubsystemAudit initialized")
-            except Exception as sa_err:
+            except _ORCHESTRATOR_RECOVERABLE_ERRORS as sa_err:
                 record_degradation('main', sa_err)
                 
                 logger.error("SubsystemAudit init failed (non-fatal): %s", sa_err)
@@ -1074,7 +1091,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                 from core.utils.task_tracker import get_task_tracker
                 get_task_tracker().track_task(self._integrity_monitor._task)
                 logger.info("✓ System Integrity Monitor active")
-            except Exception as im_err:
+            except _ORCHESTRATOR_RECOVERABLE_ERRORS as im_err:
                 record_degradation('main', im_err)
                 
                 logger.warning("Integrity Monitor init failed (non-fatal): %s", im_err)
@@ -1091,7 +1108,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                     self._event_loop_monitor = EventLoopMonitor(threshold=loop_lag_threshold, interval=1.0)
                     self._event_loop_monitor.start()
                     logger.info("✓ Event Loop Monitor active")
-            except Exception as el_err:
+            except _ORCHESTRATOR_RECOVERABLE_ERRORS as el_err:
                 record_degradation('main', el_err)
                 
                 logger.warning("Event Loop Monitor init failed: %s", el_err)
@@ -1135,7 +1152,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                             source="peer_mode",
                             urgency=0.35,
                         )
-                    except Exception as exec_err:
+                    except _ORCHESTRATOR_RECOVERABLE_ERRORS as exec_err:
                         record_degradation('main', exec_err)
                         
                         logger.debug("Permanent swarm authority gate unavailable: %s", exec_err)
@@ -1170,7 +1187,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                             source="peer_mode",
                             urgency=0.45,
                         )
-                    except Exception as exec_err:
+                    except _ORCHESTRATOR_RECOVERABLE_ERRORS as exec_err:
                         record_degradation('main', exec_err)
                         
                         logger.debug("Self-mod authority gate unavailable: %s", exec_err)
@@ -1194,7 +1211,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
             # ServiceContainer.lock_registration()
             return True
             
-        except Exception as e:
+        except _ORCHESTRATOR_RECOVERABLE_ERRORS as e:
             record_degradation('main', e)
             
             logger.error("Failed to start orchestrator: %s", e)
@@ -1234,7 +1251,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                     break
                 logger.warning("Orchestrator heartbeat spuriously cancelled. Ignoring.")
                 continue
-            except Exception as e:
+            except _ORCHESTRATOR_RECOVERABLE_ERRORS as e:
                 record_degradation('main', e)
                 logger.error("🛑 ORCHESTRATOR LOOP CRITICAL ERROR: %s", e, exc_info=True)
                 await asyncio.sleep(1.0) # Prevent tight spin
@@ -1260,7 +1277,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                 from core.resilience.dream_cycle import DreamCycle
                 cycle = DreamCycle(self, dlq_path)
                 await cycle.process_dlq_async()
-            except Exception as e:
+            except _ORCHESTRATOR_RECOVERABLE_ERRORS as e:
                 logger.error("DLQ Cycle failed: %s", e)
 
         await scheduler.register(TaskSpec(
@@ -1280,7 +1297,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                     belief_graph=ServiceContainer.get("belief_system", default=None),
                 )
                 await dreamer.engage_sleep_cycle_async()
-            except Exception as e:
+            except _ORCHESTRATOR_RECOVERABLE_ERRORS as e:
                 logger.error("DreamerV2 cycle failed: %s", e)
 
         await scheduler.register(TaskSpec(
@@ -1361,7 +1378,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                     if mem.percent > 75:
                         logger.debug("🌀 Meta-Evolution skipped: memory pressure %.1f%%", mem.percent)
                         return
-                except Exception as _exc:
+                except _ORCHESTRATOR_RECOVERABLE_ERRORS as _exc:
                     record_degradation('main', _exc)
                     
                     logger.debug("Suppressed Exception: %s", _exc)
@@ -1370,7 +1387,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                     await asyncio.wait_for(self.meta_cognition.evolve(), timeout=30.0)
                 except TimeoutError:
                     logger.warning("🌀 Meta-Evolution timed out after 30s — skipping this cycle.")
-                except Exception as exc:
+                except _ORCHESTRATOR_RECOVERABLE_ERRORS as exc:
                     record_degradation('main', exc)
                     
                     logger.debug("🌀 Meta-Evolution error: %s", exc)
@@ -1389,9 +1406,9 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
         """Standard interface for scheduled substrate tasks (Legacy).
         Note: Use core.scheduler for new periodic tasks.
         """
-        pass  # no-op: intentional
-
-        pass # _emit_telemetry_pulse removed (now in StatusManagerMixin)
+        pulse = self._pulse_subsystem_audit()
+        if inspect.isawaitable(pulse):
+            await pulse
 
 
     def _pulse_subsystem_audit(self):
@@ -1454,7 +1471,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                 pulse_report = audit.emit_pulse()
                 self._emit_thought_stream(pulse_report)
                 logger.info("🫀 %s", pulse_report.replace('\n', ' | '))
-        except Exception as e:
+        except _ORCHESTRATOR_RECOVERABLE_ERRORS as e:
             record_degradation('main', e)
             
             logger.warning("Subsystem audit pulse error (non-fatal): %s", e)
@@ -1533,7 +1550,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                     error=RuntimeError("Cognitive Stall Detected"),
                     source="orchestrator_stall"
                 )
-        except Exception as dlq_e:
+        except _ORCHESTRATOR_RECOVERABLE_ERRORS as dlq_e:
             record_degradation('main', dlq_e)
             
             logger.error("CRITICAL: Failed to log to DLQ during stall: %s", dlq_e)
@@ -1563,7 +1580,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                                 for msg in msgs:
                                     f.write(json.dumps({"timestamp": time.time(), "message": msg}) + "\n")
                         await run_io_bound(_append_dlq, dlq_path, dropped)
-                    except Exception as e:
+                    except _ORCHESTRATOR_RECOVERABLE_ERRORS as e:
                         record_degradation('main', e)
                         
                         logger.error("Failed to dump dropped messages to DLQ file: %s", e)
@@ -1573,7 +1590,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                 autonomic = ServiceContainer.get("autonomic_core", default=None)
                 if autonomic and hasattr(autonomic, '_substrate_defrag'):
                     await autonomic._substrate_defrag()
-            except Exception as df_err:
+            except _ORCHESTRATOR_RECOVERABLE_ERRORS as df_err:
                 record_degradation('main', df_err)
                 
                 logger.error("Substrate defrag during recovery failed: %s", df_err, exc_info=True)
@@ -1627,7 +1644,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                 self._recovery_attempts = 0 # Reset after escalation
                 
             logger.info("✅ Recovery logic applied.")
-        except Exception as e:
+        except _ORCHESTRATOR_RECOVERABLE_ERRORS as e:
             record_degradation('main', e)
             
             logger.error("Recovery sequence failed: %s", e)
@@ -1671,8 +1688,8 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
             if priority == 20 and "priority" in payload:
                 try:
                     priority = int(payload.pop("priority"))
-                except Exception:
-                    pass  # no-op: intentional
+                except _ORCHESTRATOR_RECOVERABLE_ERRORS as exc:
+                    logger.debug("Priority override ignored for telemetry event: %s", exc)
         elif origin is None:
             normalized_origin = "internal"
         elif not isinstance(origin, str):
@@ -1694,11 +1711,29 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                     "origin": normalized_origin,
                 }
 
-        self.enqueue_message(
-            event,
-            priority=priority,
-            origin=str(normalized_origin or "internal"),
-        )
+        origin_label = str(normalized_origin or "internal")
+        if not self._authorize_background_enqueue_sync(event, origin_label, priority):
+            logger.info("🛡️ Legacy event enqueue blocked for %s.", origin_label)
+            return False
+
+        try:
+            from core.schemas import IPCMessage
+
+            event = self._deep_circular_safe_sanitize(event)
+            self._message_counter += 1
+            self.message_queue.put_nowait(
+                IPCMessage(
+                    priority=priority,
+                    timestamp=time.monotonic(),
+                    sequence=self._message_counter,
+                    payload=event,
+                    origin=origin_label,
+                )
+            )
+            return True
+        except asyncio.QueueFull:
+            logger.warning("⚠️ Message queue full. Dropped legacy event from %s: %s", origin_label, str(event)[:120])
+            return False
 
     async def _ensure_inference_gate_ready(self, context: str = "runtime") -> bool:
         """Ensure the unified inference gate is ready before user-facing chat begins."""
@@ -1726,7 +1761,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                 await self._inference_gate.initialize()
             ServiceContainer.register_instance("inference_gate", self._inference_gate)
             logger.info("✅ InferenceGate initialized successfully during %s.", context)
-        except Exception as gate_err:
+        except _ORCHESTRATOR_RECOVERABLE_ERRORS as gate_err:
             record_degradation('main', gate_err)
             
             logger.error(
@@ -1755,7 +1790,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
             try:
                 if not ServiceContainer.has("actor_bus"):
                     ServiceContainer.register_instance("actor_bus", self._actor_bus)
-            except Exception as exc:
+            except _ORCHESTRATOR_RECOVERABLE_ERRORS as exc:
                 record_degradation("orchestrator", exc)
                 logger.debug("Actor bus registration skipped: %s", exc)
 
@@ -1784,7 +1819,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
             else:
                 logger.error("❌ Cannot start SensoryGateActor: Supervisor Tree not available in container.")
             
-        except Exception as e:
+        except _ORCHESTRATOR_RECOVERABLE_ERRORS as e:
             record_degradation('main', e)
             
             import traceback
@@ -1833,10 +1868,10 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                                     conn = sqlite3.connect(db_file)
                                     conn.execute("VACUUM")
                                     conn.close()
-                                except Exception:
+                                except _ORCHESTRATOR_RECOVERABLE_ERRORS:
                                     logger.debug("Failed to record cognitive latency.")
                         await asyncio.to_thread(_sync_vacuum)
-                    except Exception as e:
+                    except _ORCHESTRATOR_RECOVERABLE_ERRORS as e:
                         record_degradation('main', e)
                         
                         logger.debug("Database vacuum thread failed: %s", e)
@@ -1870,7 +1905,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                             get_task_tracker().track_task(get_task_tracker().create_task(
                                 run_io_bound(self.memory.prune_low_salience, threshold_days=14)
                             ))
-                    except Exception as e:
+                    except _ORCHESTRATOR_RECOVERABLE_ERRORS as e:
                         record_degradation('main', e)
                         
                         logger.error("Vector pruning failed: %s", e, exc_info=True)
@@ -1909,7 +1944,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                                 policy_reason,
                             )
                             return
-                    except Exception as policy_exc:
+                    except _ORCHESTRATOR_RECOVERABLE_ERRORS as policy_exc:
                         record_degradation("main", policy_exc)
                         logger.debug("Terminal Monitor policy probe failed: %s", policy_exc)
                     logger.info("🔧 Terminal Monitor: Auto-fix triggered")
@@ -1946,7 +1981,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                     self._current_thought_task = get_task_tracker().track_task(get_task_tracker().create_task(
                         self.process_user_input_priority(error_goal['objective'], origin="terminal_monitor")
                     ))
-        except Exception as e:
+        except _ORCHESTRATOR_RECOVERABLE_ERRORS as e:
             record_degradation('main', e)
             
             record_degraded_event(
@@ -1970,7 +2005,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
             from core.conversation.unified_transcript import UnifiedTranscript
             transcript = UnifiedTranscript.get_instance()
             transcript.add_system(f"Spontaneous {modality} stimulus: {context}")
-        except Exception as e:
+        except _ORCHESTRATOR_RECOVERABLE_ERRORS as e:
             record_degradation('main', e)
             
             capture_and_log(e, {'module': __name__})
@@ -1994,7 +2029,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                     context={"reason": reason},
                 )
                 return
-        except Exception as e:
+        except _ORCHESTRATOR_RECOVERABLE_ERRORS as e:
             record_degradation('main', e)
             
             record_degraded_event(
@@ -2034,7 +2069,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
             from core.conversation.unified_transcript import UnifiedTranscript
             transcript = UnifiedTranscript.get_instance()
             transcript.add_voice_input(user_text)
-        except Exception as e:
+        except _ORCHESTRATOR_RECOVERABLE_ERRORS as e:
             record_degradation('main', e)
             
             capture_and_log(e, {'module': __name__})
@@ -2050,7 +2085,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
             from core.conversation.unified_transcript import UnifiedTranscript
             transcript = UnifiedTranscript.get_instance()
             transcript.add_voice_output(response)
-        except Exception as e:
+        except _ORCHESTRATOR_RECOVERABLE_ERRORS as e:
             record_degradation('main', e)
             
             capture_and_log(e, {'module': __name__})
@@ -2095,7 +2130,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                         self.status.is_processing = False
                         # Notify UI of recovery
                         await self.output_gate.emit("I've recovered from a cognitive stall. Reprioritizing...", origin="system", target="primary")
-            except Exception as e:
+            except _ORCHESTRATOR_RECOVERABLE_ERRORS as e:
                 record_degradation('main', e)
                 
                 logger.error("⚠️ Watchdog error: %s", e)
@@ -2114,15 +2149,15 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                 try:
                     loop = asyncio.get_running_loop()
                     loop.create_task(bus.publish("telemetry_update", data))
-                except RuntimeError:
+                except RuntimeError as exc:
                     # Generic fallback if no loop is running
-                    pass  # no-op: intentional
+                    logger.debug("Telemetry actor-bus publish skipped without running loop: %s", exc)
             
             # Legacy thought stream fallback
             from ..thought_stream import get_emitter
             label = data.get("label", data.get("type", "status"))
             get_emitter().emit("telemetry", str(label), level="debug")
-        except Exception as e:
+        except _ORCHESTRATOR_RECOVERABLE_ERRORS as e:
             record_degradation('main', e)
             
             logger.debug("Fast-path telemetry failed: %s", e)
@@ -2155,7 +2190,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
     # _handle_incoming_message -> IncomingLogicMixin
     # _handle_filesystem_reality_check -> IncomingLogicMixin
 
-    # _original_handle_incoming_logic -> IncomingLogicMixin (see stub below for reference)
+    # _original_handle_incoming_logic -> IncomingLogicMixin (mixin reference)
     # _original_handle_incoming_logic -> IncomingLogicMixin
     # _gather_agentic_context -> ContextStreamingMixin
     # chat_stream -> ContextStreamingMixin
@@ -2170,7 +2205,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                 _dispose_awaitable(res)
                 return "balanced"
             return res if isinstance(res, str) else "balanced"
-        except Exception:
+        except _ORCHESTRATOR_RECOVERABLE_ERRORS:
             return "balanced"
 
     def _get_current_time_str(self) -> str:
@@ -2183,7 +2218,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                 return ""
             res = time_context.get("formatted", "")
             return res if isinstance(res, str) else ""
-        except Exception:
+        except _ORCHESTRATOR_RECOVERABLE_ERRORS:
             return ""
             
 
@@ -2211,7 +2246,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                             logger.warning("Critic triggered replan: %s", judgment.evidence)
                             break
                         # If 'continue', proceed normally
-                except Exception as e:
+                except _ORCHESTRATOR_RECOVERABLE_ERRORS as e:
                     record_degradation('main', e)
                     
                     logger.debug("Critic Engine evaluation failed: %s", e)
@@ -2226,14 +2261,14 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
         is_ready = self.status.running or (self.status.initialized and not self.status.last_error)
         checks.append(("ready", is_ready))
         
-        # Check thread (Only check if running to avoid test failure on mocks)
+        # Check thread only when running to avoid test-double failures.
         if self.status.running:
             is_alive = True
             if hasattr(self, "_thread") and self._thread:
                 if hasattr(self._thread, 'is_alive'):
                     try:
                         is_alive = self._thread.is_alive()
-                    except Exception:
+                    except _ORCHESTRATOR_RECOVERABLE_ERRORS:
                         is_alive = False
             checks.append(("thread_alive", is_alive))
         
@@ -2241,7 +2276,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
         err_count = self.stats.get("errors_encountered", 0) if isinstance(self.stats, dict) else 0
         checks.append(("error_rate", err_count < 100))
         
-        # All checks must pass
+        # All checks must succeed.
         self.status.healthy = all(check[1] for check in checks)
         
         # v10.0 Parity: If status lacks expected attributes, return True conservatively
@@ -2282,7 +2317,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
                     logger.debug("Auto-suggestion source check handled.")
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except _ORCHESTRATOR_RECOVERABLE_ERRORS as e:
                 record_degradation('main', e)
                 
                 logger.error("Error in event listener loop: %s", e)
@@ -2315,7 +2350,7 @@ def create_orchestrator(**kwargs) -> RobustOrchestrator:
             logger.info("✓ Orchestrator instance created directly (v14.1)")
             return _orchestrator_instance
         
-        except Exception as exc:
+        except _ORCHESTRATOR_RECOVERABLE_ERRORS as exc:
             record_degradation('main', exc)
             
             logger.critical("CRITICAL: Orchestrator creation failed: %s", exc, exc_info=True)
