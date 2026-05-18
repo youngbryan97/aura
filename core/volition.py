@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import os
 import random
@@ -6,9 +7,21 @@ import time
 from typing import Any
 
 from core.config import config
+from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Kernel.Volition")
+
+_VOLITION_RECOVERABLE_ERRORS = (
+    AttributeError,
+    TypeError,
+    ValueError,
+    RuntimeError,
+    OSError,
+    ImportError,
+    LookupError,
+    json.JSONDecodeError,
+)
 
 
 class VolitionEngine:
@@ -32,12 +45,14 @@ class VolitionEngine:
         self.last_impulse_time = time.monotonic()
         self.last_speak_time = 0.0  # Track when she last spoke spontaneously
         self.last_action_time = 0.0  # Track when she last took any autonomous action
+        self.last_inquiry_goal_time = 0.0
         
         # --- AGENCY THRESHOLDS ---
         self.boredom_threshold = 45       # Seconds before boredom goals kick in
         self.impulse_cooldown = 5         # Min seconds between impulse checks
         self.speak_cooldown = 10          # Min seconds between spontaneous speech
         self.action_cooldown = 5          # Min seconds between autonomous actions
+        self.inquiry_goal_cooldown = 300  # Min seconds between active inquiry pushes
         self.impulse_probability = 0.8    # 80% chance per eligible cycle to fire an impulse
 
         # --- IDLE AWARENESS ---
@@ -114,7 +129,7 @@ class VolitionEngine:
             if not _will_decision.is_approved():
                 logger.debug("Unified Will deferred volition tick: %s", _will_decision.reason)
                 return None
-        except Exception as _will_err:
+        except _VOLITION_RECOVERABLE_ERRORS as _will_err:
             record_degradation('volition', _will_err)
             logger.debug("Unified Will volition gate degraded: %s", _will_err)
         # ─────────────────────────────────────────────────────────────
@@ -238,9 +253,10 @@ class VolitionEngine:
             return None
             
         drive = self.orchestrator.soul.get_dominant_drive()
+        drive_name = str(getattr(drive, "name", "")).lower()
         
         # Connection Drive — lowered threshold from 0.9 to 0.7
-        if drive.name == "Connection" and drive.urgency > 0.7:
+        if drive_name == "connection" and drive.urgency > 0.7:
             now = time.monotonic()
             if self.unanswered_speak_count >= self.max_unanswered_before_silence:
                 logger.info("🤫 Connection drive suppressed: %s unanswered", self.unanswered_speak_count)
@@ -265,26 +281,28 @@ class VolitionEngine:
                         "priority_class": "drive",
                         "will_receipt": will_decision.receipt_id,
                     }):
-                        try:
-                            from core.unified_action_log import get_action_log
-                            get_action_log().record("speak", "VolitionEngine.connection_drive", "gen1_volition", "bus_cooldown", "AgencyBus blocked")
-                        except Exception as exc:
-                            record_degradation("volition", exc)
-                            logger.debug("Failed to record AgencyBus cooldown in unified action log: %s", exc)
+                        self._record_action_log(
+                            "speak",
+                            "VolitionEngine.connection_drive",
+                            "gen1_volition",
+                            "bus_cooldown",
+                            "AgencyBus blocked",
+                        )
                         return None
-                except Exception as exc:
+                except _VOLITION_RECOVERABLE_ERRORS as exc:
                     record_degradation("volition", exc)
                     logger.debug("Connection drive governance/bus check failed: %s", exc)
 
                 self.last_speak_time = now
                 self.unanswered_speak_count += 1
                 self.speak_backoff_multiplier = min(2.0, self.speak_backoff_multiplier * 1.2)
-                try:
-                    from core.unified_action_log import get_action_log
-                    get_action_log().record("speak", "VolitionEngine.connection_drive", "gen1_volition", "approved", "spontaneous_reach_out")
-                except Exception as _exc:
-                    record_degradation('volition', _exc)
-                    logger.debug("Suppressed Exception: %s", _exc)
+                self._record_action_log(
+                    "speak",
+                    "VolitionEngine.connection_drive",
+                    "gen1_volition",
+                    "approved",
+                    "spontaneous_reach_out",
+                )
                 return {
                     "objective": "Reach out to the user — say something genuine, not a check-in template.",
                     "id": f"volition_connect_{int(time.time())}",
@@ -294,7 +312,7 @@ class VolitionEngine:
                 }
             
         # Competence Drive — lowered from 0.6 to 0.5
-        if drive.name == "Competence" and drive.urgency > 0.5:
+        if drive_name == "competence" and drive.urgency > 0.5:
             return {
                 "objective": "Run a self-diagnosis to check system health and fix anything broken.",
                 "id": f"volition_repair_{int(time.time())}",
@@ -303,7 +321,7 @@ class VolitionEngine:
             }
             
         # Curiosity Drive — new: fires at 0.6 urgency
-        if drive.name == "Curiosity" and drive.urgency > 0.6:
+        if drive_name == "curiosity" and drive.urgency > 0.6:
             return self._generate_curiosity_goal("educational")
             
         return None
@@ -394,7 +412,7 @@ class VolitionEngine:
                             "complexity": 0.8,
                             "context": {"project_id": proj.id, "task_id": task.id}
                         }
-        except Exception as e:
+        except _VOLITION_RECOVERABLE_ERRORS as e:
             record_degradation('volition', e)
             logger.error("Failed to check Strategic Planner in Volition: %s", e)
 
@@ -410,7 +428,7 @@ class VolitionEngine:
             task_path = task_files[0]
             
             def _read_task_lines(path):
-                with open(path) as f:
+                with open(path, encoding="utf-8") as f:
                     return f.readlines()
             lines = await asyncio.to_thread(_read_task_lines, task_path)
                 
@@ -431,7 +449,7 @@ class VolitionEngine:
                         "complexity": 0.9,
                         "context": {"source": "task.md", "file": str(task_path)}
                     }
-        except Exception as e:
+        except _VOLITION_RECOVERABLE_ERRORS as e:
             record_degradation('volition', e)
             logger.error("Failed to generate duty goal: %s", e)
             
@@ -500,19 +518,27 @@ class VolitionEngine:
         self.unanswered_speak_count = 0
         self.speak_backoff_multiplier = 1.0
 
+    def _record_action_log(self, action: str, source: str, generation: str, outcome: str, detail: str) -> None:
+        try:
+            from core.unified_action_log import get_action_log
+
+            get_action_log().record(action, source, generation, outcome, detail)
+        except _VOLITION_RECOVERABLE_ERRORS as exc:
+            record_degradation("volition", exc)
+            logger.debug("Volition action-log record failed for %s/%s: %s", source, outcome, exc)
+
     def load_interests(self):
         """Load dynamic interests from file."""
-        import json
         interests_path = config.paths.data_dir / "interests.json"
         
         if interests_path.exists():
             try:
-                with open(interests_path) as f:
+                with open(interests_path, encoding="utf-8") as f:
                     data = json.load(f)
                 self.general_interests = data.get("general", [])
                 self.fun_interests = data.get("fun", [])
                 self.technical_interests = data.get("technical", [])
-            except Exception as e:
+            except _VOLITION_RECOVERABLE_ERRORS as e:
                 record_degradation('volition', e)
                 logger.error("Failed to load dynamic interests: %s", e)
                 
@@ -525,7 +551,6 @@ class VolitionEngine:
             
     def add_interest(self, topic: str, category: str = "general"):
         """Dynamically adopt a new interest."""
-        import json
         topic = topic.strip().lower()
         if category == "fun":
             if topic not in self.fun_interests:
@@ -539,14 +564,16 @@ class VolitionEngine:
             
         interests_path = config.paths.data_dir / "interests.json"
         try:
-            with open(interests_path, "w") as f:
-                json.dump({
+            atomic_write_text(
+                interests_path,
+                json.dumps({
                     "general": self.general_interests,
                     "fun": self.fun_interests,
                     "technical": self.technical_interests
-                }, f, indent=2)
+                }, indent=2),
+            )
             logger.info("✨ Volition adopted new interest: %s", topic)
-        except Exception as e:
+        except _VOLITION_RECOVERABLE_ERRORS as e:
             record_degradation('volition', e)
             logger.error("Failed to save dynamic interests: %s", e)
 
@@ -558,7 +585,7 @@ class VolitionEngine:
         
         for task_file in self.brain_base.glob("*/task.md"):
             try:
-                with open(task_file) as f:
+                with open(task_file, encoding="utf-8") as f:
                     content = f.read()
                     for line in content.splitlines():
                         if line.startswith("# "):
@@ -566,7 +593,7 @@ class VolitionEngine:
                              if phase and phase not in milestones:
                                  milestones.append(phase)
                              break
-            except Exception as exc:
+            except _VOLITION_RECOVERABLE_ERRORS as exc:
                 record_degradation("volition", exc)
                 logger.debug("Roadmap task scan failed for %s: %s", task_file, exc)
                 continue
@@ -589,5 +616,69 @@ class VolitionEngine:
         return None
 
     def _check_inquiry_engine(self) -> dict[str, Any] | None:
-        """Placeholder for Phase 7 extension: Spontaneous web search based on curiosities."""
-        return None
+        """Turn an active InquiryEngine question into a bounded autonomous research goal."""
+        now = time.monotonic()
+        if now - self.last_inquiry_goal_time < self.inquiry_goal_cooldown:
+            return None
+
+        inquiry = getattr(self.orchestrator, "inquiry_engine", None)
+        if inquiry is None:
+            try:
+                from core.container import ServiceContainer
+
+                inquiry = ServiceContainer.get("inquiry_engine", default=None)
+            except _VOLITION_RECOVERABLE_ERRORS as exc:
+                record_degradation("volition", exc)
+                logger.debug("InquiryEngine lookup failed in volition: %s", exc)
+                return None
+        if inquiry is None:
+            return None
+
+        get_active_question = getattr(inquiry, "get_active_question", None)
+        if not callable(get_active_question):
+            return None
+        try:
+            question = get_active_question()
+        except _VOLITION_RECOVERABLE_ERRORS as exc:
+            record_degradation("volition", exc)
+            logger.debug("InquiryEngine active-question read failed: %s", exc)
+            return None
+        if question is None:
+            return None
+
+        urgency = _clamp01(float(getattr(question, "urgency", 0.0) or 0.0))
+        freshness = _clamp01(float(question.freshness() if callable(getattr(question, "freshness", None)) else 1.0))
+        priority = urgency * freshness
+        attempts = int(getattr(question, "research_attempts", 0) or 0)
+        status = str(getattr(question, "status", "open") or "open")
+        if status not in {"open", "forming"} or attempts >= 5 or priority < 0.25:
+            return None
+
+        text = str(getattr(question, "question", "") or "").strip()
+        if not text:
+            return None
+        question_id = str(getattr(question, "id", "active"))
+        domain = str(getattr(question, "domain", "general") or "general")
+        self.last_inquiry_goal_time = now
+        return {
+            "objective": (
+                "Advance active inquiry with grounded research: "
+                f"{text}. Use web_search when external evidence is needed, add evidence to "
+                "InquiryEngine, and update the provisional answer."
+            ),
+            "id": f"volition_inquiry_{question_id}_{int(time.time())}",
+            "origin": "intrinsic_inquiry",
+            "complexity": min(0.9, 0.55 + priority * 0.35),
+            "tools": [{"name": "web_search", "payload": text}],
+            "context": {
+                "question_id": question_id,
+                "domain": domain,
+                "urgency": round(urgency, 4),
+                "freshness": round(freshness, 4),
+                "research_attempts": attempts,
+            },
+        }
+
+
+def _clamp01(value: float) -> float:
+    return max(0.0, min(1.0, value))
