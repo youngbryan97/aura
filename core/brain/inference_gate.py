@@ -1009,13 +1009,24 @@ class InferenceGate:
             raise RuntimeError(str(exc)) from exc
 
         try:
-            await asyncio.wait_for(asyncio.shield(task), timeout=timeout)
+            task_loop = getattr(task, "get_loop", lambda: asyncio.get_running_loop())()
+            current_loop = asyncio.get_running_loop()
+            if task_loop is not current_loop:
+                async def _poll_wait():
+                    while not task.done():
+                        await asyncio.sleep(0.25)
+                    exc = task.exception()
+                    if exc:
+                        raise exc
+                    return task.result()
+                await asyncio.wait_for(_poll_wait(), timeout=timeout)
+            else:
+                await asyncio.wait_for(asyncio.shield(task), timeout=timeout)
         except asyncio.TimeoutError:
             if hasattr(self._mlx_client, "note_lane_recovering"):
                 self._mlx_client.note_lane_recovering("foreground_warmup_timeout")
             raise
         except Exception as exc:
-            record_degradation('inference_gate', exc)
             record_degradation('inference_gate', exc)
             if hasattr(self._mlx_client, "note_lane_failed"):
                 self._mlx_client.note_lane_failed(f"foreground_warmup_failed:{type(exc).__name__}")

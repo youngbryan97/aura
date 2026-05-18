@@ -71,7 +71,7 @@ class RobustLock:
             # We check the metrics collector for GPU load if possible
             try:
                 from core.observability.metrics import get_metrics
-                m = get_metrics()._gauges.get("gpu_utilization", 0)
+                m = get_metrics()._custom_gauges.get("gpu_utilization", 0)
                 if m > 0.8:
                     wait_time = max(wait_time, 180.0)
                     logger.debug(f"🛡️ [ADAPTIVE] GPU Saturated ({m:.2f}). Extending '{self.name}' timeout to {wait_time}s")
