@@ -20,34 +20,31 @@ Architecture:
   DualMemorySystem — unified interface that coordinates both, with cross-linking
 """
 
-from core.runtime.errors import record_degradation
-import asyncio
 import hashlib
 import json
 import logging
-import math
 import sqlite3
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
-from core.utils.exceptions import capture_and_log
-from core.utils.concurrency import RobustLock
+from typing import Any
 
+from core.memory.black_hole import decode_payload, encode_payload
+from core.memory.episodic_memory import Episode
 from core.memory.horcrux import HorcruxManager
-from core.memory.black_hole import encode_payload, decode_payload
-from core.memory.rag import chunk_text, tokenize, compute_term_freq, retrieve_memories_v2 as retrieve_memories
 from core.memory.physics import PhysicsEngine
+from core.memory.rag import compute_term_freq, tokenize
+from core.runtime.errors import record_degradation
+from core.utils.concurrency import RobustLock
+from core.utils.exceptions import capture_and_log
 
 logger = logging.getLogger("Core.DualMemory")
 
 
-from core.memory.episodic_memory import Episode
-
 class EpisodicMemoryStore:
     """SQLite-backed episodic memory with decay and emotional indexing."""
     
-    def __init__(self, db_path: Optional[str] = None, vault_key: str = "aura-fallback-key"):
+    def __init__(self, db_path: str | None = None, vault_key: str = "aura-fallback-key"):
         self.vault_key = vault_key
         if not db_path:
             from core.config import config
@@ -93,7 +90,7 @@ class EpisodicMemoryStore:
                 episode.decay_rate
             ))
     
-    def retrieve_recent(self, limit: int = 10, min_strength: float = 0.1) -> List[Episode]:
+    def retrieve_recent(self, limit: int = 10, min_strength: float = 0.1) -> list[Episode]:
         """Get most recent episodes, filtered by current memory strength."""
         with sqlite3.connect(self.db_path) as conn:
             rows = conn.execute("""
@@ -106,7 +103,7 @@ class EpisodicMemoryStore:
         return strong_enough[:limit]
     
     def retrieve_by_emotion(self, target_valence: float, limit: int = 5,
-                             tolerance: float = 0.3) -> List[Episode]:
+                             tolerance: float = 0.3) -> list[Episode]:
         """Retrieve episodes by emotional tone — for empathy-informed responses."""
         with sqlite3.connect(self.db_path) as conn:
             rows = conn.execute("""
@@ -118,14 +115,14 @@ class EpisodicMemoryStore:
         
         return [self._row_to_episode(row) for row in rows]
     
-    def get_all_episodes(self) -> List[Episode]:
+    def get_all_episodes(self) -> list[Episode]:
         """Fetch all episodes for RAG operations."""
         with sqlite3.connect(self.db_path) as conn:
             rows = conn.execute("SELECT * FROM episodes").fetchall()
         return [self._row_to_episode(row) for row in rows]
 
     
-    def get_salient_memories(self, top_n: int = 5) -> List[Episode]:
+    def get_salient_memories(self, top_n: int = 5) -> list[Episode]:
         """Get the most emotionally significant memories regardless of age."""
         with sqlite3.connect(self.db_path) as conn:
             rows = conn.execute("""
@@ -147,7 +144,6 @@ class EpisodicMemoryStore:
         except Exception as e:
             record_degradation('dual_memory', e)
             capture_and_log(e, {"context": "EpisodicMemoryStore.row_to_episode.decode_desc"})
-            pass  # no-op: intentional
              
         ctx = row[8] or ""
         try:
@@ -158,7 +154,6 @@ class EpisodicMemoryStore:
         except Exception as e:
             record_degradation('dual_memory', e)
             capture_and_log(e, {"context": "EpisodicMemoryStore.row_to_episode.decode_ctx"})
-            pass  # no-op: intentional
 
         return Episode(
             id=row[0], timestamp=row[1], description=desc,
@@ -188,7 +183,7 @@ class SemanticFact:
     value: str                  # The claim value
     confidence: float
     domain: str = "general"     # "science", "personal", "preference", etc.
-    source_episode_ids: List[str] = field(default_factory=list)
+    source_episode_ids: list[str] = field(default_factory=list)
     last_validated: float = field(default_factory=time.time)
     validation_count: int = 1
     
@@ -221,7 +216,7 @@ class SemanticFact:
 class SemanticMemoryStore:
     """SQLite-backed semantic fact store with concept indexing."""
     
-    def __init__(self, db_path: Optional[str] = None, vault_key: str = "aura-fallback-key"):
+    def __init__(self, db_path: str | None = None, vault_key: str = "aura-fallback-key"):
         self.vault_key = vault_key
         if not db_path:
             from core.config import config
@@ -260,7 +255,7 @@ class SemanticMemoryStore:
             ))
     
     def retrieve_by_concept(self, concept: str,
-                             min_confidence: float = 0.3) -> List[SemanticFact]:
+                             min_confidence: float = 0.3) -> list[SemanticFact]:
         """Get all facts about a concept."""
         with sqlite3.connect(self.db_path) as conn:
             rows = conn.execute("""
@@ -271,7 +266,7 @@ class SemanticMemoryStore:
         
         return [self._row_to_fact(row) for row in rows]
     
-    def get_all_facts(self) -> List[SemanticFact]:
+    def get_all_facts(self) -> list[SemanticFact]:
         """Fetch all facts for RAG operations."""
         with sqlite3.connect(self.db_path) as conn:
             rows = conn.execute("SELECT * FROM facts").fetchall()
@@ -288,7 +283,6 @@ class SemanticMemoryStore:
         except Exception as e:
             record_degradation('dual_memory', e)
             capture_and_log(e, {"context": "SemanticMemoryStore.row_to_fact.decode"})
-            pass  # no-op: intentional
         return SemanticFact(
             id=row[0], concept=row[1], predicate=row[2], value=val,
             confidence=row[4],
@@ -302,7 +296,7 @@ class SemanticMemoryStore:
 # Helpers
 # ---------------------------------------------------------------------------
 
-def retrieve_memories_sync(query: str, memories: List[Dict[str, Any]], top_k: int = 5) -> List[Dict[str, Any]]:
+def retrieve_memories_sync(query: str, memories: list[dict[str, Any]], top_k: int = 5) -> list[dict[str, Any]]:
     """Synchronous TF-IDF retrieval helper for dual memory initialization/sync points."""
     if not memories:
         return []
@@ -352,7 +346,7 @@ class DualMemorySystem:
         context = memory.retrieve_context("quantum physics", emotional_context=0.6)
     """
     
-    def __init__(self, base_dir: Optional[str] = None):
+    def __init__(self, base_dir: str | None = None):
         if not base_dir:
             from core.config import config
             base_dir = str(config.paths.data_dir / "memory")
@@ -363,7 +357,7 @@ class DualMemorySystem:
         
         self.episodic = EpisodicMemoryStore(f"{base_dir}/episodic.db", self.vault_key)
         self.semantic = SemanticMemoryStore(f"{base_dir}/semantic.db", self.vault_key)
-        self._lock: Optional[RobustLock] = None
+        self._lock: RobustLock | None = None
         logger.info("DualMemorySystem constructed with Black Hole Vault.")
     
     async def initialize(self):
@@ -374,7 +368,7 @@ class DualMemorySystem:
     
     def store_experience(self, description: str, emotional_valence: float = 0.0,
                           arousal: float = 0.5, importance: float = 0.5,
-                          tags: Optional[List[str]] = None) -> str:
+                          tags: list[str] | None = None) -> str:
         """Store a new episodic memory. Returns episode ID.
         High-importance or high-arousal episodes are stored with slower decay.
         """
@@ -454,7 +448,7 @@ class DualMemorySystem:
                         ep_ids.add(ee.id)
             
             # Build context block applying Bekenstein Bound (Max ~16000 context characters safely)
-            MAX_CONTEXT_RADIUS = 16000
+            max_context_radius = 16000
             parts = []
             current_len = 0
             
@@ -467,7 +461,7 @@ class DualMemorySystem:
                 for ep in episodes[:max_episodes]:
                     if ep.current_strength() > 0.1:
                         txt = ep.to_retrieval_text()
-                        if PhysicsEngine.check_bekenstein_bound(current_len + len(txt), MAX_CONTEXT_RADIUS):
+                        if PhysicsEngine.check_bekenstein_bound(current_len + len(txt), max_context_radius):
                              parts.append(txt)
                              current_len += len(txt)
             
@@ -477,7 +471,7 @@ class DualMemorySystem:
                 current_len += len(sep)
                 for fact in facts[:max_facts]:
                     txt = fact.to_retrieval_text()
-                    if PhysicsEngine.check_bekenstein_bound(current_len + len(txt), MAX_CONTEXT_RADIUS):
+                    if PhysicsEngine.check_bekenstein_bound(current_len + len(txt), max_context_radius):
                          parts.append(txt)
                          current_len += len(txt)
             
@@ -500,7 +494,7 @@ class DualMemorySystem:
             lines.append(f"  • {ep.to_retrieval_text()}")
         return "\n".join(lines)
     
-    def get_memory_stats(self) -> Dict[str, Any]:
+    def get_memory_stats(self) -> dict[str, Any]:
         """Summary of memory system state."""
         with sqlite3.connect(self.episodic.db_path) as conn:
             episode_count = conn.execute("SELECT COUNT(*) FROM episodes").fetchone()[0]

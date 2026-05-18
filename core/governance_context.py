@@ -39,9 +39,12 @@ import functools
 import logging
 import os
 import time
+from collections.abc import Callable
 from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass, field
-from typing import Any, Callable, Optional
+from typing import Any
+
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.Governance")
 
@@ -50,7 +53,7 @@ logger = logging.getLogger("Aura.Governance")
 # Context variable — the single source of truth
 # ---------------------------------------------------------------------------
 
-_active_receipt: contextvars.ContextVar[Optional["GovernanceToken"]] = \
+_active_receipt: contextvars.ContextVar[GovernanceToken | None] = \
     contextvars.ContextVar("active_governance_receipt", default=None)
 
 
@@ -73,9 +76,11 @@ class GovernanceToken:
         return bool(self.receipt_id) and not self.expired
 
 
-class GovernanceViolation(RuntimeError):
+class GovernanceViolationError(RuntimeError):
     """Raised when code attempts to execute without governance."""
-    pass  # no-op: intentional
+
+
+GovernanceViolation = GovernanceViolationError
 
 
 def governance_runtime_active() -> bool:
@@ -108,14 +113,16 @@ def governance_runtime_active() -> bool:
             or ServiceContainer.has("kernel_interface")
             or bool(getattr(ServiceContainer, "_registration_locked", False))
         )
-    except Exception:
+    except Exception as exc:
+        record_degradation("governance_context", exc)
+        logger.debug("Strict governance mode lookup failed: %s", exc)
         return False
 
 
 def normalize_governance_domain(value: Any) -> str:
     """Normalize Will/constitutional/effect domains into one runtime vocabulary."""
     if hasattr(value, "value"):
-        value = getattr(value, "value")
+        value = value.value
     text = str(value or "").strip().lower()
     if not text:
         return "unknown"
@@ -216,7 +223,7 @@ def governed_scope_sync(decision: Any):
 # Enforcement
 # ---------------------------------------------------------------------------
 
-def get_active_governance() -> Optional[GovernanceToken]:
+def get_active_governance() -> GovernanceToken | None:
     """Get the current governance token, or None if ungoverned."""
     token = _active_receipt.get()
     if token and token.valid:
@@ -233,7 +240,7 @@ def require_governance(
     operation: str = "unknown",
     *,
     strict: bool = False,
-    allowed_domains: Optional[list[str] | tuple[str, ...] | set[str]] = None,
+    allowed_domains: list[str] | tuple[str, ...] | set[str] | None = None,
 ) -> GovernanceToken:
     """Assert that current execution is governed. Raises GovernanceViolation if not.
 
@@ -332,8 +339,9 @@ def _record_violation(operation: str) -> None:
             "operation": operation,
             "timestamp": time.time(),
         })
-    except Exception:
-        pass  # no-op: intentional
+    except Exception as exc:
+        record_degradation("governance_context", exc)
+        logger.debug("Governance violation event publish failed for %s: %s", operation, exc)
 
 
 def get_violations(n: int = 20) -> list:

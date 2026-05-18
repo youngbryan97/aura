@@ -1,14 +1,12 @@
-from core.runtime.errors import record_degradation
+import asyncio
 import logging
+import os
 import random
 import time
-import asyncio
-import os
-from datetime import datetime
-from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from core.config import config
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Kernel.Volition")
 
@@ -49,7 +47,7 @@ class VolitionEngine:
         
         self.is_dreaming = False
         self._consecutive_idle_cycles = 0
-        self._recent_impulse_types: List[str] = []  # Track recent impulse types to avoid repetition
+        self._recent_impulse_types: list[str] = []  # Track recent impulse types to avoid repetition
         
         # Personality quirks (Broadened Horizons - Dynamic Phase 8)
         self.general_interests = []
@@ -97,7 +95,7 @@ class VolitionEngine:
         self.brain_base = config.paths.brain_dir
         self.milestones = self._scan_roadmap()
 
-    async def tick(self, current_goal: Any) -> Optional[Dict[str, Any]]:
+    async def tick(self, current_goal: Any) -> dict[str, Any] | None:
         """Process a single volition cycle to determine if action is needed."""
         # Check if we should even process this tick
         if self._should_skip_tick(current_goal):
@@ -141,7 +139,7 @@ class VolitionEngine:
             
         return False
 
-    def _seconds_since_activity(self, now_monotonic: Optional[float] = None) -> float:
+    def _seconds_since_activity(self, now_monotonic: float | None = None) -> float:
         """Support legacy wall-clock timestamps and current monotonic timestamps."""
         now_monotonic = time.monotonic() if now_monotonic is None else now_monotonic
         idle_time = now_monotonic - self.last_activity_time
@@ -153,7 +151,7 @@ class VolitionEngine:
             return wall_idle_time
         return 0.0
 
-    async def _search_for_autonomous_goals(self) -> List[Dict[str, Any]]:
+    async def _search_for_autonomous_goals(self) -> list[dict[str, Any]]:
         """Identify potential interests or needs requires action."""
         now = time.monotonic()
         potential_goals = []
@@ -193,7 +191,7 @@ class VolitionEngine:
 
         return potential_goals
 
-    def _select_and_parse_goal(self, potential_goals: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    def _select_and_parse_goal(self, potential_goals: list[dict[str, Any]]) -> dict[str, Any] | None:
         """Select the highest priority goal and ensure correct formatting.
         Priority Selection: Strategic Duty > Soul Drives > Impulse > Boredom.
         """
@@ -219,7 +217,7 @@ class VolitionEngine:
 
         return selected_goal
 
-    async def _generate_boredom_goal(self) -> Optional[Dict[str, Any]]:
+    async def _generate_boredom_goal(self) -> dict[str, Any] | None:
         """Determine what kind of boredom goal to generate based on idle state."""
         roll = random.random()
         if roll < 0.30:
@@ -234,7 +232,7 @@ class VolitionEngine:
         else:
             return self._generate_curiosity_goal("fun")
             
-    def _check_soul_drives(self) -> Optional[Dict[str, Any]]:
+    def _check_soul_drives(self) -> dict[str, Any] | None:
         """Check Soul drives for urgent needs."""
         if not hasattr(self.orchestrator, 'soul') or not self.orchestrator.soul:
             return None
@@ -270,9 +268,13 @@ class VolitionEngine:
                         try:
                             from core.unified_action_log import get_action_log
                             get_action_log().record("speak", "VolitionEngine.connection_drive", "gen1_volition", "bus_cooldown", "AgencyBus blocked")
-                        except Exception: pass
+                        except Exception as exc:
+                            record_degradation("volition", exc)
+                            logger.debug("Failed to record AgencyBus cooldown in unified action log: %s", exc)
                         return None
-                except Exception: pass
+                except Exception as exc:
+                    record_degradation("volition", exc)
+                    logger.debug("Connection drive governance/bus check failed: %s", exc)
 
                 self.last_speak_time = now
                 self.unanswered_speak_count += 1
@@ -306,7 +308,7 @@ class VolitionEngine:
             
         return None
     
-    def _generate_impulse(self, now: float) -> Optional[Dict[str, Any]]:
+    def _generate_impulse(self, now: float) -> dict[str, Any] | None:
         """Generate a micro-action impulse."""
         all_types = list(self.impulse_templates.keys())
         
@@ -374,7 +376,7 @@ class VolitionEngine:
             "speak": speaks,
         }
 
-    async def _generate_duty_goal(self) -> Optional[Dict[str, Any]]:
+    async def _generate_duty_goal(self) -> dict[str, Any] | None:
         """Check ProjectStore for active project tasks, otherwise fallback to task.md."""
         # 1. Strategic Project Task Priority (Phase 17)
         try:
@@ -408,14 +410,15 @@ class VolitionEngine:
             task_path = task_files[0]
             
             def _read_task_lines(path):
-                with open(path, "r") as f:
+                with open(path) as f:
                     return f.readlines()
             lines = await asyncio.to_thread(_read_task_lines, task_path)
                 
             for line in lines:
                 if "- [ ]" in line or "- [/]" in line:
                     task_name = line.split("]", 1)[1].strip()
-                    if not task_name: continue
+                    if not task_name:
+                        continue
                     
                     objective = f"I need to work on the roadmap task: {task_name}. Check the plan and execute."
                     logger.info("🫡 Duty Calls: %s", objective)
@@ -434,7 +437,7 @@ class VolitionEngine:
             
         return None
 
-    def _generate_reflection_goal(self) -> Dict[str, Any]:
+    def _generate_reflection_goal(self) -> dict[str, Any]:
         """Generate a goal to reflect on recent learnings or memories."""
         templates = [
             "Review recent memories and summarize key learnings.",
@@ -455,7 +458,7 @@ class VolitionEngine:
             "complexity": 0.6
         }
 
-    def _generate_curiosity_goal(self, mode: str = "educational") -> Dict[str, Any]:
+    def _generate_curiosity_goal(self, mode: str = "educational") -> dict[str, Any]:
         """Generate a deep, nuance, or fun goal."""
         templates_general = [
             "Investigate the paradox of {topic} and its implications.",
@@ -504,7 +507,7 @@ class VolitionEngine:
         
         if interests_path.exists():
             try:
-                with open(interests_path, "r") as f:
+                with open(interests_path) as f:
                     data = json.load(f)
                 self.general_interests = data.get("general", [])
                 self.fun_interests = data.get("fun", [])
@@ -525,11 +528,14 @@ class VolitionEngine:
         import json
         topic = topic.strip().lower()
         if category == "fun":
-            if topic not in self.fun_interests: self.fun_interests.append(topic)
+            if topic not in self.fun_interests:
+                self.fun_interests.append(topic)
         elif category == "technical":
-            if topic not in self.technical_interests: self.technical_interests.append(topic)
+            if topic not in self.technical_interests:
+                self.technical_interests.append(topic)
         else:
-            if topic not in self.general_interests: self.general_interests.append(topic)
+            if topic not in self.general_interests:
+                self.general_interests.append(topic)
             
         interests_path = config.paths.data_dir / "interests.json"
         try:
@@ -544,7 +550,7 @@ class VolitionEngine:
             record_degradation('volition', e)
             logger.error("Failed to save dynamic interests: %s", e)
 
-    def _scan_roadmap(self) -> List[str]:
+    def _scan_roadmap(self) -> list[str]:
         """Scan historical brain directories for evolutionary milestones."""
         milestones = []
         if not self.brain_base.exists():
@@ -552,7 +558,7 @@ class VolitionEngine:
         
         for task_file in self.brain_base.glob("*/task.md"):
             try:
-                with open(task_file, "r") as f:
+                with open(task_file) as f:
                     content = f.read()
                     for line in content.splitlines():
                         if line.startswith("# "):
@@ -560,11 +566,13 @@ class VolitionEngine:
                              if phase and phase not in milestones:
                                  milestones.append(phase)
                              break
-            except Exception:
+            except Exception as exc:
+                record_degradation("volition", exc)
+                logger.debug("Roadmap task scan failed for %s: %s", task_file, exc)
                 continue
         return sorted(milestones)
 
-    def _check_roadmap(self) -> Optional[Dict[str, Any]]:
+    def _check_roadmap(self) -> dict[str, Any] | None:
         """Identify the next evolutionary step."""
         if not self.milestones:
             self.milestones = self._scan_roadmap()
@@ -580,6 +588,6 @@ class VolitionEngine:
             }
         return None
 
-    def _check_inquiry_engine(self) -> Optional[Dict[str, Any]]:
+    def _check_inquiry_engine(self) -> dict[str, Any] | None:
         """Placeholder for Phase 7 extension: Spontaneous web search based on curiosities."""
         return None
