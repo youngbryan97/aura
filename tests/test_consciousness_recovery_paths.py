@@ -10,17 +10,23 @@ import numpy as np
 from core.consciousness import (
     affective_steering,
     aura_protocol,
+    closed_loop,
     consciousness_bridge,
     endogenous_fitness,
     executive_closure,
     experience_consolidator,
     free_energy,
+    global_workspace,
+    liquid_substrate,
+    loop_monitor,
+    mesh_cognition,
     mhaf_field,
     neural_mesh,
     neurochemical_system,
     parallel_branches,
     phi_core,
     precision_sampler,
+    resource_stakes,
     stdp_learning,
     substrate_authority,
     time_dilation,
@@ -28,15 +34,21 @@ from core.consciousness import (
 )
 from core.consciousness.affective_steering import SteeringVectorLibrary, SubstrateSyncThread
 from core.consciousness.aura_protocol import AuraProtocolClient, build_message_from_state
+from core.consciousness.closed_loop import OutputReceptor
 from core.consciousness.consciousness_bridge import ConsciousnessBridge
 from core.consciousness.endogenous_fitness import EndogenousFitness
 from core.consciousness.executive_closure import ExecutiveClosureEngine
 from core.consciousness.experience_consolidator import ExperienceConsolidator
 from core.consciousness.free_energy import FreeEnergyEngine
+from core.consciousness.global_workspace import CognitiveCandidate, GlobalWorkspace
+from core.consciousness.liquid_substrate import LiquidSubstrate, SubstrateConfig
+from core.consciousness.loop_monitor import ConsciousnessLoopMonitor
+from core.consciousness.mesh_cognition import MeshCognition
 from core.consciousness.neurochemical_system import NeurochemicalSystem
 from core.consciousness.parallel_branches import BranchManager
 from core.consciousness.phi_core import PhiCore
 from core.consciousness.precision_sampler import ActiveInferenceSampler
+from core.consciousness.resource_stakes import ResourceStakesEngine
 from core.consciousness.stdp_learning import STDPLearningEngine
 from core.consciousness.structural_opacity import StructuralOpacityMonitor
 from core.consciousness.substrate_authority import (
@@ -774,3 +786,219 @@ def test_unified_field_gamma_failure_and_projection_recovery(monkeypatch):
         ("unified_field", "RuntimeError"),
         ("unified_field", "ValueError"),
     ]
+
+
+def test_mesh_cognition_signal_failures_are_visible(monkeypatch):
+    recorded: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        mesh_cognition,
+        "record_degradation",
+        lambda module, exc: recorded.append((module, type(exc).__name__)),
+    )
+
+    class _BrokenAffect:
+        def __init__(self):
+            self.read_attempted = False
+
+        @property
+        def valence(self):
+            self.read_attempted = True
+            raise RuntimeError("affect unavailable")
+
+    services = {
+        "liquid_substrate": types.SimpleNamespace(
+            get_substrate_affect=lambda: {"valence": object()}
+        ),
+        "resource_stakes": types.SimpleNamespace(
+            action_envelope=_FailingCallable("stakes envelope unavailable"),
+        ),
+        "global_workspace": types.SimpleNamespace(
+            current_winner=_FailingCallable("workspace unavailable"),
+        ),
+    }
+    monkeypatch.setattr(
+        "core.container.ServiceContainer.get",
+        lambda name, default=None: services.get(name, default),
+    )
+
+    signals = MeshCognition()._gather_signals(types.SimpleNamespace(affect=_BrokenAffect()))
+
+    assert signals == {}
+    assert recorded == [
+        ("mesh_cognition", "RuntimeError"),
+        ("mesh_cognition", "TypeError"),
+        ("mesh_cognition", "RuntimeError"),
+        ("mesh_cognition", "RuntimeError"),
+    ]
+
+
+def test_resource_stakes_signal_failures_are_visible(monkeypatch, tmp_path):
+    recorded: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        resource_stakes,
+        "record_degradation",
+        lambda module, exc: recorded.append((module, type(exc).__name__)),
+    )
+    monkeypatch.setattr(
+        "core.container.ServiceContainer.get",
+        lambda _name, default=None: types.SimpleNamespace(
+            apply_event=_FailingCallable("neurochemical event unavailable")
+        ),
+    )
+
+    stakes = ResourceStakesEngine(data_dir=tmp_path)
+    stakes._signal_reward("unit")
+    stakes._signal_stress("unit", 0.8)
+
+    assert recorded == [
+        ("resource_stakes", "RuntimeError"),
+        ("resource_stakes", "RuntimeError"),
+    ]
+
+
+def test_liquid_substrate_affect_and_chaos_recovery_are_visible(monkeypatch, tmp_path):
+    recorded: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        liquid_substrate,
+        "record_degradation",
+        lambda module, exc: recorded.append((module, type(exc).__name__)),
+    )
+
+    substrate = LiquidSubstrate(
+        SubstrateConfig(neuron_count=4, state_file=tmp_path / "substrate_state.npy")
+    )
+    substrate.x = np.array([], dtype=np.float64)
+
+    assert substrate.get_substrate_affect() == {
+        "valence": 0.0,
+        "arousal": 0.3,
+        "dominance": 0.0,
+        "energy": 0.5,
+        "volatility": 0.0,
+    }
+
+    substrate.x = np.zeros(4, dtype=np.float64)
+    substrate.W = np.zeros((4, 4), dtype=np.float64)
+    substrate._chaos_engine = types.SimpleNamespace(
+        tick=_FailingCallable("chaos unavailable")
+    )
+    substrate._step_torch_math(0.01)
+
+    assert recorded == [
+        ("liquid_substrate", "IndexError"),
+        ("liquid_substrate", "RuntimeError"),
+    ]
+
+
+async def test_liquid_substrate_gate_scar_failures_are_visible(monkeypatch, tmp_path):
+    recorded: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        liquid_substrate,
+        "record_degradation",
+        lambda module, exc: recorded.append((module, type(exc).__name__)),
+    )
+    monkeypatch.setattr(
+        "core.container.ServiceContainer.get",
+        lambda name, default=None: types.SimpleNamespace(
+            authorize=_FailingCallable("authority unavailable")
+        ) if name == "substrate_authority" else default,
+    )
+
+    scar_module = types.ModuleType("core.memory.scar_formation")
+    scar_module.ScarDomain = types.SimpleNamespace(AUTHORITY_GATE_FAILURE="authority")
+    scar_module.get_scar_formation = _FailingCallable("scar unavailable")
+    monkeypatch.setitem(sys.modules, "core.memory.scar_formation", scar_module)
+
+    substrate = LiquidSubstrate(
+        SubstrateConfig(neuron_count=4, state_file=tmp_path / "substrate_state.npy")
+    )
+    await substrate.inject_stimulus(np.ones(4), weight=1.0)
+
+    assert recorded == [
+        ("liquid_substrate", "RuntimeError"),
+        ("liquid_substrate", "RuntimeError"),
+    ]
+
+
+def test_closed_loop_output_lookup_failure_is_visible(monkeypatch):
+    recorded: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        closed_loop,
+        "record_degradation",
+        lambda module, exc: recorded.append((module, type(exc).__name__)),
+    )
+    monkeypatch.setattr(
+        "core.container.ServiceContainer.get",
+        _FailingCallable("container unavailable"),
+    )
+
+    result = OutputReceptor().receive_output("A wonderful curious signal with enough affect.")
+
+    assert result is None
+    assert recorded == [("closed_loop", "RuntimeError")]
+
+
+async def test_global_workspace_theory_arbitration_failure_is_visible(monkeypatch):
+    recorded: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        global_workspace,
+        "record_degradation",
+        lambda module, exc: recorded.append((module, type(exc).__name__)),
+    )
+    monkeypatch.setattr(global_workspace.ServiceContainer, "get", lambda *_args, **_kwargs: None)
+
+    peripheral_module = types.ModuleType("core.consciousness.peripheral_awareness")
+    peripheral_module.get_peripheral_awareness_engine = lambda: types.SimpleNamespace(
+        process_workspace_results=lambda **_kwargs: None
+    )
+    monkeypatch.setitem(sys.modules, "core.consciousness.peripheral_awareness", peripheral_module)
+
+    unity_module = types.ModuleType("core.unity")
+    unity_module.get_unity_runtime = lambda: types.SimpleNamespace(
+        record_workspace_competition=lambda *_args, **_kwargs: None
+    )
+    monkeypatch.setitem(sys.modules, "core.unity", unity_module)
+
+    emitter_module = types.ModuleType("core.thought_stream")
+    emitter_module.get_emitter = lambda: types.SimpleNamespace(
+        emit=lambda **_kwargs: None
+    )
+    monkeypatch.setitem(sys.modules, "core.thought_stream", emitter_module)
+
+    arbitration_module = types.ModuleType("core.consciousness.theory_arbitration")
+    arbitration_module.get_theory_arbitration = _FailingCallable("arbitration unavailable")
+    monkeypatch.setitem(sys.modules, "core.consciousness.theory_arbitration", arbitration_module)
+
+    workspace = GlobalWorkspace()
+    await workspace.submit(CognitiveCandidate(content="ignite", source="unit", priority=1.0))
+    winner = await workspace.run_competition()
+
+    assert winner is not None
+    assert recorded == [("global_workspace", "RuntimeError")]
+
+
+def test_loop_monitor_stale_cache_heal_failure_is_visible(monkeypatch):
+    recorded: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        loop_monitor,
+        "record_degradation",
+        lambda module, exc: recorded.append((module, type(exc).__name__)),
+    )
+
+    class _StickyHeartbeat:
+        def __init__(self):
+            self._qualia_cache = None
+            self.delete_attempts: list[str] = []
+
+        def __delattr__(self, name):
+            self.delete_attempts.append(name)
+            raise RuntimeError("cache cannot be cleared")
+
+    service_container = types.SimpleNamespace(
+        get=lambda name, default=None: _StickyHeartbeat() if name == "heartbeat" else default
+    )
+
+    healed = ConsciousnessLoopMonitor()._try_heal_stale_cache(service_container, object())
+
+    assert healed is False
+    assert recorded == [("loop_monitor", "RuntimeError")]

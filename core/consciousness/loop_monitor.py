@@ -53,14 +53,13 @@ INSTALL:
   Or via apply_consciousness_patches() which handles all three patches.
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
-
 
 import asyncio
 import logging
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
+
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.LoopMonitor")
 
@@ -80,14 +79,14 @@ class ConsciousnessLoopMonitor:
     attempts self-healing where possible, tracks health history.
     """
 
-    def __init__(self, orchestrator: Optional[Any] = None) -> None:
+    def __init__(self, orchestrator: Any | None = None) -> None:
         self.orchestrator = orchestrator
-        self._task:             Optional[asyncio.Task] = None
+        self._task:             asyncio.Task | None = None
         self._running:          bool  = False
         self._last_healthy_at:  float = 0.0
         self._last_check_at:    float = 0.0
         self._consecutive_healthy: int = 0
-        self._issue_log:        List[Dict[str, Any]] = []
+        self._issue_log:        list[dict[str, Any]] = []
         self._healed_count:     int = 0
 
     # ─────────────────────────────────────────────────────────────────────────
@@ -160,9 +159,9 @@ class ConsciousnessLoopMonitor:
     # Health checks
     # ─────────────────────────────────────────────────────────────────────────
 
-    async def _run_checks(self) -> List[Dict[str, Any]]:
+    async def _run_checks(self) -> list[dict[str, Any]]:
         """Run all checks. Returns list of issue dicts (empty = healthy)."""
-        issues: List[Dict[str, Any]] = []
+        issues: list[dict[str, Any]] = []
 
         sc = self._get_service_container()
         if sc is None:
@@ -291,7 +290,9 @@ class ConsciousnessLoopMonitor:
                 delattr(heartbeat, "_qualia_cache")
                 logger.debug("LoopMonitor: cleared stale _qualia_cache on Heartbeat")
                 return True
-            except Exception:
+            except Exception as exc:
+                record_degradation("loop_monitor", exc)
+                logger.debug("LoopMonitor stale-cache heal failed: %s", exc)
                 return False
         # Cache is already live — no heal needed
         return False
@@ -300,7 +301,7 @@ class ConsciousnessLoopMonitor:
     # Manual probe
     # ─────────────────────────────────────────────────────────────────────────
 
-    async def probe_now(self) -> Dict[str, Any]:
+    async def probe_now(self) -> dict[str, Any]:
         """
         Run a health check immediately and return a summary dict.
         Useful for debugging or dashboard refresh.
@@ -318,7 +319,7 @@ class ConsciousnessLoopMonitor:
     # Status
     # ─────────────────────────────────────────────────────────────────────────
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         now = time.time()
         recent_issues = [
             i for i in self._issue_log
@@ -338,14 +339,14 @@ class ConsciousnessLoopMonitor:
     # Helpers
     # ─────────────────────────────────────────────────────────────────────────
 
-    def _get_service_container(self) -> Optional[Any]:
+    def _get_service_container(self) -> Any | None:
         try:
             from core.container import ServiceContainer
             return ServiceContainer
-        except Exception:
+        except ImportError:
             return None
 
-    def _get(self, sc: Any, key: str) -> Optional[Any]:
+    def _get(self, sc: Any, key: str) -> Any | None:
         try:
             if sc is None:
                 return None
@@ -366,10 +367,10 @@ _SENTINEL = object()
 # Factory
 # ─────────────────────────────────────────────────────────────────────────────
 
-_monitor_instance: Optional[ConsciousnessLoopMonitor] = None
+_monitor_instance: ConsciousnessLoopMonitor | None = None
 
 
-def get_loop_monitor(orchestrator: Optional[Any] = None) -> ConsciousnessLoopMonitor:
+def get_loop_monitor(orchestrator: Any | None = None) -> ConsciousnessLoopMonitor:
     """Return the singleton ConsciousnessLoopMonitor, creating if needed."""
     global _monitor_instance
     if _monitor_instance is None:

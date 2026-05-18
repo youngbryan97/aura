@@ -1,21 +1,19 @@
 from __future__ import annotations
-from core.runtime.errors import record_degradation
 
-from core.utils.task_tracker import get_task_tracker
 import asyncio
 import inspect
 import logging
 import time
+from collections.abc import Callable, Coroutine
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Any, Callable, Coroutine, Dict, List, Optional, Tuple, Union, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from core.container import ServiceContainer
+from core.runtime.errors import record_degradation
+from core.utils.task_tracker import get_task_tracker
 
 if TYPE_CHECKING:
-    from core.orchestrator import RobustOrchestrator
-    from core.agency_core import AgencyCore, AgencyState, EngagementMode
-    from core.cognitive_integration_layer import CognitiveIntegrationLayer
     from core.resilience.inhibition_manager import InhibitionManager
 
 logger = logging.getLogger("Consciousness.GlobalWorkspace")
@@ -46,8 +44,8 @@ class WorkItem:
     ts: float = field(compare=False)
     id: str = field(compare=False)
     source: str = field(compare=False)
-    payload: Dict[str, Any] = field(compare=False)
-    reason: Optional[str] = field(compare=False)
+    payload: dict[str, Any] = field(compare=False)
+    reason: str | None = field(compare=False)
 
 
 @dataclass
@@ -82,14 +80,14 @@ class BroadcastEvent:
     """The formal event emitted on a workspace competition win.
     Compatible with PhenomenologicalExperiencer.
     """
-    winners: List[CognitiveCandidate]
+    winners: list[CognitiveCandidate]
     timestamp: float = field(default_factory=time.time)
 
 
 @dataclass
 class BroadcastRecord:
     winner: CognitiveCandidate
-    losers: List[str]          # source names of losers
+    losers: list[str]          # source names of losers
     timestamp: float = field(default_factory=time.time)
 
 
@@ -120,17 +118,17 @@ class GlobalWorkspace:
     _PHI_PRIORITY_BOOST: float = 0.15  # Max priority bonus for high-Φ sources
 
     def __init__(self, attention_schema: Any = None):
-        self._lock: Optional[asyncio.Lock] = None
-        self._candidates: List[CognitiveCandidate] = []
-        self._inhibited: Dict[str, int] = {}   # source -> ticks_remaining
-        self._processors: List[ProcessorFn] = []
-        self._history: List[BroadcastRecord] = []
+        self._lock: asyncio.Lock | None = None
+        self._candidates: list[CognitiveCandidate] = []
+        self._inhibited: dict[str, int] = {}   # source -> ticks_remaining
+        self._processors: list[ProcessorFn] = []
+        self._history: list[BroadcastRecord] = []
         self._tick: int = 0
         self.attention_schema: Any = attention_schema
-        self.last_winner: Optional[CognitiveCandidate] = None
+        self.last_winner: CognitiveCandidate | None = None
         
         # [UNITY] Global Inhibition Link
-        self._global_inhibition: Optional[InhibitionManager] = None
+        self._global_inhibition: InhibitionManager | None = None
         
         # --- Ignition Detection (GWT) ---
         self.ignition_level: float = 0.0    # 0.0-1.0 current ignition intensity
@@ -141,12 +139,12 @@ class GlobalWorkspace:
         logger.info("GlobalWorkspace initialized (ignition_threshold=%.2f).", self._IGNITION_THRESHOLD)
 
     @property
-    def history(self) -> List[BroadcastRecord]:
+    def history(self) -> list[BroadcastRecord]:
         """Backward compatibility for AttentionSummarizer."""
         return self._history
 
     @history.setter
-    def history(self, value: List[BroadcastRecord]):
+    def history(self, value: list[BroadcastRecord]):
         self._history = value
 
     # ------------------------------------------------------------------
@@ -194,7 +192,8 @@ class GlobalWorkspace:
                     if mycelium:
                         # Establish a 'tension' state via mycelium
                         h = mycelium.get_hypha("consciousness", "workspace")
-                        if h: h.strength = 10.0 # Thicken the visual noise
+                        if h:
+                            h.strength = 10.0 # Thicken the visual noise
                         get_task_tracker().create_task(mycelium.emit_reflex("NEURAL_FLOOD", {"source": candidate.source}))
                 except Exception as _e:
                     record_degradation('global_workspace', _e)
@@ -222,7 +221,7 @@ class GlobalWorkspace:
     # Competition — called once per heartbeat tick
     # ------------------------------------------------------------------
 
-    async def run_competition(self) -> Optional[CognitiveCandidate]:
+    async def run_competition(self) -> CognitiveCandidate | None:
         """Run the competitive selection. Returns the winner (or None if no candidates).
         Inhibits losers and broadcasts winner to all registered processors.
         """
@@ -237,7 +236,8 @@ class GlobalWorkspace:
             mycelium = ServiceContainer.get("mycelial_network", default=None)
             if mycelium:
                 hypha = mycelium.get_hypha("consciousness", "workspace")
-                if hypha: hypha.pulse(success=True)
+                if hypha:
+                    hypha.pulse(success=True)
         except Exception as _e:
             record_degradation('global_workspace', _e)
             logger.debug('Ignored Exception in global_workspace.py: %s', _e)
@@ -268,7 +268,7 @@ class GlobalWorkspace:
             # Record
             record = BroadcastRecord(
                 winner=winner,
-                losers=[l.source for l in losers]
+                losers=[loser.source for loser in losers]
             )
             self._history.append(record)
             if len(self._history) > 100:
@@ -284,8 +284,8 @@ class GlobalWorkspace:
             all_candidates_data = [
                 {"source": winner.source, "priority": winner.effective_priority, "content": str(winner.content)[:200]}
             ] + [
-                {"source": l.source, "priority": l.effective_priority, "content": str(l.content)[:200]}
-                for l in losers
+                {"source": loser.source, "priority": loser.effective_priority, "content": str(loser.content)[:200]}
+                for loser in losers
             ]
             get_peripheral_awareness_engine().process_workspace_results(
                 winner_source=winner.source,
@@ -334,8 +334,9 @@ class GlobalWorkspace:
                     prediction="phi_determines_coherence_not_broadcast",
                     confidence=0.6,
                 )
-            except Exception:
-                pass  # Theory arbitration is optional
+            except Exception as exc:
+                record_degradation("global_workspace", exc)
+                logger.debug("GW theory arbitration feed skipped: %s", exc)
 
         # 4. Neural Feed Transparency (Phase 13)
         try:
@@ -349,7 +350,7 @@ class GlobalWorkspace:
                     metadata={
                         "tick": self._tick,
                         "winner_priority": round(winner.effective_priority, 3),
-                        "losers": [l.source for l in losers[:3]]
+                        "losers": [loser.source for loser in losers[:3]]
                     }
                 )
         except Exception as e:
@@ -378,7 +379,7 @@ class GlobalWorkspace:
         )
         return winner
 
-    async def _safe_call(self, fn: ProcessorFn, event: Union[BroadcastEvent, CognitiveCandidate]):
+    async def _safe_call(self, fn: ProcessorFn, event: BroadcastEvent | CognitiveCandidate):
         try:
             # Handle both legacy single-candidate and new broadcast-event formats
             res = fn(event)
@@ -392,7 +393,7 @@ class GlobalWorkspace:
     # Snapshot
     # ------------------------------------------------------------------
 
-    def get_snapshot(self) -> Dict[str, Any]:
+    def get_snapshot(self) -> dict[str, Any]:
         last = self.last_winner
         return {
             "tick": self._tick,
@@ -422,7 +423,7 @@ class GlobalWorkspace:
         """Current ignition intensity (0.0-1.0)."""
         return self.ignition_level
 
-    def get_last_n_winners(self, n: int = 5) -> List[Dict]:
+    def get_last_n_winners(self, n: int = 5) -> list[dict]:
         return [
             {
                 "winner": r.winner.source,

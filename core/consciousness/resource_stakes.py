@@ -20,18 +20,16 @@ Integration:
 - Persists across restarts via state file
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
-
-from core.runtime.atomic_writer import atomic_write_text
 
 import json
 import logging
 import time
-from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
+
+from core.runtime.atomic_writer import atomic_write_text
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Consciousness.ResourceStakes")
 
@@ -72,12 +70,12 @@ class ResourceStakesEngine:
     _MIN_BUDGET = 0.2              # Never drop below 20% — prevent total shutdown
     _NATURAL_RECOVERY_RATE = 0.005  # Slow natural recovery per tick even without success
 
-    def __init__(self, data_dir: Optional[Path] = None):
+    def __init__(self, data_dir: Path | None = None):
         if data_dir is None:
             try:
                 from core.config import config
                 data_dir = config.paths.data_dir / "consciousness"
-            except Exception:
+            except (AttributeError, ImportError, OSError, RuntimeError, TypeError, ValueError):
                 data_dir = Path.home() / ".aura" / "data" / "consciousness"
         data_dir.mkdir(parents=True, exist_ok=True)
         self._state_path = data_dir / self._STATE_FILE
@@ -166,8 +164,9 @@ class ResourceStakesEngine:
             nchem = ServiceContainer.get("neurochemical_system", default=None)
             if nchem and hasattr(nchem, "apply_event"):
                 nchem.apply_event("prediction_success", intensity=0.2)
-        except Exception:
-            pass  # no-op: intentional
+        except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation("resource_stakes", exc)
+            logger.debug("ResourceStakes reward signal failed for %s: %s", source, exc)
 
     def _signal_stress(self, source: str, severity: float):
         """Signal neurochemical stress on failure."""
@@ -176,8 +175,9 @@ class ResourceStakesEngine:
             nchem = ServiceContainer.get("neurochemical_system", default=None)
             if nchem and hasattr(nchem, "apply_event"):
                 nchem.apply_event("resource_threat", intensity=severity * 0.3)
-        except Exception:
-            pass  # no-op: intentional
+        except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation("resource_stakes", exc)
+            logger.debug("ResourceStakes stress signal failed for %s: %s", source, exc)
 
     def get_compute_budget(self) -> float:
         """Current compute budget (0-1). Used by mind_tick to gate background work."""
@@ -203,7 +203,7 @@ class ResourceStakesEngine:
             f"Improve prediction accuracy to restore full capacity."
         )
 
-    def get_snapshot(self) -> Dict[str, Any]:
+    def get_snapshot(self) -> dict[str, Any]:
         """Telemetry payload."""
         return {
             "compute_budget": round(self._state.compute_budget, 4),
@@ -220,7 +220,7 @@ class ResourceStakesEngine:
 
 # ── Singleton ────────────────────────────────────────────────────────────────
 
-_instance: Optional[ResourceStakesEngine] = None
+_instance: ResourceStakesEngine | None = None
 
 
 def get_resource_stakes() -> ResourceStakesEngine:

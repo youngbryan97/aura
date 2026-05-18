@@ -11,22 +11,20 @@ theory (Laukkonen, Friston & Chandaria 2025), and the Free Energy Principle:
   [C] PhiWitness:         measures resulting causal integration via transfer entropy
 """
 
-from core.runtime.errors import record_degradation
-from core.utils.task_tracker import get_task_tracker
 import asyncio
-import json
 import logging
 import math
-import os
-import tempfile
 import threading
 import time
 from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
+
+from core.runtime.errors import record_degradation
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.ClosedLoop")
 
@@ -85,10 +83,14 @@ class PredictionCycle:
     @property
     def surprise_narrative(self) -> str:
         f = self.free_energy
-        if f > 0.6:   return "profound surprise — something unexpected is happening"
-        if f > 0.4:   return "notable surprise — something shifted"
-        if f > 0.2:   return "mild novelty — slightly different than expected"
-        if f > 0.05:  return "small variation — mostly as predicted"
+        if f > 0.6:
+            return "profound surprise — something unexpected is happening"
+        if f > 0.4:
+            return "notable surprise — something shifted"
+        if f > 0.2:
+            return "mild novelty — slightly different than expected"
+        if f > 0.05:
+            return "small variation — mostly as predicted"
         return "full predictability — exactly as expected"
 
 
@@ -103,7 +105,7 @@ class LoopState:
     min_free_energy: float = float("inf")
     last_output_received_at: float = 0.0
     last_output_valence_delta: float = 0.0
-    last_output_affect_keywords: List[str] = field(default_factory=list)
+    last_output_affect_keywords: list[str] = field(default_factory=list)
     phi_estimate: float = 0.0
     phi_threshold_met: bool = False
 
@@ -126,7 +128,7 @@ class OutputReceptor:
         self._total_injected_energy: float = 0.0
         self._lock = threading.Lock()
 
-    def receive_output(self, generated_text: str) -> Optional[Tuple[np.ndarray, float]]:
+    def receive_output(self, generated_text: str) -> tuple[np.ndarray, float] | None:
         """Process generated text and return affective delta for substrate injection."""
         if not generated_text or len(generated_text.strip()) < 5:
             return None
@@ -137,7 +139,9 @@ class OutputReceptor:
             substrate = ServiceContainer.get("conscious_substrate", default=None)
             if substrate is not None and hasattr(substrate, "x"):
                 self.ensure_dimension(len(substrate.x))
-        except Exception:
+        except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation("closed_loop", exc)
+            logger.debug("OutputReceptor substrate lookup failed: %s", exc)
             substrate = None
 
         delta = self._extract_affective_delta(generated_text)
@@ -197,7 +201,7 @@ class OutputReceptor:
 
         return delta
 
-    def get_diagnostics(self) -> Dict[str, Any]:
+    def get_diagnostics(self) -> dict[str, Any]:
         with self._lock:
             return {
                 "receive_count": self._receive_count,
@@ -226,8 +230,8 @@ class SelfPredictiveCore:
         self._W_pred = np.eye(neuron_count, dtype=np.float32) * 0.9
         self._b_pred = np.zeros(neuron_count, dtype=np.float32)
 
-        self._last_state: Optional[np.ndarray] = None
-        self._last_prediction: Optional[np.ndarray] = None
+        self._last_state: np.ndarray | None = None
+        self._last_prediction: np.ndarray | None = None
         self._last_prediction_time: float = 0.0
 
         self._free_energy_history: deque = deque(maxlen=FREE_ENERGY_WINDOW)
@@ -247,7 +251,7 @@ class SelfPredictiveCore:
 
     def observe_and_update(
         self, actual_x: np.ndarray
-    ) -> Optional[PredictionCycle]:
+    ) -> PredictionCycle | None:
         """Observe the actual state, compute error, update model."""
         with self._lock:
             if self._last_prediction is None or self._last_state is None:
@@ -318,7 +322,7 @@ class SelfPredictiveCore:
             return "settling"
         return "stable"
 
-    def get_diagnostics(self) -> Dict[str, Any]:
+    def get_diagnostics(self) -> dict[str, Any]:
         return {
             "cycle_count": self._cycle_count,
             "current_free_energy": round(self.current_free_energy, 5),
@@ -454,7 +458,7 @@ class PhiWitness:
     def phi_threshold_met(self) -> bool:
         return self.current_phi > 0.01
 
-    def get_diagnostics(self) -> Dict[str, Any]:
+    def get_diagnostics(self) -> dict[str, Any]:
         return {
             "phi_estimate": round(self.current_phi, 5),
             "phi_threshold_met": self.phi_threshold_met,
@@ -483,12 +487,12 @@ class ClosedCausalLoop:
         self._last_output_fingerprint: str = ""
         self._last_output_at: float = 0.0
 
-        self._task: Optional[asyncio.Task] = None
-        self._phi_core_task: Optional[asyncio.Task] = None
-        self._hphi_task: Optional[asyncio.Task] = None
+        self._task: asyncio.Task | None = None
+        self._phi_core_task: asyncio.Task | None = None
+        self._hphi_task: asyncio.Task | None = None
         self._last_phi_core_schedule_at: float = 0.0
         self._last_hphi_schedule_at: float = 0.0
-        self._save_dir: Optional[Path] = None
+        self._save_dir: Path | None = None
 
         self._setup_save_dir()
 
@@ -512,7 +516,9 @@ class ClosedCausalLoop:
         try:
             from core.config import config as aura_config
             self._save_dir = aura_config.paths.data_dir / "closed_loop"
-        except Exception:
+        except (AttributeError, ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation("closed_loop", exc)
+            logger.debug("Closed loop save directory config unavailable: %s", exc)
             self._save_dir = Path.home() / ".aura" / "closed_loop"
         self._save_dir.mkdir(parents=True, exist_ok=True)
 
@@ -590,7 +596,7 @@ class ClosedCausalLoop:
             )
 
     @staticmethod
-    def _build_phi_core_cognitive_values(current_x: np.ndarray) -> Dict[str, float]:
+    def _build_phi_core_cognitive_values(current_x: np.ndarray) -> dict[str, float]:
         values = np.zeros(8, dtype=np.float64)
         if len(current_x) > 8:
             upper = min(len(current_x), 16)
@@ -624,7 +630,9 @@ class ClosedCausalLoop:
             started_at = float(lane.get("current_request_started_at", 0.0) or 0.0)
             completed_at = float(lane.get("last_generation_completed_at", 0.0) or 0.0)
             return started_at > 0.0 and started_at > completed_at
-        except Exception:
+        except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation("closed_loop", exc)
+            logger.debug("Foreground request status unavailable: %s", exc)
             return False
 
     # ── Background Prediction Loop ─────────────────────────────────────────────
@@ -665,8 +673,9 @@ class ClosedCausalLoop:
                                 confidence=max(0.0, 1.0 - cycle.free_energy),
                                 accuracy=max(0.0, 1.0 - cycle.prediction_error_magnitude),
                             )
-                    except (ImportError, TypeError, ValueError):
-                        pass  # no-op: research module not available
+                    except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
+                        record_degradation("closed_loop", exc)
+                        logger.debug("Closed loop metacognitive observation skipped: %s", exc)
 
                     # STEP 3: Inject prediction error as stimulus
                     feedback = self._predictor.get_feedback_stimulus(cycle.error_vector)
@@ -712,7 +721,9 @@ class ClosedCausalLoop:
                         if mesh is not None and hasattr(mesh, "get_field_state"):
                             try:
                                 mesh_field = mesh.get_field_state()
-                            except Exception:
+                            except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+                                record_degradation("closed_loop", exc)
+                                logger.debug("Hierarchical phi mesh field read failed: %s", exc)
                                 mesh_field = None
                         if mesh_field is not None and len(mesh_field) >= 4096:
                             cog_aff = np.zeros(16, dtype=np.float64)
@@ -738,7 +749,9 @@ class ClosedCausalLoop:
         try:
             from core.container import ServiceContainer
             return ServiceContainer.get("conscious_substrate", default=None)
-        except Exception:
+        except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation("closed_loop", exc)
+            logger.debug("Closed loop substrate lookup failed: %s", exc)
             return None
 
     async def _sync_to_registry(self):
@@ -779,8 +792,9 @@ class ClosedCausalLoop:
             substrate = ServiceContainer.get("conscious_substrate", default=None)
             if substrate is not None and hasattr(substrate, "x"):
                 self._ensure_vector_dimensions(len(substrate.x))
-        except Exception:
-            pass
+        except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation("closed_loop", exc)
+            logger.debug("Closed loop output substrate lookup failed: %s", exc)
 
         result = self._output_receptor.receive_output(generated_text)
         if result is not None:
@@ -855,7 +869,7 @@ class ClosedCausalLoop:
                 self._research_metacog = None
         return self._research_metacog
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Full diagnostic status."""
         return {
             "loop": {
@@ -909,7 +923,7 @@ class ClosedCausalLoop:
 
 # ── Singleton and Boot Helpers ─────────────────────────────────────────────────
 
-_loop_instance: Optional[ClosedCausalLoop] = None
+_loop_instance: ClosedCausalLoop | None = None
 
 
 def get_closed_loop() -> ClosedCausalLoop:
@@ -919,12 +933,14 @@ def get_closed_loop() -> ClosedCausalLoop:
     return _loop_instance
 
 
-def get_running_closed_loop() -> Optional[ClosedCausalLoop]:
+def get_running_closed_loop() -> ClosedCausalLoop | None:
     try:
         from core.container import ServiceContainer
 
         loop = ServiceContainer.get("closed_causal_loop", default=None)
-    except Exception:
+    except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
+        record_degradation("closed_loop", exc)
+        logger.debug("Running closed loop lookup failed: %s", exc)
         loop = None
 
     if loop is None:

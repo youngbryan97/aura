@@ -21,15 +21,19 @@ so observability is honest.
 """
 from __future__ import annotations
 
-import math
+import logging
 import re
 import threading
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
+
+from core.runtime.errors import record_degradation
+
+logger = logging.getLogger("Consciousness.MeshCognition")
 
 
-_SELF_QUERY_PATTERNS: Tuple[re.Pattern[str], ...] = (
+_SELF_QUERY_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"^\s*(who|what)\s+are\s+you[\?\.!]*\s*$", re.I),
     re.compile(r"^\s*are\s+you\s+(ok|okay|alive|there)[\?\.!]*\s*$", re.I),
     re.compile(
@@ -42,7 +46,7 @@ _SELF_QUERY_PATTERNS: Tuple[re.Pattern[str], ...] = (
     re.compile(r"^\s*(report|self-report|introspect)[\?\.!]*\s*$", re.I),
 )
 
-_ACK_PATTERNS: Tuple[re.Pattern[str], ...] = (
+_ACK_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"^\s*(ok|okay|thanks|thank you|noted|got it|understood)[\.!]*\s*$", re.I),
 )
 
@@ -53,10 +57,10 @@ class MeshDecision:
     response: str = ""
     rationale: str = ""
     used_llm: bool = False
-    substrate_signals: Dict[str, float] = field(default_factory=dict)
+    substrate_signals: dict[str, float] = field(default_factory=dict)
     latency_ms: float = 0.0
 
-    def as_dict(self) -> Dict[str, Any]:
+    def as_dict(self) -> dict[str, Any]:
         return {
             "handled": self.handled,
             "response": self.response,
@@ -74,7 +78,7 @@ class MeshCognition:
         self._lock = threading.RLock()
         self._hits = 0
         self._misses = 0
-        self._last_decision: Optional[MeshDecision] = None
+        self._last_decision: MeshDecision | None = None
 
     # ------------------------------------------------------------------
     # Public API
@@ -113,7 +117,7 @@ class MeshCognition:
         decision = self._finalize(False, "", "not_applicable", signals, start)
         return decision
 
-    def metrics(self) -> Dict[str, Any]:
+    def metrics(self) -> dict[str, Any]:
         with self._lock:
             total = self._hits + self._misses
             return {
@@ -131,7 +135,7 @@ class MeshCognition:
         handled: bool,
         response: str,
         rationale: str,
-        signals: Dict[str, float],
+        signals: dict[str, float],
         start: float,
     ) -> MeshDecision:
         elapsed = (time.perf_counter() - start) * 1000.0
@@ -151,8 +155,8 @@ class MeshCognition:
             self._last_decision = decision
         return decision
 
-    def _gather_signals(self, state: Any) -> Dict[str, float]:
-        signals: Dict[str, float] = {}
+    def _gather_signals(self, state: Any) -> dict[str, float]:
+        signals: dict[str, float] = {}
 
         # Affective state
         try:
@@ -162,8 +166,9 @@ class MeshCognition:
                     val = getattr(affect, key, None)
                     if val is not None:
                         signals[key] = float(val)
-        except Exception:
-            pass  # no-op: intentional
+        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation("mesh_cognition", exc)
+            logger.debug("MeshCognition affect signal read failed: %s", exc)
 
         # Substrate
         try:
@@ -174,10 +179,12 @@ class MeshCognition:
                 for k, v in (substrate.get_substrate_affect() or {}).items():
                     try:
                         signals[f"substrate_{k}"] = float(v)
-                    except Exception:
+                    except (TypeError, ValueError, OverflowError) as exc:
+                        record_degradation("mesh_cognition", exc)
                         continue
-        except Exception:
-            pass  # no-op: intentional
+        except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation("mesh_cognition", exc)
+            logger.debug("MeshCognition substrate signal read failed: %s", exc)
 
         # Resource stakes
         try:
@@ -192,8 +199,9 @@ class MeshCognition:
                 signals["energy"] = float(state_obj.energy)
                 signals["stakes_blocked"] = float(0.0 if envelope.allowed else 1.0)
                 signals["stakes_effort"] = float({"repair_only": 0.0, "low": 0.33, "normal": 0.66, "high": 1.0}.get(envelope.effort, 0.5))
-        except Exception:
-            pass  # no-op: intentional
+        except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation("mesh_cognition", exc)
+            logger.debug("MeshCognition resource stake signal read failed: %s", exc)
 
         # Global workspace winner (if available)
         try:
@@ -204,16 +212,16 @@ class MeshCognition:
                 winner = gwt.current_winner()
                 if winner is not None:
                     signals["gwt_priority"] = float(getattr(winner, "priority", 0.0) or 0.0)
-        except Exception:
-            pass  # no-op: intentional
+        except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation("mesh_cognition", exc)
+            logger.debug("MeshCognition workspace signal read failed: %s", exc)
 
         return signals
 
-    def _compose_self_report(self, signals: Dict[str, float]) -> str:
+    def _compose_self_report(self, signals: dict[str, float]) -> str:
         valence = signals.get("valence", 0.0)
         arousal = signals.get("arousal", 0.5)
         viability = signals.get("viability", 1.0)
-        integrity = signals.get("integrity", 1.0)
         curiosity = signals.get("curiosity", 0.5)
 
         mood_word = (
@@ -242,7 +250,7 @@ class MeshCognition:
             parts.append("I'm conserving outward action until the pressure drops.")
         return " ".join(parts)
 
-    def _compose_ack(self, signals: Dict[str, float]) -> str:
+    def _compose_ack(self, signals: dict[str, float]) -> str:
         valence = signals.get("valence", 0.0)
         if valence > 0.3:
             return "Noted."
@@ -250,7 +258,7 @@ class MeshCognition:
             return "Acknowledged. Conserving."
         return "Acknowledged."
 
-    def _compose_resource_hold(self, signals: Dict[str, float]) -> str:
+    def _compose_resource_hold(self, signals: dict[str, float]) -> str:
         viability = signals.get("viability", 0.0)
         integrity = signals.get("integrity", 0.0)
         return (
@@ -259,7 +267,7 @@ class MeshCognition:
         )
 
 
-_singleton: Optional[MeshCognition] = None
+_singleton: MeshCognition | None = None
 _lock = threading.Lock()
 
 
