@@ -10,23 +10,31 @@ Everything is cached for the lifetime of the process, with an explicit
 permissions as N/A.
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
 
 import logging
 import platform
-import shutil
-import subprocess
+import webbrowser
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
+from core.runtime.errors import record_degradation
 from core.security.permission_guard import PermissionType, get_permission_guard
 
 logger = logging.getLogger(__name__)
+_PERMISSION_SETUP_RECOVERABLE_ERRORS = (
+    AttributeError,
+    KeyError,
+    LookupError,
+    OSError,
+    RuntimeError,
+    TypeError,
+    ValueError,
+)
 
 
 # URL schemes that open the right pane in macOS System Settings.
-_PANE_URLS: Dict[PermissionType, str] = {
+_PANE_URLS: dict[PermissionType, str] = {
     PermissionType.ACCESSIBILITY: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
     PermissionType.AUTOMATION: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation",
     PermissionType.SCREEN: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
@@ -41,10 +49,10 @@ class PermissionStatus:
     granted: bool
     available: bool
     guidance: str
-    settings_url: Optional[str] = None
+    settings_url: str | None = None
     detail: str = ""
 
-    def as_dict(self) -> Dict[str, Any]:
+    def as_dict(self) -> dict[str, Any]:
         return {
             "name": self.name,
             "granted": self.granted,
@@ -60,10 +68,10 @@ class PermissionReport:
     platform: str
     supported: bool
     all_granted: bool
-    statuses: List[PermissionStatus] = field(default_factory=list)
-    missing: List[str] = field(default_factory=list)
+    statuses: list[PermissionStatus] = field(default_factory=list)
+    missing: list[str] = field(default_factory=list)
 
-    def as_dict(self) -> Dict[str, Any]:
+    def as_dict(self) -> dict[str, Any]:
         return {
             "platform": self.platform,
             "supported": self.supported,
@@ -79,7 +87,7 @@ async def check_all_permissions(*, refresh: bool = False) -> PermissionReport:
         return PermissionReport(platform=system, supported=False, all_granted=True, statuses=[], missing=[])
 
     guard = get_permission_guard()
-    statuses: List[PermissionStatus] = []
+    statuses: list[PermissionStatus] = []
     for ptype in (
         PermissionType.ACCESSIBILITY,
         PermissionType.AUTOMATION,
@@ -92,8 +100,8 @@ async def check_all_permissions(*, refresh: bool = False) -> PermissionReport:
             granted = bool(result.get("granted"))
             available = bool(result.get("available", True))
             detail = str(result.get("detail") or "")
-        except Exception as exc:
-            record_degradation('permission_setup', exc)
+        except _PERMISSION_SETUP_RECOVERABLE_ERRORS as exc:
+            record_degradation("permission_setup", exc)
             logger.debug("Permission check failed for %s: %s", ptype, exc)
             granted = False
             available = False
@@ -109,16 +117,17 @@ async def check_all_permissions(*, refresh: bool = False) -> PermissionReport:
             )
         )
     missing = [s.name for s in statuses if not s.granted and s.available]
+    all_granted = all(status.granted for status in statuses)
     return PermissionReport(
         platform=system,
         supported=True,
-        all_granted=not missing,
+        all_granted=all_granted,
         statuses=statuses,
         missing=missing,
     )
 
 
-def open_settings_pane(permission: str) -> bool:
+def open_settings_pane(permission: str, *, opener: Callable[[str], bool] | None = None) -> bool:
     """Open System Settings at the pane required for ``permission``.
 
     Returns True on macOS when ``open`` was found and executed, False
@@ -134,14 +143,11 @@ def open_settings_pane(permission: str) -> bool:
     url = _PANE_URLS.get(ptype)
     if not url:
         return False
-    opener = shutil.which("open")
-    if not opener:
-        return False
     try:
-        subprocess.Popen([opener, url])
-        return True
-    except Exception as exc:
-        record_degradation('permission_setup', exc)
+        launch = opener or (lambda target: bool(webbrowser.open(target, new=0, autoraise=True)))
+        return bool(launch(url))
+    except _PERMISSION_SETUP_RECOVERABLE_ERRORS as exc:
+        record_degradation("permission_setup", exc)
         logger.debug("Failed to open settings pane for %s: %s", permission, exc)
         return False
 
@@ -161,11 +167,11 @@ def format_report(report: PermissionReport) -> str:
     return "\n".join(lines)
 
 
-async def diagnose_and_offer_fix(*, open_panes: bool = False) -> Dict[str, Any]:
+async def diagnose_and_offer_fix(*, open_panes: bool = False) -> dict[str, Any]:
     """One-shot helper for UIs: check, log, optionally open missing panes."""
     report = await check_all_permissions(refresh=True)
     logger.info("Permission diagnosis: %s", format_report(report).replace("\n", " | "))
-    opened: List[str] = []
+    opened: list[str] = []
     if open_panes:
         for missing in report.missing:
             if open_settings_pane(missing):
