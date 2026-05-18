@@ -1,18 +1,34 @@
 import asyncio
 import json
 import logging
+import sys
 import threading
 import time
 from collections import deque
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 
+from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.errors import record_degradation
+from core.tasks.managed_command import ManagedCommandResult, run_project_command
 
 logger = logging.getLogger("Aura.GenuineLearning")
+_LEARNING_RECOVERABLE_ERRORS = (
+    AttributeError,
+    FileNotFoundError,
+    ImportError,
+    json.JSONDecodeError,
+    OSError,
+    RuntimeError,
+    TimeoutError,
+    TypeError,
+    ValueError,
+)
+TrainingCommandRunner = Callable[[tuple[str, ...], float], ManagedCommandResult]
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Data Structures
@@ -168,7 +184,7 @@ class ExperienceBuffer:
                 try:
                     with open(self.db_path, 'a') as f:
                         f.write(json.dumps(record) + '\n')
-                except Exception as exc:
+                except _LEARNING_RECOVERABLE_ERRORS as exc:
                     record_degradation("genuine_learning_pipeline", exc)
                     logger.debug("Training example background persist failed: %s", exc)
             import threading
@@ -263,9 +279,9 @@ class BehavioralBenchmark:
 
             except TimeoutError:
                 failures.append(f"FAIL [{case.description}]: Inference timed out")
-            except Exception as e:
-                record_degradation('genuine_learning_pipeline', e)
-                failures.append(f"FAIL [{case.description}]: Exception during inference: {e}")
+            except _LEARNING_RECOVERABLE_ERRORS as exc:
+                record_degradation("genuine_learning_pipeline", exc)
+                failures.append(f"FAIL [{case.description}]: Exception during inference: {exc}")
 
         passed = len(failures) == 0
         if passed:
@@ -307,6 +323,7 @@ class LoRATrainer:
         learning_rate: float = 1e-5,  # Conservative LR for fine-tuning
         num_epochs: int = 3,          # Passes over the training data
         batch_size: int = 4,          # Small batch for M-series GPU memory
+        command_runner: TrainingCommandRunner | None = None,
     ):
         from core.config import config
         self.model_path = model_path
@@ -320,6 +337,7 @@ class LoRATrainer:
         self._training_lock = threading.Lock()
         self._last_train_time: float = 0.0
         self.MIN_TRAIN_INTERVAL_S = 3600  # Don't train more than once per hour
+        self._command_runner = command_runner or (lambda command, timeout_s: run_project_command(command, timeout_s=timeout_s))
 
     def _get_modulated_lr(self) -> float:
         """Modulate learning rate based on Soul's Competence drive."""
@@ -334,68 +352,59 @@ class LoRATrainer:
                     # Up to 2x boost for maximum urgency
                     multiplier = 1.0 + drive.urgency
                     return self.learning_rate * multiplier
-        except Exception as _e:
-            record_degradation('genuine_learning_pipeline', _e)
-            logger.debug('Ignored Exception in genuine_learning_pipeline.py: %s', _e)
+        except _LEARNING_RECOVERABLE_ERRORS as exc:
+            record_degradation("genuine_learning_pipeline", exc)
+            logger.debug("Learning-rate drive modulation skipped: %s", exc)
         return self.learning_rate
 
     def _write_training_data(self, examples: list[dict]) -> Path:
         """Write training examples to a temp JSONL file for MLX-LM."""
         train_path = self.adapter_dir / "train_batch.jsonl"
-        with open(train_path, 'w') as f:
-            for ex in examples:
-                # Strip _meta before writing — MLX-LM doesn't want it
-                clean = {k: v for k, v in ex.items() if k != "_meta"}
-                f.write(json.dumps(clean) + '\n')
+        lines = []
+        for ex in examples:
+            # Strip _meta before writing — MLX-LM doesn't want it
+            clean = {k: v for k, v in ex.items() if k != "_meta"}
+            lines.append(json.dumps(clean))
+        atomic_write_text(train_path, "\n".join(lines) + "\n")
         return train_path
 
-    def _run_training_subprocess(self, train_path: Path) -> tuple[bool, str]:
+    def _run_training_command(self, train_path: Path) -> tuple[bool, str]:
         """
-        Execute MLX-LM fine-tuning in a subprocess.
+        Execute MLX-LM fine-tuning through the bounded command runner.
         This is the actual weight update — the heart of genuine learning.
         """
-        import subprocess
-        import sys
-
-        cmd = [
+        example_count = len(train_path.read_text(encoding="utf-8").splitlines())
+        cmd = (
             sys.executable, "-m", "mlx_lm.lora",
             "--model", str(self.model_path),
             "--train",
             "--data", str(train_path.parent),
             "--adapter-path", str(self.adapter_dir),
-            "--iters", str(len(open(train_path).readlines()) * self.num_epochs),
+            "--iters", str(example_count * self.num_epochs),
             "--batch-size", str(self.batch_size),
             "--learning-rate", str(self._get_modulated_lr()),
             "--lora-rank", str(self.lora_rank),
             "--lora-alpha", str(self.lora_alpha),
             "--save-every", "100",
             "--val-batches", "0",  # Skip validation for speed
-        ]
+        )
 
         logger.info("🧬 Starting LoRA training: %s", " ".join(cmd))
 
         try:
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=1800,  # 30 minute max
-            )
-
-            if result.returncode == 0:
+            result = self._command_runner(cmd, 1800.0)
+            if result.ok:
                 logger.info("✅ Training complete.\n%s", result.stdout[-500:])
                 return True, result.stdout
-            else:
-                logger.error("❌ Training failed:\n%s", result.stderr[-500:])
-                return False, result.stderr
-
-        except subprocess.TimeoutExpired:
-            logger.error("❌ Training timed out after 30 minutes")
-            return False, "timeout"
-        except Exception as e:
-            record_degradation('genuine_learning_pipeline', e)
-            logger.error("❌ Training subprocess error: %s", e)
-            return False, str(e)
+            if result.timed_out:
+                logger.error("❌ Training timed out after 30 minutes")
+                return False, "timeout"
+            logger.error("❌ Training failed:\n%s", result.stderr[-500:])
+            return False, result.stderr
+        except _LEARNING_RECOVERABLE_ERRORS as exc:
+            record_degradation("genuine_learning_pipeline", exc)
+            logger.error("❌ Training command error: %s", exc)
+            return False, str(exc)
 
     async def train(self, examples: list[dict]) -> bool:
         """
@@ -426,7 +435,7 @@ class LoRATrainer:
                 # Write data (I/O offloaded from hot path)
                 tp = self._write_training_data(examples)
                 # Run training
-                return self._run_training_subprocess(tp)
+                return self._run_training_command(tp)
 
             # Run training in thread (GPU compute + I/O, don't block loop)
             success, output = await asyncio.to_thread(_prepare_and_train)
@@ -447,9 +456,9 @@ class LoRATrainer:
                             confidence=1.0,
                             metadata={"examples": len(examples), "timestamp": time.time()}
                         )
-                except Exception as _e:
-                    record_degradation('genuine_learning_pipeline', _e)
-                    logger.debug('Ignored Exception in genuine_learning_pipeline.py: %s', _e)
+                except _LEARNING_RECOVERABLE_ERRORS as exc:
+                    record_degradation("genuine_learning_pipeline", exc)
+                    logger.debug("Knowledge graph training event write skipped: %s", exc)
 
             return success
 
@@ -541,9 +550,9 @@ class LearningScheduler:
                     logger.warning("🚫 Will rejected genuine learning run: %s", decision.reason)
                     return False
                 logger.info("✅ Will approved training run (Receipt: %s)", decision.receipt_id)
-            except Exception as e:
-                record_degradation("genuine_learning_will", e)
-                logger.warning("🚫 Will unavailable; blocking training run: %s", e)
+            except _LEARNING_RECOVERABLE_ERRORS as exc:
+                record_degradation("genuine_learning_will", exc)
+                logger.warning("🚫 Will unavailable; blocking training run: %s", exc)
                 return False
 
             # Train
@@ -632,9 +641,9 @@ class ContinuousLearner:
             soul = ServiceContainer.get(ServiceNames.SOUL, default=None)
             if soul and hasattr(soul, "update_state"):
                 soul.update_state("learning_activity", {"type": "record_turn"})
-        except Exception as _e:
-            record_degradation('genuine_learning_pipeline', _e)
-            logger.debug('Ignored Exception in genuine_learning_pipeline.py: %s', _e)
+        except _LEARNING_RECOVERABLE_ERRORS as exc:
+            record_degradation("genuine_learning_pipeline", exc)
+            logger.debug("Soul learning activity signal skipped: %s", exc)
 
         if explicit_correction:
             # User told us the right answer — this is gold-standard training data
