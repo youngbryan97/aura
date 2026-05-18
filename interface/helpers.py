@@ -3,14 +3,12 @@
 Shared helpers used by multiple route files and the main server module.
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
 
 import logging
 import time
-from typing import Any
 
 from core.container import ServiceContainer
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.Server.Helpers")
 
@@ -58,4 +56,4 @@ def _notify_user_spoke(message: str = ""):
             orch._last_user_interaction_time = time.time()
     except Exception as _e:
         record_degradation('helpers', _e)
-        pass  # Non-critical; never block a user message on this
+        logger.debug("Proactive user-spoke hooks skipped: %s", _e)

@@ -6,24 +6,23 @@ Skills, Mycelial graph, Knowledge graph, Brain retry, Reboot,
 Strategic projects, Action log.
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
 
 import logging
 import sqlite3
-from typing import Any, Dict, List
+from typing import Any
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from core.config import config
 from core.container import ServiceContainer
-
+from core.runtime.errors import record_degradation
 from interface.auth import _require_internal, _restore_owner_session_from_request, _verify_token
 
 logger = logging.getLogger("Aura.Server.Subsystems")
 
 router = APIRouter()
+SKILL_EXECUTE_BODY = Body(...)
 
 
 def _get_live_orchestrator_state() -> Any | None:
@@ -48,7 +47,9 @@ def _latest_conversation_user_message() -> str:
             return ""
         latest = log[-1]
         return str(latest.get("user") or "").strip()
-    except Exception:
+    except Exception as exc:
+        record_degradation("subsystems", exc)
+        logger.debug("Unable to read latest user message from conversation log: %s", exc)
         return ""
 
 
@@ -159,7 +160,7 @@ async def api_terminal_send(request: Request):
 async def api_security_status(request: Request):
     """Security system status — trust level, integrity, threat score."""
     _restore_owner_session_from_request(request)
-    result: Dict[str, Any] = {}
+    result: dict[str, Any] = {}
     try:
         from core.security.trust_engine import get_trust_engine
         result["trust"] = get_trust_engine().get_status()
@@ -232,7 +233,7 @@ async def api_circadian_status():
 @router.get("/substrate/status")
 async def api_substrate_status():
     """CRSM LoRA bridge + Experience Consolidator status."""
-    result: Dict[str, Any] = {}
+    result: dict[str, Any] = {}
     try:
         from core.consciousness.crsm_lora_bridge import get_crsm_lora_bridge
         result["lora_bridge"] = get_crsm_lora_bridge().get_status()
@@ -288,10 +289,10 @@ async def api_mycelial_graph():
     if not mycelium:
         return JSONResponse({"nodes": [], "links": [], "cohesion": 0, "pathway_count": 0})
 
-    CONSCIOUSNESS_SET = {'qualia', 'affect', 'personality', 'memory', 'substrate',
+    consciousness_set = {'qualia', 'affect', 'personality', 'memory', 'substrate',
                          'consciousness', 'attention', 'sentience', 'drive', 'scanner'}
 
-    NODE_INTEL = {
+    node_intel = {
         "orchestrator": "The Central Command of Aura. Coordinates all cognitive cycles, task dispatch, and subsystem coordination.",
         "personality_engine": "Aura's Core Persona. Manages voice, tone, identity traits, and linguistic style filters.",
         "memory_facade": "The Unified Memory Interface. Routes high-level requests between episodic, semantic, and vector storage layers.",
@@ -314,16 +315,18 @@ async def api_mycelial_graph():
     }
     try:
         topo = mycelium.get_network_topology()
-        nodes_map: Dict[str, Any] = {}
-        links: List[Dict[str, Any]] = []
-        synthetic_links: List[Dict[str, Any]] = []
+        nodes_map: dict[str, Any] = {}
+        links: list[dict[str, Any]] = []
+        synthetic_links: list[dict[str, Any]] = []
 
         all_endpoints: set = set()
-        for name, h_data in topo.get("hyphae", {}).items():
+        for _name, h_data in topo.get("hyphae", {}).items():
             src = h_data.get("source", "")
             tgt = h_data.get("target", "")
-            if src: all_endpoints.add(src)
-            if tgt: all_endpoints.add(tgt)
+            if src:
+                all_endpoints.add(src)
+            if tgt:
+                all_endpoints.add(tgt)
         for mk in mycelium.mapped_files:
             all_endpoints.add(mk)
 
@@ -386,7 +389,7 @@ async def api_mycelial_graph():
         for ep in all_endpoints:
             short_name = ep.split(".")[-1] if "." in ep else ep
             is_critical = ep in critical_set
-            is_consciousness = any(cn in ep.lower() for cn in CONSCIOUSNESS_SET)
+            is_consciousness = any(cn in ep.lower() for cn in consciousness_set)
             is_skill = "skills" in ep.lower() or "skill" in ep.lower()
             is_interface = ep.startswith("interface")
             centrality = mycelium._centrality.get(ep, 0)
@@ -402,7 +405,7 @@ async def api_mycelial_graph():
             else:
                 color, ntype, size = "#8a2be2", "core", 2 + min(centrality * 0.3, 4)
 
-            description = NODE_INTEL.get(ep, "")
+            description = node_intel.get(ep, "")
             if not description:
                 if is_skill:
                     description = f"Autonomous Skill Nexus for {short_name}. Enables specialized tool usage."
@@ -434,7 +437,7 @@ async def api_mycelial_graph():
                 "is_critical": is_critical
             }
 
-        for name, h_data in topo.get("hyphae", {}).items():
+        for _name, h_data in topo.get("hyphae", {}).items():
             src, tgt = h_data.get("source", ""), h_data.get("target", "")
             if not src or not tgt or src not in nodes_map or tgt not in nodes_map:
                 continue
@@ -492,7 +495,7 @@ async def api_mycelial_graph():
             ram_usage, cpu_usage = 0.0, 0.0
 
         if not nodes_map:
-            SEED_SERVICES = [
+            seed_services = [
                 ("orchestrator",      "critical",      "#ff3e5e", "Central Command — coordinates all cognitive cycles."),
                 ("cognitive_engine",  "critical",      "#ff3e5e", "Cognitive Engine — reasoning, tool use, deep LLM integration."),
                 ("llm_router",        "core",          "#8a2be2", "LLM Router — multi-tier failover with circuit breakers."),
@@ -507,7 +510,7 @@ async def api_mycelial_graph():
                 ("episodic_memory",   "core",          "#8a2be2", "Episodic Memory — experiential trace and recall."),
                 ("homeostasis",       "consciousness", "#00e5ff", "Homeostasis — integrity, persistence, will-to-live."),
             ]
-            SEED_LINKS = [
+            seed_links = [
                 ("orchestrator", "cognitive_engine"),
                 ("orchestrator", "proactive_presence"),
                 ("orchestrator", "goal_hierarchy"),
@@ -521,7 +524,7 @@ async def api_mycelial_graph():
                 ("orchestrator", "mycelial_network"),
                 ("cognitive_engine", "voice_engine"),
             ]
-            for svc_id, ntype, color, desc in SEED_SERVICES:
+            for svc_id, ntype, color, desc in seed_services:
                 is_live = ServiceContainer.peek(svc_id, default=None) is not None
                 nodes_map[svc_id] = {
                     "id": svc_id,
@@ -534,7 +537,7 @@ async def api_mycelial_graph():
                     "hits": 0, "confidence": 1.0 if is_live else 0.3,
                     "is_critical": ntype == "critical"
                 }
-            for src, tgt in SEED_LINKS:
+            for src, tgt in seed_links:
                 if src in nodes_map and tgt in nodes_map:
                     links.append({"source": src, "target": tgt,
                                   "color": "rgba(0,229,255,0.35)", "width": 1.5,
@@ -656,7 +659,7 @@ async def api_skills():
 @router.post("/skill/execute")
 async def api_skill_execute(
     skill_name: str,
-    params: Dict[str, Any] = Body(...),
+    params: dict[str, Any] = SKILL_EXECUTE_BODY,
     _: None = Depends(_require_internal),
     __: None = Depends(_verify_token)
 ):

@@ -16,8 +16,6 @@ in interface/event_bridge.py. This file retains only:
 # This module bootstraps logging, middleware, and route registration in phases;
 # several imports intentionally stay next to the phase they wire.
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
 
 # ── stdlib ────────────────────────────────────────────────────
 import asyncio
@@ -45,6 +43,8 @@ from fastapi import (
 )
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
+
+from core.runtime.errors import record_degradation
 
 try:
     from fastapi.responses import ORJSONResponse
@@ -162,8 +162,8 @@ class _QueueHandler(logging.Handler):
                 except Exception:
                     try:
                         publish_coro.close()
-                    except Exception:
-                        pass  # no-op: intentional
+                    except Exception as close_exc:
+                        print(f"CRITICAL LOG CLOSE FALLBACK: {close_exc}", file=sys.stderr)
                     raise
 
         except Exception:
@@ -834,8 +834,9 @@ async def websocket_endpoint(ws: WebSocket):
                                                 "content": str(fallback).strip(),
                                             }))
                                             return
-                                except Exception:
-                                    pass  # no-op: intentional
+                                except Exception as fallback_exc:
+                                    record_degradation("server", fallback_exc)
+                                    logger.warning("WS: cloud fallback generation failed after local timeout: %s", fallback_exc)
                                 await ws_ref.send_text(json.dumps({
                                     "type": "aura_message",
                                     "content": "The live reasoning lane exceeded its timeout. I logged the timeout and preserved this turn instead of fabricating a recovered answer.",

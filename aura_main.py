@@ -712,9 +712,10 @@ def _register_runtime_singletons(orchestrator: Any) -> None:
       - aura_runtime / orchestrator (alias)
     """
     try:
-        from core.adapters.nethack_adapter import NetHackAdapter
         from core.container import ServiceContainer
-    except Exception:
+    except ImportError as exc:
+        record_degradation("aura_main", exc)
+        logger.warning("ServiceContainer unavailable during service registration: %s", exc)
         return
 
     try:
@@ -741,6 +742,8 @@ def _register_runtime_singletons(orchestrator: Any) -> None:
 
     # ── NetHack Adapter ──
     try:
+        from core.adapters.nethack_adapter import NetHackAdapter
+
         if not ServiceContainer.has("nethack_adapter"):
             adapter = NetHackAdapter()
             # We don't start it here; it will be started by the skill or
@@ -1207,14 +1210,16 @@ async def run_desktop(port: int, *, launch_gui: bool | None = None):
                         logger.info("🎨 GUI closed by user — initiating full shutdown.")
                         try:
                             supervisor._is_running = False
-                        except Exception:
-                            pass
+                        except AttributeError as exc:
+                            record_degradation("aura_main", exc)
+                            logger.debug("GUI supervisor did not expose running flag: %s", exc)
                         # Signal the main process so the outer event loop
                         # cancels its pending tasks and runs shutdown hooks.
                         try:
                             os.kill(os.getpid(), signal.SIGTERM)
-                        except Exception:
-                            pass
+                        except OSError as exc:
+                            record_degradation("aura_main", exc)
+                            logger.warning("Failed to signal Aura shutdown after GUI close: %s", exc)
                         return
 
                     if is_shutdown_requested() or proc.returncode in {-signal.SIGTERM, -signal.SIGINT}:
@@ -1359,7 +1364,9 @@ def _reap_orphaned_aura_processes() -> int:
         out = subprocess.check_output(
             ["ps", "-axo", "pid=,user=,command="], text=True, timeout=5
         )
-    except Exception:
+    except (subprocess.SubprocessError, OSError) as exc:
+        record_degradation("aura_main", exc)
+        logger.warning("Unable to inspect process table for stale Aura processes: %s", exc)
         return 0
     current_user = os.environ.get("USER") or ""
     stale_pids: list[int] = []
@@ -1487,8 +1494,9 @@ def stop_aura():
         if lock_file.exists():
             try:
                 lock_file.unlink()
-            except Exception:
-                pass
+            except OSError as exc:
+                record_degradation("aura_main", exc)
+                print(f"Failed to remove Aura lock file: {exc}")
             
         print("✅ Aura stopped successfully.")
     except Exception as e:

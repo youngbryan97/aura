@@ -21,18 +21,19 @@ The dashboard is read-only. Every response is built from authoritative
 service registries; it never paraphrases nor synthesizes.
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
 
-
+import asyncio
 import json
 import logging
+import pathlib
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Path
 from fastapi.responses import JSONResponse
 
 from core.container import ServiceContainer
+from core.runtime.errors import record_degradation
 from interface.auth import _require_internal
 
 logger = logging.getLogger("Aura.Server.Dashboard")
@@ -53,7 +54,7 @@ def _safe(fn, default=None):
         return default
 
 
-def _percentile_summary(samples: List[float]) -> Dict[str, float]:
+def _percentile_summary(samples: list[float]) -> dict[str, float]:
     if not samples:
         return {"count": 0}
     s = sorted(samples)
@@ -72,7 +73,7 @@ def _percentile_summary(samples: List[float]) -> Dict[str, float]:
 
 @router.get("/snapshot")
 async def snapshot(_: None = Depends(_require_internal)) -> JSONResponse:
-    payload: Dict[str, Any] = {"when": time.time()}
+    payload: dict[str, Any] = {"when": time.time()}
 
     # Self snapshot
     payload["self"] = _safe(lambda: __import__("core.identity.self_object", fromlist=["get_self"]).get_self().snapshot().as_dict()) or {}
@@ -156,8 +157,8 @@ async def snapshot(_: None = Depends(_require_internal)) -> JSONResponse:
     return JSONResponse(payload)
 
 
-def _collect_integration() -> Dict[str, Any]:
-    out: Dict[str, Any] = {}
+def _collect_integration() -> dict[str, Any]:
+    out: dict[str, Any] = {}
     try:
         phi = ServiceContainer.get("phi_core", default=None)
         if phi is not None:
@@ -166,8 +167,9 @@ def _collect_integration() -> Dict[str, Any]:
                 if v is None:
                     continue
                 out[attr] = v
-    except Exception:
-        pass  # no-op: intentional
+    except Exception as exc:
+        record_degradation("dashboard", exc)
+        logger.debug("Phi dashboard collection skipped: %s", exc)
     try:
         hp = ServiceContainer.get("hierarchical_phi", default=None)
         if hp is not None and hasattr(hp, "last_result"):
@@ -175,16 +177,18 @@ def _collect_integration() -> Dict[str, Any]:
             if r is not None:
                 out["hierarchical_max_complex"] = getattr(r, "max_complex_name", None)
                 out["hierarchical_max_phi"] = getattr(r, "max_phi", None)
-    except Exception:
-        pass  # no-op: intentional
+    except Exception as exc:
+        record_degradation("dashboard", exc)
+        logger.debug("Hierarchical phi dashboard collection skipped: %s", exc)
     try:
         gw = ServiceContainer.get("global_workspace", default=None)
         if gw is not None and hasattr(gw, "last_winner"):
             w = gw.last_winner
             out["gw_winner_source"] = getattr(w, "source", None)
             out["gw_winner_priority"] = getattr(w, "priority", None)
-    except Exception:
-        pass  # no-op: intentional
+    except Exception as exc:
+        record_degradation("dashboard", exc)
+        logger.debug("Global workspace dashboard collection skipped: %s", exc)
     return out
 
 
@@ -288,20 +292,19 @@ async def world(_: None = Depends(_require_internal)) -> JSONResponse:
 @router.get("/conscience")
 async def conscience_recent(limit: int = 50, _: None = Depends(_require_internal)) -> JSONResponse:
     try:
-        from pathlib import Path as _P
-        path = _P.home() / ".aura" / "data" / "conscience" / "violations.jsonl"
+        path = pathlib.Path.home() / ".aura" / "data" / "conscience" / "violations.jsonl"
         if not path.exists():
             return JSONResponse({"violations": []})
         rows = []
-        with open(path, "r", encoding="utf-8") as fh:
-            for line in fh:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    rows.append(json.loads(line))
-                except Exception:
-                    continue
+        text = await asyncio.to_thread(path.read_text, encoding="utf-8")
+        for line in text.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rows.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
         return JSONResponse({"violations": rows[-int(limit):]})
     except Exception as exc:
         record_degradation('dashboard', exc)
@@ -328,7 +331,7 @@ async def trace(receipt_id: str = Path(...), _: None = Depends(_require_internal
         raise
     except Exception as exc:
         record_degradation('dashboard', exc)
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 __all__ = ["router", "trace_router"]

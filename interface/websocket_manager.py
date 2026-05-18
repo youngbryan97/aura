@@ -4,8 +4,6 @@ Extracted from server.py — WebSocket connection management,
 broadcast infrastructure, and UI event normalization.
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
 
 import asyncio
 import collections
@@ -15,15 +13,17 @@ import os
 import random
 import time
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from fastapi import WebSocket
+
+from core.runtime.errors import record_degradation
 
 try:
     from websockets.exceptions import ConnectionClosed
 except ImportError:
-    class ConnectionClosed(Exception):   # type: ignore[no-redef]
-        pass  # no-op: intentional
+    class ConnectionClosed(Exception):  # type: ignore[no-redef]  # noqa: N818
+        """Compatibility fallback for environments without websockets."""
 
 from fastapi import WebSocketDisconnect
 
@@ -38,7 +38,7 @@ class MessageBroadcastBus:
     """
 
     def __init__(self, maxsize: int = 2000):
-        self._subs: List[asyncio.PriorityQueue] = []
+        self._subs: list[asyncio.PriorityQueue] = []
         self._lock = asyncio.Lock()
         self._maxsize = maxsize
 
@@ -110,10 +110,10 @@ class MessageBroadcastBus:
                         logger.debug("Suppressed Exception: %s", _exc)
 
 
-def _normalize_ui_event(message: Any) -> Dict[str, Any]:
+def _normalize_ui_event(message: Any) -> dict[str, Any]:
     """Attach stable envelope fields while preserving legacy payload keys."""
     if isinstance(message, str):
-        normalized: Dict[str, Any] = {"type": "message", "message": message}
+        normalized: dict[str, Any] = {"type": "message", "message": message}
     elif isinstance(message, dict):
         normalized = dict(message)
     else:
@@ -143,9 +143,9 @@ class WebSocketManager:
     """Manages WebSocket connections with priority-based queues and heartbeat monitoring."""
 
     def __init__(self, task_spawner=None):
-        self.active_connections: Dict[WebSocket, asyncio.PriorityQueue] = {}
-        self._pump_tasks: Dict[WebSocket, asyncio.Task] = {}
-        self._heartbeat_tasks: Dict[WebSocket, asyncio.Task] = {}
+        self.active_connections: dict[WebSocket, asyncio.PriorityQueue] = {}
+        self._pump_tasks: dict[WebSocket, asyncio.Task] = {}
+        self._heartbeat_tasks: dict[WebSocket, asyncio.Task] = {}
         self._lock = asyncio.Lock()
         self._heartbeat_interval = 20.0
         self._task_spawner = task_spawner or asyncio.create_task
@@ -232,10 +232,11 @@ class WebSocketManager:
                         break
                     finally:
                         queue.task_done()
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     try:
                         await websocket.send_json({"type": "heartbeat", "timestamp": time.time()})
-                    except Exception:
+                    except (WebSocketDisconnect, ConnectionClosed, RuntimeError, OSError) as exc:
+                        logger.debug("WS heartbeat failed; closing pump: %s", exc)
                         break
                 except Exception as e:
                     record_degradation('websocket_manager', e)
@@ -278,7 +279,7 @@ class WebSocketManager:
                         websocket.send_json({"type": "ping", "timestamp": time.monotonic()}),
                         timeout=5.0,
                     )
-                except (asyncio.TimeoutError, Exception):
+                except (TimeoutError, Exception):
                     logger.warning("🧟 WS ZOMBIE: Reaping connection %s", id(websocket))
                     await self.disconnect(websocket)
                     break
@@ -313,7 +314,7 @@ class WebSocketManager:
         )
         item = (priority, time.monotonic(), payload)
 
-        disconnect_later: List[WebSocket] = []
+        disconnect_later: list[WebSocket] = []
         async with self._lock:
             for websocket, queue in list(self.active_connections.items()):
                 try:

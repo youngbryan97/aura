@@ -4,8 +4,6 @@ Extracted from server.py — Health, telemetry, metrics, bootstrap,
 and all collector/diagnostic helpers.
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
 
 import asyncio
 import json
@@ -20,6 +18,8 @@ from typing import Any, cast
 import psutil
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
+
+from core.runtime.errors import record_degradation
 
 try:
     from fastapi.responses import ORJSONResponse
@@ -177,13 +177,13 @@ def _json_safe(value: Any) -> Any:
     if hasattr(value, "item"):
         try:
             return _json_safe(value.item())
-        except Exception:
-            pass  # no-op: intentional
+        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug("Unable to coerce scalar-like value with item(): %s", exc)
     if hasattr(value, "tolist") and not isinstance(value, (str, bytes, bytearray)):
         try:
             return _json_safe(value.tolist())
-        except Exception:
-            pass  # no-op: intentional
+        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug("Unable to coerce array-like value with tolist(): %s", exc)
     try:
         coerced = float(value)
     except (TypeError, ValueError):
@@ -631,8 +631,9 @@ async def metrics_prometheus(request: Request):
     """
     _require_internal(request)
     try:
-        from core.observability.metrics import get_metrics
         from fastapi.responses import Response
+
+        from core.observability.metrics import get_metrics
 
         text = get_metrics().render_prometheus()
         return Response(
@@ -660,7 +661,9 @@ async def healthz(request: Request):
 
         result = check_liveness()
         return JSONResponse(result, status_code=200)
-    except Exception:
+    except Exception as exc:
+        record_degradation("system", exc)
+        logger.warning("Liveness check degraded; returning process-level alive response: %s", exc)
         return JSONResponse({"status": "alive", "pid": os.getpid()}, status_code=200)
 
 

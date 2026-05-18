@@ -14,24 +14,23 @@ This endpoint is how you prove to yourself and anyone watching
 that the system is doing what you think it's doing.
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
 
 import logging
 import time
-from typing import Any, Dict
+from typing import Any
 
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
 from core.container import ServiceContainer
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.ProofSurface")
 
 router = APIRouter(prefix="/api", tags=["inner-state"])
 
 
-def _build_unity_surface() -> Dict[str, Any]:
+def _build_unity_surface() -> dict[str, Any]:
     from core.unity.unity_receipts import unity_summary_payload
 
     unity_state = ServiceContainer.get("unity_state", default=None)
@@ -82,7 +81,7 @@ async def get_inner_state() -> JSONResponse:
 
     This is the single endpoint that proves Aura is a unified organism.
     """
-    result: Dict[str, Any] = {
+    result: dict[str, Any] = {
         "timestamp": time.time(),
         "proof_version": "1.0",
     }
@@ -193,8 +192,9 @@ async def get_inner_state() -> JSONResponse:
             for name, sv in steering._vectors.items():
                 try:
                     active_weights[name] = round(sv.compute_weight(moods), 4)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    record_degradation("inner_state", exc)
+                    logger.debug("Affective steering weight unavailable for %s: %s", name, exc)
             result["affective_steering"] = {
                 "current_mood_vector": {k: round(v, 4) for k, v in moods.items()},
                 "active_steering_weights": active_weights,
@@ -214,8 +214,9 @@ async def get_inner_state() -> JSONResponse:
             }
             try:
                 result["coherence"]["phi_contribution"] = round(field.get_phi_contribution(), 4)
-            except Exception:
-                pass  # no-op: intentional
+            except Exception as exc:
+                record_degradation("inner_state", exc)
+                logger.debug("Phi contribution unavailable: %s", exc)
         else:
             result["coherence"] = {"status": "not_booted"}
 

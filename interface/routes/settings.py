@@ -14,27 +14,29 @@ Endpoints:
                                     (used by Conscience for destructive ops)
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
-from core.runtime.atomic_writer import atomic_write_text
 
 import json
 import logging
 import os
 import time
-from dataclasses import dataclass, field, asdict
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from threading import RLock
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any
 
 from fastapi import APIRouter, Body, Depends, HTTPException
 from fastapi.responses import JSONResponse
 
+from core.runtime.atomic_writer import atomic_write_text
+from core.runtime.errors import record_degradation
 from interface.auth import _require_internal
 
 logger = logging.getLogger("Aura.Server.Settings")
 
 router = APIRouter(prefix="/settings", tags=["settings"])
+SETTINGS_PATCH_BODY = Body(...)
+SETTINGS_RESET_BODY = Body(...)
 
 
 _SETTINGS_DIR = Path.home() / ".aura" / "data" / "settings"
@@ -53,12 +55,12 @@ class SettingDef:
     default: Any
     explanation: str
     type_: str  # "bool" | "int" | "float" | "string" | "enum"
-    choices: Optional[Tuple[str, ...]] = None
-    min_: Optional[float] = None
-    max_: Optional[float] = None
+    choices: tuple[str, ...] | None = None
+    min_: float | None = None
+    max_: float | None = None
 
 
-SCHEMA: Tuple[SettingDef, ...] = (
+SCHEMA: tuple[SettingDef, ...] = (
     # ── Models ────────────────────────────────────────────────────────
     SettingDef("model.local_path", "Local model path", "models", "", "Where the local MLX worker loads weights from. Empty falls back to the runtime default.", "string"),
     SettingDef("model.deep_path", "Deep model path", "models", "", "Path for the heavy 72B-class lane.", "string"),
@@ -108,9 +110,9 @@ SCHEMA: Tuple[SettingDef, ...] = (
 class SettingsStore:
     def __init__(self) -> None:
         self._lock = RLock()
-        self._data: Dict[str, Any] = {s.key: s.default for s in SCHEMA}
+        self._data: dict[str, Any] = {s.key: s.default for s in SCHEMA}
         self._load()
-        self._subscribers: List[Callable[[str, Any, Any], None]] = []
+        self._subscribers: list[Callable[[str, Any, Any], None]] = []
 
     def _load(self) -> None:
         if not _SETTINGS_PATH.exists():
@@ -134,7 +136,7 @@ class SettingsStore:
         with self._lock:
             return self._data.get(key)
 
-    def all(self) -> Dict[str, Any]:
+    def all(self) -> dict[str, Any]:
         with self._lock:
             return dict(self._data)
 
@@ -148,11 +150,12 @@ class SettingsStore:
         for cb in self._subscribers:
             try:
                 cb(key, previous, coerced)
-            except Exception:
-                pass  # no-op: intentional
+            except Exception as exc:
+                record_degradation("settings", exc)
+                logger.debug("Settings subscriber failed for %s: %s", key, exc)
         return coerced
 
-    def reset_section(self, section: str) -> Dict[str, Any]:
+    def reset_section(self, section: str) -> dict[str, Any]:
         with self._lock:
             for s in SCHEMA:
                 if s.section == section:
@@ -200,7 +203,7 @@ class SettingsStore:
         return str(value)
 
 
-_STORE: Optional[SettingsStore] = None
+_STORE: SettingsStore | None = None
 
 
 def get_settings() -> SettingsStore:
@@ -237,12 +240,12 @@ async def get_all(_: None = Depends(_require_internal)) -> JSONResponse:
 
 @router.patch("")
 async def patch_settings(
-    payload: Dict[str, Any] = Body(...),
+    payload: dict[str, Any] = SETTINGS_PATCH_BODY,
     _: None = Depends(_require_internal),
 ) -> JSONResponse:
     store = get_settings()
-    applied: Dict[str, Any] = {}
-    errors: Dict[str, str] = {}
+    applied: dict[str, Any] = {}
+    errors: dict[str, str] = {}
     for k, v in payload.items():
         try:
             applied[k] = store.set(k, v)
@@ -254,7 +257,7 @@ async def patch_settings(
 
 @router.post("/reset")
 async def reset_section(
-    payload: Dict[str, Any] = Body(...),
+    payload: dict[str, Any] = SETTINGS_RESET_BODY,
     _: None = Depends(_require_internal),
 ) -> JSONResponse:
     section = str(payload.get("section", ""))
@@ -279,7 +282,7 @@ async def acknowledge_fresh_auth(_: None = Depends(_require_internal)) -> JSONRe
         return JSONResponse({"ok": True, "when": time.time()})
     except Exception as exc:
         record_degradation('settings', exc)
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 __all__ = ["router", "SettingsStore", "SCHEMA", "get_settings"]
