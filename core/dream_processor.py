@@ -129,8 +129,8 @@ class DreamProcessor:
         if hasattr(episode, "to_retrieval_text"):
             try:
                 return str(episode.to_retrieval_text())
-            except (AttributeError, RuntimeError, TypeError, ValueError):
-                pass
+            except (AttributeError, RuntimeError, TypeError, ValueError) as _exc:
+                logger.debug("Suppressed %s in core.dream_processor: %s", type(_exc).__name__, _exc)
         if isinstance(episode, dict):
             context = episode.get("context") or episode.get("description") or episode.get("content") or ""
             action = episode.get("action") or ""

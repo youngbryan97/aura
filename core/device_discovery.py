@@ -41,8 +41,8 @@ class EnhancedDeviceScanner:
     def _run_local_probe(self, argv: list[str], context: str, *, timeout: float = 3.0) -> str | None:
         try:
             asyncio.get_running_loop()
-        except RuntimeError:
-            pass
+        except RuntimeError as _exc:
+            logger.debug("Suppressed %s in core.device_discovery: %s", type(_exc).__name__, _exc)
         else:
             logger.warning("%s skipped: synchronous scanner cannot run an agency receipt inside an active loop", context)
             return None

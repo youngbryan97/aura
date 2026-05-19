@@ -105,8 +105,8 @@ class SovereignSupervisor:
             if not self.should_run:
                 try:
                     self.process.terminate()
-                except ProcessLookupError:
-                    pass
+                except ProcessLookupError as _exc:
+                    logger.debug("Suppressed %s in core.resilience.supervisor: %s", type(_exc).__name__, _exc)
                 return
 
             try:

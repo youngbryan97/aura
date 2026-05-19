@@ -599,8 +599,8 @@ class DynamicValueGraph:
             finally:
                 try:
                     Path(tmp_path).unlink(missing_ok=True)
-                except (OSError, IOError):
-                    pass
+                except (OSError, IOError) as _exc:
+                    logger.debug("Suppressed %s in core.adaptation.dynamic_value_graph: %s", type(_exc).__name__, _exc)
         except (json.JSONDecodeError, TypeError, ValueError) as exc:
             logger.debug("Value graph save failed: %s", exc)
 
@@ -626,8 +626,8 @@ class DynamicValueGraph:
         try:
             from core.event_bus import get_event_bus
             get_event_bus().publish_threadsafe(topic, data)
-        except (ImportError, AttributeError, RuntimeError):
-            pass
+        except (ImportError, AttributeError, RuntimeError) as _exc:
+            logger.debug("Suppressed %s in core.adaptation.dynamic_value_graph: %s", type(_exc).__name__, _exc)
 
     # ── Public API ──────────────────────────────────────────────────────
 

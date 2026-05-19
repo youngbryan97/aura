@@ -352,8 +352,8 @@ class DatabaseMaintenance:
                         detail=error_msg[:500],
                         severity="critical",
                     )
-                except (ImportError, AttributeError, RuntimeError):
-                    pass
+                except (ImportError, AttributeError, RuntimeError) as _exc:
+                    logger.debug("Suppressed %s in core.persistence.db_maintenance: %s", type(_exc).__name__, _exc)
         except sqlite3.Error as exc:
             record_degradation("db_maintenance", exc)
             result.errors.append(f"integrity_check: {exc}")
@@ -384,8 +384,8 @@ class DatabaseMaintenance:
                         detail=f"{result.db_size_bytes / (1024*1024):.1f} MB > {self._max_db_size_bytes / (1024*1024):.1f} MB",
                         severity="warning",
                     )
-                except (ImportError, AttributeError, RuntimeError):
-                    pass
+                except (ImportError, AttributeError, RuntimeError) as _exc:
+                    logger.debug("Suppressed %s in core.persistence.db_maintenance: %s", type(_exc).__name__, _exc)
 
             # Alert if WAL is growing too large (> 50MB)
             if result.wal_size_bytes > 50 * 1024 * 1024:
@@ -399,8 +399,8 @@ class DatabaseMaintenance:
                 from core.observability.metrics import get_metrics
                 get_metrics().set_gauge("db_size_bytes", float(result.db_size_bytes))
                 get_metrics().set_gauge("wal_size_bytes", float(result.wal_size_bytes))
-            except (ImportError, AttributeError):
-                pass
+            except (ImportError, AttributeError) as _exc:
+                logger.debug("Suppressed %s in core.persistence.db_maintenance: %s", type(_exc).__name__, _exc)
 
         except (OSError, sqlite3.Error) as exc:
             record_degradation("db_maintenance", exc)

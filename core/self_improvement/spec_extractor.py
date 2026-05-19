@@ -78,8 +78,8 @@ class SpecExtractor:
             if node.returns:
                 try:
                     ret = ast.unparse(node.returns)
-                except (RuntimeError, AttributeError, TypeError, ValueError):
-                    pass
+                except (RuntimeError, AttributeError, TypeError, ValueError) as _exc:
+                    logger.debug("Suppressed %s in core.self_improvement.spec_extractor: %s", type(_exc).__name__, _exc)
             functions.append(FunctionSignature(
                 name=node.name, parameters=tuple(params),
                 is_async=isinstance(node, ast.AsyncFunctionDef),
@@ -104,8 +104,8 @@ class SpecExtractor:
             for base in node.bases:
                 try:
                     bases.append(ast.unparse(base))
-                except (RuntimeError, AttributeError, TypeError, ValueError):
-                    pass
+                except (RuntimeError, AttributeError, TypeError, ValueError) as _exc:
+                    logger.debug("Suppressed %s in core.self_improvement.spec_extractor: %s", type(_exc).__name__, _exc)
             methods: List[FunctionSignature] = []
             for item in node.body:
                 if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -117,8 +117,8 @@ class SpecExtractor:
                     if item.returns:
                         try:
                             ret = ast.unparse(item.returns)
-                        except (RuntimeError, AttributeError, TypeError, ValueError):
-                            pass
+                        except (RuntimeError, AttributeError, TypeError, ValueError) as _exc:
+                            logger.debug("Suppressed %s in core.self_improvement.spec_extractor: %s", type(_exc).__name__, _exc)
                     methods.append(FunctionSignature(
                         name=item.name, parameters=tuple(params),
                         is_async=isinstance(item, ast.AsyncFunctionDef),
@@ -186,16 +186,16 @@ class SpecExtractor:
             if arg.annotation:
                 try:
                     name += f": {ast.unparse(arg.annotation)}"
-                except (RuntimeError, AttributeError, TypeError, ValueError):
-                    pass
+                except (RuntimeError, AttributeError, TypeError, ValueError) as _exc:
+                    logger.debug("Suppressed %s in core.self_improvement.spec_extractor: %s", type(_exc).__name__, _exc)
             params.append(name)
         for arg in node.args.kwonlyargs:
             name = arg.arg
             if arg.annotation:
                 try:
                     name += f": {ast.unparse(arg.annotation)}"
-                except (RuntimeError, AttributeError, TypeError, ValueError):
-                    pass
+                except (RuntimeError, AttributeError, TypeError, ValueError) as _exc:
+                    logger.debug("Suppressed %s in core.self_improvement.spec_extractor: %s", type(_exc).__name__, _exc)
             params.append(name)
         return params
 

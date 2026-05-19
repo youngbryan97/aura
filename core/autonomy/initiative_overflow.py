@@ -104,8 +104,8 @@ class InitiativeOverflowManager:
             get_metrics().set_gauge(
                 "initiative_queue_cap", float(self._current_cap)
             )
-        except (ImportError, AttributeError, RuntimeError):
-            pass
+        except (ImportError, AttributeError, RuntimeError) as _exc:
+            logger.debug("Suppressed %s in core.autonomy.initiative_overflow: %s", type(_exc).__name__, _exc)
 
         logger.info(
             "Initiative overflow #%d: dropped '%s' from %s (queue=%d, cap=%d)",
@@ -207,8 +207,8 @@ class InitiativeOverflowManager:
                     )
                     self._current_cap = new_cap
                 return self._current_cap
-        except (ImportError, AttributeError, RuntimeError):
-            pass
+        except (ImportError, AttributeError, RuntimeError) as _exc:
+            logger.debug("Suppressed %s in core.autonomy.initiative_overflow: %s", type(_exc).__name__, _exc)
 
         # High consecutive overflows: increase cap slightly
         if self._consecutive_overflows > 5:

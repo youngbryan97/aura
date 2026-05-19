@@ -21,8 +21,8 @@ def _safe_metadata(raw: Any) -> Dict[str, Any]:
             parsed = json.loads(raw)
             if isinstance(parsed, dict):
                 return parsed
-        except (json.JSONDecodeError, ValueError):
-            pass
+        except (json.JSONDecodeError, ValueError) as _exc:
+            logger.debug("Suppressed %s in core.phases.memory_retrieval: %s", type(_exc).__name__, _exc)
         return {}
     return {}
 

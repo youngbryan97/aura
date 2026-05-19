@@ -187,8 +187,8 @@ class TopologicalMemoryEngine:
                         logger.debug("Topology recompute deferred (energy=%.2f, curiosity=%.2f).", 
                                      drive.get("energy", 1.0), drive.get("curiosity", 1.0))
                         return
-            except (ImportError, AttributeError, RuntimeError):
-                pass
+            except (ImportError, AttributeError, RuntimeError) as _exc:
+                logger.debug("Suppressed %s in core.pneuma.topological_memory: %s", type(_exc).__name__, _exc)
 
             points = np.array(self._buffer)
             self._diagram = _compute_persistence_diagram(points)

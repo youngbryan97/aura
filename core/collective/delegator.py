@@ -265,8 +265,8 @@ FINAL SYNTHESIS:"""
             flaws.extend(str(item).strip() for item in parsed.get("flaws", []) if str(item).strip())
             try:
                 confidences.append(float(parsed.get("confidence")))
-            except (TypeError, ValueError):
-                pass
+            except (TypeError, ValueError) as _exc:
+                logger.debug("Suppressed %s in core.collective.delegator: %s", type(_exc).__name__, _exc)
         if not claims:
             claims = [str(output).strip()[:240] for output in agent_outputs if str(output).strip()]
         confidence = sum(confidences) / len(confidences) if confidences else 0.5

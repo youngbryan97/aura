@@ -294,14 +294,14 @@ class ContinuousSubstrate:
                     root_cause_hint="unbounded_input_or_weight_explosion",
                     mitigation_taken="rollback_to_last_good_state",
                 )
-            except (ImportError, AttributeError, RuntimeError):
-                pass
+            except (ImportError, AttributeError, RuntimeError) as _exc:
+                logger.debug("Suppressed %s in core.brain.llm.continuous_substrate: %s", type(_exc).__name__, _exc)
             # Report to metrics
             try:
                 from core.observability.metrics import get_metrics
                 get_metrics().record_substrate_reset()
-            except (ImportError, AttributeError, RuntimeError):
-                pass
+            except (ImportError, AttributeError, RuntimeError) as _exc:
+                logger.debug("Suppressed %s in core.brain.llm.continuous_substrate: %s", type(_exc).__name__, _exc)
             return  # Skip this step entirely
 
         self._state = new_state
@@ -336,8 +336,8 @@ class ContinuousSubstrate:
             riiu = ServiceContainer.get("riiu", default=None)
             if riiu and hasattr(riiu, "phi"):
                 return float(riiu.phi)
-        except (ImportError, AttributeError, RuntimeError):
-            pass
+        except (ImportError, AttributeError, RuntimeError) as _exc:
+            logger.debug("Suppressed %s in core.brain.llm.continuous_substrate: %s", type(_exc).__name__, _exc)
 
         if len(self._phi_window) < 8:
             return 0.0

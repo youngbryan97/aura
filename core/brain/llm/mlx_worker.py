@@ -850,8 +850,8 @@ def _mlx_worker_loop(
                         )
                         if lp:
                             logits_processors.extend(lp)
-                except ImportError:
-                    pass
+                except ImportError as _exc:
+                    logger.debug("Suppressed %s in core.brain.llm.mlx_worker: %s", type(_exc).__name__, _exc)
                 except (ImportError, AttributeError, RuntimeError) as e:
                     logger.warning(f"Could not apply penalty logits processors: {e}")
 
@@ -1239,8 +1239,8 @@ def _mlx_worker_loop(
                         )
                         if lp:
                             logits_processors.extend(lp)
-                except ImportError:
-                    pass
+                except ImportError as _exc:
+                    logger.debug("Suppressed %s in core.brain.llm.mlx_worker: %s", type(_exc).__name__, _exc)
                 except (ImportError, AttributeError, RuntimeError) as e:
                     logger.warning(f"Could not apply penalty logits processors: {e}")
                 

@@ -329,8 +329,8 @@ class LocalPipeBus:
                         "PipeWriteSaturation",
                         f"write timeout streak={self._write_timeout_count}; suppressing writes for 30s",
                     )
-                except (ImportError, AttributeError, RuntimeError):
-                    pass
+                except (ImportError, AttributeError, RuntimeError) as _exc:
+                    logger.debug("Suppressed %s in core.bus.local_pipe_bus: %s", type(_exc).__name__, _exc)
         except (BrokenPipeError, EOFError, OSError, ConnectionResetError) as e:
             if not getattr(self, '_pipe_broken', False):
                 self._pipe_broken = True

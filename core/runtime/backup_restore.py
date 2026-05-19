@@ -1,3 +1,4 @@
+
 """Backup / restore commands.
 
 Atomic backup that bundles state, memory, and the receipt store. Restore
@@ -12,6 +13,8 @@ pattern used in atomic_writer / receipts.
 """
 from __future__ import annotations
 
+import logging
+logger = logging.getLogger("core.runtime.backup_restore")
 import os
 import shutil
 import tarfile
@@ -42,8 +45,8 @@ def _ensure_dir(p: Path, *, cause: str) -> None:
         get_task_tracker().create_task(  # type: ignore[name-defined]
             get_storage_gateway().create_dir(p, cause=cause)  # type: ignore[name-defined]
         )
-    except NameError:
-        pass
+    except NameError as _exc:
+        logger.debug("Suppressed %s in core.runtime.backup_restore: %s", type(_exc).__name__, _exc)
     p.mkdir(parents=True, exist_ok=True)
 
 
@@ -54,8 +57,8 @@ def _delete_tree(p: Path, *, cause: str) -> None:
         get_task_tracker().create_task(  # type: ignore[name-defined]
             get_storage_gateway().delete_tree(p, cause=cause)  # type: ignore[name-defined]
         )
-    except NameError:
-        pass
+    except NameError as _exc:
+        logger.debug("Suppressed %s in core.runtime.backup_restore: %s", type(_exc).__name__, _exc)
     if p.exists():
         shutil.rmtree(p)
 

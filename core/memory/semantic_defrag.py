@@ -172,10 +172,13 @@ class SemanticDefragmenter:
             record_degradation('semantic_defrag', e)
             logger.error("Semantic Defrag failed: %s", e)
 
+
+_defrag_running = True
+
 async def start_defrag_scheduler():
     """Continuous background daemon that runs micro-batch defrags periodically."""
     defragger = SemanticDefragmenter()
-    while True:
+    while _defrag_running:
         # Sleep for a short interval (e.g., 5 minutes) to run continuous micro-batches
         await asyncio.sleep(5 * 60)
         await defragger.run_defrag_cycle()

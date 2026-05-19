@@ -241,8 +241,8 @@ class SelfHealing:
                 source_path = Path(source_file).resolve()
                 try:
                     return str(source_path.relative_to(config.paths.base_dir))
-                except ValueError:
-                    pass
+                except ValueError as _exc:
+                    logger.debug("Suppressed %s in core.runtime.self_healing: %s", type(_exc).__name__, _exc)
 
             module_name = type(instance).__module__
             candidate = module_name.replace(".", "/") + ".py"

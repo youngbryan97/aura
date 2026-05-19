@@ -75,8 +75,8 @@ def estimate_tokens(text: str) -> int:
     if encoding is not None:
         try:
             encoded_count = max(1, len(encoding.encode(text)))
-        except (TypeError, ValueError, UnicodeError):
-            pass
+        except (TypeError, ValueError, UnicodeError) as _exc:
+            logger.debug("Suppressed %s in core.brain.llm.context_gate: %s", type(_exc).__name__, _exc)
 
     words = re.findall(r"[A-Za-z0-9_]+|[^\sA-Za-z0-9_]", text)
     cjk = sum(1 for ch in text if "\u3400" <= ch <= "\u9fff" or "\u3040" <= ch <= "\u30ff" or "\uac00" <= ch <= "\ud7af")

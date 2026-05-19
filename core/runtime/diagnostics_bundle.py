@@ -1,3 +1,4 @@
+
 """Diagnostics bundle for `aura doctor --bundle`.
 
 Aura's runbooks reference ``aura doctor`` and ``aura status`` as the
@@ -32,6 +33,8 @@ is replaced with ``"[REDACTED]"`` before being written.
 """
 from __future__ import annotations
 
+import logging
+logger = logging.getLogger("core.runtime.diagnostics_bundle")
 import datetime
 import heapq
 import hashlib
@@ -308,8 +311,8 @@ def collect_audit_chain(dest_dir: Path) -> Dict[str, Any]:
                 try:
                     if hasattr(chain, "flush"):
                         chain.flush()
-                except Exception:
-                    pass
+                except Exception as _exc:
+                    logger.debug("Suppressed %s in core.runtime.diagnostics_bundle: %s", type(_exc).__name__, _exc)
                 tail_entries = max(1, int(os.environ.get("AURA_DOCTOR_AUDIT_TAIL_ENTRIES", "200")))
                 chain_src = Path(getattr(chain, "path", ""))
                 chain_tail = dest_dir / "chain_tail.jsonl"

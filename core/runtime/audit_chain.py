@@ -1,3 +1,4 @@
+
 """Append-only Merkle/hash chain over receipts for tamper-evident audit.
 
 Receipts in ``core/runtime/receipts.py`` are stored per-kind, per-id as
@@ -28,6 +29,8 @@ the underlying file is durable on disk.
 """
 from __future__ import annotations
 
+import logging
+logger = logging.getLogger("core.runtime.audit_chain")
 import hashlib
 import json
 import os
@@ -214,16 +217,16 @@ class AuditChain:
                 import fcntl
 
                 fcntl.flock(fd, fcntl.LOCK_EX)
-            except (ImportError, OSError):
-                pass
+            except (ImportError, OSError) as _exc:
+                logger.debug("Suppressed %s in core.runtime.audit_chain: %s", type(_exc).__name__, _exc)
             yield
         finally:
             try:
                 import fcntl
 
                 fcntl.flock(fd, fcntl.LOCK_UN)
-            except (ImportError, OSError):
-                pass
+            except (ImportError, OSError) as _exc:
+                logger.debug("Suppressed %s in core.runtime.audit_chain: %s", type(_exc).__name__, _exc)
 
     def _ensure_root_ready_locked(self) -> None:
         if not self._root_ready:
@@ -327,15 +330,15 @@ class AuditChain:
             if fd is not None:
                 try:
                     os.close(fd)
-                except OSError:
-                    pass
+                except OSError as _exc:
+                    logger.debug("Suppressed %s in core.runtime.audit_chain: %s", type(_exc).__name__, _exc)
                 setattr(self, attr, None)
 
     def __del__(self) -> None:
         try:
             self.close()
-        except (RuntimeError, AttributeError, TypeError, ValueError):
-            pass
+        except (RuntimeError, AttributeError, TypeError, ValueError) as _exc:
+            logger.debug("Suppressed %s in core.runtime.audit_chain: %s", type(_exc).__name__, _exc)
 
     def _should_fsync_now(self) -> bool:
         if self._sync_policy in {"0", "false", "off", "none", "never"}:
@@ -348,8 +351,8 @@ class AuditChain:
     def _fsync_fd(fd: int) -> None:
         try:
             os.fsync(fd)
-        except OSError:
-            pass
+        except OSError as _exc:
+            logger.debug("Suppressed %s in core.runtime.audit_chain: %s", type(_exc).__name__, _exc)
 
     def _fsync_dir(self) -> None:
         # Best-effort dir fsync so newly-created chain files survive a crash.
@@ -361,8 +364,8 @@ class AuditChain:
             try:
                 try:
                     os.fsync(dir_fd)
-                except OSError:
-                    pass
+                except OSError as _exc:
+                    logger.debug("Suppressed %s in core.runtime.audit_chain: %s", type(_exc).__name__, _exc)
             finally:
                 os.close(dir_fd)
 

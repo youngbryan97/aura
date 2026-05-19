@@ -96,14 +96,16 @@ class ToolOrchestrator:
             except asyncio.TimeoutError:
                 if self._repl_process:
                     try: self._repl_process.kill()
-                    except (ProcessLookupError, OSError): pass
+                    except (ProcessLookupError, OSError) as _exc:
+                        logger.debug("Suppressed %s in core.agency.tool_orchestrator: %s", type(_exc).__name__, _exc)
                 self._repl_process = None
                 return False, "Execution Error: Script timed out (Infinite loop or heavy resource)."
             except (json.JSONDecodeError, TypeError, ValueError) as e:
                 record_degradation('tool_orchestrator', e)
                 if self._repl_process:
                     try: self._repl_process.kill()
-                    except (ProcessLookupError, OSError): pass
+                    except (ProcessLookupError, OSError) as _exc:
+                        logger.debug("Suppressed %s in core.agency.tool_orchestrator: %s", type(_exc).__name__, _exc)
                 self._repl_process = None
                 return False, f"Daemon protocol error: {e}"
 

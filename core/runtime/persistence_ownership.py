@@ -1,3 +1,4 @@
+
 """Canonical persistence ownership helpers for Aura.
 
 Goal: every durable runtime write should be atomic, schema-versioned when
@@ -7,6 +8,8 @@ contexts.
 """
 from __future__ import annotations
 
+import logging
+logger = logging.getLogger("core.runtime.persistence_ownership")
 
 import json
 import os
@@ -22,8 +25,8 @@ def _fsync_parent(path: Path) -> None:
             os.fsync(fd)
         finally:
             os.close(fd)
-    except OSError:
-        pass
+    except OSError as _exc:
+        logger.debug("Suppressed %s in core.runtime.persistence_ownership: %s", type(_exc).__name__, _exc)
 
 
 def atomic_write_text_owned(
@@ -47,8 +50,8 @@ def atomic_write_text_owned(
         from core.runtime.atomic_writer import atomic_write_text  # type: ignore
         atomic_write_text(path, text, encoding=encoding)
         return
-    except (ImportError, OSError, TypeError):
-        pass
+    except (ImportError, OSError, TypeError) as _exc:
+        logger.debug("Suppressed %s in core.runtime.persistence_ownership: %s", type(_exc).__name__, _exc)
 
     fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=str(path.parent))
     tmp = Path(tmp_name)
@@ -63,8 +66,8 @@ def atomic_write_text_owned(
         try:
             if tmp.exists():
                 tmp.unlink()
-        except OSError:
-            pass
+        except OSError as _exc:
+            logger.debug("Suppressed %s in core.runtime.persistence_ownership: %s", type(_exc).__name__, _exc)
 
 
 def atomic_write_json_owned(
@@ -89,8 +92,8 @@ def atomic_write_json_owned(
             schema_name=schema_name,
         )
         return
-    except (ImportError, OSError, TypeError):
-        pass
+    except (ImportError, OSError, TypeError) as _exc:
+        logger.debug("Suppressed %s in core.runtime.persistence_ownership: %s", type(_exc).__name__, _exc)
 
     envelope = {
         "schema_name": schema_name,

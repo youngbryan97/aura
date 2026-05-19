@@ -82,8 +82,8 @@ def acquire_instance_lock(lock_name: str = "singleton", skip_lock: bool = False)
                     # Close and reopen to get a fresh FD
                     try:
                         os.close(_LOCK_FD)
-                    except OSError:
-                        pass
+                    except OSError as _exc:
+                        logger.debug("Suppressed %s in core.utils.singleton: %s", type(_exc).__name__, _exc)
                     flags = os.O_CREAT | os.O_RDWR
                     if hasattr(os, "O_CLOEXEC"):
                         flags |= os.O_CLOEXEC

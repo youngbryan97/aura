@@ -151,7 +151,7 @@ class IntegrityGuardian:
     async def _periodic_check_loop(self):
         """Background loop that re-hashes all core files every CHECK_INTERVAL."""
         await asyncio.sleep(CHECK_INTERVAL)  # skip the just-booted window
-        while True:
+        while getattr(self, '_running', True):
             try:
                 tampered = await asyncio.to_thread(self._verify_all)
                 if tampered:

@@ -1,3 +1,4 @@
+
 """Active scheduler for Aura's self-maintenance loops.
 
 This is the difference between machinery existing and Aura actually using it.
@@ -7,6 +8,8 @@ safe enough to start automatically.
 """
 from __future__ import annotations
 
+import logging
+logger = logging.getLogger("core.runtime.autonomy_conductor")
 import asyncio
 import json
 import time
@@ -101,8 +104,8 @@ class AutonomyConductor:
                 record_degradation("autonomy_conductor", exc)
             try:
                 await asyncio.wait_for(self._stop.wait(), timeout=30.0)
-            except asyncio.TimeoutError:
-                pass
+            except asyncio.TimeoutError as _exc:
+                logger.debug("Suppressed %s in core.runtime.autonomy_conductor: %s", type(_exc).__name__, _exc)
 
     async def _run_job(self, job: ConductedJob) -> dict[str, Any]:
         job.last_started_at = time.time()

@@ -21,7 +21,7 @@ class BootBackgroundMixin:
         heartbeat_file = Path.home() / ".aura" / "run" / "heartbeat.pulse"
         logger.info("💓 Heartbeat monitor starting (Lazarus Protocol active)")
         _last_continuity_save = 0.0
-        while True:
+        while getattr(self, '_running', True):
             try:
                 # 'touch' the file, updating its modification time.
                 # Use a thread for file I/O to avoid blocking the event loop (ASYNC240)

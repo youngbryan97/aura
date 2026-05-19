@@ -54,8 +54,8 @@ class NetHackAdapter:
             if out:
                 self.last_output = out
                 self.stream.feed(out)
-        except (pexpect.TIMEOUT, pexpect.EOF):
-            pass
+        except (pexpect.TIMEOUT, pexpect.EOF) as _exc:
+            logger.debug("Suppressed %s in core.adapters.nethack_adapter: %s", type(_exc).__name__, _exc)
 
     def get_screen_text(self) -> str:
         self._update_screen()

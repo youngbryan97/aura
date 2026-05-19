@@ -1,3 +1,4 @@
+
 """Substrate-first token generation.
 
 This module makes the continuous substrate the first computation attempted for
@@ -6,6 +7,8 @@ substrate's own prediction error is too high for the requested prompt.
 """
 from __future__ import annotations
 
+import logging
+logger = logging.getLogger("core.brain.llm.substrate_token_generator")
 import hashlib
 import math
 import os
@@ -149,8 +152,8 @@ class SubstrateTokenGenerator:
             if engine and hasattr(engine, "telemetry"):
                 import dataclasses
                 telemetry = dataclasses.asdict(engine.telemetry)
-        except (ImportError, AttributeError, RuntimeError):
-            pass
+        except (ImportError, AttributeError, RuntimeError) as _exc:
+            logger.debug("Suppressed %s in core.brain.llm.substrate_token_generator: %s", type(_exc).__name__, _exc)
 
         if not force and error > active_threshold:
             result = SubstrateGeneration(
@@ -205,8 +208,8 @@ def get_substrate_token_generator(substrate: Any | None = None) -> SubstrateToke
     generator = SubstrateTokenGenerator(substrate)
     try:
         ServiceContainer.register_instance("substrate_token_generator", generator, required=False)
-    except (RuntimeError, AttributeError, TypeError, ValueError):
-        pass
+    except (RuntimeError, AttributeError, TypeError, ValueError) as _exc:
+        logger.debug("Suppressed %s in core.brain.llm.substrate_token_generator: %s", type(_exc).__name__, _exc)
     return generator
 
 

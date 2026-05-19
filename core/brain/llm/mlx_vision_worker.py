@@ -33,8 +33,8 @@ class HeartbeatThread(threading.Thread):
                 os._exit(1)
             try:
                 self.res_q.put({"status": "heartbeat", "timestamp": time.time(), "type": "mlx_vision_worker"}, block=False)
-            except queue.Full:
-                pass
+            except queue.Full as _exc:
+                logger.debug("Suppressed %s in core.brain.llm.mlx_vision_worker: %s", type(_exc).__name__, _exc)
             time.sleep(2.0)
 
     def stop(self):

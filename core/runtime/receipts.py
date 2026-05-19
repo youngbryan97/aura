@@ -1,3 +1,4 @@
+
 """Universal receipt types and durable receipt store.
 
 The audit insists every consequential action emits a receipt and that the
@@ -8,6 +9,8 @@ durable, schema-versioned, and queryable.
 """
 from __future__ import annotations
 
+import logging
+logger = logging.getLogger("core.runtime.receipts")
 
 import json
 import threading
@@ -213,8 +216,8 @@ class ReceiptStore:
                     self.root, cause='ReceiptStore.__init__'
                 )
             )
-        except NameError:
-            pass
+        except NameError as _exc:
+            logger.debug("Suppressed %s in core.runtime.receipts: %s", type(_exc).__name__, _exc)
         self.root.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
         self._index: Dict[str, AnyReceipt] = {}

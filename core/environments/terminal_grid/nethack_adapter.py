@@ -1,3 +1,4 @@
+
 """NetHack terminal-grid adapter.
 
 The adapter uses the real NetHack binary when explicitly available. If the
@@ -7,6 +8,8 @@ without cheating or environment-specific bypasses.
 """
 from __future__ import annotations
 
+import logging
+logger = logging.getLogger("core.environments.terminal_grid.nethack_adapter")
 import asyncio
 import os
 import shutil
@@ -175,8 +178,8 @@ class NetHackTerminalGridAdapter(TerminalGridAdapter):
         if self.child is not None:
             try:
                 self.child.terminate(force=True)
-            except (RuntimeError, AttributeError, TypeError, ValueError):
-                pass
+            except (RuntimeError, AttributeError, TypeError, ValueError) as _exc:
+                logger.debug("Suppressed %s in core.environments.terminal_grid.nethack_adapter: %s", type(_exc).__name__, _exc)
             self.child = None
         await super().close()
 
@@ -193,8 +196,8 @@ class NetHackTerminalGridAdapter(TerminalGridAdapter):
         if child is not None:
             try:
                 child.terminate(force=True)
-            except (RuntimeError, AttributeError, TypeError, ValueError):
-                pass
+            except (RuntimeError, AttributeError, TypeError, ValueError) as _exc:
+                logger.debug("Suppressed %s in core.environments.terminal_grid.nethack_adapter: %s", type(_exc).__name__, _exc)
 
     def _resolve_startup_prompt(self) -> None:
         if self.child is None:

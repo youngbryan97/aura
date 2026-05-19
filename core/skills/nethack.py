@@ -159,8 +159,8 @@ class ExecuteNethackActionSkill(BaseSkill):
             screen_before = adapter.get_screen_text()
             lines = screen_before.split('\n')
             msg_before = lines[0].strip() if lines else ""
-        except (RuntimeError, AttributeError, TypeError, ValueError):
-            pass
+        except (RuntimeError, AttributeError, TypeError, ValueError) as _exc:
+            logger.debug("Suppressed %s in core.skills.nethack: %s", type(_exc).__name__, _exc)
 
         # Execute the action
         try:
@@ -183,8 +183,8 @@ class ExecuteNethackActionSkill(BaseSkill):
                 status_line = non_empty[-2] + " | " + non_empty[-1]
             elif non_empty:
                 status_line = non_empty[-1]
-        except (RuntimeError, AttributeError, TypeError, ValueError):
-            pass
+        except (RuntimeError, AttributeError, TypeError, ValueError) as _exc:
+            logger.debug("Suppressed %s in core.skills.nethack: %s", type(_exc).__name__, _exc)
 
         # Determine if the action had an observable effect
         screen_changed = screen_before != screen_after

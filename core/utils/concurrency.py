@@ -361,8 +361,8 @@ class EventLoopMonitor:
                                 f"streak={self._consecutive_breaches}"
                             ),
                         )
-                    except (ImportError, AttributeError, RuntimeError):
-                        pass
+                    except (ImportError, AttributeError, RuntimeError) as _exc:
+                        logger.debug("Suppressed %s in core.utils.concurrency: %s", type(_exc).__name__, _exc)
                 elif self.log_transient_lag:
                     logger.debug(
                         "EventLoopMonitor: transient lag %.4fs observed (threshold=%.2fs).",

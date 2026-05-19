@@ -36,8 +36,8 @@ class LoopLagMonitor:
                         timeout=self.sample_interval_s,
                     )
                     break
-                except asyncio.TimeoutError:
-                    pass
+                except asyncio.TimeoutError as _exc:
+                    logger.debug("Suppressed %s in core.runtime.loop_guard: %s", type(_exc).__name__, _exc)
                 now = time.perf_counter()
                 lag = now - self.last - self.sample_interval_s
                 self.last = now

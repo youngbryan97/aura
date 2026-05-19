@@ -88,8 +88,8 @@ class ContinuousSimulatorLoop:
             self._loop_task.cancel()
             try:
                 await self._loop_task
-            except asyncio.CancelledError:
-                pass
+            except asyncio.CancelledError as _exc:
+                logger.debug("Suppressed %s in core.environment.embodied_simulator: %s", type(_exc).__name__, _exc)
         logger.info("Embodied Simulator: Continuous physics loop STOPPED.")
 
     async def _physics_loop(self):

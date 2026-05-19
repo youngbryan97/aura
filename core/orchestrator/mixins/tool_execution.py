@@ -143,14 +143,16 @@ class ToolExecutionMixin:
                 try:
                     from core.unified_action_log import get_action_log
                     get_action_log().record(tool_name, _origin, "tool", "blocked", str(reason))
-                except (ImportError, AttributeError, RuntimeError): pass
+                except (ImportError, AttributeError, RuntimeError) as _exc:
+                    logger.debug("Suppressed %s in core.orchestrator.mixins.tool_execution: %s", type(_exc).__name__, _exc)
                 result = {"ok": False, "error": f"Executive blocked: {reason}"}
                 _record_coding_tool_event(result, success=False, error=str(reason))
                 return result
             try:
                 from core.unified_action_log import get_action_log
                 get_action_log().record(tool_name, _origin, "tool", "approved")
-            except (ImportError, AttributeError, RuntimeError): pass
+            except (ImportError, AttributeError, RuntimeError) as _exc:
+                logger.debug("Suppressed %s in core.orchestrator.mixins.tool_execution: %s", type(_exc).__name__, _exc)
             if _tool_handle.constraints:
                 kwargs.update(_tool_handle.constraints)  # Apply any degraded-mode constraints
         except (ImportError, AttributeError, RuntimeError) as _exec_err:

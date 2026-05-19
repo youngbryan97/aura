@@ -69,8 +69,8 @@ class OutputFormatterMixin:
             from core.synthesis import strip_role_artifacts
 
             text = strip_role_artifacts(text)
-        except (ImportError, AttributeError, RuntimeError):
-            pass
+        except (ImportError, AttributeError, RuntimeError) as _exc:
+            logger.debug("Suppressed %s in core.orchestrator.mixins.output_formatter: %s", type(_exc).__name__, _exc)
 
         return text
 

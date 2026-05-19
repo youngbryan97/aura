@@ -222,8 +222,8 @@ class ResourceGovernor:
         try:
             import psutil
             snap.cpu_percent = psutil.cpu_percent(interval=0)
-        except (ImportError, AttributeError, RuntimeError):
-            pass
+        except (ImportError, AttributeError, RuntimeError) as _exc:
+            logger.debug("Suppressed %s in core.resource.resource_governor: %s", type(_exc).__name__, _exc)
 
         # Thermal (macOS native)
         snap.thermal_state, snap.thermal_pressure_raw = self._read_thermal_state()
@@ -252,8 +252,8 @@ class ResourceGovernor:
                 [EvictionTier.NONE, EvictionTier.SOFT,
                  EvictionTier.MODERATE, EvictionTier.AGGRESSIVE].index(snap.eviction_tier)
             ))
-        except (ImportError, AttributeError, RuntimeError):
-            pass
+        except (ImportError, AttributeError, RuntimeError) as _exc:
+            logger.debug("Suppressed %s in core.resource.resource_governor: %s", type(_exc).__name__, _exc)
 
         return snap
 
@@ -337,8 +337,8 @@ class ResourceGovernor:
                     "ResourceGovernor: GC collected %d objects (tier=%s)",
                     collected, tier.value,
                 )
-            except (ImportError, AttributeError, RuntimeError):
-                pass
+            except (ImportError, AttributeError, RuntimeError) as _exc:
+                logger.debug("Suppressed %s in core.resource.resource_governor: %s", type(_exc).__name__, _exc)
 
         logger.warning(
             "ResourceGovernor: Eviction tier=%s, callbacks=%d",
@@ -356,8 +356,8 @@ class ResourceGovernor:
                     if self._last_snapshot else "unknown",
                     severity="critical",
                 )
-            except (ImportError, AttributeError, RuntimeError):
-                pass
+            except (ImportError, AttributeError, RuntimeError) as _exc:
+                logger.debug("Suppressed %s in core.resource.resource_governor: %s", type(_exc).__name__, _exc)
 
         return invoked
 

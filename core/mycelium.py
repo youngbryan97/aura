@@ -1112,7 +1112,7 @@ class MycelialNetwork:
         if self._async_lock is None:
             self._async_lock = asyncio.Lock()
             
-        while True:
+        while not self._stop_event.is_set():
             try:
                 await asyncio.sleep(30)
                 async with self._async_lock:

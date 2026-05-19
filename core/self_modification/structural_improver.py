@@ -151,8 +151,8 @@ class StructuralImprover:
             record_degradation("structural_improver", exc)
             try:
                 atomic_write_text(path, original, encoding="utf-8")
-            except (RuntimeError, AttributeError, TypeError, ValueError):
-                pass
+            except (RuntimeError, AttributeError, TypeError, ValueError) as _exc:
+                logger.debug("Suppressed %s in core.self_modification.structural_improver: %s", type(_exc).__name__, _exc)
             return StructuralRepairResult(issue, repaired != original, False, f"{type(exc).__name__}: {exc}")
 
     def _iter_python_files(self) -> Iterable[Path]:

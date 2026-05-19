@@ -96,8 +96,8 @@ def extract_python_code(text: str) -> str:
     try:
         ast.parse(raw)
         return raw
-    except SyntaxError:
-        pass
+    except SyntaxError as _exc:
+        logger.debug("Suppressed %s in core.brain.llm.code_generator: %s", type(_exc).__name__, _exc)
 
     trimmed = raw.splitlines()
     for end in range(len(trimmed) - 1, 0, -1):

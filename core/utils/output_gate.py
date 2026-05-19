@@ -498,7 +498,7 @@ class AutonomousOutputGate:
 
     async def get_secondary_stream(self):
         """Generator for secondary output stream."""
-        while True:
+        while getattr(self, '_running', True):
             yield await self.secondary_queue.get()
             self.secondary_queue.task_done()
 

@@ -249,8 +249,8 @@ class EmbodiedCognitionRuntime:
                     source="embodied_cognition_runtime",
                     ttl=600.0,
                 )
-            except (RuntimeError, AttributeError, TypeError, ValueError):
-                pass
+            except (RuntimeError, AttributeError, TypeError, ValueError) as _exc:
+                logger.debug("Suppressed %s in core.perception.cognitive_runtime: %s", type(_exc).__name__, _exc)
 
         if self.existing_causal_world_model is None:
             self.existing_causal_world_model = ServiceContainer.get("causal_world_model", default=None)
@@ -268,8 +268,8 @@ class EmbodiedCognitionRuntime:
                         "need reversible information gathering",
                         0.75,
                     )
-            except (RuntimeError, AttributeError, TypeError, ValueError):
-                pass
+            except (RuntimeError, AttributeError, TypeError, ValueError) as _exc:
+                logger.debug("Suppressed %s in core.perception.cognitive_runtime: %s", type(_exc).__name__, _exc)
 
         if self.existing_skill_library is None:
             self.existing_skill_library = ServiceContainer.get("skill_library", default=None)
@@ -291,5 +291,5 @@ class EmbodiedCognitionRuntime:
                     reason=decision.reason,
                     vetoes=decision.vetoes,
                 )
-            except (RuntimeError, AttributeError, TypeError, ValueError):
-                pass
+            except (RuntimeError, AttributeError, TypeError, ValueError) as _exc:
+                logger.debug("Suppressed %s in core.perception.cognitive_runtime: %s", type(_exc).__name__, _exc)

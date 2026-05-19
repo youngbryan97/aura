@@ -204,7 +204,7 @@ class InteractionSignalsEngine:
         )
 
     async def _typing_consumer(self) -> None:
-        while True:
+        while self._started:
             payload = await self._typing_queue.get()
             try:
                 self._typing = self._update_typing_state(payload)
@@ -216,7 +216,7 @@ class InteractionSignalsEngine:
                 self._typing_queue.task_done()
 
     async def _voice_consumer(self) -> None:
-        while True:
+        while self._started:
             payload = await self._voice_queue.get()
             try:
                 self._voice = self._update_voice_state(payload)
@@ -228,7 +228,7 @@ class InteractionSignalsEngine:
                 self._voice_queue.task_done()
 
     async def _vision_consumer(self) -> None:
-        while True:
+        while self._started:
             payload = await self._vision_queue.get()
             try:
                 jpeg_bytes = bytes(payload.get("jpeg_bytes") or b"")

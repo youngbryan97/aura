@@ -182,8 +182,8 @@ def vault_process_entry(db_path: str, pipe):
     """Entry point for the vault process."""
     try:
         signal.signal(signal.SIGINT, signal.SIG_IGN)
-    except (RuntimeError, AttributeError, TypeError, ValueError):
-        pass
+    except (RuntimeError, AttributeError, TypeError, ValueError) as _exc:
+        logger.debug("Suppressed %s in core.state.vault: %s", type(_exc).__name__, _exc)
     # Force basic logging to stderr so it shows up in main logs even if setup fails
     import sys
     logging.basicConfig(level=logging.DEBUG, stream=sys.stderr, 

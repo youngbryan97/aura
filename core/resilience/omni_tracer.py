@@ -162,8 +162,8 @@ def write_trace(source: str, error_type: str, message: str, trace: str = "", sev
                 severity=final_severity,
                 classification=classification,
             )
-    except ImportError:
-        pass
+    except ImportError as _exc:
+        logger.debug("Suppressed %s in core.resilience.omni_tracer: %s", type(_exc).__name__, _exc)
 
 class OmniLogHandler(logging.Handler):
     """Intercepts high-severity logs and dumps them to the Omni-Trace."""
@@ -175,8 +175,8 @@ class OmniLogHandler(logging.Handler):
                 if record.exc_info:
                     trace = "".join(traceback.format_exception(*record.exc_info))
                 write_trace(f"log_{record.levelname.lower()}", record.name, msg, trace)
-            except OSError:
-                pass
+            except OSError as _exc:
+                logger.debug("Suppressed %s in core.resilience.omni_tracer: %s", type(_exc).__name__, _exc)
 
 def _sys_excepthook(exc_type, exc_value, exc_traceback):
     trace = "".join(traceback.format_exception(exc_type, exc_value, exc_traceback))

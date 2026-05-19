@@ -23,6 +23,7 @@ class ICELayer:
         self._event_bus = None
         self._threat_level = 0.0  # Normalized threat [0.0 - 1.0]
         self._anomaly_detector = None  # Learned threat model (lazy-loaded)
+        self._running = True
         # AWE: Anomaly Taxonomy
         self._anomaly_types = {
             "LOGIC_LOOP": {"desc": "Infinite cognitive recursion.", "containment": "FLUSH_WORKING_MEMORY"},
@@ -74,7 +75,7 @@ class ICELayer:
 
     async def _process_events(self):
         """Background loop to drain event queues."""
-        while True:
+        while self._running:
             # We check both queues
             for q, handler in [(self._audit_queue, self._on_audit), (self._violation_queue, self._on_executive_violation)]:
                 try:

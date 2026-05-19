@@ -42,6 +42,7 @@ class NucleusManager(LLMProvider):
         self._refresh_threshold = 2048 
         self._tokens_seen = 0
         self._listener_task = None
+        self._running = True
         # Defer event subscription to avoid create_task in __init__
         try:
             from core.event_bus import get_event_bus
@@ -58,7 +59,7 @@ class NucleusManager(LLMProvider):
         """Listens for LoRA optimization successes and flags for reload."""
         if not self.bus: return
         sub = await self.bus.subscribe("core/optimizer/completed")
-        while True:
+        while self._running:
             try:
                 _, _, event = await sub.get()
                 data = event.get("data", {})

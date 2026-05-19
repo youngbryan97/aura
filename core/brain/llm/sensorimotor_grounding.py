@@ -140,8 +140,8 @@ class SensorimotorGroundingBridge:
             self._task.cancel()
             try:
                 await self._task
-            except asyncio.CancelledError:
-                pass
+            except asyncio.CancelledError as _exc:
+                logger.debug("Suppressed %s in core.brain.llm.sensorimotor_grounding: %s", type(_exc).__name__, _exc)
 
     async def _loop(self) -> None:
         while self.running:

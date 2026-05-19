@@ -297,7 +297,7 @@ class SovereignVoiceEngine:
 
     async def _pulse_presence(self):
         """Signals voice engine presence to the system (BUG-035)."""
-        while True:
+        while getattr(self, '_running', True):
             try:
                 from core.container import ServiceContainer
                 bus = ServiceContainer.get("mycelium", default=None)

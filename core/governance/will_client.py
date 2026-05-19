@@ -1,3 +1,4 @@
+
 """Canonical client for UnifiedWill decisions.
 
 This wrapper keeps live systems from depending on historical call shapes.
@@ -7,6 +8,8 @@ keyword signatures.
 """
 from __future__ import annotations
 
+import logging
+logger = logging.getLogger("core.governance.will_client")
 import asyncio
 from dataclasses import dataclass
 from typing import Any
@@ -68,8 +71,8 @@ class WillClient:
                 for candidate in ActionDomain:
                     if candidate.value == value or candidate.name == value:
                         return candidate
-        except (ImportError, AttributeError, RuntimeError):
-            pass
+        except (ImportError, AttributeError, RuntimeError) as _exc:
+            logger.debug("Suppressed %s in core.governance.will_client: %s", type(_exc).__name__, _exc)
         return domain
 
     def decide(self, req: WillRequest) -> Any:

@@ -281,8 +281,8 @@ class MetaLearner:
         try:
             with open(_LOG_PATH, "a") as f:
                 f.write(json.dumps(step.to_dict(), default=str) + "\n")
-        except (json.JSONDecodeError, TypeError, ValueError):
-            pass
+        except (json.JSONDecodeError, TypeError, ValueError) as _exc:
+            logger.debug("Suppressed %s in core.adaptation.meta_learner: %s", type(_exc).__name__, _exc)
 
     # ── Persistence ─────────────────────────────────────────────────────
 

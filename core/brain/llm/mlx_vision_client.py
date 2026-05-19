@@ -114,8 +114,8 @@ class MLXVisionClient:
         if self._req_q:
             try:
                 self._req_q.put(None)
-            except (RuntimeError, AttributeError, TypeError, ValueError):
-                pass
+            except (RuntimeError, AttributeError, TypeError, ValueError) as _exc:
+                logger.debug("Suppressed %s in core.brain.llm.mlx_vision_client: %s", type(_exc).__name__, _exc)
         if self._process:
             self._process.join(timeout=3.0)
             if self._process.is_alive():

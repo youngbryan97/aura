@@ -209,8 +209,8 @@ def _direct_answer_floor(user_message: str) -> str:
         if re.fullmatch(r"[0-9\s+\-*/().*]+", expr):
             try:
                 return _format_number(_safe_eval_expr(ast.parse(expr, mode="eval")))
-            except (SyntaxError, ValueError, TypeError, ZeroDivisionError, OverflowError):
-                pass
+            except (SyntaxError, ValueError, TypeError, ZeroDivisionError, OverflowError) as _exc:
+                logger.debug("Suppressed %s in core.synthesis: %s", type(_exc).__name__, _exc)
 
     sum_match = re.search(r"(?:sum of|what is)\s+([0-9]+)\s*\+\s*([0-9]+)", lower)
     if sum_match:

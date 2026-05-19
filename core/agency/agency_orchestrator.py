@@ -96,8 +96,8 @@ def _receipt_json_safe(value: Any, *, _depth: int = 0) -> Any:
         # failure visible in the stored evidence.
         try:
             value.close()
-        except (RuntimeError, AttributeError, TypeError, ValueError):
-            pass
+        except (RuntimeError, AttributeError, TypeError, ValueError) as _exc:
+            logger.debug("Suppressed %s in core.agency.agency_orchestrator: %s", type(_exc).__name__, _exc)
         return {
             "error": "coroutine_in_receipt",
             "repr": repr(value),

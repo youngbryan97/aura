@@ -526,7 +526,8 @@ class ResponseProcessingMixin:
             try:
                 from core.unified_action_log import get_action_log
                 get_action_log().record(f"direct_response:{pw.pathway_id}", f"mycelium:{pw.pathway_id}", "reflex", "bypassed_no_tool", pw.direct_response[:80])
-            except (ImportError, AttributeError, RuntimeError): pass
+            except (ImportError, AttributeError, RuntimeError) as _exc:
+                logger.debug("Suppressed %s in core.orchestrator.mixins.response_processing: %s", type(_exc).__name__, _exc)
             return {"type": "direct_response", "content": pw.direct_response, "pathway_id": pw.pathway_id}
 
         # 3. Handle Tool/Skill execution

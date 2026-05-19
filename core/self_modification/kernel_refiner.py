@@ -207,7 +207,8 @@ If no refinement is needed, return {{"found": false}}.
                 try:
                     from core.thought_stream import get_emitter
                     get_emitter().emit("Kernel Evolved 💎", f"Logic optimized in {proposal['file']}", level="success")
-                except (ImportError, AttributeError, RuntimeError): pass
+                except (ImportError, AttributeError, RuntimeError) as _exc:
+                    logger.debug("Suppressed %s in core.self_modification.kernel_refiner: %s", type(_exc).__name__, _exc)
             else:
                 logger.warning("❌ Refinement rejected or failed during SME application loop.")
                 

@@ -103,7 +103,8 @@ class VRAMManager:
                             mx.clear_cache()
                     finally:
                         sentinel.release()
-            except (ImportError, AttributeError, RuntimeError): pass
+            except (ImportError, AttributeError, RuntimeError) as _exc:
+                logger.debug("Suppressed %s in core.managers.vram_manager: %s", type(_exc).__name__, _exc)
             logger.debug("VRAM purged and zeroed (MLX Metal Cache Cleared).")
         else:
             logger.debug("VRAM purged (GC only).")

@@ -59,8 +59,8 @@ class EmbodiedTraceLogger:
         if self._existing_trace is not None:
             try:
                 self._existing_trace.log({"type": "embodied_cognition", **payload})
-            except (RuntimeError, AttributeError, TypeError, ValueError):
-                pass
+            except (RuntimeError, AttributeError, TypeError, ValueError) as _exc:
+                logger.debug("Suppressed %s in core.perception.trace: %s", type(_exc).__name__, _exc)
 
     def latest(self) -> Optional[EmbodiedTraceRecord]:
         return self.records[-1] if self.records else None

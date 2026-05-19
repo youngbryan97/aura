@@ -206,8 +206,8 @@ def request_shutdown(reason: str = "") -> None:
             grace_file = Path.home() / ".aura" / "run" / "grace_exit.flag"
             grace_file.parent.mkdir(parents=True, exist_ok=True)
             grace_file.touch(exist_ok=True)
-        except (ImportError, AttributeError, RuntimeError):
-            pass
+        except (ImportError, AttributeError, RuntimeError) as _exc:
+            logger.debug("Suppressed %s in core.runtime.shutdown_coordinator: %s", type(_exc).__name__, _exc)
     _shutdown_requested.set()
 
 

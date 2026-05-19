@@ -1,3 +1,4 @@
+
 """Tamper-evident RSI generation lineage.
 
 The lineage ledger records successor attempts as evidence, not vibes. It does
@@ -6,6 +7,8 @@ generation-to-generation capability and improver-score movement.
 """
 from __future__ import annotations
 
+import logging
+logger = logging.getLogger("core.learning.rsi_lineage")
 import hashlib
 import json
 import os
@@ -104,8 +107,8 @@ class RSILineageLedger:
             os.write(fd, line.encode("utf-8"))
             try:
                 os.fsync(fd)
-            except OSError:
-                pass
+            except OSError as _exc:
+                logger.debug("Suppressed %s in core.learning.rsi_lineage: %s", type(_exc).__name__, _exc)
         finally:
             os.close(fd)
         return payload

@@ -25,6 +25,7 @@ class ProbeManager:
         self.orchestrator = orchestrator
         self.probes: Dict[str, asyncio.subprocess.Process] = {}
         self.probe_metadata: Dict[str, Dict[str, Any]] = {}
+        self._running = True
 
     async def deploy_probe(self, probe_id: str, target: str, type: str = "file", duration: int = 3600) -> bool:
         """Spawn a ghost probe process."""
@@ -127,7 +128,7 @@ except (OSError, IOError) as e:
 
     async def auto_cleanup_loop(self):
         """Periodically remove expired probes."""
-        while True:
+        while self._running:
             await asyncio.sleep(60)
             now = time.time()
             to_remove = [pid for pid, meta in self.probe_metadata.items() if now > meta["expiry"]]

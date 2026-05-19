@@ -131,8 +131,8 @@ class MemoryFacade:
                 parsed = _json.loads(raw)
                 if isinstance(parsed, dict):
                     return parsed
-            except (ValueError, _json.JSONDecodeError):
-                pass
+            except (ValueError, _json.JSONDecodeError) as _exc:
+                logger.debug("Suppressed %s in core.memory.memory_facade: %s", type(_exc).__name__, _exc)
             return {}
         return {} if raw is None else {}
 

@@ -395,8 +395,8 @@ class STaRReasoner:
             try:
                 from core.adaptation.finetune_pipe import get_finetune_pipe
                 pipe = get_finetune_pipe()
-            except (ImportError, AttributeError, RuntimeError):
-                pass
+            except (ImportError, AttributeError, RuntimeError) as _exc:
+                logger.debug("Suppressed %s in core.adaptation.star_reasoner: %s", type(_exc).__name__, _exc)
 
         written = 0
         for trace in self._pending_traces:
@@ -442,8 +442,8 @@ class STaRReasoner:
                     "STaR: %d training samples accumulated — LoRA update is viable",
                     line_count,
                 )
-        except (RuntimeError, AttributeError, TypeError, ValueError):
-            pass
+        except (RuntimeError, AttributeError, TypeError, ValueError) as _exc:
+            logger.debug("Suppressed %s in core.adaptation.star_reasoner: %s", type(_exc).__name__, _exc)
 
     # ── Persistence ──────────────────────────────────────────────────────
 

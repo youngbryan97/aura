@@ -1,3 +1,4 @@
+
 """Typed evaluation of candidate code mutations with quarantine.
 
 The original sandbox path checked only ``exit_code != 0`` to decide
@@ -31,6 +32,8 @@ to be vetted before being applied.
 """
 from __future__ import annotations
 
+import logging
+logger = logging.getLogger("core.self_modification.mutation_safety")
 import ast
 import json
 import os
@@ -469,8 +472,8 @@ class SafeMutationEvaluator:
         bytes_limit = self.memory_mb * 1024 * 1024
         try:
             resource.setrlimit(resource.RLIMIT_AS, (bytes_limit, bytes_limit))
-        except (ValueError, OSError):
-            pass
+        except (ValueError, OSError) as _exc:
+            logger.debug("Suppressed %s in core.self_modification.mutation_safety: %s", type(_exc).__name__, _exc)
         # CPU-time fence at 2x the wall-clock budget, in case wall-clock
         # measurement is unreliable (e.g. the host is suspended).
         try:
@@ -478,8 +481,8 @@ class SafeMutationEvaluator:
                 resource.RLIMIT_CPU,
                 (int(self.timeout_seconds * 2) + 1, int(self.timeout_seconds * 2) + 2),
             )
-        except (ValueError, OSError):
-            pass
+        except (ValueError, OSError) as _exc:
+            logger.debug("Suppressed %s in core.self_modification.mutation_safety: %s", type(_exc).__name__, _exc)
 
     @staticmethod
     def _safe_env() -> Dict[str, str]:

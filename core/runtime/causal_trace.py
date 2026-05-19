@@ -1,3 +1,4 @@
+
 """Lightweight distributed causal tracing for Aura.
 
 Tracebacks show where an exception surfaced.  They do not show the async chain
@@ -7,6 +8,8 @@ at runtime.  Exporters can consume the JSONL ledger later.
 """
 from __future__ import annotations
 
+import logging
+logger = logging.getLogger("core.runtime.causal_trace")
 import contextvars
 import json
 import os
@@ -141,8 +144,8 @@ def record_trace_event(event: str, *, span: Optional[TraceSpanContext] = None, *
     try:
         with _ledger_path().open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(body, sort_keys=True, default=str) + "\n")
-    except (json.JSONDecodeError, TypeError, ValueError):
-        pass
+    except (json.JSONDecodeError, TypeError, ValueError) as _exc:
+        logger.debug("Suppressed %s in core.runtime.causal_trace: %s", type(_exc).__name__, _exc)
 
 
 def trace_task_factory(name: str, coro: Any, *, origin: str = "asyncio", **attrs: Any) -> Any:

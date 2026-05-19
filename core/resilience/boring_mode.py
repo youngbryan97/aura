@@ -110,8 +110,8 @@ class BoringMode:
                 mitigation_taken="safe_degraded_operation",
                 metadata=dict(metadata or {}),
             )
-        except (ImportError, AttributeError, RuntimeError):
-            pass
+        except (ImportError, AttributeError, RuntimeError) as _exc:
+            logger.debug("Suppressed %s in core.resilience.boring_mode: %s", type(_exc).__name__, _exc)
 
         return True
 
@@ -138,8 +138,8 @@ class BoringMode:
                 "boring_mode_activated",
                 f"recovered: {reason} (duration: {duration:.0f}s)",
             )
-        except (ImportError, AttributeError, RuntimeError):
-            pass
+        except (ImportError, AttributeError, RuntimeError) as _exc:
+            logger.debug("Suppressed %s in core.resilience.boring_mode: %s", type(_exc).__name__, _exc)
 
         return True
 

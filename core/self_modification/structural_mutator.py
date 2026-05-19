@@ -1,3 +1,4 @@
+
 """Structural self-modification with audit log and reversibility.
 
 Addresses the "learning is structurally limited / no open-ended self-modification"
@@ -16,6 +17,8 @@ so the audit trail cannot be silently rewritten.
 """
 from __future__ import annotations
 
+import logging
+logger = logging.getLogger("core.self_modification.structural_mutator")
 import hashlib
 import json
 import sqlite3
@@ -89,8 +92,8 @@ class StructuralMutator:
         self._db_path = Path(db_path)
         try:
             get_task_tracker().create_task(get_storage_gateway().create_dir(self._db_path.parent, cause='StructuralMutator.__init__'))
-        except NameError:
-            pass
+        except NameError as _exc:
+            logger.debug("Suppressed %s in core.self_modification.structural_mutator: %s", type(_exc).__name__, _exc)
         self._db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
 

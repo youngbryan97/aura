@@ -118,6 +118,7 @@ class ConsciousnessContract:
         self.core = consciousness_core
         self.tracker = SubjectIdentityTracker()
         self.state_history = deque(maxlen=200)  # Ring buffer for auditing
+        self._running = True
         
         # Initialize Compressor (JL Transform)
         self.compressor = CognitiveCompressor(input_dim=64, target_dim=16) # Substrate is small (64), so strict compression
@@ -280,7 +281,7 @@ def attach_contract(orchestrator) -> ConsciousnessContract:
     
     # Start polling loop
     async def contract_loop():
-        while True:
+        while contract._running:
             try:
                 status = contract.poll()
                 # Broadcast via Orchestrator's injected manager
