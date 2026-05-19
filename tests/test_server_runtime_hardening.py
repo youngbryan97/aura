@@ -5311,9 +5311,13 @@ def test_incoming_logic_vector_memory_gate_fails_closed_when_will_raises():
     # No old "fail-open" comment for memory write or state mutation gates
     assert "pass  # fail-open for safety" not in src
     assert "pass  # fail-open" not in src
-    # The fail-closed branch must record a degraded event AND set _mem_allowed = False
-    assert 'record_degraded_event(\n                                "governance.unavailable.memory_write"' in src
-    assert 'record_degraded_event(\n                        "governance.unavailable.state_mutation"' in src
+    # The fail-closed branch must record a degraded event AND set the local gate false.
+    assert '"memory_write_gate_unavailable"' in src
+    assert '"state_mutation_gate_unavailable"' in src
+    assert "_mem_allowed = False" in src
+    assert "_internal_update_allowed = False" in src
+    assert "blocked response dispatch because Unified Will gate was unavailable" in src
+    assert "re-establish my decision layer before I can respond safely" in src
 
 
 # ==========================================================================

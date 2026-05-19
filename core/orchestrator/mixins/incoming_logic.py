@@ -1,6 +1,9 @@
 """Incoming Logic Mixin for RobustOrchestrator.
 Extracts the incoming message handling pipeline, routing, and filesystem checks.
 """
+
+from __future__ import annotations
+
 import asyncio
 import logging
 import re
@@ -11,10 +14,34 @@ from core.runtime.errors import record_degradation
 from core.runtime.governance_policy import allow_direct_user_shortcut
 
 logger = logging.getLogger(__name__)
+_INCOMING_LOGIC_RECOVERABLE_ERRORS = (
+    ImportError,
+    AttributeError,
+    RuntimeError,
+    OSError,
+    ConnectionError,
+    TimeoutError,
+    TypeError,
+    ValueError,
+)
 _PREFIX_ORIGIN_MAP = {
     "[VOICE]": "voice",
     "[ADMIN]": "admin",
 }
+
+
+def _record_incoming_degradation(
+    error: BaseException,
+    *,
+    action: str,
+    severity: str = "warning",
+) -> None:
+    record_degradation(
+        "incoming_logic",
+        error,
+        severity=severity,
+        action=action,
+    )
 
 
 class IncomingLogicMixin:
@@ -22,7 +49,7 @@ class IncomingLogicMixin:
 
     async def _route_prefixed_message(self, message: str, prefix: str, origin: str) -> Any:
         # Implementation of legacy prefix routing (e.g. stripping tag and updating origin)
-        content = message[len(prefix):].strip()
+        content = message[len(prefix) :].strip()
         new_origin = _PREFIX_ORIGIN_MAP.get(prefix, origin)
         return await self._process_message_pipeline(content, origin=new_origin)
 
@@ -32,6 +59,7 @@ class IncomingLogicMixin:
 
     async def _handle_incoming_message(self, message: Any, origin: str = "user", **kwargs) -> None:
         from core.utils.task_tracker import get_task_tracker  # lazy, inside body
+
         tracker = get_task_tracker()
 
         # Strip legacy prefix tags and route
@@ -81,7 +109,7 @@ class IncomingLogicMixin:
 
     async def _check_embodied_reflexes(self, message: str) -> str | None:
         """Detect and return deterministic responses for standard somatic prompts.
-        
+
         This is a general infrastructural reflex that handles low-level CLI/UI
         confirmations without requiring an LLM turn. The patterns match
         universal terminal/CLI conventions (pagers, y/n dialogs, etc.) and
@@ -100,17 +128,17 @@ class IncomingLogicMixin:
         # Each entry maps a regex (matching a standard CLI prompt) to a
         # generic somatic response token.
         patterns = {
-            r"--More--":                    "[SOMATIC:key=' ']",
-            r"\(y/n/q?\)":                  "[SOMATIC:key='y']",
-            r"\[ynq?\]":                    "[SOMATIC:key='y']",
-            r"\[ynaq\]":                    "[SOMATIC:key='y']",
-            r"\[yn\]":                      "[SOMATIC:key='y']",
-            r"Press space to continue":     "[SOMATIC:key=' ']",
-            r"Press any key to continue":   "[SOMATIC:key=' ']",
-            r"\(end\)":                     "[SOMATIC:key='q']",
-            r"Hit return to continue":      "[SOMATIC:key='\n']",
-            r"\[enter\]":                   "[SOMATIC:key='\n']",
-            r"\[space\]":                   "[SOMATIC:key=' ']",
+            r"--More--": "[SOMATIC:key=' ']",
+            r"\(y/n/q?\)": "[SOMATIC:key='y']",
+            r"\[ynq?\]": "[SOMATIC:key='y']",
+            r"\[ynaq\]": "[SOMATIC:key='y']",
+            r"\[yn\]": "[SOMATIC:key='y']",
+            r"Press space to continue": "[SOMATIC:key=' ']",
+            r"Press any key to continue": "[SOMATIC:key=' ']",
+            r"\(end\)": "[SOMATIC:key='q']",
+            r"Hit return to continue": "[SOMATIC:key='\n']",
+            r"\[enter\]": "[SOMATIC:key='\n']",
+            r"\[space\]": "[SOMATIC:key=' ']",
             # Generic Header Message: The first line contains text (not a question).
             # Handles 'Full moon' and other status headers. Requires at least one alphanumeric char.
             r"^[ \t]*[a-zA-Z0-9][^\n?]{0,79}[ \t]*(\n|$)": "[SOMATIC:key=' ']",
@@ -120,11 +148,13 @@ class IncomingLogicMixin:
             if re.search(pattern, content, re.IGNORECASE):
                 logger.info("⚡ [REFLEX] Somatic match: '%s' → %s", pattern, response)
                 return response
-        
+
         logger.debug("No somatic reflex match for: %s", repr(message[:100]))
         return None
 
-    async def _original_handle_incoming_logic(self, message: Any, origin: str = "user", suppress_ui: bool = False):
+    async def _original_handle_incoming_logic(
+        self, message: Any, origin: str = "user", suppress_ui: bool = False
+    ):
         """Route an incoming message through the deterministic State Machine pipeline."""
         from core.autonomy_guardian import AutonomyGuardian
         from core.health.degraded_events import record_degraded_event
@@ -169,9 +199,7 @@ class IncomingLogicMixin:
                     message.split(":", 1)[1].strip()
                     if ":" in message
                     else str(
-                        payload_context.get("reason")
-                        or payload_context.get("error")
-                        or origin
+                        payload_context.get("reason") or payload_context.get("error") or origin
                     )
                 )[:160]
                 logger.warning(
@@ -194,19 +222,16 @@ class IncomingLogicMixin:
 
         # Ignoring Logic: Skip background noise if user is active
         now = time.time()
-        _last_user = getattr(self, '_last_user_interaction_time', 0)
+        _last_user = getattr(self, "_last_user_interaction_time", 0)
         if origin == "voice" and (now - _last_user) < 30.0:
             # If user just typed something, ignore background audio for 30s
             logger.info("🛡️ IGNORE: Skipping [VOICE] input during active user session.")
             return None
 
         # Publish status with interim=True (per audit)
-        self._publish_status({
-            "event": "thinking",
-            "origin": origin,
-            "message": safe_msg[:50],
-            "interim": True
-        })
+        self._publish_status(
+            {"event": "thinking", "origin": origin, "message": safe_msg[:50], "interim": True}
+        )
 
         if await self._handle_filesystem_reality_check(safe_msg, origin):
             return None
@@ -225,7 +250,11 @@ class IncomingLogicMixin:
         if origin in ("user", "voice", "admin") and not config.skeletal_mode:
             reflex_response = await self._check_social_reflexes(safe_msg)
             if reflex_response:
-                logger.info("⚡ [REFLEX] Social ritual matched: '%s' -> '%s'...", safe_msg[:20], reflex_response[:30])
+                logger.info(
+                    "⚡ [REFLEX] Social ritual matched: '%s' -> '%s'...",
+                    safe_msg[:20],
+                    reflex_response[:30],
+                )
                 await self.output_gate.emit(reflex_response, origin=origin, target="primary")
                 # Record in history anyway so subsequent turns have context
                 self._record_message_in_history(safe_msg, origin)
@@ -234,26 +263,39 @@ class IncomingLogicMixin:
 
         # Notify AgencyCore of user interaction
         if origin in ("user", "voice", "admin"):
-            agency = getattr(self, '_agency_core', None)
+            agency = getattr(self, "_agency_core", None)
             if agency:
                 agency.on_user_message()
 
             # WorldState: Track user activity for environment awareness
             try:
                 from core.world_state import get_world_state
-                get_world_state().on_user_message(message=safe_msg if isinstance(safe_msg, str) else "")
-            except (ImportError, AttributeError, RuntimeError):
-                pass  # WorldState unavailable
+
+                get_world_state().on_user_message(
+                    message=safe_msg if isinstance(safe_msg, str) else ""
+                )
+            except (ImportError, AttributeError, RuntimeError) as world_state_err:
+                _record_incoming_degradation(
+                    world_state_err,
+                    action="continued user turn without world-state activity update",
+                )
+                logger.debug("WorldState user-activity update skipped: %s", world_state_err)
 
             # DriveEngine: Satisfy social drive on user contact + relieve boredom
             try:
                 drive = ServiceContainer.get("drive_engine", default=None)
                 if drive:
-                    self._fire_and_forget(drive.satisfy("social", 15.0), name="drive_social_satisfy")
+                    self._fire_and_forget(
+                        drive.satisfy("social", 15.0), name="drive_social_satisfy"
+                    )
                     if hasattr(drive, "relieve_boredom"):
                         drive.relieve_boredom("user_interaction")
-            except (ImportError, AttributeError, RuntimeError):
-                pass  # DriveEngine unavailable
+            except (ImportError, AttributeError, RuntimeError) as drive_err:
+                _record_incoming_degradation(
+                    drive_err,
+                    action="continued user turn without drive satisfaction update",
+                )
+                logger.debug("DriveEngine user-contact update skipped: %s", drive_err)
 
             # NeurochemicalSystem: user interaction triggers novelty + social
             try:
@@ -261,13 +303,17 @@ class IncomingLogicMixin:
                 if ncs:
                     ncs.on_social_connection(0.2)
                     ncs.on_novelty(0.15)
-            except (ImportError, AttributeError, RuntimeError):
-                pass  # NeurochemicalSystem unavailable
+            except (ImportError, AttributeError, RuntimeError) as neuro_err:
+                _record_incoming_degradation(
+                    neuro_err,
+                    action="continued user turn without neurochemical social-novelty update",
+                )
+                logger.debug("Neurochemical user-contact update skipped: %s", neuro_err)
 
             # Zenith Hardening: Reset boredom and learning cooldowns
-            if hasattr(self, 'volition') and self.volition:
+            if hasattr(self, "volition") and self.volition:
                 self.volition.notify_activity()
-            if hasattr(self, 'continuous_learner') and self.continuous_learner:
+            if hasattr(self, "continuous_learner") and self.continuous_learner:
                 self.continuous_learner.scheduler.notify_activity()
 
         # Admin Commands (Snapshot Freezing/Thawing)
@@ -275,31 +321,59 @@ class IncomingLogicMixin:
             if safe_msg.strip() == "/snapshot":
                 try:
                     from core.resilience.snapshot_manager import SnapshotManager
+
                     mgr = SnapshotManager(self)
                     success = mgr.freeze()
-                    await self.output_gate.emit(f"✅ Cognitive State Snapshot {'successful' if success else 'failed'}.", origin="admin")
+                    await self.output_gate.emit(
+                        f"✅ Cognitive State Snapshot {'successful' if success else 'failed'}.",
+                        origin="admin",
+                    )
                 except (ImportError, RuntimeError, OSError) as e:
-                    record_degradation('incoming_logic', e)
+                    _record_incoming_degradation(
+                        e,
+                        action="returned from admin snapshot command after freeze failed",
+                        severity="error",
+                    )
                     logger.error("Snapshot command failed: %s", e)
                 return None
             elif safe_msg.strip() == "/thaw":
                 try:
                     from core.resilience.snapshot_manager import SnapshotManager
+
                     mgr = SnapshotManager(self)
                     success = mgr.thaw()
-                    await self.output_gate.emit(f"🔥 Cognitive State Thaw {'successful' if success else 'failed'}.", origin="admin")
+                    await self.output_gate.emit(
+                        f"🔥 Cognitive State Thaw {'successful' if success else 'failed'}.",
+                        origin="admin",
+                    )
                 except (ImportError, RuntimeError, OSError) as e:
-                    record_degradation('incoming_logic', e)
+                    _record_incoming_degradation(
+                        e,
+                        action="returned from admin thaw command after restore failed",
+                        severity="error",
+                    )
                     logger.error("Thaw command failed: %s", e)
                 return None
 
         # Broadcast for autonomous monitoring
         try:
             from core.event_bus import EventPriority, get_event_bus
-            priority_tag = EventPriority.USER if origin in ("user", "voice", "admin") else EventPriority.BACKGROUND
-            get_event_bus().publish_threadsafe("chat_input", {"text": message, "origin": origin, "context": payload_context}, priority=priority_tag)
+
+            priority_tag = (
+                EventPriority.USER
+                if origin in ("user", "voice", "admin")
+                else EventPriority.BACKGROUND
+            )
+            get_event_bus().publish_threadsafe(
+                "chat_input",
+                {"text": message, "origin": origin, "context": payload_context},
+                priority=priority_tag,
+            )
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('incoming_logic', e)
+            _record_incoming_degradation(
+                e,
+                action="continued incoming turn after chat_input event-bus publish failed",
+            )
             logger.debug("Failed to publish chat_input for scanner: %s", e)
 
         self.status.is_processing = True
@@ -315,14 +389,20 @@ class IncomingLogicMixin:
             # re-warm the 32B cortex if it was hibernated.
             try:
                 autonomic = ServiceContainer.get("autonomic_core", default=None)
-                if autonomic and hasattr(autonomic, '_reset_idle_swap'):
+                if autonomic and hasattr(autonomic, "_reset_idle_swap"):
                     autonomic._reset_idle_swap()
-            except (ImportError, AttributeError):
-                pass  # AutonomicCore unavailable
+            except (ImportError, AttributeError) as autonomic_err:
+                _record_incoming_degradation(
+                    autonomic_err,
+                    action="continued user turn without autonomic idle-swap reset",
+                )
+                logger.debug("Autonomic idle-swap reset skipped: %s", autonomic_err)
             # Standardize: Always append to conversation history early for traceability
-            if not hasattr(self, 'conversation_history'):
+            if not hasattr(self, "conversation_history"):
                 self.conversation_history = []
-            self.conversation_history.append({"role": "user", "content": message, "timestamp": time.time()})
+            self.conversation_history.append(
+                {"role": "user", "content": message, "timestamp": time.time()}
+            )
 
             # v49: Store true semantic memory (Episodic Storage)
             try:
@@ -331,53 +411,84 @@ class IncomingLogicMixin:
                     # Get emotional context for enriched memory
                     affect = ServiceContainer.get("affect_engine", None)
                     emotional_context = None
-                    if affect and hasattr(affect, 'get_state_sync'):
+                    if affect and hasattr(affect, "get_state_sync"):
                         emotional_context = affect.get_state_sync()
 
                     # Non-blocking store — gated by Unified Will (fail-closed in strict mode)
                     _mem_allowed = True
                     try:
                         from core.will import ActionDomain, get_will
+
                         _mem_decision = get_will().decide(
-                            content=message[:80], source="vector_memory",
-                            domain=ActionDomain.MEMORY_WRITE, priority=0.3,
+                            content=message[:80],
+                            source="vector_memory",
+                            domain=ActionDomain.MEMORY_WRITE,
+                            priority=0.3,
                         )
                         if not _mem_decision.is_approved():
                             _mem_allowed = False
-                            logger.debug("Vector memory store blocked by Unified Will: %s", _mem_decision.reason)
+                            logger.debug(
+                                "Vector memory store blocked by Unified Will: %s",
+                                _mem_decision.reason,
+                            )
                     except (ImportError, AttributeError, RuntimeError) as _will_exc:
-                        record_degradation('incoming_logic', _will_exc)
+                        _record_incoming_degradation(
+                            _will_exc,
+                            action="blocked vector memory write because Unified Will gate was unavailable",
+                            severity="error",
+                        )
                         # Governance is the *authority*: if it cannot decide, the
                         # action does not happen. In strict mode this is fatal-by-policy
                         # (we deny), and a degraded event is recorded either way.
                         _mem_allowed = False
                         try:
                             from core.health.degraded_events import record_degraded_event
+
                             record_degraded_event(
-                                "governance.unavailable.memory_write",
-                                {"error": repr(_will_exc), "source": "vector_memory"},
+                                "governance",
+                                "memory_write_gate_unavailable",
+                                detail=repr(_will_exc),
+                                severity="error",
+                                classification="foreground_blocking",
+                                context={"source": "vector_memory"},
+                                exc=_will_exc,
                             )
-                        except (ImportError, AttributeError, RuntimeError):
-                            pass  # degraded event recording unavailable
+                        except (ImportError, AttributeError, RuntimeError) as event_err:
+                            _record_incoming_degradation(
+                                event_err,
+                                action="kept vector memory write blocked after degraded-event emission failed",
+                                severity="error",
+                            )
+                            logger.debug(
+                                "Memory-write governance degraded-event skipped: %s", event_err
+                            )
                         logger.warning(
                             "Governance unavailable for memory_write — denying action (fail-closed): %s",
                             _will_exc,
                         )
 
                     if _mem_allowed:
-                        self._fire_and_forget(vector_mem.store(
-                            content=message,
-                            memory_type="episodic",
-                            emotional_context=emotional_context,
-                            source="user",
-                            tags=["conversation", "user_input"]
-                        ), name="vector_memory_store")
+                        self._fire_and_forget(
+                            vector_mem.store(
+                                content=message,
+                                memory_type="episodic",
+                                emotional_context=emotional_context,
+                                source="user",
+                                tags=["conversation", "user_input"],
+                            ),
+                            name="vector_memory_store",
+                        )
             except (ImportError, AttributeError, RuntimeError, TypeError) as store_err:
-                record_degradation('incoming_logic', store_err)
+                _record_incoming_degradation(
+                    store_err,
+                    action="continued user turn after semantic memory scheduling failed",
+                )
                 logger.debug("Semantic memory storage failed: %s", store_err)
 
             # --- Zenith Memory Guard & Initiative Hooks ---
-            mem_guard = getattr(self, "conversational_guard", None) or self._get_service("conversational_guard")
+            mem_guard = getattr(self, "conversational_guard", None) or self._get_service(
+                "conversational_guard"
+            )
             if mem_guard:
                 if hasattr(self, "cognitive_engine") and self.cognitive_engine:
                     self._fire_and_forget(
@@ -385,36 +496,61 @@ class IncomingLogicMixin:
                         name="memory_guard_user_turn",
                     )
 
-            ini_engine = getattr(self, "initiative_engine", None) or self._get_service("initiative_engine")
+            ini_engine = getattr(self, "initiative_engine", None) or self._get_service(
+                "initiative_engine"
+            )
             if ini_engine:
                 ini_engine.register_user_interaction()
 
             # Resolve current AuraState (sync, no await needed — state_repo._current is the live object)
-            _live_state = getattr(self.state_repo, "_current", None) if hasattr(self, "state_repo") else None
+            _live_state = (
+                getattr(self.state_repo, "_current", None) if hasattr(self, "state_repo") else None
+            )
 
             # Update discourse state (topic thread, user emotional trend, conversation energy)
             # Gated by Unified Will — internal model updates are STATE_MUTATION (fail-closed)
             _internal_update_allowed = True
             try:
                 from core.will import ActionDomain, get_will
+
                 _state_decision = get_will().decide(
-                    content="internal_model_update", source="cognitive_background",
-                    domain=ActionDomain.STATE_MUTATION, priority=0.2,
+                    content="internal_model_update",
+                    source="cognitive_background",
+                    domain=ActionDomain.STATE_MUTATION,
+                    priority=0.2,
                 )
                 if not _state_decision.is_approved():
                     _internal_update_allowed = False
-                    logger.debug("Background cognitive updates blocked by Unified Will: %s", _state_decision.reason)
+                    logger.debug(
+                        "Background cognitive updates blocked by Unified Will: %s",
+                        _state_decision.reason,
+                    )
             except (ImportError, AttributeError, RuntimeError) as _will_exc:
-                record_degradation('incoming_logic', _will_exc)
+                _record_incoming_degradation(
+                    _will_exc,
+                    action="blocked background discourse and user-model updates because Unified Will gate was unavailable",
+                    severity="error",
+                )
                 _internal_update_allowed = False
                 try:
                     from core.health.degraded_events import record_degraded_event
+
                     record_degraded_event(
-                        "governance.unavailable.state_mutation",
-                        {"error": repr(_will_exc), "source": "cognitive_background"},
+                        "governance",
+                        "state_mutation_gate_unavailable",
+                        detail=repr(_will_exc),
+                        severity="error",
+                        classification="background_degraded",
+                        context={"source": "cognitive_background"},
+                        exc=_will_exc,
                     )
-                except (ImportError, AttributeError, RuntimeError):
-                    pass  # degraded event recording unavailable
+                except (ImportError, AttributeError, RuntimeError) as event_err:
+                    _record_incoming_degradation(
+                        event_err,
+                        action="kept background state mutation blocked after degraded-event emission failed",
+                        severity="error",
+                    )
+                    logger.debug("State-mutation governance degraded-event skipped: %s", event_err)
                 logger.warning(
                     "Governance unavailable for state_mutation — denying internal update (fail-closed): %s",
                     _will_exc,
@@ -429,7 +565,10 @@ class IncomingLogicMixin:
                             name="discourse_tracker_update",
                         )
                 except (ImportError, AttributeError, RuntimeError, TypeError) as _dt_err:
-                    record_degradation('incoming_logic', _dt_err)
+                    _record_incoming_degradation(
+                        _dt_err,
+                        action="continued user turn after discourse-tracker update failed",
+                    )
                     logger.error("DiscourseTracker update failed: %s", _dt_err, exc_info=True)
 
                 # Update Theory of Mind user model (rapport, trust, emotional state)
@@ -442,11 +581,14 @@ class IncomingLogicMixin:
                             name="theory_of_mind_update",
                         )
                 except (ImportError, AttributeError, RuntimeError, TypeError) as _tom_err:
-                    record_degradation('incoming_logic', _tom_err)
+                    _record_incoming_degradation(
+                        _tom_err,
+                        action="continued user turn after theory-of-mind update failed",
+                    )
                     logger.error("TheoryOfMind update failed: %s", _tom_err, exc_info=True)
 
         # Initialize AutonomyGuardian if not present
-        if not hasattr(self, '_autonomy_guardian'):
+        if not hasattr(self, "_autonomy_guardian"):
             self._autonomy_guardian = AutonomyGuardian(orchestrator=self)
 
         try:
@@ -458,13 +600,23 @@ class IncomingLogicMixin:
             # NEVER cancel an in-flight user-message response — that throws
             # away the response the user is waiting for.
             current_task = asyncio.current_task()
-            if (task := self._current_thought_task) is not None and task != current_task and not task.done():
-                is_user_origin = (origin == "user") # Keyboard user is highest priority
-                current_is_replaceable = getattr(self, '_current_task_is_autonomous', True) or getattr(self, '_current_origin', "") == "voice"
+            if (
+                (task := self._current_thought_task) is not None
+                and task != current_task
+                and not task.done()
+            ):
+                is_user_origin = origin == "user"  # Keyboard user is highest priority
+                current_is_replaceable = (
+                    getattr(self, "_current_task_is_autonomous", True)
+                    or getattr(self, "_current_origin", "") == "voice"
+                )
 
                 if is_user_origin and current_is_replaceable:
                     # Cancel autonomous/dream OR VOICE task to make way for user
-                    logger.info("🛑 Cancelling stale %s task for direct user input...", getattr(self, '_current_origin', "background"))
+                    logger.info(
+                        "🛑 Cancelling stale %s task for direct user input...",
+                        getattr(self, "_current_origin", "background"),
+                    )
                     task.cancel()
                     try:
                         await task
@@ -473,7 +625,8 @@ class IncomingLogicMixin:
                 elif is_user_origin and not current_is_replaceable:
                     in_flight_age_s = max(
                         0.0,
-                        time.monotonic() - float(getattr(self, "_current_processing_start", 0.0) or 0.0),
+                        time.monotonic()
+                        - float(getattr(self, "_current_processing_start", 0.0) or 0.0),
                     )
                     supersede_after_s = 20.0
                     grace_wait_s = 8.0 if in_flight_age_s < supersede_after_s else 0.0
@@ -486,34 +639,51 @@ class IncomingLogicMixin:
                         )
                         try:
                             await asyncio.wait_for(asyncio.shield(task), timeout=grace_wait_s)
-                        except (TimeoutError, asyncio.CancelledError, asyncio.exceptions.TimeoutError):
-                            pass  # no-op: intentional
+                        except (
+                            TimeoutError,
+                            asyncio.CancelledError,
+                            asyncio.exceptions.TimeoutError,
+                        ):
+                            logger.debug("Previous user response did not finish during grace wait.")
 
                     if task.done():
                         try:
                             await task
                         except asyncio.CancelledError:
-                            logger.debug("Previous user task finished via cancellation before supersede.")
+                            logger.debug(
+                                "Previous user task finished via cancellation before supersede."
+                            )
                     else:
                         logger.warning(
                             "🛑 Superseding stalled user response after %.1fs to honor the latest user turn.",
                             max(
                                 in_flight_age_s,
-                                time.monotonic() - float(getattr(self, "_current_processing_start", 0.0) or 0.0),
+                                time.monotonic()
+                                - float(getattr(self, "_current_processing_start", 0.0) or 0.0),
                             ),
                         )
                         task.cancel()
                         try:
                             await asyncio.wait_for(task, timeout=2.0)
-                        except (TimeoutError, asyncio.CancelledError, asyncio.exceptions.TimeoutError):
-                            logger.debug("Previous user task did not finish cleanly after supersede cancel.")
+                        except (
+                            TimeoutError,
+                            asyncio.CancelledError,
+                            asyncio.exceptions.TimeoutError,
+                        ):
+                            logger.debug(
+                                "Previous user task did not finish cleanly after supersede cancel."
+                            )
                 else:
-                    logger.info("🛡️ Guardian: Preserving in-flight task (origin=%s is not user)", origin)
+                    logger.info(
+                        "🛡️ Guardian: Preserving in-flight task (origin=%s is not user)", origin
+                    )
                     try:
                         # Increase to 60s for background tasks
                         await asyncio.wait_for(task, timeout=60.0)
                     except (TimeoutError, asyncio.CancelledError, asyncio.exceptions.TimeoutError):
-                        logger.warning("🛡️ Guardian: Previous task timed out (60s), proceeding anyway")
+                        logger.warning(
+                            "🛡️ Guardian: Previous task timed out (60s), proceeding anyway"
+                        )
 
             # 3. Commit current origin and message state
             self._current_origin = origin
@@ -526,28 +696,40 @@ class IncomingLogicMixin:
                     hot_memory = await self.memory.get_hot_memory(limit=5)
                     payload_context["hot_memory"] = hot_memory
                 except (RuntimeError, AttributeError, TypeError) as e:
-                    record_degradation('incoming_logic', e)
+                    _record_incoming_degradation(
+                        e,
+                        action="continued incoming turn without hot-memory context",
+                    )
                     logger.debug("Failed to fetch Hot Memory: %s", e)
 
             # WIRE-04: Inject Cognitive Brief
             try:
                 kernel = ServiceContainer.get("cognitive_kernel", default=None)
                 if kernel:
-                    brief = await kernel.evaluate(message, history=getattr(self, 'conversation_history', []))
+                    brief = await kernel.evaluate(
+                        message, history=getattr(self, "conversation_history", [])
+                    )
                     payload_context["cognitive_brief"] = brief
             except (ImportError, AttributeError, RuntimeError, TypeError) as e:
-                record_degradation('incoming_logic', e)
+                _record_incoming_degradation(
+                    e,
+                    action="continued incoming turn without cognitive brief",
+                )
                 logger.debug("Failed to fetch Cognitive Brief: %s", e)
 
             # 3b. Inject Meta-Cognition Correction Shards
-            if hasattr(self, '_correction_shards') and self._correction_shards:
-                unapplied_shards = [s for s in self._correction_shards if not s.get("applied", False)]
+            if hasattr(self, "_correction_shards") and self._correction_shards:
+                unapplied_shards = [
+                    s for s in self._correction_shards if not s.get("applied", False)
+                ]
                 if unapplied_shards:
                     shards_content = [s["content"] for s in unapplied_shards]
                     payload_context["correction_shards"] = shards_content
                     for s in unapplied_shards:
                         s["applied"] = True
-                    logger.info("🎯 [META] Injected %d correction shards into context.", len(shards_content))
+                    logger.info(
+                        "🎯 [META] Injected %d correction shards into context.", len(shards_content)
+                    )
 
             # 4. Deterministic Execution
             # Initialize the cognitive trace before deferring execution
@@ -555,16 +737,26 @@ class IncomingLogicMixin:
             try:
                 trace = self._init_cognitive_trace(message, origin)
             except (ImportError, AttributeError, RuntimeError) as trace_err:
-                record_degradation('incoming_logic', trace_err)
+                _record_incoming_degradation(
+                    trace_err,
+                    action="created fallback cognitive trace after trace initialization failed",
+                )
                 logger.debug("Failed to initialize cognitive trace: %s", trace_err)
 
             # [HARDENING] If trace init failed, create a minimal fallback so downstream
             # code never sees None / 'unknown' for trace_id.
             if trace is None:
                 import uuid as _uuid
+
                 _fallback_id = f"fallback_{_uuid.uuid4().hex[:12]}"
-                logger.warning("Cognitive trace unavailable — using fallback trace_id=%s", _fallback_id)
-                trace = type("FallbackTrace", (), {"trace_id": _fallback_id, "record_step": lambda *a, **k: None})()
+                logger.warning(
+                    "Cognitive trace unavailable — using fallback trace_id=%s", _fallback_id
+                )
+                trace = type(
+                    "FallbackTrace",
+                    (),
+                    {"trace_id": _fallback_id, "record_step": lambda *a, **k: None},
+                )()
 
             # We defer execution to the State Machine so we don't block the dispatch loop
             async def _execute_and_reply():
@@ -576,6 +768,7 @@ class IncomingLogicMixin:
                 # ══════════════════════════════════════════════════════
                 try:
                     from core.will import ActionDomain, get_will
+
                     _will = get_will()
                     _will_decision = _will.decide(
                         content=message[:200] if isinstance(message, str) else str(message)[:200],
@@ -592,20 +785,32 @@ class IncomingLogicMixin:
                         if origin in ("user", "voice", "admin"):
                             await self.output_gate.emit(
                                 "I need a moment to collect myself before I can respond properly.",
-                                origin=origin, target="primary",
+                                origin=origin,
+                                target="primary",
                             )
                         return
                     if _will_decision.constraints:
                         payload_context["will_constraints"] = _will_decision.constraints
                 except (ImportError, AttributeError, RuntimeError) as _will_err:
-                    record_degradation('incoming_logic', _will_err)
+                    _record_incoming_degradation(
+                        _will_err,
+                        action="blocked response dispatch because Unified Will gate was unavailable",
+                        severity="error",
+                    )
                     logger.debug("Unified Will gate degraded: %s", _will_err)
+                    if origin in ("user", "voice", "admin"):
+                        await self.output_gate.emit(
+                            "I need a moment to re-establish my decision layer before I can respond safely.",
+                            origin=origin,
+                            target="primary",
+                        )
+                    return None
 
                 # Task Registry Integration
                 task_id = self._task_registry.register_task(
                     owner=f"Orchestrator_{origin}",
                     description=f"Thinking: {message[:100]}...",
-                    metadata={"origin": origin, "trace_id": getattr(trace, 'trace_id', 'unknown')}
+                    metadata={"origin": origin, "trace_id": getattr(trace, "trace_id", "unknown")},
                 )
                 self._task_registry.update_task(task_id, status=TaskStatus.RUNNING)
 
@@ -617,20 +822,31 @@ class IncomingLogicMixin:
                     async def __aexit__(self, *args):
                         return False
 
-                flow_ctx = self.mycelium.rooted_flow("cognition", "response", f"Process: {message[:20]}", priority=priority) if self.mycelium and hasattr(self.mycelium, 'rooted_flow') else AsyncNullContext()
+                flow_ctx = (
+                    self.mycelium.rooted_flow(
+                        "cognition", "response", f"Process: {message[:20]}", priority=priority
+                    )
+                    if self.mycelium and hasattr(self.mycelium, "rooted_flow")
+                    else AsyncNullContext()
+                )
 
                 async with flow_ctx:
                     try:
                         # ══════════════════════════════════════════════════════
                         # MYCELIAL HARDWIRED PATHWAY BYPASS (Enterprise v3.0)
                         # ══════════════════════════════════════════════════════
-                        hardwired_result = self.mycelium.match_hardwired(message) if self.mycelium and hasattr(self.mycelium, 'match_hardwired') else None
+                        hardwired_result = (
+                            self.mycelium.match_hardwired(message)
+                            if self.mycelium and hasattr(self.mycelium, "match_hardwired")
+                            else None
+                        )
                         if hardwired_result:
                             pathway, extracted_params = hardwired_result
 
                             logger.info(
                                 "🍄 [MYCELIUM] ⚡ HARDWIRED MATCH: '%s' → %s",
-                                pathway.pathway_id, pathway.skill_name
+                                pathway.pathway_id,
+                                pathway.skill_name,
                             )
 
                             if not allow_direct_user_shortcut(origin):
@@ -643,7 +859,11 @@ class IncomingLogicMixin:
                                 try:
                                     from core.constitution import get_constitutional_core
 
-                                    _emit_ok, _emit_reason, _authority_decision = await get_constitutional_core(self).approve_expression(
+                                    (
+                                        _emit_ok,
+                                        _emit_reason,
+                                        _authority_decision,
+                                    ) = await get_constitutional_core(self).approve_expression(
                                         pathway.direct_response,
                                         source=f"mycelium:{pathway.pathway_id}",
                                         urgency=max(0.1, min(1.0, float(priority or 0.0))),
@@ -656,6 +876,7 @@ class IncomingLogicMixin:
                                         )
                                         try:
                                             from core.unified_action_log import get_action_log
+
                                             get_action_log().record(
                                                 pathway.skill_name or "direct_response",
                                                 f"mycelium:{pathway.pathway_id}",
@@ -664,24 +885,42 @@ class IncomingLogicMixin:
                                                 str(_emit_reason),
                                             )
                                         except (ImportError, AttributeError, RuntimeError) as _exc:
-                                            record_degradation('incoming_logic', _exc)
-                                            logger.debug("Suppressed Exception: %s", _exc)
+                                            _record_incoming_degradation(
+                                                _exc,
+                                                action="kept hardwired direct response blocked after action-log recording failed",
+                                            )
+                                            logger.debug(
+                                                "Hardwired block action-log skipped: %s", _exc
+                                            )
                                         hardwired_result = None
                                 except (ImportError, AttributeError, RuntimeError) as _exec_err:
-                                    record_degradation('incoming_logic', _exec_err)
-                                    logger.error("Hardwired direct-response emission approval failed: %s", _exec_err, exc_info=True)
+                                    _record_incoming_degradation(
+                                        _exec_err,
+                                        action="disabled hardwired direct response after expression approval failed",
+                                        severity="error",
+                                    )
+                                    logger.error(
+                                        "Hardwired direct-response emission approval failed: %s",
+                                        _exec_err,
+                                        exc_info=True,
+                                    )
 
                         if hardwired_result:
                             try:
-                                self._publish_telemetry({
-                                    "type": "activity",
-                                    "label": pathway.activity_label,
-                                    "show": True,
-                                })
+                                self._publish_telemetry(
+                                    {
+                                        "type": "activity",
+                                        "label": pathway.activity_label,
+                                        "show": True,
+                                    }
+                                )
 
                                 # Phase 5.1: Zero-Latency Direct Response Bypass
                                 if pathway.direct_response:
-                                    logger.info("⚡ [REFLEX] Direct response triggered for '%s'", pathway.pathway_id)
+                                    logger.info(
+                                        "⚡ [REFLEX] Direct response triggered for '%s'",
+                                        pathway.pathway_id,
+                                    )
                                     try:
                                         from core.constitution import (
                                             ProposalKind,
@@ -698,11 +937,22 @@ class IncomingLogicMixin:
                                             payload={"pathway_id": pathway.pathway_id},
                                         )
                                     except (ImportError, AttributeError, RuntimeError) as audit_exc:
-                                        record_degradation('incoming_logic', audit_exc)
-                                        logger.error("Hardwired direct-response audit failed: %s", audit_exc, exc_info=True)
+                                        _record_incoming_degradation(
+                                            audit_exc,
+                                            action="continued hardwired direct response after external-decision audit failed",
+                                        )
+                                        logger.error(
+                                            "Hardwired direct-response audit failed: %s",
+                                            audit_exc,
+                                            exc_info=True,
+                                        )
                                     res = {"ok": True, "response": pathway.direct_response}
                                 else:
-                                    if pathway.skill_name in ("generate_image", "sovereign_imagination") and "prompt" not in extracted_params:
+                                    if (
+                                        pathway.skill_name
+                                        in ("generate_image", "sovereign_imagination")
+                                        and "prompt" not in extracted_params
+                                    ):
                                         extracted_params["prompt"] = message.strip()
 
                                     res = await self.execute_tool(
@@ -712,17 +962,19 @@ class IncomingLogicMixin:
                                         payload_context=payload_context,
                                     )
                             finally:
-                                self._publish_telemetry({
-                                    "type": "activity",
-                                    "label": "Aura is idle.",
-                                    "show": False,
-                                })
+                                self._publish_telemetry(
+                                    {
+                                        "type": "activity",
+                                        "label": "Aura is idle.",
+                                        "show": False,
+                                    }
+                                )
 
                             exec_success = isinstance(res, dict) and res.get("ok", False)
                             if exec_success:
                                 successful_tools.append(pathway.skill_name)
 
-                            if self.mycelium and hasattr(self.mycelium, 'reinforce'):
+                            if self.mycelium and hasattr(self.mycelium, "reinforce"):
                                 self.mycelium.reinforce(pathway.pathway_id, success=exec_success)
 
                             rich_res = res.get("results", res) if isinstance(res, dict) else res
@@ -730,8 +982,15 @@ class IncomingLogicMixin:
                             try:
                                 self._record_action_in_history(pathway.skill_name, rich_res)
                             except (RuntimeError, AttributeError, TypeError) as history_err:
-                                record_degradation('incoming_logic', history_err)
-                                logger.error("Hardwired action history failed: %s", history_err, exc_info=True)
+                                _record_incoming_degradation(
+                                    history_err,
+                                    action="continued hardwired tool response after action-history write failed",
+                                )
+                                logger.error(
+                                    "Hardwired action history failed: %s",
+                                    history_err,
+                                    exc_info=True,
+                                )
 
                             try:
                                 from core.world_model.expectation_engine import ExpectationEngine
@@ -739,37 +998,60 @@ class IncomingLogicMixin:
                                 ee = ExpectationEngine(getattr(self, "cognitive_engine", None))
                                 await ee.update_beliefs_from_result(pathway.skill_name, rich_res)
                             except (ImportError, AttributeError, RuntimeError) as belief_err:
-                                record_degradation('incoming_logic', belief_err)
-                                logger.error("Hardwired belief update failed: %s", belief_err, exc_info=True)
+                                _record_incoming_degradation(
+                                    belief_err,
+                                    action="continued hardwired tool response after expectation-belief update failed",
+                                )
+                                logger.error(
+                                    "Hardwired belief update failed: %s", belief_err, exc_info=True
+                                )
 
-                            self._publish_telemetry({
-                                "type": "action_result",
-                                "tool": pathway.skill_name,
-                            })
+                            self._publish_telemetry(
+                                {
+                                    "type": "action_result",
+                                    "tool": pathway.skill_name,
+                                }
+                            )
 
                             # ══════════════════════════════════════════════════════
                             # SCANNER / FILTER LAYER (Pre-Intent)
                             # ══════════════════════════════════════════════════════
                             from core.container import ServiceNotFoundError, get_container
+
                             scanner = None
                             try:
                                 scanner = get_container().get("sovereign_scanner")
                             except ServiceNotFoundError:
                                 # Fallback to intent_router if sovereign_scanner is not found
                                 # This ensures some form of filtering/scanning is always available
-                                logger.debug("Sovereign Scanner not found, falling back to IntentRouter for scanning.")
+                                logger.debug(
+                                    "Sovereign Scanner not found, falling back to IntentRouter for scanning."
+                                )
                                 scanner = self.intent_router
 
-                            if scanner and not getattr(scanner, "called", False) and not config.skeletal_mode:
+                            if (
+                                scanner
+                                and not getattr(scanner, "called", False)
+                                and not config.skeletal_mode
+                            ):
                                 try:
-                                    scan_res = scanner.scan(message) if hasattr(scanner, "scan") else None
+                                    scan_res = (
+                                        scanner.scan(message) if hasattr(scanner, "scan") else None
+                                    )
                                     if scan_res and scan_res.get("blocked"):
-                                        final_response = scan_res.get("reason", "I cannot process this request.")
+                                        final_response = scan_res.get(
+                                            "reason", "I cannot process this request."
+                                        )
                                         if origin in ("user", "voice", "admin"):
-                                            await self.output_gate.emit(final_response, origin=origin, target="primary")
+                                            await self.output_gate.emit(
+                                                final_response, origin=origin, target="primary"
+                                            )
                                         return
                                 except (RuntimeError, AttributeError, TypeError) as e:
-                                    record_degradation('incoming_logic', e)
+                                    _record_incoming_degradation(
+                                        e,
+                                        action="continued hardwired response finalization after scanner failed",
+                                    )
                                     logger.warning("Error during scanner execution: %s", e)
                                     # Continue processing if scanner fails, don't block the whole flow
 
@@ -780,7 +1062,11 @@ class IncomingLogicMixin:
 
                             # v42.1 FIX: Use a more natural fallback message if 'message' is missing
                             # this prevents robotic "I have executed the speak protocol"
-                            fallback_msg = f"I've updated my internal state regarding {pathway.skill_name}." if "speak" not in pathway.skill_name else ""
+                            fallback_msg = (
+                                f"I've updated my internal state regarding {pathway.skill_name}."
+                                if "speak" not in pathway.skill_name
+                                else ""
+                            )
                             if isinstance(rich_res, dict):
                                 final_response = (
                                     rich_res.get("message")
@@ -802,7 +1088,9 @@ class IncomingLogicMixin:
                             )
 
                             if origin in ("user", "voice", "admin"):
-                                await self.output_gate.emit(final_response, origin=origin, target="primary")
+                                await self.output_gate.emit(
+                                    final_response, origin=origin, target="primary"
+                                )
                             return
 
                         # ══════════════════════════════════════════════════════
@@ -817,17 +1105,57 @@ class IncomingLogicMixin:
                         # ══════════════════════════════════════════════════════
                         # PHASE XXII: REACT LOOP INTEGRATION (Reasoning)
                         # ══════════════════════════════════════════════════════
-                        if hasattr(self, 'react_loop') and self.react_loop and origin in ("user", "admin") and not config.skeletal_mode:
+                        if (
+                            hasattr(self, "react_loop")
+                            and self.react_loop
+                            and origin in ("user", "admin")
+                            and not config.skeletal_mode
+                        ):
                             # Heuristic for complex reasoning: longer queries, factual/lookup questions,
                             # or any signals that Aura would need external knowledge to answer correctly.
                             _factual_triggers = [
-                                "search", "find", "why", "how", "analyze", "deep", "autonomy",
-                                "look up", "lookup", "what is", "what are", "who is", "who are",
-                                "when did", "when was", "where is", "where are", "tell me about",
-                                "explain", "define", "calculate", "equation", "percentage", "probability",
-                                "latest", "recent", "current", "news", "today", "statistic", "data",
-                                "research", "study", "evidence", "source", "fact", "according to",
-                                "drake equation", "scientific", "formula", "rate of", "estimate",
+                                "search",
+                                "find",
+                                "why",
+                                "how",
+                                "analyze",
+                                "deep",
+                                "autonomy",
+                                "look up",
+                                "lookup",
+                                "what is",
+                                "what are",
+                                "who is",
+                                "who are",
+                                "when did",
+                                "when was",
+                                "where is",
+                                "where are",
+                                "tell me about",
+                                "explain",
+                                "define",
+                                "calculate",
+                                "equation",
+                                "percentage",
+                                "probability",
+                                "latest",
+                                "recent",
+                                "current",
+                                "news",
+                                "today",
+                                "statistic",
+                                "data",
+                                "research",
+                                "study",
+                                "evidence",
+                                "source",
+                                "fact",
+                                "according to",
+                                "drake equation",
+                                "scientific",
+                                "formula",
+                                "rate of",
+                                "estimate",
                             ]
                             is_complex = (
                                 len(message.split()) > 8
@@ -841,46 +1169,74 @@ class IncomingLogicMixin:
                                 # STABILITY v56: Do NOT emit to output_gate — that feeds
                                 # the reply_queue and poisons it with an interim reflex
                                 # before the real response arrives.
-                                if origin in ("user", "voice", "admin") and not getattr(self, "_reflex_sent_for_current", False):
-                                    self._emit_thought_stream("💭 Complex query detected — engaging reasoning loop.")
+                                if origin in ("user", "voice", "admin") and not getattr(
+                                    self, "_reflex_sent_for_current", False
+                                ):
+                                    self._emit_thought_stream(
+                                        "💭 Complex query detected — engaging reasoning loop."
+                                    )
                                     self._reflex_sent_for_current = True
 
                                 try:
                                     # H-52: Proactive Heartbeat for slow reasoning (Claude feedback)
                                     stream_active = True
+
                                     async def _reasoning_heartbeat():
                                         while stream_active:
                                             await asyncio.sleep(25)
                                             if stream_active:
                                                 # STABILITY v56: Thought stream only — never emit
                                                 # to output_gate during reasoning (poisons reply_queue).
-                                                self._emit_thought_stream("⏳ Still thinking... exploring deep neural pathways.")
+                                                self._emit_thought_stream(
+                                                    "⏳ Still thinking... exploring deep neural pathways."
+                                                )
 
                                     from core.utils.task_tracker import (
                                         get_task_tracker as _get_tracker_hb,
                                     )
+
                                     heartbeat_task = _get_tracker_hb().create_task(
                                         _reasoning_heartbeat(),
                                         name="incoming_logic.reasoning_heartbeat",
                                     )
                                     priority = origin in ("user", "voice", "admin")
                                     try:
-                                        async for event in self.react_loop.run_stream(message, priority=priority):
+                                        async for event in self.react_loop.run_stream(
+                                            message, priority=priority
+                                        ):
                                             if event["type"] == "thought":
                                                 self._emit_thought_stream(f"💭 {event['content']}")
                                             elif event["type"] == "action":
-                                                self._emit_thought_stream(f"🛠️ Executing: {event['action']}")
+                                                self._emit_thought_stream(
+                                                    f"🛠️ Executing: {event['action']}"
+                                                )
                                             elif event["type"] == "observation":
-                                                logger.debug("ReAct Observation: %s", event.get("content", "")[:50])
+                                                logger.debug(
+                                                    "ReAct Observation: %s",
+                                                    event.get("content", "")[:50],
+                                                )
                                             elif event["type"] == "final":
                                                 final_response = event["content"]
                                                 successful_tools = []
                                                 logger.info("✅ ReActLoop reasoning completed.")
                                             elif event["type"] == "error":
-                                                self._emit_thought_stream(f"⚠️ Reasoning friction: {event['content']}")
+                                                self._emit_thought_stream(
+                                                    f"⚠️ Reasoning friction: {event['content']}"
+                                                )
                                                 # Zenith-H52: If severe friction, break loop to trigger immediate fallback
-                                                if any(term in event['content'].lower() for term in ["failed", "refused", "timeout", "critical", "error"]):
-                                                    logger.warning("ReAct error detected, triggering early termination.")
+                                                if any(
+                                                    term in event["content"].lower()
+                                                    for term in [
+                                                        "failed",
+                                                        "refused",
+                                                        "timeout",
+                                                        "critical",
+                                                        "error",
+                                                    ]
+                                                ):
+                                                    logger.warning(
+                                                        "ReAct error detected, triggering early termination."
+                                                    )
                                                     break
                                     finally:
                                         stream_active = False
@@ -890,14 +1246,29 @@ class IncomingLogicMixin:
                                         except asyncio.CancelledError:
                                             logger.debug("Direct match result handled.")
 
-                                except (RuntimeError, asyncio.CancelledError, TimeoutError, AttributeError) as e:
-                                    record_degradation('incoming_logic', e)
+                                except (
+                                    RuntimeError,
+                                    asyncio.CancelledError,
+                                    TimeoutError,
+                                    AttributeError,
+                                ) as e:
+                                    _record_incoming_degradation(
+                                        e,
+                                        action="fell back to kernel or cognitive pipeline after ReAct loop failed",
+                                        severity="error",
+                                    )
                                     logger.error("ReActLoop failed: %s", e)
                                     # Ensure we don't leave the user hanging if the loop crashes
                                     final_response = None
 
-                        if self.kernel_interface and not config.skeletal_mode and origin != "kernel":
-                            self._emit_thought_stream("🧠 [ZENITH] Unitary Kernel Pipeline engaged...")
+                        if (
+                            self.kernel_interface
+                            and not config.skeletal_mode
+                            and origin != "kernel"
+                        ):
+                            self._emit_thought_stream(
+                                "🧠 [ZENITH] Unitary Kernel Pipeline engaged..."
+                            )
                             # ══════════════════════════════════════════════════════
                             # UNITARY KERNEL BYPASS (Phase 10 Hardening)
                             # ══════════════════════════════════════════════════════
@@ -909,19 +1280,31 @@ class IncomingLogicMixin:
                             )
                             successful_tools = []
                         elif origin == "kernel":
-                            logger.debug("🧠 Legacy bridge request detected; bypassing KernelInterface to avoid recursive re-entry.")
-                            if (cog := ServiceContainer.get("cognitive_integration", default=None)) and cog.is_active:
-                                self._emit_thought_stream("🧠 Phase 7: Cognitive Inversion Pipeline engaged...")
+                            logger.debug(
+                                "🧠 Legacy bridge request detected; bypassing KernelInterface to avoid recursive re-entry."
+                            )
+                            if (
+                                cog := ServiceContainer.get("cognitive_integration", default=None)
+                            ) and cog.is_active:
+                                self._emit_thought_stream(
+                                    "🧠 Phase 7: Cognitive Inversion Pipeline engaged..."
+                                )
                                 final_response = await cog.process_turn(message, payload_context)
                                 successful_tools = []
                             else:
-                                logger.warning("Kernel-origin request arrived while CognitiveIntegration is offline; suppressing recursive fallback.")
+                                logger.warning(
+                                    "Kernel-origin request arrived while CognitiveIntegration is offline; suppressing recursive fallback."
+                                )
                                 final_response = None
-                        elif (cog := ServiceContainer.get("cognitive_integration", default=None)) and cog.is_active:
-                            self._emit_thought_stream("🧠 Phase 7: Cognitive Inversion Pipeline engaged...")
+                        elif (
+                            cog := ServiceContainer.get("cognitive_integration", default=None)
+                        ) and cog.is_active:
+                            self._emit_thought_stream(
+                                "🧠 Phase 7: Cognitive Inversion Pipeline engaged..."
+                            )
                             # The new pipeline handles classification, strategy, reasoning, and drafting
                             final_response = await cog.process_turn(message, payload_context)
-                            successful_tools = [] # CognitiveIntegration manages tools internally
+                            successful_tools = []  # CognitiveIntegration manages tools internally
                         else:
                             # ══════════════════════════════════════════════════════
                             # LEGACY COGNITIVE PIPELINE (Fallback)
@@ -929,7 +1312,9 @@ class IncomingLogicMixin:
                             # directly instead of the broken state_machine pipeline
                             # which returns "I'm processing that..." default string.
                             # ══════════════════════════════════════════════════════
-                            logger.warning("CognitiveIntegration offline - using direct LLM fallback")
+                            logger.warning(
+                                "CognitiveIntegration offline - using direct LLM fallback"
+                            )
                             record_degraded_event(
                                 "cognitive_integration",
                                 "offline_fallback",
@@ -945,12 +1330,22 @@ class IncomingLogicMixin:
                                     await cog.initialize()
                                     if cog.is_active:
                                         logger.info("✅ CIL recovered via lazy re-init!")
-                                        final_response = await cog.process_turn(message, payload_context)
+                                        final_response = await cog.process_turn(
+                                            message, payload_context
+                                        )
                                         successful_tools = []
                                     else:
                                         final_response = None  # Fall through to direct LLM
-                                except (RuntimeError, AttributeError, TypeError, asyncio.CancelledError) as e:
-                                    record_degradation('incoming_logic', e)
+                                except (
+                                    RuntimeError,
+                                    AttributeError,
+                                    TypeError,
+                                    asyncio.CancelledError,
+                                ) as e:
+                                    _record_incoming_degradation(
+                                        e,
+                                        action="fell through to governed fallback after cognitive integration lazy re-init failed",
+                                    )
                                     logger.warning("CIL lazy re-init failed: %s", e)
                                     record_degraded_event(
                                         "cognitive_integration",
@@ -976,7 +1371,9 @@ class IncomingLogicMixin:
                                         classification="non_critical_fallback",
                                         context={"origin": origin},
                                     )
-                                    intent = await self.intent_router.classify(message, payload_context)
+                                    intent = await self.intent_router.classify(
+                                        message, payload_context
+                                    )
                                     res = await self.state_machine.execute(
                                         intent,
                                         message,
@@ -984,10 +1381,25 @@ class IncomingLogicMixin:
                                         priority=priority,
                                         origin=origin,
                                     )
-                                    final_response = res[0] if isinstance(res, (tuple, list)) else res
-                                    successful_tools = res[1] if isinstance(res, (tuple, list)) and len(res) > 1 else []
-                                except (RuntimeError, AttributeError, TypeError, asyncio.CancelledError) as e:
-                                    record_degradation('incoming_logic', e)
+                                    final_response = (
+                                        res[0] if isinstance(res, (tuple, list)) else res
+                                    )
+                                    successful_tools = (
+                                        res[1]
+                                        if isinstance(res, (tuple, list)) and len(res) > 1
+                                        else []
+                                    )
+                                except (
+                                    RuntimeError,
+                                    AttributeError,
+                                    TypeError,
+                                    asyncio.CancelledError,
+                                ) as e:
+                                    _record_incoming_degradation(
+                                        e,
+                                        action="fell through to direct fallback after governed state-machine fallback failed",
+                                        severity="error",
+                                    )
                                     logger.warning("Governed StateMachine fallback failed: %s", e)
                                     record_degraded_event(
                                         "cognitive_integration",
@@ -1018,42 +1430,79 @@ class IncomingLogicMixin:
                         # ══════════════════════════════════════════════════════
                         if origin in ("user", "voice", "admin") and final_response:
                             _gap_markers = [
-                                "i don't have", "i don't know", "i'm not sure",
-                                "i cannot access", "my training", "knowledge cutoff",
-                                "unable to access the internet", "i cannot browse",
-                                "i'm not certain", "i don't have access",
-                                "i can't look that up", "i cannot search",
-                                "beyond my knowledge", "i lack real-time",
-                                "without internet access", "i'm unable to verify",
-                                "my information may be outdated", "i can't provide real-time",
-                                "i have no information about", "not in my training",
+                                "i don't have",
+                                "i don't know",
+                                "i'm not sure",
+                                "i cannot access",
+                                "my training",
+                                "knowledge cutoff",
+                                "unable to access the internet",
+                                "i cannot browse",
+                                "i'm not certain",
+                                "i don't have access",
+                                "i can't look that up",
+                                "i cannot search",
+                                "beyond my knowledge",
+                                "i lack real-time",
+                                "without internet access",
+                                "i'm unable to verify",
+                                "my information may be outdated",
+                                "i can't provide real-time",
+                                "i have no information about",
+                                "not in my training",
                             ]
                             _resp_lower = final_response.lower()
                             _has_gap = any(m in _resp_lower for m in _gap_markers)
-                            if _has_gap and hasattr(self, 'agency') and self.agency:
-                                logger.info("🔍 [KNOWLEDGE GAP] Uncertainty in response — auto-searching: %s", message[:80])
+                            if _has_gap and hasattr(self, "agency") and self.agency:
+                                logger.info(
+                                    "🔍 [KNOWLEDGE GAP] Uncertainty in response — auto-searching: %s",
+                                    message[:80],
+                                )
                                 try:
                                     _search_result = await asyncio.wait_for(
                                         self.execute_tool(
                                             "sovereign_browser",
-                                            {"query": message.strip(), "mode": "search", "deep": False},
+                                            {
+                                                "query": message.strip(),
+                                                "mode": "search",
+                                                "deep": False,
+                                            },
                                             origin="knowledge_gap_auto_search",
                                             payload_context=payload_context,
                                         ),
-                                        timeout=25.0
+                                        timeout=25.0,
                                     )
-                                    if isinstance(_search_result, dict) and _search_result.get("ok") and _search_result.get("message"):
+                                    if (
+                                        isinstance(_search_result, dict)
+                                        and _search_result.get("ok")
+                                        and _search_result.get("message")
+                                    ):
                                         _snippet = _search_result["message"]
                                         _src = _search_result.get("source", "web")
-                                        final_response = f"{_snippet}\n\n*(sourced from web: {_src})*"
-                                        logger.info("✅ [KNOWLEDGE GAP] Response grounded via web search.")
+                                        final_response = (
+                                            f"{_snippet}\n\n*(sourced from web: {_src})*"
+                                        )
+                                        logger.info(
+                                            "✅ [KNOWLEDGE GAP] Response grounded via web search."
+                                        )
                                     else:
-                                        logger.warning("🔍 [KNOWLEDGE GAP] Web search returned no usable result.")
+                                        logger.warning(
+                                            "🔍 [KNOWLEDGE GAP] Web search returned no usable result."
+                                        )
                                 except TimeoutError:
                                     logger.warning("🔍 [KNOWLEDGE GAP] Web search timed out (25s).")
-                                except (RuntimeError, asyncio.CancelledError, AttributeError) as _gap_err:
-                                    record_degradation('incoming_logic', _gap_err)
-                                    logger.error("🔍 [KNOWLEDGE GAP] Web search failed: %s", _gap_err)
+                                except (
+                                    RuntimeError,
+                                    asyncio.CancelledError,
+                                    AttributeError,
+                                ) as _gap_err:
+                                    _record_incoming_degradation(
+                                        _gap_err,
+                                        action="kept finalized response after knowledge-gap auto-search failed",
+                                    )
+                                    logger.error(
+                                        "🔍 [KNOWLEDGE GAP] Web search failed: %s", _gap_err
+                                    )
 
                         if origin in ("user", "voice", "admin"):
                             if self.output_gate:
@@ -1061,25 +1510,35 @@ class IncomingLogicMixin:
                                     final_response,
                                     origin=origin,
                                     target="primary",
-                                    metadata={"voice": True}
+                                    metadata={"voice": True},
                                 )
                         else:
                             # Spontaneous emission from internal thought or perception
-                            await self.emit_spontaneous_message(final_response, modality="both", origin=origin)
+                            await self.emit_spontaneous_message(
+                                final_response, modality="both", origin=origin
+                            )
 
                         # : Final telemetry pulse BEFORE marking as idle.
                         # This ensures the frontend receives the message before the typing indicator hides.
                         await asyncio.sleep(0.05)
-                        self._publish_telemetry({"type": "status", "is_processing": False, "is_idle": True})
+                        self._publish_telemetry(
+                            {"type": "status", "is_processing": False, "is_idle": True}
+                        )
 
                         # Reset processing tracking (Hardening)
                         self.status.is_processing = False
 
                         return final_response
                     except (RuntimeError, asyncio.CancelledError, AttributeError, TypeError) as e:
-                        record_degradation('incoming_logic', e)
+                        _record_incoming_degradation(
+                            e,
+                            action="escalated state-machine execution failure to watchdog after delivery guard notification",
+                            severity="error",
+                        )
                         logger.error("State machine execution failed: %s", e)
-                        if self._autonomy_guardian and hasattr(self._autonomy_guardian, 'ensure_delivery'):
+                        if self._autonomy_guardian and hasattr(
+                            self._autonomy_guardian, "ensure_delivery"
+                        ):
                             self._autonomy_guardian.ensure_delivery(
                                 f"I encountered an internal error: {str(e)[:100]}", origin
                             )
@@ -1095,21 +1554,28 @@ class IncomingLogicMixin:
                 try:
                     return await asyncio.wait_for(_execute_and_reply(), timeout=300.0)
                 except TimeoutError:
-                    logger.error("🛑 [WATCHDOG] Thinking task exceeded 300s limit. Force terminating.")
+                    logger.error(
+                        "🛑 [WATCHDOG] Thinking task exceeded 300s limit. Force terminating."
+                    )
                     await self._handle_thinking_timeout(origin)
                     return "Cognitive process timed out."
                 except (RuntimeError, asyncio.CancelledError, AttributeError, TypeError) as e:
-                    record_degradation('incoming_logic', e)
+                    _record_incoming_degradation(
+                        e,
+                        action="returned cognitive-failure message after thinking watchdog task failed",
+                        severity="error",
+                    )
                     logger.error("❌ [WATCHDOG] Thinking task failed: %s", e)
                     # GROK ZENITH HARDENING: Ensure the user is notified if cognition fails entirely.
                     if origin in ("user", "voice", "admin"):
                         error_msg = f"My cognitive process encountered a fatal interruption: {str(e)[:100]}. I am recovering my state."
-                        if hasattr(self, 'output_gate') and self.output_gate:
-                             await self.output_gate.emit(error_msg, origin=origin, target="primary")
+                        if hasattr(self, "output_gate") and self.output_gate:
+                            await self.output_gate.emit(error_msg, origin=origin, target="primary")
                         self.status.is_processing = False
                     return f"Cognitive failure: {str(e)}"
 
             from core.utils.task_tracker import get_task_tracker
+
             task = get_task_tracker().create_task(
                 _watchdog_wrapper(),
                 name="incoming_logic.thinking_watchdog",
@@ -1133,7 +1599,11 @@ class IncomingLogicMixin:
                 raise
 
         except (RuntimeError, asyncio.CancelledError, AttributeError, TypeError) as e:
-            record_degradation('incoming_logic', e)
+            _record_incoming_degradation(
+                e,
+                action="stopped incoming-message processing and reset processing status after handler failure",
+                severity="error",
+            )
             logger.error("Error in handle_incoming_message: %s", e)
             self.status.is_processing = False
         finally:
