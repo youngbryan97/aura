@@ -46,7 +46,7 @@ def _contains_corrupted_language(text: str) -> bool:
         from core.phases.dialogue_policy import contains_corrupted_language
 
         return contains_corrupted_language(text)
-    except Exception:
+    except (ImportError, AttributeError):
         return bool(_CORRUPT_LANGUAGE_MARKERS.search(str(text or "")))
 
 
@@ -309,8 +309,6 @@ def _setup_worker_env():
     os.environ["METAL_COMPILER_TIMEOUT_MS"] = "60000"  # [FRONTIER UPGRADE] Extended for 32B model complex prompts
     os.environ["METAL_DEVICE_WRAPPER_TYPE"] = "0"
 
-_setup_worker_env()
-
 
 def _clear_mlx_cache(mx_module: Any) -> None:
     try:
@@ -361,7 +359,7 @@ def _load_effective_context_window(model_path: str) -> int:
             max_position_embeddings = int(config_payload.get("max_position_embeddings") or 0)
             sliding_window = int(config_payload.get("sliding_window") or 0)
             use_sliding_window = bool(config_payload.get("use_sliding_window"))
-    except Exception:
+    except (json.JSONDecodeError, OSError, KeyError, TypeError, ValueError):
         max_position_embeddings = 0
         sliding_window = 0
         use_sliding_window = False
@@ -370,7 +368,7 @@ def _load_effective_context_window(model_path: str) -> int:
         if tokenizer_config_path.exists():
             tokenizer_payload = json.loads(tokenizer_config_path.read_text())
             tokenizer_model_max = int(tokenizer_payload.get("model_max_length") or 0)
-    except Exception:
+    except (json.JSONDecodeError, OSError, KeyError, TypeError, ValueError):
         tokenizer_model_max = 0
 
     if max_position_embeddings > 0:
@@ -569,19 +567,27 @@ def _mlx_worker_loop(
     substrate_mem: Any = None,
     steering_active_flag: Any = None
 ):
+    """Runs in a FULLY ISOLATED native subprocess via ForkServer.
+
+    This is the worker entry-point called from ``MLXLocalClient._spawn_worker``.
+    All Metal/GPU work, model loading, and inference happen inside this
+    function's process boundary.  The parent communicates via IPC queues.
+    """
     try:
         signal.signal(signal.SIGINT, signal.SIG_IGN)
-    except Exception:
-        pass
-    """
-    Runs in a FULLY ISOLATED native subprocess via ForkServer.
-    """
+    except (OSError, ValueError):
+        pass  # signal handlers can only be set from the main thread
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - MLXWorker - %(levelname)s - %(message)s',
         stream=sys.stderr
     )
     logger = logging.getLogger("MLXWorker")
+
+    # Configure worker-specific environment (Metal, SDK, thread limits).
+    # This MUST run inside the subprocess, not at module import time,
+    # because the parent process should not inherit these settings.
+    _setup_worker_env()
     
     # ── Zenith Concurrency & Telemetry ──
     ipc_writer = IPCWriterThread(response_queue)
@@ -620,12 +626,12 @@ def _mlx_worker_loop(
             limit = compute_mlx_cache_limit(total_ram)
             mx.set_cache_limit(limit)
             logger.info(f"Metal cache limit set to {limit // (1024**2)}MB")
-        except Exception as e:
+        except (ImportError, OSError, RuntimeError, AttributeError) as e:
             record_degradation('mlx_worker', e)
             try:
                 mx.metal.set_cache_limit(1024 * 1024 * 1024 * 24)
-            except Exception:
-                pass
+            except (AttributeError, RuntimeError):
+                pass  # no-op: mx.metal API unavailable
 
     # [PERFORMANCE] Metal probes shifted to after model load or triggered on demand
     # Initializing the model first is more critical for 'perceived' speed.
@@ -693,7 +699,7 @@ def _mlx_worker_loop(
                 # Convention: substrate_mem[-1] = 1.0 if steering active, 0.0 if not
                 # (substrate_mem is a multiprocessing.Array of floats; last slot reserved)
                 substrate_mem[-1] = 1.0 if _steering_active else 0.0
-            except Exception:
+            except (TypeError, ValueError, IndexError):
                 pass  # Non-fatal; parent will treat absence as unknown
 
         # Apply Recurrent Depth — Mythos-inspired layer looping.
@@ -822,8 +828,8 @@ def _mlx_worker_loop(
                             sampler_kwargs["min_p"] = min_p
                         if "repetition_penalty" in _sparams:
                             sampler_kwargs["repetition_penalty"] = repetition_penalty
-                    except Exception:
-                        pass  # no-op: intentional
+                    except (TypeError, ValueError):
+                        pass  # no-op: signature introspection unavailable
                     kwargs["sampler"] = make_sampler(**sampler_kwargs)
 
                 # [v11.0 HARDENING] Logits Processors (JSON Enforcement)
@@ -901,8 +907,8 @@ def _mlx_worker_loop(
                                 if psutil.virtual_memory().percent > 90:  # 64GB — don't panic at 85%
                                     logger.warning("⚠️ High memory pressure detected in worker. Clearing MLX cache.")
                                     mx.clear_cache()
-                            except Exception:
-                                pass
+                            except (ImportError, OSError, AttributeError):
+                                pass  # no-op: psutil unavailable or VM stats inaccessible
 
                         # [v11.5 HARDENING] Internal Worker Retries for Structured Leaks & Loops
                         # We allow up to 2 retries if the LLM gets stuck in a loop or returns empty on a schema.
@@ -1214,8 +1220,8 @@ def _mlx_worker_loop(
                             sampler_kwargs["min_p"] = min_p
                         if "repetition_penalty" in _sparams2:
                             sampler_kwargs["repetition_penalty"] = repetition_penalty
-                    except Exception:
-                        pass  # no-op: intentional
+                    except (TypeError, ValueError):
+                        pass  # no-op: signature introspection unavailable
                     kwargs["sampler"] = make_sampler(**sampler_kwargs)
 
                 # Apply MLX penalties via logits processors
@@ -1329,11 +1335,7 @@ def _mlx_worker_loop(
                                         "timestamp": time.time(),
                                     }
                                 )
-                                
-                                # [AURA HARDENING] Prevent VRAM fragmentation
-                                if token_count % 10 == 0:
-                                    _clear_mlx_cache(mx)
-                                
+
                                 # [FRONTIER UPGRADE] Absolute safety cap natively expanded to frontier levels
                                 if token_count > 8192:
                                     logger.warning("🏁 [WORKER] Hard token limit (8192) reached. Truncating.")
@@ -1387,16 +1389,20 @@ def _mlx_worker_loop(
         except KeyboardInterrupt:
             logger.info("🛑 [WORKER] Shutdown signal received; exiting quietly.")
             break
-        except Exception as e:
+        except (RuntimeError, TypeError, ValueError, OSError, IOError, AttributeError) as e:
             record_degradation('mlx_worker', e)
             import traceback
             tb = traceback.format_exc()
-            logger.error("❌ [WORKER] Fatal error during initialization: %s\n%s", e, tb)
+            resolved_action = locals().get("action") or "unknown"
+            logger.error(
+                "❌ [WORKER] Unhandled error during '%s': %s\n%s",
+                resolved_action, e, tb,
+            )
             ipc_writer.put(
                 {
                     "status": "error",
-                    "action": locals().get("action") or "init",
-                    "message": "Init failed",
+                    "action": resolved_action,
+                    "message": f"{resolved_action} failed: {e}",
                     "detail": tb,
                 }
             )

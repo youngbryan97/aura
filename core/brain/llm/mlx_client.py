@@ -95,8 +95,8 @@ def _safe_close_queue(q: Optional[mp.Queue]) -> None:
     try:
         q.close()
         q.join_thread()
-    except Exception:
-        pass  # no-op: intentional
+    except (OSError, ValueError, BrokenPipeError):
+        pass  # Queue already closed or FD reclaimed
 
 
 def _new_shared_future() -> SharedFuture:
@@ -113,11 +113,11 @@ def _bounded_max_tokens(requested: Any, bridged: Any, fallback: int) -> int:
 
     try:
         requested_int = _coerce(requested)
-    except Exception:
+    except (TypeError, ValueError, OverflowError):
         requested_int = int(fallback)
     try:
         bridged_int = _coerce(bridged)
-    except Exception:
+    except (TypeError, ValueError, OverflowError):
         bridged_int = int(fallback)
     return max(1, min(max(1, requested_int), max(1, bridged_int)))
 
@@ -318,11 +318,10 @@ def _bridge_asyncio_future_to_concurrent(future: asyncio.Future) -> cfutures.Fut
         try:
             proxy.set_result(done_future.result())
         except Exception as exc:
-            record_degradation('mlx_client', exc)
             try:
                 proxy.set_exception(exc)
-            except Exception:
-                pass  # no-op: intentional
+            except (cfutures.InvalidStateError, asyncio.InvalidStateError):
+                pass  # no-op: proxy already resolved or cancelled
 
     if future.done():
         _relay(future)
@@ -374,7 +373,7 @@ def _set_shared_future_result(future: Optional[SharedFuture], result: Any) -> bo
 
     try:
         future_loop = future.get_loop()
-    except Exception:
+    except (RuntimeError, AttributeError):
         return False
     if future_loop.is_closed():
         return False
@@ -400,7 +399,7 @@ def _cancel_shared_future(future: Optional[SharedFuture]) -> None:
 
     try:
         future_loop = future.get_loop()
-    except Exception:
+    except (RuntimeError, AttributeError):
         return
     if future_loop.is_closed():
         return
@@ -424,7 +423,7 @@ def _cancel_task_threadsafe(task: Optional[asyncio.Task]) -> None:
         return
     try:
         task_loop = task.get_loop()
-    except Exception:
+    except (RuntimeError, AttributeError):
         return
     if task_loop.is_closed():
         return
@@ -459,7 +458,7 @@ def _mlx_runtime_probe_command() -> list[str]:
 def _load_probe_cache_from_disk() -> tuple[Optional[bool], str, float]:
     try:
         payload = json.loads(_MLX_RUNTIME_PROBE_CACHE_PATH.read_text())
-    except Exception:
+    except (json.JSONDecodeError, OSError, ValueError):
         return None, "", 0.0
 
     ok = payload.get("ok")
@@ -1145,8 +1144,8 @@ class MLXLocalClient:
                             stuck_future = self._current_gen_future
                             if stuck_future is not None:
                                 _cancel_shared_future(stuck_future)
-                        except Exception:
-                            pass  # no-op: intentional
+                        except (RuntimeError, AttributeError):
+                            pass  # no-op: future already resolved or loop closed
                 return False
 
             if waited >= 5.0 and (now - last_log_at) >= 5.0:
@@ -1183,8 +1182,8 @@ class MLXLocalClient:
             try:
                 if not task.get_loop().is_closed():
                     return
-            except Exception:
-                pass  # no-op: intentional
+            except (RuntimeError, AttributeError):
+                pass  # no-op: loop disposed, fall through to cancel
             _cancel_task_threadsafe(task)
 
         self._listener_task = get_task_tracker().create_task(self._response_listener_loop())
@@ -1318,7 +1317,7 @@ class MLXLocalClient:
         from core.container import ServiceContainer
         import queue
         _consecutive_errors = 0
-        while True:
+        while not _runtime_shutdown_requested():
             try:
                 # Use polling instead of infinite block to avoid executor thread leaks and zombie stealing
                 res = await run_io_bound(self._res_q.get, True, 0.5)
@@ -1841,12 +1840,17 @@ class MLXLocalClient:
 
     def _drain_queue(self):
         """Safe non-blocking drain."""
+        import queue as _queue_mod
         while not self._res_q.empty():
-            try: self._res_q.get_nowait()
-            except Exception: break
+            try:
+                self._res_q.get_nowait()
+            except (_queue_mod.Empty, OSError, ValueError):
+                break
         while not self._req_q.empty():
-            try: self._req_q.get_nowait()
-            except Exception: break
+            try:
+                self._req_q.get_nowait()
+            except (_queue_mod.Empty, OSError, ValueError):
+                break
 
     def is_alive(self) -> bool:
         """Returns True if the worker process is running and initialized."""
@@ -2097,7 +2101,7 @@ class MLXLocalClient:
                 return False
             # Last slot written by worker as liveness flag
             return float(sm[-1]) > 0.5
-        except Exception:
+        except (TypeError, ValueError, IndexError, OSError):
             return False
 
     def _emit_steering_status(self, origin: str | None):
@@ -2184,8 +2188,8 @@ class MLXLocalClient:
             if vm.percent >= gc_pct:
                 import gc
                 gc.collect()
-        except Exception:
-            pass  # no-op: intentional
+        except (OSError, AttributeError):
+            pass  # no-op: psutil unavailable or VM stats inaccessible
 
         acquired = await self._acquire_request_lock(
             owner_label=owner_label,
@@ -2389,7 +2393,7 @@ class MLXLocalClient:
         enqueue_timeout = max(0.5, min(2.0, deadline.remaining or 2.0))
         try:
             await run_io_bound(self._req_q.put, req, True, enqueue_timeout)
-        except (BrokenPipeError, OSError, Exception) as exc:
+        except (BrokenPipeError, OSError) as exc:
             self._pending_generations.pop(req_id, None)
             if _retry and ("Broken pipe" in str(exc) or isinstance(exc, BrokenPipeError)):
                 logger.warning("🔄 [MLX] Broken pipe on %s — deferring reboot (lock held)",
@@ -2470,7 +2474,6 @@ class MLXLocalClient:
                     return None
                 self._consecutive_empty = 0
                 self._set_lane_state("ready")
-                self._consecutive_empty = 0  # Reset on successful generation
                 # Record user-facing completions so the cross-client yield
                 # loop knows to keep this worker warm across conversation
                 # turns (see _ensure_worker_alive yield guard).
