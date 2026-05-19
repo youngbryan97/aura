@@ -230,6 +230,10 @@ def _disable_governance(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("core.governance_context.governance_runtime_active", lambda: False)
 
 
+def _redirect_runtime_memory(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("AURA_ROOT", str(tmp_path))
+
+
 def test_registered_skill_surface_matches_expected_catalog(skill_registry):
     assert set(skill_registry) == EXPECTED_REGISTERED_SKILLS
     assert len(skill_registry) == 59
@@ -245,6 +249,7 @@ async def test_registered_skills_support_safe_execute_contract(
 ):
     _neutralize_side_effects(monkeypatch)
     _disable_governance(monkeypatch)
+    _redirect_runtime_memory(monkeypatch, tmp_path)
     instance = _instantiate_skill(skill_name, skill_registry[skill_name])
     assert hasattr(instance, "safe_execute"), f"{skill_name} is missing safe_execute"
 
