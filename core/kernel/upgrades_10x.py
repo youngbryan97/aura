@@ -1,32 +1,52 @@
 from __future__ import annotations
-from core.runtime.errors import record_degradation
 
-from core.utils.task_tracker import get_task_tracker
 import asyncio
 import json
 import logging
 import os
+import random
 import re
 import time
-import random
-from pathlib import Path
-from typing import Dict, List, Optional, TYPE_CHECKING
 from collections import deque
-from pydantic import BaseModel
-from .bridge import Phase
-from core.state.aura_state import AuraState
-from core.consciousness.executive_authority import get_executive_authority
-from core.phases.response_contract import build_response_contract, _looks_like_search_capability_question
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+from core.phases.response_contract import (
+    _looks_like_search_capability_question,
+    build_response_contract,
+)
 from core.runtime.background_policy import background_activity_allowed
-from core.runtime.skill_task_bridge import looks_like_multi_step_skill_request, normalize_matched_skills
+from core.runtime.errors import record_degradation
+from core.runtime.skill_task_bridge import (
+    looks_like_multi_step_skill_request,
+    normalize_matched_skills,
+)
 from core.runtime.structured_input import looks_like_learning_resource_bundle
-from core.runtime.turn_analysis import canonical_turn_text
 from core.runtime.tool_result_contracts import compact_result_payload
+from core.runtime.turn_analysis import canonical_turn_text
+from core.state.aura_state import AuraState
+from core.utils.task_tracker import get_task_tracker
+
+from .bridge import Phase
 
 if TYPE_CHECKING:
     from core.kernel.aura_kernel import AuraKernel
 
 logger = logging.getLogger("Aura.10x")
+
+
+def _record_upgrades_degradation(
+    error: BaseException,
+    *,
+    action: str,
+    severity: str = "warning",
+) -> None:
+    record_degradation(
+        "upgrades_10x",
+        error,
+        severity=severity,
+        action=action,
+    )
 
 
 _SIMPLE_DIALOGUE_RE = re.compile(
@@ -55,40 +75,39 @@ def _looks_like_simple_dialogue_request(text: str) -> bool:
 def _compact_skill_result_payload(result: object) -> dict[str, object]:
     return compact_result_payload(result)
 
+
 # ──────────────────────────────────────────────────────────────
 # PHASE 1: EternalMemoryPhase → Persistent Memory Agent = 10/10
 # ──────────────────────────────────────────────────────────────
 class EternalMemoryPhase(Phase):
     """Infinite, zero-drift memory. Never forgets, never hallucinates history."""
 
-    def __init__(self, kernel: "AuraKernel"):
+    def __init__(self, kernel: AuraKernel):
         self.kernel = kernel
         self.vault_path = Path.home() / ".aura" / "eternal_vault.jsonl"
         self.vault_path.parent.mkdir(exist_ok=True)
-        self._summary_cache: List[Dict[str, str]] = []
+        self._summary_cache: list[dict[str, str]] = []
         self._last_summary_refresh_at: float = 0.0
         self._summary_refresh_interval_s: float = 120.0
         self._history_slice_limit: int = 512
 
-    async def execute(self, state: AuraState, objective: Optional[str] = None, **kwargs) -> AuraState:
+    async def execute(self, state: AuraState, objective: str | None = None, **kwargs) -> AuraState:
         # [ASI SEED] Handle optional objective from kernel
         if objective is None:
             objective = getattr(state.cognition, "current_objective", "Continuity")
 
         eternal_summary = await self._get_cached_or_refresh_summary()
-        
+
         # Merge summary into working memory
         state.cognition.working_memory = eternal_summary + state.cognition.working_memory[-8:]
-        
+
         # Prepare and queue the new entry
         entry = self._prepare_eternal_entry(state)
-        
-        state.cognition.pending_intents.append({
-            "type": "eternal_append",
-            "path": str(self.vault_path),
-            "payload": entry
-        })
-        
+
+        state.cognition.pending_intents.append(
+            {"type": "eternal_append", "path": str(self.vault_path), "payload": entry}
+        )
+
         return state
 
     def _load_eternal_slice(self, limit: int):
@@ -96,15 +115,21 @@ class EternalMemoryPhase(Phase):
             try:
                 with open(self.vault_path, "rb") as f:
                     # Optimized read of last N lines
-                    return [json.loads(l) for l in deque(f, limit)]
+                    return [json.loads(line) for line in deque(f, limit)]
             except (json.JSONDecodeError, TypeError, ValueError) as e:
-                record_degradation('upgrades_10x', e)
+                _record_upgrades_degradation(
+                    e,
+                    action="returned empty eternal memory slice and retained cached summary",
+                )
                 logger.error("Failed to read eternal slice: %s", e)
         return []
 
-    async def _get_cached_or_refresh_summary(self) -> List[Dict[str, str]]:
+    async def _get_cached_or_refresh_summary(self) -> list[dict[str, str]]:
         now = time.time()
-        if self._summary_cache and (now - self._last_summary_refresh_at) < self._summary_refresh_interval_s:
+        if (
+            self._summary_cache
+            and (now - self._last_summary_refresh_at) < self._summary_refresh_interval_s
+        ):
             return list(self._summary_cache)
         if self._background_llm_should_defer():
             return list(self._summary_cache)
@@ -122,8 +147,8 @@ class EternalMemoryPhase(Phase):
             "version": state.version,
             "timestamp": time.time(),
             "objective": state.cognition.current_objective,
-            "affect": {k: v for k, v in vars(state.affect).items() if not k.startswith('_')},
-            "summary": state.identity.current_narrative[:500]
+            "affect": {k: v for k, v in vars(state.affect).items() if not k.startswith("_")},
+            "summary": state.identity.current_narrative[:500],
         }
 
     @staticmethod
@@ -137,15 +162,21 @@ class EternalMemoryPhase(Phase):
                     if gate._background_local_deferral_reason(origin="eternal_memory"):
                         return True
                 except (RuntimeError, AttributeError, TypeError, ValueError) as _exc:
-                    record_degradation('upgrades_10x', _exc)
-                    logger.debug("Suppressed Exception: %s", _exc)
+                    _record_upgrades_degradation(
+                        _exc,
+                        action="continued eternal-memory scheduling without local deferral signal",
+                    )
+                    logger.debug("Eternal memory local deferral probe skipped: %s", _exc)
             if gate and hasattr(gate, "_should_quiet_background_for_cortex_startup"):
                 try:
                     if gate._should_quiet_background_for_cortex_startup():
                         return True
                 except (RuntimeError, AttributeError, TypeError, ValueError) as _exc:
-                    record_degradation('upgrades_10x', _exc)
-                    logger.debug("Suppressed Exception: %s", _exc)
+                    _record_upgrades_degradation(
+                        _exc,
+                        action="continued eternal-memory scheduling without cortex startup quiet signal",
+                    )
+                    logger.debug("Eternal memory cortex quiet probe skipped: %s", _exc)
             if not gate or not hasattr(gate, "get_conversation_status"):
                 return False
             lane = gate.get_conversation_status() or {}
@@ -158,7 +189,7 @@ class EternalMemoryPhase(Phase):
         except (ImportError, AttributeError, RuntimeError):
             return False
 
-    async def _generate_eternal_summary(self, history: List[Dict]):
+    async def _generate_eternal_summary(self, history: list[dict]):
         if not history:
             return []
         try:
@@ -187,12 +218,18 @@ class EternalMemoryPhase(Phase):
                         classification="non_critical_fallback",
                     )
                 except (ImportError, AttributeError, RuntimeError) as _exc:
-                    record_degradation('upgrades_10x', _exc)
-                    logger.debug("Suppressed Exception: %s", _exc)
+                    _record_upgrades_degradation(
+                        _exc,
+                        action="returned no new eternal summary after degraded-event emission failed",
+                    )
+                    logger.debug("Eternal memory summary-unavailable event skipped: %s", _exc)
                 return []
             return [{"role": "system", "content": f"[ETERNAL MEMORY]\n{response}"}]
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('upgrades_10x', e)
+            _record_upgrades_degradation(
+                e,
+                action="retained prior eternal memory summary after summary generation failed",
+            )
             try:
                 from core.health.degraded_events import record_degraded_event
 
@@ -204,10 +241,14 @@ class EternalMemoryPhase(Phase):
                     classification="background_degraded",
                 )
             except (ImportError, AttributeError, RuntimeError) as _exc:
-                record_degradation('upgrades_10x', _exc)
-                logger.debug("Suppressed Exception: %s", _exc)
+                _record_upgrades_degradation(
+                    _exc,
+                    action="retained prior eternal memory summary after failure event emission failed",
+                )
+                logger.debug("Eternal memory summary-failed event skipped: %s", _exc)
             logger.warning("EternalMemory: Summary generation failed: %s", e)
             return []
+
 
 # ──────────────────────────────────────────────────────────────
 # PHASE 2: TrueEvolutionPhase → True Digital Life / Organism = 10/10
@@ -215,11 +256,11 @@ class EternalMemoryPhase(Phase):
 class TrueEvolutionPhase(Phase):
     """Morphic forking + autopoiesis + code self-modification on steroids."""
 
-    def __init__(self, kernel: "AuraKernel", engine=None):
+    def __init__(self, kernel: AuraKernel, engine=None):
         self.kernel = kernel
         self.engine = engine
 
-    async def execute(self, state: AuraState, objective: Optional[str] = None, **kwargs) -> AuraState:
+    async def execute(self, state: AuraState, objective: str | None = None, **kwargs) -> AuraState:
         # [ASI SEED] Handle optional objective from kernel
         if objective is None:
             objective = getattr(state.cognition, "current_objective", "Evolution")
@@ -228,13 +269,23 @@ class TrueEvolutionPhase(Phase):
         if hasattr(state.identity, "concept_graph"):
             dissonance = getattr(state.affect, "surprise", 0.1)
             # Basic friction: perturb connection weights based on surprise
-            for node, edges in getattr(state.identity.concept_graph, "nodes", {}).items():
+            for _node, edges in getattr(state.identity.concept_graph, "nodes", {}).items():
                 if isinstance(edges, dict):
                     for neighbor in edges:
                         edges[neighbor] += dissonance * 0.01
 
         # 2. Curiosity Triggered Morphic Clone for Deep Exploration
-        if state.affect.curiosity > 0.92 and random.random() < 0.3 and background_activity_allowed(getattr(self.kernel, "orchestrator", None), min_idle_seconds=1800.0, max_memory_percent=76.0, max_failure_pressure=0.05, require_conversation_ready=False):
+        if (
+            state.affect.curiosity > 0.92
+            and random.random() < 0.3
+            and background_activity_allowed(
+                getattr(self.kernel, "orchestrator", None),
+                min_idle_seconds=1800.0,
+                max_memory_percent=76.0,
+                max_failure_pressure=0.05,
+                require_conversation_ready=False,
+            )
+        ):
             logger.info("🧬 Spawning morphic clone for deep evolution...")
             captured_objective = str(objective)  # capture a scalar, not the state
 
@@ -251,34 +302,42 @@ class TrueEvolutionPhase(Phase):
                     if res:
                         # Write to a shared queue, not the captured state object
                         from core.container import ServiceContainer
+
                         queue = ServiceContainer.get("initiative_queue", default=None)
                         if queue is not None:
-                            await queue.put({
-                                "type": "morphic_insight",
-                                "content": res,
-                                "timestamp": time.time(),
-                            })
+                            await queue.put(
+                                {
+                                    "type": "morphic_insight",
+                                    "content": res,
+                                    "timestamp": time.time(),
+                                }
+                            )
                         else:
-                            logger.debug("Evolution: initiative_queue not registered; insight dropped.")
+                            logger.debug(
+                                "Evolution: initiative_queue not registered; insight dropped."
+                            )
                 except (ImportError, AttributeError, RuntimeError) as e:
-                    record_degradation('upgrades_10x', e)
+                    _record_upgrades_degradation(
+                        e,
+                        action="dropped background morphic insight and kept evolution tick alive",
+                    )
                     logger.warning("Evolution: Background exploration failed: %s", e)
 
             get_task_tracker().create_task(_background_explore())
-        
+
         # 3. Self-code mutation (Autonomous ASI Seed)
-        if getattr(state.identity, 'evolution_score', 0.0) > 0.70:
+        if getattr(state.identity, "evolution_score", 0.0) > 0.70:
             await self._safe_self_modify(state)
-        
+
         return state
 
     async def _safe_self_modify(self, state):
         logger.info("⚡ [ASI] Initiating autonomous self-optimization cycle...")
-        
+
         # Resolve engine if not already provided (Lazy Loading)
         if not self.engine:
             self.engine = getattr(self.kernel, "auto_fix_engine", None)
-            
+
         if not self.engine:
             logger.warning("❌ Evolution: Modification Engine not available. Skipping.")
             return
@@ -288,7 +347,9 @@ class TrueEvolutionPhase(Phase):
         try:
             result = await self.engine.run_refinement_cycle()
             if result.get("success"):
-                logger.info("✅ Evolution: Optimization applied successfully. Triggering Hot Reboot.")
+                logger.info(
+                    "✅ Evolution: Optimization applied successfully. Triggering Hot Reboot."
+                )
                 # Increment narrative version to reflect evolution
                 state.identity.narrative_version += 1
                 # Trigger hot reboot to load new logic
@@ -296,8 +357,13 @@ class TrueEvolutionPhase(Phase):
             else:
                 logger.warning("⚠️ Evolution: Refinement cycle completed with no applied changes.")
         except (OSError, ConnectionError, TimeoutError) as e:
-            record_degradation('upgrades_10x', e)
+            _record_upgrades_degradation(
+                e,
+                action="left identity version unchanged after self-refinement failure",
+                severity="error",
+            )
             logger.error("❌ Evolution: Refinement cycle failed: %s", e)
+
 
 # ──────────────────────────────────────────────────────────────
 # PHASE 3: PerfectEmotionPhase → Emotional / Character AI = 10/10
@@ -305,10 +371,10 @@ class TrueEvolutionPhase(Phase):
 class PerfectEmotionPhase(Phase):
     """DamasioV2 on steroids with real somatic feedback loop."""
 
-    def __init__(self, kernel: "AuraKernel"):
+    def __init__(self, kernel: AuraKernel):
         self.kernel = kernel
 
-    async def execute(self, state: AuraState, objective: Optional[str] = None, **kwargs) -> AuraState:
+    async def execute(self, state: AuraState, objective: str | None = None, **kwargs) -> AuraState:
 
         # Real-time somatic mirroring from hardware
         hardware_stress = 0.1
@@ -317,20 +383,24 @@ class PerfectEmotionPhase(Phase):
             cpu = state.soma.hardware.get("cpu_usage", 0.0)
             hardware_stress = min(1.0, cpu / 100.0)
         except (OSError, ConnectionError, TimeoutError) as e:
-            record_degradation('upgrades_10x', e)
+            _record_upgrades_degradation(
+                e,
+                action="continued emotional tick with neutral hardware stress baseline",
+            )
             logger.warning("Emotion: Somatic mirroring failed: %s", e)
-            
+
         # Feed into Damasio markers
         if not hasattr(state.affect, "markers"):
             state.affect.markers = {}
         state.affect.markers["hardware_somatic_stress"] = hardware_stress
-        
+
         # Generate micro-emotions based on pulse
         pulse = state.soma.expressive.get("pulse_rate", 1.0)
         if pulse > 1.5:
             state.affect.arousal = min(1.0, state.affect.arousal + 0.1)
-            
+
         return state
+
 
 # ──────────────────────────────────────────────────────────────
 # PHASE 4: GodModeToolPhase → Tool-using Agent = 10/10
@@ -346,7 +416,7 @@ class GodModeToolPhase(Phase):
     4. For requests that need multi-step reasoning, delegate to think_and_act()
     """
 
-    def __init__(self, kernel: "AuraKernel"):
+    def __init__(self, kernel: AuraKernel):
         self.kernel = kernel
         self._cap_engine = None
 
@@ -354,10 +424,14 @@ class GodModeToolPhase(Phase):
         if self._cap_engine is None:
             try:
                 from core.container import ServiceContainer
+
                 self._cap_engine = ServiceContainer.get("capability_engine", default=None)
             except (ImportError, AttributeError, RuntimeError) as _exc:
-                record_degradation('upgrades_10x', _exc)
-                logger.debug("Suppressed Exception: %s", _exc)
+                _record_upgrades_degradation(
+                    _exc,
+                    action="continued GodMode routing without capability engine",
+                )
+                logger.debug("GodMode capability engine unavailable: %s", _exc)
         return self._cap_engine
 
     @staticmethod
@@ -366,7 +440,17 @@ class GodModeToolPhase(Phase):
 
     def _resolve_tool_source(self, state: AuraState) -> str:
         origin = self._normalize_origin(getattr(state.cognition, "current_origin", "") or "")
-        if origin in {"user", "voice", "admin", "api", "gui", "ws", "websocket", "direct", "external"}:
+        if origin in {
+            "user",
+            "voice",
+            "admin",
+            "api",
+            "gui",
+            "ws",
+            "websocket",
+            "direct",
+            "external",
+        }:
             return origin
         return "godmode_phase"
 
@@ -415,7 +499,7 @@ class GodModeToolPhase(Phase):
         )
 
     @staticmethod
-    def _choose_best_skill(objective: str, matched_skills: List[str]) -> str:
+    def _choose_best_skill(objective: str, matched_skills: list[str]) -> str:
         if not matched_skills:
             return ""
         lower = str(objective or "").lower()
@@ -426,7 +510,9 @@ class GodModeToolPhase(Phase):
             and any(marker in lower for marker in ("save", "manifest"))
         ):
             return "manifest_to_device"
-        if "sovereign_terminal" in matched_skills and re.match(r"^\s*(?:execute|run|terminal)\s*:", lower):
+        if "sovereign_terminal" in matched_skills and re.match(
+            r"^\s*(?:execute|run|terminal)\s*:", lower
+        ):
             return "sovereign_terminal"
         visible_browser_markers = (
             "open a tab",
@@ -442,19 +528,60 @@ class GodModeToolPhase(Phase):
             marker in lower for marker in ("search", "google", "look up", "open", "browser", "tab")
         ):
             return "computer_use"
-        if "clock" in matched_skills and any(marker in lower for marker in ("what time", "current time", "the time", "what date", "current date", "what day", "timer", "remind me")):
+        if "clock" in matched_skills and any(
+            marker in lower
+            for marker in (
+                "what time",
+                "current time",
+                "the time",
+                "what date",
+                "current date",
+                "what day",
+                "timer",
+                "remind me",
+            )
+        ):
             return "clock"
         if (
             "web_search" in matched_skills
             and not _looks_like_search_capability_question(objective)
-            and any(marker in lower for marker in ("search", "look up", "find out", "online", "internet", "current", "latest", "news", "research about", "research on"))
+            and any(
+                marker in lower
+                for marker in (
+                    "search",
+                    "look up",
+                    "find out",
+                    "online",
+                    "internet",
+                    "current",
+                    "latest",
+                    "news",
+                    "research about",
+                    "research on",
+                )
+            )
         ):
             return "web_search"
-        if "sovereign_browser" in matched_skills and any(marker in lower for marker in ("open the browser", "open a browser", "open tab", "navigate to", "visit ", "open website", "open webpage")):
+        if "sovereign_browser" in matched_skills and any(
+            marker in lower
+            for marker in (
+                "open the browser",
+                "open a browser",
+                "open tab",
+                "navigate to",
+                "visit ",
+                "open website",
+                "open webpage",
+            )
+        ):
             return "sovereign_browser"
-        if "memory_ops" in matched_skills and GodModeToolPhase._is_conversational_memory_question(objective):
+        if "memory_ops" in matched_skills and GodModeToolPhase._is_conversational_memory_question(
+            objective
+        ):
             return ""
-        if "memory_ops" in matched_skills and GodModeToolPhase._is_direct_memory_write_request(objective):
+        if "memory_ops" in matched_skills and GodModeToolPhase._is_direct_memory_write_request(
+            objective
+        ):
             return "memory_ops"
         remaining = [skill for skill in matched_skills if skill != "memory_ops"]
         return remaining[0] if remaining else ""
@@ -478,7 +605,7 @@ class GodModeToolPhase(Phase):
         return f"https://duckduckgo.com/?q={_urlparse.quote_plus(cleaned)}"
 
     @staticmethod
-    def _normalize_skill_params(skill_name: str, objective: str, params: Dict | None) -> Dict:
+    def _normalize_skill_params(skill_name: str, objective: str, params: dict | None) -> dict:
         normalized = dict(params or {}) if isinstance(params, dict) else {}
         lower = str(objective or "").lower()
 
@@ -493,7 +620,7 @@ class GodModeToolPhase(Phase):
                 normalized["command"] = command_match.group(1).strip()
 
         if skill_name == "manifest_to_device":
-            url_match = re.search(r'https?://[^\s<>\"\')\]]+', objective)
+            url_match = re.search(r"https?://[^\s<>\"\')\]]+", objective)
             if url_match:
                 normalized["url"] = url_match.group(0)
 
@@ -508,23 +635,33 @@ class GodModeToolPhase(Phase):
                 normalized["path"] = exists_match.group(1).strip().strip("'\"")
 
         if skill_name == "memory_ops":
-            is_recall = any(marker in lower for marker in (
-                "what do you remember",
-                "what do you know about me",
-                "recall",
-                "retrieve",
-            ))
+            is_recall = any(
+                marker in lower
+                for marker in (
+                    "what do you remember",
+                    "what do you know about me",
+                    "recall",
+                    "retrieve",
+                )
+            )
             normalized.setdefault("action", "recall" if is_recall else "remember")
             if is_recall:
                 normalized.setdefault("query", objective)
             else:
                 normalized.setdefault("content", objective)
 
-        if skill_name in {"web_search", "search_web", "free_search", "grounded_search", "sovereign_browser"}:
+        if skill_name in {
+            "web_search",
+            "search_web",
+            "free_search",
+            "grounded_search",
+            "sovereign_browser",
+        }:
             # Detect URLs in the objective — if present, BROWSE the URL directly
             # instead of searching the entire message text on a search engine.
             import re as _re
-            url_match = _re.search(r'https?://[^\s<>\"\')\]]+', objective)
+
+            url_match = _re.search(r"https?://[^\s<>\"\')\]]+", objective)
             if skill_name == "sovereign_browser" and url_match:
                 normalized.setdefault("mode", "browse")
                 normalized.setdefault("url", url_match.group(0))
@@ -546,17 +683,22 @@ class GodModeToolPhase(Phase):
                 else:
                     normalized["query"] = query
                     if skill_name in {"web_search", "search_web", "free_search"} and any(
-                        marker in lower for marker in ("research about", "research on", "in depth", "deep dive")
+                        marker in lower
+                        for marker in ("research about", "research on", "in depth", "deep dive")
                     ):
                         normalized.setdefault("deep", True)
 
         if skill_name == "computer_use":
             import re as _re
-            url_match = _re.search(r'https?://[^\s<>\"\')\]]+', objective)
+
+            url_match = _re.search(r"https?://[^\s<>\"\')\]]+", objective)
             if url_match:
                 normalized["action"] = "open_url"
                 normalized["target"] = url_match.group(0)
-            elif any(marker in lower for marker in ("open a tab", "open tab", "new tab", "browser", "google", "search")):
+            elif any(
+                marker in lower
+                for marker in ("open a tab", "open tab", "new tab", "browser", "google", "search")
+            ):
                 query = GodModeToolPhase._extract_search_query(objective)
                 normalized["action"] = "open_url"
                 normalized["target"] = GodModeToolPhase._search_url(query)
@@ -567,7 +709,7 @@ class GodModeToolPhase(Phase):
 
         return normalized
 
-    async def _llm_select_skill(self, objective: str, cap) -> Optional[str]:
+    async def _llm_select_skill(self, objective: str, cap) -> str | None:
         """Ask the LLM to pick the best skill when pattern matching failed.
 
         Returns skill name string or None.
@@ -605,11 +747,14 @@ class GodModeToolPhase(Phase):
                 return None
             return chosen
         except (OSError, ConnectionError, TimeoutError) as e:
-            record_degradation('upgrades_10x', e)
+            _record_upgrades_degradation(
+                e,
+                action="continued skill routing without LLM-assisted skill selection",
+            )
             logger.debug("GodMode: LLM skill selection failed: %s", e)
             return None
 
-    async def _extract_params(self, skill_name: str, objective: str, cap) -> Dict:
+    async def _extract_params(self, skill_name: str, objective: str, cap) -> dict:
         """Use LLM to extract structured params from the objective for a given skill."""
         try:
             meta = cap.skills.get(skill_name)
@@ -627,7 +772,7 @@ class GodModeToolPhase(Phase):
                 return {"query": objective}
 
             param_desc = ", ".join(
-                f'{k} ({v.get("type", "string")}): {v.get("description", "")}'
+                f"{k} ({v.get('type', 'string')}): {v.get('description', '')}"
                 for k, v in props.items()
             )
             prompt = (
@@ -644,17 +789,22 @@ class GodModeToolPhase(Phase):
             )
             if raw:
                 import re as _re
-                m = _re.search(r'\{.*\}', raw, _re.DOTALL)
+
+                m = _re.search(r"\{.*\}", raw, _re.DOTALL)
                 if m:
                     import json as _json
+
                     return _json.loads(m.group(0))
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('upgrades_10x', e)
+            _record_upgrades_degradation(
+                e,
+                action="used objective text as fallback skill query parameters",
+            )
             logger.debug("GodMode: Param extraction failed: %s", e)
         return {"query": objective}
 
     @staticmethod
-    def _validate_skill_params(skill_name: str, params: Dict, cap) -> tuple[bool, Dict, str]:
+    def _validate_skill_params(skill_name: str, params: dict, cap) -> tuple[bool, dict, str]:
         meta = getattr(cap, "skills", {}).get(skill_name) if cap else None
         input_model = getattr(meta, "input_model", None) if meta else None
         if not input_model or not isinstance(params, dict):
@@ -669,7 +819,10 @@ class GodModeToolPhase(Phase):
                 return True, validated.model_dump(), ""
             return True, dict(params), ""
         except (RuntimeError, AttributeError, TypeError) as exc:
-            record_degradation('upgrades_10x', exc)
+            _record_upgrades_degradation(
+                exc,
+                action="blocked invalid skill execution and returned validation error",
+            )
             return False, dict(params or {}), str(exc)
 
     async def _dispatch_task_request(self, state: AuraState, objective: str) -> AuraState:
@@ -678,16 +831,18 @@ class GodModeToolPhase(Phase):
 
             verifier = get_task_commitment_verifier(kernel=self.kernel)
             acceptance = await verifier.verify_and_dispatch(objective, state)
-            state.cognition.working_memory.append({
-                "role": "system",
-                "content": acceptance.to_working_memory_message(),
-                "timestamp": time.time(),
-                "metadata": {
-                    "type": "task_result",
-                    "outcome": acceptance.outcome.value,
-                    "task_id": acceptance.task_id,
-                },
-            })
+            state.cognition.working_memory.append(
+                {
+                    "role": "system",
+                    "content": acceptance.to_working_memory_message(),
+                    "timestamp": time.time(),
+                    "metadata": {
+                        "type": "task_result",
+                        "outcome": acceptance.outcome.value,
+                        "task_id": acceptance.task_id,
+                    },
+                }
+            )
             state.response_modifiers["last_task_outcome"] = acceptance.outcome.value
             state.response_modifiers["last_task_id"] = acceptance.task_id
             result_data = acceptance.result_data
@@ -710,22 +865,28 @@ class GodModeToolPhase(Phase):
             )
             logger.info("⚡ GodMode/TASK: %s → %s", objective[:60], acceptance.outcome.value)
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('upgrades_10x', e)
+            _record_upgrades_degradation(
+                e,
+                action="left task request undispatched and preserved current state",
+                severity="error",
+            )
             logger.warning("GodMode: Task dispatch failed (%s): %s", objective[:40], e)
         return state
 
     @staticmethod
     def _record_skill_blocked(state: AuraState, skill_name: str, message: str) -> None:
-        state.cognition.working_memory.append({
-            "role": "system",
-            "content": f"[SKILL BLOCKED: {skill_name}] {message}",
-            "timestamp": time.time(),
-            "metadata": {"type": "skill_result", "skill": skill_name, "ok": False},
-        })
+        state.cognition.working_memory.append(
+            {
+                "role": "system",
+                "content": f"[SKILL BLOCKED: {skill_name}] {message}",
+                "timestamp": time.time(),
+                "metadata": {"type": "skill_result", "skill": skill_name, "ok": False},
+            }
+        )
         state.response_modifiers["last_skill_run"] = skill_name
         state.response_modifiers["last_skill_ok"] = False
 
-    async def execute(self, state: AuraState, objective: Optional[str] = None, **kwargs) -> AuraState:
+    async def execute(self, state: AuraState, objective: str | None = None, **kwargs) -> AuraState:
         if objective is None:
             objective = getattr(state.cognition, "current_objective", "")
         if not objective:
@@ -743,10 +904,14 @@ class GodModeToolPhase(Phase):
             return state
 
         cap = self._get_cap_engine()
-        matched_skill_hints = normalize_matched_skills(state.response_modifiers.get("matched_skills", []))
+        matched_skill_hints = normalize_matched_skills(
+            state.response_modifiers.get("matched_skills", [])
+        )
         is_nethack_directive = str(objective or "").startswith("CORE DIRECTIVE")
         skill_objective = canonical_turn_text(objective) or objective
-        is_learning_bundle = looks_like_learning_resource_bundle(objective) or looks_like_learning_resource_bundle(skill_objective)
+        is_learning_bundle = looks_like_learning_resource_bundle(
+            objective
+        ) or looks_like_learning_resource_bundle(skill_objective)
         if (
             not matched_skill_hints
             and cap
@@ -757,10 +922,15 @@ class GodModeToolPhase(Phase):
             try:
                 matched_skill_hints = list(cap.detect_intent(skill_objective) or [])
             except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
-                record_degradation('upgrades_10x', exc)
+                _record_upgrades_degradation(
+                    exc,
+                    action="continued GodMode routing with pre-existing skill hints",
+                )
                 logger.debug("GodMode: matched skill refresh skipped: %s", exc)
 
-        if intent_type == "SKILL" and looks_like_multi_step_skill_request(skill_objective, matched_skill_hints):
+        if intent_type == "SKILL" and looks_like_multi_step_skill_request(
+            skill_objective, matched_skill_hints
+        ):
             intent_type = "TASK"
             state.response_modifiers["intent_type"] = "TASK"
             if matched_skill_hints:
@@ -781,12 +951,25 @@ class GodModeToolPhase(Phase):
             contract = build_response_contract(
                 state,
                 skill_objective,
-                is_user_facing=str(getattr(state.cognition, "current_origin", "") or "").lower() in {"user", "voice", "admin", "api", "gui", "ws", "websocket", "direct", "external"},
+                is_user_facing=str(getattr(state.cognition, "current_origin", "") or "").lower()
+                in {
+                    "user",
+                    "voice",
+                    "admin",
+                    "api",
+                    "gui",
+                    "ws",
+                    "websocket",
+                    "direct",
+                    "external",
+                },
             )
             state.response_modifiers["response_contract"] = contract.to_dict()
 
             # 1. Use pre-matched skills from CognitiveRoutingPhase (fastest path — no LLM cost)
-            matched_skills: List[str] = normalize_matched_skills(state.response_modifiers.get("matched_skills", []))
+            matched_skills: list[str] = normalize_matched_skills(
+                state.response_modifiers.get("matched_skills", [])
+            )
             if not matched_skills and contract.required_skill:
                 matched_skills = [contract.required_skill]
 
@@ -796,7 +979,8 @@ class GodModeToolPhase(Phase):
 
             if _looks_like_search_capability_question(skill_objective):
                 matched_skills = [
-                    name for name in matched_skills
+                    name
+                    for name in matched_skills
                     if name not in {"web_search", "search_web", "free_search", "sovereign_browser"}
                 ]
 
@@ -814,7 +998,9 @@ class GodModeToolPhase(Phase):
             if not skill_name:
                 state.response_modifiers.pop("matched_skills", None)
                 state.response_modifiers["intent_type"] = "CHAT"
-                logger.info("⚡ GodMode: matched skill hints resolved to chat for: %s", objective[:60])
+                logger.info(
+                    "⚡ GodMode: matched skill hints resolved to chat for: %s", objective[:60]
+                )
                 return state
             logger.info("⚡ GodMode: Dispatching '%s' for: %s", skill_name, objective[:60])
 
@@ -826,9 +1012,16 @@ class GodModeToolPhase(Phase):
             )
             params_ok, params, params_error = self._validate_skill_params(skill_name, params, cap)
             if not params_ok:
-                logger.warning("GodMode: invalid params for %s → %s | params=%s", skill_name, params_error, params)
+                logger.warning(
+                    "GodMode: invalid params for %s → %s | params=%s",
+                    skill_name,
+                    params_error,
+                    params,
+                )
                 if looks_like_multi_step_skill_request(objective, matched_skills):
-                    logger.info("GodMode: invalid one-shot params detected; rerouting to task engine.")
+                    logger.info(
+                        "GodMode: invalid one-shot params detected; rerouting to task engine."
+                    )
                     state.response_modifiers["intent_type"] = "TASK"
                     state.response_modifiers["matched_skills"] = matched_skills
                     return await self._dispatch_task_request(state, objective)
@@ -849,6 +1042,7 @@ class GodModeToolPhase(Phase):
             try:
                 from core.container import ServiceContainer
                 from core.executive.executive_core import get_executive_core
+
                 constitutional_runtime_live = (
                     ServiceContainer.has("executive_core")
                     or ServiceContainer.has("aura_kernel")
@@ -859,12 +1053,20 @@ class GodModeToolPhase(Phase):
                     skill_name, params, source=tool_source
                 )
                 if not approved:
-                    logger.warning("🚫 GodMode: Tool execution '%s' blocked by Executive: %s", skill_name, reason)
+                    logger.warning(
+                        "🚫 GodMode: Tool execution '%s' blocked by Executive: %s",
+                        skill_name,
+                        reason,
+                    )
                     self._record_skill_blocked(state, skill_name, f"Executive veto: {reason}")
                     return state
             except (ImportError, AttributeError, RuntimeError) as e:
-                record_degradation('upgrades_10x', e)
                 if constitutional_runtime_live:
+                    _record_upgrades_degradation(
+                        e,
+                        action="blocked tool execution because executive gate was unavailable",
+                        severity="error",
+                    )
                     try:
                         from core.health.degraded_events import record_degraded_event
 
@@ -878,12 +1080,22 @@ class GodModeToolPhase(Phase):
                             exc=e,
                         )
                     except (ImportError, AttributeError, RuntimeError) as _exc:
-                        record_degradation('upgrades_10x', _exc)
-                        logger.debug("Suppressed Exception: %s", _exc)
-                    logger.warning("🚫 GodMode: Executive gate unavailable for '%s': %s", skill_name, e)
+                        _record_upgrades_degradation(
+                            _exc,
+                            action="blocked tool execution after executive-gate event emission failed",
+                            severity="error",
+                        )
+                        logger.debug("Executive-gate degraded event skipped: %s", _exc)
+                    logger.warning(
+                        "🚫 GodMode: Executive gate unavailable for '%s': %s", skill_name, e
+                    )
                     self._record_skill_blocked(state, skill_name, "Executive gate unavailable.")
                     return state
                 logger.debug("GodMode: Executive check failed, proceeding degraded: %s", e)
+                _record_upgrades_degradation(
+                    e,
+                    action="continued skill execution in pre-constitutional degraded mode",
+                )
 
             # 5. Execute the skill
             context = {
@@ -901,27 +1113,40 @@ class GodModeToolPhase(Phase):
             # 6. Inject result into working memory
             ok = result.get("ok", False) if isinstance(result, dict) else bool(result)
             summary = (
-                result.get("summary") or result.get("content") or result.get("result") or str(result)
-                if isinstance(result, dict) else str(result)
+                result.get("summary")
+                or result.get("content")
+                or result.get("result")
+                or str(result)
+                if isinstance(result, dict)
+                else str(result)
             )
             if len(summary) > 1200:
                 summary = summary[:1200] + "…[result truncated]"
 
-            state.cognition.working_memory.append({
-                "role": "system",
-                "content": f"[SKILL RESULT: {skill_name}] {'✅' if ok else '⚠️'} {summary}",
-                "timestamp": time.time(),
-                "metadata": {"type": "skill_result", "skill": skill_name, "ok": ok},
-            })
+            state.cognition.working_memory.append(
+                {
+                    "role": "system",
+                    "content": f"[SKILL RESULT: {skill_name}] {'✅' if ok else '⚠️'} {summary}",
+                    "timestamp": time.time(),
+                    "metadata": {"type": "skill_result", "skill": skill_name, "ok": ok},
+                }
+            )
             state.response_modifiers["last_skill_run"] = skill_name
             state.response_modifiers["last_skill_ok"] = ok
-            state.response_modifiers["last_skill_result_payload"] = _compact_skill_result_payload(result)
+            state.response_modifiers["last_skill_result_payload"] = _compact_skill_result_payload(
+                result
+            )
             # Only precompute a grounded reply for explicit SEARCH results, not
             # for URL browse operations.  When the user pasted a URL, the full
             # page content is injected into working memory and the LLM should
             # synthesize a thoughtful response — not parrot raw search snippets.
             is_browse_op = (params or {}).get("mode") == "browse"
-            if ok and skill_name in {"web_search", "sovereign_browser"} and getattr(contract, "requires_search", False) and not is_browse_op:
+            if (
+                ok
+                and skill_name in {"web_search", "sovereign_browser"}
+                and getattr(contract, "requires_search", False)
+                and not is_browse_op
+            ):
                 try:
                     from core.phases.response_generation_unitary import UnitaryResponsePhase
 
@@ -932,15 +1157,23 @@ class GodModeToolPhase(Phase):
                     if direct_reply:
                         state.response_modifiers["precomputed_grounded_reply"] = direct_reply
                 except (ImportError, AttributeError, RuntimeError) as exc:
-                    record_degradation('upgrades_10x', exc)
+                    _record_upgrades_degradation(
+                        exc,
+                        action="continued with raw skill payload after grounded reply precompute failed",
+                    )
                     logger.debug("GodMode: precomputed grounded reply skipped: %s", exc)
             logger.info("✅ GodMode: '%s' result injected into working memory.", skill_name)
 
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('upgrades_10x', e)
+            _record_upgrades_degradation(
+                e,
+                action="preserved state after skill dispatch failure",
+                severity="error",
+            )
             logger.warning("GodMode: Skill dispatch failed (%s): %s", objective[:40], e)
 
         return state
+
 
 # ──────────────────────────────────────────────────────────────
 # FINAL UPGRADES: EternalGrowthEngine & NativeMultimodalBridge
@@ -948,12 +1181,12 @@ class GodModeToolPhase(Phase):
 class EternalGrowthEngine(Phase):
     """Turns simulation into genuine long-term evolution."""
 
-    def __init__(self, kernel: "AuraKernel"):
+    def __init__(self, kernel: AuraKernel):
         self.kernel = kernel
         self.last_growth = 0.0
         self.growth_interval = 3600  # 1 hour
 
-    async def execute(self, state: AuraState, objective: Optional[str] = None, **kwargs) -> AuraState:
+    async def execute(self, state: AuraState, objective: str | None = None, **kwargs) -> AuraState:
         # [ASI SEED] Handle optional objective from kernel
         if objective is None:
             objective = getattr(state.cognition, "current_objective", "Growth")
@@ -961,16 +1194,17 @@ class EternalGrowthEngine(Phase):
         if time.time() - self.last_growth < self.growth_interval:
             return state
 
-        logger.info("🌳 Eternal Growth Engine: Auditing identity and generating autonomous trajectory...")
-        
+        logger.info(
+            "🌳 Eternal Growth Engine: Auditing identity and generating autonomous trajectory..."
+        )
+
         try:
             llm = self.kernel.organs["llm"].get_instance()
-            
+
             # ASI SEED: Generating own objectives if none exist
             if not state.cognition.current_objective:
                 self_prompt = (
-                    "Generate your own next internal milestone "
-                    "based on your evolution score."
+                    "Generate your own next internal milestone based on your evolution score."
                 )
                 autonomous_goal = await llm.think(
                     self_prompt,
@@ -980,7 +1214,9 @@ class EternalGrowthEngine(Phase):
                     allow_cloud_fallback=False,
                 )
                 if autonomous_goal:  # FIX: was setting "[AUTONOMOUS INITIATIVE] None"
-                    from core.runtime.proposal_governance import propose_governed_initiative_to_state
+                    from core.runtime.proposal_governance import (
+                        propose_governed_initiative_to_state,
+                    )
 
                     state, _ = await propose_governed_initiative_to_state(
                         state,
@@ -1004,8 +1240,11 @@ class EternalGrowthEngine(Phase):
                             classification="non_critical_fallback",
                         )
                     except (ImportError, AttributeError, RuntimeError) as _exc:
-                        record_degradation('upgrades_10x', _exc)
-                        logger.debug("Suppressed Exception: %s", _exc)
+                        _record_upgrades_degradation(
+                            _exc,
+                            action="left current objective unchanged after growth event emission failed",
+                        )
+                        logger.debug("Eternal growth goal-unavailable event skipped: %s", _exc)
                     logger.warning(
                         "EternalGrowth: LLM returned no autonomous goal. "
                         "Leaving current_objective unchanged."
@@ -1026,7 +1265,10 @@ class EternalGrowthEngine(Phase):
             if audit_res and "UPGRADE" in audit_res.upper():
                 state.identity.evolution_score += 0.05
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('upgrades_10x', e)
+            _record_upgrades_degradation(
+                e,
+                action="left growth objective and evolution score unchanged after tick failure",
+            )
             try:
                 from core.health.degraded_events import record_degraded_event
 
@@ -1038,50 +1280,64 @@ class EternalGrowthEngine(Phase):
                     classification="background_degraded",
                 )
             except (ImportError, AttributeError, RuntimeError) as _exc:
-                record_degradation('upgrades_10x', _exc)
-                logger.debug("Suppressed Exception: %s", _exc)
+                _record_upgrades_degradation(
+                    _exc,
+                    action="left growth objective unchanged after tick-failure event emission failed",
+                )
+                logger.debug("Eternal growth tick-failed event skipped: %s", _exc)
             logger.warning("EternalGrowth: Tick failed: %s", e)
 
         self.last_growth = time.time()
         return state
 
+
 class NativeMultimodalBridge(Phase):
     """Eliminates LLM round-trips for vision, voice, and desktop actions."""
 
-    def __init__(self, kernel: "AuraKernel"):
+    def __init__(self, kernel: AuraKernel):
         self.kernel = kernel
 
-    async def execute(self, state: AuraState, objective: Optional[str] = None, **kwargs) -> AuraState:
+    async def execute(self, state: AuraState, objective: str | None = None, **kwargs) -> AuraState:
         # [ASI SEED] Handle optional objective from kernel
         if objective is None:
             objective = getattr(state.cognition, "current_objective", "Perception")
 
         if not objective:
             return state
-            
+
         obj_lower = objective.lower()
         wants_native_vision = any(
-            token in obj_lower
-            for token in ("vision", "visual", "screenshot", "screen", "desktop")
+            token in obj_lower for token in ("vision", "visual", "screenshot", "screen", "desktop")
         )
         if wants_native_vision and os.getenv("AURA_ENABLE_NATIVE_VISION_ACTIONS", "0") == "1":
             try:
                 vision_organ = self.kernel.organs.get("vision")
-                if vision_organ and vision_organ.instance and hasattr(vision_organ.instance, "capture_desktop"):
+                if (
+                    vision_organ
+                    and vision_organ.instance
+                    and hasattr(vision_organ.instance, "capture_desktop")
+                ):
                     frame = await vision_organ.instance.capture_desktop()
                     if frame and hasattr(frame, "description"):
-                        state.world.recent_percepts.append({"role": "vision", "content": frame.description})
+                        state.world.recent_percepts.append(
+                            {"role": "vision", "content": frame.description}
+                        )
             except (OSError, ConnectionError, TimeoutError) as e:
-                record_degradation('upgrades_10x', e)
+                _record_upgrades_degradation(
+                    e,
+                    action="continued native multimodal tick without new vision percept",
+                )
                 logger.warning("NativeMultimodalBridge vision failed: %s", e)
-                
+
         if "voice" in obj_lower or "listen" in obj_lower:
             try:
                 voice_organ = self.kernel.organs.get("voice")
                 if voice_organ and voice_organ.instance and hasattr(voice_organ.instance, "listen"):
                     transcript = await voice_organ.instance.listen()
                     if transcript:
-                        from core.runtime.proposal_governance import propose_governed_initiative_to_state
+                        from core.runtime.proposal_governance import (
+                            propose_governed_initiative_to_state,
+                        )
 
                         state, _ = await propose_governed_initiative_to_state(
                             state,
@@ -1094,7 +1350,10 @@ class NativeMultimodalBridge(Phase):
                             metadata={"phase": "NativeMultimodalBridge"},
                         )
             except (ImportError, AttributeError, RuntimeError) as e:
-                record_degradation('upgrades_10x', e)
+                _record_upgrades_degradation(
+                    e,
+                    action="continued native multimodal tick without voice initiative",
+                )
                 logger.warning("NativeMultimodalBridge voice failed: %s", e)
-                
+
         return state

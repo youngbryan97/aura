@@ -1,6 +1,7 @@
 """Message Handling Mixin for RobustOrchestrator.
 Extracts message acquisition, enqueueing, dispatch, and user input processing logic.
 """
+
 import asyncio
 import collections
 import hashlib
@@ -29,6 +30,20 @@ _MESSAGE_HANDLING_RECOVERABLE_ERRORS = (
     asyncio.QueueFull,
     Exception,
 )
+
+
+def _record_message_degradation(
+    error: BaseException,
+    *,
+    action: str,
+    severity: str = "warning",
+) -> None:
+    record_degradation(
+        "message_handling",
+        error,
+        severity=severity,
+        action=action,
+    )
 
 
 # ── Response Repetition Detection ────────────────────────────────────────
@@ -81,11 +96,10 @@ class MessageHandlingMixin:
             logger.info("📦 Decoded message from queue: %s", str(message)[:60])
 
             # Pacing stim (optional boost during high activity)
-            if hasattr(self, 'liquid_state') and self.liquid_state:
-                if hasattr(self.liquid_state, 'update'):
+            if hasattr(self, "liquid_state") and self.liquid_state:
+                if hasattr(self.liquid_state, "update"):
                     self._fire_and_forget(
-                        self.liquid_state.update(delta_curiosity=0.2),
-                        name="liquid_pacing_acquire"
+                        self.liquid_state.update(delta_curiosity=0.2), name="liquid_pacing_acquire"
                     )
 
             return message
@@ -93,7 +107,11 @@ class MessageHandlingMixin:
         except asyncio.QueueEmpty:
             return None
         except _MESSAGE_HANDLING_RECOVERABLE_ERRORS as e:
-            record_degradation('message_handling', e)
+            _record_message_degradation(
+                e,
+                action="returned no queue message after queue decode failure",
+                severity="error",
+            )
             logger.error("Error acquiring message from queue: %s", e)
             return None
 
@@ -147,7 +165,10 @@ class MessageHandlingMixin:
                 require_conversation_ready=False,
             )
         except _MESSAGE_HANDLING_RECOVERABLE_ERRORS as exc:
-            record_degradation("message_handling", exc)
+            _record_message_degradation(
+                exc,
+                action="allowed background enqueue policy to fall through to authority gate",
+            )
             logger.debug("Background enqueue policy probe failed: %s", exc)
             return ""
 
@@ -164,7 +185,11 @@ class MessageHandlingMixin:
                 state=current_state,
             )
         except _MESSAGE_HANDLING_RECOVERABLE_ERRORS as exc:
-            record_degradation('message_handling', exc)
+            _record_message_degradation(
+                exc,
+                action="blocked background enqueue because authority gate failed closed",
+                severity="error",
+            )
             approved = False
             reason = f"background_enqueue_gate_failed:{type(exc).__name__}"
 
@@ -208,8 +233,7 @@ class MessageHandlingMixin:
 
             event_reason = "background_enqueue_blocked"
             if any(
-                marker in str(reason or "")
-                for marker in ("gate_failed", "required", "unavailable")
+                marker in str(reason or "") for marker in ("gate_failed", "required", "unavailable")
             ):
                 event_reason = "background_enqueue_gate_failed"
             record_degraded_event(
@@ -221,7 +245,10 @@ class MessageHandlingMixin:
                 context={"origin": origin, "priority": priority, "reason": reason},
             )
         except _MESSAGE_HANDLING_RECOVERABLE_ERRORS as exc:
-            record_degradation('message_handling', exc)
+            _record_message_degradation(
+                exc,
+                action="kept background enqueue blocked after degraded-event logging failed",
+            )
             logger.debug("Background enqueue degraded-event logging failed: %s", exc)
         return False
 
@@ -247,6 +274,7 @@ class MessageHandlingMixin:
             if decision.defer_seconds > 0:
                 try:
                     from core.utils.task_tracker import get_task_tracker
+
                     get_task_tracker().create_task(
                         self._defer_enqueue_message(
                             message,
@@ -273,7 +301,17 @@ class MessageHandlingMixin:
             self._last_user_interaction_time = time.time()
             return
 
-        defer_reason = "" if (_flow_checked and _authority_checked) else self._background_enqueue_defer_reason(origin, priority)
+        if not _authority_checked and not self._authorize_background_enqueue_sync(
+            message, origin, priority
+        ):
+            logger.info("🛡️ Background enqueue blocked for %s.", origin)
+            return False
+
+        defer_reason = (
+            ""
+            if (_flow_checked and _authority_checked)
+            else self._background_enqueue_defer_reason(origin, priority)
+        )
         if defer_reason:
             logger.debug(
                 "🛡️ Background enqueue deferred for %s: %s",
@@ -282,14 +320,9 @@ class MessageHandlingMixin:
             )
             return False
 
-        if not _authority_checked and not self._authorize_background_enqueue_sync(message, origin, priority):
-            logger.info("🛡️ Background enqueue blocked for %s.", origin)
-            return False
-
         # Zenith v47 Hardening: Deeply sanitize all messages before they enter
         # the queue to prevent circular references in AuraState.
         message = self._deep_circular_safe_sanitize(message)
-
 
         try:
             current_loop = asyncio.get_running_loop()
@@ -297,7 +330,9 @@ class MessageHandlingMixin:
             current_loop = None
 
         if current_loop is None:
-            self.enqueue_from_thread(message, origin=origin, priority=priority, _authority_checked=_authority_checked)
+            self.enqueue_from_thread(
+                message, origin=origin, priority=priority, _authority_checked=_authority_checked
+            )
             return
 
         try:
@@ -307,18 +342,22 @@ class MessageHandlingMixin:
 
             self._message_counter += 1
             from core.schemas import IPCMessage
+
             item = IPCMessage(
                 priority=priority,
                 timestamp=time.monotonic(),
                 sequence=self._message_counter,
                 payload=message,
-                origin=origin
+                origin=origin,
             )
             self.message_queue.put_nowait(item)
         except asyncio.QueueFull:
-            logger.warning("⚠️ Message queue full. Dropped %s message from %s: %s",
-                           "SYSTEM" if priority <= 20 else "AUTONOMOUS", origin,
-                           str(message)[:120])
+            logger.warning(
+                "⚠️ Message queue full. Dropped %s message from %s: %s",
+                "SYSTEM" if priority <= 20 else "AUTONOMOUS",
+                origin,
+                str(message)[:120],
+            )
             return False
 
     def enqueue_from_thread(
@@ -367,12 +406,13 @@ class MessageHandlingMixin:
 
         self._message_counter += 1
         from core.schemas import IPCMessage
+
         item = IPCMessage(
             priority=priority,
             timestamp=time.monotonic(),
             sequence=self._message_counter,
             payload=message,
-            origin=origin
+            origin=origin,
         )
 
         # FIX: Never use self.loop. Resolve the running loop at the call site.
@@ -399,7 +439,11 @@ class MessageHandlingMixin:
                             "Message dropped. This is a boot-ordering bug."
                         )
             except _MESSAGE_HANDLING_RECOVERABLE_ERRORS as inner_err:
-                record_degradation('message_handling', inner_err)
+                _record_message_degradation(
+                    inner_err,
+                    action="dropped threaded enqueue after all loop targets failed",
+                    severity="error",
+                )
                 logger.error("enqueue_from_thread: Loop resolution failed: %s", inner_err)
 
     def _deep_circular_safe_sanitize(self, obj: Any, memo: set | None = None) -> Any:
@@ -423,6 +467,7 @@ class MessageHandlingMixin:
         try:
             # Handle Dataclasses (Manual expansion to avoid asdict() deepcopy crashes)
             from dataclasses import fields, is_dataclass
+
             if is_dataclass(obj):
                 res = {}
                 for f in fields(obj):
@@ -480,12 +525,19 @@ class MessageHandlingMixin:
                 if not task.cancelled():
                     exc = task.exception()
                     if exc:
-                        logging.getLogger("Aura.BgTasks").error(f"Background task failed: {repr(exc)}")
+                        logging.getLogger("Aura.BgTasks").error(
+                            f"Background task failed: {repr(exc)}"
+                        )
             except asyncio.CancelledError as _e:
-                logger.debug('Ignored asyncio.CancelledError: %s', _e)
+                logger.debug("Ignored asyncio.CancelledError: %s", _e)
             except _MESSAGE_HANDLING_RECOVERABLE_ERRORS as e:
-                record_degradation('message_handling', e)
-                logging.getLogger("Aura.BgTasks").debug(f"Task exception handler itself failed: {e}")
+                _record_message_degradation(
+                    e,
+                    action="kept dispatch task result isolated after callback failure",
+                )
+                logging.getLogger("Aura.BgTasks").debug(
+                    f"Task exception handler itself failed: {e}"
+                )
 
         get_task_tracker().create_task(
             _bounded_handler(),
@@ -497,7 +549,8 @@ class MessageHandlingMixin:
         """Log dispatch event to thought stream."""
         try:
             from ...thought_stream import get_emitter
-            safe_msg = str(message)[:1000] # Cap message size for telemetry
+
+            safe_msg = str(message)[:1000]  # Cap message size for telemetry
             get_emitter().emit("dispatch", f"Processing message: {safe_msg}")
 
             if safe_msg.startswith("Impulse:"):
@@ -506,17 +559,26 @@ class MessageHandlingMixin:
                 label = "Thought 💭"
             else:
                 label = "User"
-            get_emitter().emit(f"Input ({label})", safe_msg[:120], level="info", category="Perception")
+            get_emitter().emit(
+                f"Input ({label})", safe_msg[:120], level="info", category="Perception"
+            )
         except _MESSAGE_HANDLING_RECOVERABLE_ERRORS as exc:
-            record_degradation('message_handling', exc)
+            _record_message_degradation(
+                exc,
+                action="continued dispatch after telemetry emission failed",
+            )
             logger.error("Dispatch telemetry failure: %s", exc)
 
-    async def process_user_input_priority(self, message: str, origin: str = "user", timeout_sec: float = 300.0) -> str | None:
+    async def process_user_input_priority(
+        self, message: str, origin: str = "user", timeout_sec: float = 300.0
+    ) -> str | None:
         """Bypasses the message queue for immediate priority processing and AWAITS the result."""
-        
+
         # [REFLEX BYPASS] Somatic motor reflexes MUST NEVER block on the user input semaphore.
         # This prevents deadlocks when a heavy cognitive task is stalled.
-        print(f"DEBUG: Priority input origin={origin}, contract={('[EMBODIED CONTROL CONTRACT]' in message)}")
+        print(
+            f"DEBUG: Priority input origin={origin}, contract={('[EMBODIED CONTROL CONTRACT]' in message)}"
+        )
         sys.stdout.flush()
         if origin == "embodied_motor_reflex" or "[EMBODIED CONTROL CONTRACT]" in message:
             # Check for deterministic somatic reflexes first
@@ -524,9 +586,9 @@ class MessageHandlingMixin:
                 res = await self._check_embodied_reflexes(message)
                 if res:
                     return res
-            
+
             return await self._process_message_pipeline(message, origin=origin)
-            
+
         # Use Semaphore, not Global Lock
         async with self._user_input_semaphore:
             try:
@@ -562,7 +624,11 @@ class MessageHandlingMixin:
                 # [STABILITY v55] Return empty so chat.py can retry/escalate.
                 return ""
             except _MESSAGE_HANDLING_RECOVERABLE_ERRORS as e:
-                record_degradation('message_handling', e)
+                _record_message_degradation(
+                    e,
+                    action="returned empty priority response so caller can retry or escalate",
+                    severity="error",
+                )
                 logger.error("❌ Priority processing FAILED: %s", e)
                 # [STABILITY v55] Return empty so chat.py can retry/escalate.
                 return ""
@@ -604,8 +670,13 @@ class MessageHandlingMixin:
         # [ARCHITECTURE] Moved ABOVE deduplication to ensure reflexes fire even if
         # the screen hasn't advanced since the last sensor tick.
         has_contract = "[EMBODIED CONTROL CONTRACT]" in message
-        logger.debug("Input core: has_contract=%s, origin=%s, message_len=%s", has_contract, origin, len(message))
-        
+        logger.debug(
+            "Input core: has_contract=%s, origin=%s, message_len=%s",
+            has_contract,
+            origin,
+            len(message),
+        )
+
         if has_contract:
             somatic_response = await self._check_embodied_reflexes(message)
             if somatic_response:
@@ -624,10 +695,12 @@ class MessageHandlingMixin:
         # Aura a unified intelligence rather than a federation.
         try:
             from core.will import ActionDomain, get_will
+
             will = get_will()
             if will._started:
                 domain = (
-                    ActionDomain.RESPONSE if self._is_user_facing_origin(origin)
+                    ActionDomain.RESPONSE
+                    if self._is_user_facing_origin(origin)
                     else ActionDomain.REFLECTION
                 )
                 will_decision = will.decide(
@@ -640,7 +713,9 @@ class MessageHandlingMixin:
                 if not will_decision.is_approved():
                     logger.info(
                         "🛡️ Unified Will %s message from %s: %s",
-                        will_decision.outcome.value, origin, will_decision.reason,
+                        will_decision.outcome.value,
+                        origin,
+                        will_decision.reason,
                     )
                     if self._is_user_facing_origin(origin):
                         # User messages are always processed but constraints are applied
@@ -649,7 +724,11 @@ class MessageHandlingMixin:
                     else:
                         return None  # Internal messages can be refused
         except _MESSAGE_HANDLING_RECOVERABLE_ERRORS as _will_err:
-            record_degradation('message_handling', _will_err)
+            _record_message_degradation(
+                _will_err,
+                action="continued user-input processing with degraded Will gate",
+                severity="error",
+            )
             logger.warning("Unified Will gate failed (degraded): %s", _will_err, exc_info=True)
 
         # ZENITH BYPASS: ALL user-origin messages go through InferenceGate. NO EXCEPTIONS.
@@ -664,7 +743,9 @@ class MessageHandlingMixin:
             # [HARDENING] Final None guard: if InferenceGate is STILL None after lazy-init,
             # return a safe fallback instead of crashing on NoneType.generate().
             if self._inference_gate is None:
-                logger.error("🛑 InferenceGate is None after ensure_ready(). Cannot process user message.")
+                logger.error(
+                    "🛑 InferenceGate is None after ensure_ready(). Cannot process user message."
+                )
                 # [STABILITY v55] Return empty instead of robot message
                 return ""
 
@@ -683,10 +764,16 @@ class MessageHandlingMixin:
                 cme = ServiceContainer.get("conversational_momentum_engine", default=None)
                 if cme:
                     from core.utils.task_tracker import get_task_tracker
-                    get_task_tracker().track(cme.on_new_user_message(message), name="on_new_user_message")
+
+                    get_task_tracker().track(
+                        cme.on_new_user_message(message), name="on_new_user_message"
+                    )
             except _MESSAGE_HANDLING_RECOVERABLE_ERRORS as _exc:
-                record_degradation('message_handling', _exc)
-                logger.debug("Suppressed Exception: %s", _exc)
+                _record_message_degradation(
+                    _exc,
+                    action="continued user turn after conversational momentum notification failed",
+                )
+                logger.debug("Conversational momentum notification skipped: %s", _exc)
 
             try:
                 # ── CONSTITUTIONAL CLOSURE: Route through Kernel first ──
@@ -694,9 +781,12 @@ class MessageHandlingMixin:
                 # including affect, identity, bonding, consciousness, tools, repair.
                 # InferenceGate is the fallback when kernel isn't ready.
                 from core.kernel.kernel_interface import KernelInterface
+
                 ki = KernelInterface.get_instance()
                 if ki.is_ready():
-                    logger.info("🧠 Constitutional: Routing user message through KernelInterface...")
+                    logger.info(
+                        "🧠 Constitutional: Routing user message through KernelInterface..."
+                    )
                     response = await ki.process(message, origin=origin, priority=True)
                     if response:
                         # KI worked — skip InferenceGate entirely
@@ -709,7 +799,11 @@ class MessageHandlingMixin:
                 # ── FALLBACK: Direct InferenceGate (kernel not ready) ──
                 # 1. State Capture (Limited Lock)
                 async with self._lock:
-                    history = self.conversation_history[-15:] if hasattr(self, 'conversation_history') else []
+                    history = (
+                        self.conversation_history[-15:]
+                        if hasattr(self, "conversation_history")
+                        else []
+                    )
                     # Inject social brief/personality context if available
                     brief = "Normal turn."
                     try:
@@ -717,13 +811,18 @@ class MessageHandlingMixin:
                         if kernel:
                             brief = await kernel.evaluate(message, history=history)
                     except _MESSAGE_HANDLING_RECOVERABLE_ERRORS as _exc:
-                        record_degradation('message_handling', _exc)
-                        logger.debug("Suppressed Exception: %s", _exc)
+                        _record_message_degradation(
+                            _exc,
+                            action="continued direct InferenceGate fallback with default cognitive brief",
+                        )
+                        logger.debug("Cognitive kernel brief skipped: %s", _exc)
 
                 # 2. GENERATION (Unlocked Phase)
                 # This allows the rest of the system (WebSockets, Bus) to continue pulsing.
                 logger.info("🧠 Fallback: Calling InferenceGate directly (kernel not ready)...")
-                _brief_text = brief.to_briefing_text() if hasattr(brief, 'to_briefing_text') else str(brief)
+                _brief_text = (
+                    brief.to_briefing_text() if hasattr(brief, "to_briefing_text") else str(brief)
+                )
                 response = await self._inference_gate.generate(
                     message,
                     context={
@@ -739,7 +838,9 @@ class MessageHandlingMixin:
                 # DR-3: InferenceGate.generate() ALWAYS returns a string (error message at worst).
                 # But even if somehow it returns None/empty, we catch it here. NO FALLTHROUGH.
                 if not response:
-                    logger.error("InferenceGate returned None/empty. Attempting emergency recovery.")
+                    logger.error(
+                        "InferenceGate returned None/empty. Attempting emergency recovery."
+                    )
                     # STABILITY FIX: Instead of a generic error, try one more time with
                     # a forced cortex recovery, then give a real response
                     try:
@@ -758,7 +859,11 @@ class MessageHandlingMixin:
                                 },
                             )
                     except _MESSAGE_HANDLING_RECOVERABLE_ERRORS as retry_err:
-                        record_degradation('message_handling', retry_err)
+                        _record_message_degradation(
+                            retry_err,
+                            action="returned empty foreground response after emergency retry failed",
+                            severity="error",
+                        )
                         logger.debug("Emergency retry failed: %s", retry_err)
 
                     if not response:
@@ -775,13 +880,16 @@ class MessageHandlingMixin:
                 while continuation_count < 3 and response and len(response) > 200:
                     last_char = response.strip()[-1] if response.strip() else ""
                     if last_char not in ".!?\"'”’*)\\]}>~`\\n":
-                        logger.info("⚡ Auto-Continuation triggered! Response appears truncated (ended with '%s').", last_char)
+                        logger.info(
+                            "⚡ Auto-Continuation triggered! Response appears truncated (ended with '%s').",
+                            last_char,
+                        )
                         continuation_count += 1
-                        
+
                         temp_history = list(history)
                         temp_history.append({"role": "user", "content": message})
                         temp_history.append({"role": "assistant", "content": response})
-                        
+
                         continue_msg = "[SYSTEM: You hit your output token limit. Continue your exact previous thought seamlessly from where you left off.]"
                         next_part = await self._inference_gate.generate(
                             continue_msg,
@@ -804,16 +912,17 @@ class MessageHandlingMixin:
                     else:
                         break
 
-
                 # ── Silence Protocol ──────────────────────────────────────────
                 # If the model chose to emit <|SILENCE|>, the InferenceGate
                 # returns the sentinel string. We honour the choice: record the
                 # fact internally but send nothing to the user.
                 from core.brain.inference_gate import InferenceGate
+
                 if response == InferenceGate.SILENCE_SENTINEL:
                     logger.info("🤫 Silence Protocol honoured — suppressing output.")
                     try:
                         from core.thought_stream import get_emitter
+
                         get_emitter().emit(
                             "Silence",
                             "Chose not to respond — output suppressed.",
@@ -821,16 +930,21 @@ class MessageHandlingMixin:
                             category="SilenceProtocol",
                         )
                         from core.affect.heartstone_values import get_heartstone_values
+
                         get_heartstone_values().on_silence_chosen()
                         from core.affect.affective_circumplex import get_circumplex
+
                         get_circumplex().apply_event(+0.04, -0.08)  # calm, settled
                     except _MESSAGE_HANDLING_RECOVERABLE_ERRORS as _exc:
-                        record_degradation('message_handling', _exc)
-                        logger.debug("Suppressed Exception: %s", _exc)
+                        _record_message_degradation(
+                            _exc,
+                            action="preserved silence response after silence telemetry failed",
+                        )
+                        logger.debug("Silence protocol side-effect skipped: %s", _exc)
                     # Record to history so she knows she stayed silent
                     async with self._lock:
                         self._record_message_in_history(message, origin)
-                    return None   # Server receives None → sends no message
+                    return None  # Server receives None → sends no message
 
                 # 3. State COMMIT (Limited Lock)
                 async with self._lock:
@@ -865,37 +979,54 @@ class MessageHandlingMixin:
                         async with self._lock:
                             self._record_message_in_history(metacognitive_warning, "system")
                 except _MESSAGE_HANDLING_RECOVERABLE_ERRORS as _rep_exc:
-                    record_degradation('message_handling', _rep_exc)
+                    _record_message_degradation(
+                        _rep_exc,
+                        action="continued response delivery without repetition-ring update",
+                    )
                     logger.debug("Repetition detection error: %s", _rep_exc)
 
                 # ── Heartstone outcome signals ─────────────────────────────
                 # Detect positive user tone to evolve Empathy/Curiosity weights
                 try:
                     import re as _re
+
                     _positive_pat = _re.compile(
-                        r'\b(thanks?|thank\s+you|great|perfect|awesome|love\s+it|'
-                        r'nice|good\s+job|well\s+done|exactly|brilliant|yes[!.]*$)\b',
-                        _re.IGNORECASE
+                        r"\b(thanks?|thank\s+you|great|perfect|awesome|love\s+it|"
+                        r"nice|good\s+job|well\s+done|exactly|brilliant|yes[!.]*$)\b",
+                        _re.IGNORECASE,
                     )
                     if _positive_pat.search(message):
                         from core.affect.heartstone_values import get_heartstone_values as _ghsv
+
                         _ghsv().on_positive_interaction()
                         from core.affect.affective_circumplex import get_circumplex as _gc
+
                         _gc().apply_event(+0.06, +0.04)
                 except _MESSAGE_HANDLING_RECOVERABLE_ERRORS as _exc:
-                    record_degradation('message_handling', _exc)
-                    logger.debug("Suppressed Exception: %s", _exc)
+                    _record_message_degradation(
+                        _exc,
+                        action="continued response delivery without positive-interaction affect update",
+                    )
+                    logger.debug("Positive interaction affect update skipped: %s", _exc)
 
                 # ── Epistemic Filter: run user messages through for belief retention ──
                 # Long user messages may contain claims worth persisting
                 try:
                     if len(message) > 80:
                         from core.world_model.epistemic_filter import get_epistemic_filter as _gef
-                        _gef().ingest(message, source_type="conversation",
-                                      source_label="user", emit_thoughts=False)
+
+                        _gef().ingest(
+                            message,
+                            source_type="conversation",
+                            source_label="user",
+                            emit_thoughts=False,
+                        )
                 except _MESSAGE_HANDLING_RECOVERABLE_ERRORS as _exc:
-                    record_degradation('message_handling', _exc)
-                    logger.debug("Suppressed Exception: %s", _exc)
+                    _record_message_degradation(
+                        _exc,
+                        action="continued response delivery without epistemic filter ingest",
+                    )
+                    logger.debug("Epistemic filter ingest skipped: %s", _exc)
 
                 return response
             finally:
@@ -929,6 +1060,7 @@ class MessageHandlingMixin:
         import uuid
 
         from core.tagged_reply_queue import reply_delivery_scope
+
         trace_id = str(uuid.uuid4())[:8]
         if os.environ.get("AURA_TRACE_MODE") == "1":
             logger.info("🧠 [TRACE] [%s] Orchestrator received: %s", trace_id, message[:50])
@@ -962,7 +1094,11 @@ class MessageHandlingMixin:
                         timeout=queue_timeout,
                     )
                     if reply is None:
-                        error_message = "No reply produced" if queue_is_empty else f"Thinking timeout ({int(queue_timeout)}s)"
+                        error_message = (
+                            "No reply produced"
+                            if queue_is_empty
+                            else f"Thinking timeout ({int(queue_timeout)}s)"
+                        )
                         reply = {
                             "ok": False,
                             "error": error_message,
@@ -978,9 +1114,15 @@ class MessageHandlingMixin:
                                 reply_coro.close()
                 return {"ok": True, "response": reply}
             except _MESSAGE_HANDLING_RECOVERABLE_ERRORS as e:
-                record_degradation('message_handling', e)
+                _record_message_degradation(
+                    e,
+                    action="returned structured response-timeout error to caller",
+                    severity="error",
+                )
                 error_detail = str(e).strip()
-                error_message = f"Response timeout: {error_detail}" if error_detail else "Response timeout"
+                error_message = (
+                    f"Response timeout: {error_detail}" if error_detail else "Response timeout"
+                )
                 logger.error("Timed out waiting for reply to: %s", message[:50])
                 return {
                     "ok": False,
