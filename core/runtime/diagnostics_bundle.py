@@ -102,6 +102,7 @@ def _safe_call(label: str, fn: Callable[[], Any]) -> Tuple[Any, Optional[str]]:
     try:
         return fn(), None
     except Exception as e:  # noqa: BLE001 - last-resort safety net
+        logger.debug("Safe call failed on %s: %s", label, e)
         return None, f"{type(e).__name__}: {e}"
 
 
@@ -113,6 +114,7 @@ def collect_health() -> Dict[str, Any]:
 
         return asyncio.run(agg.get_report())
     except Exception as e:  # noqa: BLE001
+        logger.debug("Failed to collect health report: %s", e)
         # Fall back to a minimal snapshot so the bundle still has *something*.
         return {
             "_collector_error": f"{type(e).__name__}: {e}",
@@ -132,7 +134,8 @@ def _basic_system_metrics() -> Dict[str, Any]:
             "threads": proc.num_threads(),
             "pid": proc.pid,
         }
-    except Exception:
+    except Exception as e:
+        logger.debug("Failed to collect basic system metrics: %s", e)
         return {"available": False}
 
 
@@ -166,6 +169,7 @@ def collect_metrics() -> Dict[str, Any]:
                     out[name] = {"_collector_error": str(e)}
         return out
     except Exception as e:  # noqa: BLE001
+        logger.debug("Failed to collect metrics: %s", e)
         return {"_collector_error": f"{type(e).__name__}: {e}"}
 
 
@@ -185,6 +189,7 @@ def collect_tasks() -> Dict[str, Any]:
             )
         return {"count": len(snapshot), "tasks": snapshot[:200]}
     except Exception as e:  # noqa: BLE001
+        logger.debug("Failed to collect tasks: %s", e)
         return {"_collector_error": f"{type(e).__name__}: {e}"}
 
 
@@ -206,6 +211,7 @@ def collect_models() -> Dict[str, Any]:
                         out[name] = {"_collector_error": str(e)}
         return out
     except Exception as e:  # noqa: BLE001
+        logger.debug("Failed to collect models: %s", e)
         return {"_collector_error": f"{type(e).__name__}: {e}"}
 
 
@@ -227,6 +233,7 @@ def collect_memory() -> Dict[str, Any]:
                         out[name] = {"_collector_error": str(e)}
         return out
     except Exception as e:  # noqa: BLE001
+        logger.debug("Failed to collect memory: %s", e)
         return {"_collector_error": f"{type(e).__name__}: {e}"}
 
 
@@ -242,6 +249,7 @@ def collect_gateway() -> Dict[str, Any]:
             out["registered"].append({"name": name, "ready": ready})
         return out
     except Exception as e:  # noqa: BLE001
+        logger.debug("Failed to collect gateway services: %s", e)
         return {"_collector_error": f"{type(e).__name__}: {e}"}
 
 
@@ -252,6 +260,7 @@ def collect_research_core() -> Dict[str, Any]:
 
         return collect_research_core_status()
     except Exception as e:  # noqa: BLE001
+        logger.debug("Failed to collect research core status: %s", e)
         return {"available": False, "_collector_error": f"{type(e).__name__}: {e}"}
 
 
@@ -287,11 +296,13 @@ def collect_recent_receipts(per_kind_limit: int = 20) -> Dict[str, Any]:
                         payload = dict(payload)
                         payload.setdefault("kind", kind)
                         recent_payloads.append(redact_value(payload))
-                except Exception:
+                except Exception as e:
+                    logger.debug("Failed to read receipt at %s: %s", path, e)
                     continue
             kinds[kind] = recent_payloads
         return {"counts": counts, "recent": kinds}
     except Exception as e:  # noqa: BLE001
+        logger.debug("Failed to collect recent receipts: %s", e)
         return {"_collector_error": f"{type(e).__name__}: {e}"}
 
 
@@ -373,6 +384,7 @@ def collect_audit_chain(dest_dir: Path) -> Dict[str, Any]:
                 }
         return {"export": info, "verify": verify}
     except Exception as e:  # noqa: BLE001
+        logger.debug("Failed to collect audit chain: %s", e)
         return {"_collector_error": f"{type(e).__name__}: {e}"}
 
 

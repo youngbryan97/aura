@@ -72,6 +72,7 @@ async def _run_probe(name: str, probe: Callable) -> ProbeResult:
             return result
         return ProbeResult(name=name, ok=bool(result), duration_s=time.monotonic() - start)
     except BaseException as exc:
+        logger.error("Probe %s raised an exception during execution: %r", name, exc)
         return ProbeResult(
             name=name,
             ok=False,
@@ -186,6 +187,7 @@ async def probe_governance_approve_deny(*, will: Any = None) -> ProbeResult:
         if asyncio.iscoroutine(deny):
             deny = await deny
     except BaseException as exc:
+        logger.error("Governance approve/deny decision probe raised: %r", exc)
         return ProbeResult(name="governance_approve_deny", ok=False, detail=f"decide raised: {exc!r}")
     if approve is None and deny is None:
         return ProbeResult(name="governance_approve_deny", ok=False, detail="both decisions returned None")

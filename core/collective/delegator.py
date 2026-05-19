@@ -65,7 +65,8 @@ class AgentDelegator(AuraBaseModule):
             try:
                 if self._scavenger_task.exception():
                     return False
-            except Exception:
+            except Exception as e:
+                self.logger.debug("Failed to retrieve scavenger task exception: %s", e)
                 return False
         return True
 

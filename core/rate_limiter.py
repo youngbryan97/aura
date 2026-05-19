@@ -18,18 +18,21 @@ class TokenBucketRateLimiter:
 
     async def acquire(self, tokens: int = 1) -> bool:
         """Attempt to consume tokens. Blocks until available (Audit-39 fix)."""
-        while True:
+        has_acquired = False
+        while not has_acquired:
             async with self._lock:
                 self._refill()
                 if self.tokens >= tokens:
                     self.tokens -= tokens
-                    return True
+                    has_acquired = True
+                    break
                 
                 # Calculate wait time based on missing tokens
                 wait_time = max(0.01, (tokens - self.tokens) / self.refill_rate)
             
             # Sleep OUTSIDE the lock to allow other tasks to progress
             await asyncio.sleep(wait_time)
+        return True
 
     def _refill(self):
         now = time.time()

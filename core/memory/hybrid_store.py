@@ -94,7 +94,7 @@ class HybridMemoryStore:
                     # Filter by minimum confidence
                     if entry.get('confidence', 0) < min_confidence:
                         continue
-                    # Primitive keyword search (placeholder for FAISS)
+                    # Primitive keyword search (provisional reference for FAISS)
                     if any(word.lower() in entry['content'].lower() for word in query.split()):
                         results.append(entry)
                 

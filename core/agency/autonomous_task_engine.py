@@ -587,7 +587,7 @@ class AutonomousTaskEngine:
                         steps_completed=0,
                         steps_total=0,
                     )
-        except Exception as resilience_exc:
+        except (ImportError, AttributeError, KeyError, RuntimeError) as resilience_exc:
             logger.debug("Failed to perform resilience checks in TaskEngine: %s", resilience_exc)
 
         plan = self._find_resume_candidate(goal, context)
@@ -860,7 +860,7 @@ class AutonomousTaskEngine:
             if resilience:
                 effort = resilience.get_effort_modifier()
                 max_steps = max(1, int(self.MAX_STEPS * effort))
-        except Exception as e:
+        except (ImportError, AttributeError, KeyError, RuntimeError) as e:
             logger.debug("Failed to scale MAX_STEPS in _decompose_goal: %s", e)
 
         if self._looks_like_learning_resource_bundle(goal):
@@ -985,7 +985,7 @@ Respond ONLY with a JSON array, no other text:
                 resilience = ServiceContainer.get("resilience_engine", default=None)
                 if resilience:
                     resilience.record_success("planning", stakes=0.6)
-            except Exception as res_err:
+            except (ImportError, AttributeError, KeyError, RuntimeError) as res_err:
                 logger.debug("Failed to record planning success: %s", res_err)
 
             return TaskPlan(
@@ -1011,7 +1011,7 @@ Respond ONLY with a JSON array, no other text:
                 resilience = ServiceContainer.get("resilience_engine", default=None)
                 if resilience:
                     resilience.record_failure("planning", severity=0.5, stakes=0.6)
-            except Exception as res_err:
+            except (ImportError, AttributeError, KeyError, RuntimeError) as res_err:
                 logger.debug("Failed to record planning failure: %s", res_err)
 
             if self._requires_grounded_action(goal, context):
@@ -2055,7 +2055,7 @@ Respond ONLY with a JSON array, no other text:
                     step.error = "Suppressed by ResilienceEngine: depletion or excessive failures"
                     logger.warning("TaskEngine: step '%s' retry suppressed by ResilienceEngine", step.description[:40])
                     break
-            except Exception as res_err:
+            except (ImportError, AttributeError, KeyError, RuntimeError) as res_err:
                 logger.debug("Failed to check should_persist: %s", res_err)
 
             step.attempts += 1
@@ -2082,8 +2082,8 @@ Respond ONLY with a JSON array, no other text:
                 if resilience:
                     effort = resilience.get_effort_modifier()
                     step_timeout = max(15.0, self.STEP_TIMEOUT * max(0.3, effort))
-            except Exception:
-                pass
+            except (ImportError, AttributeError, KeyError, RuntimeError) as e:
+                logger.debug("Failed to retrieve resilience effort modifier: %s", e)
 
             try:
                 # Issue ATE-001: asyncio.timeout() is 3.11+, use wait_for for compatibility
@@ -2142,7 +2142,7 @@ Respond ONLY with a JSON array, no other text:
                         resilience = ServiceContainer.get("resilience_engine", default=None)
                         if resilience:
                             resilience.record_success("tool_execution", stakes=0.5)
-                    except Exception as res_err:
+                    except (ImportError, AttributeError, KeyError, RuntimeError) as res_err:
                         logger.debug("Failed to record success: %s", res_err)
 
                     self._persist_plan_state(plan)
@@ -2174,7 +2174,7 @@ Respond ONLY with a JSON array, no other text:
                         resilience = ServiceContainer.get("resilience_engine", default=None)
                         if resilience:
                             resilience.record_failure("tool_execution", severity=0.3, stakes=0.5)
-                    except Exception as res_err:
+                    except (ImportError, AttributeError, KeyError, RuntimeError) as res_err:
                         logger.debug("Failed to record verification failure: %s", res_err)
 
                     # Modify args for retry: ask LLM for an alternative approach
@@ -2222,7 +2222,7 @@ Respond ONLY with a JSON array, no other text:
                     resilience = ServiceContainer.get("resilience_engine", default=None)
                     if resilience:
                         resilience.record_failure("tool_execution", severity=0.6, stakes=0.5)
-                except Exception as res_err:
+                except (ImportError, AttributeError, KeyError, RuntimeError) as res_err:
                     logger.debug("Failed to record timeout failure: %s", res_err)
 
                 self._persist_plan_state(plan)
@@ -2253,7 +2253,7 @@ Respond ONLY with a JSON array, no other text:
                     resilience = ServiceContainer.get("resilience_engine", default=None)
                     if resilience:
                         resilience.record_failure("tool_execution", severity=0.8, stakes=0.5)
-                except Exception as res_err:
+                except (ImportError, AttributeError, KeyError, RuntimeError) as res_err:
                     logger.debug("Failed to record exception failure: %s", res_err)
 
                 self._persist_plan_state(plan)

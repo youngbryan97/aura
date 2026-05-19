@@ -60,8 +60,9 @@ async def conversation_loop(orchestrator: RobustOrchestrator | None = None):
 
     consecutive_failures = 0
     backoff = INITIAL_BACKOFF_SECONDS
+    active = True
 
-    while True:
+    while active:
         try:
             # Circuit breaker: if too many failures, cool down
             if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
@@ -96,6 +97,7 @@ async def conversation_loop(orchestrator: RobustOrchestrator | None = None):
                 
                 # Defer sleep/dreaming to Orchestrator's unified system
                 await orchestrator._process_message("System Command: ENTER_REM_SLEEP")
+                active = False
                 break
 
             # 3. The Orchestrator handles the flow entirely
@@ -107,9 +109,11 @@ async def conversation_loop(orchestrator: RobustOrchestrator | None = None):
 
         except KeyboardInterrupt:
             logger.info("Sudden interruption. Saving state...")
+            active = False
             break
         except asyncio.CancelledError:
             logger.info("Conversation loop cancelled.")
+            active = False
             break
         except (OSError, ConnectionError) as e:
             consecutive_failures += 1

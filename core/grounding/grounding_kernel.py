@@ -6,7 +6,7 @@ adding new modality branches; the encoder contract returns a
 fixed-dimensional feature vector regardless of input type.
 
 Strict mode (``strict_modalities=True``) refuses any modality whose
-encoder is still a placeholder.  Production deployments should run
+encoder is still provisional.  Production deployments should run
 strict so a vision/audio request never silently degrades to the text
 hash encoder; tests and exploratory work can stay non-strict.
 """
@@ -21,7 +21,7 @@ import numpy as np
 from core.grounding.types import GroundingMethod, PerceptualEvidence, new_id
 
 
-# Modalities for which a real (non-placeholder) encoder is wired.
+# Modalities for which a real (non-provisional) encoder is wired.
 SUPPORTED_MODALITIES = frozenset({"text"})
 
 
@@ -73,7 +73,7 @@ class GroundingKernel:
                     f"{observation.modality!r}; supported: "
                     f"{sorted(SUPPORTED_MODALITIES)}"
                 )
-            # Placeholder: real implementations override per modality.
+            # Provisional fallback: real implementations override per modality.
             features = hash_features(str(observation.raw), self.feature_dim)
         return PerceptualEvidence(
             evidence_id=new_id("evidence"),

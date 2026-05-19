@@ -24,7 +24,10 @@ from dataclasses import dataclass, asdict, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import logging
 from core.runtime.atomic_writer import atomic_write_text
+
+logger = logging.getLogger("research_triggers")
 
 DEFAULT_TRIGGER_PATH = Path.home() / ".aura/live-source/aura/knowledge/research-triggers.jsonl"
 RING_LIMIT = 500
@@ -61,8 +64,8 @@ def emit_research_trigger(
         with path.open("a", encoding="utf-8") as f:
             f.write(json.dumps(record) + "\n")
         _maybe_truncate_ring(path)
-    except Exception:
-        pass  # no-op: intentional
+    except Exception as e:
+        logger.debug("Failed to write research trigger: %s", e)
 
 
 def drain_pending_triggers(

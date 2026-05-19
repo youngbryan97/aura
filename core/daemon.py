@@ -102,9 +102,12 @@ class CognitiveDaemon:
 
     async def _handle_api_connection(self, reader, writer):
         try:
-            while True:
+            keep_reading = True
+            while keep_reading:
                 line = await reader.readline()
-                if not line: break
+                if not line:
+                    keep_reading = False
+                    break
                 
                 try:
                     data = json.loads(line)

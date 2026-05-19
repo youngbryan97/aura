@@ -1768,8 +1768,8 @@ class InferenceGate:
                 phi_est = getattr(loop._loop_state, "phi_estimate", 0.0)
                 if phi_est > 0.0:
                     return float(phi_est)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Failed to retrieve phi from closed causal loop: %s", e)
 
         try:
             from core.consciousness.phi_compute import get_phi_computer
@@ -1778,8 +1778,8 @@ class InferenceGate:
                 phi_latest = pc.latest_phi
                 if phi_latest > 0.0:
                     return float(phi_latest)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Failed to retrieve phi from phi computer: %s", e)
 
         try:
             from core.container import ServiceContainer
@@ -1788,8 +1788,8 @@ class InferenceGate:
                 res = phi_core._last_result
                 if res is not None:
                     return float(res.phi_s)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Failed to retrieve phi from phi core: %s", e)
 
         return 0.5  # Neutral default/fallback
 

@@ -1083,7 +1083,7 @@ class SovereignVoiceEngine:
                     await self.ensure_tts_async()
 
                 it = text_iterator.__aiter__()
-                while True:
+                while not self.interrupt_flag.is_set():
                     try:
                         if self.interrupt_flag.is_set():
                             logger.info("🛑 Aura interrupted. Halting synthesis.")

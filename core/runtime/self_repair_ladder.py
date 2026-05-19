@@ -164,6 +164,7 @@ def _check_import(patch_source: str, module_name: str = "aura_self_repair_candid
     try:
         exec(compile(patch_source, f"<{module_name}>", "exec"), module.__dict__)  # nosec
     except BaseException as exc:
+        logger.debug("Import-time validation failed for candidate patch: %s", exc)
         return RungResult(RUNG_IMPORT, False, f"import-time failure: {exc!r}")
     return RungResult(RUNG_IMPORT, True)
 
@@ -178,6 +179,7 @@ async def _run_probe(rung: str, probe: Optional[Probe]) -> RungResult:
         ok = bool(result)
         return RungResult(rung, ok, reason=None if ok else "probe returned False")
     except BaseException as exc:
+        logger.debug("Probe validation failed for rung %s: %s", rung, exc)
         return RungResult(rung, False, reason=f"probe raised: {exc!r}")
 
 

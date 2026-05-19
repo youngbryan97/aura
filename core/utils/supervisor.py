@@ -59,6 +59,7 @@ class Supervisor:
         self._tasks_lock = threading.Lock()  # Protect against cross-thread mutation
         self.memory_high_percent = memory_high_percent
         self.memory_critical_percent = memory_critical_percent
+        self._memory_watcher_active = False
         self._memory_watcher_task: Optional[ManagedTask] = None
         self._optional_task_tags: Set[str] = set()  # tasks allowed to be auto-evicted
 
@@ -71,9 +72,11 @@ class Supervisor:
                 logger.warning("Supervisor: Cannot start memory watcher — no event loop")
                 return
         if self._memory_watcher_task is None or self._memory_watcher_task.done:
+            self._memory_watcher_active = True
             self._memory_watcher_task = self.create_managed_task(self._memory_watcher(), name="memory_watcher", meta={"system": True})
 
     def stop_memory_watcher(self) -> None:
+        self._memory_watcher_active = False
         if self._memory_watcher_task is not None:
             self._memory_watcher_task.cancel("supervisor-stopping")
             self._memory_watcher_task = None
@@ -124,7 +127,7 @@ class Supervisor:
     async def _memory_watcher(self):
         """Background loop to monitor memory and evict optional tasks proactively."""
         # Fix: psutil.virtual_memory is a function, not a property of a proc
-        while True:
+        while self._memory_watcher_active:
             try:
                 mem = psutil.virtual_memory()
                 percent = mem.percent

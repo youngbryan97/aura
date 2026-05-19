@@ -1372,7 +1372,7 @@ def test_global_workspace_theory_arbitration_failure_is_visible(monkeypatch):
     monkeypatch.setattr(
         global_workspace,
         "record_degradation",
-        lambda module, exc: recorded.append((module, type(exc).__name__)),
+        lambda module, exc, **_kwargs: recorded.append((module, type(exc).__name__)),
     )
     monkeypatch.setattr(global_workspace.ServiceContainer, "get", lambda *_args, **_kwargs: None)
 

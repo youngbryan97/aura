@@ -102,20 +102,23 @@ def reaper_loop(kernel_pid: int, manifest_path: Path):
     logger.info("[REAPER] Watching Kernel PID %d", kernel_pid)
 
     # Poll until kernel dies
-    while True:
+    is_kernel_alive = True
+    while is_kernel_alive:
         try:
             os.kill(kernel_pid, 0)  # Signal 0: existence check only
         except ProcessLookupError:
             logger.warning("[REAPER] Kernel PID %d is GONE. Initiating cleanup.", kernel_pid)
+            is_kernel_alive = False
             _execute_cleanup(manifest)
-            return
+            break
         except PermissionError as _e:
             logger.debug('Ignored PermissionError in reaper.py: %s', _e)
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
             record_degradation('reaper', e)
             logger.debug("[REAPER] Existence check failed (non-fatal): %s", e)
             
-        time.sleep(POLL_INTERVAL)
+        if is_kernel_alive:
+            time.sleep(POLL_INTERVAL)
 
 def _execute_cleanup(manifest: ReaperManifest):
     """Execute cleanup in order: children first, then shared memory."""

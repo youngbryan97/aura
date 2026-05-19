@@ -117,13 +117,14 @@ class Tricorder:
                 get_task_tracker().create_task(self._process_empathy())
         except ImportError:
             self._event_bus = None
+        self._is_active = True
         logger.info("📡 [TRICORDER] Multi-modal Diagnostic Sensor ONLINE.")
 
     async def _process_violations(self):
         """Process executive violations from the queue."""
         if not hasattr(self, '_violation_queue') or not self._violation_queue:
             return
-        while True:
+        while self._is_active:
             try:
                 # EventBus returns tuple of (topic, meta, item)
                 _, _, item = await self._violation_queue.get()
@@ -143,7 +144,7 @@ class Tricorder:
         """Process empathy updates from the queue."""
         if not hasattr(self, '_empathy_queue') or not self._empathy_queue:
             return
-        while True:
+        while self._is_active:
             try:
                 _, _, item = await self._empathy_queue.get()
                 await self._on_empathy_update(item)

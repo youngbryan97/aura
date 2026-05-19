@@ -35,8 +35,8 @@ class MycelialNetwork:
                 try:
                     if self.G.has_edge(memory_node, skill_node):
                         self.G.remove_edge(memory_node, skill_node)
-                except Exception:
-                    pass
+                except Exception as rollback_err:
+                    logger.debug("Rollback edge removal failed: %s", rollback_err)
                 return False
 
     async def plan_path(self, start_memory: str, goal_skill: str) -> List[str]:

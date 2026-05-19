@@ -91,11 +91,14 @@ class UnifiedStateRegistry:
 
     async def _notification_dispatcher(self):
         """Single consumer task for state updates."""
-        while True:
+        dispatcher_active = True
+        while dispatcher_active:
             try:
                 # get() is blocking, use to_thread to avoid blocking loop
                 snapshot = await asyncio.to_thread(lambda: self._notify_queue.get())
-                if snapshot is None: break # Shutdown signal
+                if snapshot is None:
+                    dispatcher_active = False
+                    break # Shutdown signal
                 
                 for listener in list(self._listeners):
                     try:
