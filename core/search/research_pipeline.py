@@ -334,7 +334,7 @@ class SearchArtifactStore:
             from core.config import config
 
             return config.paths.data_dir / "search" / "web_artifacts.jsonl"
-        except Exception:
+        except (ImportError, AttributeError):
             return Path.home() / ".aura" / "data" / "search" / "web_artifacts.jsonl"
 
     def _read_all(self) -> list[SearchArtifact]:
@@ -565,7 +565,7 @@ class ResearchSearchPipeline:
                             cleaned = _normalize_query(str(item or ""))
                             if cleaned and cleaned not in expansions:
                                 expansions.append(cleaned)
-            except Exception:
+            except (json.JSONDecodeError, TypeError, ValueError):
                 logger.debug("Search query expansion parse failed for %s", query)
 
         base = _normalize_query(query)
@@ -651,7 +651,7 @@ class ResearchSearchPipeline:
                                     position=idx,
                                 )
                             )
-        except Exception as exc:
+        except (ConnectionError, OSError, RuntimeError, TimeoutError, TypeError) as exc:
             record_degradation('research_pipeline', exc)
             logger.debug("DDGS search failed for %s: %s", query, exc)
             return self._load_cached_search_hits(query, limit=num_results)
@@ -662,6 +662,7 @@ class ResearchSearchPipeline:
         return deduped
 
     def _legacy_html_search(self, query: str, num_results: int) -> list[SearchHit]:
+        import urllib.error
         import urllib.parse
         import urllib.request
         from bs4 import BeautifulSoup
@@ -684,7 +685,7 @@ class ResearchSearchPipeline:
             try:
                 with urllib.request.urlopen(request, timeout=10) as response:
                     raw_html = response.read().decode("utf-8", errors="replace")
-            except Exception as exc:
+            except (ConnectionError, OSError, TimeoutError, urllib.error.URLError) as exc:
                 record_degradation('research_pipeline', exc)
                 logger.debug("Legacy HTML search failed for %s via %s: %s", query, source_engine, exc)
                 continue
@@ -925,7 +926,7 @@ class ResearchSearchPipeline:
             else:
                 logger.debug("Page fetch transient error (%d) for %s", status, hit.url)
             return None
-        except Exception as exc:
+        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
             record_degradation('research_pipeline', exc)
             logger.debug("Page fetch failed for %s: %s", hit.url, exc)
             return None
@@ -967,7 +968,7 @@ class ResearchSearchPipeline:
                 try:
                     if browser.page is not None:
                         title = _normalize_text(await browser.page.title(), limit=220) or hit.title
-                except Exception:
+                except (RuntimeError, AttributeError, TypeError):
                     title = hit.title
                 return SearchPage(
                     url=hit.url,
@@ -979,7 +980,7 @@ class ResearchSearchPipeline:
                 )
             finally:
                 await browser.close()
-        except Exception as exc:
+        except (ImportError, ConnectionError, OSError, RuntimeError, TimeoutError, AttributeError) as exc:
             record_degradation('research_pipeline', exc)
             logger.debug("Browser fetch failed for %s: %s", hit.url, exc)
             return None
@@ -1254,7 +1255,7 @@ class ResearchSearchPipeline:
                 "facts": facts,
                 "confidence": max(0.0, min(1.0, confidence)),
             }
-        except Exception:
+        except (json.JSONDecodeError, KeyError, TypeError, ValueError):
             return None
 
     def _deterministic_synthesis(
@@ -1359,7 +1360,7 @@ class ResearchSearchPipeline:
                     result = await result
                 if result:
                     retained = True
-        except Exception as exc:
+        except (ImportError, AttributeError, RuntimeError, TypeError) as exc:
             record_degradation('research_pipeline', exc)
             logger.debug("Memory facade retention failed: %s", exc)
 
@@ -1386,7 +1387,7 @@ class ResearchSearchPipeline:
                     result = await result
                 if result:
                     retained = True
-        except Exception as exc:
+        except (ImportError, AttributeError, RuntimeError, TypeError) as exc:
             record_degradation('research_pipeline', exc)
             logger.debug("Vector memory retention failed: %s", exc)
 
@@ -1403,10 +1404,10 @@ class ResearchSearchPipeline:
                             domain="learned_from_web",
                             source=f"web_search:{artifact.query[:40]}",
                         )
-                    except Exception:
+                    except (RuntimeError, AttributeError, TypeError):
                         pass  # no-op: intentional
                 retained = True
-        except Exception as exc:
+        except (ImportError, AttributeError, RuntimeError) as exc:
             record_degradation('research_pipeline', exc)
             logger.debug("Belief system retention failed: %s", exc)
 
@@ -1420,7 +1421,7 @@ class ResearchSearchPipeline:
                 salience=0.4,
                 ttl=7200,
             )
-        except Exception:
+        except (ImportError, AttributeError, RuntimeError):
             pass  # no-op: intentional
 
         # 5. Satisfy curiosity drive (learning something satisfies curiosity)
@@ -1434,7 +1435,7 @@ class ResearchSearchPipeline:
                     loop.create_task(drive.satisfy("curiosity", 20.0))
                 except RuntimeError:
                     pass  # no-op: intentional
-        except Exception:
+        except (ImportError, AttributeError, RuntimeError):
             pass  # no-op: intentional
 
         if not retained:
@@ -1590,7 +1591,7 @@ class ResearchSearchPipeline:
                 from core.container import ServiceContainer
 
                 router = ServiceContainer.get("llm_router", default=None)
-            except Exception:
+            except (ImportError, AttributeError):
                 router = None
         if router is not None and hasattr(router, "think"):
             try:
@@ -1607,9 +1608,9 @@ class ResearchSearchPipeline:
                 try:
                     result = await asyncio.wait_for(router.think(prompt), timeout=timeout_seconds)
                     return _normalize_text(str(result or ""), limit=4000)
-                except Exception:
+                except (asyncio.TimeoutError, RuntimeError, AttributeError, TypeError):
                     pass  # no-op: intentional
-            except Exception:
+            except (asyncio.TimeoutError, RuntimeError, AttributeError, TypeError):
                 pass  # no-op: intentional
 
         brain = context.get("brain")
@@ -1623,7 +1624,7 @@ class ResearchSearchPipeline:
                 if isinstance(result, dict):
                     return _normalize_text(str(result.get("content") or result.get("text") or ""), limit=4000)
                 return _normalize_text(str(result or ""), limit=4000)
-            except Exception:
+            except (asyncio.TimeoutError, RuntimeError, AttributeError, TypeError):
                 return ""
         return ""
 

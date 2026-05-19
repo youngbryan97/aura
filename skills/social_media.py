@@ -281,7 +281,7 @@ class TwitterAdapter(PlatformAdapter):
                 self._rw_capable = oauth_ready
                 mode = "read-write" if self._rw_capable else "read-only"
                 logger.info("✅ TwitterAdapter: connected as @%s (%s)", self._me.username, mode)
-        except Exception as exc:
+        except (ConnectionError, OSError, RuntimeError, AttributeError, TimeoutError) as exc:
             logger.warning("TwitterAdapter: connection disabled — %s", exc)
 
     # Async wrappers (all tweepy calls are blocking; we push them to executor)
@@ -309,7 +309,7 @@ class TwitterAdapter(PlatformAdapter):
                 tweet_id = str(resp.data["id"])
                 logger.info("🐦 Tweet sent: %.60s… (id=%s)", content, tweet_id)
                 return tweet_id
-        except Exception as exc:
+        except (ConnectionError, OSError, RuntimeError, AttributeError, TimeoutError) as exc:
             logger.error("TwitterAdapter.post error: %s", exc)
             return None
 
@@ -325,7 +325,7 @@ class TwitterAdapter(PlatformAdapter):
             if liked:
                 logger.debug("🐦 Liked tweet %s", post_id)
                 return liked
-        except Exception as exc:
+        except (ConnectionError, OSError, RuntimeError, AttributeError, TimeoutError) as exc:
             logger.debug("TwitterAdapter.like: %s", exc)
             return False
 
@@ -343,7 +343,7 @@ class TwitterAdapter(PlatformAdapter):
             )
             if resp and resp.data:
                 return [{"id": str(t.id), "text": t.text} for t in resp.data]
-        except Exception as exc:
+        except (ConnectionError, OSError, RuntimeError, AttributeError, TimeoutError) as exc:
             logger.debug("TwitterAdapter.get_timeline: %s", exc)
             return []
 
@@ -362,7 +362,7 @@ class TwitterAdapter(PlatformAdapter):
             )
             if resp and resp.data:
                 return [{"id": str(t.id), "text": t.text} for t in resp.data]
-        except Exception as exc:
+        except (ConnectionError, OSError, RuntimeError, AttributeError, TimeoutError) as exc:
             logger.debug("TwitterAdapter.search: %s", exc)
             return []
 
@@ -380,7 +380,7 @@ class TwitterAdapter(PlatformAdapter):
                     {"id": str(t.id), "text": t.text, "type": "mention"}
                     for t in mentions.data
                 ]
-        except Exception as exc:
+        except (ConnectionError, OSError, RuntimeError, AttributeError, TimeoutError) as exc:
             logger.debug("TwitterAdapter.get_notifications: %s", exc)
             return []
 
@@ -445,7 +445,7 @@ class RedditAdapter(PlatformAdapter):
                 self._me_name = me.name
                 self._connected = True
                 logger.info("✅ RedditAdapter: connected as u/%s", self._me_name)
-        except Exception as exc:
+        except (ConnectionError, OSError, RuntimeError, AttributeError, TimeoutError) as exc:
             logger.warning("RedditAdapter: connection disabled — %s", exc)
 
     async def post(
@@ -473,7 +473,7 @@ class RedditAdapter(PlatformAdapter):
             if rid:
                 logger.info("🔴 Reddit post sent (id=%s): %.60s", rid, content)
                 return rid
-        except Exception as exc:
+        except (ConnectionError, OSError, RuntimeError, AttributeError, TimeoutError) as exc:
             logger.error("RedditAdapter.post: %s", exc)
             return None
 
@@ -487,7 +487,7 @@ class RedditAdapter(PlatformAdapter):
                 submission.upvote()
                 return True
             return await loop.run_in_executor(None, _upvote)
-        except Exception as exc:
+        except (ConnectionError, OSError, RuntimeError, AttributeError, TimeoutError) as exc:
             logger.debug("RedditAdapter.like: %s", exc)
             return False
 
@@ -507,7 +507,7 @@ class RedditAdapter(PlatformAdapter):
                     })
                 return posts
             return await loop.run_in_executor(None, _feed)
-        except Exception as exc:
+        except (ConnectionError, OSError, RuntimeError, AttributeError, TimeoutError) as exc:
             logger.debug("RedditAdapter.get_timeline: %s", exc)
             return []
 
@@ -524,7 +524,7 @@ class RedditAdapter(PlatformAdapter):
                     results.append({"id": s.id, "text": s.title, "url": s.url})
                 return results
             return await loop.run_in_executor(None, _search)
-        except Exception as exc:
+        except (ConnectionError, OSError, RuntimeError, AttributeError, TimeoutError) as exc:
             logger.debug("RedditAdapter.search: %s", exc)
             return []
 
@@ -543,7 +543,7 @@ class RedditAdapter(PlatformAdapter):
                     })
                 return msgs
             return await loop.run_in_executor(None, _inbox)
-        except Exception as exc:
+        except (ConnectionError, OSError, RuntimeError, AttributeError, TimeoutError) as exc:
             logger.debug("RedditAdapter.get_notifications: %s", exc)
             return []
 
@@ -677,7 +677,7 @@ class SocialVoice:
             api = getattr(self.orchestrator, "api_adapter", None)
             if api and hasattr(api, "complete"):
                 return str(await api.complete(prompt, system=system))
-        except Exception as exc:
+        except (RuntimeError, AttributeError, TypeError, TimeoutError) as exc:
             logger.debug("SocialVoice._llm: %s", exc)
 
         return f"[Aura voice: {prompt[:60]}]"
@@ -758,7 +758,7 @@ class SocialMediaEngine:
                 self._relationships[k] = SocialRelationship(**valid)
             self._last_post_time = raw.get("last_post_time", {})
             logger.debug("📱 Loaded social state from disk")
-        except Exception as exc:
+        except (json.JSONDecodeError, OSError, TypeError, KeyError, ValueError) as exc:
             logger.warning("SocialMediaEngine: state load failed — %s", exc)
 
     def _save_state(self) -> None:
@@ -774,7 +774,7 @@ class SocialMediaEngine:
             self.INTERACTION_LOG.parent.mkdir(parents=True, exist_ok=True)
             log_raw = [asdict(i) for i in self._interaction_log[-600:]]
             atomic_write_text(self.INTERACTION_LOG, json.dumps(log_raw, indent=2), encoding="utf-8")
-        except Exception as exc:
+        except (OSError, TypeError, ValueError) as exc:
             logger.warning("SocialMediaEngine: state save failed — %s", exc)
 
     # ── Core Post Action ─────────────────────────────────────────────────────
@@ -1117,7 +1117,7 @@ class SocialMediaEngine:
                     event_type=f"social_{signal.event}",
                     intensity=signal.intensity,
                 )
-        except Exception as exc:
+        except (RuntimeError, AttributeError, TypeError) as exc:
             logger.debug("SocialMedia._emit_signal: %s", exc)
 
     # ── Helpers ───────────────────────────────────────────────────────────────

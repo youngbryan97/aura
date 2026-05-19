@@ -35,8 +35,8 @@ import hashlib
 import json
 import logging
 import os
+import re
 import shutil
-import subprocess
 import tempfile
 import time
 from dataclasses import dataclass, field
@@ -336,7 +336,7 @@ class ContentFetcher:
             try:
                 from core.executors import browser_executor as be_mod  # type: ignore
                 self._browser = be_mod
-            except Exception:
+            except (ImportError, AttributeError):
                 return FetchedContent(method="web_search", priority_level=priority,
                                       target=query, success=False,
                                       error="browser_executor unavailable; cannot search")
@@ -353,7 +353,7 @@ class ContentFetcher:
                     success=bool(results), text=json.dumps(results, indent=2),
                     metadata={"results": results}, sources=[r.get("url", "") for r in results if r.get("url")],
                 )
-            except Exception as e:
+            except (ConnectionError, OSError, RuntimeError, TimeoutError, TypeError, ValueError) as e:
                 record_degradation('content_fetcher', e)
                 logger.debug("browser %s failed: %s", fn_name, e)
                 continue
@@ -363,7 +363,7 @@ class ContentFetcher:
     async def _web_html(self, url: str, args: Dict[str, Any], priority: int) -> FetchedContent:
         try:
             import urllib.request, urllib.error
-        except Exception:
+        except ImportError:
             return FetchedContent(method="web_html", priority_level=priority, target=url,
                                   success=False, error="urllib unavailable")
         try:
@@ -382,7 +382,7 @@ class ContentFetcher:
                 bytes_fetched=len(data), truncated=truncated,
                 metadata={"http_status": getattr(resp, "status", None)},
             )
-        except Exception as e:
+        except (ConnectionError, OSError, TimeoutError, urllib.error.URLError, ValueError) as e:
             record_degradation('content_fetcher', e)
             return FetchedContent(method="web_html", priority_level=priority, target=url,
                                   success=False, error=str(e))
@@ -411,7 +411,7 @@ class ContentFetcher:
                         bytes_fetched=len(extract.encode("utf-8")),
                         metadata={"page_title": page.get("title")},
                     )
-        except Exception as e:
+        except (json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
             record_degradation('content_fetcher', e)
             return FetchedContent(method="wikipedia_api", priority_level=priority, target=title,
                                   success=False, error=f"parse: {e}")
@@ -451,7 +451,7 @@ class ContentFetcher:
             text = _re.sub(r"<[^>]+>", " ", text)
             text = _re.sub(r"\s+", " ", text)
             return text.strip()
-        except Exception:
+        except (TypeError, re.error):
             return html
 
     def _read_first_srt(self, workdir: str) -> str:
@@ -459,7 +459,7 @@ class ContentFetcher:
             if name.endswith(".srt"):
                 try:
                     return self._strip_srt_timing(Path(workdir, name).read_text(encoding="utf-8", errors="replace"))
-                except Exception:
+                except (OSError, UnicodeDecodeError):
                     continue
         return ""
 
@@ -488,7 +488,7 @@ class ContentFetcher:
                 if os.path.isfile(src):
                     shutil.copy2(src, target_dir / name)
             return str(target_dir)
-        except Exception as e:
+        except (OSError, shutil.Error) as e:
             record_degradation('content_fetcher', e)
             logger.debug("cache copy failed: %s", e)
             return None
@@ -499,8 +499,8 @@ class ContentFetcher:
             for entry in os.scandir(path):
                 if entry.is_file():
                     total += entry.stat().st_size
-        except Exception:
-            pass  # no-op: intentional
+        except OSError:
+            pass  # no-op: directory inaccessible
         return total
 
     def _enforce_cache_budget(self) -> None:
@@ -519,8 +519,8 @@ class ContentFetcher:
                     break
                 shutil.rmtree(path, ignore_errors=True)
                 total -= size
-        except Exception:
-            pass  # no-op: intentional
+        except OSError as e:
+            logger.debug("cache budget enforcement failed: %s", e)
 
     def _cache_key(self, method: str, target: str, args: Dict[str, Any]) -> str:
         h = hashlib.sha256()
@@ -553,17 +553,15 @@ class ContentFetcher:
             return {}
         try:
             return json.loads(CACHE_INDEX.read_text(encoding="utf-8"))
-        except Exception:
+        except (json.JSONDecodeError, OSError, ValueError):
             return {}
 
     def _save_index(self) -> None:
         try:
             CACHE_INDEX.parent.mkdir(parents=True, exist_ok=True)
-            tmp = CACHE_INDEX.with_suffix(".tmp")
-            atomic_write_text(tmp, json.dumps(self._index), encoding="utf-8")
-            os.replace(tmp, CACHE_INDEX)
-        except Exception:
-            pass  # no-op: intentional
+            atomic_write_text(CACHE_INDEX, json.dumps(self._index), encoding="utf-8")
+        except OSError as e:
+            logger.debug("cache index save failed: %s", e)
 
 
 # ── Subprocess helper ────────────────────────────────────────────────────
@@ -581,14 +579,14 @@ async def _run_subprocess(cmd: List[str], timeout: int) -> Tuple[bool, str, str]
         except asyncio.TimeoutError:
             try:
                 proc.kill()
-            except Exception:
-                pass  # no-op: intentional
+            except (ProcessLookupError, OSError):
+                pass  # Process already exited
             return False, "", "timeout"
         ok = proc.returncode == 0
         return ok, stdout.decode("utf-8", errors="replace"), stderr.decode("utf-8", errors="replace")
     except FileNotFoundError as e:
         return False, "", f"binary missing: {e}"
-    except Exception as e:
+    except (OSError, RuntimeError, ValueError) as e:
         record_degradation('content_fetcher', e)
         return False, "", str(e)
 
@@ -597,5 +595,5 @@ def _url_encode(s: str) -> str:
     try:
         from urllib.parse import quote
         return quote(s)
-    except Exception:
+    except (ImportError, TypeError, ValueError):
         return s

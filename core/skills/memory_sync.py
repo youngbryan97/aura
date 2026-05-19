@@ -38,7 +38,7 @@ class MemorySyncSkill(BaseSkill):
         if isinstance(params, dict):
             try:
                 params = MemorySyncParams(**params)
-            except Exception as e:
+            except (TypeError, ValueError) as e:
                 record_degradation('memory_sync', e)
                 return {"ok": False, "error": f"Invalid input: {e}"}
 
@@ -106,7 +106,7 @@ class MemorySyncSkill(BaseSkill):
                 return False
             finally:
                 await bus.unsubscribe("human_consent_response", confirmation_queue)
-        except Exception as e:
+        except (ImportError, AttributeError, RuntimeError, OSError) as e:
             record_degradation('memory_sync', e)
             logger.error("Consent gate failure: %s", e)
             return False
@@ -119,7 +119,7 @@ class MemorySyncSkill(BaseSkill):
             # Initial pull
             subprocess.run(["git", "pull", "origin", "main"], cwd=cwd, check=False)
             return {"ok": True, "message": "Memory repository initialized."}
-        except Exception as e:
+        except (subprocess.SubprocessError, OSError) as e:
             record_degradation('memory_sync', e)
             return {"ok": False, "error": f"Init failed: {e}"}
 
@@ -133,7 +133,7 @@ class MemorySyncSkill(BaseSkill):
             else:
                 logger.warning("Pull failed: %s", res.stderr)
                 return {"ok": False, "error": res.stderr}
-        except Exception as e:
+        except (subprocess.SubprocessError, OSError) as e:
             record_degradation('memory_sync', e)
             return {"ok": False, "error": f"Pull error: {e}"}
 
@@ -160,6 +160,6 @@ class MemorySyncSkill(BaseSkill):
             else:
                 logger.warning("Push failed: %s", res.stderr)
                 return {"ok": False, "error": res.stderr}
-        except Exception as e:
+        except (subprocess.SubprocessError, OSError) as e:
             record_degradation('memory_sync', e)
             return {"ok": False, "error": f"Push error: {e}"}

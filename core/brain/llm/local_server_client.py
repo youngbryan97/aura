@@ -67,7 +67,7 @@ def _parallel_lane_runtime_allowed() -> bool:
             and vm.percent < max_pressure
             and available_gb >= min_available_gb
         )
-    except Exception:
+    except (ImportError, OSError, AttributeError):
         return False
 
 
@@ -210,7 +210,7 @@ class LocalServerClient:
         elif not isinstance(content, str):
             try:
                 content = json.dumps(content, ensure_ascii=False, default=str)
-            except Exception:
+            except (TypeError, ValueError):
                 content = str(content)
 
         payload: Dict[str, Any] = {
@@ -578,8 +578,8 @@ class LocalServerClient:
                 if resp.status == 200:
                     data = resp.read().decode()
                     return '"ok"' in data or '"status":"ok"' in data.replace(" ", "")
-        except Exception:
-            pass  # no-op: intentional
+        except (OSError, ConnectionError):
+            pass  # health probe failed — expected during boot
         return False
 
     def _http_health_check_sync(self) -> bool:
@@ -600,7 +600,7 @@ class LocalServerClient:
             from core.config import config
 
             candidate_dirs.append(Path(config.paths.home_dir) / "logs")
-        except Exception as _exc:
+        except (ImportError, AttributeError) as _exc:
             record_degradation('local_server_client', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
         candidate_dirs.append(Path(__file__).resolve().parents[3] / ".aura_runtime" / "logs")
@@ -613,7 +613,7 @@ class LocalServerClient:
                 atomic_write_text(probe, "ok", encoding="utf-8")
                 probe.unlink(missing_ok=True)
                 return log_dir / f"local-runtime-{self._lane_name.lower()}.log"
-            except Exception:
+            except OSError:
                 continue
         raise PermissionError("No writable local runtime log directory is available.")
 
@@ -739,7 +739,7 @@ class LocalServerClient:
             response = await client.get(f"{self._runtime_url}/health", timeout=5.0)
             if response.status_code != 200:
                 return False, False
-        except Exception:
+        except (httpx.HTTPError, OSError, ConnectionError):
             return False, False
 
         if self._external_only:
@@ -756,7 +756,7 @@ class LocalServerClient:
             payload = response.json()
             if not isinstance(payload, dict):
                 payload = {}
-        except Exception:
+        except (httpx.HTTPError, OSError, ConnectionError, json.JSONDecodeError):
             self._runtime_identity_ok = False
             self._detected_runtime_models = []
             return False, False
@@ -888,8 +888,8 @@ class LocalServerClient:
             from core.utils.memory_monitor import AppleSiliconMemoryMonitor
             pressure = AppleSiliconMemoryMonitor()._get_pressure_sysctl()
             ram_pressure_critical = pressure >= 85
-        except Exception:
-            pass  # no-op: intentional
+        except (ImportError, AttributeError, OSError):
+            pass  # memory monitor unavailable
 
         for client in _SERVER_CLIENTS.values():
             if client is self or client._external_only:
@@ -952,7 +952,7 @@ class LocalServerClient:
                 self._process.kill()
                 await asyncio.to_thread(self._process.wait, 5.0)
                 logger.info("[%s] Old server process killed.", self._lane_name)
-        except Exception as e:
+        except (ProcessLookupError, OSError, subprocess.SubprocessError) as e:
             record_degradation('local_server_client', e)
             logger.debug("[%s] Kill failed: %s", self._lane_name, e)
 
@@ -964,7 +964,7 @@ class LocalServerClient:
         try:
             await self.warmup()
             logger.info("[%s] Server restarted successfully.", self._lane_name)
-        except Exception as e:
+        except (RuntimeError, OSError, TimeoutError) as e:
             record_degradation('local_server_client', e)
             logger.error("[%s] Server restart failed: %s", self._lane_name, e)
 
@@ -1094,9 +1094,9 @@ class LocalServerClient:
                 stops = list(kwargs.get("stop_sequences") or [])
                 stops.extend(_bridge.extra_stop_sequences)
                 kwargs["stop_sequences"] = stops
-        except Exception as _bexc:
+        except (ImportError, AttributeError, TypeError, ValueError) as _bexc:
             record_degradation('local_server_client', _bexc)
-            pass  # no-op: intentional
+            pass  # Latent bridge not available
 
         if messages and isinstance(messages, list):
             payload_messages = [
@@ -1222,7 +1222,7 @@ class LocalServerClient:
                     json=payload,
                     timeout=timeout,
                 )
-            except Exception as exc:
+            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
                 record_degradation('local_server_client', exc)
                 self._record_degraded_event(
                     "request_failed",
@@ -1289,7 +1289,7 @@ class LocalServerClient:
 
             try:
                 data = response.json()
-            except Exception as exc:
+            except (json.JSONDecodeError, ValueError) as exc:
                 record_degradation('local_server_client', exc)
                 self.note_lane_recovering(f"invalid_json:{type(exc).__name__}")
                 return None
@@ -1297,7 +1297,7 @@ class LocalServerClient:
             text = ""
             try:
                 text = self._extract_response_text(data)
-            except Exception:
+            except (KeyError, TypeError, IndexError, ValueError):
                 text = ""
 
             if not text.strip():

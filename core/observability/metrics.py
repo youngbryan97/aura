@@ -212,8 +212,8 @@ class MetricsCollector:
                 value=float(vm.percent),
                 help_text="System memory usage percentage",
             ))
-        except Exception:
-            pass
+        except (ImportError, OSError, AttributeError):
+            pass  # psutil unavailable or process gone
 
         # CPU
         try:
@@ -223,8 +223,8 @@ class MetricsCollector:
                 value=float(psutil.cpu_percent(interval=0)),
                 help_text="Current CPU usage percentage",
             ))
-        except Exception:
-            pass
+        except (ImportError, OSError, AttributeError):
+            pass  # psutil unavailable
 
         # Substrate state
         try:
@@ -245,8 +245,8 @@ class MetricsCollector:
                     metric_type="counter",
                     help_text="Substrate ODE step count",
                 ))
-        except Exception:
-            pass
+        except (ImportError, AttributeError, TypeError, ValueError):
+            pass  # Substrate not available
 
         # Will status
         try:
@@ -268,8 +268,8 @@ class MetricsCollector:
                 value=float(status.get("refuse_rate", 0)),
                 help_text="Will refuse rate (0-1)",
             ))
-        except Exception:
-            pass
+        except (ImportError, AttributeError, TypeError, ValueError):
+            pass  # Will not available
 
         # Drive levels
         try:
@@ -286,8 +286,8 @@ class MetricsCollector:
                             labels={"drive": str(drive_name)},
                             help_text="Current drive level",
                         ))
-        except Exception:
-            pass
+        except (ImportError, AttributeError, TypeError, ValueError):
+            pass  # Drive engine not available
 
         # DB size
         try:
@@ -303,8 +303,8 @@ class MetricsCollector:
                     value=float(self._db_size_bytes),
                     help_text="SQLite database file size in bytes",
                 ))
-        except Exception:
-            pass
+        except (OSError, AttributeError):
+            pass  # DB path not accessible
 
         # Custom gauges
         for name, value in self._custom_gauges.items():
@@ -412,7 +412,7 @@ def check_readiness() -> Dict[str, Any]:
             if not np.isfinite(state).all():
                 issues.append("substrate_nan_inf")
                 ready = False
-    except Exception:
+    except (ImportError, AttributeError, TypeError, ValueError):
         pass  # Substrate not loaded yet is OK during boot
 
     # Check DB
@@ -431,7 +431,7 @@ def check_readiness() -> Dict[str, Any]:
         else:
             # DB not existing during first boot is OK
             pass
-    except Exception as e:
+    except (ImportError, sqlite3.Error, OSError) as e:
         issues.append(f"db_inaccessible: {e}")
         ready = False
 
