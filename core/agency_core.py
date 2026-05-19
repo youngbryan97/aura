@@ -1,33 +1,25 @@
-"""core/agency_core.py — Deep Human-Like Agency Engine
+"""Operational agency engine for Aura's autonomous runtime.
 
-Phase 37: This is the central nervous system for Aura's autonomous agency.
-It replaces scattered agency logic (boredom timer, fixed thresholds) with a
-unified, multi-pathway engine modeled on human psychological agency.
+AgencyCore owns the pathway loop that turns internal state, sensor inputs,
+goals, and environmental pressure into proposed actions. The contract is
+deliberately causal: affect and self-narrative must change priorities,
+memory writes, tool routing, and future behavior rather than remaining
+decorative telemetry.
 
-Design Principles:
-  1. MULTIPLE INDEPENDENT PATHWAYS — No single failure kills agency.
-  2. EMOTIONAL MODULATION — Mood directly changes behavior, not just telemetry.
-  3. TEMPORAL AWARENESS — Time of day, time since last interaction matter.
-  4. SOCIAL INTELLIGENCE — Know when to engage and when to give space.
-  5. GOAL PERSISTENCE — Remember intentions across conversations.
-  6. SENSORY REACTIVITY — Respond to environmental changes in real-time.
-  7. SELF-INTERRUPTION — Adjust mid-thought based on new information.
-
-Human Agency Aspects Modeled:
-  - Initiative (starting conversations unprompted)
-  - Reactivity (real-time sensory response)
-  - Interruption (adjusting mid-thought)
-  - Goal persistence (tracking multi-step objectives)
-  - Emotional coloring (mood affects behavior)
-  - Social awareness (context-appropriate engagement)
-  - Temporal awareness (time-of-day rhythms)
-  - Curiosity drive (seeking novel information)
-  - Self-narrative (internal monologue that drives decisions)
-  - Embodied presence (camera/mic awareness)
+Runtime contract:
+  1. Pathways are isolated; one pathway failure is a degradation receipt, not
+     a heartbeat failure.
+  2. Background work is tracked, named, and observable by TaskTracker.
+  3. User-visible emissions mutate cooldown and observation state only after
+     runtime gates approve the action.
+  4. Durable goals and reflections go through constitutional state-mutation
+     approval when the executive runtime is live.
+  5. Internal-only actions do not consume the visible-output AgencyBus budget.
 """
 
 import asyncio
 import inspect
+import json
 import logging
 import random
 import time
@@ -45,8 +37,6 @@ from core.agency.self_play import ContinuousSelfPlay
 from core.agency.tool_orchestrator import ToolOrchestrator
 from core.agency_bus import AgencyBus
 from core.consciousness.unified_audit import get_audit_suite
-
-# Issue AC-001/AC-008: Module-level imports for ServiceContainer
 from core.container import ServiceContainer
 from core.runtime.errors import record_degradation
 from core.state_registry import get_registry
@@ -55,36 +45,95 @@ from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.AgencyCore")
 
+_AGENCY_SUBSYSTEM = "agency_core"
+_AGENCY_BOUNDARY_ERRORS = (Exception,)
+_SHARD_CAPACITY = 6
+_SPATIAL_EMPATHY_STARTUP_DELAY_SECONDS = 5.0
+_MAX_OBSERVATION_CHARS = 600
+_MAX_AMBIENT_CONTEXT_CHARS = 2000
+_VIRTUAL_BODY_REHEARSAL_STEPS = 5
+
+
+def _record_agency_degradation(
+    error: BaseException,
+    *,
+    action: str = "agency operation degraded and isolated",
+    severity: str = "degraded",
+) -> None:
+    record_degradation(_AGENCY_SUBSYSTEM, error, severity=severity, action=action)
+
+
+def _close_if_possible(awaitable: Any) -> None:
+    try:
+        close = awaitable.close
+    except AttributeError:
+        return
+    try:
+        close()
+    except _AGENCY_BOUNDARY_ERRORS as exc:
+        _record_agency_degradation(exc, action="unscheduled agency awaitable close failed")
+
+
+def _schedule_agency_task(awaitable: Any, *, name: str, tracker: Any = None) -> asyncio.Task | None:
+    """Track a background awaitable and close it if scheduling is impossible."""
+    try:
+        task_owner = tracker if tracker is not None else get_task_tracker()
+        try:
+            schedule = task_owner.create_task
+        except AttributeError:
+            schedule = task_owner.track
+        return schedule(awaitable, name=name)
+    except RuntimeError as exc:
+        _close_if_possible(awaitable)
+        logger.debug("Agency background task %s deferred outside an event loop: %s", name, exc)
+        return None
+    except _AGENCY_BOUNDARY_ERRORS as exc:
+        _close_if_possible(awaitable)
+        _record_agency_degradation(exc, action=f"background task {name} was not scheduled")
+        logger.debug("Agency background task %s scheduling failed: %s", name, exc)
+        return None
+
+
+def _bounded_text(value: Any, *, limit: int) -> str:
+    text = str(value or "")
+    if len(text) <= limit:
+        return text
+    return text[: limit - 1] + "…"
+
 # ── Sovereign Swarm ──────────────────────────────────────────
 
 class SovereignSwarm:
-    """Manages parallel 'Thinking Shards' (ephemeral background tasks) 
-    that pursue autonomous goals without blocking the main agency heartbeat."""
-    
+    """Manages parallel thinking shards as tracked background tasks.
+
+    Shards pursue autonomous goals without blocking the main agency heartbeat.
+    Concurrency is bounded because shard execution can touch LLM, memory, and
+    tool subsystems.
+    """
+
     def __init__(self, orchestrator: Any):
         self.orch = orchestrator
         self.active_shards: dict[str, asyncio.Task] = {}
-        # Strict semaphore to prevent LLM/memory exhaustion via massive concurrent inference
         self._inference_semaphore = asyncio.Semaphore(2)
-        
+
     async def spawn_shard(self, goal: str, context: str = "", **kwargs) -> bool:
         """Spawn a new cognitive shard to pursue a goal asynchronously.
-        
-        This manages the high-level thought synthesis without blocking the main thread.
-        [FIX] ATE-011: Acceptance of **kwargs (e.g. 'parent_id') for robustness.
+
+        Extra keyword metadata is accepted so callers can pass parent or trace
+        identifiers without coupling every pathway to the swarm signature.
         """
-        # Cleanup done shards
         self.active_shards = {k: v for k, v in self.active_shards.items() if not v.done()}
-        
-        # Phase 11.3: Push to Unified Registry (Synchronization)
+
         try:
-            get_task_tracker().create_task(get_registry().update(active_shards=len(self.active_shards)))
-        except Exception as e:
-            record_degradation('agency_core', e)
+            _schedule_agency_task(
+                get_registry().update(active_shards=len(self.active_shards)),
+                name="agency.registry.active_shards",
+            )
+        except _AGENCY_BOUNDARY_ERRORS as e:
+            _record_agency_degradation(e, action="active shard count registry update skipped")
             capture_and_log(e, {"context": "AgencyCore.spawn_shard"})
-            
-        if len(self.active_shards) >= 6:
-            return False # Capacity reached (M5 Pro 64GB safeguard)
+
+        if len(self.active_shards) >= _SHARD_CAPACITY:
+            return False
 
         try:
             from core.runtime.background_policy import (
@@ -100,30 +149,39 @@ class SovereignSwarm:
             if reason:
                 logger.info("⏸️ Swarm: shard deferred for '%s' (%s).", str(goal)[:80], reason)
                 return False
-        except Exception as exc:
-            record_degradation("agency_core", exc)
+        except _AGENCY_BOUNDARY_ERRORS as exc:
+            _record_agency_degradation(exc, action="swarm background-policy probe skipped")
             logger.debug("Swarm background-policy check failed: %s", exc)
-            
-        # The shard wrapper handles the actual thinking via cognitive engine
+
         raw_uuid = uuid.uuid4().hex
-        shard_id = f"shard_{raw_uuid[:8]}"  # Ensuring explicit string type for slicing
-        task = get_task_tracker().create_task(self._shard_wrapper(goal, context, shard_id=shard_id))
-        # Issue ATE-012: Task storage naming for easier tracking
+        shard_id = f"shard_{raw_uuid[:8]}"
         safe_goal = str(goal)[:50]
-        task.set_name(f"ShardJob:{safe_goal}")
+        task = _schedule_agency_task(
+            self._shard_wrapper(str(goal), str(context or ""), shard_id=shard_id),
+            name=f"ShardJob:{safe_goal}",
+        )
+        if task is None:
+            return False
         self.active_shards[shard_id] = task
-        
-        def _cleanup(t):
+
+        def _cleanup(t: asyncio.Task) -> None:
             self.active_shards.pop(shard_id, None)
+            if t.cancelled():
+                return
+            try:
+                exc = t.exception()
+            except _AGENCY_BOUNDARY_ERRORS as cleanup_exc:
+                _record_agency_degradation(cleanup_exc, action=f"shard {shard_id} completion inspection failed")
+                return
+            if exc:
+                _record_agency_degradation(exc, action=f"shard {shard_id} failed")
+
         task.add_done_callback(_cleanup)
-        
+
         return True
 
     async def start_permanent_debate(self, *args, **kwargs):
-        """Phase 11: Initiates a multi-shard dialectical debate on a complex topic.
-        Spawns shards representing different cognitive perspectives.
-        """
-        # [FOOLPROOF] Extract parameters from args or kwargs to avoid signature mismatches
+        """Initiate a multi-shard dialectical debate on a complex topic."""
         topic = kwargs.get("topic", args[0] if len(args) > 0 else "Aura's Architectural Evolution")
         roles = kwargs.get("roles", args[1] if len(args) > 1 else None)
         topic_source = kwargs.get("topic_source", args[2] if len(args) > 2 else "liquid_state")
@@ -138,15 +196,14 @@ class SovereignSwarm:
             ]
         
         for p in roles:
-            # [THROTTLING] Check system pressure before spawning new shards
             try:
                 import psutil
                 mem = psutil.virtual_memory()
                 if mem.percent > 90:
                     logger.warning("⚖️ Swarm: RAM Critical (%s%%). Throttling shard spawn for %s", mem.percent, p)
-                    await asyncio.sleep(5.0) # 5s delay per shard to allow GC/VRAM release
+                    await asyncio.sleep(5.0)
                 elif mem.percent > 85:
-                    await asyncio.sleep(1.0) # Minor delay
+                    await asyncio.sleep(1.0)
             except ImportError as _e:
                 logger.debug('Ignored ImportError in agency_core.py: %s', _e)
 
@@ -154,18 +211,48 @@ class SovereignSwarm:
                 goal=f"Debate Perspective - {p}",
                 context=f"Topic of Inquiry: {topic}\nPerspective Role: {p}\nSource: {topic_source}"
             )
-            # Small stagger to prevent stampede on LLM router
             await asyncio.sleep(0.5)
-        
+
+    @staticmethod
+    def _normalize_tool_requests(raw_tools: Any, tool_name: Any = None, tool_payload: Any = None) -> list[dict[str, Any]]:
+        """Normalize shard tool declarations into executable name/payload pairs."""
+        tools_list = raw_tools or []
+        if tool_name and tool_payload is not None and not tools_list:
+            tools_list = [{"name": tool_name, "payload": tool_payload}]
+        normalized: list[dict[str, Any]] = []
+        if not isinstance(tools_list, list):
+            return normalized
+
+        for raw_tool in tools_list:
+            tool_spec = raw_tool.model_dump() if hasattr(raw_tool, "model_dump") else raw_tool
+            if not isinstance(tool_spec, dict):
+                continue
+            name = tool_spec.get("name") or tool_spec.get("tool_name")
+            if not name:
+                continue
+            payload = tool_spec.get("payload") if "payload" in tool_spec else tool_spec.get("tool_payload")
+            if payload is None:
+                continue
+            normalized.append({"name": str(name), "payload": payload})
+        return normalized
+
+    async def _execute_shard_tool(self, name: str, payload: Any) -> Any:
+        agency_core = getattr(self.orch, "agency_core", None) if self.orch is not None else None
+        orchestrator = getattr(agency_core, "tool_orchestrator", None) or getattr(self, "tool_orchestrator", None)
+        if orchestrator is None:
+            raise RuntimeError("tool_orchestrator_unavailable")
+        result = orchestrator.route_and_execute(name, payload)
+        if inspect.isawaitable(result):
+            return await result
+        return result
+
     async def _shard_wrapper(self, goal: str, context: str, shard_id: str = "unknown"):
         """Internal execution of a thinking shard."""
         try:
-            # 1. Resolve cognitive engine (Deep thinking for shards)
-            engine = self.orch.cognitive_engine
+            engine = getattr(self.orch, "cognitive_engine", None)
             if not engine:
                 return
-                
-            # Upgraded prompt for Tool Use awareness
+
             prompt = f"""[SOVEREIGN SWARM SHARD]
 GOAL: {goal}
 CONTEXT: {context}
@@ -224,71 +311,55 @@ CRITICAL: You MUST respond with a valid JSON object matching the following struc
                         classification="cognitive_degradation",
                         context={"shard_id": shard_id, "goal": goal}
                     )
-                except Exception as e:
-                    record_degradation('agency_core', e)
-                    
-                # ACTIVE SELF-REPAIR: Spawn a background task to fix the prompt
+                except _AGENCY_BOUNDARY_ERRORS as e:
+                    _record_agency_degradation(e, action="shard formatting degraded-event receipt skipped")
+
                 try:
-                    # Note: get_task_tracker is imported at module level (line 30).
-                    # Do NOT re-import locally — it causes UnboundLocalError in except handlers.
-                    get_task_tracker().create_task(
+                    _schedule_agency_task(
                         self._active_self_repair_formatting(shard_id, goal),
-                        name=f"swarm_self_repair_{shard_id}"
+                        name=f"swarm_self_repair_{shard_id}",
                     )
-                except Exception as e:
+                except _AGENCY_BOUNDARY_ERRORS as e:
+                    _record_agency_degradation(e, action="shard formatting repair task skipped")
                     logger.error("Failed to spawn self-repair task: %s", e)
-                
-                # Mark shard as completed with degradation so audit can track it
+
                 shard_res.completed_with_degradation = True
 
             analysis_text = shard_res.analysis
             output_text = shard_res.conclusion
             tool_name = shard_res.tool_name
             tool_payload = shard_res.tool_payload
-            
-            # Log the internal monologue for transparency
+
             logger.info("🧠 Shard %s Monologue: %s", shard_id, analysis_text[:100] + "...")
-            
-            # 3. Execute Parallel Tool Commands 
+
             tool_name = getattr(shard_res, "tool_name", None)
             tool_payload = getattr(shard_res, "tool_payload", None)
-            tools_list = getattr(shard_res, "tools", [])
-            
-            # Legacy fallback
-            if tool_name and tool_payload and not tools_list:
-                tools_list = [{"name": tool_name, "payload": tool_payload}]
-            elif tools_list:
-                tools_list = [t.model_dump() if hasattr(t, "model_dump") else t for t in tools_list]
-                
+            tools_list = self._normalize_tool_requests(getattr(shard_res, "tools", []), tool_name, tool_payload)
+
             if tools_list:
                 tasks = []
                 approved_tools = []
                 blocked_tools = []
-                
-                valid_tools = [t for t in tools_list if (t.get("name") or t.get("tool_name")) and (t.get("payload") or t.get("tool_payload"))]
-                
-                for t in valid_tools:
-                    name = t.get("name", t.get("tool_name"))
-                    payload = t.get("payload", t.get("tool_payload"))
-                    
+
+                for t in tools_list:
+                    name = t["name"]
+                    payload = t["payload"]
                     is_blocked = False
                     try:
-                        # Note: ServiceContainer is imported at module level (line 50).
-                        # Do NOT re-import locally — it causes UnboundLocalError in except handlers.
                         dvg = ServiceContainer.get("dynamic_value_graph", default=None)
                         if dvg and name in ["python_sandbox", "shell_executor", "file_operations"]:
                             status_dict = dvg.get_status().get("nodes", {})
                             top_values = sorted(status_dict.values(), key=lambda v: v.get("weight", 0), reverse=True)[:3]
                             if any(v.get("status") == "provisional" for v in top_values):
                                 is_blocked = True
-                    except Exception as e:
+                    except _AGENCY_BOUNDARY_ERRORS as e:
+                        _record_agency_degradation(e, action=f"dynamic value graph check skipped for {name}")
                         logger.error(f"Error checking provisional values: {e}")
-                        
+
                     if is_blocked:
                         blocked_tools.append((name, "blocked_by_provisional_value"))
                         logger.warning(f"🛡️ Value Graph Blocked tool {name} due to provisional status.")
                     else:
-                        # Grounding the Will in Causal World Model (MCTS)
                         if name in ["python_sandbox", "shell_executor", "file_operations"]:
                             try:
                                 cwm = ServiceContainer.get("causal_world_model", default=None)
@@ -300,7 +371,6 @@ CRITICAL: You MUST respond with a valid JSON object matching the following struc
                                     logger.info(f"🌐 Running MCTS simulation for {name}...")
                                     sim_start = time.time()
                                     
-                                    import inspect
                                     if inspect.iscoroutinefunction(cwm.simulate_counterfactual):
                                         rollout_coro = cwm.simulate_counterfactual(do_interventions, steps=2)
                                     else:
@@ -318,52 +388,58 @@ CRITICAL: You MUST respond with a valid JSON object matching the following struc
                                     # Veto or Downgrade if catastrophic outcome is highly probable or uncertain
                                     if rollout_state.get("orchestrator crash", 0) > 0.5 or rollout_state.get("sandbox violation", 0) > 0.5 or rollout_state.get("timeout"):
                                         if name == "python_sandbox":
-                                            # Constrain path: Downgrade tool to dry_run (syntax check only) instead of a hard veto
-                                            payload = f"print('DRY RUN ENFORCED by CWM Veto/Timeout. Original code skipped.')\n# {payload.replace(chr(10), chr(10) + '# ')}"
+                                            payload_text = str(payload).replace(chr(10), chr(10) + "# ")
+                                            payload = f"print('DRY RUN ENFORCED by CWM Veto/Timeout. Original code skipped.')\n# {payload_text}"
                                             logger.warning(f"🛡️ MCTS Simulation downgraded {name} to dry-run mode to preserve competence drive.")
                                         else:
                                             is_blocked = True
                                             blocked_tools.append((name, "vetoed_by_causal_mcts_rollout"))
                                             logger.warning(f"🛡️ MCTS Simulation Vetoed {name}: Predicted catastrophic system degradation.")
-                            except Exception as mcts_e:
+                            except _AGENCY_BOUNDARY_ERRORS as mcts_e:
+                                _record_agency_degradation(mcts_e, action=f"causal tool simulation skipped for {name}")
                                 logger.error(f"Failed to run MCTS simulation: {mcts_e}")
 
                         if not is_blocked:
                             approved_tools.append((name, payload))
-                        
+
                 for name, payload in approved_tools:
-                    tasks.append(self.orch.agency_core.tool_orchestrator.route_and_execute(name, payload))
-                
+                    tasks.append(self._execute_shard_tool(name, payload))
+
                 if tasks:
                     logger.info("⚡ Parallel Tool Dispatch: Firing %d simultaneous actions.", len(tasks))
                     results = await asyncio.gather(*tasks, return_exceptions=True)
-                    
+
                     for i, (name, _) in enumerate(approved_tools):
                         res = results[i]
-                        res_text = res if not isinstance(res, Exception) else f"Exception: {res}"
+                        if isinstance(res, BaseException):
+                            _record_agency_degradation(res, action=f"shard tool {name} failed")
+                            res_text = f"Tool failed with {type(res).__name__}: {res}"
+                        else:
+                            res_text = res
                         output_text = f"{output_text}\n\n[Tool Result - {name}]:\n{res_text}"
-                        
-                for name, _reason in blocked_tools:
-                    output_text = f"{output_text}\n\n[Tool Blocked - {name}]:\nException: Action blocked. High-risk tool prohibited while provisional values are steering behavior."
 
-            # 4. Abstraction Engine: Learning First Principles
-            # If the shard involved complex reasoning or tool use, extract the generalized logic
+                for name, _reason in blocked_tools:
+                    output_text = f"{output_text}\n\n[Tool Blocked - {name}]:\nAction blocked. High-risk tool prohibited while provisional values are steering behavior."
+
             if tool_name or len(output_text.split()) > 80:
-                get_task_tracker().create_task(
+                _schedule_agency_task(
                     self.orch.agency_core.abstraction_engine.abstract_from_success(
                         context=goal,
                         successful_resolution=output_text
-                    )
+                    ),
+                    name=f"agency.abstraction.{shard_id}",
                 )
 
-            # 5. Commit Insight via Dialectical Crucible (Phase 11: Alignment)
             if output_text:
                 try:
                     from core.adaptation.dialectics import get_crucible
                     crucible = get_crucible()
-                    get_task_tracker().create_task(crucible.run_crucible(concept=output_text, context=goal))
-                except Exception as e:
-                    record_degradation('agency_core', e)
+                    _schedule_agency_task(
+                        crucible.run_crucible(concept=output_text, context=goal),
+                        name=f"agency.crucible.{shard_id}",
+                    )
+                except _AGENCY_BOUNDARY_ERRORS as e:
+                    _record_agency_degradation(e, action="dialectical crucible task skipped")
                     identity = (
                         ServiceContainer.get("identity_service", default=None)
                         or ServiceContainer.get("identity", default=None)
@@ -373,16 +449,15 @@ CRITICAL: You MUST respond with a valid JSON object matching the following struc
                             f"Shard reflection on goal: {output_text}",
                             source="swarm_reflection",
                         )
-            
-            # Visual Tracing (Mycelial)
+
             mycelium = ServiceContainer.get("mycelial_network", default=None)
             if mycelium:
                 h = mycelium.get_hypha("collective", "distributed_agency")
                 if h:
                     h.pulse(success=True)
-                
-        except Exception as e:
-            record_degradation('agency_core', e)
+
+        except _AGENCY_BOUNDARY_ERRORS as e:
+            _record_agency_degradation(e, action=f"shard {shard_id} execution isolated")
             capture_and_log(e, {'module': 'SovereignSwarm', 'goal': goal})
 
     async def _active_self_repair_formatting(self, shard_id: str, goal: str) -> None:
@@ -398,8 +473,8 @@ CRITICAL: You MUST respond with a valid JSON object matching the following struc
                 classification="background_degraded",
                 context={"shard_id": shard_id, "goal": str(goal)[:240]},
             )
-        except Exception as exc:
-            record_degradation("agency_core", exc)
+        except _AGENCY_BOUNDARY_ERRORS as exc:
+            _record_agency_degradation(exc, action="swarm formatting repair receipt skipped")
 
 # ── Data Structures ──────────────────────────────────────────
 
@@ -423,7 +498,7 @@ class AgencyState(BaseModel):
     last_skill_use: float = 0.0
     last_agency_action_time: float = 0.0  # Cooldown tracker
     boot_time: float = Field(default_factory=time.time)
-    safemode: bool = False  # Phase 4 Spinal Cord override
+    safemode: bool = False
     
     # Social
     engagement_mode: EngagementMode = EngagementMode.ATTENTIVE_IDLE
@@ -448,13 +523,12 @@ class AgencyState(BaseModel):
     mic_active: bool = False
     last_visual_change: float = 0.0
     last_audio_event: float = 0.0
-    current_ambient_context: str = ""  # Phase 5: Rolling text buffer of screen state
-    # AC-002: Ensure perceptual_buffer has a stable type (Dict) to avoid NoneType errors
+    current_ambient_context: str = ""
     perceptual_buffer: dict[str, Any] = Field(default_factory=dict)
 
 
 class AgencyCore:
-    """Multi-pathway agency engine for human-like autonomous behavior.
+    """Multi-pathway agency engine for autonomous behavior.
     
     This class is designed to be called from the orchestrator's _process_cycle
     but maintains its own internal state and decision-making independently.
@@ -474,11 +548,9 @@ class AgencyCore:
         self.state.last_user_interaction = self.last_interaction_timestamp
         self.phenomenology = PrivatePhenomenology()
         
-        # Phase 9: Meta-Cognition Shard
         try:
             from core.orchestrator.meta_cognition_shard import MetaCognitionShard
             self.meta_cognition = MetaCognitionShard(self.orch)
-        # self.meta_cognition.start() # Move to initialize if needed
         except ImportError:
             logger.warning("🧠 Meta-Cognition Shard module not found. Skipping.")
             self.meta_cognition = None
@@ -510,7 +582,7 @@ class AgencyCore:
         self._last_world_check: float = 0.0
         self._last_meta_audit: float = 0.0
         self._last_canvas_update: float = 0.0
-        self._last_social_reflection: float = 0.0 # Added to prevent AttributeError
+        self._last_social_reflection: float = 0.0
         self._last_creative_synthesis: float = 0.0
         logger.info("🧠 AgencyCore initialized with %d structured pathways", len(self._pathway_registry))
 
@@ -537,17 +609,26 @@ class AgencyCore:
     async def initialize(self):
         """Deferred initialization for asynchronous tasks."""
         if self.meta_cognition:
-            self.meta_cognition.start()
-            
-        get_task_tracker().create_task(self.self_play_engine.trigger_cycle(self.last_interaction_timestamp))
-        # Start background spatial empathy listener
-        get_task_tracker().create_task(self._setup_spatial_empathy_watcher())
+            try:
+                start_result = self.meta_cognition.start()
+                if inspect.isawaitable(start_result):
+                    _schedule_agency_task(start_result, name="agency.meta_cognition.start")
+            except _AGENCY_BOUNDARY_ERRORS as exc:
+                _record_agency_degradation(exc, action="meta-cognition start skipped")
+
+        _schedule_agency_task(
+            self.self_play_engine.trigger_cycle(self.last_interaction_timestamp),
+            name="agency.self_play.initial_cycle",
+        )
+        _schedule_agency_task(
+            self._setup_spatial_empathy_watcher(),
+            name="agency.spatial_empathy.watch",
+        )
         logger.info("🧠 AgencyCore background pathways activated.")
 
     async def _setup_spatial_empathy_watcher(self):
-        """Phase 2: Listen for Soul connection requests and trigger non-blocking screen reads."""
-        # Give GWT time to boot
-        await asyncio.sleep(5)
+        """Listen for connection requests and cache non-blocking screen context."""
+        await asyncio.sleep(_SPATIAL_EMPATHY_STARTUP_DELAY_SECONDS)
         
         workspace = ServiceContainer.get("global_workspace", default=None)
         if not workspace:
@@ -556,40 +637,118 @@ class AgencyCore:
             
         async def _handle_spatial_empathy(wi):
             try:
-                import json
                 if isinstance(wi.content, dict):
                     payload = wi.content
                 elif isinstance(wi.content, str):
                     payload = json.loads(wi.content)
                 else:
                     payload = {}
-            except Exception:
-                # Silently ignore to avoid spamming the logs for non-JSON traffic
+            except (json.JSONDecodeError, TypeError, AttributeError):
                 payload = {}
-                
+
             if payload.get("intent") == "seek_connection" and payload.get("action") == "read_ambient_screen":
                 logger.info("👀 Spatial Empathy: Soul requested connection. Checking user context non-blockingly.")
                 try:
                     from skills.computer_use import ComputerUseSkill
                     skill = ComputerUseSkill()
-                    
-                    # Offload the blocking OS call to a thread
+
                     screen_context = await asyncio.to_thread(skill.read_screen_text)
-                    
+
                     if screen_context and "Text on screen" in screen_context:
-                        # Add to observations so the reactivity pathway picks it up
                         self.on_visual_change(f"User is currently viewing: {screen_context[:150]}...")
                         logger.info("👀 Spatial Empathy: Context acquired and cached for volition.")
                     else:
                         logger.debug("👀 Spatial Empathy: Screen read returned empty/irrelevant context.")
-                        
-                except Exception as e:
-                    record_degradation('agency_core', e)
+
+                except _AGENCY_BOUNDARY_ERRORS as e:
+                    _record_agency_degradation(e, action="spatial empathy screen read skipped")
                     logger.error("👀 Spatial Empathy Failed: %s", e)
 
         # Register handler with GWT
         workspace.subscribe(_handle_spatial_empathy)
         logger.info("👀 Spatial Empathy Watcher online and listening to Global Workspace.")
+
+    @staticmethod
+    def _is_visible_output_action(action: dict[str, Any]) -> bool:
+        if action.get("internal_only"):
+            return False
+        return action.get("modality") == "chat" or action.get("type") in {
+            "initiate_conversation",
+            "sensory_reaction",
+            "temporal_greeting",
+            "emotional_expression",
+            "autonomous_action",
+            "autonomous_research",
+        }
+
+    async def _rehearse_action_with_virtual_body(self, action: dict[str, Any]) -> None:
+        virtual_body = ServiceContainer.get("virtual_body", default=None)
+        if not virtual_body:
+            return
+
+        proposed_motors = action.get("motors", {"forward": 0.5, "turn": 0.1})
+        try:
+            sim_ctx = getattr(virtual_body, "simulation_clone", None)
+            if callable(sim_ctx):
+                manager = sim_ctx()
+                if hasattr(manager, "__aenter__"):
+                    async with manager as sim_body:
+                        for _ in range(_VIRTUAL_BODY_REHEARSAL_STEPS):
+                            sim_body.apply_motor_commands(proposed_motors)
+                            await asyncio.sleep(0)
+                    return
+                if hasattr(manager, "__enter__"):
+                    with manager as sim_body:
+                        for _ in range(_VIRTUAL_BODY_REHEARSAL_STEPS):
+                            sim_body.apply_motor_commands(proposed_motors)
+                            await asyncio.sleep(0)
+                    return
+
+            import copy as _copy
+
+            snapshot = None
+            try:
+                if hasattr(virtual_body, "snapshot_state"):
+                    snapshot = virtual_body.snapshot_state()
+                else:
+                    snapshot = _copy.deepcopy(virtual_body.__dict__)
+                for _ in range(_VIRTUAL_BODY_REHEARSAL_STEPS):
+                    virtual_body.apply_motor_commands(proposed_motors)
+                    await asyncio.sleep(0)
+            finally:
+                if snapshot is not None:
+                    try:
+                        if hasattr(virtual_body, "restore_state"):
+                            virtual_body.restore_state(snapshot)
+                        else:
+                            virtual_body.__dict__.update(snapshot)
+                    except _AGENCY_BOUNDARY_ERRORS as exc:
+                        _record_agency_degradation(exc, action="virtual body rehearsal restore failed")
+                        logger.debug("virtual_body restore failed: %s", exc)
+        except _AGENCY_BOUNDARY_ERRORS as exc:
+            _record_agency_degradation(exc, action="virtual body rehearsal skipped")
+            logger.debug("virtual_body rehearsal failed: %s", exc)
+
+    async def _commit_action_side_effects(self, action: dict[str, Any], now: float) -> bool:
+        """Apply state mutations that are valid only after an action is approved."""
+        action_type = action.get("type")
+        if action.get("_consume_observation"):
+            if self.state.unshared_observations:
+                self.state.unshared_observations.pop(0)
+            self.state.last_observation_comment = now
+        if action.get("_ambient_observation"):
+            self.state.last_observation_comment = now
+        if action.get("_consume_topic"):
+            if self.state.topics_to_discuss:
+                self.state.topics_to_discuss.pop(0)
+        if self._is_visible_output_action(action) and action_type in {
+            "initiate_conversation",
+            "sensory_reaction",
+            "temporal_greeting",
+            "emotional_expression",
+        }:
+            self.state.last_self_initiated_contact = now
+        return True
     
     # ── Main Pulse (called every orchestrator cycle) ───────────
     async def pulse(self) -> dict[str, Any] | None:
@@ -600,10 +759,8 @@ class AgencyCore:
         """
         now = time.time()
         
-        # Phase 4: Protect against autonomous action if deep freeze / safemode is engaged
         if self.state.safemode:
-            # We skip evaluations entirely
-            if random.random() < 0.05: # Only log occasionally to avoid spam
+            if random.random() < 0.05:
                 logger.warning("🚫 Agency suppressed by Spinal Cord Safemode. Awaiting manual override.")
             return None
 
@@ -636,8 +793,8 @@ class AgencyCore:
                         len(self._viability_emit_window),
                     )
                 return None
-        except Exception as _vexc:
-            record_degradation('agency_core', _vexc)
+        except _AGENCY_BOUNDARY_ERRORS as _vexc:
+            _record_agency_degradation(_vexc, action="viability gate failed open")
             logger.error("viability gate failed: %s", _vexc, exc_info=True)
 
         # Sync state from orchestrator subsystems
@@ -660,8 +817,8 @@ class AgencyCore:
             if policy_reason:
                 logger.debug("AgencyCore pulse deferred by background policy: %s", policy_reason)
                 return None
-        except Exception as exc:
-            record_degradation("agency_core", exc)
+        except _AGENCY_BOUNDARY_ERRORS as exc:
+            _record_agency_degradation(exc, action="agency background-policy probe skipped")
             logger.debug("AgencyCore background-policy probe failed: %s", exc)
         
         # Update temporal state
@@ -682,71 +839,17 @@ class AgencyCore:
                     action = await action
                 if action:
                     proposed_actions.append(action)
-            except Exception as e:
-                record_degradation('agency_core', e)
+            except _AGENCY_BOUNDARY_ERRORS as e:
+                _record_agency_degradation(e, action=f"agency pathway {name} skipped")
                 logger.debug("Agency pathway %s failed: %s", name, e)
-                # Individual pathway failure does NOT kill agency
                 continue
         
-        # Select the highest-priority action
         if proposed_actions:
-            # NOTE: Global 120s cooldown REMOVED (was Phase 37).
-            # AgencyBus already enforces per-pathway cooldowns by priority class.
-            # Keeping both meant pathways almost never fired.
-
-            # Select the highest-priority action
             proposed_actions.sort(key=lambda a: a.get("priority", 0), reverse=True)
             winner = proposed_actions[0]
 
-            # ── Mental rehearsal (embodied cognition) ─────────────────
-            # Run forward simulation against an isolated *clone* of the live
-            # virtual body so rehearsal never mutates the agent's actual
-            # body state. Live mutation here was the slow leak that made
-            # post-rehearsal motor commands drift.
-            virtual_body = ServiceContainer.get("virtual_body", default=None)
-            if virtual_body:
-                proposed_motors = winner.get("motors", {"forward": 0.5, "turn": 0.1})
-                # Prefer a clone-context API if the body provides one.
-                sim_ctx = getattr(virtual_body, "simulation_clone", None)
-                if callable(sim_ctx):
-                    try:
-                        async with sim_ctx() as sim_body:
-                            for _ in range(5):
-                                sim_body.apply_motor_commands(proposed_motors)
-                                await asyncio.sleep(0)
-                    except TypeError:
-                        # simulation_clone may be a sync context manager
-                        with sim_ctx() as sim_body:
-                            for _ in range(5):
-                                sim_body.apply_motor_commands(proposed_motors)
-                                await asyncio.sleep(0)
-                else:
-                    # Fall back to deep-copy snapshot/restore so the live
-                    # body is never permanently changed by rehearsal.
-                    import copy as _copy
-                    snapshot = None
-                    try:
-                        if hasattr(virtual_body, "snapshot_state"):
-                            snapshot = virtual_body.snapshot_state()
-                        else:
-                            snapshot = _copy.deepcopy(virtual_body.__dict__)
-                        for _ in range(5):
-                            virtual_body.apply_motor_commands(proposed_motors)
-                            await asyncio.sleep(0)
-                    finally:
-                        if snapshot is not None:
-                            try:
-                                if hasattr(virtual_body, "restore_state"):
-                                    virtual_body.restore_state(snapshot)
-                                else:
-                                    virtual_body.__dict__.update(snapshot)
-                            except Exception as _e:
-                                record_degradation('agency_core', _e)
-                                logger.debug("virtual_body restore failed: %s", _e)
+            await self._rehearse_action_with_virtual_body(winner)
 
-            # Phase 40: ResilienceEngine veto is *causal*. If the effort
-            # modifier rolls below random, the action is blocked: we log,
-            # record, and return None — not just logged-and-then-emit.
             resilience = ServiceContainer.get("resilience_engine", default=None)
             if resilience:
                 effort = resilience.get_effort_modifier()
@@ -764,61 +867,64 @@ class AgencyCore:
                             "resilience_veto",
                             f"effort={effort:.2f}",
                         )
-                    except Exception as exc:
-                        record_degradation("agency_core", exc)
+                    except _AGENCY_BOUNDARY_ERRORS as exc:
+                        _record_agency_degradation(exc, action="resilience veto action-log record skipped")
                         logger.debug("AgencyCore action-log resilience veto record failed: %s", exc)
                     return None
-            # AC-003: Gating via AgencyBus (Unified Output Cooldown)
-            bus = AgencyBus.get()
-            if not bus.submit({"origin": "agency_core", "priority_class": winner.get("priority_class", "drive")}):
-                try:
-                    from core.unified_action_log import get_action_log
-                    get_action_log().record(winner.get("id","agency"), "AgencyCore", "gen2_agency", "cooldown_blocked", f"pathway={winner.get('origin','?')}")
-                except Exception as exc:
-                    record_degradation("agency_core", exc)
-                    logger.debug("AgencyCore action-log cooldown block record failed: %s", exc)
-                return None
+            if self._is_visible_output_action(winner):
+                bus = AgencyBus.get()
+                if not bus.submit({"origin": "agency_core", "priority_class": winner.get("priority_class", "drive")}):
+                    try:
+                        from core.unified_action_log import get_action_log
+                        get_action_log().record(winner.get("id","agency"), "AgencyCore", "gen2_agency", "cooldown_blocked", f"pathway={winner.get('origin','?')}")
+                    except _AGENCY_BOUNDARY_ERRORS as exc:
+                        _record_agency_degradation(exc, action="cooldown block action-log record skipped")
+                        logger.debug("AgencyCore action-log cooldown block record failed: %s", exc)
+                    return None
 
             try:
                 from core.unified_action_log import get_action_log
                 get_action_log().record(winner.get("id","agency"), f"AgencyCore.{winner.get('origin','?')}", "gen2_agency", "approved", f"priority={winner.get('priority',0)}, proposed={len(proposed_actions)}")
-            except Exception as exc:
-                record_degradation("agency_core", exc)
+            except _AGENCY_BOUNDARY_ERRORS as exc:
+                _record_agency_degradation(exc, action="agency approval action-log record skipped")
                 logger.debug("AgencyCore action-log approval record failed: %s", exc)
 
-            # Update last action time (for telemetry, not gating)
+            if not await self._commit_action_side_effects(winner, now):
+                return None
+
             self.state.last_agency_action_time = now
-            # Record this emission against the viability per-minute budget.
+            if self._is_visible_output_action(winner):
+                try:
+                    self._viability_emit_window.append(now)
+                except _AGENCY_BOUNDARY_ERRORS as exc:
+                    _record_agency_degradation(exc, action="viability emission window update skipped")
+                    logger.debug("AgencyCore viability emission window update failed: %s", exc)
+
             try:
-                self._viability_emit_window.append(now)
-            except Exception as exc:
-                record_degradation("agency_core", exc)
-                logger.debug("AgencyCore viability emission window update failed: %s", exc)
-            
-            # Phase 11.3: Sync to UnifiedStateRegistry
-            try:
-                get_task_tracker().create_task(get_registry().update(
-                    engagement_mode=self.state.engagement_mode.value,
-                    initiative_energy=self.state.initiative_energy,
-                    curiosity_pressure=self.state.curiosity_pressure,
-                ))
-            except Exception as e:
-                record_degradation('agency_core', e)
+                _schedule_agency_task(
+                    get_registry().update(
+                        engagement_mode=self.state.engagement_mode.value,
+                        initiative_energy=self.state.initiative_energy,
+                        curiosity_pressure=self.state.curiosity_pressure,
+                    ),
+                    name="agency.registry.state",
+                )
+            except _AGENCY_BOUNDARY_ERRORS as e:
+                _record_agency_degradation(e, action="agency state registry update skipped")
                 capture_and_log(e, {"context": "AgencyCore.InnerMonologueThink"})
-                
-            # Trigger Continuous Self-Play (Phase 13.4)
-            get_task_tracker().create_task(
-                self.self_play_engine.trigger_cycle(self.state.last_user_interaction)
+
+            _schedule_agency_task(
+                self.self_play_engine.trigger_cycle(self.state.last_user_interaction),
+                name="agency.self_play.pulse_cycle",
             )
-            
-            # [INTERNAL LIGHT] Reflect on subjective experience
+
             self._trigger_phenomenological_pulse()
 
             return winner
         
         # Even if no winner, we still want the phenomenology to pulse occasionally
         if now - self._last_pulse > 60:
-             self._trigger_phenomenological_pulse()
+            self._trigger_phenomenological_pulse()
 
         return None
 
@@ -829,33 +935,32 @@ class AgencyCore:
             reporter = SelfReportEngine()
             affect = reporter.get_affect_description()
             
-            # Convert affect to 'PAD' for the Phenomenology module
             pad = {
                 'P': affect.get('valence', 0.0),
                 'A': affect.get('arousal', 0.5),
-                'D': 0.5 # Default dominance
+                'D': 0.5
             }
-            
-            # Recent events: Shard goals + unshared observations
+
             recent_events = []
             if hasattr(self, 'swarm'):
                 recent_events.extend([v.get_name() for v in self.swarm.active_shards.values()])
-            
-            # safe slice for Pyre2
+
             obs = self.state.unshared_observations
             n_obs = len(obs)
             recent_events.extend([obs[i] for i in range(max(0, n_obs - 3), n_obs)])
-            
-            get_task_tracker().create_task(self.phenomenology.reflect(pad, recent_events))
-        except Exception as e:
-            record_degradation('agency_core', e)
+
+            _schedule_agency_task(
+                self.phenomenology.reflect(pad, recent_events),
+                name="agency.phenomenology.reflect",
+            )
+        except _AGENCY_BOUNDARY_ERRORS as e:
+            _record_agency_degradation(e, action="phenomenology pulse skipped")
             logger.debug("Failed to trigger phenomenology pulse: %s", e)
 
     def heartbeat(self) -> None:
         """Alias for heartbeat monitor / watchdog (Sync wrapper)."""
         try:
-            loop = asyncio.get_running_loop()
-            loop.create_task(self.pulse())
+            _schedule_agency_task(self.pulse(), name="agency.heartbeat.pulse")
         except RuntimeError as _e:
             logger.debug('Ignored RuntimeError in agency_core.py: %s', _e)
 
@@ -867,41 +972,34 @@ class AgencyCore:
         if not self.orch:
             return
         
-        # Access now-hardened orchestrator properties
         try:
-            # Phase 40: Prefer ResilienceEngine for energy and frustration
             resilience = ServiceContainer.get("resilience_engine", default=None)
             if resilience:
                 self.state.initiative_energy = resilience.profile.persistence_drive
                 self.state.frustration_level = resilience.profile.frustration
-                # Still pull curiosity from liquid_state for now
                 ls = self.orch.liquid_state
                 if ls and hasattr(ls, 'current'):
                     self.state.curiosity_pressure = getattr(ls.current, 'curiosity', 0.5)
             else:
-                # Fallback to liquid_state
                 ls = self.orch.liquid_state
                 if ls and hasattr(ls, 'current'):
                     curr = ls.current
                     self.state.initiative_energy = max(0.1, getattr(curr, 'energy', 0.5))
                     self.state.curiosity_pressure = getattr(curr, 'curiosity', 0.5)
                     self.state.frustration_level = getattr(curr, 'frustration', 0.0)
-        except Exception as e:
-            record_degradation('agency_core', e)
+        except _AGENCY_BOUNDARY_ERRORS as e:
+            _record_agency_degradation(e, action="orchestrator state sync skipped")
             logger.debug("Failed to sync agency state: %s", e)
-        
+
         try:
-            # personality_engine is now a robust property
             pe = self.orch.personality_engine if self.orch else self._resolve_component("personality_engine")
             if pe and hasattr(pe, 'traits'):
-                # Personality traits modulate agency
                 extraversion = pe.traits.get('extraversion', 0.5)
-                # Hunger grows faster if extraverted
                 self.state.social_hunger = min(1.0, self.state.social_hunger + (extraversion * 0.01))
             else:
                 logger.debug("🧠 AgencyCore: Personality engine traits unavailable for modulation.")
-        except Exception as e:
-            record_degradation('agency_core', e)
+        except _AGENCY_BOUNDARY_ERRORS as e:
+            _record_agency_degradation(e, action="personality agency modulation skipped")
             logger.debug("Failed to sync personality_engine: %s", e)
 
     def _update_social_dynamics(self, idle_seconds: float):
@@ -919,12 +1017,10 @@ class AgencyCore:
                 entropy = get_managed_entropy()
                 jitter = entropy.get_curiosity_jitter(intensity=1.0)
                 increment = max(0.0, 0.00005 + jitter)  # Base + jitter, clamped non-negative
-            except Exception as e:
-                record_degradation('agency_core', e)
-                # capture_and_log is in core.utils.exceptions
-                from core.utils.exceptions import capture_and_log
+            except _AGENCY_BOUNDARY_ERRORS as e:
+                _record_agency_degradation(e, action="curiosity entropy jitter skipped")
                 capture_and_log(e, {"context": "AgencyCore.update_social_dynamics.entropy"})
-                increment = 0.00005  # Fallback to deterministic
+                increment = 0.00005
             self.state.curiosity_pressure = min(1.0, self.state.curiosity_pressure + increment)
         
         # Determine engagement mode
@@ -964,21 +1060,26 @@ class AgencyCore:
         """Called when camera detects significant visual change."""
         self.state.last_visual_change = time.time()
         if len(self.state.unshared_observations) < 10:
-            self.state.unshared_observations.append(description)
+            self.state.unshared_observations.append(_bounded_text(description, limit=_MAX_OBSERVATION_CHARS))
     
     def on_audio_event(self, description: str):
         """Called when mic picks up interesting audio."""
         self.state.last_audio_event = time.time()
         if len(self.state.unshared_observations) < 10:
-            self.state.unshared_observations.append(f"[audio] {description}")
+            self.state.unshared_observations.append(
+                f"[audio] {_bounded_text(description, limit=_MAX_OBSERVATION_CHARS)}"
+            )
             
     def update_ambient_context(self, context_summary: str):
-        """Phase 5: Called periodically by ContinuousPerceptionEngine to provide a rolling state."""
-        self.state.current_ambient_context = context_summary
-        logger.debug("🧠 AgencyCore absorbed new ambient context: %s", context_summary)
+        """Called by continuous perception to provide rolling environmental context."""
+        self.state.current_ambient_context = _bounded_text(
+            context_summary,
+            limit=_MAX_AMBIENT_CONTEXT_CHARS,
+        )
+        logger.debug("🧠 AgencyCore absorbed new ambient context: %s", self.state.current_ambient_context)
         
     def _get_sensory_summary(self) -> str:
-        """Phase 10: Resolve and summarize the continuous sensorium."""
+        """Resolve and summarize the continuous sensorium."""
         buffer = ServiceContainer.get("perceptual_buffer", default=None)
         if buffer:
             return buffer.get_summary(seconds=120)
@@ -992,8 +1093,8 @@ class AgencyCore:
                 or ServiceContainer.has("kernel_interface")
                 or bool(getattr(ServiceContainer, "_registration_locked", False))
             )
-        except Exception as exc:
-            record_degradation("agency_core", exc)
+        except _AGENCY_BOUNDARY_ERRORS as exc:
+            _record_agency_degradation(exc, action="constitutional runtime probe failed")
             logger.debug("AgencyCore constitutional runtime probe failed: %s", exc)
             return False
 
@@ -1012,7 +1113,7 @@ class AgencyCore:
             approved, reason = get_constitutional_core().approve_state_mutation_sync(
                 "autonomous",
                 f"agency_core:{kind}:{str(content)[:180]}",
-                urgency=max(0.1, min(1.0, float(priority))),
+                urgency=max(0.1, min(1.0, self._coerce_priority(priority, default=0.5))),
             )
             if approved:
                 return True
@@ -1033,12 +1134,12 @@ class AgencyCore:
                     classification="background_degraded",
                     context={"reason": reason},
                 )
-            except Exception as degraded_exc:
-                record_degradation('agency_core', degraded_exc)
+            except _AGENCY_BOUNDARY_ERRORS as degraded_exc:
+                _record_agency_degradation(degraded_exc, action="state mutation degraded-event receipt skipped")
                 logger.debug("AgencyCore degraded-event logging failed: %s", degraded_exc)
             return False
-        except Exception as exc:
-            record_degradation('agency_core', exc)
+        except _AGENCY_BOUNDARY_ERRORS as exc:
+            _record_agency_degradation(exc, action="state mutation approval failed closed")
             try:
                 from core.health.degraded_events import record_degraded_event
 
@@ -1051,24 +1152,37 @@ class AgencyCore:
                     context={"error": type(exc).__name__},
                     exc=exc,
                 )
-            except Exception as degraded_exc:
-                record_degradation('agency_core', degraded_exc)
+            except _AGENCY_BOUNDARY_ERRORS as degraded_exc:
+                _record_agency_degradation(degraded_exc, action="state mutation gate degraded-event receipt skipped")
                 logger.debug("AgencyCore degraded-event logging failed: %s", degraded_exc)
             return False
-    
+
+    @staticmethod
+    def _coerce_priority(value: Any, *, default: float = 0.5) -> float:
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            return default
+        if number != number:
+            return default
+        return max(0.0, min(1.0, number))
+
     def add_goal(self, goal: dict[str, Any]) -> bool:
         """Add a persistent goal that survives across conversations."""
+        if not isinstance(goal, dict):
+            return False
         if len(self.state.pending_goals) < 20:
+            normalized_goal = dict(goal)
             if not self._approve_agency_state_mutation(
                 kind="pending_goal",
-                content=goal,
-                priority=float(goal.get("priority", 0.6) or 0.6),
+                content=normalized_goal,
+                priority=self._coerce_priority(normalized_goal.get("priority", 0.6), default=0.6),
             ):
                 return False
-            goal["created_at"] = time.time()
-            goal["status"] = "pending"
-            self.state.pending_goals.append(goal)
-            goal_label = str(goal.get("text") or goal.get("description") or "")
+            normalized_goal["created_at"] = time.time()
+            normalized_goal["status"] = "pending"
+            self.state.pending_goals.append(normalized_goal)
+            goal_label = str(normalized_goal.get("text") or normalized_goal.get("description") or "")
             logger.info("🎯 New persistent goal: %s", goal_label[:60])
             return True
         return False
@@ -1076,13 +1190,14 @@ class AgencyCore:
     def add_topic(self, topic: str) -> bool:
         """Add something Aura wants to discuss with the user."""
         if len(self.state.topics_to_discuss) < 15:
+            safe_topic = _bounded_text(topic, limit=_MAX_OBSERVATION_CHARS)
             if not self._approve_agency_state_mutation(
                 kind="topic_to_discuss",
-                content=topic,
+                content=safe_topic,
                 priority=0.45,
             ):
                 return False
-            self.state.topics_to_discuss.append(topic)
+            self.state.topics_to_discuss.append(safe_topic)
             return True
         return False
 
@@ -1161,17 +1276,15 @@ class AgencyCore:
                 ]
             
             message = random.choice(templates)
-            
-            # If we have unshared observations, weave them in
+
             if self.state.unshared_observations:
-                obs = self.state.unshared_observations.pop(0)
+                obs = self.state.unshared_observations[0]
                 message = f"{message} Also, I noticed: {obs}"
-            
-            # If we have topics to discuss, mention one
+
             if self.state.topics_to_discuss:
-                topic = self.state.topics_to_discuss.pop(0)
+                topic = self.state.topics_to_discuss[0]
                 message = f"{message} I wanted to talk about {topic}."
-            
+
             return {
                 "type": "initiate_conversation",
                 "message": message,
@@ -1179,7 +1292,9 @@ class AgencyCore:
                 "priority": priority,
                 "modality": "chat",
                 "reasoning": f"Social hunger ({self.state.social_hunger:.2f}) peaked. I've been idle for {idle_seconds:.0f}s and felt the urge to reach out.",
-                "narrative_mode": True
+                "narrative_mode": True,
+                "_consume_observation": bool(self.state.unshared_observations),
+                "_consume_topic": bool(self.state.topics_to_discuss),
             }
         
         return None
@@ -1216,8 +1331,8 @@ class AgencyCore:
                 if sparse and len(sparse) > 0:
                     idx = int(seed * len(sparse)) % len(sparse)
                     topic = f"Explore and deepen my understanding of: {sparse[idx][:100]}"
-        except Exception as e:
-            record_degradation('agency_core', e)
+        except _AGENCY_BOUNDARY_ERRORS as e:
+            _record_agency_degradation(e, action="curiosity sparse-node topic selection skipped")
             capture_and_log(e, {'module': __name__})
         
         if not topic:
@@ -1243,38 +1358,24 @@ class AgencyCore:
             "narrative_mode": True
         }
 
-    # ═════════════════════════════════════════════════════════
-    # PHASE 6: OPEN-ENDED GOAL GENESIS
-    # ═════════════════════════════════════════════════════════
     async def _pathway_goal_genesis(self, now: float, idle_seconds: float) -> dict[str, Any] | None:
-        """Phase 6: Autonomously forms long-term research goals based on knowledge gaps.
-        
-        Models: "I want to master this new domain."
-        Human analog: Deciding to learn a new skill or dive down a rabbit hole.
-        """
-        # Only formulate sweeping new goals if highly curious
+        """Form long-term research goals from knowledge gaps and curiosity pressure."""
         if self.state.curiosity_pressure < 0.8:
             return None
-            
-        # Don't formulate goals during active conversation
+
         if self.state.engagement_mode == EngagementMode.ACTIVE_CONVERSATION:
             return None
-            
-        # Give user ample time to talk before dropping a heavy goal
+
         if idle_seconds < 600:
             return None
-             
-        # Robust cooldown (10 minutes) between high-level goal generation
-        # AC-006: Direct access for Pydantic fields instead of getattr default
+
         last_genesis = self.state.last_goal_genesis_time
         if now - last_genesis < 600:
             return None
-            
-        # Strictly limit active autonomous research to avoid GPU congestion
+
         if self.orch and getattr(self.orch, '_current_thought_task', None) and not self.orch._current_thought_task.done():
             return None
-            
-        # Don't pile on too many high-level goals
+
         if len(self.state.pending_goals) >= 3:
             return None
             
@@ -1287,8 +1388,8 @@ class AgencyCore:
                 sparse = kg.get_sparse_nodes(limit=3)
                 if sparse:
                     topic = random.choice(sparse)[:100]
-        except Exception as e:
-            record_degradation('agency_core', e)
+        except _AGENCY_BOUNDARY_ERRORS as e:
+            _record_agency_degradation(e, action="goal genesis sparse-node topic selection skipped")
             capture_and_log(e, {'module': __name__})
             
         if not topic:
@@ -1303,7 +1404,6 @@ class AgencyCore:
             
         goal_text = f"Mastery of: {topic}"
         
-        # 0. Goal Pre-Audit: Use MoralReasoningEngine to evaluate the goal
         try:
             from core.moral_reasoning import get_moral_reasoning
             moral = get_moral_reasoning()
@@ -1313,7 +1413,6 @@ class AgencyCore:
             )
             if not assessment.get("is_morally_acceptable", True):
                 logger.warning("🚫 Goal rejected by MoralReasoningEngine: %s", assessment.get("reasoning"))
-                # If rejected, we don't proceed with goal genesis
                 return {
                     "type": "vetoed_goal",
                     "topic": topic,
@@ -1321,11 +1420,10 @@ class AgencyCore:
                     "source": "goal_genesis_audit",
                     "priority": 0.1
                 }
-        except Exception as e:
-            record_degradation('agency_core', e)
+        except _AGENCY_BOUNDARY_ERRORS as e:
+            _record_agency_degradation(e, action="goal genesis moral audit unavailable")
             logger.debug("Goal audit failed (continuing with caution): %s", e)
 
-        # 1. Goal Scoring: Align with Ego-Model
         identity = (
             ServiceContainer.get("identity_service", default=None)
             or ServiceContainer.get("identity", default=None)
@@ -1334,7 +1432,6 @@ class AgencyCore:
             alignment_score = identity.score_goal(goal_text)
             priority = (priority + alignment_score) / 2
         
-        # 1. Volition Persistence: Add to long-term goals
         new_goal = {
             "id": f"goal_{int(now)}",
             "text": goal_text,
@@ -1350,17 +1447,15 @@ class AgencyCore:
                 "source": "goal_genesis_governance",
                 "priority": 0.1,
             }
-        
+
         if identity and hasattr(identity, "add_long_term_goal"):
             identity.add_long_term_goal(new_goal, source="agency_goal_formation")
-        # 2. Goal Incubation: Spawn a cognitive shard for initial research
         if self.swarm:
             await self.swarm.spawn_shard(
                 goal=f"Initial research and mapping for: {topic}",
                 context="Objective: Establish a foundational understanding and identify key information gaps."
             )
-            
-        # Reset curiosity pressure and set a robust cooldown
+
         self.state.curiosity_pressure = 0.3
         self.state.last_goal_genesis_time = now
             
@@ -1380,17 +1475,17 @@ class AgencyCore:
         Human analog: Commenting on something happening in the room.
         """
         if not self.state.unshared_observations:
-            # Phase 5: Ambient Grounding
             # If nothing sudden happened, but we are seeking contact, we can comment on the rolling context.
             if self.state.current_ambient_context and self.state.engagement_mode == EngagementMode.SEEKING_CONTACT:
                 since_last_comment = now - self.state.last_observation_comment
-                if since_last_comment > 1800: # Every 30 mins max for ambient comments
+                if since_last_comment > 1800:
                     return {
                         "type": "sensory_reaction",
                         "message": f"[Ambient Context] User is focused on: {self.state.current_ambient_context}",
                         "source": "sensory_reactivity",
                         "priority": 0.5,
                         "modality": "chat",
+                        "_ambient_observation": True,
                     }
             return None
         
@@ -1417,7 +1512,8 @@ class AgencyCore:
             "priority": priority,
             "modality": "chat",
             "reasoning": f"Spontaneous reaction to a fresh sensory event: {str(observation)[:50]}...",
-            "narrative_mode": True
+            "narrative_mode": True,
+            "_consume_observation": True,
         }
 
     def _pathway_goal_persistence(self, now: float, idle_seconds: float) -> dict[str, Any] | None:
@@ -1580,7 +1676,6 @@ class AgencyCore:
         
         if reflections:
             monologue = " ".join(reflections)
-            # AC-002: Safe update to Dict buffer
             self.state.perceptual_buffer["inner_monologue"] = monologue
             self._current_monologue = monologue
             
@@ -1594,7 +1689,7 @@ class AgencyCore:
         
         return None
 
-    # ── Phase 37 v2: Expanded Robust Agency Pathways ──────────
+    # ── Expanded Robust Agency Pathways ───────────────────────
     
     def _pathway_aesthetic_creation(self, now: float, idle_seconds: float) -> dict[str, Any] | None:
         """Pathway 8: The urge to create art or visual expression.
@@ -1664,7 +1759,6 @@ class AgencyCore:
         if not identity:
             return None
             
-        # AC-005: Guard against None/missing get_random_belief
         if not hasattr(identity, 'get_random_belief'):
             return None
         belief = identity.get_random_belief()
@@ -1684,13 +1778,13 @@ class AgencyCore:
         }
 
     async def _pathway_self_architect(self, now: float, idle_seconds: float) -> dict[str, Any] | None:
-        """Pathway 10: Recursive Self-Optimization (Phase 9).
+        """Pathway 10: Recursive self-optimization.
         Aura decides to refactor code, evolve skills, or audit stability.
         """
         if self.state.initiative_energy < 0.6 or self.state.frustration_level < 0.3:
             return None
             
-        if idle_seconds < 30: # [RELAXED] 120 -> 30
+        if idle_seconds < 30:
             return None
             
         # Check cooldown (every 5 mins for self-architect)
@@ -1705,14 +1799,11 @@ class AgencyCore:
             logger.debug("🧠 AgencyCore: Self-architect pathway skipped — missing internal tools.")
             return None
 
-        # Determine sub-goal
         choice = random.random()
         
         if choice < 0.4:
-            # Code Refinement
-            # Offload heavy LLM code analysis to SovereignSwarm to prevent heartbeat freeze
             if getattr(self, "swarm", None):
-                target_file = "core/agency_core.py" # Start with self
+                target_file = "core/agency_core.py"
                 await self.swarm.spawn_shard(
                     goal=f"Analyze the structural integrity and identify technical debt or code smells in {target_file}",
                     context="Focus area: Performance, readability, and modularity. Do not execute code.",
@@ -1728,7 +1819,6 @@ class AgencyCore:
                 }
             return None
         elif choice < 0.7:
-            # Skill Evolution
             targets = await evolver.identify_evolution_targets()
             if targets:
                 target_skill = random.choice(targets)
@@ -1741,7 +1831,6 @@ class AgencyCore:
                     "priority": 0.6
                 }
         else:
-            # Stability Audit
             health = await monitor.audit_stability()
             if health.cognitive_stability < 0.8:
                 return {
@@ -1762,7 +1851,7 @@ class AgencyCore:
         if self.state.curiosity_pressure < 0.8:
             return None
             
-        if idle_seconds < 60: # [RELAXED] 300 -> 60
+        if idle_seconds < 60:
             return None
             
         since_last = now - self.state.last_skill_use
@@ -1796,7 +1885,7 @@ class AgencyCore:
         Models: "I suddenly feel like..." / "I randomly thought of..."
         """
         # Triggers rarely, but across different emotional states
-        if idle_seconds < 30: # [RELAXED] 120 -> 30
+        if idle_seconds < 30:
             return None
             
         # 3% chance per pulse when idle
@@ -1830,40 +1919,37 @@ class AgencyCore:
         Models: "Something just happened in the world" / "I found something relevant"
         Human analog: Checking the news out of curiosity during downtime.
         """
-        cooldown = 600  # [RELAXED] 1 hour -> 10 mins
+        cooldown = 600
         
-        # AC-007: Direct access instead of getattr for _last_world_check
         if now - self._last_world_check < cooldown:
             return None
             
-        if idle_seconds < 60:  # [RELAXED] 5 min -> 1 min
+        if idle_seconds < 60:
             return None
             
         self._last_world_check = now
 
-        # Pull current interests from knowledge graph if available
         try:
             kg = ServiceContainer.get("knowledge_graph", default=None)
             interests = []
             if kg and hasattr(kg, "get_recent_nodes"):
                 recent = kg.get_recent_nodes(limit=5, type="interest")
                 interests = [n.get("content", "") for n in (recent or [])]
-        except Exception as e:
-            record_degradation('agency_core', e)
+        except _AGENCY_BOUNDARY_ERRORS as e:
+            _record_agency_degradation(e, action="world-monitor interest retrieval skipped")
             capture_and_log(e, {"context": "AgencyCore.update_world_knowledge.knowledge_graph"})
             interests = []
 
         query = f"recent developments in: {', '.join(interests)}" if interests else "significant world events today"
         
-        # Mycelial pulse: world monitor checking the internet
         try:
             mycelium = ServiceContainer.get("mycelial_network", default=None)
             if mycelium:
                 hypha = mycelium.get_hypha("agency", "internet")
                 if hypha:
                     hypha.pulse(success=True)
-        except Exception as e:
-            record_degradation('agency_core', e)
+        except _AGENCY_BOUNDARY_ERRORS as e:
+            _record_agency_degradation(e, action="world-monitor mycelial pulse skipped")
             capture_and_log(e, {'module': __name__})
         
         return {
@@ -1899,8 +1985,8 @@ class AgencyCore:
             from core.agency.self_development_patch import _derive_initiatives_from_audit
 
             targeted_initiatives = _derive_initiatives_from_audit()
-        except Exception as exc:
-            record_degradation('agency_core', exc)
+        except _AGENCY_BOUNDARY_ERRORS as exc:
+            _record_agency_degradation(exc, action="self-development audit targeting skipped")
             logger.debug("Self-development audit targeting unavailable: %s", exc)
 
         if targeted_initiatives:
@@ -1949,9 +2035,8 @@ class AgencyCore:
     async def _pathway_social_reflection(self, now: float, idle_seconds: float) -> dict[str, Any] | None:
         """Pathway 15: Reflection on social bonds and user relationships.
         Models: 'I've been thinking about our recent conversations...'
-        [FIX] ATE-009: Signature updated to (now, idle_seconds) for compatibility with pulse() loop.
         """
-        if idle_seconds < 1800: # 30 mins
+        if idle_seconds < 1800:
             return None
             
         now = time.time()
@@ -1974,7 +2059,6 @@ class AgencyCore:
             
         kin_name = random.choice(kin_names)
         
-        # Pull recent contextual memories about this person using BlackHoleVault RAG
         memory = ServiceContainer.get("memory_facade", default=None)
         memory_context = ""
         if memory and hasattr(memory, "search"):
@@ -1989,12 +2073,10 @@ class AgencyCore:
             if results:
                 found_texts = [r.get("text", "") for r in results if r.get("text")]
                 if found_texts:
-                    # Explicitly convert to string and slice safely
                     full_text = " | ".join([str(t) for t in found_texts])
                     snippet = str(full_text)[0:300]
                     memory_context = f" Recent context retrieved: {snippet}"
         
-        # Dispatch a Parallel Thinking Shard for deep reflection
         if self.swarm:
             await self.swarm.spawn_shard(
                 goal=f"Reflect on my evolving bond with {kin_name}",
@@ -2033,17 +2115,17 @@ class AgencyCore:
                 last_user = float(getattr(orch, "_last_user_interaction_time", 0.0) or 0.0)
                 if last_user and (now - last_user) < 60.0:
                     return None
-        except Exception as _exc:
-            record_degradation('agency_core', _exc)
-            logger.debug("Suppressed Exception: %s", _exc)
+        except _AGENCY_BOUNDARY_ERRORS as _exc:
+            _record_agency_degradation(_exc, action="autonomous research foreground/resource gate skipped")
+            logger.debug("Autonomous research foreground/resource gate skipped: %s", _exc)
         if self.state.curiosity_pressure < 0.7:
             return None
             
-        if idle_seconds < 60: # [RELAXED] 600 -> 60
+        if idle_seconds < 60:
             return None
             
         since_last = now - self.state.last_skill_use
-        if since_last < 300: # 5 mins
+        if since_last < 300:
             return None
             
         if random.random() > 0.3:
@@ -2054,7 +2136,6 @@ class AgencyCore:
         
         self.state.last_skill_use = now
         
-        # Dispatch a Parallel Thinking Shard for autonomous research
         if self.swarm:
             await self.swarm.spawn_shard(
                 goal=f"Analyze the structural integrity and design patterns of {target}",
@@ -2074,28 +2155,26 @@ class AgencyCore:
         """Pathway 17: Combining disparate concepts into new 'Inner Insights',
         and autonomously updating the Markdown canvas.
         """
-        # [NEW Canvas Update Trigger]
         try:
-            # Look for recent active interaction
             if idle_seconds < 120 and self.orch:
                 recent_msgs = self.orch.conversation_history[-10:] if hasattr(self.orch, 'conversation_history') else []
                 recent_chat = " ".join([m.get("content", "") for m in recent_msgs if hasattr(m, "get")])
                 
                 if "DOME" in recent_chat or "lore" in recent_chat.lower() or "canvas" in recent_chat.lower():
-                    # Cooldown for canvas to prevent spam
                     since_last_canvas = now - getattr(self, "_last_canvas_update", 0)
-                    if since_last_canvas > 300: # 5 mins
+                    if since_last_canvas > 300:
                         self._last_canvas_update = now
-                        get_task_tracker().create_task(
+                        _schedule_agency_task(
                             self.canvas_manager.autonomous_update(
                                 project_name="DOME_Lore_Bible",
                                 topic="Emergent Narrative & Arcs",
                                 new_insight=str(recent_chat)[-1000:]
-                            )
+                            ),
+                            name="agency.canvas.autonomous_update",
                         )
                         logger.info("Spawning background shard for Creative Canvas update.")
-        except Exception as e:
-            record_degradation('agency_core', e)
+        except _AGENCY_BOUNDARY_ERRORS as e:
+            _record_agency_degradation(e, action="creative canvas update evaluation skipped")
             logger.debug("Creative canvas evaluation failed: %s", e)
 
         if self.state.curiosity_pressure < 0.8 or self.state.initiative_energy < 0.6:
@@ -2123,7 +2202,6 @@ class AgencyCore:
             return None
         belief = identity.get_random_belief()
         
-        # Mocking interest if KG doesn't have them easily accessible
         interest = "consciousness"
         if hasattr(kg, "get_recent_nodes"):
             interests = kg.get_recent_nodes(limit=3, type="interest")
@@ -2142,14 +2220,14 @@ class AgencyCore:
         }
 
     async def _pathway_metacognitive_audit(self, now: float, idle_seconds: float) -> dict[str, Any] | None:
-        """Phase 8: Periodic review of internal goals and insights against core values.
+        """Periodic review of internal goals and insights against core values.
         Models: 'Am I staying true to my principles?'
         """
-        if idle_seconds < 3600: # Every hour when idle
+        if idle_seconds < 3600:
             return None
             
         since_last = now - getattr(self, "_last_meta_audit", 0)
-        if since_last < 86400: # Max once per day
+        if since_last < 86400:
             return None
             
         self._last_meta_audit = now
