@@ -1,42 +1,58 @@
 from __future__ import annotations
-from core.runtime.errors import record_degradation
 
-from core.utils.task_tracker import get_task_tracker
-from core.runtime.atomic_writer import atomic_write_text
 import asyncio
 import concurrent.futures as cfutures
 import contextlib
-import gc
-import logging
-import time
-import os
-import sys
-import json
-import re
-import threading as _threading
-import traceback
 import fcntl
+import gc
+import json
+import logging
 import multiprocessing as mp
+import os
+import re
 import subprocess
+import sys
+import threading as _threading
+import time
 import uuid
 from pathlib import Path
-from typing import Optional, List, Any, Dict, Tuple, Union
+from typing import Any
+
 import psutil
 
-from core.utils.deadlines import Deadline, get_deadline
-from core.utils.concurrency import run_io_bound
+from core.runtime.atomic_writer import atomic_write_text
+from core.runtime.errors import record_degradation
 from core.runtime.shutdown_coordinator import is_shutdown_requested
-from .mlx_worker import _mlx_worker_loop
+from core.utils.concurrency import run_io_bound
+from core.utils.deadlines import Deadline, get_deadline
+from core.utils.task_tracker import get_task_tracker
+
 from .chat_format import format_chatml_messages, format_chatml_prompt
+from .mlx_worker import _mlx_worker_loop
 
 logger = logging.getLogger("LLM.MLX")
+
+
+def _record_mlx_degradation(
+    error: BaseException,
+    *,
+    action: str,
+    severity: str = "warning",
+) -> None:
+    record_degradation(
+        "mlx_client",
+        error,
+        severity=severity,
+        action=action,
+    )
+
 
 # Global state for swap management
 _GLOBAL_LAST_SWAP_TIME = 0.0
 _GLOBAL_LAST_HEAVY_MODEL = None
 _CLIENTS = {}
 _FOREGROUND_OWNER_LOCK = _threading.Lock()
-_FOREGROUND_OWNER_NAME: Optional[str] = None
+_FOREGROUND_OWNER_NAME: str | None = None
 _FOREGROUND_OWNER_ACQUIRED_AT = 0.0
 
 # [OOM FIX] Global gate: only ONE model can be loading at a time across ALL clients.
@@ -45,38 +61,46 @@ _FOREGROUND_OWNER_ACQUIRED_AT = 0.0
 # is constructed from one event loop but called from another (Uvicorn thread).
 _GLOBAL_SPAWN_GATE = _threading.Semaphore(1)
 _MLX_RUNTIME_PROBE_LOCK = _threading.Lock()
-_MLX_RUNTIME_PROBE: Dict[str, Any] = {
+_MLX_RUNTIME_PROBE: dict[str, Any] = {
     "ok": None,
     "detail": "",
     "checked_at": 0.0,
 }
 _MLX_RUNTIME_PROBE_CACHE_PATH = Path.home() / ".aura" / "data" / "mlx_runtime_probe.json"
-SharedFuture = Union[asyncio.Future, cfutures.Future]
-_USER_FACING_ORIGINS = frozenset({
-    "user",
-    "voice",
-    "admin",
-    "api",
-    "gui",
-    "ws",
-    "websocket",
-    "direct",
-    "external",
-})
-_USER_FACING_PURPOSES = frozenset({
-    "chat",
-    "conversation",
-    "expression",
-    "reply",
-    "user_response",
-})
+SharedFuture = asyncio.Future | cfutures.Future
+_USER_FACING_ORIGINS = frozenset(
+    {
+        "user",
+        "voice",
+        "admin",
+        "api",
+        "gui",
+        "ws",
+        "websocket",
+        "direct",
+        "external",
+    }
+)
+_USER_FACING_PURPOSES = frozenset(
+    {
+        "chat",
+        "conversation",
+        "expression",
+        "reply",
+        "user_response",
+    }
+)
 
 
 def _runtime_shutdown_requested() -> bool:
     return is_shutdown_requested()
 
 
-def _probe_cache_ttl_seconds(ok: Optional[bool], *, disk: bool) -> float:
+def _real_model_path(value: Any) -> str:
+    return os.path.realpath(str(value))
+
+
+def _probe_cache_ttl_seconds(ok: bool | None, *, disk: bool) -> float:
     """Keep positive probe results sticky, but let failures expire quickly.
 
     A transient probe failure should not strand the embedded runtime in a
@@ -88,7 +112,8 @@ def _probe_cache_ttl_seconds(ok: Optional[bool], *, disk: bool) -> float:
         return 900.0 if disk else 300.0
     return 30.0 if disk else 10.0
 
-def _safe_close_queue(q: Optional[mp.Queue]) -> None:
+
+def _safe_close_queue(q: mp.Queue | None) -> None:
     """Close an mp.Queue to release its shared-memory file descriptor."""
     if q is None:
         return
@@ -96,7 +121,7 @@ def _safe_close_queue(q: Optional[mp.Queue]) -> None:
         q.close()
         q.join_thread()
     except (OSError, ValueError, BrokenPipeError):
-        pass  # Queue already closed or FD reclaimed
+        return
 
 
 def _new_shared_future() -> SharedFuture:
@@ -106,6 +131,7 @@ def _new_shared_future() -> SharedFuture:
 
 def _bounded_max_tokens(requested: Any, bridged: Any, fallback: int) -> int:
     """Shrink token budgets without ever handing MLX a zero-token generation."""
+
     def _coerce(value: Any) -> int:
         if value is None or value == "":
             return int(fallback)
@@ -136,17 +162,17 @@ def _foreground_owner_active() -> bool:
     return _FOREGROUND_OWNER_NAME is not None
 
 
-def _origin_tokens(origin: Optional[str]) -> set[str]:
+def _origin_tokens(origin: str | None) -> set[str]:
     normalized = str(origin or "").strip().lower().replace("-", "_")
     return {token for token in normalized.split("_") if token}
 
 
-def _origin_is_user_facing(origin: Optional[str]) -> bool:
+def _origin_is_user_facing(origin: str | None) -> bool:
     tokens = _origin_tokens(origin)
     return bool(tokens & _USER_FACING_ORIGINS)
 
 
-def _background_deferral_active(origin: Optional[str] = None) -> Optional[str]:
+def _background_deferral_active(origin: str | None = None) -> str | None:
     """Mirror InferenceGate's background quiet policy inside the MLX client.
 
     The gate can reject newly scheduled background requests, but an already
@@ -162,12 +188,15 @@ def _background_deferral_active(origin: Optional[str] = None) -> Optional[str]:
             reason = gate._background_local_deferral_reason(origin=origin)
             return str(reason) if reason else None
     except (ImportError, AttributeError, RuntimeError) as exc:
-        record_degradation('mlx_client', exc)
+        _record_mlx_degradation(
+            exc,
+            action="continued without optional background deferral policy",
+        )
         logger.debug("MLX background deferral check unavailable: %s", exc)
     return None
 
 
-def _foreground_owner_age(now: Optional[float] = None) -> float:
+def _foreground_owner_age(now: float | None = None) -> float:
     if _FOREGROUND_OWNER_ACQUIRED_AT <= 0.0:
         return 0.0
     current_time = float(now if now is not None else time.time())
@@ -175,7 +204,7 @@ def _foreground_owner_age(now: Optional[float] = None) -> float:
 
 
 def _foreground_owner_wait_budget(
-    deadline: Optional[Deadline],
+    deadline: Deadline | None,
     *,
     foreground_request: bool,
 ) -> float:
@@ -191,7 +220,7 @@ def _foreground_owner_wait_budget(
     return max(0.25, min(default, remaining - reserve))
 
 
-def _clear_matching_foreground_owner(*candidate_names: str) -> Optional[str]:
+def _clear_matching_foreground_owner(*candidate_names: str) -> str | None:
     global _FOREGROUND_OWNER_NAME, _FOREGROUND_OWNER_ACQUIRED_AT
 
     candidates = {str(name or "").strip() for name in candidate_names if str(name or "").strip()}
@@ -207,7 +236,7 @@ def _clear_matching_foreground_owner(*candidate_names: str) -> Optional[str]:
         return holder
 
 
-def _clear_stale_foreground_owner(max_age_s: float = 45.0) -> Optional[str]:
+def _clear_stale_foreground_owner(max_age_s: float = 45.0) -> str | None:
     """Release leaked foreground ownership after the generation has ended."""
     global _FOREGROUND_OWNER_NAME, _FOREGROUND_OWNER_ACQUIRED_AT
 
@@ -227,9 +256,9 @@ def _clear_stale_foreground_owner(max_age_s: float = 45.0) -> Optional[str]:
 async def _foreground_owner_context(
     owner_name: str,
     *,
-    deadline: Optional[Deadline] = None,
+    deadline: Deadline | None = None,
     foreground_request: bool = False,
-    stale_after: Optional[float] = None,
+    stale_after: float | None = None,
 ):
     """Serialize foreground work so background model activity cannot compete with it."""
     global _FOREGROUND_OWNER_NAME, _FOREGROUND_OWNER_ACQUIRED_AT
@@ -241,8 +270,9 @@ async def _foreground_owner_context(
     loop = asyncio.get_running_loop()
     wait_started = loop.time()
     last_log_at = 0.0
+    owner_acquired = False
 
-    while True:
+    while max(0.0, loop.time() - wait_started) <= wait_budget:
         acquired = _FOREGROUND_OWNER_LOCK.acquire(False)
         try:
             if acquired:
@@ -251,6 +281,7 @@ async def _foreground_owner_context(
                 if holder is None:
                     _FOREGROUND_OWNER_NAME = owner_name
                     _FOREGROUND_OWNER_ACQUIRED_AT = time.time()
+                    owner_acquired = True
                     break
                 if stale_after is not None and holder != owner_name and holder_age > stale_after:
                     logger.warning(
@@ -287,22 +318,30 @@ async def _foreground_owner_context(
             last_log_at = now
 
         await asyncio.sleep(min(0.05, max(0.0, wait_budget - waited)))
+    if not owner_acquired:
+        holder = _FOREGROUND_OWNER_NAME or "foreground"
+        holder_age = _foreground_owner_age()
+        raise TimeoutError(
+            f"Foreground owner wait timed out after {wait_budget:.1f}s "
+            f"waiting on {holder} (held {holder_age:.1f}s)"
+        )
 
     try:
         yield
     finally:
-        while True:
-            acquired = _FOREGROUND_OWNER_LOCK.acquire(False)
-            if not acquired:
-                await asyncio.sleep(0.01)
-                continue
+        acquired = await asyncio.to_thread(_FOREGROUND_OWNER_LOCK.acquire, True, 2.0)
+        if acquired:
             try:
                 if _FOREGROUND_OWNER_NAME == owner_name:
                     _FOREGROUND_OWNER_NAME = None
                     _FOREGROUND_OWNER_ACQUIRED_AT = 0.0
-                break
             finally:
                 _FOREGROUND_OWNER_LOCK.release()
+        else:
+            logger.warning(
+                "⚠️ [MLX] Timed out releasing foreground owner lock for %s.",
+                owner_name,
+            )
 
 
 def _bridge_asyncio_future_to_concurrent(future: asyncio.Future) -> cfutures.Future:
@@ -321,7 +360,7 @@ def _bridge_asyncio_future_to_concurrent(future: asyncio.Future) -> cfutures.Fut
             try:
                 proxy.set_exception(exc)
             except (cfutures.InvalidStateError, asyncio.InvalidStateError):
-                pass  # no-op: proxy already resolved or cancelled
+                return
 
     if future.done():
         _relay(future)
@@ -352,15 +391,15 @@ def _wrap_shared_future_for_current_loop(future: SharedFuture) -> asyncio.Future
     raise TypeError(f"Unsupported future type: {type(future)!r}")
 
 
-async def _await_shared_future(future: SharedFuture, *, timeout: Optional[float] = None) -> Any:
+async def _await_shared_future(future: SharedFuture, *, timeout_s: float | None = None) -> Any:
     wrapped = _wrap_shared_future_for_current_loop(future)
     protected = asyncio.shield(wrapped)
-    if timeout is None:
+    if timeout_s is None:
         return await protected
-    return await asyncio.wait_for(protected, timeout=timeout)
+    return await asyncio.wait_for(protected, timeout=timeout_s)
 
 
-def _set_shared_future_result(future: Optional[SharedFuture], result: Any) -> bool:
+def _set_shared_future_result(future: SharedFuture | None, result: Any) -> bool:
     if future is None or future.done():
         return False
 
@@ -386,7 +425,7 @@ def _set_shared_future_result(future: Optional[SharedFuture], result: Any) -> bo
     return True
 
 
-def _cancel_shared_future(future: Optional[SharedFuture]) -> None:
+def _cancel_shared_future(future: SharedFuture | None) -> None:
     if future is None or future.done():
         return
 
@@ -418,7 +457,7 @@ def _cancel_shared_future(future: Optional[SharedFuture]) -> None:
     future_loop.call_soon_threadsafe(_canceller)
 
 
-def _cancel_task_threadsafe(task: Optional[asyncio.Task]) -> None:
+def _cancel_task_threadsafe(task: asyncio.Task | None) -> None:
     if task is None or task.done():
         return
     try:
@@ -443,7 +482,10 @@ def _notify_closed_loop_output(text: str) -> None:
 
         notify_closed_loop_output(str(text))
     except (ImportError, AttributeError, RuntimeError) as exc:
-        record_degradation('mlx_client', exc)
+        _record_mlx_degradation(
+            exc,
+            action="continued after optional closed-loop output notification failed",
+        )
         logger.debug("Closed-loop output notification failed: %s", exc)
 
 
@@ -455,7 +497,7 @@ def _mlx_runtime_probe_command() -> list[str]:
     ]
 
 
-def _load_probe_cache_from_disk() -> tuple[Optional[bool], str, float]:
+def _load_probe_cache_from_disk() -> tuple[bool | None, str, float]:
     try:
         payload = json.loads(_MLX_RUNTIME_PROBE_CACHE_PATH.read_text())
     except (json.JSONDecodeError, OSError, ValueError):
@@ -472,17 +514,21 @@ def _load_probe_cache_from_disk() -> tuple[Optional[bool], str, float]:
 def _store_probe_cache_to_disk(ok: bool, detail: str) -> None:
     try:
         _MLX_RUNTIME_PROBE_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
-        atomic_write_text(_MLX_RUNTIME_PROBE_CACHE_PATH, 
+        atomic_write_text(
+            _MLX_RUNTIME_PROBE_CACHE_PATH,
             json.dumps(
                 {
                     "ok": bool(ok),
                     "detail": str(detail or ""),
                     "checked_at": time.time(),
                 }
-            )
+            ),
         )
     except (json.JSONDecodeError, TypeError, ValueError) as exc:
-        record_degradation('mlx_client', exc)
+        _record_mlx_degradation(
+            exc,
+            action="kept in-memory MLX runtime probe status after disk cache write failed",
+        )
         logger.debug("Failed to persist MLX runtime probe cache: %s", exc)
 
 
@@ -516,9 +562,8 @@ def _probe_mlx_runtime(force: bool = False) -> tuple[bool, str]:
             return bool(cached_ok), cached_detail
         if not force:
             disk_ok, disk_detail, disk_checked_at = _load_probe_cache_from_disk()
-            if (
-                disk_ok is not None
-                and (now - disk_checked_at) < _probe_cache_ttl_seconds(disk_ok, disk=True)
+            if disk_ok is not None and (now - disk_checked_at) < _probe_cache_ttl_seconds(
+                disk_ok, disk=True
             ):
                 _MLX_RUNTIME_PROBE.update(
                     {
@@ -554,16 +599,16 @@ def _probe_mlx_runtime(force: bool = False) -> tuple[bool, str]:
                 completed.stderr or "",
                 completed.returncode,
             )
-            
+
             # If it's a known enumeration crash, we might want to retry immediately
             if not ok and detail == "metal_device_enumeration_crash" and probe_attempt == 0:
                 logger.warning("⚠️ [MLX] Metal device enumeration crash during probe. Retrying...")
                 time.sleep(1.0)
                 continue
-            
+
             # If it's okay or a different failure, break the retry loop
             break
-            
+
         except subprocess.TimeoutExpired as exc:
             detail = _normalize_probe_detail(
                 (exc.stdout or "") if isinstance(exc.stdout, str) else "",
@@ -573,7 +618,11 @@ def _probe_mlx_runtime(force: bool = False) -> tuple[bool, str]:
             # Timeout is terminal for the attempt
             break
         except (subprocess.SubprocessError, OSError) as exc:
-            record_degradation('mlx_client', exc)
+            _record_mlx_degradation(
+                exc,
+                action="marked MLX runtime probe as failed for this attempt",
+                severity="error",
+            )
             detail = f"probe_exception:{type(exc).__name__}"
             break
 
@@ -589,7 +638,7 @@ def _probe_mlx_runtime(force: bool = False) -> tuple[bool, str]:
                 logger.warning(
                     "♻️ [MLX] Runtime probe encountered enumeration crash, but using LKG (last known good) "
                     "status from %.0fs ago to allow lane spawn.",
-                    time.time() - cached_at
+                    time.time() - cached_at,
                 )
                 return True, "lkg_fallback_after_enumeration_crash"
 
@@ -604,41 +653,42 @@ def _probe_mlx_runtime(force: bool = False) -> tuple[bool, str]:
     _store_probe_cache_to_disk(ok, detail)
     return ok, detail
 
+
 class MLXLocalClient:
     """
     Parent-process client for the isolated MLX worker.
     Manages the lifecycle, health, and communication with the ForkServer process.
     """
-    
+
     def __init__(self, model_path: str, device: str = "gpu", max_tokens: int = 4096):
         self.model_path = model_path
         self.device = device
         self.max_tokens = max_tokens
         self.temp = 0.7
         self.top_p = 0.9
-        
+
         # [LOOP-AGNOSTIC FIX] asyncio.Lock is bound to the creating event loop.
         # MLXLocalClient is a singleton created at boot but used from Uvicorn's
         # separate event loop, causing RuntimeError. threading.Lock is loop-agnostic.
         self._lock = _threading.Lock()
         self._request_lock = _threading.Lock()
-        self._deferred_reboot_reason: Optional[str] = None
-        self._process: Optional[mp.Process] = None
+        self._deferred_reboot_reason: str | None = None
+        self._process: mp.Process | None = None
         self._req_q = mp.Queue(maxsize=10)
         self._res_q = mp.Queue(maxsize=10)
         self._init_done = False
-        
+
         # Concurrency Hardening
-        self._listener_task: Optional[asyncio.Task] = None
+        self._listener_task: asyncio.Task | None = None
         self._last_heartbeat = 0.0
         self._last_progress_at = 0.0
         self._last_token_progress_at = 0.0
         self._last_ready_at = 0.0
         self._last_generation_completed_at = 0.0
         self._last_user_facing_completed_at = 0.0
-        self._current_gen_future: Optional[SharedFuture] = None
-        self._init_future: Optional[SharedFuture] = None
-        self._pending_generations: Dict[str, SharedFuture] = {}
+        self._current_gen_future: SharedFuture | None = None
+        self._init_future: SharedFuture | None = None
+        self._pending_generations: dict[str, SharedFuture] = {}
         self._request_lock_owner_label = ""
         self._request_lock_acquired_at = 0.0
         self._lane_state = "cold"
@@ -662,11 +712,12 @@ class MLXLocalClient:
 
         # Resolve substrate SHM if available
         from core.container import ServiceContainer
+
         repo = ServiceContainer.get("state_repository", default=None)
         self._substrate_mem = repo._shm if repo else None
-        
+
         # Shared memory flag to track if affective steering successfully attached
-        self._steering_active = mp.Value('b', False)
+        self._steering_active = mp.Value("b", False)
 
     def _is_primary_or_deep_lane(self) -> bool:
         lowered = os.path.basename(self.model_path).lower()
@@ -685,7 +736,10 @@ class MLXLocalClient:
     def _consume_expected_generation_cancellation(self) -> str:
         if self._expected_cancel_budget <= 0:
             return ""
-        if self._expected_cancel_recorded_at and (time.time() - self._expected_cancel_recorded_at) > 30.0:
+        if (
+            self._expected_cancel_recorded_at
+            and (time.time() - self._expected_cancel_recorded_at) > 30.0
+        ):
             self._expected_cancel_reason = ""
             self._expected_cancel_budget = 0
             self._expected_cancel_recorded_at = 0.0
@@ -719,10 +773,14 @@ class MLXLocalClient:
         self._current_request_prompt_chars = max(0, int(prompt_chars or 0))
         self._mark_progress()
 
-    def _mark_token_progress(self, req_id: Optional[str] = None) -> None:
+    def _mark_token_progress(self, req_id: str | None = None) -> None:
         now = time.time()
         normalized_req_id = str(req_id or "")
-        if normalized_req_id and self._current_request_id and normalized_req_id != self._current_request_id:
+        if (
+            normalized_req_id
+            and self._current_request_id
+            and normalized_req_id != self._current_request_id
+        ):
             return
         self._last_token_progress_at = now
         if self._current_first_token_at <= 0.0:
@@ -780,11 +838,15 @@ class MLXLocalClient:
                 },
             )
         except (ImportError, AttributeError, RuntimeError) as exc:
-            record_degradation('mlx_client', exc)
+            _record_mlx_degradation(
+                exc,
+                action="kept lane-local degraded state after health event emission failed",
+            )
             logger.debug("Failed to record MLX degraded event: %s", exc)
 
-    def _stale_after(self, *, during_generation: bool = False,
-                     foreground_request: bool = False) -> float:
+    def _stale_after(
+        self, *, during_generation: bool = False, foreground_request: bool = False
+    ) -> float:
         """Heartbeat-stall timeout.
 
         [RESILIENCE] Widened for 32B foreground: recurrent depth doubles
@@ -873,7 +935,7 @@ class MLXLocalClient:
         return 8.0
 
     def _warmup_timeout(self) -> float:
-        # [STABILITY v56] Raised from 75.0s → 180.0s. 32B models on M5 
+        # [STABILITY v56] Raised from 75.0s → 180.0s. 32B models on M5
         # regularly take 120-150s to cold-load and compile Metal shaders.
         return 180.0 if self._is_primary_or_deep_lane() else 30.0
 
@@ -883,7 +945,7 @@ class MLXLocalClient:
 
     def _request_scoped_init_timeout(
         self,
-        deadline: Optional[Deadline],
+        deadline: Deadline | None,
         *,
         foreground_request: bool,
     ) -> tuple[float, bool]:
@@ -903,11 +965,14 @@ class MLXLocalClient:
         scoped_timeout = max(10.0 if not foreground_request else 5.0, remaining - reserve)
         return min(full_timeout, scoped_timeout), scoped_timeout < full_timeout
 
-    def get_lane_status(self) -> Dict[str, Any]:
+    def get_lane_status(self) -> dict[str, Any]:
         if int(getattr(self, "_active_generations", 0) or 0) <= 0:
             stale_owner = _clear_stale_foreground_owner()
             if stale_owner:
-                logger.warning("♻️ [MLX] Cleared stale foreground owner %s during lane status check.", stale_owner)
+                logger.warning(
+                    "♻️ [MLX] Cleared stale foreground owner %s during lane status check.",
+                    stale_owner,
+                )
         worker_alive = self.is_alive()
         lane_state = self._lane_state
         lane_error = self._lane_error
@@ -944,15 +1009,19 @@ class MLXLocalClient:
             ),
         }
 
-    def get_supervision_status(self) -> Dict[str, Any]:
+    def get_supervision_status(self) -> dict[str, Any]:
         now = time.time()
         return {
             "lane": os.path.basename(self.model_path),
             "state": self._lane_state,
             "alive": self.is_alive(),
             "active_generations": int(self._active_generations),
-            "process_uptime_s": max(0.0, now - self._process_started_at) if self._process_started_at else 0.0,
-            "request_age_s": max(0.0, now - self._current_request_started_at) if self._current_request_started_at else 0.0,
+            "process_uptime_s": max(0.0, now - self._process_started_at)
+            if self._process_started_at
+            else 0.0,
+            "request_age_s": max(0.0, now - self._current_request_started_at)
+            if self._current_request_started_at
+            else 0.0,
             "time_to_first_token_s": (
                 max(0.0, self._current_first_token_at - self._current_request_started_at)
                 if self._current_request_started_at and self._current_first_token_at
@@ -960,14 +1029,16 @@ class MLXLocalClient:
             ),
             "idle_for_s": max(
                 0.0,
-                now - max(
+                now
+                - max(
                     self._last_generation_completed_at,
                     self._last_ready_at,
                     self._last_token_progress_at,
                     self._last_progress_at,
                     self._last_heartbeat,
                 ),
-            ) if any(
+            )
+            if any(
                 stamp > 0.0
                 for stamp in (
                     self._last_generation_completed_at,
@@ -976,7 +1047,8 @@ class MLXLocalClient:
                     self._last_progress_at,
                     self._last_heartbeat,
                 )
-            ) else 0.0,
+            )
+            else 0.0,
         }
 
     def should_recycle_for_fragmentation(
@@ -1021,7 +1093,9 @@ class MLXLocalClient:
         state or an exponential spawn backoff once the runtime is healthy again.
         """
         runtime_error = self._lane_runtime_failure()
-        if not runtime_error and time.time() >= float(getattr(self, "_spawn_backoff_until", 0.0) or 0.0):
+        if not runtime_error and time.time() >= float(
+            getattr(self, "_spawn_backoff_until", 0.0) or 0.0
+        ):
             return False
 
         ok, detail = _probe_mlx_runtime(force=force_probe)
@@ -1029,7 +1103,9 @@ class MLXLocalClient:
             self._mark_runtime_unavailable(detail)
             return False
 
-        recovered = bool(runtime_error) or float(getattr(self, "_spawn_backoff_until", 0.0) or 0.0) > 0.0
+        recovered = (
+            bool(runtime_error) or float(getattr(self, "_spawn_backoff_until", 0.0) or 0.0) > 0.0
+        )
         if recovered:
             logger.info(
                 "♻️ [MLX] Runtime probe recovered for %s. Clearing failed lane/backoff state.",
@@ -1046,7 +1122,7 @@ class MLXLocalClient:
 
     def _request_lock_timeout(
         self,
-        deadline: Optional[Deadline],
+        deadline: Deadline | None,
         *,
         foreground_request: bool,
     ) -> float:
@@ -1070,7 +1146,7 @@ class MLXLocalClient:
         self,
         *,
         owner_label: str,
-        deadline: Optional[Deadline],
+        deadline: Deadline | None,
         foreground_request: bool,
     ) -> bool:
         wait_budget = self._request_lock_timeout(
@@ -1081,7 +1157,7 @@ class MLXLocalClient:
         wait_started = loop.time()
         last_log_at = 0.0
 
-        while True:
+        while max(0.0, loop.time() - wait_started) <= wait_budget:
             if self._request_lock.acquire(False):
                 self._request_lock_owner_label = str(owner_label or "")
                 self._request_lock_acquired_at = time.time()
@@ -1125,27 +1201,42 @@ class MLXLocalClient:
                         # abandoning a foreground generation means its late
                         # text is unsafe for later turns, so recycle the
                         # worker cleanly instead of keeping it warm.
-                        heartbeat_age = time.time() - self._last_heartbeat if self._last_heartbeat > 0 else 999.0
+                        heartbeat_age = (
+                            time.time() - self._last_heartbeat
+                            if self._last_heartbeat > 0
+                            else 999.0
+                        )
                         if heartbeat_age > 30.0:
                             logger.error(
                                 "🛑 [MLX] Preempting wedged holder %s (age=%.1fs > sla=%.1fs, no heartbeat for %.1fs). "
                                 "Cancelling in-flight future and scheduling worker reboot.",
-                                holder, holder_age, sla, heartbeat_age,
+                                holder,
+                                holder_age,
+                                sla,
+                                heartbeat_age,
                             )
                             self._deferred_reboot_reason = "foreground_preemption_wedged_holder"
                         else:
                             logger.warning(
                                 "🛡️ [MLX] Holder %s slow (age=%.1fs > sla=%.1fs) but heartbeat fresh (%.1fs ago). "
                                 "Cancelling generation and scheduling a clean recycle so stale text cannot bleed into the next turn.",
-                                holder, holder_age, sla, heartbeat_age,
+                                holder,
+                                holder_age,
+                                sla,
+                                heartbeat_age,
                             )
-                            self._deferred_reboot_reason = "recoverable_foreground_preemption_slow_holder"
+                            self._deferred_reboot_reason = (
+                                "recoverable_foreground_preemption_slow_holder"
+                            )
                         try:
                             stuck_future = self._current_gen_future
                             if stuck_future is not None:
                                 _cancel_shared_future(stuck_future)
-                        except (RuntimeError, AttributeError):
-                            pass  # no-op: future already resolved or loop closed
+                        except (RuntimeError, AttributeError) as exc:
+                            logger.debug(
+                                "MLX request preemption future cancel skipped: %s",
+                                exc,
+                            )
                 return False
 
             if waited >= 5.0 and (now - last_log_at) >= 5.0:
@@ -1164,6 +1255,7 @@ class MLXLocalClient:
                 last_log_at = now
 
             await asyncio.sleep(min(0.05, max(0.0, wait_budget - waited)))
+        return False
 
     def _release_request_lock(self) -> None:
         self._request_lock_owner_label = ""
@@ -1182,8 +1274,8 @@ class MLXLocalClient:
             try:
                 if not task.get_loop().is_closed():
                     return
-            except (RuntimeError, AttributeError):
-                pass  # no-op: loop disposed, fall through to cancel
+            except (RuntimeError, AttributeError) as exc:
+                logger.debug("MLX listener task loop unavailable during reuse check: %s", exc)
             _cancel_task_threadsafe(task)
 
         self._listener_task = get_task_tracker().create_task(self._response_listener_loop())
@@ -1198,7 +1290,7 @@ class MLXLocalClient:
         self._init_done = False
         self._set_lane_state("failed", reason)
 
-    def _worker_unhealthy(self, stale_after: Optional[float] = None) -> bool:
+    def _worker_unhealthy(self, stale_after: float | None = None) -> bool:
         if self._process is None or not self._process.is_alive():
             return True
         if not self._init_done:
@@ -1244,7 +1336,11 @@ class MLXLocalClient:
                 p.kill()
                 p.join(timeout=2.0)
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-                record_degradation('mlx_client', e)
+                _record_mlx_degradation(
+                    e,
+                    action="continued process cleanup after worker kill/join failed",
+                    severity="error",
+                )
                 logger.warning("Error killing process: %s", e)
 
     def _spawn_worker_blocking(self) -> mp.Process:
@@ -1258,28 +1354,36 @@ class MLXLocalClient:
         try:
             model_basename = os.path.basename(self.model_path)
             target_name = f"MLXWorker-{model_basename}"
-            for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+            for proc in psutil.process_iter(["pid", "name", "cmdline"]):
                 try:
-                    pname = proc.info.get('name', '') or ''
+                    pname = proc.info.get("name", "") or ""
                     if target_name in pname or (
-                        proc.info.get('cmdline') and
-                        any(model_basename in str(arg) for arg in (proc.info['cmdline'] or []))
-                        and 'mlx_worker' in str(proc.info.get('cmdline', []))
+                        proc.info.get("cmdline")
+                        and any(model_basename in str(arg) for arg in (proc.info["cmdline"] or []))
+                        and "mlx_worker" in str(proc.info.get("cmdline", []))
                     ):
                         if proc.pid != os.getpid():
                             logger.warning(
                                 "🧹 [STABILITY] Killing orphan MLXWorker pid=%d for %s",
-                                proc.pid, model_basename,
+                                proc.pid,
+                                model_basename,
                             )
                             proc.kill()
                             proc.wait(timeout=3.0)
                 except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-                    pass  # no-op: intentional
+                    continue
         except (OSError, ConnectionError, TimeoutError) as orphan_exc:
-            record_degradation('mlx_client', orphan_exc)
+            _record_mlx_degradation(
+                orphan_exc,
+                action="continued worker spawn after orphan reclamation scan failed",
+            )
             logger.debug("Orphan reclamation scan failed (non-fatal): %s", orphan_exc)
 
-        ctx = mp.get_context("spawn") if os.uname().sysname == "Darwin" else mp.get_context("forkserver")
+        ctx = (
+            mp.get_context("spawn")
+            if os.uname().sysname == "Darwin"
+            else mp.get_context("forkserver")
+        )
 
         lock_dir = Path.home() / ".aura" / "run"
         lock_dir.mkdir(parents=True, exist_ok=True)
@@ -1295,9 +1399,16 @@ class MLXLocalClient:
 
                 p = ctx.Process(
                     target=_mlx_worker_loop,
-                    args=(self.model_path, self._req_q, self._res_q, self.device, self._substrate_mem, self._steering_active),
+                    args=(
+                        self.model_path,
+                        self._req_q,
+                        self._res_q,
+                        self.device,
+                        self._substrate_mem,
+                        self._steering_active,
+                    ),
                     daemon=True,
-                    name=f"MLXWorker-{os.path.basename(self.model_path)}"
+                    name=f"MLXWorker-{os.path.basename(self.model_path)}",
                 )
                 p.start()
                 return p
@@ -1314,8 +1425,10 @@ class MLXLocalClient:
         [v7.8] Background task to constantly drain the worker response queue.
         Prevents IPC deadlocks by ensuring heartbeats and telemetry are ALWAYS consumed.
         """
-        from core.container import ServiceContainer
         import queue
+
+        from core.container import ServiceContainer
+
         _consecutive_errors = 0
         while not _runtime_shutdown_requested():
             try:
@@ -1327,7 +1440,11 @@ class MLXLocalClient:
             except asyncio.CancelledError:
                 break
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-                record_degradation('mlx_client', e)
+                _record_mlx_degradation(
+                    e,
+                    action="exited or backed off response listener after queue polling failure",
+                    severity="error",
+                )
                 # If queue is closed/broken, graceful exit
                 if "closed" in str(e).lower() or isinstance(e, ValueError):
                     break
@@ -1336,26 +1453,32 @@ class MLXLocalClient:
                 # (e.g., worker killed during cascade cleanup). Exit the loop
                 # instead of spinning forever and consuming thread pool resources.
                 if _consecutive_errors >= 10:
-                    logger.warning("⚠️ [MLX] Response listener: %d consecutive errors. Queue likely broken. Exiting.", _consecutive_errors)
+                    logger.warning(
+                        "⚠️ [MLX] Response listener: %d consecutive errors. Queue likely broken. Exiting.",
+                        _consecutive_errors,
+                    )
                     break
                 logger.error("⚠️ [MLX] Response listener poll error: %s", e)
                 await asyncio.sleep(0.5)
                 continue
 
-            if not res: continue
+            if not res:
+                continue
 
             try:
                 status = res.get("status")
                 action = res.get("action")
                 req_id = res.get("id")
-                
+
                 # 1. Update SubsystemAudit Heartbeat
                 if status == "heartbeat":
                     self._last_heartbeat = time.time()
                     self._mark_progress()
                     audit = ServiceContainer.get("subsystem_audit", default=None)
                     if audit:
-                        is_heavy = any(k in self.model_path.lower() for k in ["72b", "32b", "zenith"])
+                        is_heavy = any(
+                            k in self.model_path.lower() for k in ["72b", "32b", "zenith"]
+                        )
                         tier_name = "mlx_heavy" if is_heavy else "mlx_light"
                         audit.heartbeat(tier_name)
                     continue
@@ -1422,7 +1545,11 @@ class MLXLocalClient:
                     logger.error("🛑 [MLX] Async worker error: %s", res.get("message"))
 
             except (ImportError, AttributeError, RuntimeError) as e:
-                record_degradation('mlx_client', e)
+                _record_mlx_degradation(
+                    e,
+                    action="kept response listener alive after malformed worker message",
+                    severity="error",
+                )
                 logger.error("⚠️ [MLX] Response listener message processing error: %s", e)
                 await asyncio.sleep(1.0)
 
@@ -1431,17 +1558,20 @@ class MLXLocalClient:
         *,
         request_is_background: bool = False,
         foreground_request: bool = False,
-        init_timeout: Optional[float] = None,
+        init_timeout: float | None = None,
         soft_timeout: bool = False,
         skip_swap_cooldown: bool = False,
     ) -> bool:
         """Self-healing supervisor for the MLX worker.
-        
+
         [OOM FIX] Acquires a global semaphore so only ONE model loads at a time.
         This prevents the 32B + 7B from loading simultaneously and crashing Metal.
         """
         if _runtime_shutdown_requested():
-            logger.info("🛑 [MLX] Worker start/recovery skipped for %s: runtime is shutting down.", os.path.basename(self.model_path))
+            logger.info(
+                "🛑 [MLX] Worker start/recovery skipped for %s: runtime is shutting down.",
+                os.path.basename(self.model_path),
+            )
             return False
         if request_is_background and _foreground_owner_active():
             logger.info(
@@ -1465,7 +1595,7 @@ class MLXLocalClient:
             self._check_lane_state_staleness()  # [STABILITY v51]
             self._set_lane_state("ready")
             return True
-        
+
         # Slow path: acquire global gate to serialize model loading
         async with _spawn_gate_context():
             return await self._ensure_worker_alive_inner(
@@ -1481,23 +1611,27 @@ class MLXLocalClient:
         *,
         request_is_background: bool = False,
         foreground_request: bool = False,
-        init_timeout: Optional[float] = None,
+        init_timeout: float | None = None,
         soft_timeout: bool = False,
         skip_swap_cooldown: bool = False,
     ) -> bool:
         """Inner implementation — called while holding the global spawn gate."""
         if _runtime_shutdown_requested():
-            logger.info("🛑 [MLX] Worker spawn skipped for %s: runtime is shutting down.", os.path.basename(self.model_path))
+            logger.info(
+                "🛑 [MLX] Worker spawn skipped for %s: runtime is shutting down.",
+                os.path.basename(self.model_path),
+            )
             return False
         should_wait_init = False
-        init_future: Optional[SharedFuture] = None
-        
+        init_future: SharedFuture | None = None
+
         # [PIPELINE HARDENING] 12s Swap Cooldown
-        from .model_registry import get_model_path, ACTIVE_MODEL, DEEP_MODEL
-        primary_path = os.path.realpath(get_model_path(ACTIVE_MODEL))
-        deep_path = os.path.realpath(get_model_path(DEEP_MODEL))
-        target_path = os.path.realpath(self.model_path)
-        
+        from .model_registry import ACTIVE_MODEL, DEEP_MODEL, get_model_path
+
+        primary_path = _real_model_path(get_model_path(ACTIVE_MODEL))
+        deep_path = _real_model_path(get_model_path(DEEP_MODEL))
+        target_path = _real_model_path(self.model_path)
+
         global _GLOBAL_LAST_SWAP_TIME, _GLOBAL_LAST_HEAVY_MODEL
 
         if request_is_background and _foreground_owner_active():
@@ -1515,7 +1649,7 @@ class MLXLocalClient:
                     background_deferral,
                 )
                 return False
-        
+
         if target_path in (primary_path, deep_path):
             other_heavy_path = deep_path if target_path == primary_path else primary_path
             other_client = _CLIENTS.get(other_heavy_path)
@@ -1597,10 +1731,13 @@ class MLXLocalClient:
                     reason=f"yield_to_{os.path.basename(target_path)}",
                     mark_failed=False,
                 )
-        
+
         acquired = await asyncio.to_thread(self._lock.acquire, True, 15.0)
         if not acquired:
-            logger.error("🚨 [MLX] DEADLOCK DETECTED: Could not acquire _lock within 15s for %s", os.path.basename(self.model_path))
+            logger.error(
+                "🚨 [MLX] DEADLOCK DETECTED: Could not acquire _lock within 15s for %s",
+                os.path.basename(self.model_path),
+            )
             return False
         try:
             if self._process and self._process.is_alive() and self._init_done:
@@ -1617,9 +1754,7 @@ class MLXLocalClient:
                 # never-resolving future and the lane stays in "handshaking"
                 # for hours, which is what produced the cascading damasio
                 # timeout / "Worker alive but still handshaking" loop.
-                handshake_age = (
-                    time.time() - getattr(self, "_lane_transition_at", time.time())
-                )
+                handshake_age = time.time() - getattr(self, "_lane_transition_at", time.time())
                 handshake_budget = max(60.0, 2.0 * self._handshake_timeout())
                 if (
                     self._init_future is not None
@@ -1639,7 +1774,10 @@ class MLXLocalClient:
                                 RuntimeError("stale_handshake_recycled")
                             )
                     except (RuntimeError, AttributeError, TypeError, ValueError) as _exc:
-                        record_degradation('mlx_client', _exc)
+                        _record_mlx_degradation(
+                            _exc,
+                            action="recycled stale handshake despite init-future notification failure",
+                        )
                         logger.debug("Suppressed stale-handshake future-set: %s", _exc)
                     self._init_future = None
                     await asyncio.get_running_loop().run_in_executor(
@@ -1669,43 +1807,60 @@ class MLXLocalClient:
                         os.path.basename(self.model_path),
                     )
                     self._set_lane_state("recovering", "missing_init_lifecycle")
-                    await asyncio.get_running_loop().run_in_executor(None, self._kill_and_join_blocking, self._process)
+                    await asyncio.get_running_loop().run_in_executor(
+                        None, self._kill_and_join_blocking, self._process
+                    )
                     self._process = None
                     self._init_done = False
                     self._last_heartbeat = 0.0
                     self._last_progress_at = 0.0
                     self._drain_queue()
-                    
+
                     # Prevent zombie threads from stealing messages
                     self._req_q = mp.Queue()
                     self._res_q = mp.Queue()
-                    
+
                     init_future = _new_shared_future()
                     self._init_future = init_future
                     self._set_lane_state("spawning")
-                    logger.info("📡 [MLX] Respawning worker for %s...", os.path.basename(self.model_path))
+                    logger.info(
+                        "📡 [MLX] Respawning worker for %s...", os.path.basename(self.model_path)
+                    )
                     try:
                         self._process = await self._spawn_worker()
                         self._process_started_at = time.time()
                         self._consecutive_spawn_failures = 0
                         self._spawn_backoff_until = 0.0
                     except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
-                        record_degradation('mlx_client', exc)
                         detail = str(exc)
                         _sf = getattr(self, "_consecutive_spawn_failures", 0) + 1
                         self._consecutive_spawn_failures = _sf
-                        self._spawn_backoff_until = time.time() + min(300.0, 10.0 * (2 ** min(_sf - 1, 5)))
+                        self._spawn_backoff_until = time.time() + min(
+                            300.0, 10.0 * (2 ** min(_sf - 1, 5))
+                        )
                         if "mlx_runtime_probe_failed:" in detail:
-                            self._mark_runtime_unavailable(detail.split("mlx_runtime_probe_failed:", 1)[1])
+                            self._mark_runtime_unavailable(
+                                detail.split("mlx_runtime_probe_failed:", 1)[1]
+                            )
                         else:
                             self._set_lane_state("failed", detail)
+                        _record_mlx_degradation(
+                            exc,
+                            action="marked lane failed or runtime unavailable and applied spawn backoff",
+                            severity="error",
+                        )
                         self._record_degraded_event(
                             "spawn_failed",
                             detail=f"{os.path.basename(self.model_path)}:{detail}",
                             severity="error",
                             foreground_request=foreground_request,
                         )
-                        logger.error("🛑 [MLX] Worker respawn aborted for %s: %s (backoff %.0fs)", os.path.basename(self.model_path), detail, min(300.0, 10.0 * (2 ** min(_sf - 1, 5))))
+                        logger.error(
+                            "🛑 [MLX] Worker respawn aborted for %s: %s (backoff %.0fs)",
+                            os.path.basename(self.model_path),
+                            detail,
+                            min(300.0, 10.0 * (2 ** min(_sf - 1, 5))),
+                        )
                         self._init_future = None
                         return False
                     if self._listener_task:
@@ -1741,16 +1896,22 @@ class MLXLocalClient:
                     self._consecutive_spawn_failures = 0  # Reset on success
                     self._spawn_backoff_until = 0.0
                 except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
-                    record_degradation('mlx_client', exc)
                     detail = str(exc)
                     # [BUG FIX] Exponential backoff: 10s, 30s, 60s, 120s, 300s
                     self._consecutive_spawn_failures = _spawn_fails + 1
                     backoff = min(300.0, 10.0 * (2 ** min(_spawn_fails, 5)))
                     self._spawn_backoff_until = time.time() + backoff
                     if "mlx_runtime_probe_failed:" in detail:
-                        self._mark_runtime_unavailable(detail.split("mlx_runtime_probe_failed:", 1)[1])
+                        self._mark_runtime_unavailable(
+                            detail.split("mlx_runtime_probe_failed:", 1)[1]
+                        )
                     else:
                         self._set_lane_state("failed", detail)
+                    _record_mlx_degradation(
+                        exc,
+                        action="marked lane failed or runtime unavailable and applied spawn backoff",
+                        severity="error",
+                    )
                     self._record_degraded_event(
                         "spawn_failed",
                         detail=f"{os.path.basename(self.model_path)}:{detail}",
@@ -1759,8 +1920,10 @@ class MLXLocalClient:
                     )
                     logger.error(
                         "🛑 [MLX] Worker spawn aborted for %s: %s (attempt %d, backoff %.0fs)",
-                        os.path.basename(self.model_path), detail,
-                        self._consecutive_spawn_failures, backoff,
+                        os.path.basename(self.model_path),
+                        detail,
+                        self._consecutive_spawn_failures,
+                        backoff,
                     )
                     self._init_future = None
                     return False
@@ -1778,12 +1941,12 @@ class MLXLocalClient:
             if fut is None:
                 raise RuntimeError("MLX worker init future missing during startup")
             handshake_timeout = float(init_timeout or self._handshake_timeout())
-            
-            # [STABILITY v54] One-shot retry for worker handshake to handle 
+
+            # [STABILITY v54] One-shot retry for worker handshake to handle
             # transient JIT/Metal compilation or memory alignment glitches.
             for handshake_attempt in range(2):
                 try:
-                    res = await _await_shared_future(fut, timeout=handshake_timeout)
+                    res = await _await_shared_future(fut, timeout_s=handshake_timeout)
                     if res.get("status") == "ok":
                         self._init_done = True
                         self._last_heartbeat = time.time()
@@ -1798,16 +1961,19 @@ class MLXLocalClient:
                     else:
                         msg = res.get("message", "Init failed")
                         if handshake_attempt == 0:
-                            logger.warning("🔄 [MLX] Worker init failed: %s. Retrying spawn...", msg)
+                            logger.warning(
+                                "🔄 [MLX] Worker init failed: %s. Retrying spawn...", msg
+                            )
                             # Reboot and try again once
                             await self.reboot_worker(reason="init_failed_retry", mark_failed=False)
                             # Update fut for the new spawn
                             fut = self._init_future
-                            if not fut: break
+                            if not fut:
+                                break
                             continue
                         self._set_lane_state("failed", msg)
                         raise RuntimeError(msg)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     if soft_timeout and self._process and self._process.is_alive():
                         logger.warning(
                             "⏳ [MLX] Init handshake exceeded request budget (%.1fs) for %s. Keeping worker alive to continue warming.",
@@ -1826,12 +1992,15 @@ class MLXLocalClient:
                         logger.warning("⏳ [MLX] Init timeout on attempt 1. Retrying spawn...")
                         await self.reboot_worker(reason="init_timeout_retry", mark_failed=False)
                         fut = self._init_future
-                        if not fut: break
+                        if not fut:
+                            break
                         continue
                     logger.error("🛑 [MLX] Init handshake TIMED OUT. Force killing process.")
                     self._set_lane_state("failed", "init_timeout")
                     if self._process:
-                        await asyncio.get_running_loop().run_in_executor(None, self._kill_and_join_blocking, self._process)
+                        await asyncio.get_running_loop().run_in_executor(
+                            None, self._kill_and_join_blocking, self._process
+                        )
                         self._process = None
                     self._init_future = None
                     raise
@@ -1841,6 +2010,7 @@ class MLXLocalClient:
     def _drain_queue(self):
         """Safe non-blocking drain."""
         import queue as _queue_mod
+
         while not self._res_q.empty():
             try:
                 self._res_q.get_nowait()
@@ -1863,27 +2033,34 @@ class MLXLocalClient:
         deadline: Deadline,
         *,
         foreground_request: bool = False,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """Wait in short slices so dead workers fail fast instead of hanging the UI."""
         stall_after = self._stale_after(
             during_generation=True, foreground_request=foreground_request
         )
         first_token_sla = self._first_token_sla(foreground_request=foreground_request)
         token_stall_after = self._token_stall_after(foreground_request=foreground_request)
-        while True:
+        wait_started = time.monotonic()
+        hard_cap = max(
+            30.0,
+            float(os.environ.get("AURA_MLX_GENERATION_HARD_CAP_SECONDS", "600")),
+        )
+        while (time.monotonic() - wait_started) <= hard_cap:
             remaining = deadline.remaining
             if remaining is not None and remaining <= 0.0:
-                raise asyncio.TimeoutError
+                raise TimeoutError
 
             slice_timeout = min(2.0, remaining) if remaining is not None else 2.0
             try:
-                return await _await_shared_future(future, timeout=slice_timeout)
-            except asyncio.TimeoutError:
+                return await _await_shared_future(future, timeout_s=slice_timeout)
+            except TimeoutError:
                 if future.done():
                     return future.result()
 
                 if self._process is not None and not self._process.is_alive():
-                    logger.error("🛑 [MLX] Worker died during generation. Deferring reboot until lock released.")
+                    logger.error(
+                        "🛑 [MLX] Worker died during generation. Deferring reboot until lock released."
+                    )
                     self._pending_generations.pop(req_id, None)
                     self._record_degraded_event(
                         "worker_died_during_generation",
@@ -1931,7 +2108,9 @@ class MLXLocalClient:
                     # output must never survive into the next turn. Fresh
                     # heartbeats mean this is recoverable, not that the warm
                     # lane is safe to keep carrying an orphaned request.
-                    heartbeat_age = time.time() - self._last_heartbeat if self._last_heartbeat > 0 else 999.0
+                    heartbeat_age = (
+                        time.time() - self._last_heartbeat if self._last_heartbeat > 0 else 999.0
+                    )
                     if heartbeat_age > 30.0:
                         self._deferred_reboot_reason = "first_token_sla_exceeded"
                     else:
@@ -1944,7 +2123,9 @@ class MLXLocalClient:
                     _cancel_shared_future(future)
                     return None
 
-                last_token_progress = max(self._last_token_progress_at, self._current_first_token_at)
+                last_token_progress = max(
+                    self._last_token_progress_at, self._current_first_token_at
+                )
                 if (
                     req_id == self._current_request_id
                     and self._current_first_token_at > 0.0
@@ -1966,7 +2147,9 @@ class MLXLocalClient:
                     # Same principle as the first-token SLA: fresh heartbeats
                     # keep this recoverable, but the abandoned generation must
                     # be isolated from future foreground turns.
-                    heartbeat_age = time.time() - self._last_heartbeat if self._last_heartbeat > 0 else 999.0
+                    heartbeat_age = (
+                        time.time() - self._last_heartbeat if self._last_heartbeat > 0 else 999.0
+                    )
                     if heartbeat_age > 30.0:
                         self._deferred_reboot_reason = "token_progress_stalled"
                     else:
@@ -1979,9 +2162,13 @@ class MLXLocalClient:
                     _cancel_shared_future(future)
                     return None
 
-                last_progress = max(self._last_heartbeat, self._last_progress_at, self._last_ready_at)
+                last_progress = max(
+                    self._last_heartbeat, self._last_progress_at, self._last_ready_at
+                )
                 if last_progress and (time.time() - last_progress) > stall_after:
-                    logger.error("🛑 [MLX] Worker heartbeat stalled during generation. Deferring reboot until lock released.")
+                    logger.error(
+                        "🛑 [MLX] Worker heartbeat stalled during generation. Deferring reboot until lock released."
+                    )
                     self._pending_generations.pop(req_id, None)
                     self._record_degraded_event(
                         "heartbeat_stalled_during_generation",
@@ -1992,8 +2179,9 @@ class MLXLocalClient:
                     self._deferred_reboot_reason = "heartbeat_stalled_during_generation"
                     _cancel_shared_future(future)
                     return None
+        raise TimeoutError
 
-    async def generate_text_async(self, prompt: str, **kwargs) -> Optional[str]:
+    async def generate_text_async(self, prompt: str, **kwargs) -> str | None:
         """Alias for standard interface."""
         messages = kwargs.pop("messages", None)
         system_prompt = kwargs.pop("system_prompt", None)
@@ -2020,7 +2208,9 @@ class MLXLocalClient:
                     messages = [dict(m) for m in messages]
                     messages[0]["content"] = f"{_identity_anchor}\n\n{existing}"
             elif messages:
-                messages = [{"role": "system", "content": _identity_anchor}] + [dict(m) for m in messages]
+                messages = [{"role": "system", "content": _identity_anchor}] + [
+                    dict(m) for m in messages
+                ]
 
         if messages and isinstance(messages, list):
             prompt = self._flatten_messages(
@@ -2036,19 +2226,25 @@ class MLXLocalClient:
         return await self.generate(prompt, messages=messages, tools=tools, **kwargs)
 
     @staticmethod
-    def _flatten_messages(messages: List[Dict[str, Any]], model_name: Optional[str] = None) -> str:
+    def _flatten_messages(messages: list[dict[str, Any]], model_name: str | None = None) -> str:
         return format_chatml_messages(messages, model_name=model_name)
 
     @staticmethod
-    def _normalize_tool_definitions_for_template(tools: Optional[Dict[str, Any]]) -> Optional[List[Dict[str, Any]]]:
+    def _normalize_tool_definitions_for_template(
+        tools: dict[str, Any] | None,
+    ) -> list[dict[str, Any]] | None:
         if not tools:
             return None
 
-        normalized: List[Dict[str, Any]] = []
+        normalized: list[dict[str, Any]] = []
         for name, definition in list((tools or {}).items())[:20]:
             if not definition:
                 continue
-            if isinstance(definition, dict) and definition.get("type") == "function" and definition.get("function"):
+            if (
+                isinstance(definition, dict)
+                and definition.get("type") == "function"
+                and definition.get("function")
+            ):
                 normalized.append(definition)
                 continue
 
@@ -2061,7 +2257,7 @@ class MLXLocalClient:
         return normalized or None
 
     @staticmethod
-    def _extract_tool_call_payload(response_text: str) -> Optional[Dict[str, Any]]:
+    def _extract_tool_call_payload(response_text: str) -> dict[str, Any] | None:
         if not response_text:
             return None
 
@@ -2096,7 +2292,7 @@ class MLXLocalClient:
     def _check_steering_liveness(self) -> bool:
         """Returns True if the worker subprocess reports steering as active."""
         try:
-            sm = getattr(self, '_substrate_mem', None)
+            sm = getattr(self, "_substrate_mem", None)
             if sm is None:
                 return False
             # Last slot written by worker as liveness flag
@@ -2107,7 +2303,7 @@ class MLXLocalClient:
     def _emit_steering_status(self, origin: str | None):
         """Log steering status on user-facing generations (max once per 60s)."""
         now = time.time()
-        last = getattr(self, '_last_steering_status_log', 0.0)
+        last = getattr(self, "_last_steering_status_log", 0.0)
         if now - last < 60.0:
             return
         self._last_steering_status_log = now
@@ -2115,10 +2311,13 @@ class MLXLocalClient:
         if active:
             logger.debug("✅ [STEERING] Active for this generation (origin=%s)", origin)
         else:
-            logger.warning("⚠️ [STEERING] INACTIVE for generation (origin=%s) — "
-                           "substrate state not modulating inference.", origin)
+            logger.warning(
+                "⚠️ [STEERING] INACTIVE for generation (origin=%s) — "
+                "substrate state not modulating inference.",
+                origin,
+            )
 
-    async def generate(self, prompt: str, **kwargs) -> Optional[str]:
+    async def generate(self, prompt: str, **kwargs) -> str | None:
         """High-level generation endpoint with unified deadlines.
 
         Includes automatic retry on BrokenPipeError: if the worker process
@@ -2129,7 +2328,10 @@ class MLXLocalClient:
         foreground_request = bool(kwargs.pop("foreground_request", False))
         if request_is_background:
             foreground_request = False
-        owner_label = str(kwargs.pop("owner_label", os.path.basename(self.model_path)) or os.path.basename(self.model_path))
+        owner_label = str(
+            kwargs.pop("owner_label", os.path.basename(self.model_path))
+            or os.path.basename(self.model_path)
+        )
         deadline = kwargs.get("deadline")
         origin_label = str(kwargs.get("origin", "") or "")
         purpose_label = str(kwargs.get("purpose", "") or "")
@@ -2149,7 +2351,9 @@ class MLXLocalClient:
             )
             return None
         if request_is_background:
-            background_origin = str(kwargs.get("origin", "") or owner_label or os.path.basename(self.model_path))
+            background_origin = str(
+                kwargs.get("origin", "") or owner_label or os.path.basename(self.model_path)
+            )
             background_deferral = _background_deferral_active(background_origin)
             if background_deferral:
                 logger.info(
@@ -2164,7 +2368,7 @@ class MLXLocalClient:
         # This is the #1 cause of cortex death on 64GB machines under load.
         try:
             vm = psutil.virtual_memory()
-            total_gb = vm.total / (1024 ** 3)
+            total_gb = vm.total / (1024**3)
             # On 64GB+ machines, be much more lenient — the cortex needs room to work
             if total_gb >= 60:
                 critical_pct = 92.0
@@ -2187,9 +2391,10 @@ class MLXLocalClient:
                 kwargs["max_tokens"] = min(current_max, 256)
             if vm.percent >= gc_pct:
                 import gc
+
                 gc.collect()
-        except (OSError, AttributeError):
-            pass  # no-op: psutil unavailable or VM stats inaccessible
+        except (OSError, AttributeError) as exc:
+            logger.debug("MLX memory pressure probe unavailable: %s", exc)
 
         acquired = await self._acquire_request_lock(
             owner_label=owner_label,
@@ -2262,7 +2467,7 @@ class MLXLocalClient:
         foreground_request: bool = False,
         owner_label: str = "",
         **kwargs,
-    ) -> Optional[str]:
+    ) -> str | None:
         """Core generation logic, extracted for retry support."""
         if request_is_background and _foreground_owner_active():
             logger.info(
@@ -2271,7 +2476,9 @@ class MLXLocalClient:
             )
             return None
         if request_is_background:
-            background_origin = owner_label or str(kwargs.get("origin", "") or os.path.basename(self.model_path))
+            background_origin = owner_label or str(
+                kwargs.get("origin", "") or os.path.basename(self.model_path)
+            )
             background_deferral = _background_deferral_active(background_origin)
             if background_deferral:
                 logger.info(
@@ -2297,7 +2504,7 @@ class MLXLocalClient:
                 init_timeout=init_timeout,
                 soft_timeout=soft_init_timeout,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             self._record_degraded_event(
                 "init_deadline_reached",
                 detail=f"{os.path.basename(self.model_path)}:{init_timeout:.1f}s",
@@ -2318,14 +2525,20 @@ class MLXLocalClient:
         # to "tell the LLM how to feel" — sampling itself changes.
         try:
             from core.brain.latent_bridge import compute_inference_params
+
             _bridge = compute_inference_params(
                 base_max_tokens=int(kwargs.get("max_tokens", self.max_tokens) or self.max_tokens),
-                base_temperature=float(kwargs.get("temperature", kwargs.get("temp", self.temp)) or self.temp),
+                base_temperature=float(
+                    kwargs.get("temperature", kwargs.get("temp", self.temp)) or self.temp
+                ),
                 foreground=bool(foreground_request),
             )
         except (ImportError, AttributeError, RuntimeError) as _bridge_exc:
-            record_degradation('mlx_client', _bridge_exc)
             _bridge = None
+            _record_mlx_degradation(
+                _bridge_exc,
+                action="continued generation with caller/default sampling parameters",
+            )
             logger.debug("latent_bridge unavailable: %s", _bridge_exc)
 
         def _bridge_get(field: str, fallback: Any) -> Any:
@@ -2396,8 +2609,10 @@ class MLXLocalClient:
         except (BrokenPipeError, OSError) as exc:
             self._pending_generations.pop(req_id, None)
             if _retry and ("Broken pipe" in str(exc) or isinstance(exc, BrokenPipeError)):
-                logger.warning("🔄 [MLX] Broken pipe on %s — deferring reboot (lock held)",
-                               os.path.basename(self.model_path))
+                logger.warning(
+                    "🔄 [MLX] Broken pipe on %s — deferring reboot (lock held)",
+                    os.path.basename(self.model_path),
+                )
                 self._deferred_reboot_reason = "broken_pipe_retry"
                 return None
             logger.error("🛑 [MLX] Request queue blocked or failed: %s", exc)
@@ -2503,14 +2718,11 @@ class MLXLocalClient:
                     os.path.basename(self.model_path),
                 )
             self._pending_generations.pop(req_id, None)
-            if (
-                not expected_cancel_reason
-                and (
-                    foreground_request
-                    or (
-                        self._is_primary_or_deep_lane()
-                        and self._lane_state not in {"cold", "warming", "recovering"}
-                    )
+            if not expected_cancel_reason and (
+                foreground_request
+                or (
+                    self._is_primary_or_deep_lane()
+                    and self._lane_state not in {"cold", "warming", "recovering"}
                 )
             ):
                 self._record_degraded_event(
@@ -2522,8 +2734,10 @@ class MLXLocalClient:
             if not expected_cancel_reason and self._worker_unhealthy():
                 self._deferred_reboot_reason = "cancelled_unhealthy"
             raise
-        except asyncio.TimeoutError:
-            logger.error("🛑 [MLX] Generation deadline reached for %s.", os.path.basename(self.model_path))
+        except TimeoutError:
+            logger.error(
+                "🛑 [MLX] Generation deadline reached for %s.", os.path.basename(self.model_path)
+            )
             self._pending_generations.pop(req_id, None)
             _cancel_shared_future(fut)
             self._record_degraded_event(
@@ -2541,7 +2755,9 @@ class MLXLocalClient:
                     "so abandoned text cannot block or bleed into the next turn."
                 )
             else:
-                logger.warning("⏳ [MLX] Deadline reached but worker still looks healthy; leaving lane warm.")
+                logger.warning(
+                    "⏳ [MLX] Deadline reached but worker still looks healthy; leaving lane warm."
+                )
             return None
         finally:
             self._pending_generations.pop(req_id, None)
@@ -2555,11 +2771,11 @@ class MLXLocalClient:
         self,
         objective: str,
         system_prompt: str,
-        tools: Optional[Dict[str, Any]] = None,
+        tools: dict[str, Any] | None = None,
         max_turns: int = 5,
-        context: Optional[Dict] = None,
+        context: dict | None = None,
         **kwargs,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """ReAct agentic loop: think → parse tool call → execute → repeat.
 
         Uses the model's native chat + tool template when available and falls
@@ -2578,7 +2794,7 @@ class MLXLocalClient:
                 desc = defn.get("description", "")
                 params = defn.get("parameters", {}).get("properties", {})
                 param_str = ", ".join(f'"{k}"' for k in params) if params else "none"
-                tool_lines.append(f'  • {name}: {desc}  [params: {param_str}]')
+                tool_lines.append(f"  • {name}: {desc}  [params: {param_str}]")
             tool_block = (
                 "\n\n## TOOLS AVAILABLE\n"
                 + "\n".join(tool_lines)
@@ -2589,11 +2805,11 @@ class MLXLocalClient:
             )
 
         augmented_system = system_prompt + tool_block
-        messages: List[Dict[str, Any]] = [
+        messages: list[dict[str, Any]] = [
             {"role": "system", "content": augmented_system},
             {"role": "user", "content": objective},
         ]
-        tool_calls_made: List[Dict[str, Any]] = []
+        tool_calls_made: list[dict[str, Any]] = []
         last_response_text = ""
 
         for turn in range(max_turns):
@@ -2624,6 +2840,7 @@ class MLXLocalClient:
             tool_result = f"[Tool '{tool_name}' not found]"
             try:
                 from core.container import ServiceContainer
+
                 adapter_or_cap = ServiceContainer.get("capability_engine", default=None)
                 if adapter_or_cap:
                     raw_result = await adapter_or_cap.execute(
@@ -2636,8 +2853,12 @@ class MLXLocalClient:
                     else:
                         tool_result = str(raw_result)
             except (ImportError, AttributeError, RuntimeError) as exc:
-                record_degradation('mlx_client', exc)
                 tool_result = f"[Tool error: {exc}]"
+                _record_mlx_degradation(
+                    exc,
+                    action="returned structured tool error to the model loop",
+                    severity="error",
+                )
                 logger.warning("[think_and_act] Tool '%s' failed: %s", tool_name, exc)
 
             tool_calls_made.append({"tool": tool_name, "args": tool_args, "result": tool_result})
@@ -2652,17 +2873,19 @@ class MLXLocalClient:
                         {
                             "function": {
                                 "name": tool_name,
-                                "arguments": json.dumps(tool_args),  # [STABILITY v53] Must be a JSON string, not a dict
+                                "arguments": json.dumps(
+                                    tool_args
+                                ),  # [STABILITY v53] Must be a JSON string, not a dict
                             }
                         }
                     ],
                 }
             )
-            
+
             # [STABILITY v53] Protect against massive tool outputs breaking context windows
             if len(tool_result) > 4000:
                 tool_result = tool_result[:4000] + "\n\n...[OUTPUT TRUNCATED FOR LENGTH]..."
-            
+
             messages.append({"role": "tool", "content": tool_result})
 
         # Exhausted turns — return last non-empty response
@@ -2680,7 +2903,7 @@ class MLXLocalClient:
         owner_name: str,
         warmup_timeout: float,
     ) -> None:
-        last_exc: Optional[Exception] = None
+        last_exc: Exception | None = None
         for attempt in range(2):
             try:
                 warmup_text = await asyncio.wait_for(
@@ -2713,8 +2936,11 @@ class MLXLocalClient:
                 logger.info("🔥 [MLX] Warmup complete — Metal shaders compiled.")
                 return
             except (RuntimeError, asyncio.CancelledError, TimeoutError, AttributeError) as exc:
-                record_degradation('mlx_client', exc)
                 last_exc = exc
+                _record_mlx_degradation(
+                    exc,
+                    action="retried or recycled warmup precompile after failure",
+                )
                 if attempt == 0:
                     logger.warning(
                         "⚠️ [MLX] Warmup pre-compile failed once for %s: %s. Retrying cleanly...",
@@ -2725,12 +2951,12 @@ class MLXLocalClient:
                     await self.reboot_worker(reason="warmup_precompile_retry", mark_failed=False)
                     await asyncio.sleep(1.0)
                     continue
-                raise last_exc
+                raise last_exc from None
 
     async def warmup(
         self,
         *,
-        foreground_request: Optional[bool] = None,
+        foreground_request: bool | None = None,
         skip_swap_cooldown: bool = False,
     ):
         """Boot-time warmup: spawn worker + 1-token pre-compile."""
@@ -2776,7 +3002,9 @@ class MLXLocalClient:
                         if not alive:
                             if self._lane_state != "failed":
                                 self._set_lane_state("recovering", "warmup_deferred")
-                            logger.info("⏸️ [MLX] Warmup deferred for %s.", os.path.basename(self.model_path))
+                            logger.info(
+                                "⏸️ [MLX] Warmup deferred for %s.", os.path.basename(self.model_path)
+                            )
                             return
 
                         try:
@@ -2787,8 +3015,13 @@ class MLXLocalClient:
                                 warmup_timeout=warmup_timeout,
                             )
                         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-                            record_degradation('mlx_client', e)
-                            self._set_lane_state("recovering", f"warmup_precompile_failed:{type(e).__name__}")
+                            self._set_lane_state(
+                                "recovering", f"warmup_precompile_failed:{type(e).__name__}"
+                            )
+                            _record_mlx_degradation(
+                                e,
+                                action="kept warmup lane recoverable after foreground precompile failure",
+                            )
                             self._record_degraded_event(
                                 "warmup_precompile_failed",
                                 detail=f"{os.path.basename(self.model_path)}:{type(e).__name__}",
@@ -2804,11 +3037,16 @@ class MLXLocalClient:
                         severity="warning",
                         foreground_request=foreground_request,
                     )
-                    logger.info("⏸️ [MLX] Warmup deferred for %s: %s", os.path.basename(self.model_path), exc)
+                    logger.info(
+                        "⏸️ [MLX] Warmup deferred for %s: %s", os.path.basename(self.model_path), exc
+                    )
                 return
 
             if _runtime_shutdown_requested():
-                logger.info("🛑 [MLX] Warmup skipped for %s: runtime is shutting down.", os.path.basename(self.model_path))
+                logger.info(
+                    "🛑 [MLX] Warmup skipped for %s: runtime is shutting down.",
+                    os.path.basename(self.model_path),
+                )
                 return
 
             alive = await self._ensure_worker_alive(
@@ -2830,8 +3068,11 @@ class MLXLocalClient:
                     warmup_timeout=warmup_timeout,
                 )
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-                record_degradation('mlx_client', e)
                 self._set_lane_state("recovering", f"warmup_precompile_failed:{type(e).__name__}")
+                _record_mlx_degradation(
+                    e,
+                    action="kept warmup lane recoverable after precompile failure",
+                )
                 self._record_degraded_event(
                     "warmup_precompile_failed",
                     detail=f"{os.path.basename(self.model_path)}:{type(e).__name__}",
@@ -2851,10 +3092,15 @@ class MLXLocalClient:
         self._set_lane_state("recovering", reason)
         acquired = await asyncio.to_thread(self._lock.acquire, True, 10.0)
         if not acquired:
-            logger.error("🚨 [MLX] DEADLOCK DETECTED: Could not acquire _lock for reboot on %s. Forcing reboot anyway to break deadlock.", os.path.basename(self.model_path))
+            logger.error(
+                "🚨 [MLX] DEADLOCK DETECTED: Could not acquire _lock for reboot on %s. Forcing reboot anyway to break deadlock.",
+                os.path.basename(self.model_path),
+            )
         try:
             if self._process and self._process.is_alive():
-                await asyncio.get_running_loop().run_in_executor(None, self._kill_and_join_blocking, self._process)
+                await asyncio.get_running_loop().run_in_executor(
+                    None, self._kill_and_join_blocking, self._process
+                )
             self._process = None
             self._init_done = False
             self._last_heartbeat = 0.0
@@ -2914,7 +3160,9 @@ class MLXLocalClient:
                 _cancel_shared_future(self._init_future)
             self._init_future = None
             self._warmup_in_flight = False
-            self._consecutive_empty = 0  # [STABILITY v53] Reset on reboot — prevents false recovery triggers
+            self._consecutive_empty = (
+                0  # [STABILITY v53] Reset on reboot — prevents false recovery triggers
+            )
         finally:
             self._lock.release()
         self._set_lane_state("failed" if mark_failed else "cold", reason if mark_failed else "")
@@ -2923,7 +3171,8 @@ class MLXLocalClient:
         if self._process and self._process.is_alive():
             self._process.kill()
 
-def get_mlx_client(model_path: Optional[str] = None, **kwargs) -> MLXLocalClient:
+
+def get_mlx_client(model_path: str | None = None, **kwargs) -> MLXLocalClient:
     """Compatibility factory for Aura's active local backend."""
     from .model_registry import get_local_backend, get_model_path, get_runtime_model_path
 

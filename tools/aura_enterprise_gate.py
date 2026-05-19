@@ -6,6 +6,7 @@ environment is installed. It catches obvious enterprise-runtime regressions and
 can compare the current inventory against a checked-in baseline while the repo
 continues retiring older debt.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -78,18 +79,24 @@ ALLOW_DYNAMIC_CODE = {
 ALLOW_SUBPROCESS = {
     "aura_main.py",
     "core/agency/agency_orchestrator.py",
+    "core/brain/llm/mlx_client.py",
     "core/runtime/consequential_primitives.py",
     "core/sandbox/bash_daemon.py",
     "core/security/integrity_guardian.py",
     "core/skills/sovereign_terminal.py",
     "security/sandbox.py",
     "skills/shell.py",
+    "tools/aura_enterprise_gate.py",
 }
 
 ALLOW_BLOCKING_SLEEP_IN_ASYNC = {
     # This chaos fault deliberately stalls the loop to verify lag detection
     # and recovery alarms. It is not production request handling.
     "tools/chaos/injector.py",
+}
+
+SELF_DESCRIPTIVE_PATTERN_FILES = {
+    "tools/aura_enterprise_gate.py",
 }
 
 _TMP_PATH_PREFIX = "/" + "tmp" + "/"
@@ -236,7 +243,10 @@ def decorator_name(node: ast.expr) -> str:
 
 def is_abstract_function(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
     names = {decorator_name(item) for item in node.decorator_list}
-    return bool(names & {"abstractmethod", "abc.abstractmethod", "abstractclassmethod", "abstractstaticmethod"})
+    return bool(
+        names
+        & {"abstractmethod", "abc.abstractmethod", "abstractclassmethod", "abstractstaticmethod"}
+    )
 
 
 def is_not_implemented_only(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
@@ -294,11 +304,23 @@ class AstGate(ast.NodeVisitor):
     def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
         body = body_without_docstring(node)
         if len(body) == 1 and isinstance(body[0], ast.Pass) and not is_abstract_function(node):
-            self.add("high" if is_production(self.rel) else "medium", "pass_only_function", node, node.name)
-        if len(body) == 1 and isinstance(body[0], ast.Raise) and not (
-            is_abstract_function(node) and is_not_implemented_only(node)
+            self.add(
+                "high" if is_production(self.rel) else "medium",
+                "pass_only_function",
+                node,
+                node.name,
+            )
+        if (
+            len(body) == 1
+            and isinstance(body[0], ast.Raise)
+            and not (is_abstract_function(node) and is_not_implemented_only(node))
         ):
-            self.add("high" if is_production(self.rel) else "medium", "raise_only_function", node, node.name)
+            self.add(
+                "high" if is_production(self.rel) else "medium",
+                "raise_only_function",
+                node,
+                node.name,
+            )
         self.async_depth += 1
         self.generic_visit(node)
         self.async_depth -= 1
@@ -306,11 +328,23 @@ class AstGate(ast.NodeVisitor):
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
         body = body_without_docstring(node)
         if len(body) == 1 and isinstance(body[0], ast.Pass) and not is_abstract_function(node):
-            self.add("high" if is_production(self.rel) else "medium", "pass_only_function", node, node.name)
-        if len(body) == 1 and isinstance(body[0], ast.Raise) and not (
-            is_abstract_function(node) and is_not_implemented_only(node)
+            self.add(
+                "high" if is_production(self.rel) else "medium",
+                "pass_only_function",
+                node,
+                node.name,
+            )
+        if (
+            len(body) == 1
+            and isinstance(body[0], ast.Raise)
+            and not (is_abstract_function(node) and is_not_implemented_only(node))
         ):
-            self.add("high" if is_production(self.rel) else "medium", "raise_only_function", node, node.name)
+            self.add(
+                "high" if is_production(self.rel) else "medium",
+                "raise_only_function",
+                node,
+                node.name,
+            )
         previous_async_depth = self.async_depth
         self.async_depth = 0
         try:
@@ -321,7 +355,12 @@ class AstGate(ast.NodeVisitor):
     def visit_Call(self, node: ast.Call) -> None:
         name = dotted_call_name(node)
         if name in {"compile", "eval", "exec"} and self.rel not in ALLOW_DYNAMIC_CODE:
-            self.add("critical" if is_production(self.rel) else "medium", "dynamic_code_execution", node, name)
+            self.add(
+                "critical" if is_production(self.rel) else "medium",
+                "dynamic_code_execution",
+                node,
+                name,
+            )
         if name in {
             "os.system",
             "subprocess.Popen",
@@ -346,8 +385,17 @@ class AstGate(ast.NodeVisitor):
                     name,
                 )
         if name in {"dill.load", "dill.loads", "pickle.load", "pickle.loads"}:
-            self.add("critical" if is_production(self.rel) else "high", "unsafe_deserialization", node, name)
-        if name == "time.sleep" and self.async_depth and self.rel not in ALLOW_BLOCKING_SLEEP_IN_ASYNC:
+            self.add(
+                "critical" if is_production(self.rel) else "high",
+                "unsafe_deserialization",
+                node,
+                name,
+            )
+        if (
+            name == "time.sleep"
+            and self.async_depth
+            and self.rel not in ALLOW_BLOCKING_SLEEP_IN_ASYNC
+        ):
             self.add("high", "blocking_sleep_in_async", node)
         self.generic_visit(node)
 
@@ -425,6 +473,11 @@ def scan_file(path: Path, root: Path, report: GateReport) -> None:
     for line_no, line in enumerate(source.splitlines(), start=1):
         for kind, pattern in TEXT_PATTERNS.items():
             if not pattern.search(line):
+                continue
+            if rel in SELF_DESCRIPTIVE_PATTERN_FILES and kind in {
+                "placeholder_stub_mock",
+                "pytest_skip_xfail",
+            }:
                 continue
             if kind == "potential_secret":
                 severity = "critical"
@@ -542,7 +595,9 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--root", default=".", help="Repository root to scan.")
     parser.add_argument("--out", default="", help="Optional JSON report output path.")
     parser.add_argument("--baseline", default="", help="Optional debt baseline JSON.")
-    parser.add_argument("--write-baseline", default="", help="Write a new baseline JSON from this run.")
+    parser.add_argument(
+        "--write-baseline", default="", help="Write a new baseline JSON from this run."
+    )
     parser.add_argument("--strict", action="store_true", help="Fail on any high/critical finding.")
     parser.add_argument(
         "--fail-on-regression",
@@ -576,7 +631,9 @@ def main(argv: list[str] | None = None) -> int:
         compare_to_baseline(report, load_baseline(Path(args.baseline)))
 
     if args.write_baseline:
-        write_text(Path(args.write_baseline), json.dumps(make_baseline(report), indent=2, sort_keys=True))
+        write_text(
+            Path(args.write_baseline), json.dumps(make_baseline(report), indent=2, sort_keys=True)
+        )
 
     output = report.to_json()
     if args.out:

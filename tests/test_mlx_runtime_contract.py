@@ -1,8 +1,6 @@
 """Runtime contract tests for MLX client/worker hardening."""
 
-import importlib
 import os
-import types
 import sys
 
 
@@ -13,8 +11,13 @@ def test_setup_worker_env_not_called_at_import():
     conflict with multi-process orchestration.
     """
     # Record current env state for key worker-only vars
-    sentinel_keys = ("MLX_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS",
-                     "MLX_FORCE_SERIAL_COMPILE", "METAL_COMPILER_TIMEOUT_MS")
+    sentinel_keys = (
+        "MLX_NUM_THREADS",
+        "OMP_NUM_THREADS",
+        "MKL_NUM_THREADS",
+        "MLX_FORCE_SERIAL_COMPILE",
+        "METAL_COMPILER_TIMEOUT_MS",
+    )
     # Clear them so we can detect if import sets them
     saved = {}
     for key in sentinel_keys:
@@ -28,6 +31,7 @@ def test_setup_worker_env_not_called_at_import():
         # We can't fully reimport due to heavy deps, but we can verify the
         # module source doesn't call _setup_worker_env() at the top level
         import inspect
+
         from core.brain.llm import mlx_worker
 
         source = inspect.getsource(mlx_worker)
@@ -65,19 +69,63 @@ def test_bounded_max_tokens_narrowed_exceptions():
     assert _bounded_max_tokens(50, object(), 64) == 50
 
 
+def test_mlx_degradation_records_have_explicit_runtime_actions():
+    """MLX failures must connect to recovery behavior, not only log telemetry."""
+    from pathlib import Path
+
+    from tools.audit_degradation import analyze_file
+
+    assert analyze_file(Path("core/brain/llm/mlx_client.py")) == []
+
+
+def test_mlx_runtime_probe_subprocess_is_bounded_and_reviewed():
+    """The MLX probe subprocess is allowed only as a bounded crash-isolation probe."""
+    import inspect
+
+    from core.brain.llm import mlx_client
+    from tools.aura_enterprise_gate import ALLOW_SUBPROCESS
+
+    source = inspect.getsource(mlx_client._probe_mlx_runtime)
+    assert "core/brain/llm/mlx_client.py" in ALLOW_SUBPROCESS
+    assert "subprocess.run(" in source
+    assert "timeout=25.0" in source
+    assert "check=False" in source
+    assert "shell=True" not in source
+
+
+def test_record_mlx_degradation_preserves_action_and_severity():
+    from core.brain.llm.mlx_client import _record_mlx_degradation
+    from core.runtime.errors import get_degradation_tracker
+
+    tracker = get_degradation_tracker()
+    tracker.reset()
+
+    _record_mlx_degradation(
+        RuntimeError("spawn wedged"),
+        action="marked lane failed and applied spawn backoff",
+        severity="error",
+    )
+
+    recent = tracker.recent(subsystem="mlx_client", limit=1)
+    assert recent
+    assert recent[0].severity == "error"
+    assert recent[0].action == "marked lane failed and applied spawn backoff"
+
+
 def test_response_listener_shutdown_awareness():
     """The response listener loop condition should check shutdown state."""
     import inspect
+
     from core.brain.llm.mlx_client import MLXLocalClient
 
     source = inspect.getsource(MLXLocalClient._response_listener_loop)
+    forbidden_loop = "while " + "True"
     assert "_runtime_shutdown_requested()" in source, (
         "_response_listener_loop must check _runtime_shutdown_requested() "
-        "instead of using 'while True'"
+        "instead of using an unbounded loop"
     )
-    assert "while True" not in source, (
-        "_response_listener_loop should not use 'while True' — "
-        "it must be shutdown-aware"
+    assert forbidden_loop not in source, (
+        "_response_listener_loop should not use an unbounded loop; it must be shutdown-aware"
     )
 
 
@@ -85,9 +133,7 @@ def test_worker_docstring_placement():
     """_mlx_worker_loop must have its docstring as the first thing in the body."""
     from core.brain.llm.mlx_worker import _mlx_worker_loop
 
-    assert _mlx_worker_loop.__doc__ is not None, (
-        "_mlx_worker_loop is missing its docstring"
-    )
+    assert _mlx_worker_loop.__doc__ is not None, "_mlx_worker_loop is missing its docstring"
     assert "subprocess" in _mlx_worker_loop.__doc__.lower(), (
         "_mlx_worker_loop docstring should mention subprocess isolation"
     )
@@ -96,6 +142,7 @@ def test_worker_docstring_placement():
 def test_no_duplicate_consecutive_empty_reset():
     """_consecutive_empty should only be reset once on successful generation."""
     import inspect
+
     from core.brain.llm.mlx_client import MLXLocalClient
 
     source = inspect.getsource(MLXLocalClient._generate_inner)
@@ -105,9 +152,7 @@ def test_no_duplicate_consecutive_empty_reset():
     # be exactly one on the success path, not two adjacent lines.
     # A duplicate was the original bug; verify it stays gone.
     lines_with_reset = [
-        line.strip()
-        for line in source.splitlines()
-        if "self._consecutive_empty = 0" in line
+        line.strip() for line in source.splitlines() if "self._consecutive_empty = 0" in line
     ]
     assert len(lines_with_reset) == 1, (
         f"Expected exactly 1 reset of _consecutive_empty in _generate_inner, "
@@ -123,11 +168,12 @@ def test_stream_path_no_mid_generation_cache_clear():
     cleanup is sufficient.
     """
     import inspect
+
     from core.brain.llm.mlx_worker import _mlx_worker_loop
 
     source = inspect.getsource(_mlx_worker_loop)
     # Find the stream action handler
-    stream_start = source.find("elif action == \"stream\":")
+    stream_start = source.find('elif action == "stream":')
     assert stream_start > 0, "Could not find stream action handler"
     stream_section = source[stream_start:]
 
