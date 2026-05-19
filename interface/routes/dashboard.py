@@ -40,6 +40,18 @@ logger = logging.getLogger("Aura.Server.Dashboard")
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 trace_router = APIRouter(prefix="/trace", tags=["trace"])
+_DASHBOARD_ERRORS = (
+    AttributeError,
+    ConnectionError,
+    ImportError,
+    KeyError,
+    LookupError,
+    OSError,
+    RuntimeError,
+    TimeoutError,
+    TypeError,
+    ValueError,
+)
 
 
 # ─── helpers ────────────────────────────────────────────────────────────────
@@ -48,10 +60,14 @@ trace_router = APIRouter(prefix="/trace", tags=["trace"])
 def _safe(fn, default=None):
     try:
         return fn()
-    except Exception as exc:
-        record_degradation('dashboard', exc)
-        logger.debug("dashboard helper failed: %s", exc)
+    except _DASHBOARD_ERRORS as exc:
+        _record_dashboard_issue(exc, "dashboard helper failed: %s")
         return default
+
+
+def _record_dashboard_issue(exc: BaseException, message: str) -> None:
+    record_degradation("dashboard", exc)
+    logger.debug(message, exc)
 
 
 def _percentile_summary(samples: list[float]) -> dict[str, float]:
@@ -82,21 +98,24 @@ async def snapshot(_: None = Depends(_require_internal)) -> JSONResponse:
     try:
         from core.organism.viability import get_viability
         payload["viability"] = get_viability().report()
-    except Exception:
+    except _DASHBOARD_ERRORS as exc:
+        _record_dashboard_issue(exc, "Viability snapshot unavailable: %s")
         payload["viability"] = {}
 
     # Recent receipts
     try:
         from core.agency.agency_orchestrator import get_receipt_log
         payload["recent_receipts"] = get_receipt_log().recent(limit=20)
-    except Exception:
+    except _DASHBOARD_ERRORS as exc:
+        _record_dashboard_issue(exc, "Recent receipt snapshot unavailable: %s")
         payload["recent_receipts"] = []
 
     # Active projects
     try:
         from core.agency.projects import get_ledger
         payload["projects"] = [p.to_dict() for p in get_ledger().active()]
-    except Exception:
+    except _DASHBOARD_ERRORS as exc:
+        _record_dashboard_issue(exc, "Project snapshot unavailable: %s")
         payload["projects"] = []
 
     # Capability tokens
@@ -114,7 +133,8 @@ async def snapshot(_: None = Depends(_require_internal)) -> JSONResponse:
                     "ttl_remaining_s": max(0.0, t.issued_at + t.ttl_seconds - time.time()),
                 })
         payload["capability_tokens"] = active
-    except Exception:
+    except _DASHBOARD_ERRORS as exc:
+        _record_dashboard_issue(exc, "Capability token snapshot unavailable: %s")
         payload["capability_tokens"] = []
 
     # Phi / GWT / HOT / qualia
@@ -129,7 +149,8 @@ async def snapshot(_: None = Depends(_require_internal)) -> JSONResponse:
             "disk_pct": _safe(lambda: psutil.disk_usage("/").percent, default=0.0),
             "uptime_s": time.time() - psutil.boot_time(),
         }
-    except Exception:
+    except _DASHBOARD_ERRORS as exc:
+        _record_dashboard_issue(exc, "System snapshot unavailable: %s")
         payload["system"] = {}
 
     # Stability + lane
@@ -144,14 +165,16 @@ async def snapshot(_: None = Depends(_require_internal)) -> JSONResponse:
                     for c in (getattr(r, "checks", []) or [])
                 ],
             }
-    except Exception:
+    except _DASHBOARD_ERRORS as exc:
+        _record_dashboard_issue(exc, "Stability snapshot unavailable: %s")
         payload["stability"] = {}
 
     # Conversation lane
     try:
         from interface.routes.chat import _collect_conversation_lane_status
         payload["conversation_lane"] = _collect_conversation_lane_status()
-    except Exception:
+    except _DASHBOARD_ERRORS as exc:
+        _record_dashboard_issue(exc, "Conversation lane snapshot unavailable: %s")
         payload["conversation_lane"] = {}
 
     return JSONResponse(payload)
@@ -167,9 +190,8 @@ def _collect_integration() -> dict[str, Any]:
                 if v is None:
                     continue
                 out[attr] = v
-    except Exception as exc:
-        record_degradation("dashboard", exc)
-        logger.debug("Phi dashboard collection skipped: %s", exc)
+    except _DASHBOARD_ERRORS as exc:
+        _record_dashboard_issue(exc, "Phi dashboard collection skipped: %s")
     try:
         hp = ServiceContainer.get("hierarchical_phi", default=None)
         if hp is not None and hasattr(hp, "last_result"):
@@ -177,18 +199,16 @@ def _collect_integration() -> dict[str, Any]:
             if r is not None:
                 out["hierarchical_max_complex"] = getattr(r, "max_complex_name", None)
                 out["hierarchical_max_phi"] = getattr(r, "max_phi", None)
-    except Exception as exc:
-        record_degradation("dashboard", exc)
-        logger.debug("Hierarchical phi dashboard collection skipped: %s", exc)
+    except _DASHBOARD_ERRORS as exc:
+        _record_dashboard_issue(exc, "Hierarchical phi dashboard collection skipped: %s")
     try:
         gw = ServiceContainer.get("global_workspace", default=None)
         if gw is not None and hasattr(gw, "last_winner"):
             w = gw.last_winner
             out["gw_winner_source"] = getattr(w, "source", None)
             out["gw_winner_priority"] = getattr(w, "priority", None)
-    except Exception as exc:
-        record_degradation("dashboard", exc)
-        logger.debug("Global workspace dashboard collection skipped: %s", exc)
+    except _DASHBOARD_ERRORS as exc:
+        _record_dashboard_issue(exc, "Global workspace dashboard collection skipped: %s")
     return out
 
 
@@ -200,7 +220,7 @@ async def receipts(limit: int = 100, _: None = Depends(_require_internal)) -> JS
     try:
         from core.agency.agency_orchestrator import get_receipt_log
         return JSONResponse({"receipts": get_receipt_log().recent(limit=int(limit))})
-    except Exception as exc:
+    except _DASHBOARD_ERRORS as exc:
         record_degradation('dashboard', exc)
         return JSONResponse({"error": str(exc), "receipts": []})
 
@@ -210,7 +230,7 @@ async def projects(_: None = Depends(_require_internal)) -> JSONResponse:
     try:
         from core.agency.projects import get_ledger
         return JSONResponse({"projects": [p.to_dict() for p in get_ledger().all()]})
-    except Exception as exc:
+    except _DASHBOARD_ERRORS as exc:
         record_degradation('dashboard', exc)
         return JSONResponse({"error": str(exc), "projects": []})
 
@@ -235,7 +255,7 @@ async def tokens(_: None = Depends(_require_internal)) -> JSONResponse:
                 "expired": t.is_expired(),
             })
         return JSONResponse({"tokens": all_tokens})
-    except Exception as exc:
+    except _DASHBOARD_ERRORS as exc:
         record_degradation('dashboard', exc)
         return JSONResponse({"error": str(exc), "tokens": []})
 
@@ -258,7 +278,7 @@ async def relationships(_: None = Depends(_require_internal)) -> JSONResponse:
                 "topics_top": sorted(d.topics, key=lambda t: -t.weight)[:5],
             })
         return JSONResponse({"relationships": out})
-    except Exception as exc:
+    except _DASHBOARD_ERRORS as exc:
         record_degradation('dashboard', exc)
         return JSONResponse({"error": str(exc), "relationships": []})
 
@@ -273,7 +293,7 @@ async def viability(_: None = Depends(_require_internal)) -> JSONResponse:
     try:
         from core.organism.viability import get_viability
         return JSONResponse(get_viability().report())
-    except Exception as exc:
+    except _DASHBOARD_ERRORS as exc:
         record_degradation('dashboard', exc)
         return JSONResponse({"error": str(exc)})
 
@@ -284,7 +304,7 @@ async def world(_: None = Depends(_require_internal)) -> JSONResponse:
         from core.embodiment.world_bridge import get_permissions
         store = get_permissions()
         return JSONResponse({"channels": {c: {"granted": p.is_active(), "notes": p.notes} for c, p in store.all_channels().items()}})
-    except Exception as exc:
+    except _DASHBOARD_ERRORS as exc:
         record_degradation('dashboard', exc)
         return JSONResponse({"error": str(exc), "channels": {}})
 
@@ -306,7 +326,7 @@ async def conscience_recent(limit: int = 50, _: None = Depends(_require_internal
             except json.JSONDecodeError:
                 continue
         return JSONResponse({"violations": rows[-int(limit):]})
-    except Exception as exc:
+    except _DASHBOARD_ERRORS as exc:
         record_degradation('dashboard', exc)
         return JSONResponse({"error": str(exc), "violations": []})
 
@@ -329,7 +349,7 @@ async def trace(receipt_id: str = Path(...), _: None = Depends(_require_internal
         raise HTTPException(status_code=404, detail="receipt_not_found")
     except HTTPException:
         raise
-    except Exception as exc:
+    except _DASHBOARD_ERRORS as exc:
         record_degradation('dashboard', exc)
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
