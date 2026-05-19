@@ -1,18 +1,53 @@
 import json
+from collections import deque
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
 
 import pytest
 
-from core.agency.autonomous_task_engine import AutonomousTaskEngine, StepStatus, TaskPlan, TaskResult, TaskStep
+from core.agency.autonomous_task_engine import (
+    AutonomousTaskEngine,
+    StepStatus,
+    TaskPlan,
+    TaskStep,
+)
+
+
+class AsyncCallRecorder:
+    def __init__(self, return_value=None, side_effect=None):
+        self.return_value = return_value
+        self.side_effect = deque(side_effect) if isinstance(side_effect, list) else side_effect
+        self.await_count = 0
+        self.await_args_list = []
+
+    async def __call__(self, *args, **kwargs):
+        self.await_count += 1
+        self.await_args_list.append((args, kwargs))
+        if isinstance(self.side_effect, deque):
+            effect = self.side_effect.popleft()
+            if isinstance(effect, BaseException):
+                raise effect
+            return effect
+        if callable(self.side_effect):
+            return self.side_effect(*args, **kwargs)
+        if isinstance(self.side_effect, BaseException):
+            raise self.side_effect
+        return self.return_value
+
+    def assert_awaited(self):
+        assert self.await_count > 0
+
+    def assert_not_awaited(self):
+        assert self.await_count == 0
+
+    def assert_awaited_once_with(self, *args, **kwargs):
+        assert self.await_count == 1
+        assert self.await_args_list[0] == (args, kwargs)
 
 
 @pytest.mark.asyncio
 async def test_task_engine_fallback_plan_survives_malformed_decomposition():
-    llm = SimpleNamespace(think=AsyncMock(return_value='[{"description": "broken"'))
-    kernel = SimpleNamespace(
-        organs={"llm": SimpleNamespace(get_instance=lambda: llm)}
-    )
+    llm = SimpleNamespace(think=AsyncCallRecorder(return_value='[{"description": "broken"'))
+    kernel = SimpleNamespace(organs={"llm": SimpleNamespace(get_instance=lambda: llm)})
 
     engine = AutonomousTaskEngine(kernel)
 
@@ -26,10 +61,8 @@ async def test_task_engine_fallback_plan_survives_malformed_decomposition():
 
 @pytest.mark.asyncio
 async def test_task_engine_grounded_goal_fallback_avoids_think_only_plan():
-    llm = SimpleNamespace(think=AsyncMock(return_value='[{"description": "broken"'))
-    kernel = SimpleNamespace(
-        organs={"llm": SimpleNamespace(get_instance=lambda: llm)}
-    )
+    llm = SimpleNamespace(think=AsyncCallRecorder(return_value='[{"description": "broken"'))
+    kernel = SimpleNamespace(organs={"llm": SimpleNamespace(get_instance=lambda: llm)})
 
     engine = AutonomousTaskEngine(kernel)
 
@@ -44,15 +77,16 @@ async def test_task_engine_grounded_goal_fallback_avoids_think_only_plan():
     assert plan.steps[0].tool == "computer_use"
     assert plan.steps[0].args["action"] == "open_app"
     assert any(step.args.get("action") == "type" for step in plan.steps)
-    assert any(step.args.get("action") == "hotkey" and step.args.get("target") == "enter" for step in plan.steps)
+    assert any(
+        step.args.get("action") == "hotkey" and step.args.get("target") == "enter"
+        for step in plan.steps
+    )
 
 
 @pytest.mark.asyncio
 async def test_task_engine_learning_bundle_uses_deterministic_remember_plan():
-    llm = SimpleNamespace(think=AsyncMock(return_value="[]"))
-    kernel = SimpleNamespace(
-        organs={"llm": SimpleNamespace(get_instance=lambda: llm)}
-    )
+    llm = SimpleNamespace(think=AsyncCallRecorder(return_value="[]"))
+    kernel = SimpleNamespace(organs={"llm": SimpleNamespace(get_instance=lambda: llm)})
 
     engine = AutonomousTaskEngine(kernel)
 
@@ -70,26 +104,29 @@ PolyMatter (https://www.youtube.com/@PolyMatter): Essays on geopolitics and econ
 TED (https://www.youtube.com/@TED): Short, powerful talks by experts on the frontier of their fields.
 """.strip()
 
-    plan = await engine._decompose_goal(goal, "plan_learning", context={"matched_skills": ["curiosity"]})
+    plan = await engine._decompose_goal(
+        goal, "plan_learning", context={"matched_skills": ["curiosity"]}
+    )
 
     assert 2 <= len(plan.steps) <= engine.MAX_STEPS
     assert all(step.tool == "remember" for step in plan.steps)
     assert "learning-resource bundle" in plan.steps[0].args["content"].lower()
     assert "future research thread" in plan.steps[1].args["content"].lower()
-    assert engine._plan_needs_grounding_repair(
-        plan,
-        goal,
-        {"matched_skills": ["curiosity", "sovereign_terminal", "run_code"]},
-    ) is False
+    assert (
+        engine._plan_needs_grounding_repair(
+            plan,
+            goal,
+            {"matched_skills": ["curiosity", "sovereign_terminal", "run_code"]},
+        )
+        is False
+    )
     llm.think.assert_not_awaited()
 
 
 @pytest.mark.asyncio
 async def test_task_engine_learning_bundle_chunks_within_step_cap():
-    llm = SimpleNamespace(think=AsyncMock(return_value="[]"))
-    kernel = SimpleNamespace(
-        organs={"llm": SimpleNamespace(get_instance=lambda: llm)}
-    )
+    llm = SimpleNamespace(think=AsyncCallRecorder(return_value="[]"))
+    kernel = SimpleNamespace(organs={"llm": SimpleNamespace(get_instance=lambda: llm)})
 
     engine = AutonomousTaskEngine(kernel)
 
@@ -104,7 +141,9 @@ General Education:
 {resource_lines}
 """.strip()
 
-    plan = await engine._decompose_goal(goal, "plan_learning_large", context={"matched_skills": ["curiosity"]})
+    plan = await engine._decompose_goal(
+        goal, "plan_learning_large", context={"matched_skills": ["curiosity"]}
+    )
 
     assert len(plan.steps) <= 4
     assert len(plan.steps) > 2
@@ -113,10 +152,8 @@ General Education:
 
 @pytest.mark.asyncio
 async def test_task_engine_learning_bundle_preserves_consumption_guidance():
-    llm = SimpleNamespace(think=AsyncMock(return_value="[]"))
-    kernel = SimpleNamespace(
-        organs={"llm": SimpleNamespace(get_instance=lambda: llm)}
-    )
+    llm = SimpleNamespace(think=AsyncCallRecorder(return_value="[]"))
+    kernel = SimpleNamespace(organs={"llm": SimpleNamespace(get_instance=lambda: llm)})
 
     engine = AutonomousTaskEngine(kernel)
 
@@ -148,12 +185,104 @@ Insider (https://www.youtube.com/@Insider): Deep dives into industries and every
 
 
 @pytest.mark.asyncio
-async def test_task_engine_empty_result_synthesis_falls_back_to_completed_summary():
-    llm = SimpleNamespace(think=AsyncMock(return_value=""))
-    engine = AutonomousTaskEngine.__new__(AutonomousTaskEngine)
-    engine.kernel = SimpleNamespace(
-        organs={"llm": SimpleNamespace(get_instance=lambda: llm)}
+async def test_task_engine_builds_deterministic_search_file_memory_chain():
+    llm = SimpleNamespace(think=AsyncCallRecorder(return_value="[]"))
+    kernel = SimpleNamespace(organs={"llm": SimpleNamespace(get_instance=lambda: llm)})
+
+    engine = AutonomousTaskEngine(kernel)
+
+    plan = await engine._decompose_goal(
+        "Search the web for Aura runtime health contracts, save the result to aura_health.md, and remember it.",
+        "plan_chain",
+        context={"matched_tools": ["web_search", "write_file", "remember"]},
     )
+
+    assert [step.tool for step in plan.steps] == ["web_search", "write_file", "remember"]
+    assert plan.steps[0].args["query"] == "Aura runtime health contracts"
+    assert plan.steps[1].depends_on == ["plan_chain_s0"]
+    assert plan.steps[1].args["path"] == "aura_health.md"
+    assert plan.steps[1].args["content"] == "{{step_result:plan_chain_s0}}"
+    assert plan.steps[2].args["verified"] is True
+    assert "{{step_result:plan_chain_s0}}" in plan.steps[2].args["content"]
+    llm.think.assert_not_awaited()
+
+
+def test_task_engine_does_not_treat_write_topic_as_file_output():
+    engine = AutonomousTaskEngine.__new__(AutonomousTaskEngine)
+
+    plan = AutonomousTaskEngine._build_tool_chain_fallback_plan(
+        engine,
+        "Research how to write durable autonomous agents and remember the findings.",
+        "plan_write_topic",
+        {"matched_tools": ["web_search", "remember"]},
+    )
+
+    assert plan is not None
+    assert [step.tool for step in plan.steps] == ["web_search", "remember"]
+    assert plan.steps[0].args["query"] == "how to write durable autonomous agents"
+
+
+@pytest.mark.asyncio
+async def test_task_engine_resolves_prior_tool_results_into_later_step_args():
+    engine = AutonomousTaskEngine.__new__(AutonomousTaskEngine)
+    engine._invoke_tool = AsyncCallRecorder(return_value="Written to aura_health.md")
+    engine._verify_step = AsyncCallRecorder(return_value=True)
+    engine._persist_plan_state = lambda plan: None
+    engine._record_coding_execution = lambda *_args, **_kwargs: None
+    engine._context_origin = lambda context: "user"
+    engine._compact_tool_result = lambda result: str(result)
+    engine.STEP_TIMEOUT = 1.0
+    engine.MAX_RETRIES = 0
+
+    search_step = TaskStep(
+        step_id="plan_chain_s0",
+        description="Search.",
+        tool="web_search",
+        args={"query": "Aura health"},
+        success_criterion="response is non-empty",
+        status=StepStatus.SUCCEEDED,
+        verified=True,
+        raw_result="Aura runtime health contract: operational.",
+    )
+    write_step = TaskStep(
+        step_id="plan_chain_s1",
+        description="Write.",
+        tool="write_file",
+        args={
+            "path": "aura_health.md",
+            "content": "Result:\n{{step_result:plan_chain_s0}}",
+        },
+        success_criterion="step completes without error",
+        depends_on=["plan_chain_s0"],
+    )
+    plan = TaskPlan(
+        plan_id="plan_chain",
+        goal="Search, save, remember.",
+        steps=[search_step, write_step],
+        trace_id="trace",
+        context={"origin": "user"},
+    )
+
+    await AutonomousTaskEngine._execute_step_with_retry(engine, write_step, plan)
+
+    engine._invoke_tool.assert_awaited_once_with(
+        "write_file",
+        {
+            "path": "aura_health.md",
+            "content": "Result:\nAura runtime health contract: operational.",
+        },
+        None,
+        False,
+        origin="user",
+    )
+    assert write_step.status == StepStatus.SUCCEEDED
+
+
+@pytest.mark.asyncio
+async def test_task_engine_empty_result_synthesis_falls_back_to_completed_summary():
+    llm = SimpleNamespace(think=AsyncCallRecorder(return_value=""))
+    engine = AutonomousTaskEngine.__new__(AutonomousTaskEngine)
+    engine.kernel = SimpleNamespace(organs={"llm": SimpleNamespace(get_instance=lambda: llm)})
 
     step = TaskStep(
         step_id="plan_summary_s0",
@@ -244,7 +373,7 @@ async def test_task_engine_remember_tool_supplies_default_knowledge_type(monkeyp
 @pytest.mark.asyncio
 async def test_task_engine_execute_alias_delegates_to_execute_goal():
     engine = AutonomousTaskEngine.__new__(AutonomousTaskEngine)
-    engine.execute_goal = AsyncMock(return_value="ok")
+    engine.execute_goal = AsyncCallRecorder(return_value="ok")
 
     result = await AutonomousTaskEngine.execute(
         engine,
@@ -279,9 +408,11 @@ async def test_task_engine_records_execution_repair_pressure(monkeypatch):
     )
 
     engine = AutonomousTaskEngine.__new__(AutonomousTaskEngine)
-    engine._invoke_tool = AsyncMock(return_value={"ok": True, "stdout": "still failing"})
-    engine._verify_step = AsyncMock(side_effect=[False, True])
-    engine._get_alternative_approach = AsyncMock(return_value={"command": "pytest tests/test_runtime_service_access.py -q"})
+    engine._invoke_tool = AsyncCallRecorder(return_value={"ok": True, "stdout": "still failing"})
+    engine._verify_step = AsyncCallRecorder(side_effect=[False, True])
+    engine._get_alternative_approach = AsyncCallRecorder(
+        return_value={"command": "pytest tests/test_runtime_service_access.py -q"}
+    )
 
     step = TaskStep(
         step_id="plan-1_s0",
@@ -302,9 +433,9 @@ async def test_task_engine_records_execution_repair_pressure(monkeypatch):
 @pytest.mark.asyncio
 async def test_task_engine_fails_fast_when_no_alternative_args_exist():
     engine = AutonomousTaskEngine.__new__(AutonomousTaskEngine)
-    engine._invoke_tool = AsyncMock(return_value={"ok": True, "stdout": "still failing"})
-    engine._verify_step = AsyncMock(return_value=False)
-    engine._get_alternative_approach = AsyncMock(return_value=None)
+    engine._invoke_tool = AsyncCallRecorder(return_value={"ok": True, "stdout": "still failing"})
+    engine._verify_step = AsyncCallRecorder(return_value=False)
+    engine._get_alternative_approach = AsyncCallRecorder(return_value=None)
     engine._persist_plan_state = lambda plan: None
     engine._record_coding_execution = lambda *_args, **_kwargs: None
 
@@ -325,7 +456,7 @@ async def test_task_engine_fails_fast_when_no_alternative_args_exist():
 
 @pytest.mark.asyncio
 async def test_task_engine_verify_step_uses_deterministic_result_checks_before_llm():
-    llm = SimpleNamespace(think=AsyncMock(return_value="NO"))
+    llm = SimpleNamespace(think=AsyncCallRecorder(return_value="NO"))
     engine = AutonomousTaskEngine.__new__(AutonomousTaskEngine)
     engine.kernel = SimpleNamespace(organs={"llm": SimpleNamespace(get_instance=lambda: llm)})
 
@@ -336,11 +467,14 @@ async def test_task_engine_verify_step_uses_deterministic_result_checks_before_l
         args={},
         success_criterion="pytest output contains '1 passed'",
     )
-    assert await AutonomousTaskEngine._verify_step(
-        engine,
-        failing_step,
-        {"ok": False, "stderr": "AssertionError"},
-    ) is False
+    assert (
+        await AutonomousTaskEngine._verify_step(
+            engine,
+            failing_step,
+            {"ok": False, "stderr": "AssertionError"},
+        )
+        is False
+    )
 
     passing_step = TaskStep(
         step_id="s1",
@@ -349,11 +483,14 @@ async def test_task_engine_verify_step_uses_deterministic_result_checks_before_l
         args={},
         success_criterion="result contains '1 passed'",
     )
-    assert await AutonomousTaskEngine._verify_step(
-        engine,
-        passing_step,
-        {"ok": True, "stdout": "1 passed in 0.40s"},
-    ) is True
+    assert (
+        await AutonomousTaskEngine._verify_step(
+            engine,
+            passing_step,
+            {"ok": True, "stdout": "1 passed in 0.40s"},
+        )
+        is True
+    )
     llm.think.assert_not_awaited()
 
 
@@ -411,11 +548,11 @@ def test_task_engine_loads_interrupted_plan_snapshot_as_resumable(tmp_path):
 @pytest.mark.asyncio
 async def test_task_engine_execute_plan_resumes_from_completed_steps():
     engine = AutonomousTaskEngine.__new__(AutonomousTaskEngine)
-    engine._safety_registry = SimpleNamespace(is_allowed=AsyncMock(return_value=True))
+    engine._safety_registry = SimpleNamespace(is_allowed=AsyncCallRecorder(return_value=True))
     engine._persist_plan_state = lambda plan: None
     engine._can_run_in_parallel = lambda step: False
     engine._report_progress = lambda step, on_progress: None
-    engine._fail_plan = AsyncMock()
+    engine._fail_plan = AsyncCallRecorder()
 
     async def _execute_step(step, plan):
         step.status = StepStatus.SUCCEEDED

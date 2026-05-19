@@ -1,6 +1,4 @@
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
 
 import asyncio
 import inspect
@@ -9,15 +7,21 @@ import logging
 import re
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple
-from core.config import config
-from core.agency.capability_system import get_capability_manager, CapabilityToken
+from typing import Any
+
+from core.agency.capability_system import get_capability_manager
 from core.agency.safety_registry import get_safety_registry
+from core.config import config
 from core.mycelial.graph import get_mycelial
-from core.runtime.skill_task_bridge import looks_like_multi_step_skill_request, normalize_matched_skills
+from core.runtime.errors import record_degradation
+from core.runtime.skill_task_bridge import (
+    looks_like_multi_step_skill_request,
+    normalize_matched_skills,
+)
 from core.utils.file_utils import atomic_write_json
 
 logger = logging.getLogger("Aura.TaskEngine")
@@ -25,11 +29,12 @@ logger = logging.getLogger("Aura.TaskEngine")
 
 # ── Data structures ──────────────────────────────────────────────────────────
 
+
 class StepStatus(Enum):
-    PENDING   = "pending"
-    RUNNING   = "running"
+    PENDING = "pending"
+    RUNNING = "running"
     SUCCEEDED = "succeeded"
-    FAILED    = "failed"
+    FAILED = "failed"
     SKIPPED = "skipped"
     ROLLED_BACK = "rolled_back"
 
@@ -37,42 +42,43 @@ class StepStatus(Enum):
 @dataclass
 class TaskStep:
     """One atomic step in a task plan."""
-    step_id:        str
-    description:    str                  # What to do in natural language
-    tool:           str                  # Tool name to invoke
-    args:           Dict[str, Any]       # Tool arguments
-    success_criterion: str               # Natural language: "the result contains X"
-    rollback_action: Optional[str]       = None  # Tool call to undo this step (or None)
-    rollback_args:   Dict[str, Any]      = field(default_factory=dict)
-    depends_on:      List[str]           = field(default_factory=list)
-    parallel_safe:   bool                = False
+
+    step_id: str
+    description: str  # What to do in natural language
+    tool: str  # Tool name to invoke
+    args: dict[str, Any]  # Tool arguments
+    success_criterion: str  # Natural language: "the result contains X"
+    rollback_action: str | None = None  # Tool call to undo this step (or None)
+    rollback_args: dict[str, Any] = field(default_factory=dict)
+    depends_on: list[str] = field(default_factory=list)
+    parallel_safe: bool = False
 
     # Runtime state
-    status:         StepStatus           = StepStatus.PENDING
-    attempts:       int                  = 0
-    raw_result:     Any                  = None
-    verified:       bool                 = False
-    error:          Optional[str]        = None
-    result_summary: Optional[str]        = None
-    started_at:     Optional[float]      = None
-    completed_at:   Optional[float]      = None
+    status: StepStatus = StepStatus.PENDING
+    attempts: int = 0
+    raw_result: Any = None
+    verified: bool = False
+    error: str | None = None
+    result_summary: str | None = None
+    started_at: float | None = None
+    completed_at: float | None = None
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         return {
-            "step_id":          self.step_id,
-            "description":      self.description,
-            "tool":             self.tool,
-            "args":             self.args,
-            "depends_on":       list(self.depends_on),
-            "parallel_safe":    self.parallel_safe,
+            "step_id": self.step_id,
+            "description": self.description,
+            "tool": self.tool,
+            "args": self.args,
+            "depends_on": list(self.depends_on),
+            "parallel_safe": self.parallel_safe,
             "success_criterion": self.success_criterion,
-            "status":           self.status.value,
-            "attempts":         self.attempts,
-            "verified":         self.verified,
-            "error":            self.error,
+            "status": self.status.value,
+            "attempts": self.attempts,
+            "verified": self.verified,
+            "error": self.error,
         }
 
-    def to_runtime_dict(self) -> Dict[str, Any]:
+    def to_runtime_dict(self) -> dict[str, Any]:
         payload = self.to_dict()
         payload.update(
             {
@@ -87,8 +93,10 @@ class TaskStep:
         return payload
 
     @classmethod
-    def from_runtime_dict(cls, payload: Dict[str, Any]) -> "TaskStep":
-        raw_status = str(payload.get("status", StepStatus.PENDING.value) or StepStatus.PENDING.value)
+    def from_runtime_dict(cls, payload: dict[str, Any]) -> TaskStep:
+        raw_status = str(
+            payload.get("status", StepStatus.PENDING.value) or StepStatus.PENDING.value
+        )
         try:
             status = StepStatus(raw_status)
         except (RuntimeError, AttributeError, TypeError, ValueError):
@@ -117,35 +125,33 @@ class TaskStep:
 @dataclass
 class TaskPlan:
     """Complete execution plan for a goal."""
-    plan_id:        str
-    goal:           str
-    steps:          List[TaskStep]
-    trace_id:       str             # Observability Fix 5.2
-    context:        Dict[str, Any]  = field(default_factory=dict)
-    token_id:       Optional[str]   = None  # Associated CapabilityToken
-    is_shadow:      bool            = False # If true, no side effects
-    requires_approval: bool         = False # If high cost/complexity
-    created_at:     float           = field(default_factory=time.time)
-    completed_at:   Optional[float] = None
-    status:         str             = "pending"
-    final_result:   Optional[str]   = None
+
+    plan_id: str
+    goal: str
+    steps: list[TaskStep]
+    trace_id: str  # Observability Fix 5.2
+    context: dict[str, Any] = field(default_factory=dict)
+    token_id: str | None = None  # Associated CapabilityToken
+    is_shadow: bool = False  # If true, no side effects
+    requires_approval: bool = False  # If high cost/complexity
+    created_at: float = field(default_factory=time.time)
+    completed_at: float | None = None
+    status: str = "pending"
+    final_result: str | None = None
 
     @property
-    def succeeded_steps(self) -> List[TaskStep]:
+    def succeeded_steps(self) -> list[TaskStep]:
         return [s for s in self.steps if s.status == StepStatus.SUCCEEDED]
 
     @property
     def all_complete(self) -> bool:
-        return all(
-            s.status in (StepStatus.SUCCEEDED, StepStatus.SKIPPED)
-            for s in self.steps
-        )
+        return all(s.status in (StepStatus.SUCCEEDED, StepStatus.SKIPPED) for s in self.steps)
 
     @property
     def any_failed(self) -> bool:
         return any(s.status == StepStatus.FAILED for s in self.steps)
 
-    def to_runtime_dict(self) -> Dict[str, Any]:
+    def to_runtime_dict(self) -> dict[str, Any]:
         return {
             "plan_id": self.plan_id,
             "goal": self.goal,
@@ -162,7 +168,7 @@ class TaskPlan:
         }
 
     @classmethod
-    def from_runtime_dict(cls, payload: Dict[str, Any]) -> "TaskPlan":
+    def from_runtime_dict(cls, payload: dict[str, Any]) -> TaskPlan:
         return cls(
             plan_id=str(payload.get("plan_id", "") or ""),
             goal=str(payload.get("goal", "") or ""),
@@ -186,18 +192,20 @@ class TaskPlan:
 @dataclass
 class TaskResult:
     """Final result of task execution."""
-    plan_id:        str
-    goal:           str
-    succeeded:      bool
-    summary:        str
-    trace_id:       str             # Observability Fix 5.2
+
+    plan_id: str
+    goal: str
+    succeeded: bool
+    summary: str
+    trace_id: str  # Observability Fix 5.2
     steps_completed: int
-    steps_total:    int
-    evidence:       List[str]       = field(default_factory=list)
-    duration_s:     float           = 0.0
+    steps_total: int
+    evidence: list[str] = field(default_factory=list)
+    duration_s: float = 0.0
 
 
 # ── The Engine ────────────────────────────────────────────────────────────────
+
 
 class AutonomousTaskEngine:
     """
@@ -213,8 +221,8 @@ class AutonomousTaskEngine:
     """
 
     MAX_RETRIES = 3
-    MAX_STEPS   = 12    # Cap plan complexity
-    STEP_TIMEOUT = 60.0 # Per-step timeout
+    MAX_STEPS = 12  # Cap plan complexity
+    STEP_TIMEOUT = 60.0  # Per-step timeout
 
     APPROVAL_TIMEOUT = 300.0  # 5 minutes to approve before auto-reject
     MAX_PARALLEL_STEPS = 4
@@ -223,10 +231,26 @@ class AutonomousTaskEngine:
     TERMINAL_PLAN_STATUSES = frozenset({"succeeded", "failed", "partial", "rejected"})
     NON_EXECUTING_TOOLS = frozenset({"think"})
     TECHNICAL_FACT_HINTS = (
-        "def ", "class ", ".py", ".ts", ".tsx", ".js", ".jsx",
-        "function ", "method ", "module ", "endpoint", "api ", "schema ",
+        "def ",
+        "class ",
+        ".py",
+        ".ts",
+        ".tsx",
+        ".js",
+        ".jsx",
+        "function ",
+        "method ",
+        "module ",
+        "endpoint",
+        "api ",
+        "schema ",
     )
-    DESKTOP_TOOL_PREFERENCES = ("computer_use", "os_manipulation", "sovereign_vision", "sovereign_terminal")
+    DESKTOP_TOOL_PREFERENCES = (
+        "computer_use",
+        "os_manipulation",
+        "sovereign_vision",
+        "sovereign_terminal",
+    )
     COMPLETION_HEDGE_MARKERS = (
         "i attempted",
         "i tried",
@@ -265,13 +289,15 @@ class AutonomousTaskEngine:
 
     def __init__(self, kernel: Any):
         self.kernel = kernel
-        self._active_plans: Dict[str, TaskPlan] = {}
-        self._persist_path = Path(config.paths.data_dir) / "runtime" / "task_engine_active_plans.json"
-        self._tool_registry: Dict[str, Callable] = {}
+        self._active_plans: dict[str, TaskPlan] = {}
+        self._persist_path = (
+            Path(config.paths.data_dir) / "runtime" / "task_engine_active_plans.json"
+        )
+        self._tool_registry: dict[str, Callable] = {}
         self._capability_manager = get_capability_manager()
         self._safety_registry = get_safety_registry()
         self._mycelial = get_mycelial()
-        self._approval_events: Dict[str, asyncio.Event] = {}
+        self._approval_events: dict[str, asyncio.Event] = {}
         self._register_default_tools()
         self._load_persisted_active_plans()
 
@@ -285,8 +311,10 @@ class AutonomousTaskEngine:
             if callable(callback):
                 callback(**kwargs)
         except (ImportError, AttributeError, RuntimeError) as exc:
-            record_degradation('autonomous_task_engine', exc)
-            logger.debug("TaskEngine: coding execution recording skipped (%s): %s", callback_name, exc)
+            record_degradation("autonomous_task_engine", exc)
+            logger.debug(
+                "TaskEngine: coding execution recording skipped (%s): %s", callback_name, exc
+            )
 
     @staticmethod
     def _goal_overlap_score(a: str, b: str) -> float:
@@ -301,7 +329,7 @@ class AutonomousTaskEngine:
         return str(origin or "").strip().lower().replace("-", "_")
 
     @classmethod
-    def _context_origin(cls, context: Optional[Dict[str, Any]]) -> str:
+    def _context_origin(cls, context: dict[str, Any] | None) -> str:
         if not isinstance(context, dict):
             return ""
         for candidate in (
@@ -335,7 +363,7 @@ class AutonomousTaskEngine:
             }
             atomic_write_json(str(self._persist_path), payload)
         except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
-            record_degradation('autonomous_task_engine', exc)
+            record_degradation("autonomous_task_engine", exc)
             logger.debug("TaskEngine: active plan persistence skipped: %s", exc)
 
     def _persist_plan_state(self, plan: TaskPlan) -> None:
@@ -368,18 +396,18 @@ class AutonomousTaskEngine:
                 return
             raw = json.loads(self._persist_path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, TypeError, ValueError) as exc:
-            record_degradation('autonomous_task_engine', exc)
+            record_degradation("autonomous_task_engine", exc)
             logger.debug("TaskEngine: persisted active plan load skipped: %s", exc)
             return
 
-        restored: Dict[str, TaskPlan] = {}
+        restored: dict[str, TaskPlan] = {}
         for item in list(raw.get("plans", []) or []):
             if not isinstance(item, dict):
                 continue
             try:
                 plan = TaskPlan.from_runtime_dict(item)
             except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
-                record_degradation('autonomous_task_engine', exc)
+                record_degradation("autonomous_task_engine", exc)
                 logger.debug("TaskEngine: persisted plan decode skipped: %s", exc)
                 continue
             if not plan.plan_id or not plan.goal:
@@ -396,11 +424,11 @@ class AutonomousTaskEngine:
             try:
                 self._update_state_goals(plan)
             except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
-                record_degradation('autonomous_task_engine', exc)
+                record_degradation("autonomous_task_engine", exc)
                 logger.debug("TaskEngine: recovered plan state sync skipped: %s", exc)
         self._persist_active_plans()
 
-    def _find_resume_candidate(self, goal: str, context: Optional[Dict[str, Any]]) -> Optional[TaskPlan]:
+    def _find_resume_candidate(self, goal: str, context: dict[str, Any] | None) -> TaskPlan | None:
         ctx = dict(context or {})
         requested_plan_id = str(ctx.get("resume_plan_id", "") or "").strip()
         if requested_plan_id:
@@ -409,7 +437,7 @@ class AutonomousTaskEngine:
                 return candidate
 
         task_id = str(ctx.get("task_id", "") or "").strip()
-        best_match: Optional[TaskPlan] = None
+        best_match: TaskPlan | None = None
         best_score = 0.0
         for plan in list(self._active_plans.values()):
             if plan.status in self.TERMINAL_PLAN_STATUSES:
@@ -441,10 +469,10 @@ class AutonomousTaskEngine:
     async def _invoke_tool(
         self,
         tool_name: str,
-        args: Dict,
-        token_id: Optional[str] = None,
+        args: dict,
+        token_id: str | None = None,
         is_shadow: bool = False,
-        origin: Optional[str] = None,
+        origin: str | None = None,
     ) -> Any:
         """Invoke a registered tool with capability enforcement and shadow mode support."""
         origin = self._normalize_origin(origin)
@@ -454,7 +482,9 @@ class AutonomousTaskEngine:
         if not self._capability_manager.verify_access(tool_name, token_id):
             # If not in the plan's static allow-list, check if it's a generally safe tool
             if not self._capability_manager.verify_access(tool_name, None):
-                raise PermissionError(f"Capability Error: Tool '{tool_name}' is not authorized for this specific session.")
+                raise PermissionError(
+                    f"Capability Error: Tool '{tool_name}' is not authorized for this specific session."
+                )
 
         # ── Shadow Mode Check (Simulation) ──
         if is_shadow and tool_name in ["run_python", "write_file", "social_post"]:
@@ -464,7 +494,11 @@ class AutonomousTaskEngine:
         tool_fn = self._tool_registry.get(tool_name)
         if tool_fn is not None:
             call_args = dict(args or {})
-            if origin and "origin" not in call_args and self._callable_accepts_kwarg(tool_fn, "origin"):
+            if (
+                origin
+                and "origin" not in call_args
+                and self._callable_accepts_kwarg(tool_fn, "origin")
+            ):
                 call_args["origin"] = origin
             result = tool_fn(**call_args)
             if inspect.isawaitable(result):
@@ -474,12 +508,13 @@ class AutonomousTaskEngine:
         # Unknown tool: try via orchestrator's capability engine
         try:
             from core.container import ServiceContainer
+
             orchestrator = ServiceContainer.get("orchestrator", default=None)
             if orchestrator and hasattr(orchestrator, "execute_tool"):
                 kwargs = {"origin": origin} if origin else {}
                 return await orchestrator.execute_tool(tool_name, args, **kwargs)
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('autonomous_task_engine', e)
+            record_degradation("autonomous_task_engine", e)
             logger.debug("Orchestrator tool fallback failed: %s", e)
 
         raise RuntimeError(f"Tool '{tool_name}' not found in registry or orchestrator")
@@ -494,8 +529,8 @@ class AutonomousTaskEngine:
     async def execute(
         self,
         goal: str,
-        context: Optional[Dict] = None,
-        on_progress: Optional[Callable] = None,
+        context: dict | None = None,
+        on_progress: Callable | None = None,
         is_shadow: bool = False,
     ) -> TaskResult:
         """Compatibility alias for older callers."""
@@ -509,23 +544,31 @@ class AutonomousTaskEngine:
     async def execute_goal(
         self,
         goal: str,
-        context: Optional[Dict] = None,
-        on_progress: Optional[Callable] = None,
+        context: dict | None = None,
+        on_progress: Callable | None = None,
         is_shadow: bool = False,
     ) -> TaskResult:
         """Logic for decomposing a goal and executing the plan."""
         requested_plan_id = f"plan_{int(time.time())}"
         trace_id = uuid.uuid4().hex[:8]
-        logger.info("TaskEngine: starting goal '%s' (requested_plan=%s) [trace=%s]", goal[:50], requested_plan_id, trace_id)
+        logger.info(
+            "TaskEngine: starting goal '%s' (requested_plan=%s) [trace=%s]",
+            goal[:50],
+            requested_plan_id,
+            trace_id,
+        )
 
         # 0. Safety Check: Is this goal/skill allowed?
         if not await self._safety_registry.is_allowed(goal[:50]):
             logger.warning("TaskEngine: Goal '%s' blocked by SafetyRegistry", goal[:50])
             return TaskResult(
-                plan_id=requested_plan_id, goal=goal, succeeded=False,
+                plan_id=requested_plan_id,
+                goal=goal,
+                succeeded=False,
                 summary="This autonomous action is currently disabled or restricted by safety policies.",
                 trace_id=trace_id,
-                steps_completed=0, steps_total=0,
+                steps_completed=0,
+                steps_total=0,
             )
 
         plan = self._find_resume_candidate(goal, context)
@@ -536,7 +579,9 @@ class AutonomousTaskEngine:
             plan.context = dict(plan.context or {}) | dict(context or {})
             plan.context["resume_count"] = int(plan.context.get("resume_count", 0) or 0) + 1
             plan.context["last_resumed_at"] = time.time()
-            logger.info("TaskEngine: resuming interrupted plan %s for goal '%s'", plan.plan_id, goal[:60])
+            logger.info(
+                "TaskEngine: resuming interrupted plan %s for goal '%s'", plan.plan_id, goal[:60]
+            )
 
         if self._plan_needs_grounding_repair(plan, goal, plan.context):
             repaired = self._build_grounded_fallback_plan(goal, plan.plan_id, plan.context)
@@ -574,9 +619,12 @@ class AutonomousTaskEngine:
 
         if not plan.steps:
             return TaskResult(
-                plan_id=plan.plan_id, goal=goal, succeeded=False,
+                plan_id=plan.plan_id,
+                goal=goal,
+                succeeded=False,
                 summary="I couldn't decompose this goal into executable steps.",
-                steps_completed=0, steps_total=0,
+                steps_completed=0,
+                steps_total=0,
                 trace_id=trace_id,
             )
 
@@ -595,14 +643,16 @@ class AutonomousTaskEngine:
 
         # Pause if escalation required (except in shadow mode)
         if plan.requires_approval and not plan.is_shadow:
-            logger.warning("TaskEngine: Plan %s requires human approval. Blocking execution.", plan.plan_id)
+            logger.warning(
+                "TaskEngine: Plan %s requires human approval. Blocking execution.", plan.plan_id
+            )
             plan.status = "waiting_for_approval"
             self._persist_plan_state(plan)
             event = asyncio.Event()
             self._approval_events[plan.plan_id] = event
             try:
                 approved = await asyncio.wait_for(event.wait(), timeout=self.APPROVAL_TIMEOUT)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 approved = False
             finally:
                 self._approval_events.pop(plan.plan_id, None)
@@ -612,9 +662,12 @@ class AutonomousTaskEngine:
                 self._active_plans.pop(plan.plan_id, None)
                 self._persist_active_plans()
                 return TaskResult(
-                    plan_id=plan.plan_id, goal=goal, succeeded=False,
+                    plan_id=plan.plan_id,
+                    goal=goal,
+                    succeeded=False,
                     summary="Plan requires human approval. Call approve_plan(plan_id) to proceed.",
-                    steps_completed=0, steps_total=len(plan.steps),
+                    steps_completed=0,
+                    steps_total=len(plan.steps),
                     trace_id=trace_id,
                 )
 
@@ -623,33 +676,50 @@ class AutonomousTaskEngine:
         if len(plan.steps) >= 3 and not plan.is_shadow:
             try:
                 from core.container import ServiceContainer
+
                 cfe = ServiceContainer.get("counterfactual_engine", default=None)
                 if cfe:
                     action_space = [
-                        {"type": "execute_plan", "description": f"Execute full plan: {goal[:60]}",
-                         "params": {"plan_id": plan.plan_id, "steps": len(plan.steps)}},
-                        {"type": "plan", "description": f"Re-plan with simpler approach for: {goal[:60]}",
-                         "params": {}},
-                        {"type": "ask_clarification", "description": f"Ask user to clarify: {goal[:60]}",
-                         "params": {}},
+                        {
+                            "type": "execute_plan",
+                            "description": f"Execute full plan: {goal[:60]}",
+                            "params": {"plan_id": plan.plan_id, "steps": len(plan.steps)},
+                        },
+                        {
+                            "type": "plan",
+                            "description": f"Re-plan with simpler approach for: {goal[:60]}",
+                            "params": {},
+                        },
+                        {
+                            "type": "ask_clarification",
+                            "description": f"Ask user to clarify: {goal[:60]}",
+                            "params": {},
+                        },
                     ]
                     context_dict = {
-                        "hedonic_score": 0.5, "curiosity": 0.5, "valence": 0.0,
-                        "heartstone_weights": {"curiosity": 0.25, "empathy": 0.25,
-                                               "self_preservation": 0.25, "obedience": 0.25},
+                        "hedonic_score": 0.5,
+                        "curiosity": 0.5,
+                        "valence": 0.0,
+                        "heartstone_weights": {
+                            "curiosity": 0.25,
+                            "empathy": 0.25,
+                            "self_preservation": 0.25,
+                            "obedience": 0.25,
+                        },
                     }
                     candidates = await cfe.deliberate(action_space, context_dict)
                     best = cfe.select(candidates)
                     if best and best.action_type != "execute_plan":
                         logger.info(
                             "TaskEngine: Counterfactual deliberation chose '%s' over execute_plan for %s",
-                            best.action_type, plan.plan_id,
+                            best.action_type,
+                            plan.plan_id,
                         )
                         # Still execute — the deliberation is informational for now
                         # and records learning signal. The counterfactual record will
                         # accumulate regret/relief after the fact.
             except (ImportError, AttributeError, RuntimeError) as e:
-                record_degradation('autonomous_task_engine', e)
+                record_degradation("autonomous_task_engine", e)
                 logger.debug("TaskEngine: counterfactual deliberation failed (non-critical): %s", e)
 
         # 2. Execute steps
@@ -672,8 +742,9 @@ class AutonomousTaskEngine:
             # Mark the associated goal as completed via lifecycle when plan succeeded
             if result.succeeded:
                 try:
-                    from core.container import ServiceContainer as _SC
-                    _ge = _SC.get("goal_engine", default=None)
+                    from core.container import ServiceContainer
+
+                    _ge = ServiceContainer.get("goal_engine", default=None)
                     if _ge and hasattr(_ge, "update_task_lifecycle"):
                         await _ge.update_task_lifecycle(
                             task_id=str(plan.context.get("task_id", "") or plan.plan_id),
@@ -682,10 +753,14 @@ class AutonomousTaskEngine:
                             evidence=result.evidence or [],
                         )
                 except (ImportError, AttributeError, RuntimeError) as _lc_err:
-                    record_degradation('autonomous_task_engine', _lc_err)
-                    logger.debug("TaskEngine: goal lifecycle completion failed for plan %s: %s", plan.plan_id, _lc_err)
+                    record_degradation("autonomous_task_engine", _lc_err)
+                    logger.debug(
+                        "TaskEngine: goal lifecycle completion failed for plan %s: %s",
+                        plan.plan_id,
+                        _lc_err,
+                    )
         except (ImportError, AttributeError, RuntimeError) as exc:
-            record_degradation('autonomous_task_engine', exc)
+            record_degradation("autonomous_task_engine", exc)
             logger.error("TaskEngine: goal state sync failed for plan %s: %s", plan.plan_id, exc)
         finally:
             self._active_plans.pop(plan.plan_id, None)
@@ -693,7 +768,10 @@ class AutonomousTaskEngine:
 
         logger.info(
             "TaskEngine: plan %s complete. Success=%s (%d/%d steps)",
-            plan.plan_id, result.succeeded, result.steps_completed, result.steps_total,
+            plan.plan_id,
+            result.succeeded,
+            result.steps_completed,
+            result.steps_total,
         )
         return result
 
@@ -723,15 +801,17 @@ class AutonomousTaskEngine:
         logger.warning("TaskEngine: reject_plan called for unknown/expired plan %s", plan_id)
         return False
 
-    def get_active_plans(self) -> List[Dict]:
+    def get_active_plans(self) -> list[dict]:
         """Returns snapshot of all currently running task plans (thread-safe copy)."""
-        snapshot = list(self._active_plans.values()) # Issue ATE-006: Snapshot to avoid mutation race
+        snapshot = list(
+            self._active_plans.values()
+        )  # Issue ATE-006: Snapshot to avoid mutation race
         return [
             {
                 "plan_id": p.plan_id,
-                "goal":    p.goal[:60],
-                "steps":   [s.to_dict() for s in p.steps],
-                "status":  p.status,
+                "goal": p.goal[:60],
+                "steps": [s.to_dict() for s in p.steps],
+                "status": p.status,
                 "summary": self._plan_summary(p),
                 "task_id": str(p.context.get("task_id", "") or p.plan_id),
                 "project_id": str(p.context.get("project_id", "") or ""),
@@ -749,7 +829,7 @@ class AutonomousTaskEngine:
         self,
         goal: str,
         plan_id: str,
-        context: Optional[Dict],
+        context: dict | None,
     ) -> TaskPlan:
         """Use LLM to decompose goal into concrete, verifiable steps."""
         if self._looks_like_learning_resource_bundle(goal):
@@ -761,8 +841,15 @@ class AutonomousTaskEngine:
                 )
                 return bundle_plan
 
+        chain_plan = self._build_tool_chain_fallback_plan(goal, plan_id, context)
+        if chain_plan is not None:
+            logger.info(
+                "TaskEngine: recognized executable tool chain; using deterministic plan for '%s'",
+                goal[:60],
+            )
+            return chain_plan
+
         tool_specs = self._build_planning_tool_specs(goal)
-        available_tools = [spec["name"] for spec in tool_specs]
         tool_catalog = "\n".join(
             f"- {spec['name']}: {spec['description']}"
             + (f" Args: {spec['args']}" if spec.get("args") else "")
@@ -829,25 +916,31 @@ Respond ONLY with a JSON array, no other text:
 
             # Extract JSON from response
             start_idx = raw.find("[")
-            end_idx   = raw.rfind("]") + 1
+            end_idx = raw.rfind("]") + 1
             if start_idx == -1 or end_idx == 0:
                 raise ValueError("No JSON array in response")
 
             steps_data = json.loads(raw[start_idx:end_idx])
             steps = []
-            for i, s in enumerate(steps_data[:self.MAX_STEPS]):
+            for i, s in enumerate(steps_data[: self.MAX_STEPS]):
                 tool_name = s.get("tool", "think")
-                steps.append(TaskStep(
-                    step_id           = f"{plan_id}_s{i}",
-                    description       = s.get("description", ""),
-                    tool              = tool_name,
-                    args              = s.get("args", {}),
-                    success_criterion = s.get("success_criterion", "step completes without error"),
-                    rollback_action   = s.get("rollback_action"),
-                    rollback_args     = s.get("rollback_args", {}),
-                    depends_on        = self._normalize_depends_on(s.get("depends_on", []), plan_id, i),
-                    parallel_safe     = self._coerce_parallel_safe(tool_name, s.get("parallel_safe", False)),
-                ))
+                steps.append(
+                    TaskStep(
+                        step_id=f"{plan_id}_s{i}",
+                        description=s.get("description", ""),
+                        tool=tool_name,
+                        args=s.get("args", {}),
+                        success_criterion=s.get(
+                            "success_criterion", "step completes without error"
+                        ),
+                        rollback_action=s.get("rollback_action"),
+                        rollback_args=s.get("rollback_args", {}),
+                        depends_on=self._normalize_depends_on(s.get("depends_on", []), plan_id, i),
+                        parallel_safe=self._coerce_parallel_safe(
+                            tool_name, s.get("parallel_safe", False)
+                        ),
+                    )
+                )
 
             logger.info("TaskEngine: decomposed into %d steps", len(steps))
 
@@ -855,10 +948,21 @@ Respond ONLY with a JSON array, no other text:
             if context and context.get("source_memory"):
                 await self._mycelial.add_edge(context["source_memory"], goal[:40])
 
-            return TaskPlan(plan_id=plan_id, goal=goal, steps=steps, trace_id="", context=dict(context or {}))
+            return TaskPlan(
+                plan_id=plan_id, goal=goal, steps=steps, trace_id="", context=dict(context or {})
+            )
 
-        except (OSError, ConnectionError, TimeoutError) as e:
-            record_degradation('autonomous_task_engine', e)
+        except (
+            json.JSONDecodeError,
+            AttributeError,
+            OSError,
+            ConnectionError,
+            RuntimeError,
+            TimeoutError,
+            TypeError,
+            ValueError,
+        ) as e:
+            record_degradation("autonomous_task_engine", e)
             logger.error("TaskEngine: decomposition failed: %s", e)
             if self._requires_grounded_action(goal, context):
                 fallback = self._build_grounded_fallback_plan(goal, plan_id, context)
@@ -878,27 +982,30 @@ Respond ONLY with a JSON array, no other text:
 
             # Non-embodied fallback: keep the best-effort cognitive step for generic goals.
             return TaskPlan(
-                plan_id=plan_id, goal=goal,
-                steps=[TaskStep(
-                    step_id="fallback",
-                    description=goal,
-                    tool="think",
-                    args={"prompt": goal},
-                    success_criterion="response is non-empty",
-                )],
+                plan_id=plan_id,
+                goal=goal,
+                steps=[
+                    TaskStep(
+                        step_id="fallback",
+                        description=goal,
+                        tool="think",
+                        args={"prompt": goal},
+                        success_criterion="response is non-empty",
+                    )
+                ],
                 trace_id="",
                 context=dict(context or {}),
             )
 
     @staticmethod
-    def _summarize_parameter_schema(schema: Dict[str, Any]) -> str:
+    def _summarize_parameter_schema(schema: dict[str, Any]) -> str:
         if not isinstance(schema, dict):
             return ""
         props = schema.get("properties") or {}
         if not isinstance(props, dict) or not props:
             return ""
 
-        parts: List[str] = []
+        parts: list[str] = []
         for name, spec in list(props.items())[:6]:
             if not isinstance(spec, dict):
                 parts.append(str(name))
@@ -935,9 +1042,9 @@ Respond ONLY with a JSON array, no other text:
             )
         )
 
-    def _build_planning_tool_specs(self, goal: str) -> List[Dict[str, str]]:
-        specs: List[Dict[str, str]] = []
-        seen: Set[str] = set()
+    def _build_planning_tool_specs(self, goal: str) -> list[dict[str, str]]:
+        specs: list[dict[str, str]] = []
+        seen: set[str] = set()
 
         def _push(name: str, description: str, args: str = "") -> None:
             tool_name = str(name or "").strip()
@@ -952,7 +1059,9 @@ Respond ONLY with a JSON array, no other text:
                 }
             )
 
-        _push("think", "Reason about the next step or synthesize a grounded summary.", "prompt:string")
+        _push(
+            "think", "Reason about the next step or synthesize a grounded summary.", "prompt:string"
+        )
         _push("web_search", "Search the web for grounded information.", "query:string")
         _push("run_python", "Execute sandboxed Python code.", "code:string")
         _push("write_file", "Write content to a file.", "path:string; content:string")
@@ -974,15 +1083,17 @@ Respond ONLY with a JSON array, no other text:
             selected_defs = []
             try:
                 if hasattr(cap, "select_tool_definitions"):
-                    selected_defs = list(cap.select_tool_definitions(objective=goal, max_tools=10) or [])
+                    selected_defs = list(
+                        cap.select_tool_definitions(objective=goal, max_tools=10) or []
+                    )
                 else:
                     selected_defs = list(cap.get_tool_definitions() or [])
             except (RuntimeError, AttributeError, TypeError) as exc:
-                record_degradation('autonomous_task_engine', exc)
+                record_degradation("autonomous_task_engine", exc)
                 logger.debug("TaskEngine: planning tool selection skipped: %s", exc)
                 selected_defs = []
 
-            by_name: Dict[str, Dict[str, Any]] = {}
+            by_name: dict[str, dict[str, Any]] = {}
             try:
                 for entry in list(cap.get_tool_definitions() or []):
                     if not isinstance(entry, dict):
@@ -992,7 +1103,7 @@ Respond ONLY with a JSON array, no other text:
                     if name:
                         by_name[name] = entry
             except (OSError, ConnectionError, TimeoutError) as exc:
-                record_degradation('autonomous_task_engine', exc)
+                record_degradation("autonomous_task_engine", exc)
                 logger.debug("TaskEngine: planning tool catalog skipped: %s", exc)
 
             if self._looks_like_desktop_goal(goal):
@@ -1016,11 +1127,13 @@ Respond ONLY with a JSON array, no other text:
 
         return specs
 
-    def _normalize_depends_on(self, raw_depends_on: Any, plan_id: str, step_index: int) -> List[str]:
+    def _normalize_depends_on(
+        self, raw_depends_on: Any, plan_id: str, step_index: int
+    ) -> list[str]:
         dependencies = raw_depends_on if isinstance(raw_depends_on, list) else [raw_depends_on]
-        normalized: List[str] = []
+        normalized: list[str] = []
         for dependency in dependencies:
-            dep_index: Optional[int] = None
+            dep_index: int | None = None
             if isinstance(dependency, int):
                 dep_index = dependency
             elif isinstance(dependency, str):
@@ -1049,15 +1162,17 @@ Respond ONLY with a JSON array, no other text:
         lowered = str(content or "").lower()
         if any(hint in lowered for hint in self.TECHNICAL_FACT_HINTS):
             return True
-        return bool(re.search(r"(?:[\w.-]+/)+[\w.-]+\.(?:py|tsx?|jsx?|json|ya?ml|toml|sh)", lowered))
+        return bool(
+            re.search(r"(?:[\w.-]+/)+[\w.-]+\.(?:py|tsx?|jsx?|json|ya?ml|toml|sh)", lowered)
+        )
 
     @staticmethod
-    def _matched_skills_from_context(context: Optional[Dict[str, Any]]) -> List[str]:
+    def _matched_skills_from_context(context: dict[str, Any] | None) -> list[str]:
         if not isinstance(context, dict):
             return []
         return normalize_matched_skills(context.get("matched_skills"))
 
-    def _requires_grounded_action(self, goal: str, context: Optional[Dict[str, Any]]) -> bool:
+    def _requires_grounded_action(self, goal: str, context: dict[str, Any] | None) -> bool:
         # Structured learning bundles are grounded by parsing + memory
         # ingestion. Incidental copied verbs/URLs or stale skill metadata must
         # not turn them into "perform this external action" requests.
@@ -1072,12 +1187,23 @@ Respond ONLY with a JSON array, no other text:
             return True
         if matched_skills and any(
             marker in lowered
-            for marker in ("actually", "on your own", "interact", "perform", "click", "type", "press", "open")
+            for marker in (
+                "actually",
+                "on your own",
+                "interact",
+                "perform",
+                "click",
+                "type",
+                "press",
+                "open",
+            )
         ):
             return True
         return False
 
-    def _plan_needs_grounding_repair(self, plan: TaskPlan, goal: str, context: Optional[Dict[str, Any]]) -> bool:
+    def _plan_needs_grounding_repair(
+        self, plan: TaskPlan, goal: str, context: dict[str, Any] | None
+    ) -> bool:
         if not self._requires_grounded_action(goal, context):
             return False
 
@@ -1086,9 +1212,12 @@ Respond ONLY with a JSON array, no other text:
             return True
 
         matched_skills = self._matched_skills_from_context(context)
-        if self._looks_like_desktop_goal(goal) and looks_like_multi_step_skill_request(goal, matched_skills):
+        if self._looks_like_desktop_goal(goal) and looks_like_multi_step_skill_request(
+            goal, matched_skills
+        ):
             grounded_steps = [
-                step for step in plan.steps
+                step
+                for step in plan.steps
                 if step.tool in set(self.DESKTOP_TOOL_PREFERENCES) | set(matched_skills)
             ]
             if len(grounded_steps) < 3:
@@ -1161,7 +1290,7 @@ Respond ONLY with a JSON array, no other text:
         return any(marker in lowered for marker in cls.LEARNING_BUNDLE_SECTION_MARKERS)
 
     @classmethod
-    def _parse_learning_resource_line(cls, line: str, category: str = "") -> Optional[Dict[str, str]]:
+    def _parse_learning_resource_line(cls, line: str, category: str = "") -> dict[str, str] | None:
         cleaned = re.sub(r"^\s*(?:[-*]|\d+\.)\s*", "", str(line or "").strip())
         if not cleaned or cls._looks_like_learning_bundle_header(cleaned):
             return None
@@ -1228,25 +1357,27 @@ Respond ONLY with a JSON array, no other text:
         )
 
     @staticmethod
-    def _chunk_learning_resource_entries(entries: List[Dict[str, str]], max_chunks: int) -> List[List[Dict[str, str]]]:
+    def _chunk_learning_resource_entries(
+        entries: list[dict[str, str]], max_chunks: int
+    ) -> list[list[dict[str, str]]]:
         if not entries:
             return []
         max_chunks = max(1, int(max_chunks or 1))
         chunk_count = min(len(entries), max_chunks)
         chunk_size = max(1, (len(entries) + chunk_count - 1) // chunk_count)
-        return [entries[idx: idx + chunk_size] for idx in range(0, len(entries), chunk_size)]
+        return [entries[idx : idx + chunk_size] for idx in range(0, len(entries), chunk_size)]
 
     def _build_learning_resource_plan(
         self,
         goal: str,
         plan_id: str,
-        context: Optional[Dict[str, Any]],
-    ) -> Optional[TaskPlan]:
+        context: dict[str, Any] | None,
+    ) -> TaskPlan | None:
         lines = [line.strip() for line in str(goal or "").splitlines() if line.strip()]
         category = ""
-        entries: List[Dict[str, str]] = []
-        guidance_lines: List[str] = []
-        seen: Set[Tuple[str, str]] = set()
+        entries: list[dict[str, str]] = []
+        guidance_lines: list[str] = []
+        seen: set[tuple[str, str]] = set()
         saw_section_header = False
 
         for line in lines:
@@ -1273,16 +1404,13 @@ Respond ONLY with a JSON array, no other text:
         if not entries:
             return None
 
-        category_counts: Dict[str, int] = {}
+        category_counts: dict[str, int] = {}
         for entry in entries:
             label = entry.get("category") or "Uncategorized"
             category_counts[label] = category_counts.get(label, 0) + 1
 
-        steps: List[TaskStep] = []
-        category_summary = "; ".join(
-            f"{name} ({count})"
-            for name, count in category_counts.items()
-        )
+        steps: list[TaskStep] = []
+        category_summary = "; ".join(f"{name} ({count})" for name, count in category_counts.items())
         guidance_summary = ""
         if guidance_lines:
             guidance_summary = (
@@ -1324,7 +1452,7 @@ Respond ONLY with a JSON array, no other text:
                 f"Learning resource bundle from Bryan - chunk {index}/{len(chunks)}.",
                 "Treat each bullet below as a separate recommendation and future research thread.",
             ]
-            entry_titles: List[str] = []
+            entry_titles: list[str] = []
             categories = sorted({entry.get("category") or "Uncategorized" for entry in chunk})
             for entry in chunk:
                 title = entry.get("title", "").strip()
@@ -1368,8 +1496,8 @@ Respond ONLY with a JSON array, no other text:
         self,
         goal: str,
         plan_id: str,
-        context: Optional[Dict[str, Any]],
-    ) -> Optional[TaskPlan]:
+        context: dict[str, Any] | None,
+    ) -> TaskPlan | None:
         matched_skills = self._matched_skills_from_context(context)
         if "computer_use" not in matched_skills:
             return None
@@ -1383,7 +1511,7 @@ Respond ONLY with a JSON array, no other text:
         if app_name.lower() == "terminal":
             typed_text = self._extract_terminal_command(goal) or typed_text
 
-        steps: List[TaskStep] = [
+        steps: list[TaskStep] = [
             TaskStep(
                 step_id=f"{plan_id}_s0",
                 description=f"Open {app_name}.",
@@ -1441,12 +1569,158 @@ Respond ONLY with a JSON array, no other text:
             context=dict(context or {}),
         )
 
+    @staticmethod
+    def _looks_like_search_goal(goal: str) -> bool:
+        lowered = str(goal or "").lower()
+        return any(
+            marker in lowered
+            for marker in (
+                "search",
+                "look up",
+                "find online",
+                "research",
+                "web",
+                "latest",
+            )
+        )
+
+    @staticmethod
+    def _looks_like_file_output_goal(goal: str) -> bool:
+        lowered = str(goal or "").lower()
+        if re.search(r"\.(?:txt|md|json|csv|html)\b", lowered):
+            return True
+        file_output_patterns = (
+            r"\b(?:save|export)\b.+\b(?:file|document|text|content|result|results|summary|findings|notes?|markdown)\b",
+            r"\b(?:save|export)\b.+\b(?:to|as|in)\b",
+            r"\bwrite\s+(?:the\s+)?(?:result|results|summary|findings|search\s+result|research|notes?)\b",
+            r"\bwrite\s+(?:it|them|this|that)\s+(?:to|into|as|in)\b",
+            r"\bmake\s+(?:a\s+)?(?:file|note|markdown)\b",
+        )
+        return any(re.search(pattern, lowered) for pattern in file_output_patterns)
+
+    @staticmethod
+    def _looks_like_memory_output_goal(goal: str) -> bool:
+        lowered = str(goal or "").lower()
+        return any(
+            marker in lowered
+            for marker in ("remember", "memory", "store for later", "future recall")
+        )
+
+    @staticmethod
+    def _extract_search_query(goal: str) -> str:
+        text = " ".join(str(goal or "").split())
+        text = re.sub(
+            r"\b(?:please\s+)?(?:search(?:\s+the\s+web)?|look\s+up|find\s+online|research)\b",
+            " ",
+            text,
+            flags=re.IGNORECASE,
+        )
+        text = re.split(
+            r"(?:,|\band\s+then\b|\bthen\b|\band\b)\s*(?:save|export|remember|store|email|send)\b"
+            r"|(?:,|\band\s+then\b|\bthen\b|\band\b)\s*write\s+(?:the\s+)?(?:result|results|summary|findings|notes?|it|them|this|that)\b"
+            r"|\bsave\s+(?:the\s+)?(?:result|results|summary|findings|content)\b"
+            r"|\bwrite\s+(?:the\s+)?(?:result|results|summary|findings|notes?)\b",
+            text,
+            maxsplit=1,
+            flags=re.IGNORECASE,
+        )[0]
+        text = re.sub(r"^\s*(?:the\s+)?(?:web\s+)?(?:for|about|on)\s+", "", text, flags=re.I)
+        text = re.sub(r"\b(?:and|then)\s*$", "", text, flags=re.I)
+        return text.strip(" :-,.;") or str(goal or "").strip()
+
+    def _extract_output_path(self, goal: str, plan_id: str) -> str:
+        text = str(goal or "")
+        quoted = re.search(
+            r"(?:to|in|as)\s+['\"]([^'\"]+\.(?:txt|md|json|csv|html))['\"]", text, re.I
+        )
+        if quoted:
+            return quoted.group(1).strip()
+        explicit = re.search(r"([~./A-Za-z0-9_-]+\.(?:txt|md|json|csv|html))", text, re.I)
+        if explicit:
+            return explicit.group(1).strip()
+        return str(Path(config.paths.data_dir) / "runtime" / f"{plan_id}_tool_chain.md")
+
+    def _build_tool_chain_fallback_plan(
+        self,
+        goal: str,
+        plan_id: str,
+        context: dict[str, Any] | None,
+    ) -> TaskPlan | None:
+        wants_search = self._looks_like_search_goal(goal)
+        wants_file = self._looks_like_file_output_goal(goal)
+        wants_memory = self._looks_like_memory_output_goal(goal)
+        if not wants_search or not (wants_file or wants_memory):
+            return None
+
+        steps: list[TaskStep] = []
+        search_step_id = f"{plan_id}_s0"
+        query = self._extract_search_query(goal)
+        steps.append(
+            TaskStep(
+                step_id=search_step_id,
+                description="Search for grounded information requested by the user.",
+                tool="web_search",
+                args={"query": query},
+                success_criterion="response is non-empty",
+                parallel_safe=True,
+            )
+        )
+
+        if wants_file:
+            output_path = self._extract_output_path(goal, plan_id)
+            steps.append(
+                TaskStep(
+                    step_id=f"{plan_id}_s{len(steps)}",
+                    description="Write the search result to the requested file.",
+                    tool="write_file",
+                    args={
+                        "path": output_path,
+                        "content": "{{step_result:" + search_step_id + "}}",
+                    },
+                    success_criterion="step completes without error",
+                    depends_on=[search_step_id],
+                )
+            )
+
+        if wants_memory:
+            steps.append(
+                TaskStep(
+                    step_id=f"{plan_id}_s{len(steps)}",
+                    description="Remember the verified search result for future recall.",
+                    tool="remember",
+                    args={
+                        "content": "Tool-backed search result for: "
+                        + query[:160]
+                        + "\n\n{{step_result:"
+                        + search_step_id
+                        + "}}",
+                        "verified": True,
+                        "type": "research_note",
+                        "metadata": {
+                            "source": "tool_chain",
+                            "query": query[:240],
+                            "goal": str(goal or "")[:240],
+                        },
+                    },
+                    success_criterion="result contains 'Remembered:'",
+                    depends_on=[search_step_id],
+                )
+            )
+
+        return TaskPlan(
+            plan_id=plan_id,
+            goal=goal,
+            steps=steps[: self.MAX_STEPS],
+            trace_id="",
+            context=dict(context or {}),
+        )
+
     def _build_single_skill_fallback_plan(
         self,
         goal: str,
         plan_id: str,
-        context: Optional[Dict[str, Any]],
-    ) -> Optional[TaskPlan]:
+        context: dict[str, Any] | None,
+    ) -> TaskPlan | None:
         matched_skills = self._matched_skills_from_context(context)
 
         if "sovereign_terminal" in matched_skills:
@@ -1514,8 +1788,11 @@ Respond ONLY with a JSON array, no other text:
         self,
         goal: str,
         plan_id: str,
-        context: Optional[Dict[str, Any]],
-    ) -> Optional[TaskPlan]:
+        context: dict[str, Any] | None,
+    ) -> TaskPlan | None:
+        chain = self._build_tool_chain_fallback_plan(goal, plan_id, context)
+        if chain is not None:
+            return chain
         if self._looks_like_desktop_goal(goal):
             desktop = self._build_desktop_fallback_plan(goal, plan_id, context)
             if desktop is not None:
@@ -1552,21 +1829,21 @@ Respond ONLY with a JSON array, no other text:
             return f"{prefix}{text}" if prefix else text
 
         head = text[: int(self.MAX_RESULT_CHARS * 0.65)]
-        tail = text[-int(self.MAX_RESULT_CHARS * 0.2):]
+        tail = text[-int(self.MAX_RESULT_CHARS * 0.2) :]
         omitted = max(0, len(text) - len(head) - len(tail))
         compacted = f"{head}\n...[trimmed {omitted} chars]...\n{tail}"
         return f"{prefix}{compacted}" if prefix else compacted
 
-    def _report_progress(self, step: TaskStep, on_progress: Optional[Callable]) -> None:
+    def _report_progress(self, step: TaskStep, on_progress: Callable | None) -> None:
         if on_progress is None:
             return
         try:
             on_progress(step.to_dict())
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-            record_degradation('autonomous_task_engine', e)
+            record_degradation("autonomous_task_engine", e)
             logger.debug("Ignored Exception in autonomous_task_engine.py: %s", e)
 
-    async def _fail_plan(self, plan: TaskPlan, completed_ids: Set[str], reason: str) -> None:
+    async def _fail_plan(self, plan: TaskPlan, completed_ids: set[str], reason: str) -> None:
         logger.error("TaskEngine: %s", reason)
         await self._rollback_completed(plan, completed_ids)
         for remaining in plan.steps:
@@ -1581,27 +1858,32 @@ Respond ONLY with a JSON array, no other text:
     async def _execute_plan(
         self,
         plan: TaskPlan,
-        on_progress: Optional[Callable],
+        on_progress: Callable | None,
     ) -> None:
         """Execute all steps, respecting dependencies and handling failures."""
         # Final safety check before execution
         if not await self._safety_registry.is_allowed(plan.goal[:50]):
-             plan.status = "failed"
-             self._persist_plan_state(plan)
-             logger.error("TaskEngine: Execution aborted for '%s' - Safety revocation triggered.", plan.goal[:50])
-             return
+            plan.status = "failed"
+            self._persist_plan_state(plan)
+            logger.error(
+                "TaskEngine: Execution aborted for '%s' - Safety revocation triggered.",
+                plan.goal[:50],
+            )
+            return
 
         plan.status = "running"
         self._persist_plan_state(plan)
-        completed_ids: Set[str] = {step.step_id for step in plan.succeeded_steps}
+        completed_ids: set[str] = {step.step_id for step in plan.succeeded_steps}
 
-        while True:
+        max_iterations = max(1, len(plan.steps) + 1)
+        for _iteration in range(max_iterations):
             pending_steps = [step for step in plan.steps if step.status == StepStatus.PENDING]
             if not pending_steps:
                 break
 
             ready_steps = [
-                step for step in pending_steps
+                step
+                for step in pending_steps
                 if all(dep in completed_ids for dep in step.depends_on)
             ]
             if not ready_steps:
@@ -1614,15 +1896,21 @@ Respond ONLY with a JSON array, no other text:
                 logger.error("TaskEngine: no runnable steps remain for plan %s", plan.plan_id)
                 return
 
-            parallel_wave = [step for step in ready_steps if self._can_run_in_parallel(step)][:self.MAX_PARALLEL_STEPS]
+            parallel_wave = [step for step in ready_steps if self._can_run_in_parallel(step)][
+                : self.MAX_PARALLEL_STEPS
+            ]
             if parallel_wave:
-                await asyncio.gather(*(self._execute_step_with_retry(step, plan) for step in parallel_wave))
+                await asyncio.gather(
+                    *(self._execute_step_with_retry(step, plan) for step in parallel_wave)
+                )
                 for step in parallel_wave:
                     if step.status == StepStatus.SUCCEEDED:
                         completed_ids.add(step.step_id)
                     self._report_progress(step, on_progress)
                 self._persist_plan_state(plan)
-                failed_step = next((step for step in parallel_wave if step.status == StepStatus.FAILED), None)
+                failed_step = next(
+                    (step for step in parallel_wave if step.status == StepStatus.FAILED), None
+                )
                 if failed_step is not None:
                     await self._fail_plan(
                         plan,
@@ -1647,16 +1935,71 @@ Respond ONLY with a JSON array, no other text:
                 )
                 return
 
+        else:
+            await self._fail_plan(
+                plan,
+                completed_ids,
+                f"plan {plan.plan_id} exceeded its scheduling iteration limit",
+            )
+            return
+
         if plan.status != "failed":
             plan.status = "succeeded" if plan.all_complete and not plan.any_failed else "partial"
             self._persist_plan_state(plan)
 
+    @staticmethod
+    def _step_result_text(step: TaskStep | None) -> str:
+        if step is None:
+            return ""
+        for value in (step.raw_result, step.result_summary):
+            if value not in (None, ""):
+                if isinstance(value, str):
+                    return value
+                try:
+                    return json.dumps(value, ensure_ascii=False, default=str, sort_keys=True)
+                except (TypeError, ValueError):
+                    return str(value)
+        return ""
+
+    def _resolve_step_args(self, value: Any, plan: TaskPlan, step: TaskStep) -> Any:
+        if isinstance(value, dict):
+            return {key: self._resolve_step_args(item, plan, step) for key, item in value.items()}
+        if isinstance(value, list):
+            return [self._resolve_step_args(item, plan, step) for item in value]
+        if isinstance(value, tuple):
+            return tuple(self._resolve_step_args(item, plan, step) for item in value)
+        if not isinstance(value, str):
+            return value
+
+        by_id = {candidate.step_id: candidate for candidate in plan.steps}
+
+        def _replace(match: re.Match[str]) -> str:
+            requested_id = (match.group("step_id") or "").strip()
+            if requested_id:
+                return self._step_result_text(by_id.get(requested_id))
+            for dependency in reversed(step.depends_on):
+                text = self._step_result_text(by_id.get(dependency))
+                if text:
+                    return text
+            prior_steps = plan.steps[: plan.steps.index(step)] if step in plan.steps else []
+            for prior in reversed(prior_steps):
+                text = self._step_result_text(prior)
+                if text:
+                    return text
+            return ""
+
+        return re.sub(
+            r"\{\{\s*(?:step_result:(?P<step_id>[A-Za-z0-9_.:-]+)|previous_result)\s*\}\}",
+            _replace,
+            value,
+        )
+
     async def _execute_step_with_retry(self, step: TaskStep, plan: TaskPlan) -> None:
         """Execute a single step with up to MAX_RETRIES retries."""
         for attempt in range(self.MAX_RETRIES + 1):
-            step.attempts   += 1
-            step.status      = StepStatus.RUNNING
-            step.started_at  = time.time()
+            step.attempts += 1
+            step.status = StepStatus.RUNNING
+            step.started_at = time.time()
             step.completed_at = None
             self._record_coding_execution(
                 "record_execution_step",
@@ -1672,15 +2015,16 @@ Respond ONLY with a JSON array, no other text:
 
             try:
                 # Issue ATE-001: asyncio.timeout() is 3.11+, use wait_for for compatibility
+                resolved_args = self._resolve_step_args(step.args, plan, step)
                 raw_result = await asyncio.wait_for(
                     self._invoke_tool(
                         step.tool,
-                        step.args,
+                        resolved_args,
                         plan.token_id,
                         plan.is_shadow,
                         origin=self._context_origin(plan.context),
                     ),
-                    timeout=self.STEP_TIMEOUT
+                    timeout=self.STEP_TIMEOUT,
                 )
 
                 step.raw_result = self._compact_tool_result(raw_result)
@@ -1700,8 +2044,8 @@ Respond ONLY with a JSON array, no other text:
                 )
                 verified = await self._verify_step(step, raw_result)
                 if verified:
-                    step.status       = StepStatus.SUCCEEDED
-                    step.verified     = True
+                    step.status = StepStatus.SUCCEEDED
+                    step.verified = True
                     step.completed_at = time.time()
                     self._record_coding_execution(
                         "record_execution_step",
@@ -1714,7 +2058,11 @@ Respond ONLY with a JSON array, no other text:
                         steps_completed=len(plan.succeeded_steps) + 1,
                         steps_total=len(plan.steps),
                     )
-                    logger.debug("TaskEngine: step '%s' succeeded (attempt %d)", step.description[:40], attempt + 1)
+                    logger.debug(
+                        "TaskEngine: step '%s' succeeded (attempt %d)",
+                        step.description[:40],
+                        attempt + 1,
+                    )
                     self._persist_plan_state(plan)
                     return
                 else:
@@ -1732,7 +2080,11 @@ Respond ONLY with a JSON array, no other text:
                         steps_completed=len(plan.succeeded_steps),
                         steps_total=len(plan.steps),
                     )
-                    logger.warning("TaskEngine: step '%s' verification failed (attempt %d)", step.description[:40], attempt + 1)
+                    logger.warning(
+                        "TaskEngine: step '%s' verification failed (attempt %d)",
+                        step.description[:40],
+                        attempt + 1,
+                    )
                     # Modify args for retry: ask LLM for an alternative approach
                     if attempt < self.MAX_RETRIES - 1:
                         new_args = await self._get_alternative_approach(step)
@@ -1753,7 +2105,7 @@ Respond ONLY with a JSON array, no other text:
                         )
                     self._persist_plan_state(plan)
 
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 step.error = f"timeout after {self.STEP_TIMEOUT}s"
                 self._record_coding_execution(
                     "record_execution_step",
@@ -1766,10 +2118,14 @@ Respond ONLY with a JSON array, no other text:
                     steps_completed=len(plan.succeeded_steps),
                     steps_total=len(plan.steps),
                 )
-                logger.warning("TaskEngine: step '%s' timed out (attempt %d)", step.description[:40], attempt + 1)
+                logger.warning(
+                    "TaskEngine: step '%s' timed out (attempt %d)",
+                    step.description[:40],
+                    attempt + 1,
+                )
                 self._persist_plan_state(plan)
-            except (RuntimeError, asyncio.CancelledError, TimeoutError, AttributeError) as e:
-                record_degradation('autonomous_task_engine', e)
+            except (RuntimeError, asyncio.CancelledError, AttributeError) as e:
+                record_degradation("autonomous_task_engine", e)
                 step.error = str(e)
                 self._record_coding_execution(
                     "record_execution_step",
@@ -1782,7 +2138,12 @@ Respond ONLY with a JSON array, no other text:
                     steps_completed=len(plan.succeeded_steps),
                     steps_total=len(plan.steps),
                 )
-                logger.warning("TaskEngine: step '%s' error: %s (attempt %d)", step.description[:40], e, attempt + 1)
+                logger.warning(
+                    "TaskEngine: step '%s' error: %s (attempt %d)",
+                    step.description[:40],
+                    e,
+                    attempt + 1,
+                )
                 self._persist_plan_state(plan)
 
         # If all retries fail
@@ -1817,19 +2178,28 @@ Respond ONLY with a JSON array, no other text:
                 return False
             if result.get("error"):
                 return False
-            if criterion and any(marker in criterion for marker in ("no error", "without error", "completes")):
+            if criterion and any(
+                marker in criterion for marker in ("no error", "without error", "completes")
+            ):
                 if exit_code == 0 and not result.get("stderr"):
                     return True
 
         if criterion:
-            contains_match = re.search(r"(?:contains?|includes?|mentions?)\s+['\"]([^'\"]+)['\"]", criterion)
+            contains_match = re.search(
+                r"(?:contains?|includes?|mentions?)\s+['\"]([^'\"]+)['\"]", criterion
+            )
             if contains_match:
                 needle = contains_match.group(1).strip().lower()
                 if needle and needle in result_str.lower():
                     return True
-            if any(marker in criterion for marker in ("non-empty", "non empty", "response is non-empty", "any result")):
+            if any(
+                marker in criterion
+                for marker in ("non-empty", "non empty", "response is non-empty", "any result")
+            ):
                 return bool(result_str.strip())
-            if "file exists" in criterion and any(token in result_str.lower() for token in ("exists", "found", "present")):
+            if "file exists" in criterion and any(
+                token in result_str.lower() for token in ("exists", "found", "present")
+            ):
                 return True
 
         # Fast path: trivial criteria
@@ -1860,15 +2230,15 @@ Respond ONLY with a JSON array, no other text:
                 timeout=15.0,
             )
             verdict = raw.strip().upper()
-            passed  = verdict.startswith("YES")
+            passed = verdict.startswith("YES")
             logger.debug("Verification: %s → %s", step.description[:40], verdict[:50])
             return passed
         except (RuntimeError, asyncio.CancelledError, TimeoutError, AttributeError) as e:
-            record_degradation('autonomous_task_engine', e)
+            record_degradation("autonomous_task_engine", e)
             logger.debug("Verification LLM call failed: %s. Assuming pass.", e)
             return bool(result_str.strip())
 
-    async def _get_alternative_approach(self, step: TaskStep) -> Optional[Dict]:
+    async def _get_alternative_approach(self, step: TaskStep) -> dict | None:
         """Ask LLM to suggest alternative args after verification failure."""
         try:
             llm = self.kernel.organs["llm"].get_instance()
@@ -1893,19 +2263,24 @@ Respond ONLY with a JSON array, no other text:
             )
             if not raw:
                 raise ValueError("LLM returned empty response for alternative approach")
-            start = raw.find("{"); end = raw.rfind("}") + 1
+            start = raw.find("{")
+            end = raw.rfind("}") + 1
             if start != -1 and end > start:
                 new_args = json.loads(raw[start:end])
                 # Issue ATE-005: Only accept genuinely different args
                 if new_args != step.args:
                     return new_args
-                logger.debug("Alternative approach returned identical args for '%s'", step.description[:40])
+                logger.debug(
+                    "Alternative approach returned identical args for '%s'", step.description[:40]
+                )
         except (json.JSONDecodeError, TypeError, ValueError) as e:
-            record_degradation('autonomous_task_engine', e)
+            record_degradation("autonomous_task_engine", e)
             logger.debug("Alternative approach generation failed: %s", e)
 
         # Signal exhaustion rather than silently looping identically
-        logger.warning("No alternative found for '%s'; step will likely fail.", step.description[:40])
+        logger.warning(
+            "No alternative found for '%s'; step will likely fail.", step.description[:40]
+        )
         return None
 
     # ── Rollback ─────────────────────────────────────────────────────────────
@@ -1913,8 +2288,7 @@ Respond ONLY with a JSON array, no other text:
     async def _rollback_completed(self, plan: TaskPlan, completed_ids: set) -> None:
         """Rollback completed steps in reverse order after failure."""
         to_rollback = [
-            s for s in reversed(plan.steps)
-            if s.step_id in completed_ids and s.rollback_action
+            s for s in reversed(plan.steps) if s.step_id in completed_ids and s.rollback_action
         ]
         for step in to_rollback:
             logger.info("TaskEngine: rolling back '%s'", step.description[:40])
@@ -1927,7 +2301,7 @@ Respond ONLY with a JSON array, no other text:
                 )
                 step.status = StepStatus.ROLLED_BACK
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-                record_degradation('autonomous_task_engine', e)
+                record_degradation("autonomous_task_engine", e)
                 logger.warning("Rollback failed for step '%s': %s", step.description[:40], e)
 
     # ── Result synthesis ──────────────────────────────────────────────────────
@@ -1935,8 +2309,8 @@ Respond ONLY with a JSON array, no other text:
     async def _synthesize_result(self, plan: TaskPlan, duration: float) -> TaskResult:
         """Use LLM to synthesize a natural language summary of what was accomplished."""
         plan.completed_at = time.time()
-        succeeded_steps   = plan.succeeded_steps # Initialize succeeded_steps here
-        plan.status       = "succeeded" if plan.all_complete and not plan.any_failed else "partial"
+        succeeded_steps = plan.succeeded_steps  # Initialize succeeded_steps here
+        plan.status = "succeeded" if plan.all_complete and not plan.any_failed else "partial"
 
         # Build evidence from step results
         evidence = []
@@ -1974,17 +2348,18 @@ Respond ONLY with a JSON array, no other text:
             if not str(summary or "").strip():
                 raise ValueError("LLM returned empty response for result synthesis")
             plan.final_result = str(summary).strip()
-        except (RuntimeError, asyncio.CancelledError, TimeoutError, AttributeError):
+        except (RuntimeError, asyncio.CancelledError, TimeoutError, AttributeError, ValueError):
             n_done = len(succeeded_steps)
             n_total = len(plan.steps)
-            summary = (
-                f"Completed {n_done}/{n_total} steps toward '{plan.goal}'. "
-                + (f"Key finding: {evidence[0]}" if evidence else "")
+            summary = f"Completed {n_done}/{n_total} steps toward '{plan.goal}'. " + (
+                f"Key finding: {evidence[0]}" if evidence else ""
             )
             plan.final_result = summary
 
         succeeded = not plan.any_failed
-        if self._requires_grounded_action(plan.goal, plan.context) and self._summary_hedges_completion(plan.final_result or summary):
+        if self._requires_grounded_action(
+            plan.goal, plan.context
+        ) and self._summary_hedges_completion(plan.final_result or summary):
             succeeded = False
 
         return TaskResult(
@@ -1996,7 +2371,7 @@ Respond ONLY with a JSON array, no other text:
             steps_completed=len(plan.succeeded_steps),
             steps_total=len(plan.steps),
             evidence=evidence[:6],
-            duration_s=time.time() - plan.created_at
+            duration_s=time.time() - plan.created_at,
         )
 
     # ── State integration ─────────────────────────────────────────────────────
@@ -2039,26 +2414,27 @@ Respond ONLY with a JSON array, no other text:
                         )
                     return
                 except (OSError, ConnectionError, TimeoutError) as exc:
-                    record_degradation('autonomous_task_engine', exc)
+                    record_degradation("autonomous_task_engine", exc)
                     logger.debug("GoalEngine-backed state sync failed: %s", exc)
 
             if not hasattr(cognition, "active_goals") or cognition.active_goals is None:
                 cognition.active_goals = []
 
             cognition.active_goals = [
-                g for g in cognition.active_goals
-                if g.get("plan_id") != plan.plan_id
+                g for g in cognition.active_goals if g.get("plan_id") != plan.plan_id
             ]
             if plan.plan_id in self._active_plans:
-                cognition.active_goals.append({
-                    "plan_id": plan.plan_id,
-                    "goal": plan.goal[:80],
-                    "status": plan.status,
-                    "steps_done": len(plan.succeeded_steps),
-                    "steps_total": len(plan.steps),
-                })
+                cognition.active_goals.append(
+                    {
+                        "plan_id": plan.plan_id,
+                        "goal": plan.goal[:80],
+                        "status": plan.status,
+                        "steps_done": len(plan.succeeded_steps),
+                        "steps_total": len(plan.steps),
+                    }
+                )
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('autonomous_task_engine', e)
+            record_degradation("autonomous_task_engine", e)
             logger.debug("State goal update failed: %s", e)
 
     # ── Default tools ─────────────────────────────────────────────────────────
@@ -2081,14 +2457,17 @@ Respond ONLY with a JSON array, no other text:
             """Search the web for information."""
             try:
                 from core.container import ServiceContainer
+
                 orch = ServiceContainer.get("orchestrator", default=None)
                 if orch:
                     origin = self._normalize_origin(kwargs.get("origin"))
                     if origin:
-                        return await orch.execute_tool("web_search", {"query": query}, origin=origin)
+                        return await orch.execute_tool(
+                            "web_search", {"query": query}, origin=origin
+                        )
                     return await orch.execute_tool("web_search", {"query": query})
             except (ImportError, AttributeError, RuntimeError) as e:
-                record_degradation('autonomous_task_engine', e)
+                record_degradation("autonomous_task_engine", e)
                 return f"Search failed: {e}"
             return f"Search tool not available for: {query}"
 
@@ -2096,52 +2475,60 @@ Respond ONLY with a JSON array, no other text:
             """Execute Python code in a sandboxed environment."""
             try:
                 from core.container import ServiceContainer
+
                 orch = ServiceContainer.get("orchestrator", default=None)
                 if orch and hasattr(orch, "execute_tool"):
                     origin = self._normalize_origin(kwargs.get("origin"))
                     if origin:
-                        result = await orch.execute_tool("run_python", {"code": code}, origin=origin)
+                        result = await orch.execute_tool(
+                            "run_python", {"code": code}, origin=origin
+                        )
                     else:
                         result = await orch.execute_tool("run_python", {"code": code})
                     return str(result)
             except (ImportError, AttributeError, RuntimeError) as e:
-                record_degradation('autonomous_task_engine', e)
+                record_degradation("autonomous_task_engine", e)
                 return f"Python execution failed: {e}"
             return "Python execution not available"
 
         async def _write_file(path: str, content: str, **kwargs) -> str:
             """Write content to a file."""
             import aiofiles
+
             try:
                 async with aiofiles.open(path, "w") as f:
                     await f.write(content)
                 return f"Written to {path}"
-            except (OSError, IOError) as e:
-                record_degradation('autonomous_task_engine', e)
+            except OSError as e:
+                record_degradation("autonomous_task_engine", e)
                 return f"Write failed: {e}"
 
         async def _read_file(path: str, **kwargs) -> str:
             """Read content from a file."""
             import aiofiles
+
             try:
                 async with aiofiles.open(path) as f:
                     return await f.read()
-            except (OSError, IOError) as e:
-                record_degradation('autonomous_task_engine', e)
+            except OSError as e:
+                record_degradation("autonomous_task_engine", e)
                 return f"Read failed: {e}"
 
         async def _remember(
             content: str,
             verified: bool = False,
             type: str = "observation",
-            metadata: Optional[Dict[str, Any]] = None,
+            metadata: dict[str, Any] | None = None,
             **kwargs,
         ) -> str:
             """Store something in Aura's knowledge graph."""
             if self._looks_technical_fact(content) and not verified:
-                raise ValueError("Technical memory writes require verified=true after a live read or tool-backed check")
+                raise ValueError(
+                    "Technical memory writes require verified=true after a live read or tool-backed check"
+                )
             try:
                 from core.container import ServiceContainer
+
                 kg = ServiceContainer.get("knowledge_graph", default=None)
                 if kg:
                     kg.add_knowledge(
@@ -2152,23 +2539,23 @@ Respond ONLY with a JSON array, no other text:
                     )
                     return f"Remembered: {content[:80]}"
             except (ImportError, AttributeError, RuntimeError) as e:
-                record_degradation('autonomous_task_engine', e)
+                record_degradation("autonomous_task_engine", e)
                 return f"Remember failed: {e}"
             return "Memory not available"
 
-        self._tool_registry["think"]      = _think
+        self._tool_registry["think"] = _think
         self._tool_registry["web_search"] = _web_search
         self._tool_registry["run_python"] = _run_python
         self._tool_registry["write_file"] = _write_file
-        self._tool_registry["read_file"]  = _read_file
-        self._tool_registry["remember"]   = _remember
+        self._tool_registry["read_file"] = _read_file
+        self._tool_registry["remember"] = _remember
 
         logger.debug("TaskEngine: %d default tools registered", len(self._tool_registry))
 
 
 # ── Singleton ─────────────────────────────────────────────────────────────────
 
-_engine: Optional[AutonomousTaskEngine] = None
+_engine: AutonomousTaskEngine | None = None
 
 
 def get_task_engine(kernel: Any = None, force_reset: bool = False) -> AutonomousTaskEngine:
@@ -2177,7 +2564,10 @@ def get_task_engine(kernel: Any = None, force_reset: bool = False) -> Autonomous
     if _engine is None or force_reset:
         if kernel is None:
             from core.container import ServiceContainer
-            kernel = ServiceContainer.get("aura_kernel", default=None) or ServiceContainer.get("kernel", default=None)
+
+            kernel = ServiceContainer.get("aura_kernel", default=None) or ServiceContainer.get(
+                "kernel", default=None
+            )
         _engine = AutonomousTaskEngine(kernel)
     return _engine
 
