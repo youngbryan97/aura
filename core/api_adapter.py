@@ -319,7 +319,7 @@ class APIAdapter:
                     
             self._call_count["local"] += 1
             return result
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('api_adapter', e)
             logger.warning("Local runtime generate failed: %s", e)
             self._error_count["local"] += 1
@@ -361,7 +361,7 @@ class APIAdapter:
                 
             yield ChatStreamEvent(type="end")
             self._call_count["local"] += 1
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('api_adapter', e)
             logger.warning("Local runtime stream failed: %s", e)
             self._error_count["local"] += 1
@@ -377,7 +377,7 @@ class APIAdapter:
                     contents=text,
                 )
                 return res.embeddings[0].values
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('api_adapter', e)
                 logger.debug("Gemini embedding failed: %s", e)
 

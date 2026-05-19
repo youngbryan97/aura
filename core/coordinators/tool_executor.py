@@ -186,7 +186,7 @@ class ToolExecutor:
                     str(args.get("query", args.get("path", "")))
                 )
                 orch.tool_learner.record_usage(tool_name, category, success, elapsed_ms)
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as _e:
+            except (OSError, ConnectionError, TimeoutError) as _e:
                 record_degradation('tool_executor', _e)
                 logger.debug("Tool learning record failed: %s", _e)
 

@@ -194,7 +194,7 @@ class NativeChatSkill(BaseSkill):
                         mem_sys.remember(response, metadata={"role": "aura", "mode": "chat"}),
                         name="native_chat.remember_aura",
                     )
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('native_chat', e)
                 logger.warning("Memory storage failed: %s", e)
 
@@ -203,7 +203,7 @@ class NativeChatSkill(BaseSkill):
                 orchestrator = context.get("orchestrator")
                 if orchestrator and hasattr(orchestrator, "biorhythm"):
                     orchestrator.biorhythm.mark_interaction()
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+            except (OSError, ConnectionError, TimeoutError) as exc:
                 record_degradation('native_chat', exc)
                 logger.debug("Suppressed: %s", exc)
 

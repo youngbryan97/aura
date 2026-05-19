@@ -34,7 +34,7 @@ def register_research_core(
         existing = None
         try:
             existing = container.get(SelfImprovingResearchCore.SERVICE_NAME, default=None)
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError):
+        except (OSError, ConnectionError, TimeoutError):
             existing = None
         if existing is not None:
             return existing

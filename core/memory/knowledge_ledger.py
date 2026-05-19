@@ -151,7 +151,7 @@ class KnowledgeLedger:
                 # ISSUE 44 fix: Correct key for questions asked
                 stats["questions_asked"] = kg_stats.get("unanswered_questions", 0) + kg_stats.get("answered_questions", 0)
                 stats["active_goals"] = kg_stats.get("active_learning_goals", 0)
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+            except (OSError, ConnectionError, TimeoutError) as exc:
                 record_degradation('knowledge_ledger', exc)
                 logger.debug("Suppressed: %s", exc)        
         # 6. Reflections (in-memory)
@@ -265,7 +265,7 @@ class KnowledgeLedger:
                     "time_ago": _format_time_ago(acquired),
                     "icon": "🎓",
                 })
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('knowledge_ledger', e)
             logger.warning("Failed to read skills: %s", e)
         
@@ -367,7 +367,7 @@ class KnowledgeLedger:
                     "time_ago": _format_time_ago(g.get("created_at", 0)),
                     "icon": "🎯",
                 })
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('knowledge_ledger', e)
             logger.warning("Failed to read goals: %s", e)
         

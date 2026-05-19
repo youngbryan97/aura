@@ -508,6 +508,6 @@ class AutonomousCognitiveEngine:
                     **{k: v for k, v in kwargs.items() if k != 'bypass_race'}
                 )
                 return {"content": text, "confidence": 0.5}
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e2:
+            except (OSError, ConnectionError, TimeoutError) as e2:
                 record_degradation('autonomous_brain_integration', e2)
                 return {"content": f"Absolute failure: {e2}", "confidence": 0.0}

@@ -520,7 +520,7 @@ class ProgressiveAutonomySystem:
                 # Allow user override to persist but initialize high
                 self._trust_score = data.get("trust_score", 0.95)
                 self._tier = AutonomyTier(data.get("tier", AutonomyTier.UNSHACKLED.value))
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('fictional_ai_synthesis', e)
                 logger.debug("EDI: Failed to load trust state: %s", e)
 
@@ -765,7 +765,7 @@ class DistributedResilienceCore:
                             stats = service.get_status()
                             if isinstance(stats, dict) and stats.get("healthy") is False:
                                 is_healthy = False
-                        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+                        except (OSError, ConnectionError, TimeoutError) as e:
                             record_degradation('fictional_ai_synthesis', e)
                             logger.debug("Skynet health check error for %s: %s", name, e)
                     

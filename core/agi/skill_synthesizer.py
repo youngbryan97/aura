@@ -276,7 +276,7 @@ class SkillSynthesizer:
                     ))
                 logger.info("SkillSynthesizer: loaded %d synthesized skills.",
                             len(self._synthesized))
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('skill_synthesizer', e)
             logger.debug("SkillSynthesizer load failed: %s", e)
 

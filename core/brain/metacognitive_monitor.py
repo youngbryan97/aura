@@ -85,7 +85,7 @@ Respond in JSON: {{"coherent": bool, "score": float, "violations": [str], "metri
             score = float(data.get("score", 1.0))
             violations = data.get("violations", [])
             metrics = data.get("metrics", {"clarity": 1.0, "logic": 1.0, "factuality": 1.0, "persona": 1.0})
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError):
+        except (OSError, ConnectionError, TimeoutError):
             return CoherenceReport(True, 1.0, [], {"clarity": 1.0, "logic": 1.0, "factuality": 1.0, "persona": 1.0}, False)
 
         # Decide whether to revise or just log

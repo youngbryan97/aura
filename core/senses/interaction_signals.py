@@ -236,7 +236,7 @@ class InteractionSignalsEngine:
                 analysis = await asyncio.to_thread(self._analyze_vision_frame_sync, jpeg_bytes, metadata)
                 self._vision = self._update_vision_state(analysis)
                 self._fused = self._compute_fused_state()
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+            except (OSError, ConnectionError, TimeoutError) as exc:
                 record_degradation('interaction_signals', exc)
                 logger.debug("Vision signal update failed: %s", exc)
             finally:

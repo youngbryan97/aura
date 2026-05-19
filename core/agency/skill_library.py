@@ -214,7 +214,7 @@ class SkillLibrary:
                 steps = [SkillStep(**s) for s in dict_v.pop("steps", [])]
                 self.skills[k] = LearnedSkill(steps=steps, **dict_v)
                 
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('skill_library', e)
             logger.error("Failed to load Skill Library: %s", e)
 

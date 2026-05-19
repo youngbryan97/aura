@@ -52,7 +52,7 @@ def initialize_persona_integration(persona_name: str = "aura"):
                             kwargs["context"] = ctxt
 
                     return original_think(*args, **kwargs)
-                except (httpx.HTTPError, OSError, ConnectionError, TimeoutError):
+                except (OSError, ConnectionError, TimeoutError):
                     logger.error("persona_think wrapper failed:\n" + traceback.format_exc())
                     return original_think(*args, **kwargs)
 

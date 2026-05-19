@@ -107,7 +107,7 @@ class BlackHoleVault:
             res = decode_payload(encrypted_data, self.key)
             raw_json = res.get("decoded", "")
             self.memories = json.loads(raw_json) if raw_json else []
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError):
+        except (OSError, ConnectionError, TimeoutError):
             self._fallback_mode = True
             self.memories = []
             

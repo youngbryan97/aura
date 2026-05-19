@@ -112,7 +112,7 @@ class CognitiveDaemon:
                         resp = await self.orchestrator.process_user_input(data["content"])
                         writer.write(json.dumps({"type": "response", "content": resp}).encode() + b"\n")
                         await writer.drain()
-                except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+                except (OSError, ConnectionError, TimeoutError) as e:
                     record_degradation('daemon', e)
                     logger.error("IPC error: %s", e)
         finally:

@@ -130,7 +130,7 @@ class LockWatchdog:
                 lock_id,
             )
             return True
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+        except (OSError, ConnectionError, TimeoutError) as exc:
             record_degradation('lock_watchdog', exc)
             logger.error("LockWatchdog recovery failed for '%s': %s", tracked.name, exc)
             return False

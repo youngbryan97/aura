@@ -160,7 +160,7 @@ def _patched_save_phenomenal_memory(self: "PhenomenologicalExperiencer") -> None
                 os.remove(temp_path)
             raise exc
 
-    except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+    except (OSError, ConnectionError, TimeoutError) as exc:
         record_degradation('continuity_patch', exc)
         logger.debug("ContinuityPatch._save: %s", exc)
 
@@ -203,7 +203,7 @@ def _patched_load_phenomenal_memory(self: "PhenomenologicalExperiencer") -> None
             bool(witness),
         )
 
-    except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+    except (OSError, ConnectionError, TimeoutError) as exc:
         record_degradation('continuity_patch', exc)
         logger.warning("ContinuityPatch._load: %s", exc)
 

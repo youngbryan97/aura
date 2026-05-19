@@ -215,7 +215,7 @@ class UnifiedBrowserSkill(BaseSkill):
                 logger.warning("Browser attempt %s failed (%s). Retrying...", attempt + 1, error)
                 await asyncio.sleep(base_delay * (2 ** attempt))
                 
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 logger.error("Browser crash on attempt %s: %s", attempt + 1, e)
                 await asyncio.sleep(base_delay * (2 ** attempt))
 

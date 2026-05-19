@@ -532,7 +532,7 @@ class CognitiveHeartbeat:
                 state["affect_arousal"] = affect.arousal
                 state["affect_engagement"] = affect.engagement
                 state["affect_emotion"] = affect.dominant_emotion
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('heartbeat', e)
             # logger.debug("Affect gather failed: %s", e)
             state.setdefault("affect_valence", 0.0)
@@ -565,7 +565,7 @@ class CognitiveHeartbeat:
             state["body_energy"] = (1.0 - body.get("resource_anxiety", 0.0)) * 100
             state["body_heat"] = body.get("thermal_load", 0.0) * 100
             state["body_integrity"] = body.get("vitality", 1.0) * 100
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('heartbeat', e)
             capture_and_log(e, {'module': __name__})
             

@@ -182,7 +182,7 @@ class MemoryOpsSkill(BaseSkill):
                     "results": formatted if formatted else ["No archival memories found."],
                     "summary": f"Found {len(formatted)} artifacts."
                 }
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('memory_ops', e)
                 return {"ok": False, "error": f"Archival search failed: {e}"}
 

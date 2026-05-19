@@ -215,7 +215,7 @@ class EpistemicHumility:
             self.heuristics = {
                 k: LearnedHeuristic(**v) for k, v in data.get("heuristics", {}).items()
             }
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('epistemic_humility', e)
             logger.error("Failed to load epistemic humility state: %s", e)
 

@@ -165,7 +165,7 @@ class PersonhoodEngine:
             )
             if content:
                 return [SpontaneousThought("research_complete", content, 0.7)]
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+        except (OSError, ConnectionError, TimeoutError) as exc:
             record_degradation('personhood_engine', exc)
             logger.debug("Personhood engine failed to check research findings: %s", exc)
         return []

@@ -79,7 +79,7 @@ def recent(*, days: int = 30) -> List[WillReceiptEntry]:
                 if float(rec.get("when", 0.0)) < cutoff:
                     continue
                 out.append(WillReceiptEntry(**{k: v for k, v in rec.items() if k in WillReceiptEntry.__dataclass_fields__}))
-    except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+    except (OSError, ConnectionError, TimeoutError) as exc:
         record_degradation('will_receipt_log', exc)
         logger.debug("will receipt read failed: %s", exc)
     return out

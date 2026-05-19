@@ -1431,7 +1431,7 @@ class AdaptiveImmuneSystem:
                     ),
                     "notes": artifact.notes or "",
                 }
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+            except (OSError, ConnectionError, TimeoutError) as exc:
                 record_degradation('adaptive_immunity', exc)
                 artifact.executed = True
                 artifact.success = False
@@ -2078,7 +2078,7 @@ class AdaptiveImmuneSystem:
                     or status.get("pressure")
                     or status.get("entropy", 0.0) / max(status.get("max_entropy", 100.0), 1.0)
                 )
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError):
+            except (OSError, ConnectionError, TimeoutError):
                 entropy_pressure = 0.0
 
         scale = max(
@@ -2206,7 +2206,7 @@ class AdaptiveImmuneSystem:
                 }
             self._assign_species()
             return bool(self._cells)
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+        except (OSError, ConnectionError, TimeoutError) as exc:
             record_degradation('adaptive_immunity', exc)
             logger.warning("Adaptive immune state load failed; reseeding: %s", exc)
             return False

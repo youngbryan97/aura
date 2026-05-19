@@ -166,7 +166,7 @@ class ScreenObserver:
                         data["image_size"] = len(data["image"])
                         del data["image"]
                     return data
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('screen_observer', e)
             logger.debug("Vision read error: %s", e)
         return None
@@ -248,7 +248,7 @@ class ScreenObserver:
                     source=obs.get("source", "senses"),
                     confidence=obs.get("confidence", 0.5),
                 )
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('screen_observer', e)
                 logger.debug("Failed to store observation: %s", e)
     

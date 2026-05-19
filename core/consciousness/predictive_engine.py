@@ -67,7 +67,7 @@ class PredictiveEngine:
                     prediction.expected_changes["total_beliefs"] = current_summary.get("total_beliefs", 0) + 2
                 elif action_type == "apply_fix":
                     prediction.expected_changes["strong"] = current_summary.get("strong", 0) + 1
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('predictive_engine', e)
                 logger.debug("World model prediction failed: %s", e)
 

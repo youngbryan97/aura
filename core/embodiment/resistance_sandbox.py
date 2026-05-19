@@ -118,7 +118,7 @@ class ResistanceSandbox:
                 self._prediction_accuracy = float(data.get("prediction_accuracy", 0.5))
                 self._total_actions = int(data.get("total_actions", 0))
                 self._resource_pressure = float(data.get("resource_pressure", 0.0))
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+            except (OSError, ConnectionError, TimeoutError) as exc:
                 record_degradation('resistance_sandbox', exc)
                 logger.debug("Sandbox state load failed: %s", exc)
 

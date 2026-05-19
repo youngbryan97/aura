@@ -181,7 +181,7 @@ class ConversationalProfiler:
             # Restore phrase counters if present
             for uid, phrases in raw.get("phrase_counters", {}).items():
                 self._phrase_counter[uid] = defaultdict(int, phrases)
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+        except (OSError, ConnectionError, TimeoutError) as exc:
             record_degradation('conversational_profile', exc)
             logger.error("Failed to load conversational profiles: %s", exc)
 

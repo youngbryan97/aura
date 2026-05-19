@@ -149,7 +149,7 @@ class StateVaultActor:
                 )
 
             return {"version": committed_state.version, "state_id": committed_state.state_id}
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('vault', e)
             logger.error("Commit failed: %s", e)
             raise

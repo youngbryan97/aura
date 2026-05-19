@@ -249,7 +249,7 @@ class UserRecognizer:
                 self._derivation_cache[candidate] = candidate_hash
 
             return hmac.compare_digest(candidate_hash, self._passphrase_hash)
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+        except (OSError, ConnectionError, TimeoutError) as exc:
             record_degradation("user_recognizer", exc)
             logger.debug("Passphrase verification failed safely: %s", exc)
             return False
@@ -378,7 +378,7 @@ class UserRecognizer:
                     self._passphrase_hash = bytes.fromhex(h)
                     self._salt = bytes.fromhex(s)
                     logger.info("UserRecognizer: owner passphrase loaded.")
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('user_recognizer', e)
             logger.debug("Credential load failed: %s", e)
 

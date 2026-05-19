@@ -215,7 +215,7 @@ class ConversationPersistence:
 
             return messages
 
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+        except (OSError, ConnectionError, TimeoutError) as exc:
             record_degradation('conversation_persistence', exc)
             logger.error("Could not load previous session: %s", exc)
             return []
@@ -390,7 +390,7 @@ class ConversationPersistence:
                     "message_count": data.get("message_count", 0),
                     "summary": data.get("summary"),
                 })
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError):
+            except (OSError, ConnectionError, TimeoutError):
                 import logging
                 logger.debug("Exception caught during execution", exc_info=True)
 

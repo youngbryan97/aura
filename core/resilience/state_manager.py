@@ -175,7 +175,7 @@ class StateManager:
             logger.info("Loaded snapshot from %s (Reason: %s)", meta.get('iso_time'), meta.get('reason'))
             return data
             
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('state_manager', e)
             logger.error("Failed to load snapshot from %s: %s", path, e)
             return None

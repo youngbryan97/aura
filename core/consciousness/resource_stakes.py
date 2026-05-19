@@ -95,7 +95,7 @@ class ResourceStakesEngine:
                 self._state.token_budget_multiplier = float(data.get("token_budget_multiplier", 1.0))
                 self._state.lifetime_successes = int(data.get("lifetime_successes", 0))
                 self._state.lifetime_failures = int(data.get("lifetime_failures", 0))
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+        except (OSError, ConnectionError, TimeoutError) as exc:
             record_degradation('resource_stakes', exc)
             logger.debug("ResourceStakes: state load failed: %s", exc)
 

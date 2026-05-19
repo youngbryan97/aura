@@ -39,7 +39,7 @@ class CognitiveContextManager:
             liquid = service_access.resolve_liquid_substrate(default=None)
             if liquid:
                 context["vitality"] = liquid.get_status()
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+        except (OSError, ConnectionError, TimeoutError) as exc:
             record_degradation('cognitive_context_manager', exc)
             logger.debug("Vitality/Homeostasis context failed: %s", exc)
 
@@ -85,7 +85,7 @@ class CognitiveContextManager:
                     "qualia": state.get("qualia"),
                     "phi": state.get("iit_phi"),
                 }
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+        except (OSError, ConnectionError, TimeoutError) as exc:
             record_degradation('cognitive_context_manager', exc)
             logger.debug("Consciousness context failed: %s", exc)
 

@@ -224,7 +224,7 @@ class BindingEngine:
                     id_score = scores.get("identity_relevance", 0.5)
                     cont_score = scores.get("continuity", 0.5)
                     report.initiative_alignment = (id_score * 0.6 + cont_score * 0.4)
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('binding_engine', e)
                 logger.debug("BindingEngine: InitiativeArbiter tick failed: %s", e)
 
@@ -244,7 +244,7 @@ class BindingEngine:
                 if stale:
                     report.threats.append(f"{len(stale)} stale intentions (>5min)")
                     report.intention_integrity = max(0.3, report.intention_integrity - len(stale) * 0.1)
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('binding_engine', e)
                 logger.debug("BindingEngine: IntentionLoop review failed: %s", e)
 

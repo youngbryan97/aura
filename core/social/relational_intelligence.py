@@ -213,7 +213,7 @@ class RelationalIntelligence:
                 self._perspectives[uid] = self._hydrate(PerspectiveModel, blob.get("perspective", {}))
                 self._entertainment[uid] = self._hydrate(EntertainmentProfile, blob.get("entertainment", {}))
             logger.debug("RelationalIntelligence: loaded %d profiles.", len(raw))
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('relational_intelligence', e)
             logger.warning("RelationalIntelligence: load failed (%s), starting fresh.", e)
 

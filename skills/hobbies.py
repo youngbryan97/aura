@@ -367,7 +367,7 @@ class HobbyEngine:
                 valid = {k: v for k, v in data.items() if k in HobbyProfile.__dataclass_fields__}
                 self._profiles[name] = HobbyProfile(**valid)
             logger.debug("🎨 Loaded %d hobby profiles from disk", len(self._profiles))
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+        except (OSError, ConnectionError, TimeoutError) as exc:
             logger.warning("HobbyEngine: state load failed — %s", exc)
 
     def _save_state(self) -> None:
@@ -482,7 +482,7 @@ class HobbyEngine:
                 )
                 return session
 
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+            except (OSError, ConnectionError, TimeoutError) as exc:
                 logger.error("HobbyEngine.run_session failed (%s): %s", hobby_name, exc, exc_info=True)
                 session.ended_at = time.time()
                 return session

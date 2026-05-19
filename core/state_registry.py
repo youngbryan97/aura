@@ -111,7 +111,7 @@ class UnifiedStateRegistry:
                 self._notify_queue.task_done()
             except asyncio.CancelledError:
                 break
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('state_registry', e)
                 logger.error("StateRegistry dispatcher error: %s", e)
                 await asyncio.sleep(0.1)

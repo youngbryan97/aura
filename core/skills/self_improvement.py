@@ -261,5 +261,5 @@ class SelfImprovementSkill(BaseSkill):
             with open(self.learning_log_path, "r") as f:
                 data = json.load(f)
                 return [entry.get("insight", entry.get("summary", "")) for entry in data]
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError):
+        except (OSError, ConnectionError, TimeoutError):
             return []

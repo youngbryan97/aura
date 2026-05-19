@@ -102,7 +102,7 @@ class LearningSystem:
                 metadata = {"type": "strategy", "skill": record["skill"], "scope": f"component:{record['skill']}", "success": success, "timestamp": record["timestamp"]}
                 if hasattr(self.vector_memory, 'add_memory'): await asyncio.to_thread(self.vector_memory.add_memory, strategy_text, metadata=metadata)
                 elif hasattr(self.vector_memory, 'add'): self.vector_memory.add(strategy_text, metadata=metadata)
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e: self.logger.error("Failed to store in long-term memory: %s", e)
+        except (OSError, ConnectionError, TimeoutError) as e: self.logger.error("Failed to store in long-term memory: %s", e)
     
     def get_best_strategy(self, skill: str, goal: Dict[str, Any]) -> Optional[str]:
         relevant_strategies = {name: stats for name, stats in self.strategy_stats.items() if stats["attempts"] > 0}

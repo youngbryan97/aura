@@ -214,7 +214,7 @@ class ToolOutputDistillationService:
                         header += f"🔍 Key signals:\n{key_signals}\n"
                     return f"{header}\n{summary}"
 
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('tool_distillation', e)
                 logger.warning("LLM distillation failed, falling back to structural truncation: %s", e)
 

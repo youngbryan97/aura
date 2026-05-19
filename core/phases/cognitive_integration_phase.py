@@ -279,7 +279,7 @@ class CognitiveIntegrationPhase(Phase):
                 "is_anomaly": is_anomaly,
             }
             return score
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+        except (OSError, ConnectionError, TimeoutError) as exc:
             record_degradation('cognitive_integration_phase', exc)
             from core.utils.exceptions import capture_and_log
             capture_and_log(exc, {"module": "CognitiveIntegrationPhase", "method": "_run_anomaly_detection"})
@@ -299,7 +299,7 @@ class CognitiveIntegrationPhase(Phase):
             )
             state.response_modifiers["autonomous_resilience"] = report
             return report
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+        except (OSError, ConnectionError, TimeoutError) as exc:
             record_degradation('cognitive_integration_phase', exc)
             from core.utils.exceptions import capture_and_log
             capture_and_log(exc, {"module": "CognitiveIntegrationPhase", "method": "_run_autonomous_resilience"})
@@ -386,7 +386,7 @@ class CognitiveIntegrationPhase(Phase):
                     )
                 if secondary_responses:
                     state.response_modifiers["autonomous_resilience_immune"] = secondary_responses
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+        except (OSError, ConnectionError, TimeoutError) as exc:
             record_degradation('cognitive_integration_phase', exc)
             from core.utils.exceptions import capture_and_log
             capture_and_log(exc, {"module": "CognitiveIntegrationPhase", "method": "_run_adaptive_immunity"})
@@ -413,7 +413,7 @@ class CognitiveIntegrationPhase(Phase):
             state.response_modifiers["temporal_coherence"] = loop_state.temporal_coherence
             if loop_state.self_narrative:
                 state.response_modifiers["self_narrative"] = loop_state.self_narrative
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+        except (OSError, ConnectionError, TimeoutError) as exc:
             record_degradation('cognitive_integration_phase', exc)
             from core.utils.exceptions import capture_and_log
             capture_and_log(exc, {"module": "CognitiveIntegrationPhase", "method": "_run_strange_loop"})

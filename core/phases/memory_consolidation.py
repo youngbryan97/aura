@@ -215,7 +215,7 @@ class MemoryConsolidationPhase(BasePhase):
                         "resonance": affect_signature.get("resonance", getattr(new_state.affect, "get_resonance_string", lambda: "")()),
                     },
                 )
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('memory_consolidation', e)
                 logger.debug("MemoryConsolidation: MemoryFacade commit failed: %s", e)
  

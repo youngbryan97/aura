@@ -37,7 +37,7 @@ class CapabilityGuard:
             else:
                 logger.warning("No capability manifest found at %s. Using default restricted mode.", self.manifest_path)
                 self.capabilities = self._get_default_capabilities()
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('capability_guard', e)
             logger.error("Failed to load capability manifest: %s", e)
             self.capabilities = self._get_default_capabilities()

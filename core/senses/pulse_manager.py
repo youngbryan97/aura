@@ -228,7 +228,7 @@ class PulseManager:
                                 }
                         except (BlockingIOError, socket.error):
                             break
-                        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+                        except (OSError, ConnectionError, TimeoutError) as e:
                             record_degradation('pulse_manager', e)
                             logger.debug("Error receiving peer pulse: %s", e)
                             break
@@ -244,7 +244,7 @@ class PulseManager:
 
                 except asyncio.CancelledError:
                     break
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('pulse_manager', e)
             logger.debug("Distributed pulse cycle error: %s", e)
             await asyncio.sleep(5)

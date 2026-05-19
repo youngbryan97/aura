@@ -37,7 +37,7 @@ def rebuild_vector_index(*, source: Optional[Path] = None) -> Dict[str, Any]:
             # vector store. We deliberately keep this as a derivation pass
             # so the contract is testable without a vector backend.
             rebuilt += 1
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+        except (OSError, ConnectionError, TimeoutError) as exc:
             record_degradation('vector_index', exc)
             failed.append({"path": str(jf), "error": repr(exc)})
     return {

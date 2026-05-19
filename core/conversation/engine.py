@@ -271,7 +271,7 @@ class ConversationEngine:
             
             return final_response
             
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('engine', e)
             capture_and_log(e, {"context": "ConversationEngine.process_message"})
             # Re-raise major errors, swallow others with friendly message

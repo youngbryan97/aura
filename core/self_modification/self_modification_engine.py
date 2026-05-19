@@ -267,7 +267,7 @@ class AutonomousSelfModificationEngine:
             if not branch_result.get("ok"):
                 logger.error("❌ Branching Futures Validation FAILED: %s", branch_result.get("error"))
                 return None
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             logger.error("❌ Branching Futures Validation CRASHED: %s", e)
             return None
             

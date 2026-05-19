@@ -110,7 +110,7 @@ class PluginAllowlist:
                     revoked_at=blob.get("revoked_at"),
                     metadata=dict(blob.get("metadata", {}) or {}),
                 )
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+            except (OSError, ConnectionError, TimeoutError) as exc:
                 record_degradation("plugin_allowlist", exc)
                 logger.debug("Skipping malformed plugin allowlist entry %s: %s", sha, exc)
                 continue

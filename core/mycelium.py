@@ -1165,7 +1165,7 @@ class MycelialNetwork:
                     logger.error("Error during Memory Governor shutdown: %s", e)
                 logger.info("🍄 [MYCELIUM] Pulse check loop shutting down.")
                 break
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('mycelium', e)
                 logger.error("🍄 [MYCELIUM] Pulse check error: %s", e, exc_info=True)
                 await asyncio.sleep(10)  # Backoff on error

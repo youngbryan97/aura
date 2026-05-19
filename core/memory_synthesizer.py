@@ -297,7 +297,7 @@ class MemorySynthesizer:
                 if hasattr(sm, "data"):
                     facts = sm.data.get("facts", {})
                     return [{"concept": k, "content": str(v)} for k, v in list(facts.items())[-limit:]]
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('memory_synthesizer', e)
             logger.debug("Semantic fact retrieval error: %s", e)
         return []

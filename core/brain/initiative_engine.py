@@ -64,7 +64,7 @@ class ProactiveInitiativeEngine:
                 else:
                     if "curiosity_metric" in self.affect._raw_state:
                          self.affect._raw_state["curiosity_metric"] += 1.5
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('initiative_engine', e)
                 logger.error("Proactive loop error: %s", e)
                 # --- Neural Stream Integration ---

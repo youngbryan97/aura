@@ -255,7 +255,7 @@ class CuriosityExplorer:
                             result_text = str(summary)[:200]
                             success = True
                             return result_text
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('curiosity_explorer', e)
                 logger.debug("Skill-based web search failed: %s", e)
                 error_text = f"{type(e).__name__}: {e}"

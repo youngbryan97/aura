@@ -110,7 +110,7 @@ Synthesize a short (2-3 sentence) internal reflection that captures your subject
             p = float(current_pad.get("P", 0.0) or 0.0)
             a = float(current_pad.get("A", 0.0) or 0.0)
             d = float(current_pad.get("D", 0.0) or 0.0)
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError):
+        except (OSError, ConnectionError, TimeoutError):
             p, a, d = 0.0, 0.0, 0.0
 
         if p < -0.35:
@@ -185,7 +185,7 @@ Synthesize a short (2-3 sentence) internal reflection that captures your subject
                 await asyncio.to_thread(self.storage_path.write_text, 
                                         "\n".join(json.dumps(l) for l in sorted_kept) + "\n",
                                         encoding="utf-8")
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('private_phenomenology', e)
             logger.debug("Pruning failed: %s", e)
 

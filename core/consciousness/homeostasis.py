@@ -149,7 +149,7 @@ class HomeostasisEngine(AuraBaseModule):
                 thermal = soma_status.get("soma", {}).get("thermal_load", 0.0)
                 if thermal > 0.8:
                     self.metabolism = max(0.2, self.metabolism - 0.05)
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('homeostasis', e)
             logger.debug("Metabolism check failed: %s", e)
 

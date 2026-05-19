@@ -177,7 +177,7 @@ class RedditAdapterSkill(BaseSkill):
                 if state.get("cookies") and browser.context:
                     await browser.context.add_cookies(state["cookies"])
                     logger.info("✅ Loaded Reddit session cookies")
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('reddit_adapter', e)
                 logger.debug("Could not load storage state: %s", e)
 
@@ -787,7 +787,7 @@ class RedditAdapterSkill(BaseSkill):
                 "count": len(rules),
                 "message": f"Successfully fetched {len(rules)} rules for r/{params.subreddit}",
             }
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('reddit_adapter', e)
             return {"ok": False, "error": f"Failed to fetch rules: {e}"}
 

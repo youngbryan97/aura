@@ -1887,7 +1887,7 @@ class CapabilityEngine(AuraBaseModule):
                 if gov:
                     gov.check()
                 orm = rt.container.get("persistent_state")
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+            except (OSError, ConnectionError, TimeoutError) as exc:
                 record_degradation("capability_engine", exc)
                 self.logger.debug("Core runtime memory governance unavailable: %s", exc)
                 rt = None
@@ -2033,7 +2033,7 @@ class CapabilityEngine(AuraBaseModule):
                         result=result if result.get("ok") else None,
                         error=result.get("error") if not result.get("ok") else None
                     )
-                except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+                except (OSError, ConnectionError, TimeoutError) as e:
                     record_degradation('capability_engine', e)
                     self.logger.warning("ORM logging failed: %s", e)
             
@@ -2047,7 +2047,7 @@ class CapabilityEngine(AuraBaseModule):
                     )
             except AttributeError as e:
                 self.logger.debug("Reinforcement attribute missing: %s", e)
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('capability_engine', e)
                 self.logger.warning("Reinforcement failed: %s", e)
             
@@ -2069,7 +2069,7 @@ class CapabilityEngine(AuraBaseModule):
                         duration_ms=0.0,
                         error="" if bool(isinstance(result, dict) and result.get("ok", False)) else str((result or {}).get("error", "")),
                     )
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as _exc:
+            except (OSError, ConnectionError, TimeoutError) as _exc:
                 record_degradation('capability_engine', _exc)
                 self.logger.debug("Suppressed Exception: %s", _exc)
 
@@ -2154,7 +2154,7 @@ class CapabilityEngine(AuraBaseModule):
                 last_error = self._extract_error(output)
                 if not self._is_transient(last_error): 
                     break
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('capability_engine', e)
                 last_error = str(e)
                 if not self._is_transient(last_error): 
@@ -2234,7 +2234,7 @@ class CapabilityEngine(AuraBaseModule):
                 actual_outcome=str(result)[:500],
                 success=result.get("ok", False)
             )
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('capability_engine', e)
             self.logger.debug("Temporal record failed: %s", e)
 

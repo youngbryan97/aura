@@ -488,7 +488,7 @@ class OvertActionLoop:
                     evidence=evidence[-8:],
                     metadata={"last_overt_action_id": result.action_id, "last_overt_action_at": result.finished_at},
                 )
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+            except (OSError, ConnectionError, TimeoutError) as exc:
                 record_degradation("overt_action_loop", exc)
 
         try:

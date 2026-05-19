@@ -214,7 +214,7 @@ class IPCWriterThread(threading.Thread):
                 self.mp_queue.put(item, block=True, timeout=5.0)
             except queue.Empty:
                 continue
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError):
+            except (OSError, ConnectionError, TimeoutError):
                 # Queue full or broken — drop the item and continue rather
                 # than blocking the entire IPC pipeline.
                 if not self._stop_event.is_set():
@@ -252,7 +252,7 @@ class HeartbeatThread(threading.Thread):
         while not self._stop_event.is_set():
             # [STABILITY v51] Self-terminate if parent died — prevents orphan workers
             if not self._parent_alive():
-                print(f"🛑 [MLX_HEARTBEAT] Parent process {self._parent_pid} is dead. Self-terminating orphaned worker.")
+                logger.critical("🛑 [MLX_HEARTBEAT] Parent process %s is dead. Self-terminating orphaned worker.", self._parent_pid)
                 os._exit(1)
             self.writer.put({"status": "heartbeat", "timestamp": time.time(), "type": "mlx_worker"})
             time.sleep(2.0)
@@ -298,7 +298,7 @@ def _setup_worker_env():
             cpath_parts.append(cpp_inc)
         if cpath_parts:
             os.environ["CPATH"] = ":".join(cpath_parts + [os.environ.get("CPATH", "")]).strip(":")
-    except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+    except (OSError, RuntimeError, ValueError) as e:
         record_degradation('mlx_worker', e)
         print(f"⚠️ [MLX_WORKER_ENV] Failed to probe Mac version/CPATH: {e}")
 
@@ -555,7 +555,7 @@ class JobWatchdog(threading.Thread):
     def run(self):
         while not self._stop_event.is_set():
             if self.active_job and (time.monotonic() - self.last_activity > self.timeout):
-                print(f"🛑 [MLX_WATCHDOG] Job timeout triggered ({self.timeout}s). Self-terminating worker.")
+                logger.critical("🛑 [MLX_WATCHDOG] Job timeout triggered (%ss). Self-terminating worker.", self.timeout)
                 os._exit(1)
             time.sleep(1.0)
 
@@ -774,7 +774,7 @@ def _mlx_worker_loop(
                             "tokens_used": len(response_text.split())
                         })
                         continue
-                except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as _e:
+                except (RuntimeError, AttributeError, TypeError) as _e:
                     logger.warning("Failed to check steering active state: %s", _e)
 
                 prompt = job.get("prompt")
@@ -799,7 +799,7 @@ def _mlx_worker_loop(
                 top_p = job.get("top_p", 0.9)
                 try:
                     max_tokens = max(1, int(job.get("max_tokens", 512) or 512))
-                except (httpx.HTTPError, OSError, ConnectionError, TimeoutError):
+                except (TypeError, ValueError):
                     max_tokens = 512
                 schema = job.get("schema")
                 
@@ -852,7 +852,7 @@ def _mlx_worker_loop(
                             logits_processors.extend(lp)
                 except ImportError as _exc:
                     logger.debug("Suppressed %s in core.brain.llm.mlx_worker: %s", type(_exc).__name__, _exc)
-                except (ImportError, AttributeError, RuntimeError) as e:
+                except (AttributeError, RuntimeError, TypeError) as e:
                     logger.warning("Could not apply penalty logits processors: %s", e)
 
                 if schema:
@@ -1205,7 +1205,7 @@ def _mlx_worker_loop(
                 top_p = job.get("top_p", 0.9)
                 try:
                     max_tokens = max(1, int(job.get("max_tokens", 512) or 512))
-                except (httpx.HTTPError, OSError, ConnectionError, TimeoutError):
+                except (TypeError, ValueError):
                     max_tokens = 512
                 min_p = job.get("min_p", 0.05)
                 repetition_penalty = job.get("repetition_penalty", 1.1)
@@ -1241,7 +1241,7 @@ def _mlx_worker_loop(
                             logits_processors.extend(lp)
                 except ImportError as _exc:
                     logger.debug("Suppressed %s in core.brain.llm.mlx_worker: %s", type(_exc).__name__, _exc)
-                except (ImportError, AttributeError, RuntimeError) as e:
+                except (AttributeError, RuntimeError, TypeError) as e:
                     logger.warning("Could not apply penalty logits processors: %s", e)
                 
                 if logits_processors:

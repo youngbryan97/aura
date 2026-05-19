@@ -250,7 +250,7 @@ Respond with JSON only:
             logger.info("[GrowthLadder] State loaded. Current Level: %s", self._current_level.name)
         except (json.JSONDecodeError, ValueError) as e:
             logger.error("[GrowthLadder] State file corrupted: %s. Using defaults.", e)
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('growth_ladder', e)
             logger.debug("[GrowthLadder] Load failed: %s", e)
 

@@ -196,7 +196,7 @@ class MemoryManager:
                 tags.extend(metadata.get("tags", []))
             await self.store(content, importance=importance, tags=tags)
             logger.info("📝 Event logged: %s (%d chars)", event_type, len(str(content)[:200]))
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('memory_manager', e)
             logger.error("Failed to log event '%s': %s", event_type, e)
 

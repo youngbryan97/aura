@@ -295,7 +295,7 @@ class StallWatchdog(threading.Thread):
                         # Schedule a no-op alive probe so the stale-handshake
                         # branch fires on next entry.
                         self.loop.call_soon(client._mark_progress)
-                except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+                except (OSError, ConnectionError, TimeoutError) as exc:
                     record_degradation('stall_watchdog', exc)
                     logger.debug("Stall recovery MLX poke failed: %s", exc)
 

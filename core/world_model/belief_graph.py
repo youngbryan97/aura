@@ -543,7 +543,7 @@ class BeliefGraph:
                     self.graph.add_edge(source, target, **edge)
                     
                 logger.info("Loaded %d beliefs from disk", self.graph.number_of_edges())
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('belief_graph', e)
             logger.warning("Failed to load world model: %s", e)
 

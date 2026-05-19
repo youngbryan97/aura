@@ -75,7 +75,7 @@ class MLXVisionClient:
                     self._pending_requests[req_id] = msg
             except queue.Empty:
                 continue
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 logger.error("Vision listener error: %s", e)
 
     def see(self, prompt: str, image_base64: str, max_tokens: int = 512, temp: float = 0.0) -> str:

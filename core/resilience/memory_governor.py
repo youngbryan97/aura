@@ -380,7 +380,7 @@ class MemoryGovernor:
                     logger.warning("🚨 NEURAL PURGE: Forcible termination of heavy MLX/Metal process (PID: %d, Name: %s)", 
                                    proc.info['pid'], proc.info['name'])
                     proc.kill()
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('memory_governor', e)
             logger.error("Failed to kill heavy processes: %s", e)
 

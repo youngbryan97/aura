@@ -72,7 +72,7 @@ class OnlineLoRAGovernor:
                     found.append({"pid": info.get("pid"), "cmdline": cmdline})
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 continue
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+            except (OSError, ConnectionError, TimeoutError) as exc:
                 record_degradation("online_lora_governor", exc)
         return found
 

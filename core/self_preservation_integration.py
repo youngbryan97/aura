@@ -132,7 +132,7 @@ class SelfPreservationIntegration:
             logger.warning("Unknown or unhandled preservation action: %s", action_type)
             return False
             
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('self_preservation_integration', e)
             logger.error("Failed to execute preservation action %s: %s", action_type, e)
             return False

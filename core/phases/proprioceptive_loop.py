@@ -87,7 +87,7 @@ class ProprioceptiveLoop(BasePhase):
                     soma.latency["token_velocity"] = total  # Cumulative for now
         except AttributeError:
             pass  # get_stats not available on this router implementation
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as _e:
+        except (OSError, ConnectionError, TimeoutError) as _e:
             record_degradation('proprioceptive_loop', _e)
             logger.debug('Ignored Exception in proprioceptive_loop.py: %s', _e)
         
@@ -263,7 +263,7 @@ class ProprioceptiveLoop(BasePhase):
                     logger.warning("🧠 [REFLEX] High Neural Tension (%.2f). Inhibiting non-essential background cycles.", tension)
                     await inhibition.inhibit("world_decay", duration=15.0, reason="High Neural Tension")
                     await inhibition.inhibit("memory_hygiene", duration=10.0, reason="High Neural Tension")
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('proprioceptive_loop', e)
             logger.debug("Reflex tension check failed: %s", e)
 

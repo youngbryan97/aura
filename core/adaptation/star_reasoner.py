@@ -469,7 +469,7 @@ class STaRReasoner:
                 self._accepted_count = data.get("accepted_count", 0)
                 self._rejected_count = data.get("rejected_count", 0)
                 self._rationalized_count = data.get("rationalized_count", 0)
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('star_reasoner', e)
 
     def get_status(self) -> Dict[str, Any]:

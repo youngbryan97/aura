@@ -119,7 +119,7 @@ class ReflectionRecord:
                 a = float(self.substrate_after.get(key, 0.0))
                 b = float(self.substrate_before.get(key, 0.0))
                 out[key] = a - b
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError):
+            except (OSError, ConnectionError, TimeoutError):
                 continue
         return out
 
@@ -240,7 +240,7 @@ class ReflectionLoop:
                         return val
                 if isinstance(res, dict):
                     return str(res.get("content", res.get("text", "")) or "")
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('reflection_loop', e)
                 logger.debug("inference %s failed: %s", fn_name, e)
                 continue

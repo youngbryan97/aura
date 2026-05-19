@@ -545,7 +545,7 @@ Return valid JSON only:
             except (RuntimeError, AttributeError, TypeError, ValueError) as _exc:
                 record_degradation('experience_consolidator', _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as _exc:
+        except (OSError, ConnectionError, TimeoutError) as _exc:
             record_degradation('experience_consolidator', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 

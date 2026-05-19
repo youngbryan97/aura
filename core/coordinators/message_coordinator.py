@@ -115,7 +115,7 @@ class MessageCoordinator:
                 else:
                     reply = await asyncio.wait_for(orch.reply_queue.get(), timeout=30)
                 return {"ok": True, "response": reply}
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('message_coordinator', e)
                 logger.error("Timed out waiting for reply to: %s", message[:50])
                 return {"ok": False, "error": f"Response timeout: {str(e)}"}

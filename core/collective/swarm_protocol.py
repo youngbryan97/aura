@@ -67,7 +67,7 @@ class SwarmProtocol:
             if peer_id:
                 self.peers.add(writer.get_extra_info('peername')[0])
                 await self._process_gossip(message)
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('swarm_protocol', e)
             logger.debug("Swarm gossip error: %s", e)
         finally:

@@ -64,7 +64,7 @@ Prediction:"""
                 is_background=kwargs.get("is_background", True),
                 prefer_tier=kwargs.get("prefer_tier", LLMTier.TERTIARY)
             )
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('predictive_engine', e)
             logger.error("Prediction failed: %s", e)
             prediction_text = "I predict a continuation of the current thread."

@@ -168,7 +168,7 @@ async def web_research(
             sources = result.get("sources", [])
             content = result.get("content", result.get("text", ""))
             return SearchResult(query=query, content=content, sources=sources)
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('deep_research', e)
             logger.warning("Search failed for '%s': %s", query, e)
             return SearchResult(query=query, content=f"Search failed: {e}", sources=[])

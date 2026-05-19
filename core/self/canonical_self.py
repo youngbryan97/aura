@@ -912,7 +912,7 @@ class CanonicalSelfEngine:
                 self._current.version,
                 len(self._deltas),
             )
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('canonical_self', e)
             logger.debug("CanonicalSelf load failed (starting fresh): %s", e)
 

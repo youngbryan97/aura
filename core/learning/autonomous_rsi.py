@@ -265,7 +265,7 @@ if __name__ == '__main__':
             except json.JSONDecodeError as exc:
                 return False, None, f"json_decode_error:{exc}:{proc.stdout[-240:]}"
         return False, None, (proc.stderr or proc.stdout or f"returncode:{proc.returncode}")[-500:]
-    except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+    except (OSError, ConnectionError, TimeoutError) as exc:
         from core.runtime.errors import record_degradation
         record_degradation("rsi_solver_execution", exc)
         return False, None, repr(exc)

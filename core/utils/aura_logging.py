@@ -82,7 +82,7 @@ class WebhookAlertHandler(logging.Handler):
             }
             # Short timeout to avoid hanging the main loop
             requests.post(self.webhook_url, json=payload, timeout=2.0)
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('aura_logging', e)
             import sys
             print(f"FAILED TO SEND WEBHOOK ALERT: {e}", file=sys.stderr)

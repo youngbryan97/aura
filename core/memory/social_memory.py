@@ -45,7 +45,7 @@ class SocialMemory(AuraBaseModule):
                     self.milestones = [RelationshipMilestone(**m) for m in data.get("milestones", []) if isinstance(m, dict)]
                     self.relationship_depth = data.get("depth", 0.0)
                     self.shared_context_keys = data.get("shared_keys", [])
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('social_memory', e)
                 if self.logger:
                     self.logger.error("Failed to load social memory: %s", e)

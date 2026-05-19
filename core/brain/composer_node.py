@@ -27,7 +27,7 @@ class ComposerNode:
             self.capability_engine = container.get("capability_engine", default=None)
             self._is_setup = True
             logger.info("🎨 Composer Node Online (Style Transfer Enabled).")
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('composer_node', e)
             logger.error("Composer setup failed: %s", e)
 

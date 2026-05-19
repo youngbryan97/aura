@@ -313,7 +313,7 @@ class InitiativeSynthesizer:
                             urgency=float(init.get("urgency", 0.5)),
                             drive=init.get("triggered_by", ""),
                         )
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('initiative_synthesis', e)
             logger.debug("Synth: pending_initiatives gather failed: %s", e)
 
@@ -646,7 +646,7 @@ class InitiativeSynthesizer:
                 if not tension.resolved:
                     self._unresolved_tensions.append(tension)
             logger.info("Loaded %d persisted unresolved tensions", len(self._unresolved_tensions))
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('initiative_synthesis', e)
             logger.debug("Tension load failed: %s", e)
 

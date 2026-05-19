@@ -246,13 +246,13 @@ class CuriosityEngine:
                     elif emitter:
                         emitter.emit("Curiosity", f"Search failed/unavailable for: {topic.topic}", level="info")
                         
-                except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as search_err:
+                except (OSError, ConnectionError, TimeoutError) as search_err:
                     record_degradation('curiosity_engine', search_err)
                     logger.error("Search failed: %s", search_err)
                     if emitter:
                         emitter.emit("Curiosity Error", str(search_err)[:80], level="warning")
             
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('curiosity_engine', e)
             logger.error("Exploration failed: %s", e)
         finally:

@@ -75,7 +75,7 @@ class DistillationPipe:
             )
             if content:
                 return content, teacher, "configured_deep_teacher"
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+        except (OSError, ConnectionError, TimeoutError) as exc:
             record_degradation('distillation_pipe', exc)
             record_degraded_event(
                 "distillation_pipe",

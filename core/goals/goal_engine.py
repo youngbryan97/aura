@@ -1225,7 +1225,7 @@ class GoalEngine:
                 cognition.current_objective = str(active[0].get("objective") or active[0].get("name") or "")
             elif not active and is_intrinsic_goal_text(current_objective):
                 cognition.current_objective = None
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+        except (OSError, ConnectionError, TimeoutError) as exc:
             record_degradation('goal_engine', exc)
             logger.debug("GoalEngine state sync skipped: %s", exc)
 

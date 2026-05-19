@@ -196,7 +196,7 @@ class HumorEngine:
             logger.debug("HumorEngine: loaded %d profiles, %d attempt histories",
                          len(self._profiles),
                          sum(len(v) for v in self._attempts.values()))
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('humor_engine', e)
             logger.warning("HumorEngine: load failed (%s), starting fresh", e)
 

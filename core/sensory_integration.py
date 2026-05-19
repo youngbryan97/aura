@@ -76,7 +76,7 @@ class SensorySystem:
             self._store_in_memory(perception)
             return perception
             
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('sensory_integration', e)
             logger.error("Perception failed: %s", e)
             perception["error"] = str(e)
@@ -99,7 +99,7 @@ class SensorySystem:
             
             return expression
             
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('sensory_integration', e)
             logger.error("Expression failed: %s", e)
             expression["error"] = str(e)
@@ -539,7 +539,7 @@ class AVProductionSystem:
                         return {"path": output, "edits_applied": len(edits)}
                     return {"error": proc.stderr.decode()[:200]}
             return {"error": "no_supported_edits", "supported": ["trim"]}
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('sensory_integration', e)
             return {"error": str(e)}
 

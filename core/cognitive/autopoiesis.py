@@ -820,7 +820,7 @@ class AutopoiesisEngine:
         try:
             fn = self._health_fns.get(component)
             health_after = max(0.0, min(1.0, float(fn()))) if fn else health_before
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError):
+        except (OSError, ConnectionError, TimeoutError):
             health_after = health_before
 
         duration_ms = (time.time() - t0) * 1000

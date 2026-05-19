@@ -228,7 +228,7 @@ class ProactivePresence:
                         visible_presence=visible_presence,
                     )
 
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('proactive_presence', e)
                 logger.debug("[ProactivePresence] Loop error: %s", e)
 
@@ -505,7 +505,7 @@ class ProactivePresence:
                 if role and content:
                     lines.append(f"{role}: {content}")
             return "\n".join(lines)
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+        except (OSError, ConnectionError, TimeoutError) as exc:
             record_degradation("proactive_presence", exc)
             logger.debug("Recent conversation context lookup failed: %s", exc)
             return ""
@@ -949,7 +949,7 @@ class ProactivePresence:
                         decision.get("reason", "suppressed"),
                     )
                     return
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('proactive_presence', e)
                 logger.debug("[ProactivePresence] Visible emission failed: %s", e)
 

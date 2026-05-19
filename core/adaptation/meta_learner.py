@@ -308,7 +308,7 @@ class MetaLearner:
                     name = key[5:]
                     self._meta_params[name] = data[key]
             logger.info("Meta-learner restored (cycle %d)", self._cycle_count)
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+        except (OSError, ConnectionError, TimeoutError) as exc:
             logger.debug("Meta-learner load failed: %s", exc)
 
     def get_status(self) -> Dict[str, Any]:

@@ -264,7 +264,7 @@ class TerminalMonitor:
                 },
             )
             self._ingest_error(entry)
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('terminal_monitor', e)
             logger.debug("TerminalMonitor degraded-event ingest failed: %s", e)
 

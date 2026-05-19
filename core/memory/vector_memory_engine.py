@@ -570,7 +570,7 @@ class ConsolidationEngine:
                                     docs[i][:50], docs[j][:50], merged[:50]
                                 )
 
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('vector_memory_engine', e)
                 logger.error("Consolidation failed: %s", e)
 

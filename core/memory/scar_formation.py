@@ -462,7 +462,7 @@ class ScarFormationSystem:
             logger.info(
                 "Loaded %d scar(s) from disk", len(self._scars),
             )
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+        except (OSError, ConnectionError, TimeoutError) as exc:
             record_degradation('scar_formation', exc)
             logger.debug("Scar load failed (starting fresh): %s", exc)
 

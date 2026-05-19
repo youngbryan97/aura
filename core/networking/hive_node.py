@@ -62,7 +62,7 @@ class HiveNode:
             self.peers[m_node_id] = NodeInfo(node_id=m_node_id, ip=addr[0], port=message.get("port", self.port))
             if m_type == "gossip_work_item":
                 await self._process_gossip_item(message.get("payload"))
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('hive_node', e)
             logger.debug("Failed to handle peer message: %s", e)
         finally:

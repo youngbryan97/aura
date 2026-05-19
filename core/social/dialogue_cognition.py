@@ -183,7 +183,7 @@ class DialogueCognitionEngine:
             payload = json.loads(self._storage_path.read_text(encoding="utf-8"))
             for user_id, data in (payload.get("profiles", {}) or {}).items():
                 self._profiles[user_id] = DialogueCognitionProfile.from_dict(data)
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+        except (OSError, ConnectionError, TimeoutError) as exc:
             record_degradation('dialogue_cognition', exc)
             logger.debug("DialogueCognition load skipped: %s", exc)
 

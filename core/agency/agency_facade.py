@@ -252,7 +252,7 @@ class AgencyFacade(AgencyCore):
             else:
                 outcome_raw = {"recorded": True, "note": "no executor bound"}
                 success = True
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+        except (OSError, ConnectionError, TimeoutError) as exc:
             record_degradation('agency_facade', exc)
             outcome_raw = {"error": repr(exc)}
             success = False

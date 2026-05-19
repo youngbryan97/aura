@@ -149,7 +149,7 @@ class ConsciousnessLoopMonitor:
 
             except asyncio.CancelledError:
                 break
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+            except (OSError, ConnectionError, TimeoutError) as exc:
                 record_degradation('loop_monitor', exc)
                 logger.debug("LoopMonitor._loop error: %s", exc)
 
@@ -352,7 +352,7 @@ class ConsciousnessLoopMonitor:
                 return None
             result = sc.get(key, default=None)
             return result
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('loop_monitor', e)
             # Degrade gracefully if ServiceContainer API changes
             logger.debug("LoopMonitor: _get(%s) failed: %s", key, e)

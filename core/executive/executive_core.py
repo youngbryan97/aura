@@ -1095,7 +1095,7 @@ class ExecutiveCore:
             modifiers = dict(getattr(cognition, "modifiers", {}) or {})
             continuity = dict(modifiers.get("continuity_obligations", {}) or {})
             identity_mismatch = bool(continuity.get("identity_mismatch", False))
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as _exc:
+        except (OSError, ConnectionError, TimeoutError) as _exc:
             record_degradation('executive_core', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
         return {
@@ -1121,7 +1121,7 @@ class ExecutiveCore:
                 failure_state["count"] = int(failure_state.get("count", 0) or 0) + 1
                 modifiers["failure_obligations"] = failure_state
                 cognition.modifiers = modifiers
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as _exc:
+        except (OSError, ConnectionError, TimeoutError) as _exc:
             record_degradation('executive_core', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
@@ -1197,7 +1197,7 @@ class ExecutiveCore:
                     "constraints": dict(record.constraints or {}),
                 }
             )
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+        except (OSError, ConnectionError, TimeoutError) as exc:
             record_degradation('executive_core', exc)
             logger.debug("Executive ledger append failed: %s", exc)
 

@@ -450,7 +450,7 @@ class HierarchicalBrain:
                         region.bias = data[bias_key].astype(np.float32)
 
             logger.info("Brain state restored (step %d)", self._step_count)
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+        except (OSError, ConnectionError, TimeoutError) as exc:
             logger.debug("Brain state load failed: %s", exc)
 
     # ── Public API ──────────────────────────────────────────────────────

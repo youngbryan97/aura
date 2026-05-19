@@ -953,7 +953,7 @@ class SafeSelfModification:
             
             atomic_write_text(sepsis_file, json.dumps(sepsis_data, indent=2))
             logger.error("💀 FILE %s MARKED AS SEPSIS (Cause: Boot Failure)", file_path)
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('safe_modification', e)
             logger.error("Failed to mark sepsis: %s", e)
     

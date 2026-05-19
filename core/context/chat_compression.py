@@ -386,7 +386,7 @@ class ChatCompressionService:
                 CompressionStatus.COMPRESSED, duration
             )
 
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('chat_compression', e)
             logger.error("Chat compression failed: %s", e, exc_info=True)
             self._has_failed_attempt = True

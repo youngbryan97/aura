@@ -82,10 +82,10 @@ class DreamCycle:
                     msg = data.get("message")
                     if msg:
                         valid_messages.append(msg)
-                except (httpx.HTTPError, OSError, ConnectionError, TimeoutError):
+                except (OSError, ConnectionError, TimeoutError):
                     continue
 
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('dream_cycle', e)
             logger.error("Failed to read DLQ: %s", e)
             return

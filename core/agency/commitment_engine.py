@@ -318,7 +318,7 @@ class CommitmentEngine:
                         checkin_count=d.get("checkin_count", 0),
                         notes=d.get("notes", []),
                     )
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('commitment_engine', e)
             logger.debug("CommitmentEngine load failed: %s", e)
 

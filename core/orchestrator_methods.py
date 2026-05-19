@@ -53,7 +53,7 @@ class OrchestratorCNSMixin:
                  self.emitter.emit("thought", "No neural path found. Engaging cognitive engine...", level="info")
                  await self.cognitive_engine.process(message, self)
                  
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('orchestrator_methods', e)
             logger.error("CNS Processing Error: %s", e)
             self.emitter.emit("error", f"Neural Error: {e}")

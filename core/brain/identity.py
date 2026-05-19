@@ -96,7 +96,7 @@ class IdentityService:
                 last_updated=data.get("last_updated", time.time())
             )
             logger.info("Identity state loaded successfully.")
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('identity', e)
             logger.error("Failed to load identity state: %s", e)
 

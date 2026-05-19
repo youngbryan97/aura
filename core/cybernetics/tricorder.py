@@ -149,7 +149,7 @@ class Tricorder:
                 await self._on_empathy_update(item)
             except asyncio.CancelledError:
                 break
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('tricorder', e)
                 logger.debug("Tricorder empathy processing error: %s", e)
 

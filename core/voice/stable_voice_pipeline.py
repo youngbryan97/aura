@@ -328,7 +328,7 @@ class StableVoicePipeline:
 
             except asyncio.CancelledError:
                 break
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+            except (OSError, ConnectionError, TimeoutError) as exc:
                 record_degradation('stable_voice_pipeline', exc)
                 logger.error("Process loop error: %s", exc)
                 self._set_state(VoiceState.IDLE)

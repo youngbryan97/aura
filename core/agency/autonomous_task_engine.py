@@ -857,7 +857,7 @@ Respond ONLY with a JSON array, no other text:
 
             return TaskPlan(plan_id=plan_id, goal=goal, steps=steps, trace_id="", context=dict(context or {}))
 
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('autonomous_task_engine', e)
             logger.error("TaskEngine: decomposition failed: %s", e)
             if self._requires_grounded_action(goal, context):
@@ -991,7 +991,7 @@ Respond ONLY with a JSON array, no other text:
                     name = str(fn.get("name", "") or "").strip()
                     if name:
                         by_name[name] = entry
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+            except (OSError, ConnectionError, TimeoutError) as exc:
                 record_degradation('autonomous_task_engine', exc)
                 logger.debug("TaskEngine: planning tool catalog skipped: %s", exc)
 
@@ -2038,7 +2038,7 @@ Respond ONLY with a JSON array, no other text:
                             or ""
                         )
                     return
-                except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+                except (OSError, ConnectionError, TimeoutError) as exc:
                     record_degradation('autonomous_task_engine', exc)
                     logger.debug("GoalEngine-backed state sync failed: %s", exc)
 

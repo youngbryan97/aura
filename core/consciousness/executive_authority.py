@@ -214,7 +214,7 @@ class ExecutiveAuthority:
                     "goal_id": str(record.get("id", "") or ""),
                     "status": str(record.get("status", "") or ""),
                 }
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+        except (OSError, ConnectionError, TimeoutError) as exc:
             record_degradation('executive_authority', exc)
             logger.debug("ExecutiveAuthority goal binding skipped: %s", exc)
         return policy

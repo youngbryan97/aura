@@ -173,7 +173,7 @@ class CognitiveEngine:
                 last_user = float(getattr(orchestrator, "_last_user_interaction_time", 0.0) or 0.0)
                 if last_user and (time.time() - last_user) < 180.0:
                     return True
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+        except (OSError, ConnectionError, TimeoutError) as exc:
             record_degradation('cognitive_engine', exc)
             logger.debug("Background reflection suppression check failed: %s", exc)
 
@@ -201,7 +201,7 @@ class CognitiveEngine:
                 )
                 or ""
             )
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+        except (OSError, ConnectionError, TimeoutError) as exc:
             record_degradation('cognitive_engine', exc)
             logger.debug("Background thought policy check failed: %s", exc)
             return ""
@@ -262,7 +262,7 @@ class CognitiveEngine:
             )
             if state_origin:
                 return state_origin
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+        except (OSError, ConnectionError, TimeoutError) as exc:
             record_degradation('cognitive_engine', exc)
             logger.debug("CognitiveEngine origin resolution degraded: %s", exc)
 
@@ -496,7 +496,7 @@ class CognitiveEngine:
                 # vResilience: Avoid locals().get() for type stability
                 if not success and 'backup_state' in locals():
                     state = backup_state
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as _e:
+            except (OSError, ConnectionError, TimeoutError) as _e:
                 record_degradation('cognitive_engine', _e)
                 logger.debug('Ignored Exception in cognitive_engine.py: %s', _e)
 
@@ -683,7 +683,7 @@ class CognitiveEngine:
                 confidence=0.3,
                 reasoning=[f"Hard fallback after cognitive failure: {reason}"]
             )
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as recovery_err:
+        except (OSError, ConnectionError, TimeoutError) as recovery_err:
             record_degradation('cognitive_engine', recovery_err)
             logger.error("Error during recovery: %s", recovery_err)
             return Thought(

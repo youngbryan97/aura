@@ -1266,7 +1266,7 @@ class StreamOfBeing:
                 age / 60,
                 bool(self._deep_narrative),
             )
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('stream_of_being', e)
             logger.debug("Stream state load error: %s", e)
 

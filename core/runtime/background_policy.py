@@ -274,7 +274,7 @@ def background_activity_reason(
         pressure = float(failure.get("pressure", 0.0) or 0.0)
         if pressure >= max_failure_pressure:
             return f"failure_lockdown_{pressure:.2f}"
-    except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as _exc:
+    except (OSError, ConnectionError, TimeoutError) as _exc:
         record_degradation('background_policy', _exc)
         logger.debug("Suppressed Exception: %s", _exc)
 

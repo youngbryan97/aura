@@ -520,7 +520,7 @@ class ExecutiveClosureEngine:
                 result = getattr(volition, "_last_goal", None)
                 if result and result.get("objective") and is_actionable_goal_text(result["objective"]):
                     return str(result["objective"])
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as _exc:
+            except (OSError, ConnectionError, TimeoutError) as _exc:
                 record_degradation('executive_closure', _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
 
@@ -554,7 +554,7 @@ class ExecutiveClosureEngine:
             if not proposal or not proposal.get("objective"):
                 return
             volition._last_goal = proposal
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+        except (OSError, ConnectionError, TimeoutError) as exc:
             record_degradation('executive_closure', exc)
             logger.debug("ExecutiveClosure: volition tick failed: %s", exc)
 
@@ -620,7 +620,7 @@ class ExecutiveClosureEngine:
                     "free_energy": float(status.get("free_energy", {}).get("current", 0.0)),
                     "phi_estimate": float(status.get("phi", {}).get("estimate", 0.0)),
                 }
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+            except (OSError, ConnectionError, TimeoutError) as exc:
                 record_degradation('executive_closure', exc)
                 logger.debug("ExecutiveClosure: closed-loop read failed: %s", exc)
         return {"cycle_count": 0, "free_energy": 0.0, "phi_estimate": 0.0}
@@ -814,7 +814,7 @@ class ExecutiveClosureEngine:
             mods = getattr(state.cognition, "modifiers", {}) or {}
             if mods.get("task_completed") or mods.get("response_completed_task"):
                 return True
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+        except (OSError, ConnectionError, TimeoutError) as exc:
             record_degradation("executive_closure", exc)
             logger.debug("Task completion modifier read failed: %s", exc)
 

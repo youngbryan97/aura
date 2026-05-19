@@ -295,7 +295,7 @@ class TrueEvolutionPhase(Phase):
                 await self.kernel.hot_reboot()
             else:
                 logger.warning("⚠️ Evolution: Refinement cycle completed with no applied changes.")
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('upgrades_10x', e)
             logger.error("❌ Evolution: Refinement cycle failed: %s", e)
 
@@ -316,7 +316,7 @@ class PerfectEmotionPhase(Phase):
             # Tap directly into Proprioceptive/Metabolic state
             cpu = state.soma.hardware.get("cpu_usage", 0.0)
             hardware_stress = min(1.0, cpu / 100.0)
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('upgrades_10x', e)
             logger.warning("Emotion: Somatic mirroring failed: %s", e)
             
@@ -604,7 +604,7 @@ class GodModeToolPhase(Phase):
             if chosen == "none" or chosen not in cap.skills:
                 return None
             return chosen
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('upgrades_10x', e)
             logger.debug("GodMode: LLM skill selection failed: %s", e)
             return None
@@ -1071,7 +1071,7 @@ class NativeMultimodalBridge(Phase):
                     frame = await vision_organ.instance.capture_desktop()
                     if frame and hasattr(frame, "description"):
                         state.world.recent_percepts.append({"role": "vision", "content": frame.description})
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('upgrades_10x', e)
                 logger.warning("NativeMultimodalBridge vision failed: %s", e)
                 

@@ -323,7 +323,7 @@ class AutonomousConversationLoop:
                 else:
                     self.drives.punish("competence", 10.0)
                     logger.warning("✗ Autonomous goal failed")
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('conversation_loop', e)
             logger.error("Autonomous goal execution failed: %s", e, exc_info=True)
             if hasattr(self.drives, "punish"):

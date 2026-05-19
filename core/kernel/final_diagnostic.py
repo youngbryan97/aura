@@ -45,7 +45,7 @@ async def diagnostic():
             logger.error("❌ FAILED: LLM organ stub not found")
             
         await kernel.stop()
-    except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+    except (OSError, ConnectionError, TimeoutError) as e:
         record_degradation('final_diagnostic', e)
         logger.error(f"❌ DIAGNOSTIC FAILED: {e}", exc_info=True)
     finally:

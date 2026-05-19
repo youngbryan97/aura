@@ -251,7 +251,7 @@ class ContinuousLearningEngine(AuraBaseModule):
                         type="fact",
                         source="conversation_learning",
                     )
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('continuous_learning', e)
             self.logger.debug("Knowledge extraction failed: %s", e)
 
@@ -274,7 +274,7 @@ class ContinuousLearningEngine(AuraBaseModule):
                 if person_info:
                     count = person_info.get("interaction_count", 0)
                     context_parts.append(f"[Identity] User is {user_name}. We have had {count} interactions.")
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('continuous_learning', e)
                 self.logger.debug("Identity retrieval failed: %s", e)
 

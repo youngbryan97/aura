@@ -96,7 +96,7 @@ class BeliefRevisionEngine:
                 )
                 self._beliefs[belief.id] = belief
             logger.info("📖 Loaded %d beliefs from knowledge graph", len(self._beliefs))
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('belief_revision', e)
             logger.warning("Failed to load beliefs: %s", e)
 

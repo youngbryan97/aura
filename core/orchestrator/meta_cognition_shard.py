@@ -139,7 +139,7 @@ class MetaCognitionShard:
             if len(asst_messages) >= 3 and len(set(asst_messages[-3:])) == 1:
                 logger.warning("🧠 DETECTED TRIVIAL REPETITION LOOP (N=1)")
                 return True
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('meta_cognition_shard', e)
             logger.debug("Repetition detection error: %s", e)
         return False

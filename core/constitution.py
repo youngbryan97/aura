@@ -509,7 +509,7 @@ class ConstitutionalCore:
                     success=success,
                     status="deferred" if deferred_result else None,
                 )
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+            except (OSError, ConnectionError, TimeoutError) as exc:
                 record_degradation('constitution', exc)
                 logger.debug("IntentionLoop completion skipped: %s", exc)
 

@@ -197,7 +197,7 @@ class PersistentComputeCostTracker:
                 data = json.loads(self.state_path.read_text())
                 self.total_ergs = data.get("total_ergs", 0.0)
                 logger.info("🔋 Loaded %.2f persistent ergs.", self.total_ergs)
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('metabolic_monitor', e)
                 logger.warning("Failed to load metabolic state: %s", e)
 

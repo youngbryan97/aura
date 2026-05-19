@@ -308,7 +308,7 @@ class ReceiptStore:
                         receipt.kind = kind
                         self._index[receipt.receipt_id] = receipt
                         count += 1
-                    except (httpx.HTTPError, OSError, ConnectionError, TimeoutError):
+                    except (OSError, ConnectionError, TimeoutError):
                         continue
         return count
 

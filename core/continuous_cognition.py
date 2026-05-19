@@ -208,7 +208,7 @@ class ContinuousCognitionLoop:
             self._last_initiative_seed = now
             logger.debug("CognitionLoop: seeded impulse from %s pressure (%.2f)",
                         lowest_name, lowest_level)
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('continuous_cognition', e)
             logger.debug("CognitionLoop: initiative seeding failed: %s", e)
 

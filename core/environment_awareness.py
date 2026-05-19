@@ -248,7 +248,7 @@ async def get_location_from_ip() -> LocationInfo:
             logger.info("📍 Location: %s", summary_str)
         else:
             logger.warning("IP geolocation failed")
-    except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+    except (OSError, ConnectionError, TimeoutError) as e:
         record_degradation('environment_awareness', e)
         logger.warning("Location lookup failed: %s", e)
     

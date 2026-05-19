@@ -178,7 +178,7 @@ If no refinement is needed, return {{"found": false}}.
                     "plan": data["plan"],
                     "priority": "high"
                 }]
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('kernel_refiner', e)
             logger.error("Deep audit failed: %s", e)
             

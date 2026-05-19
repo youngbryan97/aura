@@ -25,7 +25,7 @@ class DynamicContextBuilder:
             liquid_state = container.get("liquid_state")
             if liquid_state:
                 rich_context["liquid_state"] = liquid_state.get_status()
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('context_builder', e)
             logger.debug("LiquidState unavailable: %s", e)
 
@@ -54,7 +54,7 @@ class DynamicContextBuilder:
                     rich_context["memory_context"] = "\n".join(
                         f"- {m.get('text', m) if isinstance(m, dict) else m}" for m in memories
                     )
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('context_builder', e)
             logger.debug("Episodic memory retrieval failed: %s", e)
 
@@ -65,7 +65,7 @@ class DynamicContextBuilder:
                 formatted_memories = await semantic_memory.recall_formatted(message, limit=5)
                 if formatted_memories:
                     rich_context["semantic_context"] = formatted_memories
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('context_builder', e)
             logger.debug("Semantic memory retrieval failed: %s", e)
 
@@ -74,7 +74,7 @@ class DynamicContextBuilder:
             tom = container.get("theory_of_mind")
             if tom:
                 rich_context["user_intent"] = await tom.infer_intent(message, rich_context)
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('context_builder', e)
             logger.debug("Theory of Mind unavailable: %s", e)
 
@@ -86,7 +86,7 @@ class DynamicContextBuilder:
                 stream = gws.get_context_stream(n=4)
                 if stream:
                     rich_context["gwt_stream"] = stream
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('context_builder', e)
             logger.debug("GlobalWorkspace stream unavailable: %s", e)
 
@@ -98,7 +98,7 @@ class DynamicContextBuilder:
                 narrative = await tb.get_narrative()
                 if narrative:
                     rich_context["temporal_narrative"] = narrative
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('context_builder', e)
             logger.debug("TemporalBinding narrative unavailable: %s", e)
 
@@ -109,7 +109,7 @@ class DynamicContextBuilder:
                 check = await spine.pre_response_check(message)
                 if check.has_prior_position or check.conflict_severity > 0.4:
                     rich_context["spine_check"] = check.injection
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('context_builder', e)
             logger.debug("SpiritualSpine check failed: %s", e)
 
@@ -118,7 +118,7 @@ class DynamicContextBuilder:
             ava = container.get("ava")
             if ava and hasattr(ava, "get_context_injection"):
                 rich_context["social_context"] = ava.get_context_injection()
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('context_builder', e)
             logger.debug("Ava social context injection failed: %s", e)
 

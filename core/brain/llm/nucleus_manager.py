@@ -66,7 +66,7 @@ class NucleusManager(LLMProvider):
                 if data.get("status") == "success":
                     logger.info("🧠 [NUCLEUS] Optimization detected. Flagging Cortex for reload.")
                     self.models["cortex"]["loaded"] = False
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError):
+            except (OSError, ConnectionError, TimeoutError):
                 await asyncio.sleep(1)
         
     async def load_model(self, name: str):

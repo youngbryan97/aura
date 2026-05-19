@@ -149,7 +149,7 @@ class ContinuousSensoryBuffer:
             else:
                 logger.warning("👁️ [VISION] No valid monitors found.")
                 return False
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+        except (OSError, ConnectionError, TimeoutError) as exc:
             record_degradation('continuous_vision', exc)
             self._screen_probe_cooldown_until = time.monotonic() + 15.0
             logger.warning("👁️ [VISION] Continuous screen capture backend unavailable: %s", exc)

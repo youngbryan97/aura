@@ -158,7 +158,7 @@ class BeliefRevisionEngine:
                 if not self.beliefs:
                     self.seed_core_beliefs()
                 logger.info("Loaded %d beliefs and self-model.", len(self.beliefs))
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('belief_revision', e)
                 logger.error("Failed to load belief system: %s", e)
         else:

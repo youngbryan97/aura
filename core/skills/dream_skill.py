@@ -58,7 +58,7 @@ class DreamSkill(BaseSkill):
                     }
                 else:
                     results["dream_journal"] = {"status": "skipped", "reason": "insufficient salient material"}
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('dream_skill', e)
                 results["dream_journal"] = {"status": "failed", "error": str(e)}
         else:

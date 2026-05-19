@@ -39,7 +39,7 @@ class HeuristicSynthesizer:
                     data = json.load(f)
                 self._active_heuristics = data.get("heuristics", [])[:MAX_ACTIVE_HEURISTICS]
                 logger.info("📐 Loaded %d active heuristics", len(self._active_heuristics))
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('heuristic_synthesizer', e)
                 logger.error("Failed to load heuristics: %s", e)
                 self._active_heuristics = []

@@ -482,7 +482,7 @@ class MemoryFacade:
                     filter_value=filter_value,
                     limit=limit,
                 )
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('memory_facade', e)
                 logger.debug("Vector collection metadata query failed: %s", e)
 
@@ -956,7 +956,7 @@ class MemoryFacade:
                     filter_value=filter_value,
                     limit=limit,
                 )
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('memory_facade', e)
                 logger.error("MemoryFacade.query_memory via semantic failed: %s", e)
 

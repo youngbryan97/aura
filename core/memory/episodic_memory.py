@@ -449,7 +449,7 @@ class EpisodicMemory:
                                     "qualia_norm": qualia_snapshot.get("q_norm", 0.0),
                                 },
                             )
-                        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+                        except (OSError, ConnectionError, TimeoutError) as e:
                             record_degradation('episodic_memory', e)
                             logger.warning("Failed to index episode in vector memory: %s", e)
 
@@ -496,7 +496,7 @@ class EpisodicMemory:
                                 "qualia_norm": qualia_snapshot.get("q_norm", 0.0),
                             },
                         )
-                    except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+                    except (OSError, ConnectionError, TimeoutError) as e:
                         record_degradation('episodic_memory', e)
                         logger.warning("Failed to index episode in vector memory: %s", e)
                 self._maybe_prune()
@@ -733,7 +733,7 @@ class EpisodicMemory:
                         if ep.episode_id not in seen_ids:
                             seen_ids.add(ep.episode_id)
                             combined.append(ep)
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('episodic_memory', e)
                 logger.debug("Vector recall failed: %s", e)
 

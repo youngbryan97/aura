@@ -203,7 +203,7 @@ class AutonomyMixin:
                     curiosity_actions = [a for a in action_list if isinstance(a, dict) and a.get('type') in ('learn', 'reflect')]
                     if curiosity_actions:
                         impulse_text = random.choice(curiosity_actions)
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('autonomy', e)
                 capture_and_log(e, {'module': __name__})
 
@@ -221,7 +221,7 @@ class AutonomyMixin:
                             impulse_text = f"Impulse: {action}"
                     elif not str(impulse_text).startswith("Impulse:"):
                         impulse_text = f"Impulse: {impulse_text}"
-                except (httpx.HTTPError, OSError, ConnectionError, TimeoutError):
+                except (OSError, ConnectionError, TimeoutError):
                     if not str(impulse_text).startswith("Impulse:"):
                         impulse_text = f"Impulse: {impulse_text}"
         else:

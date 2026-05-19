@@ -442,7 +442,7 @@ class AuraKernel:
                 if llm_organ:
                     # We log the class name to confirm if it's IntelligentLLMRouter or MockLLM
                     logger.info("LLM organ instance: %s", llm_organ.instance.__class__.__name__)
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('aura_kernel', e)
                 logger.warning("Failed to log LLM instance class: %s", e)
 
@@ -1096,7 +1096,7 @@ class AuraKernel:
                     if path and payload:
                         await _append_to_file(path, payload)
                         logger.debug("✅ Eternal Vault: Appended state record to %s", path)
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('aura_kernel', e)
                 logger.exception("Failed to process storage intent: %s", e)
 
@@ -1217,7 +1217,7 @@ class AuraKernel:
                         importlib.reload(mod)
                         self._module_mtimes[mod_name] = mtime
                         reloaded_count += 1
-                except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+                except (OSError, ConnectionError, TimeoutError) as e:
                     record_degradation('aura_kernel', e)
                     logger.warning("⚠️ [REBOOT] Could not reload %s: %s", mod_name, e)
 

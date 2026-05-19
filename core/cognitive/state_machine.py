@@ -107,7 +107,7 @@ class StateMachine:
                     tone_hints.append("You feel contemplative and open to influence")
                 if tone_hints:
                     blocks.append("CURRENT EMOTIONAL TONE:\n" + ". ".join(tone_hints) + ".\n")
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('state_machine', e)
             capture_and_log(e, {'module': __name__})
         
@@ -125,7 +125,7 @@ class StateMachine:
                             content = r.get('content', r.get('value', str(r)))
                             mem_block += f"- {str(content)[:120]}\n"
                         blocks.append(mem_block)
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('state_machine', e)
             capture_and_log(e, {'module': __name__})
         
@@ -587,7 +587,7 @@ class StateMachine:
                     else:
                         response = "The live chat attempt timed out before a coherent answer formed; I logged the degraded turn."
                         break
-                except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+                except (OSError, ConnectionError, TimeoutError) as e:
                     record_degradation('state_machine', e)
                     logger.error("Chat attempt %d failed: %s", attempt + 1, e)
                     if attempt < max_retries:
@@ -1165,7 +1165,7 @@ class StateMachine:
             logger.debug("SKILL: Returning final_response.")
             return final_response, ([tool_name] if success else [])
             
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('state_machine', e)
             logger.error("Skill execution logic failed for %s: %s", tool_name, e, exc_info=True)
             self._emit("State: ERROR", "Skill execution failed.")

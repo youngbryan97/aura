@@ -312,7 +312,7 @@ class HierarchicalPlanner:
                         notes=d.get("notes", []),
                         child_ids=d.get("child_ids", []),
                     )
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('hierarchical_planner', e)
             logger.debug("HierarchicalPlanner load failed: %s", e)
 

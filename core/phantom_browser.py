@@ -475,7 +475,7 @@ class PhantomBrowser:
                     best_text = fallback_text
 
             return f"# {title}\n\n{best_text[:60000]}"
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('phantom_browser', e)
             logger.error("Read content failed: %s", e)
             return ""

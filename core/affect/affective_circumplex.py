@@ -240,7 +240,7 @@ class AffectiveCircumplex:
                 mood = ncs.get_mood_vector()
                 mood_valence = float(mood.get("valence", 0.0))
                 mood_arousal = float(mood.get("arousal", 0.0))
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+            except (OSError, ConnectionError, TimeoutError) as exc:
                 record_degradation('affective_circumplex', exc)
                 logger.debug("Circumplex: mood coupling failed: %s", exc)
 

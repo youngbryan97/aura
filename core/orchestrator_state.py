@@ -71,7 +71,7 @@ class OrchestratorStateMixin:
             self.boredom = data.get("boredom", self.boredom)
             if metrics:
                 self.stats.update(metrics)
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('orchestrator_state', e)
             logger.warning("Failed to restore core metrics: %s", e)
 
@@ -84,7 +84,7 @@ class OrchestratorStateMixin:
                 logger.info("Restored %d messages from history", len(history))
             elif not isinstance(history, list):
                 logger.warning("Attempted to restore history but data was not a list. Ignoring.")
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('orchestrator_state', e)
             logger.warning("Failed to restore history: %s", e)
 
@@ -97,7 +97,7 @@ class OrchestratorStateMixin:
             logger.info("Restoring %d thought snapshots from previous session", len(thoughts))
             if self.cognitive_engine and hasattr(self.cognitive_engine, "seed_thoughts"):
                 self.cognitive_engine.seed_thoughts(thoughts)
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('orchestrator_state', e)
             logger.warning("Failed to restore cognition: %s", e)
 
@@ -115,7 +115,7 @@ class OrchestratorStateMixin:
                             status=goal_data.get("status", "pending")
                         )
                         logger.info("Restored goal: %s", goal_data.get('description', '?')[:50])
-                    except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as ge:
+                    except (OSError, ConnectionError, TimeoutError) as ge:
                         record_degradation('orchestrator_state', ge)
                         logger.warning("Skipped restoring goal: %s", ge)
             
@@ -127,6 +127,6 @@ class OrchestratorStateMixin:
             
             if goals:
                 logger.info("Plan restoration complete: %d goals recovered", len(goals))
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('orchestrator_state', e)
             logger.warning("Failed to restore active plans: %s", e)

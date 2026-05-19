@@ -126,7 +126,7 @@ def register_all_services(is_proxy: bool = False):
         # Materialize during boot registration so deep repair is available even
         # before another subsystem lazily asks for it.
         container.get("reimplementation_lab", default=None)
-    except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+    except (OSError, ConnectionError, TimeoutError) as exc:
         record_degradation('service_registration', exc)
         logger.warning("ReimplementationLab boot singleton unavailable: %s", exc)
 

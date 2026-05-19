@@ -176,7 +176,7 @@ class HeartstoneValues:
                     self._values[k] = float(data.get(k, default))
                 logger.info("♥ HeartstoneValues loaded: %s",
                             {k: round(v, 2) for k, v in self._values.items()})
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('heartstone_values', e)
             logger.warning("HeartstoneValues load failed (using defaults): %s", e)
 

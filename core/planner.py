@@ -671,7 +671,7 @@ OUTPUT JSON:
             t.add_done_callback(lambda t: t.exception() if not t.cancelled() and t.exception() else None)
             return new_plan
             
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('planner', e)
             logger.error("Plan revision failed: %s", e)
             return self._create_fallback_plan(original_plan.goal)

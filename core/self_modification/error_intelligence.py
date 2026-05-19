@@ -473,7 +473,7 @@ class AutomatedDiagnosisEngine:
             logger.info("Generated %d hypotheses", len(diagnosis.get('hypotheses', [])))
             return diagnosis
             
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('error_intelligence', e)
             logger.error("Diagnosis failed: %s", e)
             return {

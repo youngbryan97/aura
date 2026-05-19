@@ -41,7 +41,7 @@ class RestSmartPlug(BaseHardwareDevice):
                         logger.warning("IoT handshake returned %d. Marking connected but degraded.", resp.status)
                         self.is_connected = True
                         return True
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('mock_iot_plug', e)
             logger.error("❌ Failed to connect to IoT endpoint %s: %s", self.endpoint_url, e)
             return False
@@ -62,7 +62,7 @@ class RestSmartPlug(BaseHardwareDevice):
                         data = await resp.json()
                         self.power_state = data.get("state") == "on"
                         self.current_draw_watts = float(data.get("power_draw_watts", 0.0))
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('mock_iot_plug', e)
             logger.debug("IoT Status fetch failed, using cached state: %s", e)
             
@@ -102,7 +102,7 @@ class RestSmartPlug(BaseHardwareDevice):
                     else:
                         logger.error("❌ [%s] Hardware dispatch failed with HTTP %d", self.device_name, resp.status)
                         return {"ok": False, "error": f"HTTP {resp.status}"}
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('mock_iot_plug', e)
             logger.error("❌ [%s] Network failure instructing hardware: %s", self.device_name, e)
             return {"ok": False, "error": str(e)}

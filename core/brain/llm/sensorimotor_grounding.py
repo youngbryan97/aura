@@ -110,7 +110,7 @@ def _read_sensor_file(path: Path) -> Optional[dict[str, Any]]:
         if "energy" not in payload and "rms" in payload:
             payload["energy"] = payload.get("rms")
         return payload
-    except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+    except (OSError, ConnectionError, TimeoutError) as exc:
         record_degradation("sensorimotor_grounding", exc)
         logger.debug("Sensor file read skipped for %s: %s", path, exc)
         return None

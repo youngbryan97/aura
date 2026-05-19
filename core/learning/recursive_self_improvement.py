@@ -503,7 +503,7 @@ class RecursiveSelfImprovementLoop:
                 )
                 if deterministic.get("repairs_successful", 0) > 0:
                     return {"ok": bool(deterministic.get("ok", False)), "result": deterministic}
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+            except (OSError, ConnectionError, TimeoutError) as exc:
                 record_degradation("recursive_self_improvement", exc)
                 deterministic = {"ok": False, "reason": f"structural_improver:{type(exc).__name__}:{exc}"}
 
@@ -521,7 +521,7 @@ class RecursiveSelfImprovementLoop:
             if isinstance(result, dict):
                 return {"ok": bool(result.get("success", False)), "result": result, "deterministic": deterministic}
             return {"ok": bool(result), "result": result, "deterministic": deterministic}
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+        except (OSError, ConnectionError, TimeoutError) as exc:
             record_degradation("recursive_self_improvement", exc)
             return {"ok": False, "reason": f"{type(exc).__name__}:{exc}", "deterministic": deterministic}
 
@@ -593,7 +593,7 @@ class RecursiveSelfImprovementLoop:
         stats = self._learning_stats()
         try:
             return int(stats.get("buffer_size", 0) or 0)
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+        except (OSError, ConnectionError, TimeoutError) as exc:
             record_degradation("recursive_self_improvement", exc)
             logger.debug("Learning stats buffer-size read failed: %s", exc)
             return 0

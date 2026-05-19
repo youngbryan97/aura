@@ -345,7 +345,7 @@ class ToolExecutionMixin:
                         predicted_outcome=_sandbox_predicted,
                         action_fn=lambda: _actual_outcome,
                     )
-                except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as _sbx_err:
+                except (OSError, ConnectionError, TimeoutError) as _sbx_err:
                     record_degradation('tool_execution', _sbx_err)
                     logger.debug("Resistance sandbox feedback failed: %s", _sbx_err)
 
@@ -354,7 +354,7 @@ class ToolExecutionMixin:
                 try:
                     category = self.tool_learner.classify_task(str(args.get('query', args.get('path', ''))))
                     self.tool_learner.record_usage(tool_name, category, success, elapsed_ms)
-                except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as _e:
+                except (OSError, ConnectionError, TimeoutError) as _e:
                     record_degradation('tool_execution', _e)
                     logger.debug("Tool learning record failed: %s", _e)
 

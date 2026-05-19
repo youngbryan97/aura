@@ -82,7 +82,7 @@ class IntegrityGuard:
             
             # Use the dedicated decay method
             await self._decay_stale(beliefs, report)
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+        except (OSError, ConnectionError, TimeoutError) as exc:
             record_degradation('integrity_check', exc)
             msg = f"Integrity audit error: {exc}"
             logger.error(msg, exc_info=True)

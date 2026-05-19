@@ -346,7 +346,7 @@ class RuntimeHygieneManager:
                     for proc in psutil.process_iter(["pid", "ppid", "name", "cmdline", "status"])
                     if int((proc.info or {}).get("ppid") or 0) == parent_pid
                 ]
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+            except (OSError, ConnectionError, TimeoutError) as exc:
                 record_degradation('runtime_hygiene', exc)
                 logger.debug("RuntimeHygiene: process_iter child adoption skipped: %s", exc)
                 children = []
@@ -632,7 +632,7 @@ class RuntimeHygieneManager:
                     continue
                 try:
                     lane = client.get_lane_status()
-                except (httpx.HTTPError, OSError, ConnectionError, TimeoutError):
+                except (OSError, ConnectionError, TimeoutError):
                     continue
                 state = str(lane.get("state", "") or "").strip().lower()
                 current_request = float(lane.get("current_request_started_at", 0.0) or 0.0)

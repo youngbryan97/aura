@@ -54,7 +54,7 @@ class StrategyMetaOptimizer:
                 self.strategy_store.add(strat)
                 logger.info("💡 Learned Strategy: %s", st['description'])
                 
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('optimization', e)
             logger.error("Meta-optimization loop failed: %s", e, exc_info=True)
 

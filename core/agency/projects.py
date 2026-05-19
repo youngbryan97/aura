@@ -266,7 +266,7 @@ class ProjectLedger:
                     if not snap.get("project_id"):
                         continue
                     self._cache[snap["project_id"]] = self._project_from_snap(snap)
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+        except (OSError, ConnectionError, TimeoutError) as exc:
             record_degradation('projects', exc)
             logger.warning("project ledger load failed: %s", exc)
 

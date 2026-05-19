@@ -165,7 +165,7 @@ class ShadowExecutionPhase(Phase):
                 
             logger.info("Sandbox: Mutation validated successfully: %s", result.get('info'))
             return True
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('shadow_kernel', e)
             logger.error("Sandbox: Failed to retrieve result from worker: %s", e)
             return False

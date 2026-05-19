@@ -110,7 +110,7 @@ class SensoryLocalClient:
                 else:
                     registry.update_task(task_id, status=TaskStatus.FAILED, error=res.get("msg"))
                     return False
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('sensory_client', e)
                 logger.error("🛑 Sensory Client Command [%s] failed: %s", cmd, e)
                 registry.update_task(task_id, status=TaskStatus.FAILED, error=str(e))

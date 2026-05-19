@@ -63,7 +63,7 @@ def _safe_get(eng: Any, attr: str, default: float) -> float:
         if isinstance(v, dict):
             return float(v.get(attr.replace("get_", ""), default) or default)
         return float(v) if v is not None else default
-    except (httpx.HTTPError, OSError, ConnectionError, TimeoutError):
+    except (OSError, ConnectionError, TimeoutError):
         return default
 
 

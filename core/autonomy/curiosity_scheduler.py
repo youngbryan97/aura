@@ -394,7 +394,7 @@ class CuriosityScheduler:
                 "curiosity": float(state.get("curiosity", 0.5)),
                 "energy": float(state.get("energy", 0.5)),
             }
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('curiosity_scheduler', e)
             logger.debug("substrate read failed; defaulting: %s", e)
             return {"valence": 0.0, "arousal": 0.5, "curiosity": 0.5, "energy": 0.5}

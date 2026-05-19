@@ -85,7 +85,7 @@ def run_migrations(*, target_version: Optional[int] = None, dry_run: bool = Fals
                 continue
             try:
                 migrated_payload = migrate_payload(env.get("payload") or {}, current, target)
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+            except (OSError, ConnectionError, TimeoutError) as exc:
                 record_degradation('migrations', exc)
                 failed.append({"path": str(jf), "error": repr(exc)})
                 continue

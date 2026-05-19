@@ -1475,7 +1475,7 @@ class PhenomenologicalExperiencer:
                 if os.path.exists(temp_path):
                     os.remove(temp_path)
                 raise e
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('phenomenological_experiencer', e)
             logger.debug("Phenomenal memory save error: %s", e)
 
@@ -1512,7 +1512,7 @@ class PhenomenologicalExperiencer:
                 len(self.psm._phenomenal_reports),
                 bool(self.continuity.current_thread)
             )
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('phenomenological_experiencer', e)
             logger.warning("Phenomenal memory load error: %s", e)
 

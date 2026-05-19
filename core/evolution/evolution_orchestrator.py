@@ -532,7 +532,7 @@ class EvolutionOrchestrator:
                         milestones=ax_data.get("milestones", []),
                         blockers=ax_data.get("blockers", []),
                     )
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+        except (OSError, ConnectionError, TimeoutError) as exc:
             record_degradation('evolution_orchestrator', exc)
             logger.debug("Evolution state load failed: %s", exc)
 

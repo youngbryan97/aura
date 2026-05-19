@@ -147,7 +147,7 @@ class StructuralImprover:
                 return StructuralRepairResult(issue, True, False, "validation failed; rolled back", validation)
 
             return StructuralRepairResult(issue, True, True, "repair applied", validation)
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+        except (OSError, ConnectionError, TimeoutError) as exc:
             record_degradation("structural_improver", exc)
             try:
                 atomic_write_text(path, original, encoding="utf-8")

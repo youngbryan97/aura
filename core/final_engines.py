@@ -137,7 +137,7 @@ class NarrativeIdentityEngine:
                 data = json.loads(self.persist_path.read_text())
                 self.chapters = [IdentityChapter(**c) for c in data.get("chapters", [])]
                 self.core_essence = data.get("core_essence", self.core_essence)
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError):
+            except (OSError, ConnectionError, TimeoutError):
                 logger.error("NarrativeIdentityEngine: Failed to load narrative from %s", self.persist_path)
 
     def _save_narrative(self):

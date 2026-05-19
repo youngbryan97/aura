@@ -924,7 +924,7 @@ class StrangeLoop:
             logger.info(
                 "StrangeLoop: restored weights from tick %d", self._tick_count,
             )
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+        except (OSError, ConnectionError, TimeoutError) as exc:
             record_degradation('strange_loop', exc)
             logger.warning("StrangeLoop: weight restore failed: %s -- starting fresh", exc)
 

@@ -101,7 +101,7 @@ class ConceptVectorBridge:
             vector = await cognition.client.generate_embedding(text_concept)
             self._concept_cache[text_concept] = vector
             return vector
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('concept_vector_bridge', e)
             logger.error("Failed to generate concept vector: %s", e)
             return []

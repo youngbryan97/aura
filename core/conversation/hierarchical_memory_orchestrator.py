@@ -77,7 +77,7 @@ class HierarchicalMemoryOrchestrator:
 
                     self.turn_counter = 0
                     self.last_compaction = datetime.now()
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('hierarchical_memory_orchestrator', e)
                 logger.error("Failed to perform hierarchical compaction: %s", e)
             

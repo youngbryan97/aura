@@ -936,7 +936,7 @@ class HomeostaticRL:
                 "Failed to load HomeostaticRL state from %s: %s",
                 self._state_path, e,
             )
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('homeostatic_rl', e)
             logger.error("Unexpected error loading HomeostaticRL state: %s", e)
 

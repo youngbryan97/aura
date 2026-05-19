@@ -381,7 +381,7 @@ class TerminalFallbackChat:
                 return str(result) if result else "..."
         except asyncio.TimeoutError:
             return "Response timed out — I'm running slowly in emergency mode."
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('terminal_chat', e)
             logger.debug("TerminalFallback response error: %s", e)
             return f"[error: {e}]"

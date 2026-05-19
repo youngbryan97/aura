@@ -321,7 +321,7 @@ class IdentityChronicle:
                             )
             except queue.Empty:
                 continue
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 logger.debug("ID-RAG async writer error: %s", e)
                 time.sleep(1.0)
 

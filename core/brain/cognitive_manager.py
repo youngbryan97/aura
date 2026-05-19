@@ -29,7 +29,7 @@ class CognitiveManager:
             # Assume health monitor is available via container later or init here
             self.initialized = True
             logger.info("Cognitive Manager online.")
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('cognitive_manager', e)
             logger.error("Cognitive initialization failed: %s", e)
             raise

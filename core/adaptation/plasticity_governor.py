@@ -370,7 +370,7 @@ class PlasticityGovernor:
                     snap.fisher_diag = data[f_key]
                     snap._consolidation_count = int(data[c_key][0])
             logger.info("Plasticity state restored (step %d)", self._step_count)
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+        except (OSError, ConnectionError, TimeoutError) as exc:
             logger.debug("Plasticity load failed: %s", exc)
 
     # ── Public API ──────────────────────────────────────────────────────

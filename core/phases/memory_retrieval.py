@@ -109,7 +109,7 @@ class MemoryRetrievalPhase(BasePhase):
                 if mm and hasattr(mm, "dual_memory"):
                     async with asyncio.timeout(15.0):
                         return await mm.dual_memory.retrieve_context(query)
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('memory_retrieval', e)
                 logger.debug("MemoryRetrieval: DualMemory RAG failed: %s", e)
                 return None
@@ -124,7 +124,7 @@ class MemoryRetrievalPhase(BasePhase):
                         return await method(query, limit=retrieval_limit)
                     else:
                         return await asyncio.to_thread(method, query, limit=retrieval_limit)
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('memory_retrieval', e)
                 logger.debug("MemoryRetrieval: KnowledgeGraph search failed: %s", e)
                 return None
@@ -151,7 +151,7 @@ class MemoryRetrievalPhase(BasePhase):
                         })
 
                 return recalled or None
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('memory_retrieval', e)
                 logger.debug("MemoryRetrieval: MemoryFacade search failed: %s", e)
                 return None

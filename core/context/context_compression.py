@@ -112,7 +112,7 @@ class ContextCompressionService:
                         last_accessed_turn=fdata.get("last_accessed_turn", 0),
                         char_count=fdata.get("char_count", 0),
                     )
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('context_compression', e)
             logger.debug("Could not load compression state: %s", e)
 
@@ -304,7 +304,7 @@ class ContextCompressionService:
                     record.summary = summary
                 self._save_state()
                 return summary
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('context_compression', e)
             logger.warning("Summary generation failed for %s: %s", path, e)
         return ""

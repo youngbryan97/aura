@@ -62,7 +62,7 @@ class ProofKernelBridge:
             winner = await workspace.run_competition()
             proof_metrics["workspace"] = workspace.get_snapshot()
             proof_metrics["winner_source"] = winner.source if winner else None
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+        except (OSError, ConnectionError, TimeoutError) as exc:
             record_degradation("proof_kernel_bridge", exc, severity="warning", action="reported bridge snapshot as degraded")
             errors.append(f"{type(exc).__name__}: {exc}")
 

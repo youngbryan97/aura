@@ -228,7 +228,7 @@ class CausalWorldModel:
                 
             self.nodes = {k: CausalNode(**v) for k, v in data.get("nodes", {}).items()}
             self.edges = [CausalEdge(**v) for v in data.get("edges", [])]
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('causal_world_model', e)
             logger.error("Failed to load Causal World Model: %s", e)
 

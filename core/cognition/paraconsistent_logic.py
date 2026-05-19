@@ -806,7 +806,7 @@ class ParaconsistentEngine:
 
                 logger.debug("Loaded belief graph (%d beliefs, %d paradoxes)",
                              len(self._beliefs), len(self._paradoxes))
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('paraconsistent_logic', e)
             logger.debug("Failed to load belief graph: %s", e)
             self._beliefs = {}

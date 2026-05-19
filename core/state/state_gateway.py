@@ -106,7 +106,7 @@ class ConcreteStateGateway(StateGatewayBase):
                     with self._lock:
                         self._cache[key] = value
                     return value
-                except (httpx.HTTPError, OSError, ConnectionError, TimeoutError):
+                except (OSError, ConnectionError, TimeoutError):
                     continue
         return default
 

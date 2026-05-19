@@ -123,7 +123,7 @@ class VectorMemory:
                 self._upsert_queue = queue.Queue(maxsize=1000)
                 self._upsert_thread = threading.Thread(target=self._async_upsert_loop, daemon=True, name="ChromaUpsert")
                 self._upsert_thread.start()
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('vector_memory', e)
                 logger.error("ChromaDB init failed, falling back to Sovereign Persistence: %s", e)
                 self._fallback_mode = True
@@ -240,7 +240,7 @@ class VectorMemory:
                         logger.error("Async Chroma upsert failed: %s", e)
             except queue.Empty:
                 continue
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 logger.debug("Async Chroma writer error: %s", e)
                 time.sleep(1.0)
 
@@ -467,7 +467,7 @@ class VectorMemory:
             if ids:
                 self._collection.delete(ids=ids)
             logger.info("VectorMemory: cleared collection '%s'", self.collection_name)
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('vector_memory', e)
             logger.error("VectorMemory.clear failed: %s", e)
 
@@ -529,7 +529,7 @@ class VectorMemory:
                 logger.info("✅ Pruned %s low-salience vectors.", len(ids_to_prune))
             
             return len(ids_to_prune)
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('vector_memory', e)
             logger.error("VectorMemory.prune_low_salience failed: %s", e)
             return 0

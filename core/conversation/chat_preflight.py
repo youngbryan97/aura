@@ -289,7 +289,7 @@ def consume_for_session(session_id: str, path: Path = PENDING_QUEUE_PATH) -> lis
                     answer_text=str(r.get("answer_text", "")),
                     answered_at=float(r.get("answered_at") or 0.0),
                 ))
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError):
+            except (OSError, ConnectionError, TimeoutError):
                 continue
         else:
             remaining.append(r)

@@ -216,7 +216,7 @@ class SocialImagination:
                     for frame in (frames or [])
                     if isinstance(frame, dict)
                 ]
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+        except (OSError, ConnectionError, TimeoutError) as exc:
             record_degradation('social_imagination', exc)
             logger.warning("SocialImagination load failed: %s", exc)
 

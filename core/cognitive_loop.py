@@ -202,7 +202,7 @@ class CognitiveLoop:
                 return {"content": payload, "origin": origin or "unknown"}
             
             return {"content": str(payload), "origin": origin or "raw"}
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('cognitive_loop', e)
             logger.error("Failed to acquire message from queue: %s", e)
             return None

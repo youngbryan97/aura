@@ -527,7 +527,7 @@ class MarkdownWorkspace:
                 str(group): {str(user) for user in users}
                 for group, users in data.get("groups", {}).items()
             } or {self.default_user: {self.default_user}}
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+        except (OSError, ConnectionError, TimeoutError) as exc:
             record_degradation("markdown_workspace", exc)
             raise
 

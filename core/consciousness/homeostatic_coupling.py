@@ -176,7 +176,7 @@ class HomeostaticCoupling:
                         affect['arousal'] = min(1.0, affect['arousal'] + volatility * 0.1)
                     if phi > 0.6:
                         affect.setdefault('integration', phi)
-                except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+                except (OSError, ConnectionError, TimeoutError) as e:
                     record_degradation('homeostatic_coupling', e)
                     logger.debug("Substrate blending failed: %s", e)
 

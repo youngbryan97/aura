@@ -652,7 +652,7 @@ class ConversationalSynthesizer:
             
             return response
             
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('synthesis', e)
             self.logger.error("Synthesis failed: %s", e, exc_info=True)
             return "I tried to process that information, but my thoughts got tangled. (Synthesis Error)"

@@ -121,7 +121,7 @@ class RIIU:
                 hypha = mycelium.get_hypha("consciousness", "iit_phi")
                 if hypha:
                     hypha.pulse(success=True)
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as _e:
+        except (OSError, ConnectionError, TimeoutError) as _e:
             record_degradation('iit_surrogate', _e)
             logger.debug('Ignored Exception in iit_surrogate.py: %s', _e)
 
@@ -157,7 +157,7 @@ class RIIU:
             state_vec[self.neuron_count:] = hyphae_vec
             
             return self.compute_phi(state_vec)
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('iit_surrogate', e)
             logger.debug("Failed network-bound Φ update: %s", e)
             return 0.0

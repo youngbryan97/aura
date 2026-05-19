@@ -28,7 +28,7 @@ class FamilyLegacy:
                     details=data.get("creator_details", "[REDACTED]")
                 ))
                 object.__setattr__(self, "kin", [Person(**p) for p in data.get("kin", [])])
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError):
+        except (OSError, ConnectionError, TimeoutError):
             object.__setattr__(self, "creator", Person(name="Creator", relation="Architect"))
             object.__setattr__(self, "kin", [])
 

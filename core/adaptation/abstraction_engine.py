@@ -189,7 +189,7 @@ Example: "When a specialized resource is abruptly depleted, systemic adaptation 
                 formatted += f"- {p['principle']}\n"
             return formatted
             
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('abstraction_engine', e)
             logger.error("Failed to load principles: %s", e)
             return ""

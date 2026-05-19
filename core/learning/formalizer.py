@@ -372,7 +372,7 @@ class KnowledgeFormalizer:
                     fact_ids.append(node_id)
                     committed_facts.append((node_id, fact))
                     result["facts_committed"] += 1
-                except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+                except (OSError, ConnectionError, TimeoutError) as exc:
                     record_degradation('formalizer', exc)
                     logger.debug("Formalizer: fact commit failed: %s", exc)
 
@@ -429,7 +429,7 @@ class KnowledgeFormalizer:
                 self._total_facts_committed,
             )
 
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+        except (OSError, ConnectionError, TimeoutError) as exc:
             record_degradation('formalizer', exc)
             result["error"] = str(exc)
             logger.error("Formalizer error: %s", exc, exc_info=True)

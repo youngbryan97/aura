@@ -339,7 +339,7 @@ class SelfImprovementLearning:
             
             logger.info("Loaded %d learned strategies", len(self.strategies))
             
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('learning_system', e)
             logger.error("Failed to load learning database: %s", e)
     

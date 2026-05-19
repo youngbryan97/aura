@@ -58,7 +58,7 @@ class ContextInjectionService:
             self._cache[filepath] = (change_key, content)
             return content
 
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('context_injection', e)
             logger.debug("Failed to read context file %s: %s", filepath, e)
             return None

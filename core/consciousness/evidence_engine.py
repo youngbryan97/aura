@@ -70,7 +70,7 @@ class ConsciousnessEvidenceEngine:
         try:
             if executive_closure and hasattr(executive_closure, "get_status"):
                 closure_score = float(executive_closure.get_status().get("closure_score", 0.0) or 0.0)
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+        except (OSError, ConnectionError, TimeoutError) as exc:
             record_degradation('evidence_engine', exc)
             logger.debug("Executive closure evidence unavailable: %s", exc)
 
@@ -92,7 +92,7 @@ class ConsciousnessEvidenceEngine:
                     phenom_fragment = str(getattr(phenomenology, "phenomenal_context_string", "") or "")
                 if hasattr(phenomenology, "to_dict"):
                     phenom_stale = bool(phenomenology.to_dict().get("is_stale", True))
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+        except (OSError, ConnectionError, TimeoutError) as exc:
             record_degradation('evidence_engine', exc)
             logger.debug("Phenomenology unavailable: %s", exc)
 
@@ -101,7 +101,7 @@ class ConsciousnessEvidenceEngine:
             if personality:
                 emo = personality.get_emotional_context_for_response()
                 dominant_emotions = list(emo.get("dominant_emotions", []))
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+        except (OSError, ConnectionError, TimeoutError) as exc:
             record_degradation('evidence_engine', exc)
             logger.debug("Personality evidence unavailable: %s", exc)
 

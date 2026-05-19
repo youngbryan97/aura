@@ -37,7 +37,7 @@ class EnvironmentTraceReplay:
                     corrupt.append(idx)
                 previous = row_hash
                 rows.append(row)
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError):
+            except (OSError, ConnectionError, TimeoutError):
                 corrupt.append(idx)
         postmortem = {}
         if rows:

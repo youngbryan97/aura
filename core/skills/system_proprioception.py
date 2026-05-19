@@ -91,7 +91,7 @@ class SystemProprioceptionSkill(BaseSkill):
                 "message": "I've conducted a self-diagnostic. All core systems are mapped and functional."
             }
 
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('system_proprioception', e)
             self.logger.error("Proprioception failed: %s", e)
             return {"ok": False, "error": str(e)}

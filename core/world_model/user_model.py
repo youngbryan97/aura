@@ -86,7 +86,7 @@ class BryanModelEngine:
                         conversation_count=data.get("conversation_count", 0),
                         total_messages=data.get("total_messages", 0),
                     )
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('user_model', e)
                 logger.warning("User model load failed: %s", e)
         return UserModel()

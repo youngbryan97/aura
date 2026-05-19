@@ -529,7 +529,7 @@ class ValueAutopoiesis:
                 "Autopoiesis state restored: cycle=%d, origin_values=%d",
                 self._cycle_count, len(self._origin_values),
             )
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+        except (OSError, ConnectionError, TimeoutError) as exc:
             record_degradation('value_autopoiesis', exc)
             logger.debug("Autopoiesis state load failed: %s", exc)
 

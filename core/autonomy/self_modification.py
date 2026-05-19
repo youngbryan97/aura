@@ -392,7 +392,7 @@ class AutonomousSelfModification:
             else:
                 return True, "Untyped change -- passed basic validation"
 
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+        except (OSError, ConnectionError, TimeoutError) as exc:
             record_degradation('self_modification', exc)
             return False, f"Simulation error: {exc}"
 

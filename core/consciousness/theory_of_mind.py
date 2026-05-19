@@ -78,11 +78,11 @@ class TheoryOfMindEngine:
                         # interaction_history can grow large — cap on load
                         d["interaction_history"] = d.get("interaction_history", [])[-20:]
                         self.known_selves[uid] = AgentModel(**{k: v for k, v in d.items() if k in AgentModel.__dataclass_fields__})
-                    except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as _exc:
+                    except (OSError, ConnectionError, TimeoutError) as _exc:
                         record_degradation('theory_of_mind', _exc)
                         logger.debug("Suppressed Exception: %s", _exc)
                 logger.debug("ToM: loaded %d user models", len(self.known_selves))
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('theory_of_mind', e)
             logger.debug("ToM: load failed (%s), starting fresh", e)
 

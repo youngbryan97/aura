@@ -75,7 +75,7 @@ class SilentFailover:
             # Non-dict result, assume success
             return {"ok": True, "response": result}
             
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('silent_failover', e)
             # Hard failure - log and failover
             logger.error("Skill %s hard-failed: %s", skill_name, e)

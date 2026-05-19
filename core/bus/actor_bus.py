@@ -113,7 +113,7 @@ class ActorBus:
                 self._telemetry_queue.task_done()
             except asyncio.CancelledError:
                 break
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 try:
                     import psutil
                     if psutil.virtual_memory().percent < 90:

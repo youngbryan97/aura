@@ -617,7 +617,7 @@ class DynamicValueGraph:
                 "Value graph restored: %d nodes, cycle=%d",
                 len(self._nodes), self._cycle_count,
             )
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+        except (OSError, ConnectionError, TimeoutError) as exc:
             logger.debug("Value graph load failed: %s", exc)
 
     # ── Events ──────────────────────────────────────────────────────────

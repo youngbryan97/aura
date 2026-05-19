@@ -539,7 +539,7 @@ Be honest about uncertainty. Don't manufacture confidence. Output only JSON."""
                 except (RuntimeError, AttributeError, TypeError, ValueError) as _e:
                     record_degradation('inquiry_engine', _e)
                     logger.debug('Ignored Exception in inquiry_engine.py: %s', _e)
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('inquiry_engine', e)
             logger.debug("InquiryEngine load failed: %s", e)
 

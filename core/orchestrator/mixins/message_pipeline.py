@@ -94,7 +94,7 @@ class MessagePipelineMixin:
             if not is_safe:
                 logger.warning("🛑 Simulation block: %s", reason)
             return {"allowed": is_safe, "reason": reason}
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('message_pipeline', e)
             logger.warning("Safety validation error (fail-closed): %s", e)
             return {"allowed": False, "reason": f"Internal safety verification fault: {str(e)}"}

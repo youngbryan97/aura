@@ -176,7 +176,7 @@ class CheckpointService:
             )
             return checkpoint
 
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('checkpointing', e)
             logger.error("Checkpoint restore failed for %s: %s", filepath, e)
             return None
@@ -216,7 +216,7 @@ class CheckpointService:
                     "age_seconds": time.time() - data.get("timestamp", stat.st_mtime),
                     "size_bytes": stat.st_size,
                 })
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError):
+            except (OSError, ConnectionError, TimeoutError):
                 continue
 
         return checkpoints

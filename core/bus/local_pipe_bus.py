@@ -493,7 +493,7 @@ class LocalPipeBus:
                 logger.error("🛑 Bus read error: %s", e)
                 self._cancel_pending_requests(e)
                 break
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('local_pipe_bus', e)
                 logger.exception("❌ Error in Bus read loop: %s", e)
                 
@@ -524,7 +524,7 @@ class LocalPipeBus:
                     self._dispatch_queue.task_done()
             except asyncio.CancelledError:
                 break
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('local_pipe_bus', e)
                 logger.error("❌ Error in Bus dispatch loop: %s", e)
                 
@@ -570,7 +570,7 @@ class LocalPipeBus:
                 raw_resp = json.dumps(resp)
                 # ZENITH LOCKDOWN: Dedicated executor
                 await self.loop.run_in_executor(self._get_executor(), self.write_conn.send, raw_resp)
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('local_pipe_bus', e)
             logger.error("❌ Bus handler error (%s): %s", msg.get("type"), e)
             

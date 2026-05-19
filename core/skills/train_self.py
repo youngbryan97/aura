@@ -98,7 +98,7 @@ class TrainSelfSkill(BaseSkill):
                 "message": f"Collected {collected} high-value memories for future consolidation.",
                 "collected": collected
             }
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('train_self', e)
             logger.error("Memory collection failed: %s", e)
             return {"ok": False, "error": str(e)}

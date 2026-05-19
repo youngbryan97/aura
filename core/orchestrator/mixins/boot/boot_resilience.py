@@ -346,7 +346,7 @@ class BootResilienceMixin:
                                 break
                     logger.debug("Vault ping attempt %d failed. Retrying...", attempt + 1)
                     await asyncio.sleep(0.5)
-                except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+                except (OSError, ConnectionError, TimeoutError) as e:
                     record_degradation('boot_resilience', e)
                     logger.warning("Vault readiness check error: %s", e)
                     await asyncio.sleep(0.5)

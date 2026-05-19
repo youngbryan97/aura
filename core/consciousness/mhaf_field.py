@@ -346,7 +346,7 @@ class MycelialHypergraphAttractorField:
                     )
                 self._global_phi = state.get("global_phi", 0.0)
                 logger.info("MHAF state restored from disk.")
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('mhaf_field', e)
             logger.debug("MHAF load error: %s", e)
 

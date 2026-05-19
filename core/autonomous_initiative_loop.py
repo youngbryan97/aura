@@ -188,7 +188,7 @@ class AutonomousInitiativeLoop:
                     queue.task_done()
             except asyncio.CancelledError:
                 break
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('autonomous_initiative_loop', e)
                 logger.debug("Initiative event listener transient error: %s", e)
 
@@ -281,7 +281,7 @@ class AutonomousInitiativeLoop:
                                 classification="non_critical_fallback",
                                 context={"reason": gate["reason"]},
                             )
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('autonomous_initiative_loop', e)
                 logger.debug("Knowledge gap monitor loop error: %s", e)
                 
@@ -647,13 +647,13 @@ class AutonomousInitiativeLoop:
         failure_pressure = 0.0
         try:
             failure_pressure = float(failure_state.get("pressure", 0.0) or 0.0)
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError):
+        except (OSError, ConnectionError, TimeoutError):
             failure_pressure = 0.0
 
         continuity_pressure = 0.0
         try:
             continuity_pressure = float(live_continuity.get("continuity_pressure", 0.0) or 0.0)
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError):
+        except (OSError, ConnectionError, TimeoutError):
             continuity_pressure = 0.0
         continuity_reentry_required = bool(live_continuity.get("continuity_reentry_required", False))
 
@@ -915,7 +915,7 @@ class AutonomousInitiativeLoop:
                     category="Social",
                 )
 
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('autonomous_initiative_loop', e)
 
     async def _check_reddit_initiative(self):

@@ -308,7 +308,7 @@ class ContinuousRecurrentSelfModel:
                 self._tick_count = data.get("tick_count", 0)
                 self._error_ema = data.get("error_ema", 0.0)
                 logger.info("CRSM resumed from checkpoint (tick %d).", self._tick_count)
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('crsm', e)
             logger.debug("CRSM load failed (starting fresh): %s", e)
 

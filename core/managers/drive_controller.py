@@ -114,7 +114,7 @@ class DriveController:
                 if queued:
                     logger.debug("😤 Frustration reflection already queued (%d pending). Skipping.", len(queued))
                     return
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as _exc:
+        except (OSError, ConnectionError, TimeoutError) as _exc:
             record_degradation('drive_controller', _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 

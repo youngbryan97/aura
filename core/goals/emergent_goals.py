@@ -225,7 +225,7 @@ class EmergentGoalEngine:
                 )
                 self.mark_adopted(goal.goal_id)
                 adopted.append(record if isinstance(record, dict) else {"name": goal.name})
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+            except (OSError, ConnectionError, TimeoutError) as exc:
                 record_degradation("emergent_goals", exc)
                 logger.debug("Emergent goal adoption failed for %s: %s", goal.goal_id, exc)
                 continue

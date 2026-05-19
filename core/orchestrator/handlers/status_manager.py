@@ -70,7 +70,7 @@ class StatusManagerMixin:
                         
                         status_report["initialized"] = status_report["status"]["initialized"]
                         status_report["cycle_count"] = getattr(self.status, "cycle_count", status_report["status"].get("cycle_count", 0))
-                    except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+                    except (OSError, ConnectionError, TimeoutError) as e:
                         record_degradation('status_manager', e)
                         capture_and_log(e, {'module': __name__})
                 else:
@@ -145,7 +145,7 @@ class StatusManagerMixin:
                         "memory_mb": monitor_stats.get("memory_mb", 0),
                         "link_thickness": 5.0
                     })
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+        except (OSError, ConnectionError, TimeoutError) as exc:
             record_degradation('status_manager', exc)
             logger.error("Telemetry pulse failure: %s", exc)
             if hasattr(self, "_recover_from_stall"):

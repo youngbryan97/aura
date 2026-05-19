@@ -95,7 +95,7 @@ class ContextManager:
                     if len(candidate) <= remaining * 0.6:  # Reserve 40% for history
                         memory_block = candidate
                         remaining -= len(memory_block)
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+            except (OSError, ConnectionError, TimeoutError) as exc:
                 record_degradation('context_manager', exc)
                 logger.debug("Memory retrieval failed: %s", exc)
 

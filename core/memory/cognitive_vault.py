@@ -120,7 +120,7 @@ class CognitiveVault:
                 continue
             except asyncio.CancelledError:
                 break
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('cognitive_vault', e)
                 logger.error("Vault worker error: %s", e)
 

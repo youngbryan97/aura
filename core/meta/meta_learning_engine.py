@@ -37,7 +37,7 @@ class MetaLearningEngine:
             else:
                 logger.warning("No embedding provider available for fingerprinting.")
                 return None
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('meta_learning_engine', e)
             logger.error("Failed to fingerprint task: %s", e)
             return None

@@ -459,6 +459,6 @@ class GoalHierarchy:
                         subgoals=gdata.get("subgoals", []),
                     )
                 logger.info("Loaded %d goals from disk", len(self.goals))
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('goal_hierarchy', e)
             logger.warning("Failed to load goals: %s", e)

@@ -291,7 +291,7 @@ class GroundingService:
                 will_outcome = str(will_decision.get("outcome", "proceed")).lower()
                 will_reason = str(will_decision.get("reason", ""))
                 will_receipt_id = will_decision.get("receipt_id")
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 # Fail-closed: if the Will errors we treat the update
                 # as refused rather than silently bypassing it.
                 record_degradation("grounding_service", e)
@@ -364,7 +364,7 @@ class GroundingService:
                         governance_receipt_id=will_receipt_id,
                     )
                 )
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+            except (OSError, ConnectionError, TimeoutError) as exc:
                 # Receipt failure must not break the learning loop.
                 record_degradation("grounding_service", exc)
                 logger.debug("Grounding semantic weight receipt emission failed: %s", exc)

@@ -217,7 +217,7 @@ class BeliefSync:
             async with session.post(url, json=payload, timeout=5.0) as resp:
                 if resp.status == 200:
                     return True
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('belief_sync', e)
             logger.debug("Silent push failure to %s: %s", url, e)
         return False
@@ -250,7 +250,7 @@ class BeliefSync:
                 if resp.status == 200:
                     data = await resp.json()
                     return data.get("beliefs", [])
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('belief_sync', e)
             logger.debug("BeliefSync: Failed to query peer %s: %s", url, e)
         return []

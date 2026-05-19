@@ -135,7 +135,7 @@ class PersonalityEngine:
                             baselines[e]["base"] = max(0.0, min(100.0, data.get("base", baselines[e]["base"])))
                             baselines[e]["volatility"] = max(0.1, data.get("volatility", baselines[e]["volatility"]))
                             
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('personality_engine', e)
                 logger.error("Failed to load evolved persona: %s", e)
 

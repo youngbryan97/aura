@@ -60,12 +60,12 @@ class SecureDockerSandbox:
                     "exit_code": exit_code,
                     "output": logs
                 }
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('secure_sandbox', e)
                 container.kill()
                 return {"ok": False, "error": f"Execution timeout or error: {str(e)}"}
 
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('secure_sandbox', e)
             logger.error("Sandbox execution fatal error: %s", e)
             return {"ok": False, "error": str(e)}

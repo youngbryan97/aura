@@ -1275,7 +1275,7 @@ class MLXLocalClient:
                             proc.wait(timeout=3.0)
                 except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                     pass  # no-op: intentional
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as orphan_exc:
+        except (OSError, ConnectionError, TimeoutError) as orphan_exc:
             record_degradation('mlx_client', orphan_exc)
             logger.debug("Orphan reclamation scan failed (non-fatal): %s", orphan_exc)
 

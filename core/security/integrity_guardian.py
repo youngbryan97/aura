@@ -362,7 +362,7 @@ class IntegrityGuardian:
             self._manifest = files
             self._manifest_hmac = stored_sig
             return True
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('integrity_guardian', e)
             logger.debug("Manifest load failed: %s", e)
             return False

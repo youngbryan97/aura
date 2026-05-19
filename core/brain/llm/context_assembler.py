@@ -1200,7 +1200,7 @@ class ContextAssembler:
                     )
                     if goals_text:
                         dynamic_system += f"\nActive Drives: {goals_text}"
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError):
+            except (OSError, ConnectionError, TimeoutError):
                 dynamic_system = system_prompt
         
         system_msg = {"role": "system", "content": dynamic_system}

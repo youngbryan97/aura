@@ -527,7 +527,7 @@ class CELBridge:
                         a = await affect.get()
                         arousal = float(getattr(a, 'arousal', 0.5))
                         valence = float(getattr(a, 'valence', 0.0))
-                    except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+                    except (OSError, ConnectionError, TimeoutError) as e:
                         record_degradation('constitutive_expression', e)
                         capture_and_log(e, {'module': __name__})
                 else:

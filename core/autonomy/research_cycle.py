@@ -724,7 +724,7 @@ class ResearchCycle:
             )
             if isinstance(result, dict) and result.get("ok"):
                 return result
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+        except (OSError, ConnectionError, TimeoutError) as exc:
             record_degradation('research_cycle', exc)
             logger.debug("ResearchCycle grounded search failed for %s: %s", goal[:80], exc)
         return None

@@ -323,7 +323,7 @@ class MotivationEngine:
                     },
                 )
                 logger.debug("Motivation: queued governed initiative decision=%s", decision.get("reason"))
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as _initiative_err:
+            except (OSError, ConnectionError, TimeoutError) as _initiative_err:
                 record_degradation('engine', _initiative_err)
                 logger.debug("Motivation: initiative queueing failed: %s", _initiative_err)
 

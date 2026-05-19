@@ -239,7 +239,7 @@ class FreeEnergyEngine:
             n = max(1, len(beliefs))
             return min(3.0, total_kl / n)
 
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('free_energy', e)
             logger.debug("Belief KL computation failed: %s", e)
             return 0.1

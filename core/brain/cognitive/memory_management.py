@@ -119,7 +119,7 @@ class MemoryConsolidator:
                     {"id": mid, "content": data.get("content", ""), "metadata": data.get("metadata", {})}
                     for mid, data in items
                 ]
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+        except (OSError, ConnectionError, TimeoutError) as exc:
             record_degradation('memory_management', exc)
             logger.warning("Failed to fetch memories: %s", exc)
         return []
@@ -174,7 +174,7 @@ class MemoryConsolidator:
                         if score >= self.similarity_threshold:
                             cluster.append(result)
                             merged_ids.add(result_id)
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+            except (OSError, ConnectionError, TimeoutError) as exc:
                 record_degradation('memory_management', exc)
                 logger.debug("Similarity search failed for %s: %s", mem["id"], exc)
             if len(cluster) > 1:
@@ -205,7 +205,7 @@ class MemoryConsolidator:
                     ids=[winner_id],
                     metadatas=[new_meta]
                 )
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as _e:
+            except (OSError, ConnectionError, TimeoutError) as _e:
                 record_degradation('memory_management', _e)
                 logger.debug('Ignored Exception in memory_management.py: %s', _e)
 

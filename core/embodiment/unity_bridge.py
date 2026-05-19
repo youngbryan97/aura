@@ -56,7 +56,7 @@ class UnityEmbodiment:
                 "heart_rate": affect_wheel.get("physiology", {}).get("HR", 70)
             }
             await self.ws.send(json.dumps(msg))
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('unity_bridge', e)
             logger.error("Failed to send affect update to Unity: %s", e)
             self.ws = None
@@ -72,7 +72,7 @@ class UnityEmbodiment:
                 "tactile": data.get("touch_sensors", []),
                 "vestibular": data.get("acceleration", [0,0,0])
             }
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('unity_bridge', e)
             logger.error("Failed to receive sensor data from Unity: %s", e)
             return {}

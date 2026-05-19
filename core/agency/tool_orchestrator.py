@@ -129,7 +129,7 @@ class ToolOrchestrator:
                         )
                         return await self.sanitize_output(payload or f"No results parsed for {query}.")
                     return f"FAILED: Search status: {resp.status}"
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('tool_orchestrator', e)
             return f"ERROR: Network failure during search: {str(e)}"
 

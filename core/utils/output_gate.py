@@ -396,10 +396,10 @@ class AutonomousOutputGate:
                             )
                         except TypeError:
                             orch.reply_queue.put_nowait(content)
-                    except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as _exc:
+                    except (OSError, ConnectionError, TimeoutError) as _exc:
                         record_degradation('output_gate', _exc)
                         logger.debug("Suppressed Exception: %s", _exc)
-                except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+                except (OSError, ConnectionError, TimeoutError) as e:
                     record_degradation('output_gate', e)
                     logger.warning("OutputGate: Failed to feed reply_queue: %s", e)
 

@@ -145,7 +145,7 @@ class NativePlanNode:
             return self.value_sum / self.visits
         try:
             return float(self.metadata.get("estimated_value", 0.0))
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError):
+        except (OSError, ConnectionError, TimeoutError):
             return 0.0
 
     @property

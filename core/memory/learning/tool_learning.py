@@ -241,7 +241,7 @@ class ToolLearningSystem:
                         successes=cd.get("successes", 0),
                     )
                 logger.info("Loaded tool learning data: %d categories", len(self._records))
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('tool_learning', e)
             logger.warning("Failed to load tool learning data: %s", e)
 

@@ -132,6 +132,6 @@ async def _build_code_graph_background(graph):
         stats = await graph.build(incremental=True)
         _logger.info("Code graph ready: %d files, %d symbols, %d relationships (%.1fs)",
                      stats["files"], stats["symbols"], stats["relationships"], stats.get("build_time_s", 0))
-    except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+    except (OSError, ConnectionError, TimeoutError) as e:
         record_degradation('cognitive_sensory', e)
         _logger.warning("Code graph background build failed: %s", e)

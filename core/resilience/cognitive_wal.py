@@ -84,7 +84,7 @@ class CognitiveWAL:
                                 del intents[intent_id]
                     except json.JSONDecodeError:
                         continue
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('cognitive_wal', e)
             logger.error("Failed to read WAL during recovery: %s", e)
             return []
@@ -121,7 +121,7 @@ class CognitiveWAL:
                                     pending_entries.append(line.strip())
                         except json.JSONDecodeError:
                             continue
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('cognitive_wal', e)
                 capture_and_log(e, {'module': __name__})
             

@@ -162,7 +162,7 @@ Be concise. No extra text."""
                 recommendation=rec,
                 first_person_thought=data.get("first_person_thought", "Still processing...")
             )
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('critic_engine', e)
             logger.debug("Critic parse error: %s", e)
             # Safe fallback

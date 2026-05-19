@@ -122,7 +122,7 @@ class ResponseGenerationPhase(BasePhase):
                             reason,
                         )
                         return state
-                except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+                except (OSError, ConnectionError, TimeoutError) as exc:
                     record_degradation('response_generation', exc)
                     logger.error("ResponseGeneration background policy check failed: %s", exc, exc_info=True)
 
@@ -189,7 +189,7 @@ class ResponseGenerationPhase(BasePhase):
                 mem_monitor = self.container.get("memory_monitor", default=None)
                 if mem_monitor is not None:
                     memory_pressure = getattr(mem_monitor, "pressure", None)
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError):
+            except (OSError, ConnectionError, TimeoutError):
                 memory_pressure = None
             if memory_pressure is None:
                 try:
@@ -464,7 +464,7 @@ class ResponseGenerationPhase(BasePhase):
                     # Queue additional shaped messages (from multi-message split)
                     if _shaped_messages:
                         new_state.response_modifiers["queued_messages"] = _shaped_messages
-                except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as _fu_exc:
+                except (OSError, ConnectionError, TimeoutError) as _fu_exc:
                     record_degradation('response_generation', _fu_exc)
                     logger.debug("Follow-up decision failed: %s", _fu_exc)
 

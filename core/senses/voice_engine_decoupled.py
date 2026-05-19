@@ -98,7 +98,7 @@ class DecoupledVoiceEngine:
                 self.state = VoiceState.IDLE
             except queue.Empty:
                 continue
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('voice_engine_decoupled', e)
                 logger.error("Speech worker error: %s", e)
                 self.state = VoiceState.IDLE

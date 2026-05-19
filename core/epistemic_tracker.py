@@ -500,7 +500,7 @@ class EpistemicTracker:
             for g in data.get("gaps", []):
                 self._gaps.append(EpistemicGap(**g))
             self._resolved_gaps = data.get("resolved", [])
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('epistemic_tracker', e)
             capture_and_log(e, {"context": "EpistemicTracker.load"})
             logger.debug("EpistemicTracker load failed: %s", e)

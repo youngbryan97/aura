@@ -137,7 +137,7 @@ class CognitiveTrainerSkill(BaseSkill):
                     logger.info("Processed %d AgentDrive samples...", count)
 
             return {"ok": True, "count": count, "message": f"Successfully ingested {count} scenarios from AgentDrive."}
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('cognitive_trainer', e)
             logger.error("AgentDrive ingestion failed: %s", e)
             return {"ok": False, "error": str(e)}

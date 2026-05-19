@@ -250,7 +250,7 @@ class LLMCodeGenerator:
                 len(code),
             )
             return code
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+        except (OSError, ConnectionError, TimeoutError) as exc:
             record_degradation("llm_code_generator", exc)
             logger.warning("LLM code generation failed: %s", exc)
             if self.fallback_to_stub:

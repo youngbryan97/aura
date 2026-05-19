@@ -105,7 +105,7 @@ class DiagnosticsAgent:
                     if resp.status == 200:
                         results["server_online"] = True
                         results["latency_ms"] = (asyncio.get_running_loop().time() - start) * 1000
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError):
+        except (OSError, ConnectionError, TimeoutError):
             results["server_online"] = False
             
         return results

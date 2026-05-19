@@ -70,7 +70,7 @@ class SelfModel:
                     snapshots=snapshots,
                     pending_updates=list(raw.get("pending_updates", []) or []),
                 )
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('self_model', e)
                 logger.error("Failed to load self model: %s", e)
                 

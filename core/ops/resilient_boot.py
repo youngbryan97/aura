@@ -130,7 +130,7 @@ class ResilientBoot:
                             f"Strict runtime critical boot stage failed: {name} (Timeout)"
                         ) from None
                     await self._apply_fallback(name)
-                except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+                except (OSError, ConnectionError, TimeoutError) as e:
                     record_degradation('resilient_boot', e)
                     logger.error("💥 [BOOT] Stage '%s' FAILED: %s. Applying fallback.", name, e)
                     # Immediate immunity audit
@@ -282,7 +282,7 @@ class ResilientBoot:
                     ready = True
                     logger.info("📡 StateVaultActor responded to handshake (Attempt %d)", attempt + 1)
                     break
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+            except (OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('resilient_boot', e)
                 logger.debug("Handshake attempt %d failed: %s", attempt + 1, e)
             await asyncio.sleep(0.5)

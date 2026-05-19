@@ -249,7 +249,7 @@ class AffectEngineV2:
                     intensity = (
                         abs(appraisal.get("v", 0.0)) + abs(appraisal.get("a", 0.0))
                     ) / 2.0 or intensity
-                except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+                except (OSError, ConnectionError, TimeoutError) as e:
                     failure_reason = self._classify_appraisal_failure(e)
                     quiet_background_failure = failure_reason in {
                         "lane_unavailable",

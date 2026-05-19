@@ -215,7 +215,7 @@ class LocalVoiceCortex:
                                 break
                     except asyncio.TimeoutError:
                         continue
-                    except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+                    except (OSError, ConnectionError, TimeoutError) as e:
                         record_degradation('local_voice_cortex', e)
                         logger.debug("Audio read error: %s", e)
                         break
@@ -283,6 +283,6 @@ class LocalVoiceCortex:
                     if response:
                         await self.speak(response)
                         
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
+        except (OSError, ConnectionError, TimeoutError) as e:
             record_degradation('local_voice_cortex', e)
             logger.error("Error processing audio segment: %s", e)

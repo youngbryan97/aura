@@ -387,7 +387,7 @@ def get_model_context_window(model_name: str | None = None) -> int:
             max_position_embeddings = int(config_payload.get("max_position_embeddings") or 0)
             sliding_window = int(config_payload.get("sliding_window") or 0)
             use_sliding_window = bool(config_payload.get("use_sliding_window"))
-    except (httpx.HTTPError, OSError, ConnectionError, TimeoutError):
+    except (OSError, ConnectionError, TimeoutError):
         max_position_embeddings = 0
         sliding_window = 0
         use_sliding_window = False
@@ -396,7 +396,7 @@ def get_model_context_window(model_name: str | None = None) -> int:
         if tokenizer_config_path.exists():
             tokenizer_payload = json.loads(tokenizer_config_path.read_text())
             tokenizer_model_max = int(tokenizer_payload.get("model_max_length") or 0)
-    except (httpx.HTTPError, OSError, ConnectionError, TimeoutError):
+    except (OSError, ConnectionError, TimeoutError):
         tokenizer_model_max = 0
 
     if max_position_embeddings > 0:

@@ -273,7 +273,7 @@ class JoySocialCoordinator:
                     "url": post.url,
                     "sent": post.sent,
                 }
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
+        except (OSError, ConnectionError, TimeoutError) as exc:
             logger.error("JoySocial.post_to_social: %s", exc, exc_info=True)
             return None
 
