@@ -1,24 +1,34 @@
 """Response Processing Mixin for RobustOrchestrator.
 Extracts response finalization, reflexes, fast-path, and history recording logic.
 """
-from core.runtime.errors import record_degradation
+
 import asyncio
-import inspect
 import logging
 import random
 import re
 import time
-from typing import Any, Optional
+from typing import Any
 
-from core.utils.exceptions import capture_and_log
 from core.brain.types import ThinkingMode
 from core.phases.dialogue_policy import validate_dialogue_response
 from core.phases.response_contract import build_response_contract
+from core.runtime.errors import record_degradation
 from core.runtime.governance_policy import allow_direct_user_shortcut
 from core.runtime.turn_analysis import analyze_turn
+from core.utils.exceptions import capture_and_log
+
 from ...container import ServiceContainer
 
 logger = logging.getLogger(__name__)
+
+
+def _record_response_processing_degradation(
+    error: BaseException,
+    *,
+    action: str,
+    severity: str = "warning",
+) -> None:
+    record_degradation("response_processing", error, severity=severity, action=action)
 
 
 def _bg_task_exception_handler(task):
@@ -35,9 +45,12 @@ def _bg_task_exception_handler(task):
 class ResponseProcessingMixin:
     """Handles response finalization, reflexes, fast-path routing, and message history."""
 
-    async def _finalize_response(self, message: str, response: str, origin: str, trace, successful_tools: list[str]) -> str:
+    async def _finalize_response(
+        self, message: str, response: str, origin: str, trace, successful_tools: list[str]
+    ) -> str:
         """Apply final touches: Unified Will identity check, Security, Social Drive, Meta-Learning."""
         from infrastructure.watchdog import get_watchdog
+
         get_watchdog().heartbeat("orchestrator")
 
         # ── Action grounding: if the LLM emitted [SKILL:..]/[ACTION:..] markers,
@@ -63,9 +76,9 @@ class ResponseProcessingMixin:
             except (ImportError, AttributeError, RuntimeError):
                 pass  # no-op: intentional
 
-            existing_receipts = receipts_from_context({
-                "skill_receipts": [{"skill": s} for s in (successful_tools or [])]
-            })
+            existing_receipts = receipts_from_context(
+                {"skill_receipts": [{"skill": s} for s in (successful_tools or [])]}
+            )
             grounding = await ground_response(
                 response or "",
                 context=grounding_ctx,
@@ -89,12 +102,17 @@ class ResponseProcessingMixin:
                 except (ImportError, AttributeError, RuntimeError):
                     pass  # no-op: intentional
         except (ImportError, AttributeError, RuntimeError) as _ground_err:
-            record_degradation('response_processing', _ground_err)
+            _record_response_processing_degradation(
+                _ground_err,
+                action="continued finalization with ungrounded response text after action grounding failed",
+                severity="error",
+            )
             logger.error("Action grounding failed: %s", _ground_err, exc_info=True)
 
         # ── UNIFIED WILL: Identity alignment check on outgoing response ──
         try:
             from core.will import ActionDomain, IdentityAlignment, get_will
+
             _will = get_will()
             _emit_decision = _will.decide(
                 content=(response or "")[:200],
@@ -109,13 +127,16 @@ class ResponseProcessingMixin:
                 response = response.replace("I'm just a language model", "I'm Aura")
                 response = response.replace("I don't have opinions", "I have my own perspective")
         except (ImportError, AttributeError, RuntimeError) as _will_err:
-            record_degradation('response_processing', _will_err)
+            _record_response_processing_degradation(
+                _will_err,
+                action="continued finalization without Will identity rewrite check",
+            )
             logger.debug("Will finalization check degraded: %s", _will_err)
 
         # --- FIX A-3: Logic Gap Guard ---
         # Gating the reflex path: ensure response is a proper string
         if not isinstance(response, str):
-             return await self._generate_fallback(str(response))
+            return await self._generate_fallback(str(response))
 
         if not response or response == "...":
             # v14.1: Try Reflex Matrix first (via LLM Router)
@@ -129,7 +150,7 @@ class ResponseProcessingMixin:
         # v48 FIX: Communicative continuity.
         if getattr(self, "_reflex_sent_for_current", False):
             # User feedback: "Anyway" feels clunky. Removing prefix to let response flow naturally.
-            self._reflex_sent_for_current = False # Reset for next cycle
+            self._reflex_sent_for_current = False  # Reset for next cycle
 
         # v40: Identity Drift Monitor
         drift_monitor = ServiceContainer.get("drift_monitor", default=None)
@@ -141,23 +162,35 @@ class ResponseProcessingMixin:
             if ladder:
                 ladder.record_drift_score(score)
 
-            if score > 0.4: # Significant drift detected
+            if score > 0.4:  # Significant drift detected
                 correction = drift_monitor.get_correction_injection(signals)
                 if correction:
-                    logger.warning("📉 [Drift] Drift detected (score %.2f). Storing correction.", score)
+                    logger.warning(
+                        "📉 [Drift] Drift detected (score %.2f). Storing correction.", score
+                    )
                     self._pending_correction = correction
 
         # Security Filter
         response = await self._apply_constitutional_guard(response)
 
         # Cognitive Pacing: Humanize response timing — calibrated to response length & energy
-        if not getattr(self, "_reflex_sent_for_current", False) and origin in ("user", "voice", "admin"):
+        if not getattr(self, "_reflex_sent_for_current", False) and origin in (
+            "user",
+            "voice",
+            "admin",
+        ):
             resp_len = len(response or "")
             # Short replies (quips, acks) feel instant; longer thoughtful replies have more latency
             length_factor = min(1.0, resp_len / 400)  # 0 for empty, 1.0 at ~400 chars
             # High conversation energy → faster cadence
-            _state_now = getattr(self.state_repo, "_current", None) if hasattr(self, "state_repo") else None
-            energy = getattr(getattr(_state_now, "cognition", None), "conversation_energy", 0.5) if _state_now else 0.5
+            _state_now = (
+                getattr(self.state_repo, "_current", None) if hasattr(self, "state_repo") else None
+            )
+            energy = (
+                getattr(getattr(_state_now, "cognition", None), "conversation_energy", 0.5)
+                if _state_now
+                else 0.5
+            )
             energy_factor = max(0.3, 1.0 - energy * 0.5)  # high energy → shorter delay
             delay = 0.15 + length_factor * 0.8 * energy_factor + random.random() * 0.2
             logger.debug("⏳ [PACER] delay=%.2fs (len=%d, energy=%.2f)", delay, resp_len, energy)
@@ -170,7 +203,9 @@ class ResponseProcessingMixin:
         # NOTE: History and Queue handling moved to OutputGate.emit to prevent duplicates.
 
         # --- Zenith Memory Guard Hook ---
-        mem_guard = getattr(self, "conversational_guard", None) or self._get_service("conversational_guard")
+        mem_guard = getattr(self, "conversational_guard", None) or self._get_service(
+            "conversational_guard"
+        )
         if mem_guard:
             if hasattr(self, "cognitive_engine") and self.cognitive_engine:
                 self._fire_and_forget(
@@ -179,12 +214,15 @@ class ResponseProcessingMixin:
                 )
 
         # Emotional Response to Output
-        if hasattr(self, 'personality') and self.personality:
+        if hasattr(self, "personality") and self.personality:
             try:
                 event = "success" if response and response != "..." else "failure"
                 self.personality.respond_to_event(event, {"response": response, "origin": origin})
             except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
-                record_degradation('response_processing', exc)
+                _record_response_processing_degradation(
+                    exc,
+                    action="continued finalization after personality event update failed",
+                )
                 logger.debug("Suppressed: %s", exc)
 
         # Hardened History Cap to prevent memory bloat
@@ -194,18 +232,24 @@ class ResponseProcessingMixin:
         self._emit_telemetry("Response", str(response or "")[:200])
 
         # --- PHASE XXII: GENUINE LEARNING RECORDING ---
-        if hasattr(self, 'continuous_learner') and self.continuous_learner:
+        if hasattr(self, "continuous_learner") and self.continuous_learner:
             try:
                 from core.config import config
+
                 # Record the turn for long-term adaptation
                 self.continuous_learner.record_turn(
-                    system_prompt=getattr(config, 'system_prompt', "You are Aura, an autonomous intelligence."),
+                    system_prompt=getattr(
+                        config, "system_prompt", "You are Aura, an autonomous intelligence."
+                    ),
                     user_input=message,
                     response=response or "",
-                    emotional_context=getattr(self.status, "emotions", {})
+                    emotional_context=getattr(self.status, "emotions", {}),
                 )
             except (ImportError, AttributeError, RuntimeError) as e:
-                record_degradation('response_processing', e)
+                _record_response_processing_degradation(
+                    e,
+                    action="continued finalization after continuous learner turn recording failed",
+                )
                 logger.debug("Failed to record turn for continuous learning: %s", e)
 
         # Meta-Learning: Index Experience
@@ -229,12 +273,15 @@ class ResponseProcessingMixin:
             self._trigger_background_learning(message, response)
 
         # Record interaction in Cognitive Layer
-        if hasattr(self, 'cognition') and self.cognition:
+        if hasattr(self, "cognition") and self.cognition:
             if hasattr(self.cognition, "record_interaction"):
                 try:
                     await self.cognition.record_interaction(message, response, domain="general")
                 except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-                    record_degradation('response_processing', e)
+                    _record_response_processing_degradation(
+                        e,
+                        action="continued finalization after cognition interaction recording failed",
+                    )
                     logger.warning("[Orchestrator] record_interaction skipped: %s", e)
             else:
                 logger.debug("[Orchestrator] CognitiveEngine has no record_interaction — skipping.")
@@ -244,7 +291,7 @@ class ResponseProcessingMixin:
         trace.save()
         self._last_thought_time = time.time()
 
-        if getattr(self, 'drives', None):
+        if getattr(self, "drives", None):
             await self.drives.satisfy("social", 10.0)
 
         # NOTE: Origin-aware dispatch moved to call sites using OutputGate.
@@ -265,7 +312,11 @@ class ResponseProcessingMixin:
         # 1. Multi-message chunks (shaped_messages from multi-message split)
         # 2. A natural follow-up (curiosity question, additional thought, etc.)
         # These are dispatched here with natural delays.
-        _state_now = getattr(getattr(self, "state_repo", None), "_current", None) if hasattr(self, "state_repo") else None
+        _state_now = (
+            getattr(getattr(self, "state_repo", None), "_current", None)
+            if hasattr(self, "state_repo")
+            else None
+        )
         _resp_mods = getattr(getattr(_state_now, "response_modifiers", None), "__getitem__", None)
         if _state_now is None:
             _resp_mods_dict = {}
@@ -275,6 +326,7 @@ class ResponseProcessingMixin:
         # 1. Queued multi-message chunks
         queued_msgs = _resp_mods_dict.get("queued_messages")
         if queued_msgs and isinstance(queued_msgs, list) and origin in ("user", "voice", "admin"):
+
             async def _emit_queued(msgs: list, gate):
                 for i, msg in enumerate(msgs):
                     delay = 1.0 + i * random.uniform(1.5, 3.5)
@@ -293,9 +345,11 @@ class ResponseProcessingMixin:
         # 2. Natural follow-up (substrate-driven)
         pending_fu = _resp_mods_dict.get("pending_followup")
         if pending_fu and isinstance(pending_fu, dict) and origin in ("user", "voice", "admin"):
+
             async def _execute_followup(fu_data: dict, user_msg: str, aura_resp: str):
                 try:
                     from core.voice.substrate_voice_engine import get_substrate_voice_engine
+
                     sve = get_substrate_voice_engine()
                     from core.voice.natural_followup import FollowupDecision
 
@@ -331,12 +385,17 @@ class ResponseProcessingMixin:
                     if followup_text and len(followup_text.strip()) > 3:
                         # Shape the follow-up too
                         from core.voice.speech_profile import SpeechProfile
+
                         fu_profile = SpeechProfile(
                             word_budget=decision.word_budget,
                             trailing_question_banned=decision.followup_type != "curiosity",
-                            capitalization="lowercase" if sve.get_current_profile() and sve.get_current_profile().capitalization == "lowercase" else "natural",
+                            capitalization="lowercase"
+                            if sve.get_current_profile()
+                            and sve.get_current_profile().capitalization == "lowercase"
+                            else "natural",
                         )
                         from core.voice.response_shaper import ResponseShaper
+
                         followup_text = ResponseShaper.shape(followup_text.strip(), fu_profile)
                         if isinstance(followup_text, list):
                             followup_text = followup_text[0]
@@ -376,7 +435,11 @@ class ResponseProcessingMixin:
                             followup_text[:60],
                         )
                 except (ImportError, AttributeError, RuntimeError) as e:
-                    record_degradation('response_processing', e)
+                    _record_response_processing_degradation(
+                        e,
+                        action="dropped natural follow-up after governed follow-up execution failed",
+                        severity="error",
+                    )
                     logger.debug("Follow-up execution failed: %s", e)
 
             self._fire_and_forget(
@@ -396,21 +459,25 @@ class ResponseProcessingMixin:
 
         # 2. Trigger a lighter, reactive 'downshift' cycle if we have an objective
         if self._current_objective and origin != "motivation":
-             logger.info("🔄 [RECOVERY] Attempting reactive downshift silent retry...")
-             try:
-                 emergency_prompt = (
-                     "System recovery: Provide a direct, concise answer to the user's last input. "
-                     "Do not mention recovery, timeouts, or system state. Just answer."
-                 )
-                 await self.cognitive_engine.think(
-                     self._current_objective,
-                     mode=ThinkingMode.FAST,
-                     origin=f"recovery_{origin}",
-                     system_prompt=emergency_prompt
-                 )
-             except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-                 record_degradation('response_processing', e)
-                 logger.error("❌ [RECOVERY] Reactive downshift failed: %s", e)
+            logger.info("🔄 [RECOVERY] Attempting reactive downshift silent retry...")
+            try:
+                emergency_prompt = (
+                    "System recovery: Provide a direct, concise answer to the user's last input. "
+                    "Do not mention recovery, timeouts, or system state. Just answer."
+                )
+                await self.cognitive_engine.think(
+                    self._current_objective,
+                    mode=ThinkingMode.FAST,
+                    origin=f"recovery_{origin}",
+                    system_prompt=emergency_prompt,
+                )
+            except (RuntimeError, AttributeError, TypeError, ValueError) as e:
+                _record_response_processing_degradation(
+                    e,
+                    action="left timeout recovery silent after reactive downshift failed",
+                    severity="error",
+                )
+                logger.error("❌ [RECOVERY] Reactive downshift failed: %s", e)
 
     def _record_message_in_history(self, message: str, role_or_origin: str):
         """Record a message in the conversation history with deduplication and role mapping."""
@@ -433,7 +500,9 @@ class ResponseProcessingMixin:
 
         content = f"{prefix}{message}"
 
-        if not hasattr(self, 'conversation_history') or not isinstance(self.conversation_history, list):
+        if not hasattr(self, "conversation_history") or not isinstance(
+            self.conversation_history, list
+        ):
             self.conversation_history = []
 
         # Deduplication Guard
@@ -441,22 +510,29 @@ class ResponseProcessingMixin:
             logger.debug("Skipping double history append")
             return
 
-        self.conversation_history.append({
-            "role": role,
-            "content": content,
-            "timestamp": time.time()
-        })
+        self.conversation_history.append(
+            {"role": role, "content": content, "timestamp": time.time()}
+        )
 
-    def _check_reflexes(self, message: str) -> Optional[str]:
+    def _check_reflexes(self, message: str) -> str | None:
         """Personality-driven rapid-response triggers (Delegated to ReflexEngine)."""
-        if hasattr(self, 'reflex_engine') and self.reflex_engine:
-
+        if hasattr(self, "reflex_engine") and self.reflex_engine:
             # Phase 4: Text-based Emergency Interrupts
             clean_msg = message.upper().strip()
             import re
-            clean_msg = re.sub(r'[^\w\s]', '', clean_msg)
 
-            if clean_msg in ("STOP", "HALT", "ABORT", "CANCEL", "SHUT UP", "STOP TALKING", "QUIET", "SAFEMODEENGAGE"):
+            clean_msg = re.sub(r"[^\w\s]", "", clean_msg)
+
+            if clean_msg in (
+                "STOP",
+                "HALT",
+                "ABORT",
+                "CANCEL",
+                "SHUT UP",
+                "STOP TALKING",
+                "QUIET",
+                "SAFEMODEENGAGE",
+            ):
                 logger.critical("🚨 [TEXT] Emergency Reflex Triggered via chat: %s", clean_msg)
 
                 # Safemode has a specific literal
@@ -465,7 +541,11 @@ class ResponseProcessingMixin:
 
                 # Fire the reflex asynchronously since we are in a sync generator
                 from core.utils.task_tracker import get_task_tracker
-                get_task_tracker().track(self.reflex_engine.process_emergency_interrupt(clean_msg, context="text_chat"), name="process_emergency_interrupt")
+
+                get_task_tracker().track(
+                    self.reflex_engine.process_emergency_interrupt(clean_msg, context="text_chat"),
+                    name="process_emergency_interrupt",
+                )
 
                 if clean_msg == "SAFEMODE_ENGAGE":
                     return "Safemode engaged. All autonomous cognitive pathways suspended."
@@ -478,7 +558,9 @@ class ResponseProcessingMixin:
                 return self._filter_output(result)
         return None
 
-    async def _check_direct_skill_shortcut(self, message: str, origin: str) -> Optional[dict[str, Any]]:
+    async def _check_direct_skill_shortcut(
+        self, message: str, origin: str
+    ) -> dict[str, Any] | None:
         """
         [CLAUDE AUDIT] Refactored: Delegating shortcuts to Mycelial Network.
         Bypasses LLM for unblockable, high-priority hardwired pathways.
@@ -496,7 +578,11 @@ class ResponseProcessingMixin:
 
         # 1. Match against hardwired pathways (SOMA/Mycelium)
         match_result = mycelium.match_hardwired(message)
-        if not match_result or not isinstance(match_result, (tuple, list)) or len(match_result) != 2:
+        if (
+            not match_result
+            or not isinstance(match_result, (tuple, list))
+            or len(match_result) != 2
+        ):
             return None
 
         pw, params = match_result
@@ -507,7 +593,9 @@ class ResponseProcessingMixin:
             try:
                 from core.constitution import get_constitutional_core
 
-                approved, reason, _authority_decision = await get_constitutional_core(self).approve_response(
+                approved, reason, _authority_decision = await get_constitutional_core(
+                    self
+                ).approve_response(
                     pw.direct_response,
                     source=origin,
                     urgency=0.5,
@@ -521,30 +609,60 @@ class ResponseProcessingMixin:
                     )
                     return None
             except (ImportError, AttributeError, RuntimeError) as exc:
-                record_degradation('response_processing', exc)
+                _record_response_processing_degradation(
+                    exc,
+                    action="yielded direct reflex to full response path after authority gate failed",
+                    severity="error",
+                )
                 logger.debug("Direct reflex authority gate failed: %s", exc)
+                return None
             try:
                 from core.unified_action_log import get_action_log
-                get_action_log().record(f"direct_response:{pw.pathway_id}", f"mycelium:{pw.pathway_id}", "reflex", "bypassed_no_tool", pw.direct_response[:80])
+
+                get_action_log().record(
+                    f"direct_response:{pw.pathway_id}",
+                    f"mycelium:{pw.pathway_id}",
+                    "reflex",
+                    "bypassed_no_tool",
+                    pw.direct_response[:80],
+                )
             except (ImportError, AttributeError, RuntimeError) as _exc:
-                logger.debug("Suppressed %s in core.orchestrator.mixins.response_processing: %s", type(_exc).__name__, _exc)
-            return {"type": "direct_response", "content": pw.direct_response, "pathway_id": pw.pathway_id}
+                logger.debug(
+                    "Suppressed %s in core.orchestrator.mixins.response_processing: %s",
+                    type(_exc).__name__,
+                    _exc,
+                )
+            return {
+                "type": "direct_response",
+                "content": pw.direct_response,
+                "pathway_id": pw.pathway_id,
+            }
 
         # 3. Handle Tool/Skill execution
-        logger.info("🍄 [MYCELIUM] ⚡ Routing to direct skill: %s (params: %s)", pw.skill_name, params)
+        logger.info(
+            "🍄 [MYCELIUM] ⚡ Routing to direct skill: %s (params: %s)", pw.skill_name, params
+        )
         try:
-            self._emit_telemetry(f"Skill: {pw.skill_name} 🍄", pw.activity_label or f"Executing {pw.skill_name}...")
+            self._emit_telemetry(
+                f"Skill: {pw.skill_name} 🍄", pw.activity_label or f"Executing {pw.skill_name}..."
+            )
             result = await self.execute_tool(pw.skill_name, params, origin=origin)
             # Record success for Physarum reinforcement
             mycelium.reinforce(pw.pathway_id, success=True)
             return result
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-            record_degradation('response_processing', e)
+            _record_response_processing_degradation(
+                e,
+                action="yielded mycelial shortcut after direct skill execution failed",
+                severity="error",
+            )
             logger.error("Mycelial shortcut execution failed: %s", e)
             mycelium.reinforce(pw.pathway_id, success=False)
             return None
 
-    async def _attempt_fast_path(self, message: str, origin: str, shortcut_result: Optional[dict]) -> Optional[str]:
+    async def _attempt_fast_path(
+        self, message: str, origin: str, shortcut_result: dict | None
+    ) -> str | None:
         """Try to generate a response without full agentic overhead."""
         is_simple = self._is_simple_conversational(message, origin, bool(shortcut_result))
         if not is_simple:
@@ -560,8 +678,13 @@ class ResponseProcessingMixin:
                     is_user_facing=origin in ("user", "voice", "admin"),
                 )
             except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
-                record_degradation('response_processing', exc)
+                _record_response_processing_degradation(
+                    exc,
+                    action="yielded fast path to full response path after response contract build failed",
+                    severity="error",
+                )
                 logger.error("Fast-path response contract failed: %s", exc, exc_info=True)
+                return None
 
         analysis = analyze_turn(message)
         if contract is not None and (
@@ -583,7 +706,9 @@ class ResponseProcessingMixin:
         try:
             from core.constitution import get_constitutional_core
 
-            approved, reason, authority_decision = await get_constitutional_core(self).approve_response(
+            approved, reason, authority_decision = await get_constitutional_core(
+                self
+            ).approve_response(
                 message[:200],
                 source=origin,
                 urgency=0.4,
@@ -594,8 +719,13 @@ class ResponseProcessingMixin:
                 logger.info("🛑 Fast-path BLOCKED by authority gateway: %s", reason)
                 return None  # Fall through to full agentic loop
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('response_processing', e)
-            logger.debug("Authority gate check failed in fast-path (allowing): %s", e)
+            _record_response_processing_degradation(
+                e,
+                action="yielded fast path to full response path after authority gate failed",
+                severity="error",
+            )
+            logger.debug("Authority gate check failed in fast-path (yielding): %s", e)
+            return None
 
         logger.info("🏎️ FAST-PATH: Authority-approved simple response.")
         from core.brain.cognitive_engine import ThinkingMode
@@ -612,8 +742,13 @@ class ResponseProcessingMixin:
                 context["live_voice_contract"] = {
                     "requires_first_person": True,
                     "ban_assistant_boilerplate": True,
-                    "mood": getattr(getattr(current_state, "affect", None), "dominant_emotion", "neutral"),
-                    "attention_focus": getattr(getattr(current_state, "cognition", None), "attention_focus", "") or message,
+                    "mood": getattr(
+                        getattr(current_state, "affect", None), "dominant_emotion", "neutral"
+                    ),
+                    "attention_focus": getattr(
+                        getattr(current_state, "cognition", None), "attention_focus", ""
+                    )
+                    or message,
                     "free_energy": float(getattr(current_state, "free_energy", 0.0) or 0.0),
                 }
 
@@ -625,13 +760,16 @@ class ResponseProcessingMixin:
         # Note: payload_context isn't passed into _attempt_fast_path by default.
         # But we still want to grab Hot Memory! We can fetch it directly if missing.
         hot_mem_str = ""
-        if hasattr(self, 'memory') and self.memory:
+        if hasattr(self, "memory") and self.memory:
             try:
                 hot_mem = await self.memory.get_hot_memory(limit=5)
                 hot_mem_str = str(hot_mem)
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-                record_degradation('response_processing', e)
-                capture_and_log(e, {'module': __name__})
+                _record_response_processing_degradation(
+                    e,
+                    action="continued fast-path response without hot memory after retrieval failed",
+                )
+                capture_and_log(e, {"module": __name__})
 
         if hot_mem_str:
             context["hot_memory"] = hot_mem_str
@@ -648,10 +786,10 @@ class ResponseProcessingMixin:
             return "I apologize, but my internal stream momentarily stalled. I am still here."
 
         # FIX: Defensive content extraction
-        if hasattr(thought, 'content'):
+        if hasattr(thought, "content"):
             raw_content = thought.content
         elif isinstance(thought, dict):
-            raw_content = thought.get('content', '')
+            raw_content = thought.get("content", "")
         else:
             raw_content = str(thought)
 
@@ -671,8 +809,10 @@ class ResponseProcessingMixin:
         # Record effect with exact receipt_id for audit provenance
         try:
             from core.consciousness.authority_audit import get_audit
-            get_audit().record_effect("response", "fast_path_response",
-                                      response[:80], receipt_id=_fp_receipt_id)
+
+            get_audit().record_effect(
+                "response", "fast_path_response", response[:80], receipt_id=_fp_receipt_id
+            )
         except (ImportError, AttributeError, RuntimeError):
             pass  # no-op: intentional
 
@@ -696,29 +836,77 @@ class ResponseProcessingMixin:
         # If RAM is > 85%, we force ANY short message into fast-path to save the system
         try:
             import psutil
+
             mem = psutil.virtual_memory()
             if mem.percent > 85 and len(message) < 100:
-                logger.info("⚡ VORTEX OVERRIDE: High Memory (%s%%) - Forcing Fast-Path for performance.", mem.percent)
+                logger.info(
+                    "⚡ VORTEX OVERRIDE: High Memory (%s%%) - Forcing Fast-Path for performance.",
+                    mem.percent,
+                )
                 return True
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('response_processing', e)
-            logger.debug('Exception caught during execution: %s', e)
+            _record_response_processing_degradation(
+                e,
+                action="continued simple-conversation routing without memory pressure override",
+            )
+            logger.debug("Exception caught during execution: %s", e)
 
         msg_lower = message.lower()
         # Ensure we only match whole words by splitting
-        words = set(re.findall(r'\b\w+\b', msg_lower))
+        words = set(re.findall(r"\b\w+\b", msg_lower))
 
         # We also check exact phrases - Relaxed thresholds
-        phrases = ["what's up", "whats up", "how are you", "how's it going", "who are you", "how are things", "you okay", "check status"]
+        phrases = [
+            "what's up",
+            "whats up",
+            "how are you",
+            "how's it going",
+            "who are you",
+            "how are things",
+            "you okay",
+            "check status",
+        ]
         has_phrase = any(p in msg_lower for p in phrases)
 
-        chat_triggers = {"hey", "hello", "hi", "yo", "sup", "status", "awesome", "dude", "cool", "thanks", "thx", "ok", "okay"}
+        chat_triggers = {
+            "hey",
+            "hello",
+            "hi",
+            "yo",
+            "sup",
+            "status",
+            "awesome",
+            "dude",
+            "cool",
+            "thanks",
+            "thx",
+            "ok",
+            "okay",
+        }
         has_trigger = has_phrase or bool(words.intersection(chat_triggers))
 
         # Only fast-track if it matches a simple greeting/status trigger
         # Increased length limit from 60 to 150 for 'Vortex' flow
         if len(message) < 150 and has_trigger:
-            commands = ["run", "exec", "search", "browse", "click", "type", "scan", "deploy", "create", "build", "write", "think", "analyze", "evaluate", "open", "fix", "patch"]
+            commands = [
+                "run",
+                "exec",
+                "search",
+                "browse",
+                "click",
+                "type",
+                "scan",
+                "deploy",
+                "create",
+                "build",
+                "write",
+                "think",
+                "analyze",
+                "evaluate",
+                "open",
+                "fix",
+                "patch",
+            ]
             if not any(cmd in msg_lower for cmd in commands):
                 return True
         return False
