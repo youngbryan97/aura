@@ -1,13 +1,22 @@
-from core.runtime.errors import record_degradation
 import asyncio
 import inspect
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from core.config import config
 from core.container import ServiceContainer
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger(__name__)
+
+
+def _record_boot_cognitive_degradation(
+    error: BaseException,
+    *,
+    action: str,
+    severity: str = "warning",
+) -> None:
+    record_degradation("boot_cognitive", error, severity=severity, action=action)
 
 
 class BootCognitiveMixin:
@@ -44,7 +53,7 @@ class BootCognitiveMixin:
                 ce = CognitiveEngine()
                 ServiceContainer.register_instance("cognitive_engine", ce)
                 self.cognition = ce  # Use the setter
-            
+
             # 2. Wire the engine to the skill router
             engine = ServiceContainer.get("capability_engine", default=None)
             assert engine is not None, (
@@ -87,7 +96,11 @@ class BootCognitiveMixin:
             # Unified services are now handled in _async_init_subsystems
             pass  # no-op: intentional
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('boot_cognitive', e)
+            _record_boot_cognitive_degradation(
+                e,
+                action="continued boot with cognitive core wiring marked unavailable",
+                severity="error",
+            )
             logger.error("Cognitive core wiring failed: %s", e, exc_info=True)
 
     async def _init_meta_learning(self):
@@ -98,7 +111,10 @@ class BootCognitiveMixin:
             self.rsi_lab = register_rsi_lab(self)
             logger.info("🔬 RSI Lab online")
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('boot_cognitive', e)
+            _record_boot_cognitive_degradation(
+                e,
+                action="continued boot without RSI lab meta-learning",
+            )
             logger.debug("🔬 RSI Lab skipped: %s", e)
 
     async def _init_concept_bridge(self):
@@ -116,7 +132,10 @@ class BootCognitiveMixin:
 
             logger.info("🛰️  Cryptolalia Decoder online")
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('boot_cognitive', e)
+            _record_boot_cognitive_degradation(
+                e,
+                action="continued boot without concept bridge and cryptolalia decoder",
+            )
             logger.warning("🛰️  Cryptolalia Decoder failed: %s", e)
 
     async def _init_advanced_ontology(self):
@@ -131,7 +150,10 @@ class BootCognitiveMixin:
             self.morphic_forking = register_morphic_forking(self)
             logger.info("🌑 Ontology & Morphic Forking online")
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('boot_cognitive', e)
+            _record_boot_cognitive_degradation(
+                e,
+                action="continued boot without ontology genesis or morphic forking",
+            )
             logger.warning("🌑 Ontology/Forking failed: %s", e)
 
     async def _init_belief_sync_subsystem(self):
@@ -142,7 +164,11 @@ class BootCognitiveMixin:
             self.belief_sync = BeliefSync(self)
             ServiceContainer.register_instance("belief_sync", self.belief_sync)
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('boot_cognitive', e)
+            _record_boot_cognitive_degradation(
+                e,
+                action="registered missing belief_sync service after initialization failed",
+                severity="error",
+            )
             logger.error("BeliefSync init failed: %s", e)
             ServiceContainer.register_instance("belief_sync", None)
 
@@ -158,27 +184,31 @@ class BootCognitiveMixin:
                 ServiceContainer.register_instance("react_loop", self.react_loop)
             logger.info("✓ ReAct Loop online (Multi-step reasoning)")
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('boot_cognitive', e)
+            _record_boot_cognitive_degradation(
+                e,
+                action="continued boot without ReAct reasoning loop",
+                severity="error",
+            )
             logger.error("Failed to init ReAct Loop: %s", e)
 
     async def _init_continuous_learner(self):
         """Initialize the Continuous Learner for weight-level adaptation."""
         try:
-            self.continuous_learner = ServiceContainer.get(
-                "continuous_learner", default=None
-            )
+            self.continuous_learner = ServiceContainer.get("continuous_learner", default=None)
             if not self.continuous_learner:
                 from core.learning.genuine_learning_pipeline import (
                     register_continuous_learner,
                 )
 
                 self.continuous_learner = register_continuous_learner(self)
-                ServiceContainer.register_instance(
-                    "continuous_learner", self.continuous_learner
-                )
+                ServiceContainer.register_instance("continuous_learner", self.continuous_learner)
             logger.info("✓ Continuous Learner online")
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('boot_cognitive', e)
+            _record_boot_cognitive_degradation(
+                e,
+                action="continued boot without continuous learner",
+                severity="error",
+            )
             logger.error("Failed to init Continuous Learner: %s", e)
 
     async def _init_live_learner(self):
@@ -198,25 +228,38 @@ class BootCognitiveMixin:
             ServiceContainer.register_instance("live_learner", ll)
             try:
                 from core.config import config
-                from core.learning.recursive_self_improvement import register_recursive_self_improvement_loop
+                from core.learning.recursive_self_improvement import (
+                    register_recursive_self_improvement_loop,
+                )
                 from core.self_modification.structural_improver import StructuralImprover
 
-                structural = StructuralImprover(getattr(config.paths, "project_root", config.paths.base_dir))
+                structural = StructuralImprover(
+                    getattr(config.paths, "project_root", config.paths.base_dir)
+                )
                 ServiceContainer.register_instance("structural_improver", structural)
                 ServiceContainer.register_instance(
                     "recursive_self_improvement",
                     register_recursive_self_improvement_loop(
                         live_learner=ll,
-                        self_modifier=ServiceContainer.get("self_modification_engine", default=None),
+                        self_modifier=ServiceContainer.get(
+                            "self_modification_engine", default=None
+                        ),
                         structural_improver=structural,
                     ),
                 )
             except (ImportError, AttributeError, RuntimeError) as rsi_err:
-                record_degradation('boot_cognitive', rsi_err)
+                _record_boot_cognitive_degradation(
+                    rsi_err,
+                    action="continued live learner boot without recursive self-improvement loop registration",
+                )
                 logger.debug("Recursive self-improvement loop registration failed: %s", rsi_err)
             logger.info("✓ Live Learner online and buffering")
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('boot_cognitive', e)
+            _record_boot_cognitive_degradation(
+                e,
+                action="continued boot without live learner subsystem",
+                severity="error",
+            )
             logger.error("🛑 Live Learner init failed: %s", e)
 
     async def _initialize_advanced_cognition(self):
@@ -289,7 +332,11 @@ class BootCognitiveMixin:
                             logger.error("   ❌ CIL component not ready: %s", key)
 
             except (ImportError, AttributeError, RuntimeError) as e:
-                record_degradation('boot_cognitive', e)
+                _record_boot_cognitive_degradation(
+                    e,
+                    action=f"continued advanced cognition initialization after attempt {attempt} failed",
+                    severity="error",
+                )
                 logger.error(
                     "Failed to init Advanced Cognition (attempt %d/%d): %s",
                     attempt,
@@ -316,12 +363,13 @@ class BootCognitiveMixin:
             from core.meta.meta_learning_engine import MetaLearningEngine
 
             if hasattr(self, "memory") and self.memory:
-                self.meta_learning = MetaLearningEngine(
-                    self.memory, self.cognitive_engine
-                )
+                self.meta_learning = MetaLearningEngine(self.memory, self.cognitive_engine)
                 logger.info("✓ Meta-Learning Engine active")
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('boot_cognitive', e)
+            _record_boot_cognitive_degradation(
+                e,
+                action="continued boot without meta-learning engine extension",
+            )
             logger.debug("Meta-Learning Engine optional: %s", e)
 
         # World Model & Motivation
@@ -334,12 +382,21 @@ class BootCognitiveMixin:
                 self.simulator = MentalSimulator(self.cognitive_engine)
                 self.goal_hierarchy = GoalHierarchy(self.cognitive_engine)
                 self.aesthetic_critic = AestheticCritic(self.cognitive_engine)
-                ServiceContainer.register_instance("goal_hierarchy", self.goal_hierarchy, required=False)
-                ServiceContainer.register_instance("mental_simulator", self.simulator, required=False)
-                ServiceContainer.register_instance("aesthetic_critic", self.aesthetic_critic, required=False)
+                ServiceContainer.register_instance(
+                    "goal_hierarchy", self.goal_hierarchy, required=False
+                )
+                ServiceContainer.register_instance(
+                    "mental_simulator", self.simulator, required=False
+                )
+                ServiceContainer.register_instance(
+                    "aesthetic_critic", self.aesthetic_critic, required=False
+                )
                 logger.info("✓ Mental Simulation & Intrinsic Motivation active")
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('boot_cognitive', e)
+            _record_boot_cognitive_degradation(
+                e,
+                action="continued boot without mental simulator, goals, or aesthetic critic",
+            )
             logger.debug("Simulation/Motivation modules optional: %s", e)
 
         # Narrative Memory (v11.0 Temporal Narrative)
@@ -350,7 +407,11 @@ class BootCognitiveMixin:
             ServiceContainer.register_instance("narrative_engine", self.narrative_engine)
             logger.info("✓ Narrative Engine initialized")
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('boot_cognitive', e)
+            _record_boot_cognitive_degradation(
+                e,
+                action="continued boot with narrative engine disabled",
+                severity="error",
+            )
             logger.error("Failed to init Narrative Memory: %s", e)
             self.narrative_engine = None
 
@@ -373,11 +434,7 @@ class BootCognitiveMixin:
 
             async def on_post_action_learning(tool_name, params, result):
                 # Learning from research results if it was a search
-                if (
-                    tool_name == "web_search"
-                    and isinstance(result, dict)
-                    and result.get("ok")
-                ):
+                if tool_name == "web_search" and isinstance(result, dict) and result.get("ok"):
                     # results extraction depends on tool schema
                     results = result.get("results", [])
                     if self.learning_engine.knowledge and results:
@@ -391,7 +448,11 @@ class BootCognitiveMixin:
 
             logger.info("✓ Continuous Learning Engine integrated (v6.2 Unified)")
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('boot_cognitive', e)
+            _record_boot_cognitive_degradation(
+                e,
+                action="continued boot without continuous-learning hooks",
+                severity="error",
+            )
             logger.error("Failed to integrate continuous learning: %s", e)
 
         try:
@@ -399,7 +460,10 @@ class BootCognitiveMixin:
 
             integrate_behavior_control(self)
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('boot_cognitive', e)
+            _record_boot_cognitive_degradation(
+                e,
+                action="continued boot without behavior-control integration",
+            )
             logger.error("Failed to integrate behavior control: %s", e)
 
     async def _init_cognitive_architecture(self):
@@ -414,6 +478,7 @@ class BootCognitiveMixin:
         ServiceContainer.register_instance("context_manager", context_manager)
         # Start context manager in background if it's heavy
         from core.utils.task_tracker import fire_and_track
+
         fire_and_track(context_manager.start(), name="context_manager_start")
         logger.info("✓ CognitiveContextManager registered and starting in background")
 
@@ -421,34 +486,34 @@ class BootCognitiveMixin:
         try:
             # 1. Affect Engine (Damasio V2)
             from core.affect.damasio_v2 import AffectEngineV2
+
             affect = ServiceContainer.get("affect_engine", default=None)
-            if affect:
-                ServiceContainer.register_instance("affect_engine", affect)
-                ServiceContainer.register_instance("affect_manager", affect)
-                logger.info(
-                    "✓ AffectEngineV2 (affect_engine/affect_manager) registered"
-                )
-            else:
-                logger.warning("⚠️ AffectEngineV2 not found in container; skipping explicit registration.")
+            if affect is None:
+                affect = AffectEngineV2()
+            ServiceContainer.register_instance("affect_engine", affect)
+            ServiceContainer.register_instance("affect_manager", affect)
+            logger.info("✓ AffectEngineV2 (affect_engine/affect_manager) registered")
 
             # 2. Subsystem Audit
             from core.subsystem_audit import SubsystemAudit
-            audit = ServiceContainer.get("subsystem_audit", default=None)
+
+            audit = ServiceContainer.get("subsystem_audit", default=None) or SubsystemAudit()
+            ServiceContainer.register_instance("subsystem_audit", audit)
 
             # 3. Qualia Synthesizer (Unified)
             # Explicitly register qualia_synthesizer for LoopMonitor tracking.
             # ConsciousnessSystem will resolve it via ServiceContainer or create fresh.
             from core.consciousness.qualia_synthesizer import QualiaSynthesizer
-            synth = ServiceContainer.get("qualia_synthesizer", default=None)
-            if synth:
-                logger.info("✓ QualiaSynthesizer registered (initial registration)")
+
+            synth = ServiceContainer.get("qualia_synthesizer", default=None) or QualiaSynthesizer()
+            ServiceContainer.register_instance("qualia_synthesizer", synth)
+            logger.info("✓ QualiaSynthesizer registered (initial registration)")
 
             from core.consciousness import ConsciousnessSystem
 
-            consciousness = (
-                ServiceContainer.get("consciousness_system", default=None)
-                or ServiceContainer.get("consciousness", default=None)
-            )
+            consciousness = ServiceContainer.get(
+                "consciousness_system", default=None
+            ) or ServiceContainer.get("consciousness", default=None)
             if consciousness is None:
                 consciousness = ConsciousnessSystem(self)
             else:
@@ -456,18 +521,14 @@ class BootCognitiveMixin:
             ServiceContainer.register_instance("consciousness", consciousness)
             ServiceContainer.register_instance("consciousness_system", consciousness)
             # Individual components are pulled from container or initialized by ConsciousnessSystem
-            ServiceContainer.register_instance(
-                "global_workspace", consciousness.global_workspace
-            )
-            ServiceContainer.register_instance(
-                "temporal_binding", consciousness.temporal_binding
-            )
-            ServiceContainer.register_instance(
-                "self_prediction", consciousness.self_prediction
-            )
+            ServiceContainer.register_instance("global_workspace", consciousness.global_workspace)
+            ServiceContainer.register_instance("temporal_binding", consciousness.temporal_binding)
+            ServiceContainer.register_instance("self_prediction", consciousness.self_prediction)
             # Ensure the synthesizer used by ConsciousnessSystem is also registered if not already
-            if consciousness.qualia and not ServiceContainer.get("qualia_synthesizer", default=None):
-                 ServiceContainer.register_instance("qualia_synthesizer", consciousness.qualia)
+            if consciousness.qualia and not ServiceContainer.get(
+                "qualia_synthesizer", default=None
+            ):
+                ServiceContainer.register_instance("qualia_synthesizer", consciousness.qualia)
             logger.info("✓ Consciousness System & components registered")
 
             # Start Consciousness System in background
@@ -476,12 +537,15 @@ class BootCognitiveMixin:
                     await consciousness.start()
                     logger.info("🧠 Consciousness System started in background")
                 except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-                    record_degradation('boot_cognitive', e)
-                    logger.error(
-                        "🛑 Consciousness System background start failed: %s", e
+                    _record_boot_cognitive_degradation(
+                        e,
+                        action="left consciousness system registered but marked background start failed",
+                        severity="error",
                     )
+                    logger.error("🛑 Consciousness System background start failed: %s", e)
 
             from core.utils.task_tracker import fire_and_track
+
             fire_and_track(_start_consciousness(), name="start_consciousness")
 
             # --- PHASE 8: Phenomenological Integration ---
@@ -493,7 +557,11 @@ class BootCognitiveMixin:
             logger.info("🌟 Layer 8: Phenomenological Experiencer active")
 
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('boot_cognitive', e)
+            _record_boot_cognitive_degradation(
+                e,
+                action="continued boot without unified consciousness integration",
+                severity="error",
+            )
             logger.error("Failed to initialize Unified Consciousness/Affect: %s", e)
 
         # 🟢 Additional Cognitive Models
@@ -522,7 +590,11 @@ class BootCognitiveMixin:
             register_prompt_compiler()
             logger.info("✓ PromptCompiler (The Body) registered")
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('boot_cognitive', e)
+            _record_boot_cognitive_degradation(
+                e,
+                action="continued boot without narrator or prompt compiler services",
+                severity="error",
+            )
             logger.error("Failed to register Language/Identity/Compiler services: %s", e)
 
     def _init_strategic_planning(self):
@@ -545,7 +617,11 @@ class BootCognitiveMixin:
             ServiceContainer.register_instance("strategic_planner", planner)
             logger.info("🎯 Strategic Planner & Neural Feed online")
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('boot_cognitive', e)
+            _record_boot_cognitive_degradation(
+                e,
+                action="continued boot with strategic planner and project store disabled",
+                severity="error",
+            )
             logger.error("Failed to initialize Strategic systems: %s", e)
             self.strategic_planner = None
             self.project_store = None

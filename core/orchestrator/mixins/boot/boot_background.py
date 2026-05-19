@@ -1,4 +1,3 @@
-from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import time
@@ -6,8 +5,18 @@ from pathlib import Path
 from typing import Any
 
 from core.container import ServiceContainer
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger(__name__)
+
+
+def _record_boot_background_degradation(
+    error: BaseException,
+    *,
+    action: str,
+    severity: str = "warning",
+) -> None:
+    record_degradation("boot_background", error, severity=severity, action=action)
 
 
 class BootBackgroundMixin:
@@ -21,7 +30,7 @@ class BootBackgroundMixin:
         heartbeat_file = Path.home() / ".aura" / "run" / "heartbeat.pulse"
         logger.info("💓 Heartbeat monitor starting (Lazarus Protocol active)")
         _last_continuity_save = 0.0
-        while getattr(self, '_running', True):
+        while getattr(self, "_running", True):
             try:
                 # 'touch' the file, updating its modification time.
                 # Use a thread for file I/O to avoid blocking the event loop (ASYNC240)
@@ -32,15 +41,15 @@ class BootBackgroundMixin:
                     cont = ServiceContainer.get("continuity", default=None)
                     if cont:
                         last_msg = ""
-                        if (
-                            hasattr(self, "conversation_history")
-                            and self.conversation_history
-                        ):
+                        if hasattr(self, "conversation_history") and self.conversation_history:
                             last_msg = str(self.conversation_history[-1])[:200]
                         cont.save(reason="checkpoint", last_exchange=last_msg)
                     _last_continuity_save = time.time()
             except (ImportError, AttributeError, RuntimeError) as _e:
-                record_degradation('boot_background', _e)
+                _record_boot_background_degradation(
+                    _e,
+                    action="continued heartbeat loop after heartbeat touch or continuity checkpoint failed",
+                )
                 # Fail-silent internally, brainstem will eventually reboot us if this fails repeatedly
                 logger.debug("Ignored Exception in boot.py: %s", _e)
             await asyncio.sleep(10)
@@ -53,7 +62,11 @@ class BootBackgroundMixin:
             scl = register_subconscious_loop(self)
             tracker.create_task(scl.start(), name="subconscious_loop")
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('boot_background', e)
+            _record_boot_background_degradation(
+                e,
+                action="registered missing subconscious_loop service after subsystem initialization failed",
+                severity="error",
+            )
             logger.error("Subconscious Loop init failed: %s", e)
             ServiceContainer.register_instance("subconscious_loop", None)
 
@@ -63,15 +76,15 @@ class BootBackgroundMixin:
             from core.meta_cognition import MetaEvolutionEngine
 
             self.meta_cognition = MetaEvolutionEngine()
-            ServiceContainer.register_instance(
-                "meta_cognition_shard", self.meta_cognition
-            )
+            ServiceContainer.register_instance("meta_cognition_shard", self.meta_cognition)
             ServiceContainer.register_instance("meta_evolution", self.meta_cognition)
-            logger.info(
-                "🌀 [BOOT] Meta-Evolution Engine (meta_cognition_shard) initialized."
-            )
+            logger.info("🌀 [BOOT] Meta-Evolution Engine (meta_cognition_shard) initialized.")
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('boot_background', e)
+            _record_boot_background_degradation(
+                e,
+                action="continued boot without meta-evolution engine after initialization failed",
+                severity="error",
+            )
             logger.error("🛑 [BOOT] Failed to initialize Meta-Evolution Engine: %s", e)
 
     async def _start_belief_sync_at_boot(self, tracker):
@@ -84,11 +97,16 @@ class BootBackgroundMixin:
             ):
                 tracker.create_task(self.belief_sync.start(), name="belief_sync")
         except (RuntimeError, AttributeError, TypeError) as e:
-            record_degradation('boot_background', e)
+            _record_boot_background_degradation(
+                e,
+                action="continued boot without belief-sync loop after scheduling failed",
+                severity="error",
+            )
             logger.error("BeliefSync start failed: %s", e)
 
     async def _proactive_notify_callback(self, content: str, urgency: int):
         """Callback for proactive system messages."""
+
         def _constitutional_runtime_live() -> bool:
             try:
                 return (
@@ -115,7 +133,10 @@ class BootBackgroundMixin:
             if decision.get("action") in {"released", "suppressed"}:
                 return
         except (ImportError, AttributeError, RuntimeError) as exc:
-            record_degradation('boot_background', exc)
+            _record_boot_background_degradation(
+                exc,
+                action="suppressed proactive callback after executive routing failed",
+            )
             logger.debug("Proactive callback executive route failed: %s", exc)
 
         if _constitutional_runtime_live():
@@ -131,7 +152,10 @@ class BootBackgroundMixin:
                     context={"urgency": urgency},
                 )
             except (ImportError, AttributeError, RuntimeError) as degraded_exc:
-                record_degradation('boot_background', degraded_exc)
+                _record_boot_background_degradation(
+                    degraded_exc,
+                    action="suppressed proactive callback after degraded-event logging failed",
+                )
                 logger.debug("Proactive callback degraded-event logging failed: %s", degraded_exc)
             return
 
@@ -147,7 +171,10 @@ class BootBackgroundMixin:
                 context={"urgency": urgency},
             )
         except (ImportError, AttributeError, RuntimeError) as exc:
-            record_degradation('boot_background', exc)
+            _record_boot_background_degradation(
+                exc,
+                action="dropped proactive callback after degraded-event logging failed",
+            )
             logger.debug("Proactive callback degraded-event logging failed: %s", exc)
 
     async def _init_metabolism(self):
@@ -172,7 +199,10 @@ class BootBackgroundMixin:
                 ServiceContainer.register_instance("metabolism", coordinator)
                 logger.info("✓ Metabolic Coordinator ACTIVE (High-level pacing enabled)")
             except (ImportError, AttributeError, RuntimeError) as e:
-                record_degradation('boot_background', e)
+                _record_boot_background_degradation(
+                    e,
+                    action="continued metabolism boot without metabolic coordinator",
+                )
                 logger.error("Failed to initialize Metabolic Coordinator: %s", e)
 
             logger.info("✓ Metabolic Monitor ACTIVE (Decoupled ANS Thread Online)")
@@ -186,12 +216,14 @@ class BootBackgroundMixin:
                 # H-28 FIX: Restoring original color scheme (Purple/Cyan) as requested by user
                 # Acceleration factor > 1.2 triggers the 'Gold' Zenith theme
                 self.status.acceleration_factor = 1.0
-                logger.info(
-                    "✨ Singularity Threshold DETECTED. Subsurface Resonance active."
-                )
+                logger.info("✨ Singularity Threshold DETECTED. Subsurface Resonance active.")
 
             # Phase 21: Dream Cycle (DLQ Re-ingestion) migrated to DreamCoordinator
 
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('boot_background', e)
+            _record_boot_background_degradation(
+                e,
+                action="continued boot without metabolic monitor systems",
+                severity="error",
+            )
             logger.error("Failed to initialize Metabolic systems: %s", e)

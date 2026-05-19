@@ -1,21 +1,30 @@
-from core.runtime.errors import record_degradation
 import asyncio
 import json
 import logging
 import os
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any
 
-from core.container import ServiceContainer
 from core.config import config
-from core.state.state_repository import StateRepository
+from core.container import ServiceContainer
 from core.mind_tick import MindTick
-from core.utils.concurrency import RobustLock, LOCK_SENTINEL
+from core.runtime.errors import record_degradation
+from core.state.state_repository import StateRepository
+from core.utils.concurrency import LOCK_SENTINEL, RobustLock
 
 logger = logging.getLogger(__name__)
 
 _STRICT_TRUE_VALUES = {"1", "true", "yes", "on"}
+
+
+def _record_boot_resilience_degradation(
+    error: BaseException,
+    *,
+    action: str,
+    severity: str = "warning",
+) -> None:
+    record_degradation("boot_resilience", error, severity=severity, action=action)
 
 
 def _strict_runtime_requested() -> bool:
@@ -49,17 +58,17 @@ class BootResilienceMixin:
     auto_fix_enabled: bool
     state_repo: Any
     mind_tick: Any
-    stats: Dict[str, Any]
+    stats: dict[str, Any]
     stealth_mode: Any
     conversation_history: list
-    peers: Dict[str, Any]
+    peers: dict[str, Any]
     hooks: Any
     logger: logging.Logger
     swarm: Any
     substrate: Any
     health_monitor: Any
     state_manager: Any
-    loop: Optional[asyncio.AbstractEventLoop]
+    loop: asyncio.AbstractEventLoop | None
     _lock: Any
     _stop_event: Any
     _history_lock: Any
@@ -73,14 +82,15 @@ class BootResilienceMixin:
     episodic_memory: Any
     tool_learner: Any
 
-    def _init_basic_state(
-        self, config_path: Optional[Path], auto_fix_enabled: Optional[bool]
-    ):
+    def _init_basic_state(self, config_path: Path | None, auto_fix_enabled: bool | None):
         """Initialize basic status, timing, and configuration."""
         from collections import deque
-        from core.utils.hook_manager import HookManager
+
         from core.orchestrator.orchestrator_types import SystemStatus
-        get_stealth_mode = lambda: False  # privacy_stealth removed
+        from core.utils.hook_manager import HookManager
+
+        def get_stealth_mode() -> bool:
+            return False  # privacy_stealth removed
 
         now = time.time()
         self.status = SystemStatus(
@@ -107,7 +117,10 @@ class BootResilienceMixin:
             if not ServiceContainer.has("state_repository"):
                 ServiceContainer.register_instance("state_repository", self.state_repo)
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-            record_degradation('boot_resilience', e)
+            _record_boot_resilience_degradation(
+                e,
+                action="continued boot after state_repository registration was skipped",
+            )
             logger.debug("Skipping state_repository registration in boot mixin: %s", e)
         self.mind_tick = MindTick(self)
 
@@ -163,15 +176,12 @@ class BootResilienceMixin:
         self._last_volition_poll = 0
         self._last_persona_persist = now_mono  # Phase 26.3
         self._active_metabolic_tasks = set()
-        
+
         self._input_hash_cache = deque(maxlen=20)
-        self._input_lock = (
-            None  # Initialized in _async_init_threading
-        )
+        self._input_lock = None  # Initialized in _async_init_threading
 
     def _init_threading(self):
         """Initialize sync primitives to sentinel for safety. Actual init happens in async start."""
-        from core.utils.concurrency import LOCK_SENTINEL
 
         self.loop = None
         self._lock = LOCK_SENTINEL
@@ -184,17 +194,13 @@ class BootResilienceMixin:
     def _async_init_threading(self):
         """Initialize asyncio objects within the running event loop."""
         from concurrent.futures import ThreadPoolExecutor
-        import os
 
         # v51: We isolate cognitive I/O from system I/O to prevent starvation.
         # If the default pool fills up with DB reads, Aura's heartbeat will still fire.
         # [STABILITY v54] Scaling for M-series high parallelism.
         # We increase from 32 to 64 to ensure that even during heavy vision/IPC
         # bursts, the main cognitive heartbeat is never starved of a thread.
-        cog_executor = ThreadPoolExecutor(
-            max_workers=64,
-            thread_name_prefix="Aura_Cognition"
-        )
+        cog_executor = ThreadPoolExecutor(max_workers=64, thread_name_prefix="Aura_Cognition")
         try:
             asyncio.get_running_loop().set_default_executor(cog_executor)
         except RuntimeError:
@@ -225,12 +231,14 @@ class BootResilienceMixin:
             ServiceContainer.register_instance("sovereign_watchdog", self.watchdog)
             logger.info("🛡️  Sovereign Watchdog ACTIVE")
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('boot_resilience', e)
+            _record_boot_resilience_degradation(
+                e,
+                action="continued boot without sovereign watchdog supervision",
+                severity="error",
+            )
             logger.error("Failed to initialize Sovereign Watchdog: %s", e)
 
-        logger.info(
-            "🛡️  Resilience Foundation mapped (Integrations deferred to _integrate_systems)"
-        )
+        logger.info("🛡️  Resilience Foundation mapped (Integrations deferred to _integrate_systems)")
 
     async def _init_meta_optimization(self):
         """Bridge 1: Meta-Optimization Loop."""
@@ -239,11 +247,12 @@ class BootResilienceMixin:
             if modifier and hasattr(modifier, "optimizer"):
                 opt = getattr(modifier, "optimizer", None)
                 if opt:
-                    logger.info(
-                        "🚀 Meta-Optimization Loop registered in Self-Modification Engine"
-                    )
+                    logger.info("🚀 Meta-Optimization Loop registered in Self-Modification Engine")
         except (RuntimeError, AttributeError, TypeError) as e:
-            record_degradation('boot_resilience', e)
+            _record_boot_resilience_degradation(
+                e,
+                action="continued boot without meta-optimization registration",
+            )
             logger.error("Meta-Optimization registration failed: %s", e)
 
     async def _start_state_vault_actor(self):
@@ -258,12 +267,20 @@ class BootResilienceMixin:
                 or getattr(self, "actor_bus", None)
                 or ServiceContainer.get("actor_bus", default=None)
             )
-            sup = getattr(self, "supervisor", None) or ServiceContainer.get("supervisor", default=None)
+            sup = getattr(self, "supervisor", None) or ServiceContainer.get(
+                "supervisor", default=None
+            )
             if sup and hasattr(sup, "is_actor_running") and sup.is_actor_running("state_vault"):
                 parent_pipe = sup.get_actor_pipe("state_vault")
-                if bus and parent_pipe and not getattr(bus, "has_actor", lambda *_: False)("state_vault"):
+                if (
+                    bus
+                    and parent_pipe
+                    and not getattr(bus, "has_actor", lambda *_: False)("state_vault")
+                ):
                     bus.add_actor("state_vault", parent_pipe)
-                    logger.info("🛡️  StateVaultActor transport rebound from existing supervisor actor.")
+                    logger.info(
+                        "🛡️  StateVaultActor transport rebound from existing supervisor actor."
+                    )
                 logger.info("🛡️  StateVaultActor already active. Skipping redundant start.")
                 return
             if bus and getattr(bus, "has_actor", lambda *_: False)("state_vault"):
@@ -281,9 +298,7 @@ class BootResilienceMixin:
             )
 
             if not sup:
-                logger.error(
-                    "❌ Cannot start StateVaultActor: Supervisor Tree not available."
-                )
+                logger.error("❌ Cannot start StateVaultActor: Supervisor Tree not available.")
                 return
 
             sup.add_actor(spec)
@@ -347,7 +362,10 @@ class BootResilienceMixin:
                     logger.debug("Vault ping attempt %d failed. Retrying...", attempt + 1)
                     await asyncio.sleep(0.5)
                 except (OSError, ConnectionError, TimeoutError) as e:
-                    record_degradation('boot_resilience', e)
+                    _record_boot_resilience_degradation(
+                        e,
+                        action="continued StateVaultActor readiness polling after ping attempt failed",
+                    )
                     logger.warning("Vault readiness check error: %s", e)
                     await asyncio.sleep(0.5)
 
@@ -367,7 +385,15 @@ class BootResilienceMixin:
                     logger.info("🛡️  StateVaultActor transport registered with ActorBus (fallback)")
 
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('boot_resilience', e)
+            _record_boot_resilience_degradation(
+                e,
+                action=(
+                    "aborted boot because StateVaultActor startup failed"
+                    if _strict_runtime_requested()
+                    else "continued degraded boot after StateVaultActor startup failed"
+                ),
+                severity="error",
+            )
             logger.error("Failed to start StateVaultActor: %s", e)
             if _strict_runtime_requested():
                 raise
@@ -392,25 +418,33 @@ class BootResilienceMixin:
             if not ServiceContainer.has("episodic_memory"):
                 # memory is usually a coordinator instance or fachada
                 mem_inst = getattr(self, "memory", None)
-                ServiceContainer.register_instance("episodic_memory", getattr(mem_inst, "episodic", mem_inst))
-                
+                ServiceContainer.register_instance(
+                    "episodic_memory", getattr(mem_inst, "episodic", mem_inst)
+                )
+
             if not ServiceContainer.has("liquid_state"):
                 # HUD in server.py expects 'liquid_state' — should be the CTRNN substrate
-                substrate = ServiceContainer.get("liquid_substrate", default=None) or getattr(self, "substrate", None)
+                substrate = ServiceContainer.get("liquid_substrate", default=None) or getattr(
+                    self, "substrate", None
+                )
                 if substrate:
                     ServiceContainer.register_instance("liquid_state", substrate)
                 else:
                     # Last resort fallback
                     affect = getattr(self, "affect", getattr(self, "memory", None))
                     ServiceContainer.register_instance("liquid_state", affect)
-                
+
             logger.info(
                 "🛡️ [BOOT] Resilience foundation established. healthy=%s running=%s",
                 self.status.healthy,
                 self.status.running,
             )
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('boot_resilience', e)
+            _record_boot_resilience_degradation(
+                e,
+                action="continued boot with resilience systems registration incomplete",
+                severity="error",
+            )
             logger.error("Failed to register resilience systems: %s", e)
 
     async def _init_lazarus_brainstem(self):
@@ -420,11 +454,13 @@ class BootResilienceMixin:
 
             self.lazarus = LazarusBrainstem(self)
             ServiceContainer.register_instance("lazarus", self.lazarus)
-            logger.info(
-                "✓ Lazarus Brainstem active (emergency recovery protocols armed)"
-            )
+            logger.info("✓ Lazarus Brainstem active (emergency recovery protocols armed)")
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('boot_resilience', e)
+            _record_boot_resilience_degradation(
+                e,
+                action="continued boot with Lazarus brainstem disabled",
+                severity="error",
+            )
             logger.error("Failed to init Lazarus Brainstem: %s", e)
             self.lazarus = None
 
@@ -463,9 +499,7 @@ class BootResilienceMixin:
                             ConsciousnessAugmentor,
                         )
 
-                        aug_consciousness = ConsciousnessAugmentor(
-                            self.consciousness_core
-                        )
+                        aug_consciousness = ConsciousnessAugmentor(self.consciousness_core)
                         if self.cognitive_engine:
                             self.cognitive_engine.register_augmentor(aug_consciousness)
 
@@ -477,14 +511,24 @@ class BootResilienceMixin:
                             self.cognitive_engine.register_augmentor(aug_web)
 
                     except (ImportError, AttributeError, RuntimeError) as e:
-                        record_degradation('boot_resilience', e)
+                        _record_boot_resilience_degradation(
+                            e,
+                            action="continued self-preservation boot without cognitive augmentors",
+                        )
                         logger.debug("Cognitive augmentor registration failed: %s", e)
             except (ImportError, AttributeError, RuntimeError) as ue:
-                record_degradation('boot_resilience', ue)
+                _record_boot_resilience_degradation(
+                    ue,
+                    action="continued self-preservation boot with unity embodiment deferred",
+                )
                 logger.warning("Unity Embodiment connection deferred: %s", ue)
 
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('boot_resilience', e)
+            _record_boot_resilience_degradation(
+                e,
+                action="continued boot with self-preservation integration disabled",
+                severity="error",
+            )
             logger.error("Failed to integrate self-preservation: %s", e)
 
         # ── v5.0 New Systems ────────────────────────────────────────────
@@ -499,13 +543,20 @@ class BootResilienceMixin:
 
                 vectors = get_container().get("memory_vector")
             except (ImportError, AttributeError, RuntimeError) as _e:
-                record_degradation('boot_resilience', _e)
+                _record_boot_resilience_degradation(
+                    _e,
+                    action="continued episodic-memory boot without vector memory attachment",
+                )
                 logger.debug("memory_vector lookup failed (non-critical): %s", _e)
             self.episodic_memory = get_episodic_memory(vector_memory=vectors)
             ServiceContainer.register_instance("episodic_memory", self.episodic_memory)
             logger.info("✓ Episodic Memory initialized and registered (autobiographical recall)")
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('boot_resilience', e)
+            _record_boot_resilience_degradation(
+                e,
+                action="continued boot with episodic memory disabled",
+                severity="error",
+            )
             logger.error("Failed to init Episodic Memory: %s", e)
             self.episodic_memory = None
 
@@ -516,7 +567,11 @@ class BootResilienceMixin:
             self.tool_learner = tool_learner
             logger.info("✓ Tool Learning System initialized")
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('boot_resilience', e)
+            _record_boot_resilience_degradation(
+                e,
+                action="continued boot with tool learner disabled",
+                severity="error",
+            )
             logger.error("Failed to init Tool Learning: %s", e)
             self.tool_learner = None
 
@@ -531,11 +586,12 @@ class BootResilienceMixin:
                     goal_hierarchy=getattr(self, "goal_hierarchy", None),
                     tool_learner=getattr(self, "tool_learner", None),
                 )
-                logger.info(
-                    "✓ Self-Model wired (beliefs, memory, goals, tool learning)"
-                )
+                logger.info("✓ Self-Model wired (beliefs, memory, goals, tool learning)")
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('boot_resilience', e)
+            _record_boot_resilience_degradation(
+                e,
+                action="continued boot with self-model subsystem wiring deferred",
+            )
             logger.warning("Self-Model wiring deferred: %s", e)
 
     async def _init_system_guardians(self):
@@ -565,15 +621,19 @@ class BootResilienceMixin:
         ServiceContainer.register_instance("system_governor", system_governor)
 
         from core.resilience.stability_guardian import StabilityGuardian
+
         self.stability_guardian = StabilityGuardian(self)
         await self.stability_guardian.start()
         ServiceContainer.register_instance("stability_guardian", self.stability_guardian)
 
-        logger.info("🛡️  MemoryGuard, SystemGovernor, StabilityGuardian and Resilience Engines active")
+        logger.info(
+            "🛡️  MemoryGuard, SystemGovernor, StabilityGuardian and Resilience Engines active"
+        )
 
     def _initialize_logging(self):
         """Initialize logging system"""
         import logging.config
+
         from core.utils.sanitizer import PIIFilter
 
         logging_config = {
@@ -617,7 +677,11 @@ class BootResilienceMixin:
         try:
             logging.config.dictConfig(logging_config)
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-            record_degradation('boot_resilience', e)
+            _record_boot_resilience_degradation(
+                e,
+                action="installed basic logging fallback after structured logging setup failed",
+                severity="error",
+            )
             # Fallback basic logging if file paths fail
             logging.basicConfig(level=logging.INFO)
             logger.error("Failed to setup complex logging: %s", e)
@@ -658,10 +722,11 @@ class BootResilienceMixin:
                     self.status.temporal_drift_s = drift
 
                     if hasattr(self, "reply_queue") and self.reply_queue:
-                        msg = f"[RECOVERY] Resuming interrupted thought: {drift/3600:.1f} hours. Resuming."
+                        msg = f"[RECOVERY] Resuming interrupted thought: {drift / 3600:.1f} hours. Resuming."
                         try:
                             if hasattr(self, "emit_spontaneous_message"):
                                 from core.utils.task_tracker import fire_and_track
+
                                 fire_and_track(
                                     self.emit_spontaneous_message(
                                         msg,
@@ -678,6 +743,7 @@ class BootResilienceMixin:
                                 )
                             elif getattr(self, "output_gate", None):
                                 from core.utils.task_tracker import fire_and_track
+
                                 fire_and_track(
                                     self.output_gate.emit(
                                         msg,
@@ -703,10 +769,16 @@ class BootResilienceMixin:
                                     context={"drift_hours": round(drift / 3600, 3)},
                                 )
                         except (ImportError, AttributeError, RuntimeError) as exc:
-                            record_degradation('boot_resilience', exc)
+                            _record_boot_resilience_degradation(
+                                exc,
+                                action="continued temporal recovery after output routing failed",
+                            )
                             logger.debug("Recovery output routing failed: %s", exc)
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('boot_resilience', e)
+            _record_boot_resilience_degradation(
+                e,
+                action="continued boot without temporal drift recovery calculation",
+            )
             logger.error("Failed to calculate temporal drift: %s", e)
 
     def _init_global_registration(self):
@@ -753,14 +825,16 @@ class BootResilienceMixin:
 
             pending = cognitive_wal.recover_state()
             if pending:
-                logger.info(
-                    "💾 WAL: Found %s interrupted thoughts. Resuming...", len(pending)
-                )
+                logger.info("💾 WAL: Found %s interrupted thoughts. Resuming...", len(pending))
                 for intent in pending:
                     msg = f"[RECOVERY] Resuming interrupted thought: {intent.get('action')} -> {intent.get('target')}"
                     logger.info(msg)
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('boot_resilience', e)
+            _record_boot_resilience_degradation(
+                e,
+                action="continued boot after WAL recovery replay failed",
+                severity="error",
+            )
             logger.error("WAL recovery failed: %s", e)
 
     def _initialize_skills(self):
@@ -777,7 +851,11 @@ class BootResilienceMixin:
                 self.status.skills_loaded,
             )
         except (RuntimeError, AttributeError, TypeError) as e:
-            record_degradation('boot_resilience', e)
+            _record_boot_resilience_degradation(
+                e,
+                action="continued boot with skill discovery incomplete",
+                severity="error",
+            )
             logger.error("Failed to initialize skills: %s", e)
 
     async def _init_sovereign_scanner(self):
@@ -793,6 +871,10 @@ class BootResilienceMixin:
             )  # Compatibility
             logger.info("✓ Integrity Guard initialized and running")
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('boot_resilience', e)
+            _record_boot_resilience_degradation(
+                e,
+                action="continued boot with integrity guard disabled",
+                severity="error",
+            )
             logger.error("Failed to initialize Integrity Guard: %s", e)
             self.integrity_guard = None
