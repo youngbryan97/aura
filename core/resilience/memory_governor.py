@@ -1,20 +1,42 @@
-"""Aura Zenith Memory Governor.
-Enforces resource constraints for 64GB M5 Pro stability.
-"""
+import asyncio
+import gc
+import logging
+import os
+import sqlite3
+import time
+from typing import Any
+
+import psutil
+
+from core.memory.physics import hawking_decay
 from core.runtime.errors import record_degradation
 from core.utils.exceptions import capture_and_log
 from core.utils.task_tracker import get_task_tracker
-import asyncio
-import logging
-import os
-import time
-from typing import Optional, Any
-import psutil
-
-
-from core.memory.physics import hawking_decay
 
 logger = logging.getLogger("Aura.Resilience.MemoryGovernor")
+
+
+_PROCESS_INSPECTION_ERRORS = (
+    psutil.NoSuchProcess,
+    psutil.AccessDenied,
+    psutil.ZombieProcess,
+)
+_MODEL_UNLOAD_ERRORS = (
+    AttributeError,
+    ConnectionError,
+    OSError,
+    RuntimeError,
+    TimeoutError,
+    TypeError,
+    ValueError,
+)
+_RSS_SAMPLE_ERRORS = (
+    AttributeError,
+    RuntimeError,
+    TypeError,
+) + _PROCESS_INSPECTION_ERRORS
+_PROCESS_TERMINATION_ERRORS = _PROCESS_INSPECTION_ERRORS + (OSError,)
+
 
 class MemoryGovernor:
     """Monitors system memory and enforces pruning/unloading thresholds.
@@ -27,14 +49,14 @@ class MemoryGovernor:
     def __init__(self, orchestrator: Any):
         self.orchestrator = orchestrator
         self.is_running = False
-        self._task: Optional[asyncio.Task] = None
+        self._task: asyncio.Task | None = None
         self._proc = psutil.Process(os.getpid())
-        
+
         # Thresholds in MB (scaled for 64GB M5 Pro)
         self.threshold_prune = 32768
         self.threshold_unload = 48000
         self.threshold_critical = 56000
-        
+
         self.check_interval = 60.0  # Seconds
         self._last_vacuum_time = time.monotonic()
         self._last_vector_prune_time = time.monotonic()
@@ -49,6 +71,51 @@ class MemoryGovernor:
         self._last_critical_action_time = 0.0
         self._last_prune_rss_mb = 0.0
         self._last_unload_rss_mb = 0.0
+        self._loop_failure_count = 0
+        self._last_policy_sample: dict[str, float] = {}
+        self._cleanup_events: list[dict[str, Any]] = []
+
+    def health_snapshot(self) -> dict[str, Any]:
+        """Return a compact operational view for health probes and dashboards."""
+        return {
+            "running": self.is_running,
+            "task_alive": self._task is not None and not self._task.done(),
+            "loop_failure_count": self._loop_failure_count,
+            "thresholds_mb": {
+                "prune": self.threshold_prune,
+                "unload": self.threshold_unload,
+                "critical": self.threshold_critical,
+            },
+            "last_policy_sample": dict(self._last_policy_sample),
+            "recent_cleanup_events": list(self._cleanup_events[-10:]),
+        }
+
+    def _remember_cleanup_event(self, action: str, status: str, detail: str = "") -> None:
+        self._cleanup_events.append(
+            {
+                "at": time.time(),
+                "action": action,
+                "status": status,
+                "detail": detail[:240],
+            }
+        )
+        if len(self._cleanup_events) > 40:
+            self._cleanup_events = self._cleanup_events[-40:]
+
+    def _record_degradation(
+        self,
+        exc: BaseException,
+        *,
+        action: str,
+        severity: str = "degraded",
+    ):
+        self._remember_cleanup_event(action, "degraded", f"{type(exc).__name__}: {exc}")
+        return record_degradation(
+            "memory_governor",
+            exc,
+            severity=severity,
+            action=action,
+        )
 
     def _iter_managed_runtime_processes(self):
         """Yield heavyweight local-runtime processes owned by Aura."""
@@ -60,7 +127,11 @@ class MemoryGovernor:
                 if getattr(proc, "pid", None) is not None
             }
         except (RuntimeError, AttributeError, TypeError) as exc:
-            record_degradation('memory_governor', exc)
+            self._record_degradation(
+                exc,
+                severity="warning",
+                action="skipped managed-runtime RSS scan after child process inspection failed",
+            )
             logger.debug("Memory Governor: could not inspect child process tree: %s", exc)
             descendant_pids = set()
 
@@ -75,7 +146,7 @@ class MemoryGovernor:
                 cmd_str = " ".join(cmdline)
                 if "llama-server" in cmd_str or "mlx_worker.py" in cmd_str or "MTLCompilerService" in cmd_str:
                     yield proc
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
+            except _PROCESS_INSPECTION_ERRORS:
                 continue
 
     def _managed_runtime_rss_mb(self) -> float:
@@ -85,7 +156,7 @@ class MemoryGovernor:
                 mem_info = proc.info.get('memory_info')
                 rss = getattr(mem_info, 'rss', 0) if mem_info is not None else proc.memory_info().rss
                 total_mb += rss / (1024 * 1024)
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
+            except _PROCESS_INSPECTION_ERRORS:
                 continue
         return total_mb
 
@@ -121,7 +192,10 @@ class MemoryGovernor:
             await self._critical_cleanup()
             logger.info("🛡️ Memory Governor shutdown complete. All worker handles purged.")
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-            record_degradation('memory_governor', e)
+            self._record_degradation(
+                e,
+                action="completed memory-governor shutdown after critical cleanup failed",
+            )
             logger.error("Error during Memory Governor shutdown: %s", e)
 
     async def _run_loop(self):
@@ -131,19 +205,42 @@ class MemoryGovernor:
                 await self._enforce_policy()
                 await self._periodic_vector_prune()
                 await self._periodic_db_vacuum()
+                self._loop_failure_count = 0
                 await asyncio.sleep(self.check_interval)
             except asyncio.CancelledError:
                 break
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-                record_degradation('memory_governor', e)
+                self._loop_failure_count += 1
+                self._record_degradation(
+                    e,
+                    action=(
+                        "backed off memory-governor loop after policy failure "
+                        f"#{self._loop_failure_count}"
+                    ),
+                )
                 logger.error("Memory Governor loop error: %s", e)
+                if self._loop_failure_count >= 3:
+                    reclaimed = gc.collect()
+                    self._remember_cleanup_event(
+                        "loop_failure_gc",
+                        "ok",
+                        f"collected={reclaimed}",
+                    )
                 await asyncio.sleep(10)
 
     async def _enforce_policy(self):
         """Check RSS memory and system-wide RAM to trigger cleanup actions."""
         now = time.monotonic()
         # 1. Check Process Memory
-        rss_mb = self._proc.memory_info().rss / (1024 * 1024)
+        try:
+            rss_mb = self._proc.memory_info().rss / (1024 * 1024)
+        except _RSS_SAMPLE_ERRORS as exc:
+            self._record_degradation(
+                exc,
+                severity="warning",
+                action="continued memory policy with zero core RSS after process sample failed",
+            )
+            rss_mb = 0.0
         runtime_rss_mb = self._managed_runtime_rss_mb()
         managed_rss_mb = rss_mb + runtime_rss_mb
         logger.debug(
@@ -160,6 +257,13 @@ class MemoryGovernor:
         except (ImportError, AttributeError, RuntimeError):
             vm = psutil.virtual_memory()
             sys_percent = vm.percent
+        self._last_policy_sample = {
+            "core_rss_mb": rss_mb,
+            "runtime_rss_mb": runtime_rss_mb,
+            "managed_rss_mb": managed_rss_mb,
+            "system_percent": float(sys_percent),
+            "sampled_at": time.time(),
+        }
 
         if sys_percent > 98.0:
             logger.critical("🚨 HIGH RAM: System at %.1f%%. Checking for idle local-runtime workers.", sys_percent)
@@ -180,7 +284,12 @@ class MemoryGovernor:
                         )
                         proc.kill()
                         idle_purged += 1
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                except _PROCESS_INSPECTION_ERRORS as exc:
+                    self._record_degradation(
+                        exc,
+                        severity="warning",
+                        action="continued neural purge after idle runtime worker disappeared or was denied",
+                    )
                     continue
             
             if idle_purged > 0:
@@ -230,69 +339,115 @@ class MemoryGovernor:
             else:
                 logger.debug("Memory Governor: prune skipped (cooldown or stable baseline).")
 
-    async def _prune_memory(self):
-        """Trigger strategic forgetting in vector and dual memory (Hawking Decay)."""
-        try:
-            # 1. Hawking Decay for DualMemory (Episodic/Semantic)
-            if hasattr(self.orchestrator, "memory_manager"):
-                mm = self.orchestrator.memory_manager
-                if hasattr(mm, "dual_memory") and mm.dual_memory:
-                    dm = mm.dual_memory
-                    evaporated = 0
-                    
-                    if hasattr(dm, "episodic") and dm.vault_key:
-                        episodes = dm.episodic.get_all_episodes()
-                        for ep in episodes:
-                            decay = hawking_decay(int(ep.timestamp * 1000), dm.vault_key)
-                            if decay["fidelity"] < 0.1:
-                                # Evaporate completely
-                                with __import__('sqlite3').connect(dm.episodic.db_path) as conn:
-                                     conn.execute("DELETE FROM episodes WHERE id=?", (ep.id,))
-                                evaporated += 1
-                            else:
-                                # Update strength
-                                ep.decay_rate = 1.0 - decay["fidelity"]
-                                dm.episodic.store(ep)
-                        if evaporated > 0:
-                             logger.info("🌌 Hawking Decay: Evaporated %d forgotten episodes.", evaporated)
+    async def _prune_memory(self) -> dict[str, int]:
+        """Trigger strategic forgetting in vector and dual memory without cross-lane blockage."""
+        result = {"episodes_evaporated": 0, "vectors_pruned": 0}
+        mm = getattr(self.orchestrator, "memory_manager", None)
+        if mm is None:
+            self._remember_cleanup_event("prune_memory", "skipped", "memory_manager unavailable")
+            return result
 
-            # 2. Legacy Vector Memory Pruning
-            if hasattr(self.orchestrator, "memory_manager"):
-                mm = self.orchestrator.memory_manager
-                if hasattr(mm, "vector") and mm.vector:
-                    # Prune memories older than 30 days with low salience
-                    pruned = mm.vector.prune_low_salience(threshold_days=30, min_salience=-0.2)
-                    if pruned > 0:
-                        logger.info("✅ Pruned %d low-salience vectors.", pruned)
-        except (sqlite3.Error, OSError) as e:
-            record_degradation('memory_governor', e)
-            logger.error("Failed to prune memory: %s", e)
+        dm = getattr(mm, "dual_memory", None)
+        if dm:
+            try:
+                episodic = getattr(dm, "episodic", None)
+                vault_key = getattr(dm, "vault_key", None)
+                if episodic and vault_key:
+                    episodes = episodic.get_all_episodes()
+                    for ep in episodes:
+                        decay = hawking_decay(int(ep.timestamp * 1000), vault_key)
+                        if decay["fidelity"] < 0.1:
+                            with sqlite3.connect(episodic.db_path) as conn:
+                                conn.execute("DELETE FROM episodes WHERE id=?", (ep.id,))
+                            result["episodes_evaporated"] += 1
+                        else:
+                            ep.decay_rate = 1.0 - decay["fidelity"]
+                            episodic.store(ep)
+                    if result["episodes_evaporated"] > 0:
+                        logger.info(
+                            "🌌 Hawking Decay: Evaporated %d forgotten episodes.",
+                            result["episodes_evaporated"],
+                        )
+            except (sqlite3.Error, OSError, RuntimeError, AttributeError, TypeError, ValueError) as e:
+                self._record_degradation(
+                    e,
+                    action="continued vector pruning after dual-memory Hawking decay failed",
+                )
+                logger.error("Dual-memory pruning failed: %s", e)
 
-    async def _unload_models(self):
-        """Unload LLM models from VRAM/RAM."""
-        try:
-            if hasattr(self.orchestrator, "llm_router"):
-                await self.orchestrator.llm_router.unload_models()
+        vector = getattr(mm, "vector", None)
+        if vector:
+            try:
+                pruned = vector.prune_low_salience(threshold_days=30, min_salience=-0.2) or 0
+                result["vectors_pruned"] = int(pruned)
+                if result["vectors_pruned"] > 0:
+                    logger.info("✅ Pruned %d low-salience vectors.", result["vectors_pruned"])
+            except (RuntimeError, AttributeError, TypeError, ValueError, sqlite3.Error, OSError) as e:
+                self._record_degradation(
+                    e,
+                    action="completed memory prune pass after vector pruning failed",
+                )
+                logger.error("Vector memory pruning failed: %s", e)
+
+        self._remember_cleanup_event(
+            "prune_memory",
+            "ok",
+            f"episodes={result['episodes_evaporated']} vectors={result['vectors_pruned']}",
+        )
+        return result
+
+    def _clear_mlx_cache(self, mx: Any) -> None:
+        if hasattr(mx, "metal") and hasattr(mx.metal, "clear_cache"):
+            mx.metal.clear_cache()
+        else:
+            mx.clear_cache()
+
+    async def _unload_models(self) -> dict[str, int]:
+        """Unload LLM models from VRAM/RAM while keeping each recovery lane independent."""
+        result = {
+            "router_unloaded": 0,
+            "background_workers_shed": 0,
+            "local_runtime_lanes_rebooted": 0,
+            "mlx_cache_cleared": 0,
+            "cognitive_nucleus_unloaded": 0,
+        }
+
+        llm_router = getattr(self.orchestrator, "llm_router", None)
+        if llm_router and hasattr(llm_router, "unload_models"):
+            try:
+                await llm_router.unload_models()
+                result["router_unloaded"] = 1
                 logger.info("✅ LLM models unloaded from memory.")
+            except _MODEL_UNLOAD_ERRORS as e:
+                self._record_degradation(
+                    e,
+                    action="continued model unload sweep after llm_router unload failed",
+                )
+                logger.error("LLM router unload failed: %s", e)
 
-            try:
-                from core.container import ServiceContainer
+        try:
+            from core.container import ServiceContainer
 
-                gate = ServiceContainer.get("inference_gate", default=None)
-                if gate and hasattr(gate, "_shed_background_workers_for_memory_pressure"):
-                    await gate._shed_background_workers_for_memory_pressure()
-            except (ImportError, AttributeError, RuntimeError) as e:
-                record_degradation('memory_governor', e)
-                logger.debug("InferenceGate background shed skipped: %s", e)
+            gate = ServiceContainer.get("inference_gate", default=None)
+            if gate and hasattr(gate, "_shed_background_workers_for_memory_pressure"):
+                await gate._shed_background_workers_for_memory_pressure()
+                result["background_workers_shed"] = 1
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as e:
+            self._record_degradation(
+                e,
+                severity="warning",
+                action="continued model unload sweep without inference-gate background shedding",
+            )
+            logger.debug("InferenceGate background shed skipped: %s", e)
 
-            try:
-                from core.brain.llm.local_server_client import _SERVER_CLIENTS
-                from core.brain.llm.model_registry import PRIMARY_ENDPOINT
+        try:
+            from core.brain.llm.local_server_client import _SERVER_CLIENTS
+            from core.brain.llm.model_registry import PRIMARY_ENDPOINT
 
-                unloaded = 0
-                for client in list(_SERVER_CLIENTS.values()):
-                    if client is None:
-                        continue
+            for client in list(_SERVER_CLIENTS.values()):
+                if client is None:
+                    continue
+                try:
                     if getattr(client, "_lane_name", "") == PRIMARY_ENDPOINT:
                         continue
                     if hasattr(client, "_is_runtime_resident") and not client._is_runtime_resident():
@@ -302,42 +457,87 @@ class MemoryGovernor:
                             reason="memory_governor_unload",
                             mark_failed=False,
                         )
-                        unloaded += 1
-                if unloaded:
-                    logger.info("✅ Local runtime lanes unloaded: %d", unloaded)
-            except (ImportError, AttributeError, RuntimeError) as e:
-                record_degradation('memory_governor', e)
-                logger.debug("Local runtime unload skipped: %s", e)
-            
-            # v50: Aggressive MLX VRAM Purge
-            try:
-                import mlx.core as mx
-                try:
-                    from core.utils.gpu_sentinel import get_gpu_sentinel, GPUPriority
-                    sentinel = get_gpu_sentinel()
-                    if sentinel.acquire(priority=GPUPriority.REFLEX, timeout=5.0):
-                        try:
-                            if hasattr(mx, 'metal') and hasattr(mx.metal, 'clear_cache'):
-                                mx.metal.clear_cache()
-                            else:
-                                mx.clear_cache()
-                            logger.info("🌿 [MLX] Metal cache cleared aggressively.")
-                        finally:
-                            sentinel.release()
-                except (ImportError, AttributeError, RuntimeError) as e:
-                    record_degradation('memory_governor', e)
-                    logger.debug("[MLX] Cache clear skipped: %s", e)
-            except ImportError as _e:
-                logger.debug('Ignored ImportError in memory_governor.py: %s', _e)
+                        result["local_runtime_lanes_rebooted"] += 1
+                except _MODEL_UNLOAD_ERRORS as e:
+                    self._record_degradation(
+                        e,
+                        action="continued unloading remaining local runtime lanes after client reboot failed",
+                    )
+                    logger.debug("Local runtime client unload failed: %s", e)
+            if result["local_runtime_lanes_rebooted"]:
+                logger.info("✅ Local runtime lanes unloaded: %d", result["local_runtime_lanes_rebooted"])
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as e:
+            self._record_degradation(
+                e,
+                severity="warning",
+                action="continued model unload sweep without local runtime registry access",
+            )
+            logger.debug("Local runtime unload skipped: %s", e)
 
-            # Also notify cognitive engine to clear caches
-            if hasattr(self.orchestrator, "cognitive_engine"):
-                 ce = self.orchestrator.cognitive_engine
-                 if ce and hasattr(ce, "nucleus") and ce.nucleus:
-                      await ce.nucleus.unload_models()
-        except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('memory_governor', e)
-            logger.error("Failed to unload models: %s", e)
+        try:
+            import mlx.core as mx
+        except ImportError as e:
+            logger.debug("MLX cache clear skipped because mlx is unavailable: %s", e)
+        else:
+            sentinel = None
+            acquired = False
+            try:
+                from core.utils.gpu_sentinel import GPUPriority, get_gpu_sentinel
+
+                sentinel = get_gpu_sentinel()
+                acquired = sentinel.acquire(priority=GPUPriority.REFLEX, timeout=5.0)
+                if not acquired:
+                    raise TimeoutError("GPU sentinel was busy during memory pressure cleanup")
+                self._clear_mlx_cache(mx)
+                result["mlx_cache_cleared"] = 1
+                logger.info("🌿 [MLX] Metal cache cleared aggressively.")
+            except (ImportError, AttributeError) as e:
+                self._record_degradation(
+                    e,
+                    severity="warning",
+                    action="cleared MLX cache without GPU sentinel because sentinel was unavailable",
+                )
+                try:
+                    self._clear_mlx_cache(mx)
+                    result["mlx_cache_cleared"] = 1
+                except _MODEL_UNLOAD_ERRORS as cache_exc:
+                    self._record_degradation(
+                        cache_exc,
+                        action="continued model unload sweep after direct MLX cache clear failed",
+                    )
+                    logger.debug("[MLX] Direct cache clear failed: %s", cache_exc)
+            except _MODEL_UNLOAD_ERRORS as e:
+                self._record_degradation(
+                    e,
+                    action="continued model unload sweep after MLX cache clear failed",
+                )
+                logger.debug("[MLX] Cache clear skipped: %s", e)
+            finally:
+                if acquired and sentinel is not None:
+                    try:
+                        sentinel.release()
+                    except RuntimeError as e:
+                        self._record_degradation(
+                            e,
+                            severity="warning",
+                            action="completed MLX cache cleanup after GPU sentinel release failed",
+                        )
+
+        ce = getattr(self.orchestrator, "cognitive_engine", None)
+        nucleus = getattr(ce, "nucleus", None) if ce else None
+        if nucleus and hasattr(nucleus, "unload_models"):
+            try:
+                await nucleus.unload_models()
+                result["cognitive_nucleus_unloaded"] = 1
+            except _MODEL_UNLOAD_ERRORS as e:
+                self._record_degradation(
+                    e,
+                    action="completed model unload sweep after cognitive nucleus unload failed",
+                )
+                logger.error("Cognitive nucleus unload failed: %s", e)
+
+        self._remember_cleanup_event("unload_models", "ok", str(result))
+        return result
 
     async def _periodic_db_vacuum(self):
         """Prevents SQLite file bloat and fragmentation without locking the loop."""
@@ -351,7 +551,11 @@ class MemoryGovernor:
                 await asyncio.to_thread(db_coord.vacuum_all_databases)
                 self._last_vacuum_time = time.monotonic()
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('memory_governor', e)
+            self._record_degradation(
+                e,
+                severity="warning",
+                action="scheduled database vacuum skipped after coordinator failure",
+            )
             logger.error("VACUUM Failed: %s", e)
 
     async def _periodic_vector_prune(self):
@@ -362,26 +566,46 @@ class MemoryGovernor:
             await self._prune_memory()
             self._last_vector_prune_time = time.monotonic()
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-            record_degradation('memory_governor', e)
+            self._record_degradation(
+                e,
+                action="left vector-prune schedule unchanged after periodic prune failure",
+            )
             logger.error("Periodic vector prune failed: %s", e)
 
     async def _critical_cleanup(self):
         """Maximum effort cleanup."""
         logger.critical("🚨 NEURAL PURGE: Killing heavy local-runtime workers to recover system RAM.")
         
-        await self._unload_models()
-        
+        unload_result = await self._unload_models()
+
         # v7.2.3: Force kill heavy runtime processes if they are hanging/heavy
+        killed = 0
         try:
             for proc in self._iter_managed_runtime_processes():
-                cmdline = proc.info.get('cmdline') or []
-                cmd_str = " ".join(cmdline)
-                if "llama-server" in cmd_str or "mlx_worker.py" in cmd_str or "MTLCompilerService" in cmd_str:
-                    logger.warning("🚨 NEURAL PURGE: Forcible termination of heavy MLX/Metal process (PID: %d, Name: %s)", 
-                                   proc.info['pid'], proc.info['name'])
-                    proc.kill()
-        except (OSError, ConnectionError, TimeoutError) as e:
-            record_degradation('memory_governor', e)
+                try:
+                    cmdline = proc.info.get('cmdline') or []
+                    cmd_str = " ".join(cmdline)
+                    if "llama-server" in cmd_str or "mlx_worker.py" in cmd_str or "MTLCompilerService" in cmd_str:
+                        logger.warning(
+                            "🚨 NEURAL PURGE: Forcible termination of heavy MLX/Metal process "
+                            "(PID: %d, Name: %s)",
+                            proc.info['pid'],
+                            proc.info['name'],
+                        )
+                        proc.kill()
+                        killed += 1
+                except _PROCESS_TERMINATION_ERRORS as e:
+                    self._record_degradation(
+                        e,
+                        severity="warning",
+                        action="continued critical cleanup after runtime process termination failed",
+                    )
+                    logger.debug("Failed to kill managed runtime process: %s", e)
+        except (OSError, ConnectionError, TimeoutError, RuntimeError, AttributeError, TypeError) as e:
+            self._record_degradation(
+                e,
+                action="continued critical cleanup after runtime process sweep failed",
+            )
             logger.error("Failed to kill heavy processes: %s", e)
 
         # Integrated Adrenaline Surge: Signal distress to AffectEngine
@@ -390,24 +614,31 @@ class MemoryGovernor:
             affect = ServiceContainer.get("affect", default=None)
             if affect and hasattr(affect, "react"):
                 get_task_tracker().create_task(affect.react("critical_resource_exhaustion", {"intensity": 1.0}))
-        except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('memory_governor', e)
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as e:
+            self._record_degradation(
+                e,
+                severity="warning",
+                action="continued critical cleanup without affect distress signal",
+            )
             logger.debug("Failed to trigger adrenaline surcharge: %s", e)
 
-        await self._prune_memory()
-        
+        prune_result = await self._prune_memory()
+
         # Trigger explicit GC
-        import gc
-        gc.collect()
-        
+        collected = gc.collect()
+
         # Signal metabolism engine to slow down
         try:
             from core.container import ServiceContainer
             metabolism = ServiceContainer.get("metabolic_monitor", default=None)
             if metabolism and hasattr(metabolism, "force_rest"):
                 await metabolism.force_rest(duration=300)
-        except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('memory_governor', e)
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as e:
+            self._record_degradation(
+                e,
+                severity="warning",
+                action="continued critical cleanup without metabolic rest signal",
+            )
             capture_and_log(e, {'module': __name__})
 
         # v50 Hardening: Reclaim Metal Compiler Context immediately after purge
@@ -417,6 +648,15 @@ class MemoryGovernor:
             if root and hasattr(root, "force_compiler_wake"):
                 logger.info("🌿 [MEMORY GOVERNOR] Reclaiming Metal context post-purge...")
                 root.force_compiler_wake()
-        except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('memory_governor', e)
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as e:
+            self._record_degradation(
+                e,
+                severity="warning",
+                action="completed critical cleanup without platform-root compiler pulse",
+            )
             logger.error("Failed to pulse platform root: %s", e)
+        self._remember_cleanup_event(
+            "critical_cleanup",
+            "ok",
+            f"killed={killed} gc={collected} unload={unload_result} prune={prune_result}",
+        )

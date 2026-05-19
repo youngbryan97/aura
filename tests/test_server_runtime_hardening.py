@@ -1902,6 +1902,82 @@ def test_memory_governor_only_counts_descendant_runtime_workers(monkeypatch):
     assert [proc.info["pid"] for proc in managed] == [111]
 
 
+def test_memory_governor_degradation_audit_is_clean():
+    from tools.audit_degradation import analyze_file
+
+    assert analyze_file(Path("core/resilience/memory_governor.py")) == []
+
+
+@pytest.mark.asyncio
+async def test_memory_governor_prune_failure_does_not_block_vector_prune(monkeypatch, tmp_path):
+    from core.resilience.memory_governor import MemoryGovernor
+
+    class EpisodicStore:
+        db_path = str(tmp_path / "missing" / "episodes.db")
+
+        def get_all_episodes(self):
+            return [SimpleNamespace(timestamp=1.0, id="episode-1")]
+
+    class VectorStore:
+        def __init__(self):
+            self.pruned = False
+
+        def prune_low_salience(self, *, threshold_days, min_salience):
+            self.pruned = True
+            assert threshold_days == 30
+            assert min_salience == -0.2
+            return 1
+
+    vector = VectorStore()
+    governor = MemoryGovernor(
+        SimpleNamespace(
+            memory_manager=SimpleNamespace(
+                dual_memory=SimpleNamespace(episodic=EpisodicStore(), vault_key=b"vault"),
+                vector=vector,
+            )
+        )
+    )
+    monkeypatch.setattr(
+        "core.resilience.memory_governor.hawking_decay",
+        lambda *_args, **_kwargs: {"fidelity": 0.0},
+    )
+
+    result = await governor._prune_memory()
+
+    assert result == {"episodes_evaporated": 0, "vectors_pruned": 1}
+    assert vector.pruned is True
+    assert any("dual-memory Hawking decay failed" in event["action"] for event in governor.health_snapshot()["recent_cleanup_events"])
+
+
+@pytest.mark.asyncio
+async def test_memory_governor_unload_lanes_continue_after_router_failure(monkeypatch):
+    from core.resilience.memory_governor import MemoryGovernor
+
+    gate = SimpleNamespace(_shed_background_workers_for_memory_pressure=AsyncMock())
+    nucleus = SimpleNamespace(unload_models=AsyncMock())
+    router = SimpleNamespace(unload_models=AsyncMock(side_effect=RuntimeError("router stuck")))
+    governor = MemoryGovernor(
+        SimpleNamespace(
+            llm_router=router,
+            cognitive_engine=SimpleNamespace(nucleus=nucleus),
+        )
+    )
+    monkeypatch.setattr(
+        "core.container.ServiceContainer.get",
+        lambda name, default=None: gate if name == "inference_gate" else default,
+    )
+    monkeypatch.setattr("core.brain.llm.local_server_client._SERVER_CLIENTS", {}, raising=False)
+
+    result = await governor._unload_models()
+
+    assert result["router_unloaded"] == 0
+    assert result["background_workers_shed"] == 1
+    assert result["cognitive_nucleus_unloaded"] == 1
+    gate._shed_background_workers_for_memory_pressure.assert_awaited_once()
+    nucleus.unload_models.assert_awaited_once()
+    assert any("llm_router unload failed" in event["action"] for event in governor.health_snapshot()["recent_cleanup_events"])
+
+
 def test_stability_guardian_treats_single_slow_tick_as_non_degraded_signal():
     guardian = StabilityGuardian(SimpleNamespace(start_time=time.time()))
     guardian._tick_times.append((time.time() - 1.0, 19097.0))
