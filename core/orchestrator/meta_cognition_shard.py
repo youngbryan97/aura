@@ -1,17 +1,28 @@
-from core.runtime.errors import record_degradation
-from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 import time
+from typing import Any
+
 try:
     import numpy as np
 except ImportError:
     np = None
-from datetime import datetime, timedelta
-from typing import List, Dict, Any, Optional, Union
+
 from core.runtime.background_policy import background_activity_reason
+from core.runtime.errors import record_degradation
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.MetaCognition")
+
+
+def _record_meta_degradation(
+    exc: BaseException,
+    *,
+    action: str,
+    severity: str = "warning",
+) -> None:
+    record_degradation("meta_cognition_shard", exc, severity=severity, action=action)
+
 
 class MetaCognitionShard:
     """
@@ -22,16 +33,19 @@ class MetaCognitionShard:
     def __init__(self, orchestrator: Any):
         self.orchestrator = orchestrator
         self.is_running = False
-        self._audit_task: Optional[asyncio.Task] = None
+        self._audit_task: asyncio.Task | None = None
         self._last_audit_time: float = 0
         self._history_hash_log = [] # To detect repetition loops
         self._audit_lock = asyncio.Lock() # Prevent re-entrant audits
+        self._loop_failure_count = 0
+        self._corrections_pushed: list[dict[str, Any]] = []
+        self._last_audit_report: dict[str, Any] = {}
         
     def start(self):
         if self.is_running:
             return
         self.is_running = True
-        self._audit_task = get_task_tracker().create_task(self._audit_loop())
+        self._audit_task = get_task_tracker().create_task(self._audit_loop(), name="meta_cognition.audit_loop")
         logger.info("🧠 Meta-Cognition Shard ONLINE.")
 
     def _background_block_reason(self) -> str:
@@ -47,7 +61,10 @@ class MetaCognitionShard:
                 or ""
             )
         except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
-            record_degradation('meta_cognition_shard', exc)
+            _record_meta_degradation(
+                exc,
+                action="allowed meta-cognitive audit after background gate probe failed",
+            )
             logger.error("Meta-Cognition background gate failed: %s", exc, exc_info=True)
             return ""
 
@@ -60,10 +77,15 @@ class MetaCognitionShard:
                     logger.debug("🧠 Meta-Cognitive Audit deferred: %s", reason)
                     continue
                 await self.perform_audit()
+                self._loop_failure_count = 0
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-                record_degradation('meta_cognition_shard', e)
+                self._loop_failure_count += 1
+                _record_meta_degradation(
+                    e,
+                    action=f"backed off meta-cognition audit loop after failure #{self._loop_failure_count}",
+                )
                 logger.error("Meta-Cognition audit loop failed: %s", e)
-                await asyncio.sleep(10)
+                await asyncio.sleep(min(10 * self._loop_failure_count, 60))
 
     async def evolve(self):
         """v35 Hardening: Atomic evolution with validation."""
@@ -78,41 +100,81 @@ class MetaCognitionShard:
             
             logger.info("🧠 Meta-Evolution cycle completed successfully (v35).")
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-            record_degradation('meta_cognition_shard', e)
+            _record_meta_degradation(
+                e,
+                action="aborted meta-evolution cycle without applying self-modification",
+                severity="degraded",
+            )
             logger.error("Meta-Evolution failed: %s", e)
 
     async def _validate_stability(self) -> bool:
         """Checks if the system is stable enough for self-modification."""
         try:
             # Check for recent latency spikes or affective collapse
-            if await self._detect_latency_spike(): return False
-            if await self._detect_affective_collapse(): return False
+            if await self._detect_latency_spike():
+                return False
+            if await self._detect_affective_collapse():
+                return False
             
             # Check if orchestrator is in a healthy state
             if not getattr(self.orchestrator.status, "healthy", True):
                 return False
                 
             return True
-        except (RuntimeError, AttributeError, TypeError):
+        except (RuntimeError, AttributeError, TypeError) as exc:
+            _record_meta_degradation(
+                exc,
+                action="blocked meta-evolution because stability validation failed closed",
+            )
             return False
 
-    async def perform_audit(self):
+    async def perform_audit(self) -> dict[str, Any]:
         """Analyze system health and conversation metrics."""
+        if self._audit_lock.locked():
+            self._last_audit_report = {
+                "at": time.time(),
+                "status": "skipped",
+                "reason": "audit_already_running",
+                "corrections": [],
+            }
+            return self._last_audit_report
+
         logger.info("🧠 Running Meta-Cognitive Audit...")
-        
-        # 1. Loop Detection
-        if await self._detect_repetition_loop():
-            await self._push_correction("repetition_break", "System detected a repetition loop. Increasing temperature and diversifying response strategy.")
-            
-        # 2. Performance Audit
-        if await self._detect_latency_spike():
-            await self._push_correction("latency_mitigation", "System latency is high. Enabling aggressive pruning and short-form responses.")
 
-        # 3. Emotional Coherence Audit (via Mycelium)
-        if await self._detect_affective_collapse():
-            await self._push_correction("emotional_reset", "Internal affective state is unstable. Applying grounding protocols.")
+        async with self._audit_lock:
+            corrections: list[str] = []
 
-        self._last_audit_time = time.time()
+            # 1. Loop Detection
+            if await self._detect_repetition_loop():
+                if await self._push_correction(
+                    "repetition_break",
+                    "System detected a repetition loop. Increasing temperature and diversifying response strategy.",
+                ):
+                    corrections.append("repetition_break")
+
+            # 2. Performance Audit
+            if await self._detect_latency_spike():
+                if await self._push_correction(
+                    "latency_mitigation",
+                    "System latency is high. Enabling aggressive pruning and short-form responses.",
+                ):
+                    corrections.append("latency_mitigation")
+
+            # 3. Emotional Coherence Audit (via Mycelium)
+            if await self._detect_affective_collapse():
+                if await self._push_correction(
+                    "emotional_reset",
+                    "Internal affective state is unstable. Applying grounding protocols.",
+                ):
+                    corrections.append("emotional_reset")
+
+            self._last_audit_time = time.time()
+            self._last_audit_report = {
+                "at": self._last_audit_time,
+                "status": "ok",
+                "corrections": corrections,
+            }
+            return self._last_audit_report
 
     async def _detect_repetition_loop(self) -> bool:
         """Detect loops in conversation history or state hashes."""
@@ -139,8 +201,11 @@ class MetaCognitionShard:
             if len(asst_messages) >= 3 and len(set(asst_messages[-3:])) == 1:
                 logger.warning("🧠 DETECTED TRIVIAL REPETITION LOOP (N=1)")
                 return True
-        except (OSError, ConnectionError, TimeoutError) as e:
-            record_degradation('meta_cognition_shard', e)
+        except (OSError, ConnectionError, TimeoutError, AttributeError, RuntimeError, TypeError, ValueError) as e:
+            _record_meta_degradation(
+                e,
+                action="treated repetition-loop detector as inconclusive after history read failed",
+            )
             logger.debug("Repetition detection error: %s", e)
         return False
 
@@ -155,7 +220,10 @@ class MetaCognitionShard:
                         logger.warning("🧠 DETECTED LATENCY SPIKE / STALL (Delta: %ss)", f"{delta:.2f}")
                         return True
         except (RuntimeError, AttributeError, TypeError) as e:
-            record_degradation('meta_cognition_shard', e)
+            _record_meta_degradation(
+                e,
+                action="treated latency-spike detector as inconclusive after status read failed",
+            )
             logger.warning("Latency check failed: %s", e)
         return False
 
@@ -169,20 +237,55 @@ class MetaCognitionShard:
                     logger.warning("🧠 DETECTED AFFECTIVE COLLAPSE (Volatility: %s)", f"{volatility:.2f}")
                     return True
         except (RuntimeError, AttributeError, TypeError) as e:
-            record_degradation('meta_cognition_shard', e)
+            _record_meta_degradation(
+                e,
+                action="treated affective-collapse detector as inconclusive after liquid-state read failed",
+            )
             logger.warning("Affective audit failed: %s", e)
         return False
 
-    async def _push_correction(self, correction_type: str, hint: str):
+    async def _push_correction(self, correction_type: str, hint: str) -> bool:
         """Inject a corrective shard into the next inference cycle."""
         logger.info("🧠 Pushing %s correction: %s", correction_type, hint)
         try:
+            formatted_hint = f"[{correction_type.upper()}] {hint}"
             if hasattr(self.orchestrator, "add_correction_shard"):
-                # Format hint to include type
-                formatted_hint = f"[{correction_type.upper()}] {hint}"
                 self.orchestrator.add_correction_shard(formatted_hint)
             else:
-                logger.debug("Correction logged (orchestrator missing add_correction_shard): %s", hint)
+                fallback = getattr(self.orchestrator, "meta_cognitive_corrections", None)
+                if fallback is None:
+                    fallback = []
+                    self.orchestrator.meta_cognitive_corrections = fallback
+                fallback.append(formatted_hint)
+                status = getattr(self.orchestrator, "status", None)
+                metrics = getattr(status, "health_metrics", None)
+                if isinstance(metrics, dict):
+                    metrics["meta_cognitive_corrections"] = list(fallback[-10:])
+                logger.debug("Correction stored in meta_cognitive_corrections: %s", hint)
+            self._corrections_pushed.append(
+                {
+                    "type": correction_type,
+                    "hint": formatted_hint,
+                    "at": time.time(),
+                }
+            )
+            self._corrections_pushed = self._corrections_pushed[-50:]
+            return True
         except (RuntimeError, AttributeError, TypeError) as e:
-            record_degradation('meta_cognition_shard', e)
+            _record_meta_degradation(
+                e,
+                action=f"failed closed while pushing meta-cognitive correction {correction_type}",
+                severity="degraded",
+            )
             logger.error("Failed to push correction: %s", e)
+            return False
+
+    def get_status(self) -> dict[str, Any]:
+        return {
+            "running": self.is_running,
+            "task_alive": self._audit_task is not None and not self._audit_task.done(),
+            "last_audit_time": self._last_audit_time,
+            "loop_failure_count": self._loop_failure_count,
+            "last_audit_report": dict(self._last_audit_report),
+            "recent_corrections": list(self._corrections_pushed[-10:]),
+        }
