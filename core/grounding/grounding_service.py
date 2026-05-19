@@ -64,6 +64,13 @@ from core.runtime.receipts import (
 logger = logging.getLogger(__name__)
 
 
+def _record_grounding_degradation(exc: BaseException, action: str) -> None:
+    try:
+        record_degradation("grounding_service", exc, severity="warning", action=action)
+    except TypeError:
+        record_degradation("grounding_service", exc)
+
+
 # Will-decision contract: callers inject a function with this shape.
 # Returning ``{"outcome": "proceed", ...}`` allows; any other outcome
 # (refuse, defer, constrain) blocks the plastic update.  Real Aura
@@ -291,10 +298,10 @@ class GroundingService:
                 will_outcome = str(will_decision.get("outcome", "proceed")).lower()
                 will_reason = str(will_decision.get("reason", ""))
                 will_receipt_id = will_decision.get("receipt_id")
-            except (OSError, ConnectionError, TimeoutError) as e:
+            except Exception as e:
                 # Fail-closed: if the Will errors we treat the update
                 # as refused rather than silently bypassing it.
-                record_degradation("grounding_service", e)
+                _record_grounding_degradation(e, action="Will decision failed")
                 logger.debug("Grounding Will decision failed: %s", e)
                 will_outcome = "refuse"
                 will_reason = f"will_decide_raised:{type(e).__name__}"
@@ -314,8 +321,8 @@ class GroundingService:
             from core.will import is_plastic_target_allowed
 
             target_allowed = is_plastic_target_allowed(self.PLASTIC_MODULE_NAME)
-        except (ImportError, AttributeError, RuntimeError) as exc:
-            record_degradation("grounding_service", exc)
+        except Exception as exc:
+            _record_grounding_degradation(exc, action="plastic target allow-list lookup failed")
             logger.debug("Grounding plastic target allow-list lookup failed: %s", exc)
             target_allowed = True  # be lenient if Will isn't importable
 
@@ -364,9 +371,9 @@ class GroundingService:
                         governance_receipt_id=will_receipt_id,
                     )
                 )
-            except (OSError, ConnectionError, TimeoutError) as exc:
+            except Exception as exc:
                 # Receipt failure must not break the learning loop.
-                record_degradation("grounding_service", exc)
+                _record_grounding_degradation(exc, action="semantic weight receipt emission failed")
                 logger.debug("Grounding semantic weight receipt emission failed: %s", exc)
 
         return out

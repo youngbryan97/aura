@@ -406,7 +406,7 @@ class IntentClassifierQueue:
                 continue  # Normal idle timeout, loop continues
             except asyncio.CancelledError:
                 break
-            except (OSError, ConnectionError, TimeoutError) as e:
+            except Exception as e:
                 record_degradation('intent_gate', e)
                 if future is not None and not future.done():
                     future.set_result(RouteResult(kind=RouteKind.PASSTHROUGH))

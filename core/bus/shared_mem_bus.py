@@ -233,7 +233,7 @@ class SharedMemoryTransport:
         except FileExistsError:
             # Already exists, just attach
             await self.attach()
-        except (ImportError, AttributeError, RuntimeError) as e:
+        except (ImportError, AttributeError, RuntimeError, OSError) as e:
             record_degradation('shared_mem_bus', e)
             if self._should_use_file_fallback(e):
                 logger.warning(
@@ -271,7 +271,7 @@ class SharedMemoryTransport:
                 else:
                     logger.error("❌ Shared memory segment not found after %s attempts: %s", max_retries, self.name)
                     raise
-            except (RuntimeError, AttributeError, TypeError) as e:
+            except (RuntimeError, AttributeError, TypeError, OSError) as e:
                 record_degradation('shared_mem_bus', e)
                 if self._should_use_file_fallback(e):
                     if fallback_path.exists():

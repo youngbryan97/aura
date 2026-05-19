@@ -352,7 +352,8 @@ class InferenceGate:
 
     def _log_cortex_warmup_deferral(self, reason: str, *, context: str) -> None:
         now = time.monotonic()
-        if (now - self._last_cortex_warmup_deferral_log_at) < 30.0:
+        last_log = getattr(self, "_last_cortex_warmup_deferral_log_at", 0.0)
+        if (now - last_log) < 30.0:
             return
         self._last_cortex_warmup_deferral_log_at = now
         logger.warning("⏸️ Cortex %s warmup deferred to protect RAM: %s", context, reason)

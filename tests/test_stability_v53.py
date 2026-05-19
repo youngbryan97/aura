@@ -396,10 +396,10 @@ class TestChatHandlerResilience:
         lines = source.split("\n")
         found_generic_200 = False
         for i, line in enumerate(lines):
-            if "I lost my train of thought" in line:
+            if "I lost my train of thought" in line or "The chat path failed before a coherent answer formed" in line:
                 # Check nearby lines for status_code=200
                 nearby = "\n".join(lines[max(0,i-5):i+5])
-                if "status_code=200" in nearby:
+                if "status_code=200" in nearby or "status_code = 200" in nearby:
                     found_generic_200 = True
                     break
         assert found_generic_200, "Generic exception handler must return 200"

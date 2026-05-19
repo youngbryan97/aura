@@ -33,6 +33,12 @@ import psutil
 
 from core.runtime.errors import record_degradation
 
+def _record_fe_degradation(exc: BaseException, action: str) -> None:
+    try:
+        record_degradation("free_energy", exc, severity="warning", action=action)
+    except TypeError:
+        record_degradation("free_energy", exc)
+
 logger = logging.getLogger(__name__)
 
 
@@ -239,8 +245,8 @@ class FreeEnergyEngine:
             n = max(1, len(beliefs))
             return min(3.0, total_kl / n)
 
-        except (OSError, ConnectionError, TimeoutError) as e:
-            record_degradation('free_energy', e)
+        except Exception as e:
+            _record_fe_degradation(e, action="belief KL computation failed")
             logger.debug("Belief KL computation failed: %s", e)
             return 0.1
 
@@ -267,8 +273,8 @@ class FreeEnergyEngine:
 
             # Normalize by max entropy (log(4))
             return min(1.0, entropy / math.log(4))
-        except (ImportError, OSError, AttributeError) as exc:
-            record_degradation("free_energy", exc)
+        except Exception as exc:
+            _record_fe_degradation(exc, action="system entropy computation failed")
             logger.debug("System entropy computation failed, using neutral fallback: %s", exc)
             return 0.3
 

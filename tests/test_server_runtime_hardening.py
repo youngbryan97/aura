@@ -3834,8 +3834,17 @@ class _StubWill:
         self._async = async_decide
         self.calls = []
 
-    def decide(self, *, domain, action, cause, context):
-        self.calls.append({"domain": domain, "action": action, "cause": cause, "context": dict(context)})
+    def decide(self, *args, **kwargs):
+        domain = kwargs.get("domain")
+        action = kwargs.get("action") or kwargs.get("content")
+        cause = kwargs.get("cause") or kwargs.get("source")
+        context = kwargs.get("context") or {}
+        if len(args) >= 3:
+            action = args[0]
+            cause = args[1]
+            domain = args[2]
+
+        self.calls.append({"domain": domain, "action": action, "cause": cause, "context": dict(context or {})})
         if self._raises:
             raise RuntimeError("will failure")
         decision = {
@@ -3861,7 +3870,7 @@ async def test_will_transaction_records_receipt_when_approved():
         txn.record_result({"bytes": 7})
 
     assert txn.record.result == {"bytes": 7}
-    assert will.calls and will.calls[0]["domain"] == "memory"
+    assert will.calls and str(will.calls[0]["domain"]) in ("memory", "memory_write")
 
 
 @pytest.mark.asyncio

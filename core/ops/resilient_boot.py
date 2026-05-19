@@ -24,6 +24,11 @@ _STRICT_CRITICAL_STAGES = {
 def _strict_runtime_requested() -> bool:
     return str(os.environ.get("AURA_STRICT_RUNTIME", "0")).strip().lower() in _STRICT_TRUE_VALUES
 
+
+def _record_boot_degradation(exc: BaseException, action: str, severity: str = "warning") -> None:
+    record_degradation("resilient_boot", exc, severity=severity, action=action)
+
+
 class BootStatus(Enum):
     HEALTHY = "HEALTHY"
     DEGRADED = "DEGRADED"
@@ -110,7 +115,7 @@ class ResilientBoot:
                 from core.reaper import register_reaper_pid
                 register_reaper_pid(os.getpid())
             except (ImportError, AttributeError, RuntimeError) as e:
-                record_degradation('resilient_boot', e)
+                _record_boot_degradation(e, action="reaper PID registration failed")
                 logger.debug("ResilientBoot: failed to register reaper PID: %s", e)
             
             for name, stage_fn in self.stages:
@@ -130,8 +135,8 @@ class ResilientBoot:
                             f"Strict runtime critical boot stage failed: {name} (Timeout)"
                         ) from None
                     await self._apply_fallback(name)
-                except (OSError, ConnectionError, TimeoutError) as e:
-                    record_degradation('resilient_boot', e)
+                except Exception as e:
+                    _record_boot_degradation(e, action=f"boot stage failed: {name}")
                     logger.error("💥 [BOOT] Stage '%s' FAILED: %s. Applying fallback.", name, e)
                     # Immediate immunity audit
                     immunity.audit_error(e, {"stage": name})
@@ -283,7 +288,7 @@ class ResilientBoot:
                     logger.info("📡 StateVaultActor responded to handshake (Attempt %d)", attempt + 1)
                     break
             except (OSError, ConnectionError, TimeoutError) as e:
-                record_degradation('resilient_boot', e)
+                _record_boot_degradation(e, action=f"state vault actor handshake attempt {attempt + 1} failed")
                 logger.debug("Handshake attempt %d failed: %s", attempt + 1, e)
             await asyncio.sleep(0.5)
         
@@ -365,7 +370,7 @@ class ResilientBoot:
                 ServiceContainer.register_instance("sovereign_ears", ears)
                 logger.info("   👂 SovereignEars: DEFERRED (Lazy-init enabled)")
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-                record_degradation('resilient_boot', e)
+                _record_boot_degradation(e, action="SovereignEars initialization failed")
                 logger.warning("   ⚠️ SovereignEars: INIT_FAILED: %s", e)
         else:
             logger.warning("   ⚠️ SovereignEars: MISSING (Optional module)")
@@ -378,7 +383,7 @@ class ResilientBoot:
                 ServiceContainer.register_instance("voice_engine", voice)
                 logger.info("   🗣️ VoiceEngine: READY")
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-                record_degradation('resilient_boot', e)
+                _record_boot_degradation(e, action="VoiceEngine initialization failed")
                 logger.warning("   ⚠️ VoiceEngine: INIT_FAILED: %s", e)
         else:
             logger.warning("   ⚠️ VoiceEngine: MISSING (Optional module)")
@@ -389,7 +394,7 @@ class ResilientBoot:
             if vision:
                 logger.info("   👁️ Continuous Vision: ACTIVE")
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('resilient_boot', e)
+            _record_boot_degradation(e, action="continuous vision service check failed", severity="debug")
             logger.debug("ResilientBoot: vision service check failed: %s", e)
 
     def _pre_ignition_health_check(self):
@@ -415,7 +420,7 @@ class ResilientBoot:
                      logger.warning("💉 [IMMUNE] Log Sieve found %d prior issues. System is self-correcting.", len(hidden))
 
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('resilient_boot', e)
+            _record_boot_degradation(e, action="pre-ignition health check failed")
             logger.error("💉 [IMMUNE] Pre-Ignition Check failed: %s", e)
 
     async def _apply_fallback(self, stage_name: str):

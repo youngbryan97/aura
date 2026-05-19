@@ -139,7 +139,7 @@ class ConcreteMemoryWriteGateway(MemoryWriteGatewayBase):
             )
             if asyncio.iscoroutine(decision):
                 decision = await decision
-        except (OSError, ConnectionError, TimeoutError) as exc:
+        except Exception as exc:
             record_degradation('memory_write_gateway', exc)
             logger.warning(
                 "MemoryWriteGateway governance call failed; denying write (fail-closed): %s",
