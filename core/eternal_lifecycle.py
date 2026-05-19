@@ -17,7 +17,9 @@ async def eternal_lifecycle():
     
     logger.info("♾️ Eternal Lifecycle engaged.")
     
-    while True:
+    from core.runtime.shutdown_coordinator import is_shutdown_requested
+
+    while not is_shutdown_requested():
         try:
             rt = CoreRuntime.get_sync()
             mem = psutil.virtual_memory().percent

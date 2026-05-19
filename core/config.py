@@ -481,10 +481,10 @@ class AuraConfig(BaseSettings):
         # 3. Fail-fast on critical missing infrastructure in PROD
         if self.env == Environment.PROD:
             if not self.api_token:
-                print("CRITICAL ERROR: Missing AURA_API_TOKEN for PROD environment.")
+                logger.critical("CRITICAL ERROR: Missing AURA_API_TOKEN for PROD environment.")
                 sys.exit(1)
             if not os.environ.get("GEMINI_API_KEY"):
-                print("CRITICAL ERROR: Missing GEMINI_API_KEY for PROD environment.")
+                logger.critical("CRITICAL ERROR: Missing GEMINI_API_KEY for PROD environment.")
                 sys.exit(1)
             
         return self

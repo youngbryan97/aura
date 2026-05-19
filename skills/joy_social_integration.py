@@ -139,6 +139,9 @@ class JoySocialCoordinator:
             while True:
                 try:
                     await self.tick()
+                except asyncio.CancelledError:
+                    logger.info("🌟 JoySocial background tick cancelled — exiting")
+                    return
                 except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
                     logger.error("JoySocial background tick error: %s", exc, exc_info=True)
                 await asyncio.sleep(interval)
