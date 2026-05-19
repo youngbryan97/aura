@@ -7,6 +7,17 @@ from .orchestrator_types import OrchestratorState
 
 logger = logging.getLogger(__name__)
 
+
+def _record_state_degradation(
+    exc: BaseException,
+    *,
+    action: str,
+    severity: str = "warning",
+) -> None:
+    """Record state degradation in the state mixin."""
+    record_degradation("state", exc, severity=severity, action=action)
+
+
 class OrchestratorStateMixin:
     """Mixin handling state persistence and restoration."""
 
@@ -16,7 +27,7 @@ class OrchestratorStateMixin:
             state = self._compile_state_data()
             await self.state_manager.save_snapshot_async(state.model_dump(), reason)
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-            record_degradation('state', e)
+            _record_state_degradation(e, action="continued orchestrator lifecycle without saving async snapshot", severity="error")
             logger.error("Error in async state save: %s", e)
 
     def _compile_state_data(self) -> OrchestratorState:
@@ -40,7 +51,7 @@ class OrchestratorStateMixin:
             state = self._compile_state_data()
             self.state_manager.save_snapshot(state.model_dump(), reason)
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-            record_degradation('state', e)
+            _record_state_degradation(e, action="continued orchestrator lifecycle without saving synchronous snapshot", severity="error")
             logger.error("Error saving state: %s", e)
 
     def _load_state(self):
@@ -67,7 +78,7 @@ class OrchestratorStateMixin:
             
             logger.info("System state restored successfully (%s)", history_mode)
         except (OSError, ConnectionError, TimeoutError) as e:
-            record_degradation('state', e)
+            _record_state_degradation(e, action="continued boot with fresh state after loading snapshot failed", severity="error")
             logger.error("Error loading state: %s", e)
 
     def _restore_core_metrics(self, data: Dict[str, Any]):
@@ -79,7 +90,7 @@ class OrchestratorStateMixin:
             if metrics:
                 self.stats.update(metrics)
         except (OSError, ConnectionError, TimeoutError) as e:
-            record_degradation('state', e)
+            _record_state_degradation(e, action="skipped core metrics restoration from snapshot")
             logger.warning("Failed to restore core metrics: %s", e)
 
     def _restore_history(self, data: Dict[str, Any]):
@@ -92,7 +103,7 @@ class OrchestratorStateMixin:
             elif not isinstance(history, list):
                 logger.warning("Attempted to restore history but data was not a list. Ignoring.")
         except (OSError, ConnectionError, TimeoutError) as e:
-            record_degradation('state', e)
+            _record_state_degradation(e, action="skipped conversation history restoration from snapshot")
             logger.warning("Failed to restore history: %s", e)
 
     def _restore_cognition(self, data: Dict[str, Any]):
@@ -105,7 +116,7 @@ class OrchestratorStateMixin:
             if self.cognitive_engine and hasattr(self.cognitive_engine, "seed_thoughts"):
                 self.cognitive_engine.seed_thoughts(thoughts)
         except (OSError, ConnectionError, TimeoutError) as e:
-            record_degradation('state', e)
+            _record_state_degradation(e, action="skipped cognitive thought restoration from snapshot")
             logger.warning("Failed to restore cognition: %s", e)
 
     def _restore_active_plans(self, data: Dict[str, Any]):
@@ -123,7 +134,7 @@ class OrchestratorStateMixin:
                         )
                         logger.info("Restored goal: %s", goal_data.get('description', '?')[:50])
                     except (OSError, ConnectionError, TimeoutError) as ge:
-                        record_degradation('state', ge)
+                        _record_state_degradation(ge, action="skipped restoring specific goal from snapshot")
                         logger.warning("Skipped restoring goal: %s", ge)
             
             # Restore in-progress objectives
@@ -135,5 +146,5 @@ class OrchestratorStateMixin:
             if goals:
                 logger.info("Plan restoration complete: %d goals recovered", len(goals))
         except (OSError, ConnectionError, TimeoutError) as e:
-            record_degradation('state', e)
+            _record_state_degradation(e, action="skipped active plans restoration from snapshot")
             logger.warning("Failed to restore active plans: %s", e)

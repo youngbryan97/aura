@@ -11,6 +11,17 @@ from .orchestrator_types import SystemStatus
 
 logger = logging.getLogger(__name__)
 
+
+def _record_services_degradation(
+    exc: BaseException,
+    *,
+    action: str,
+    severity: str = "warning",
+) -> None:
+    """Record degradation inside orchestrator services mixin."""
+    record_degradation("services", exc, severity=severity, action=action)
+
+
 class OrchestratorServicesMixin:
     """Mixin for service resolution and property getters."""
 
@@ -55,8 +66,8 @@ class OrchestratorServicesMixin:
                 classification="background_degraded",
                 context={"alias": alias or "", "error": type(error).__name__ if error else ""},
             )
-        except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
-            record_degradation('services', exc)
+        except Exception as exc:
+            _record_services_degradation(exc, action="continued processing missing service notice despite degraded-event logging error")
             logger.debug("Critical service degraded-event logging failed for %s: %s", name, exc)
 
     def _get_service(self, name: str, alias: Optional[str] = None, *, critical: bool = False) -> Any:
@@ -73,8 +84,8 @@ class OrchestratorServicesMixin:
         if critical and self._runtime_live():
             try:
                 return require_service(name, alias)
-            except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
-                record_degradation('services', exc)
+            except Exception as exc:
+                _record_services_degradation(exc, action="fell back to optional service resolution after critical service requirement lookup failed")
                 service_error = exc
                 logger.debug("Critical service lookup failed for '%s' (alias=%s): %s", name, alias, exc)
 
@@ -82,8 +93,8 @@ class OrchestratorServicesMixin:
             val = optional_service(name, alias, default=None)
             if val is not None:
                 return val
-        except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-            record_degradation('services', e)
+        except Exception as e:
+            _record_services_degradation(e, action="continued service lookup by returning None after optional service resolution failed")
             service_error = service_error or e
             logger.debug("Service lookup failed for '%s' (alias=%s): %s", name, alias, e)
 

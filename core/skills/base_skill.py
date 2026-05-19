@@ -13,6 +13,7 @@ from core.runtime.errors import record_degradation
 import asyncio
 import builtins
 import logging
+import sqlite3
 import time
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional, Tuple, Type
@@ -21,6 +22,17 @@ from pydantic import BaseModel
 
 
 logger = logging.getLogger("Skills")
+
+
+def _record_skill_degradation(
+    exc: BaseException,
+    *,
+    action: str,
+    severity: str = "warning",
+) -> None:
+    """Record degradation inside base skill execution."""
+    record_degradation("base_skill", exc, severity=severity, action=action)
+
 
 
 def _infer_ok_flag(result: Dict[str, Any]) -> bool:
@@ -205,7 +217,7 @@ class BaseSkill(ABC):
             try:
                 params = self.input_model(**params)
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-                record_degradation('base_skill', e)
+                _record_skill_degradation(e, action="returned invalid input error result to skill execution caller", severity="error")
                 return self._error_result(
                     f"Invalid input: {e}",
                     time.monotonic() - start
@@ -247,8 +259,8 @@ class BaseSkill(ABC):
                 last_err = e
                 logger.warning("🔒 Skill '%s' permission denied: %s", self.name, e)
 
-            except (sqlite3.Error, OSError) as e:
-                record_degradation('base_skill', e)
+            except Exception as e:
+                _record_skill_degradation(e, action="retried or failed skill execution after database/os/runtime error")
                 error_class = self._classify_error(e)
                 last_err = e
                 if error_class == "permanent":
