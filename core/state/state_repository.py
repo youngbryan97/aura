@@ -1,6 +1,4 @@
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
 
 import asyncio
 import copy
@@ -12,12 +10,13 @@ import time
 from enum import Enum
 from pathlib import Path
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 
 import aiosqlite
 
-from core.runtime.effect_boundary import effect_sink
 from core.runtime.background_policy import is_user_facing_origin
+from core.runtime.effect_boundary import effect_sink
+from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 
 from ..bus.shared_mem_bus import SharedMemoryTransport
@@ -29,6 +28,48 @@ if TYPE_CHECKING:
     )
 
 logger = logging.getLogger(__name__)
+
+_STATE_SUBSYSTEM = "state_repository"
+_STATE_BOUNDARY_ERRORS = (Exception,)
+
+
+def _record_state_degradation(
+    error: BaseException,
+    *,
+    action: str = "state repository operation degraded and isolated",
+    severity: str = "degraded",
+) -> None:
+    record_degradation(_STATE_SUBSYSTEM, error, severity=severity, action=action)
+
+
+def _close_if_possible(awaitable: Any) -> None:
+    try:
+        close = awaitable.close
+    except AttributeError:
+        return
+    try:
+        close()
+    except _STATE_BOUNDARY_ERRORS as exc:
+        _record_state_degradation(exc, action="unscheduled state awaitable close failed")
+
+
+def _schedule_state_task(awaitable: Any, *, name: str, tracker: Any = None) -> asyncio.Task | None:
+    try:
+        task_owner = tracker if tracker is not None else get_task_tracker()
+        try:
+            schedule = task_owner.create_task
+        except AttributeError:
+            schedule = task_owner.track
+        return schedule(awaitable, name=name)
+    except RuntimeError as exc:
+        _close_if_possible(awaitable)
+        logger.debug("StateRepository background task %s deferred outside an event loop: %s", name, exc)
+        return None
+    except _STATE_BOUNDARY_ERRORS as exc:
+        _close_if_possible(awaitable)
+        _record_state_degradation(exc, action=f"state background task {name} was not scheduled")
+        logger.debug("StateRepository background task %s scheduling failed: %s", name, exc)
+        return None
 
 
 def get_state_shm_size_bytes() -> int:
@@ -44,7 +85,7 @@ def get_state_shm_size_bytes() -> int:
         import psutil
 
         total_gb = psutil.virtual_memory().total / float(1024 ** 3)
-    except Exception:
+    except _STATE_BOUNDARY_ERRORS:
         total_gb = 0.0
 
     if total_gb >= 48:
@@ -86,15 +127,15 @@ class StateRepository:
     def __init__(self, db_path: str = "data/aura_state.db", is_vault_owner: bool = False):
         self.db_path = db_path
         self.is_vault_owner = is_vault_owner
-        self._current: Optional[AuraState] = None
-        self._lock: Optional[asyncio.Lock] = None
+        self._current: AuraState | None = None
+        self._lock: asyncio.Lock | None = None
         self._mutation_queue_maxsize = 32
         self._mutation_queue: asyncio.Queue = asyncio.Queue(maxsize=self._mutation_queue_maxsize)
         self._is_processing = False
-        self._consumer_task: Optional[asyncio.Task] = None
-        self._buffer: Dict[str, list] = {} # Per-trace buffer for causal ordering
-        self._shm: Optional[SharedMemoryTransport] = None
-        self._db: Optional[aiosqlite.Connection] = None
+        self._consumer_task: asyncio.Task | None = None
+        self._buffer: dict[str, list] = {} # Per-trace buffer for causal ordering
+        self._shm: SharedMemoryTransport | None = None
+        self._db: aiosqlite.Connection | None = None
         self._transport: Any = None
         self._dropped_commit_count = 0
         self._commit_counter = 0       # Tracks commits for prune/VACUUM scheduling
@@ -115,11 +156,11 @@ class StateRepository:
         return self._lock
 
     async def _ensure_db(self) -> aiosqlite.Connection:
-        """[CF-5] Ensures the DB connection is alive and bound to the current loop."""
+        """Ensure the DB connection is alive and bound to the current loop."""
         try:
             current_loop = asyncio.get_running_loop()
-        except RuntimeError:
-            raise RuntimeError("Database access attempted outside of event loop")
+        except RuntimeError as exc:
+            raise RuntimeError("Database access attempted outside of event loop") from exc
 
         if self._db is not None:
             # Check for loop mismatch
@@ -129,9 +170,9 @@ class StateRepository:
                 try:
                     if self._db is not None:
                         await self._db.close()
-                except Exception as _e:
-                    record_degradation('state_repository', _e)
-                    logger.debug('Ignored Exception in state_repository.py: %s', _e)
+                except _STATE_BOUNDARY_ERRORS as _e:
+                    _record_state_degradation(_e, action="stale loop-bound DB connection close skipped")
+                    logger.debug("StateRepository stale DB close skipped: %s", _e)
                 self._db = None
 
         if self._db is None:
@@ -143,7 +184,7 @@ class StateRepository:
 
     async def initialize(self) -> None:
         from .aura_state import AuraState
-        serialized_current: Optional[str] = None
+        serialized_current: str | None = None
         boot_governance_decision = SimpleNamespace(
             receipt_id="state_repository_bootstrap",
             domain="state_mutation",
@@ -173,6 +214,7 @@ class StateRepository:
             # Ensure we have a default state if DB is empty
             if self._current is None:
                 from core.governance_context import governed_scope
+
                 from .aura_state import AuraState
 
                 self._current = AuraState()
@@ -207,15 +249,16 @@ class StateRepository:
                             logger.info("✓ [STATE] Genesis state pushed to SHM.")
                         elif shm_mode == "marker":
                             logger.info("✓ [STATE] Genesis overflow marker pushed to SHM.")
-                    except Exception as e:
-                        record_degradation('state_repository', e)
+                    except _STATE_BOUNDARY_ERRORS as e:
+                        _record_state_degradation(e)
                         logger.warning(f"⚠️ [STATE] Initial SHM write failed: {e}")
 
             logger.info("✓ [STATE] Vault Owner Initialized with SHM for writing.")
             
             # Start consumer
             self._is_processing = True
-            self._start_consumer_task()
+            if self._start_consumer_task() is None:
+                logger.warning("⚠️ [STATE] Mutation consumer scheduling deferred; runtime repair will retry.")
         else:
             self._transport = self._resolve_transport()
             # Proxy Mode: Attach to SHM for reading
@@ -234,8 +277,8 @@ class StateRepository:
                     
                     if not self._current:
                          logger.warning("⚠️ [STATE] Proxy attached but SHM is empty (Wait possible)")
-                except Exception as e:
-                    record_degradation('state_repository', e)
+                except _STATE_BOUNDARY_ERRORS as e:
+                    _record_state_degradation(e)
                     logger.warning(f"⚠️ [STATE] Failed to attach to SHM, falling back to boot state: {e}")
                     self._shm = None
             if not self._current:
@@ -261,7 +304,7 @@ class StateRepository:
             return bool(has_actor("state_vault"))
         return "state_vault" in getattr(transport, "_transports", {})
 
-    async def _fetch_state_from_vault(self) -> Optional["AuraState"]:
+    async def _fetch_state_from_vault(self) -> AuraState | None:
         """Fallback path when SHM is not yet readable: request the canonical state from the vault actor."""
         transport = self._resolve_transport()
         if not transport:
@@ -277,21 +320,18 @@ class StateRepository:
             if isinstance(res, dict) and res.get("state"):
                 self._current = self._deserialize(json.dumps(res["state"]))
                 logger.info("✓ [STATE] Full state fetched from Vault via Bus.")
-        except Exception as e:
-            record_degradation('state_repository', e)
+        except _STATE_BOUNDARY_ERRORS as e:
+            _record_state_degradation(e)
             logger.error(f"❌ [STATE] Full fetch failed: {e}")
 
         return self._current
 
 
-    async def commit(self, new_state: AuraState, cause: str, trace_id: Optional[str] = None) -> AuraState:
-        """
-        Strangler Fig: Transition to a new state.
-        Now enqueues a mutation command for atomic processing.
-        """
+    async def commit(self, new_state: AuraState, cause: str, trace_id: str | None = None) -> AuraState:
+        """Queue a state transition for atomic owner-side processing."""
         if os.environ.get("AURA_STRICT_RUNTIME") == "1":
-            from core.state.state_gateway import get_state_gateway
             from core.runtime.gateways import StateMutationRequest
+            from core.state.state_gateway import get_state_gateway
             gw = get_state_gateway()
             try:
                 await gw.mutate(StateMutationRequest(
@@ -317,7 +357,7 @@ class StateRepository:
         transport = self._resolve_transport()
         if transport:
             state_dict = await asyncio.to_thread(self._circular_safe_asdict, new_state)
-            last_error: Optional[Exception] = None
+            last_error: Exception | None = None
             for attempt in range(2):
                 try:
                     await transport.request(
@@ -333,7 +373,7 @@ class StateRepository:
                 except (BrokenPipeError, ConnectionError) as e:
                     # Vault pipe died — this is recoverable on next tick.
                     # Don't re-raise; just log and let the proxy continue.
-                    record_degradation('state_repository', e)
+                    _record_state_degradation(e)
                     logger.warning(
                         "⚠️ [STATE] Vault pipe broken (attempt %d/2): %s — state not persisted this tick.",
                         attempt + 1, type(e).__name__,
@@ -345,8 +385,8 @@ class StateRepository:
                         continue
                     # After both attempts fail, just log — don't crash the kernel
                     return new_state
-                except Exception as e:
-                    record_degradation('state_repository', e)
+                except _STATE_BOUNDARY_ERRORS as e:
+                    _record_state_degradation(e)
                     last_error = e
                     logger.warning("❌ [STATE] Proxy Commit Request FAILED (attempt %d/2): %s", attempt + 1, e)
                     self._transport = None
@@ -361,7 +401,7 @@ class StateRepository:
         
         return new_state
 
-    async def _enqueue_owner_commit(self, payload: Dict[str, Any]) -> None:
+    async def _enqueue_owner_commit(self, payload: dict[str, Any]) -> None:
         """
         Queue owner-side state transitions with overload coalescing.
 
@@ -384,7 +424,8 @@ class StateRepository:
 
     def _coalesce_pending_mutations(self, *, keep_latest: bool) -> int:
         drained = []
-        while True:
+        drain_budget = self._mutation_queue.qsize()
+        for _ in range(drain_budget):
             try:
                 item = self._mutation_queue.get_nowait()
                 self._mutation_queue.task_done()
@@ -398,11 +439,11 @@ class StateRepository:
             return max(0, len(drained) - 1)
         return len(drained)
 
-    async def get_current(self) -> Optional[AuraState]:
+    async def get_current(self) -> AuraState | None:
         """Async-compatible alias for get_state (Internal API Standardization)."""
         return await self.get_state()
 
-    async def get_state(self) -> Optional[AuraState]:
+    async def get_state(self) -> AuraState | None:
         """
         Retrieve the latest state. 
         In Proxy mode, this reads from Shared Memory for zero-latency access.
@@ -425,11 +466,11 @@ class StateRepository:
                     else:
                         try:
                             self._current = self._deserialize(json.dumps(data))
-                        except Exception as e:
-                            record_degradation('state_repository', e)
+                        except _STATE_BOUNDARY_ERRORS as e:
+                            _record_state_degradation(e)
                             logger.error(f"Failed to auto-sync from SHM: {e}")
-            except Exception as e:
-                record_degradation('state_repository', e)
+            except _STATE_BOUNDARY_ERRORS as e:
+                _record_state_degradation(e)
                 logger.warning("⚠️ [STATE] SHM read failed: %s", e)
 
         if not self._current and self.is_vault_owner is False:
@@ -445,9 +486,9 @@ class StateRepository:
             try:
                 await self._consumer_task
             except asyncio.CancelledError as _exc:
-                logger.debug("Suppressed asyncio.CancelledError: %s", _exc)
-            except Exception as e:
-                record_degradation('state_repository', e)
+                logger.debug("StateRepository consumer cancelled during shutdown: %s", _exc)
+            except _STATE_BOUNDARY_ERRORS as e:
+                _record_state_degradation(e)
                 logger.debug("StateRepository consumer shutdown issue: %s", e)
             finally:
                 self._consumer_task = None
@@ -455,8 +496,8 @@ class StateRepository:
         if self._shm:
             try:
                 self._shm.close()
-            except Exception as e:
-                record_degradation('state_repository', e)
+            except _STATE_BOUNDARY_ERRORS as e:
+                _record_state_degradation(e)
                 logger.debug("StateRepository SHM close issue: %s", e)
             finally:
                 self._shm = None
@@ -464,17 +505,19 @@ class StateRepository:
         if self._db is not None:
             try:
                 await self._db.close()
-            except Exception as e:
-                record_degradation('state_repository', e)
+            except _STATE_BOUNDARY_ERRORS as e:
+                _record_state_degradation(e)
                 logger.debug("StateRepository DB close issue: %s", e)
             finally:
                 self._db = None
 
-    def _start_consumer_task(self) -> asyncio.Task:
-        task = get_task_tracker().create_task(
+    def _start_consumer_task(self) -> asyncio.Task | None:
+        task = _schedule_state_task(
             self._mutation_consumer_loop(),
             name="vault_mutation_consumer",
         )
+        if task is None:
+            return None
         self._consumer_task = task
         return task
 
@@ -500,8 +543,8 @@ class StateRepository:
                 except asyncio.CancelledError:
                     logger.info("[STATE] mutation consumer cancelled")
                     break
-                except Exception as e:
-                    record_degradation('state_repository', e)
+                except _STATE_BOUNDARY_ERRORS as e:
+                    _record_state_degradation(e)
                     logger.error("🛑 Error in mutation consumer: %s", e)
                     # small backoff to avoid hot-loop on repeated failure
                     await asyncio.sleep(0.1)
@@ -519,8 +562,8 @@ class StateRepository:
             if hasattr(new_state, "compact"):
                 try:
                     new_state.compact()
-                except Exception as exc:
-                    record_degradation('state_repository', exc)
+                except _STATE_BOUNDARY_ERRORS as exc:
+                    _record_state_degradation(exc)
                     logger.debug("State compaction skipped during commit: %s", exc)
 
             approved, reason, governance_decision = unpack_governance_result(
@@ -539,8 +582,8 @@ class StateRepository:
                     reason,
                 )
                 return
-        except Exception as exc:
-            record_degradation('state_repository', exc)
+        except _STATE_BOUNDARY_ERRORS as exc:
+            _record_state_degradation(exc)
             logger.debug("Constitutional state gate unavailable: %s", exc)
 
         # 1. Serialize OUTSIDE the lock (O(n) walk) - Offload to thread
@@ -563,8 +606,8 @@ class StateRepository:
             self._last_serialization_ms = ser_ms
             if ser_ms > 20:
                 logger.warning("📉 [STATE] Heavy Serialization Detected: %.2fms", ser_ms)
-        except Exception as e:
-            record_degradation('state_repository', e)
+        except _STATE_BOUNDARY_ERRORS as e:
+            _record_state_degradation(e)
             logger.error("🛑 [STATE] Serialization failed: %s", e)
             return
 
@@ -613,8 +656,8 @@ class StateRepository:
                     payload=item,
                     state=new_state,
                 )
-        except Exception as exc:
-            record_degradation('state_repository', exc)
+        except _STATE_BOUNDARY_ERRORS as exc:
+            _record_state_degradation(exc)
             logger.debug("Initiative proposal audit skipped: %s", exc)
 
         # 2. PROCEED OUTSIDE LOCK: publish SHM + DB inline within the single
@@ -629,20 +672,20 @@ class StateRepository:
                     if self._shm:
                         try:
                             await self._sync_to_shm(new_state, serialized_data)
-                        except Exception as exc:
-                            record_degradation('state_repository', exc)
+                        except _STATE_BOUNDARY_ERRORS as exc:
+                            _record_state_degradation(exc)
                             logger.warning("⚠️ [STATE] SHM propagation failed: %s", exc)
                     await self._commit_to_db(new_state, serialized_data)
             else:
                 if self._shm:
                     try:
                         await self._sync_to_shm(new_state, serialized_data)
-                    except Exception as exc:
-                        record_degradation('state_repository', exc)
+                    except _STATE_BOUNDARY_ERRORS as exc:
+                        _record_state_degradation(exc)
                         logger.warning("⚠️ [STATE] SHM propagation failed: %s", exc)
                 await self._commit_to_db(new_state, serialized_data)
-        except Exception as exc:
-            record_degradation('state_repository', exc)
+        except _STATE_BOUNDARY_ERRORS as exc:
+            _record_state_degradation(exc)
             logger.error("🛑 [STATE] Vault persistence failed: %s", exc)
             raise  # Fail closed on critical state mutation failure
         finally:
@@ -672,7 +715,7 @@ class StateRepository:
             )
         )
 
-    def get_runtime_status(self) -> Dict[str, Any]:
+    def get_runtime_status(self) -> dict[str, Any]:
         local_consumer_alive = bool(self._consumer_task and not self._consumer_task.done())
         shm_attached = bool(self._shm is not None)
         state_available = self._current is not None
@@ -680,7 +723,7 @@ class StateRepository:
         if not self.is_vault_owner:
             try:
                 vault_transport_available = bool(self._transport_has_vault())
-            except Exception:
+            except _STATE_BOUNDARY_ERRORS:
                 vault_transport_available = False
 
         consumer_alive = local_consumer_alive
@@ -711,13 +754,15 @@ class StateRepository:
             "vault_transport_available": vault_transport_available,
         }
 
-    async def repair_runtime(self) -> Dict[str, Any]:
-        actions: List[str] = []
+    async def repair_runtime(self) -> dict[str, Any]:
+        actions: list[str] = []
 
         if self.is_vault_owner and self._is_processing and (self._consumer_task is None or self._consumer_task.done()):
-            self._start_consumer_task()
-            self._repair_count += 1
-            actions.append("restarted_consumer")
+            if self._start_consumer_task() is not None:
+                self._repair_count += 1
+                actions.append("restarted_consumer")
+            else:
+                actions.append("consumer_restart_deferred")
 
         if self.is_vault_owner and self._db is None:
             await self._ensure_db()
@@ -727,8 +772,8 @@ class StateRepository:
         if not self.is_vault_owner and self._current is None:
             try:
                 await self._fetch_state_from_vault()
-            except Exception:
-                pass  # no-op: intentional
+            except _STATE_BOUNDARY_ERRORS as exc:
+                _record_state_degradation(exc, action="proxy rehydrate repair failed")
             if self._current is not None:
                 self._repair_count += 1
                 actions.append("rehydrated_proxy")
@@ -874,8 +919,8 @@ class StateRepository:
             hot_snapshot_payload: bytes | None = None
             try:
                 hot_snapshot_payload = self._serialize_transport_snapshot(state).encode("utf-8")
-            except Exception as exc:
-                record_degradation('state_repository', exc)
+            except _STATE_BOUNDARY_ERRORS as exc:
+                _record_state_degradation(exc)
                 logger.warning("⚠️ [STATE] Failed to build bounded SHM hot snapshot: %s", exc)
 
             if hot_snapshot_payload and len(hot_snapshot_payload) <= shm.payload_capacity:
@@ -927,8 +972,8 @@ class StateRepository:
         await asyncio.to_thread(shm.write_serialized, payload)
         return "full"
 
-    async def get_history(self, limit: int = 100) -> List[AuraState]:
-        """[CF] Reusing self._db for history retrieval."""
+    async def get_history(self, limit: int = 100) -> list[AuraState]:
+        """Read recent persisted state snapshots from the shared DB connection."""
         db = await self._ensure_db()
             
         try:
@@ -938,13 +983,13 @@ class StateRepository:
             ) as cursor:
                 rows = await cursor.fetchall()
             return [self._deserialize(row[0]) for row in rows]
-        except Exception as e:
-            record_degradation('state_repository', e)
+        except _STATE_BOUNDARY_ERRORS as e:
+            _record_state_degradation(e)
             logger.error("❌ [STATE] History retrieval failed: %s", e)
             return []
 
     async def _load_latest_state(self) -> None:
-        """[CF] Reusing self._db for reads."""
+        """Hydrate the latest persisted state from the shared DB connection."""
         db = await self._ensure_db()
             
         try:
@@ -954,8 +999,8 @@ class StateRepository:
                 row = await cursor.fetchone()
             if row:
                 self._current = self._deserialize(row[0])
-        except Exception as e:
-            record_degradation('state_repository', e)
+        except _STATE_BOUNDARY_ERRORS as e:
+            _record_state_degradation(e)
             logger.error("❌ [STATE] Failed to load latest: %s", e)
 
     async def _has_been_persisted(self) -> bool:
@@ -965,12 +1010,12 @@ class StateRepository:
                 row = await cursor.fetchone()
                 if row:
                     return row[0] > 0
-        except Exception as _e:
-            record_degradation('state_repository', _e)
-            logger.debug('Ignored Exception in state_repository.py: %s', _e)
+        except _STATE_BOUNDARY_ERRORS as _e:
+            _record_state_degradation(_e, action="state log persistence probe skipped")
+            logger.debug("StateRepository persistence probe skipped: %s", _e)
         return False
         
-    async def rollback(self, reason: str = "Unknown") -> Optional[AuraState]:
+    async def rollback(self, reason: str = "Unknown") -> AuraState | None:
         """Rollback to the last stable state in the log."""
         async with self.lock:
             logger.warning("🚨 [STATE] Initiating Rollback. Reason: %s", reason)
@@ -993,15 +1038,15 @@ class StateRepository:
                 await self._commit_to_db(stabilized_state, serialized)
                 self._current = stabilized_state
                 logger.info("✅ [STATE] Rollback complete. Restored to version %d", stabilized_state.version)
-            except Exception as e:
-                record_degradation('state_repository', e)
+            except _STATE_BOUNDARY_ERRORS as e:
+                _record_state_degradation(e)
                 logger.error("🛑 [STATE] Rollback persistence failed: %s", e)
             
             return self._current
 
     @effect_sink("state.commit_to_db", allowed_domains=("state_mutation",))
     async def _commit_to_db(self, state: AuraState, serialized_data: str):
-        """[CF] Using self._db instead of opening a new connection per write."""
+        """Persist a serialized state snapshot using the shared DB connection."""
         db = await self._ensure_db()
         for attempt in range(3):
             try:
@@ -1027,15 +1072,15 @@ class StateRepository:
         if self._commit_counter % self.STATE_LOG_PRUNE_EVERY == 0:
             try:
                 await self._prune_state_log(db)
-            except Exception as prune_err:
-                record_degradation('state_repository', prune_err)
+            except _STATE_BOUNDARY_ERRORS as prune_err:
+                _record_state_degradation(prune_err)
                 logger.warning("⚠️ [STATE] State log pruning failed: %s", prune_err)
         if self._commit_counter % self.STATE_LOG_VACUUM_EVERY == 0:
             try:
                 loop = asyncio.get_running_loop()
                 await loop.run_in_executor(None, self._vacuum_sync)
-            except Exception as vacuum_err:
-                record_degradation('state_repository', vacuum_err)
+            except _STATE_BOUNDARY_ERRORS as vacuum_err:
+                _record_state_degradation(vacuum_err)
                 logger.warning("⚠️ [STATE] VACUUM failed: %s", vacuum_err)
 
     async def _prune_state_log(self, db: aiosqlite.Connection) -> None:
@@ -1069,8 +1114,8 @@ class StateRepository:
                 "🧹 [STATE] Pruned state log: removed up to %d of %d rows (keeping %d).",
                 excess, total, self.STATE_LOG_MAX_ROWS,
             )
-        except Exception as e:
-            record_degradation('state_repository', e)
+        except _STATE_BOUNDARY_ERRORS as e:
+            _record_state_degradation(e)
             logger.error("🛑 [STATE] Prune query failed: %s", e)
 
     def _vacuum_sync(self) -> None:
@@ -1081,8 +1126,8 @@ class StateRepository:
             conn.execute("VACUUM")
             conn.close()
             logger.info("🧹 [STATE] VACUUM completed on %s.", self.db_path)
-        except Exception as e:
-            record_degradation('state_repository', e)
+        except _STATE_BOUNDARY_ERRORS as e:
+            _record_state_degradation(e)
             logger.warning("⚠️ [STATE] VACUUM sync error: %s", e)
 
     def _circular_safe_asdict(self, obj, memo=None, depth=0) -> Any:
@@ -1116,7 +1161,8 @@ class StateRepository:
                 result = {}
                 for f in dataclasses.fields(obj):
                     # Skip private fields if they leaked in
-                    if f.name.startswith("_"): continue
+                    if f.name.startswith("_"):
+                        continue
                     value = getattr(obj, f.name)
                     result[f.name] = self._circular_safe_asdict(value, memo, depth + 1)
                 return result
@@ -1139,8 +1185,8 @@ class StateRepository:
                 if depth > 40:
                     return f"<{type_name} @ depth {depth}>"
                 return str(obj)
-        except Exception as e:
-            record_degradation('state_repository', e)
+        except _STATE_BOUNDARY_ERRORS as e:
+            _record_state_degradation(e)
             logger.error("🛑 [STATE] Item serialization error: %s", e)
             return f"<ERROR: {type(obj).__name__}>"
         finally:
@@ -1156,15 +1202,16 @@ class StateRepository:
             state.state_id = f"st_{int(time.time()*1000)}"
             
         try:
-            # Zenith-v6.3 Fix: Replace dataclasses.asdict with cycle-safe version
             d = self._circular_safe_asdict(state)
             return json.dumps(d, ensure_ascii=False)
-        except Exception as e:
-            record_degradation('state_repository', e)
+        except _STATE_BOUNDARY_ERRORS as e:
+            _record_state_degradation(e)
             logger.error("🛑 [STATE] Hard serialization failure: %s", e)
             raise
 
     def _deserialize(self, json_str: str) -> AuraState:
+        from core.unity.unity_state import UnityState
+
         from .aura_state import (
             AffectVector,
             AuraState,
@@ -1178,7 +1225,6 @@ class StateRepository:
             SomaState,
             WorldModel,
         )
-        from core.unity.unity_state import UnityState
         data = json.loads(json_str)
         # Reconstruct nested dataclasses with safety defaults
         data['identity'] = IdentityKernel(**data.get('identity', {}))
