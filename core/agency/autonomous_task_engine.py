@@ -16,7 +16,7 @@ from typing import Any
 from core.agency.capability_system import get_capability_manager
 from core.agency.safety_registry import get_safety_registry
 from core.config import config
-from core.mycelial.graph import get_mycelial
+from core.mycelial_graph import get_mycelial
 from core.runtime.errors import record_degradation
 from core.runtime.skill_task_bridge import (
     looks_like_multi_step_skill_request,

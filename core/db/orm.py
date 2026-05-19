@@ -84,6 +84,7 @@ class PersistentState:
                 duration_ms=duration_ms,
                 result=result,
                 error=error,
+                
             )
             session.add(log)
             # commit is handled by _session_scope

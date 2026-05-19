@@ -14,7 +14,7 @@ async def test_zenith_fixes():
     # 1. Test Mycelial Network (Cycle Detection)
     print("\n1. Testing Mycelial Network...")
     try:
-        from core.mycelial.graph import get_mycelial
+        from core.mycelial_graph import get_mycelial
         mycelium = get_mycelial()
         # Add a safe edge
         await mycelium.add_edge("memory_A", "skill_B")
