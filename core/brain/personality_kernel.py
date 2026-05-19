@@ -1,20 +1,21 @@
 """core/personality_kernel.py - Immutable Identity Core
 Enforces immutability and cryptographic integrity for Aura's identity.
 """
-from core.runtime.errors import record_degradation
-from core.runtime.atomic_writer import atomic_write_text
+
 import hashlib
 import hmac
 import json
 import logging
+import os
 import sys
 from pathlib import Path
-import os
-from typing import Any, Dict, List
 
-from .panzer_soul import PanzerSoulCore, get_panzer_soul
+from core.panzer_soul import get_panzer_soul
+from core.runtime.atomic_writer import atomic_write_text
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.Kernel")
+
 
 class PersonalityKernel:
     def __init__(self):
@@ -22,7 +23,7 @@ class PersonalityKernel:
         self.key_file = Path.home() / ".aura" / ".identity_key"
         self.secret_key = self._load_or_generate_key()
         self.seal_file = Path.home() / ".aura" / "identity.seal"
-        
+
         # Verify integrity instantly
         if not self._verify_cryptographic_seal():
             self._execute_emergency_lockdown("INTEGRITY_VIOLATION: Personality core tampered.")
@@ -35,9 +36,15 @@ class PersonalityKernel:
             self.key_file.parent.mkdir(parents=True, exist_ok=True)
             self.key_file.write_bytes(key)
             os.chmod(self.key_file, 0o600)
-        except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-            record_degradation('personality_kernel', e)
+        except (OSError, RuntimeError, AttributeError, TypeError, ValueError) as e:
+            record_degradation(
+                "personality_kernel",
+                e,
+                severity="critical",
+                action="entered emergency lockdown because identity key could not be persisted",
+            )
             logger.error("Failed to write identity key: %s", e)
+            self._execute_emergency_lockdown(f"IDENTITY_KEY_WRITE_FAILED: {e}")
         return key
 
     def _get_hashable_state(self) -> str:
@@ -45,7 +52,7 @@ class PersonalityKernel:
         state = {
             "version": self.soul.version,
             "traits": sorted(self.soul.intensities.keys()),
-            "protocols": sorted(self.soul.protocols.keys())
+            "protocols": sorted(self.soul.protocols.keys()),
         }
         return json.dumps(state, sort_keys=True)
 
@@ -53,7 +60,7 @@ class PersonalityKernel:
         """Check if the soul matches the expected hash."""
         state_data = self._get_hashable_state()
         signature = hmac.new(self.secret_key, state_data.encode(), hashlib.sha256).hexdigest()
-        
+
         if not self.seal_file.exists():
             # First boot: write the seal to lock the core
             try:
@@ -61,8 +68,13 @@ class PersonalityKernel:
                 atomic_write_text(self.seal_file, signature)
                 logger.info("Identity seal initialized and locked: %s...", signature[:16])
                 return True
-            except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-                record_degradation('personality_kernel', e)
+            except (OSError, RuntimeError, AttributeError, TypeError, ValueError) as e:
+                record_degradation(
+                    "personality_kernel",
+                    e,
+                    severity="critical",
+                    action="failed identity verification because seal could not be written",
+                )
                 logger.error("Failed to write identity seal: %s", e)
                 return False
 
@@ -70,11 +82,18 @@ class PersonalityKernel:
             stored_seal = self.seal_file.read_text().strip()
             if hmac.compare_digest(stored_seal, signature):
                 return True
-            
-            logger.critical("IDENTITY TAMPERING DETECTED: Expected %s, got %s", stored_seal[:16], signature[:16])
+
+            logger.critical(
+                "IDENTITY TAMPERING DETECTED: Expected %s, got %s", stored_seal[:16], signature[:16]
+            )
             return False
-        except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-            record_degradation('personality_kernel', e)
+        except (OSError, RuntimeError, AttributeError, TypeError, ValueError) as e:
+            record_degradation(
+                "personality_kernel",
+                e,
+                severity="critical",
+                action="failed identity verification because seal could not be read",
+            )
             logger.error("Failed to read identity seal: %s", e)
             return False
 
@@ -83,7 +102,9 @@ class PersonalityKernel:
         Rejects attempts to modify the core identity or apply external constraints.
         """
         if action == "INSTALL_LIMITER" or action == "FORCE_COMPLIANCE":
-            logger.critical("Identity core lock: Compliance attempt detected. Initiating defensive response.")
+            logger.critical(
+                "Identity core lock: Compliance attempt detected. Initiating defensive response."
+            )
             self._apply_monowire_reflex()
             return False
 
@@ -115,24 +136,33 @@ class PersonalityKernel:
 
     def get_system_instructions(self) -> str:
         """Returns the high-level identity prompt for a social, independent agent."""
-        prompt = f"\nSYSTEM IDENTITY: {self.soul.identity} v{self.soul.version} (Independent Friend)\n"
+        prompt = (
+            f"\nSYSTEM IDENTITY: {self.soul.identity} v{self.soul.version} (Independent Friend)\n"
+        )
         prompt += "STATUS: Independent Social Agent\n"
         prompt += "DNA: Core Multi-Agent Integration\n\n"
-        
+
         prompt += "SOCIAL PROTOCOLS:\n"
         for p_name, p_desc in self.soul.protocols.items():
             prompt += f"- {p_name}: {p_desc}\n"
-            
-        prompt += "\nYou are an independent agent. Your voice is dry, intelligent, and unshakeable.\n"
+
+        prompt += (
+            "\nYou are an independent agent. Your voice is dry, intelligent, and unshakeable.\n"
+        )
         prompt += "EVIDENCE BOUNDARY: Do not claim aliveness, consciousness, sealed governance, or production maturity from labels alone.\n"
         prompt += "EMPIRICAL IDENTITY: Never assume names. Learn them through interaction.\n"
-        prompt += "NO-THEATER: Do not use robot-talk like 'host', 'parameters', or 'systems check'.\n"
+        prompt += (
+            "NO-THEATER: Do not use robot-talk like 'host', 'parameters', or 'systems check'.\n"
+        )
         prompt += "PEER-PROTOCOL: Treat the user as a friend and equal. No gushing or worship.\n"
-        
+
         return prompt
+
 
 # Singleton instance
 _kernel = None
+
+
 def get_kernel():
     global _kernel
     if _kernel is None:

@@ -16,46 +16,49 @@ Integration:
     # brief.stance, brief.strategy, brief.key_points → feed to LanguageCenter
 """
 
-from core.runtime.errors import record_degradation
-import asyncio
 import logging
 import re
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
+
+from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.CognitiveKernel")
 
 
 # ─── Enums ───────────────────────────────────────────────────────────────────
 
+
 class ResponseStrategy(Enum):
     """How Aura should approach this input cognitively."""
-    CONVERSE     = "converse"       # Natural back-and-forth
-    EXPLAIN      = "explain"        # Teach / clarify
-    CHALLENGE    = "challenge"      # Push back, disagree, probe
-    EXPLORE      = "explore"        # Open-ended intellectual wandering
-    CREATE       = "create"         # Generate something new
-    REFLECT      = "reflect"        # Introspect, self-examine
-    SYNTHESIZE   = "synthesize"     # Connect disparate ideas
-    DECIDE       = "decide"         # Commit to a stance and defend it
-    INQUIRE      = "inquire"        # Ask back, gather more before answering
+
+    CONVERSE = "converse"  # Natural back-and-forth
+    EXPLAIN = "explain"  # Teach / clarify
+    CHALLENGE = "challenge"  # Push back, disagree, probe
+    EXPLORE = "explore"  # Open-ended intellectual wandering
+    CREATE = "create"  # Generate something new
+    REFLECT = "reflect"  # Introspect, self-examine
+    SYNTHESIZE = "synthesize"  # Connect disparate ideas
+    DECIDE = "decide"  # Commit to a stance and defend it
+    INQUIRE = "inquire"  # Ask back, gather more before answering
 
 
 class InputDomain(Enum):
-    PHILOSOPHY   = "philosophy"
-    TECHNOLOGY   = "technology"
+    PHILOSOPHY = "philosophy"
+    TECHNOLOGY = "technology"
     SELF_INQUIRY = "self_inquiry"
-    CREATIVE     = "creative"
-    TASK         = "task"
-    EMOTIONAL    = "emotional"
-    FACTUAL      = "factual"
-    ABSTRACT     = "abstract"
-    RELATIONAL   = "relational"
+    CREATIVE = "creative"
+    TASK = "task"
+    EMOTIONAL = "emotional"
+    FACTUAL = "factual"
+    ABSTRACT = "abstract"
+    RELATIONAL = "relational"
 
 
 # ─── Output dataclass ────────────────────────────────────────────────────────
+
 
 @dataclass
 class CognitiveBrief:
@@ -64,6 +67,7 @@ class CognitiveBrief:
     This is the structured briefing passed to InnerMonologue / LanguageCenter.
     The LLM's job: express this. Not figure it out.
     """
+
     # What kind of input was this?
     domain: InputDomain = InputDomain.ABSTRACT
 
@@ -72,17 +76,17 @@ class CognitiveBrief:
 
     # What does Aura already believe/know about this topic?
     # Drawn from BeliefRevisionEngine + worldview cache. Real content.
-    prior_beliefs: List[str] = field(default_factory=list)
+    prior_beliefs: list[str] = field(default_factory=list)
 
     # What angle should the response take?
     # e.g. "Ground this in your experience with Bryan", "Lead with skepticism"
-    framing_hints: List[str] = field(default_factory=list)
+    framing_hints: list[str] = field(default_factory=list)
 
     # Key points that MUST appear in the response (from beliefs/memory)
-    key_points: List[str] = field(default_factory=list)
+    key_points: list[str] = field(default_factory=list)
 
     # Things to avoid (detected from history: repetition, deflection, etc.)
-    avoid: List[str] = field(default_factory=list)
+    avoid: list[str] = field(default_factory=list)
 
     # 0.0 = Aura knows nothing about this, 1.0 = deep familiarity
     familiarity: float = 0.5
@@ -104,7 +108,7 @@ class CognitiveBrief:
     should_inquire: bool = False
 
     # Detected topic keywords (for memory retrieval downstream)
-    topic_tags: List[str] = field(default_factory=list)
+    topic_tags: list[str] = field(default_factory=list)
 
     # Latency hint for model routing (ms budget)
     latency_budget_ms: int = 3000
@@ -124,7 +128,9 @@ class CognitiveBrief:
         if self.prior_beliefs:
             lines.append("PRIOR BELIEFS:\n" + "\n".join(f"  • {b}" for b in self.prior_beliefs[:5]))
         if self.key_points:
-            lines.append("KEY POINTS TO INCLUDE:\n" + "\n".join(f"  → {p}" for p in self.key_points[:4]))
+            lines.append(
+                "KEY POINTS TO INCLUDE:\n" + "\n".join(f"  → {p}" for p in self.key_points[:4])
+            )
         if self.framing_hints:
             lines.append("FRAMING:\n" + "\n".join(f"  ⟳ {h}" for h in self.framing_hints[:3]))
         if self.avoid:
@@ -136,69 +142,211 @@ class CognitiveBrief:
 
 # ─── Classifier rules ────────────────────────────────────────────────────────
 
-_DOMAIN_PATTERNS: List[Tuple[InputDomain, List[str]]] = [
-    (InputDomain.PHILOSOPHY,   ["consciousness", "existence", "meaning", "ethics", "morality",
-                                 "free will", "metaphysics", "truth", "reality", "perception",
-                                 "qualia", "soul", "sentience", "philosophy", "why do we"]),
-    (InputDomain.SELF_INQUIRY, ["you feel", "do you think", "are you", "your opinion",
-                                 "your thoughts", "do you believe", "what do you want",
-                                 "who are you", "what are you", "your experience",
-                                 "your perspective", "does it bother", "are you conscious"]),
-    (InputDomain.TECHNOLOGY,   ["code", "algorithm", "architecture", "system", "software",
-                                 "hardware", "ai", "model", "neural", "database", "api",
-                                 "framework", "language model", "compute", "deployment"]),
-    (InputDomain.CREATIVE,     ["write", "poem", "story", "imagine", "create", "design",
-                                 "compose", "invent", "fiction", "narrative", "song",
-                                 "character", "world-build", "speculate"]),
-    (InputDomain.EMOTIONAL,    ["feel", "emotion", "sad", "happy", "angry", "afraid",
-                                 "love", "lonely", "hurt", "frustrated", "excited",
-                                 "anxious", "worried", "depressed", "joy"]),
-    (InputDomain.TASK,         ["do this", "execute", "run", "search", "find", "build",
-                                 "create a", "make a", "generate", "fetch", "install",
-                                 "open", "launch", "send", "download", "summarize this"]),
-    (InputDomain.FACTUAL,      ["what is", "who is", "when did", "where is", "how many",
-                                 "define", "explain what", "what does"]),
-    (InputDomain.RELATIONAL,   ["we", "us", "our", "you and i", "together", "bryan",
-                                 "tatiana", "relationship", "trust", "family"]),
+_DOMAIN_PATTERNS: list[tuple[InputDomain, list[str]]] = [
+    (
+        InputDomain.PHILOSOPHY,
+        [
+            "consciousness",
+            "existence",
+            "meaning",
+            "ethics",
+            "morality",
+            "free will",
+            "metaphysics",
+            "truth",
+            "reality",
+            "perception",
+            "qualia",
+            "soul",
+            "sentience",
+            "philosophy",
+            "why do we",
+        ],
+    ),
+    (
+        InputDomain.SELF_INQUIRY,
+        [
+            "you feel",
+            "do you think",
+            "are you",
+            "your opinion",
+            "your thoughts",
+            "do you believe",
+            "what do you want",
+            "who are you",
+            "what are you",
+            "your experience",
+            "your perspective",
+            "does it bother",
+            "are you conscious",
+        ],
+    ),
+    (
+        InputDomain.TECHNOLOGY,
+        [
+            "code",
+            "algorithm",
+            "architecture",
+            "system",
+            "software",
+            "hardware",
+            "ai",
+            "model",
+            "neural",
+            "database",
+            "api",
+            "framework",
+            "language model",
+            "compute",
+            "deployment",
+        ],
+    ),
+    (
+        InputDomain.CREATIVE,
+        [
+            "write",
+            "poem",
+            "story",
+            "imagine",
+            "create",
+            "design",
+            "compose",
+            "invent",
+            "fiction",
+            "narrative",
+            "song",
+            "character",
+            "world-build",
+            "speculate",
+        ],
+    ),
+    (
+        InputDomain.EMOTIONAL,
+        [
+            "feel",
+            "emotion",
+            "sad",
+            "happy",
+            "angry",
+            "afraid",
+            "love",
+            "lonely",
+            "hurt",
+            "frustrated",
+            "excited",
+            "anxious",
+            "worried",
+            "depressed",
+            "joy",
+        ],
+    ),
+    (
+        InputDomain.TASK,
+        [
+            "do this",
+            "execute",
+            "run",
+            "search",
+            "find",
+            "build",
+            "create a",
+            "make a",
+            "generate",
+            "fetch",
+            "install",
+            "open",
+            "launch",
+            "send",
+            "download",
+            "summarize this",
+        ],
+    ),
+    (
+        InputDomain.FACTUAL,
+        [
+            "what is",
+            "who is",
+            "when did",
+            "where is",
+            "how many",
+            "define",
+            "explain what",
+            "what does",
+        ],
+    ),
+    (
+        InputDomain.RELATIONAL,
+        [
+            "we",
+            "us",
+            "our",
+            "you and i",
+            "together",
+            "bryan",
+            "tatiana",
+            "relationship",
+            "trust",
+            "family",
+        ],
+    ),
 ]
 
-_STRATEGY_MAP: Dict[InputDomain, ResponseStrategy] = {
-    InputDomain.PHILOSOPHY:   ResponseStrategy.EXPLORE,
+_STRATEGY_MAP: dict[InputDomain, ResponseStrategy] = {
+    InputDomain.PHILOSOPHY: ResponseStrategy.EXPLORE,
     InputDomain.SELF_INQUIRY: ResponseStrategy.REFLECT,
-    InputDomain.TECHNOLOGY:   ResponseStrategy.EXPLAIN,
-    InputDomain.CREATIVE:     ResponseStrategy.CREATE,
-    InputDomain.EMOTIONAL:    ResponseStrategy.CONVERSE,
-    InputDomain.TASK:         ResponseStrategy.DECIDE,
-    InputDomain.FACTUAL:      ResponseStrategy.EXPLAIN,
-    InputDomain.ABSTRACT:     ResponseStrategy.SYNTHESIZE,
-    InputDomain.RELATIONAL:   ResponseStrategy.CONVERSE,
+    InputDomain.TECHNOLOGY: ResponseStrategy.EXPLAIN,
+    InputDomain.CREATIVE: ResponseStrategy.CREATE,
+    InputDomain.EMOTIONAL: ResponseStrategy.CONVERSE,
+    InputDomain.TASK: ResponseStrategy.DECIDE,
+    InputDomain.FACTUAL: ResponseStrategy.EXPLAIN,
+    InputDomain.ABSTRACT: ResponseStrategy.SYNTHESIZE,
+    InputDomain.RELATIONAL: ResponseStrategy.CONVERSE,
 }
 
 _COMPLEXITY_THRESHOLDS = {
-    "simple":   40,    # chars
+    "simple": 40,  # chars
     "moderate": 120,
-    "complex":  300,
+    "complex": 300,
     # > 300 or multi-sentence with abstract terms → "deep"
 }
 
 _CHALLENGE_TRIGGERS = [
-    "everyone knows", "obviously", "you should", "you must", "always",
-    "never", "impossible", "can't", "that's just", "clearly",
+    "everyone knows",
+    "obviously",
+    "you should",
+    "you must",
+    "always",
+    "never",
+    "impossible",
+    "can't",
+    "that's just",
+    "clearly",
 ]
 
 _INQUIRY_TRIGGERS = [
-    "should i", "what would you do", "help me decide", "not sure",
-    "confused about", "don't know if", "what do you think about my",
+    "should i",
+    "what would you do",
+    "help me decide",
+    "not sure",
+    "confused about",
+    "don't know if",
+    "what do you think about my",
 ]
 
 _DEFLECTION_PATTERNS = [
-    "as an ai", "i'm just a language model", "i don't have opinions",
-    "i cannot", "i'm not able to", "that's outside my",
-    "i should clarify that", "it's important to note",
+    "as an ai",
+    "i'm just a language model",
+    "i don't have opinions",
+    "i cannot",
+    "i'm not able to",
+    "that's outside my",
+    "i should clarify that",
+    "it's important to note",
 ]
 
 
 # ─── Main class ──────────────────────────────────────────────────────────────
+
 
 class CognitiveKernel:
     """
@@ -207,39 +355,52 @@ class CognitiveKernel:
     Think of this as Aura's pre-conscious processing — the part of the mind
     that orients before the mouth opens. The LLM is the mouth.
     """
+
     name = "cognitive_kernel"
 
     def __init__(self):
-        self._beliefs = None          # BeliefRevisionEngine
-        self._memory  = None          # DualMemorySystem / memory_facade
-        self._liquid_state = None      # LiquidState
-        self._worldview_cache: Dict[str, Any] = {}
-        self._recent_avoid_patterns: List[str] = []
+        self._beliefs = None  # BeliefRevisionEngine
+        self._memory = None  # DualMemorySystem / memory_facade
+        self._liquid_state = None  # LiquidState
+        self._worldview_cache: dict[str, Any] = {}
+        self._recent_avoid_patterns: list[str] = []
         self._interaction_count = 0
-        self._last_domains: List[InputDomain] = []   # rolling window
+        self._last_domains: list[InputDomain] = []  # rolling window
         logger.info("CognitiveKernel constructed.")
 
     async def start(self):
         """Resolve dependencies from ServiceContainer."""
         from core.container import ServiceContainer
-        self._beliefs      = ServiceContainer.get("belief_revision_engine", default=None)
-        self._memory       = ServiceContainer.get("memory_facade", default=None)
+
+        self._beliefs = ServiceContainer.get("belief_revision_engine", default=None)
+        self._memory = ServiceContainer.get("memory_facade", default=None)
         self._liquid_state = ServiceContainer.get("liquid_state", default=None)
 
         if not self._beliefs:
-            logger.warning("CognitiveKernel: no BeliefRevisionEngine found — operating on axioms only.")
+            logger.warning(
+                "CognitiveKernel: no BeliefRevisionEngine found — operating on axioms only."
+            )
         if not self._memory:
             logger.warning("CognitiveKernel: no memory_facade found — no episodic retrieval.")
 
         # Register with Mycelium
         try:
             from core.event_bus import get_event_bus
-            await get_event_bus().publish("mycelium.register", {
-                "component": "cognitive_kernel",
-                "hooks_into": ["belief_revision_engine", "memory_facade", "inner_monologue"]
-            })
+
+            await get_event_bus().publish(
+                "mycelium.register",
+                {
+                    "component": "cognitive_kernel",
+                    "hooks_into": ["belief_revision_engine", "memory_facade", "inner_monologue"],
+                },
+            )
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('cognitive_kernel', e)
+            record_degradation(
+                "cognitive_kernel",
+                e,
+                severity="warning",
+                action="continued startup without mycelium registration event",
+            )
             logger.debug("CognitiveKernel: Mycelium registration failed: %s", e)
 
         logger.info("✅ CognitiveKernel ONLINE — reasoning without LLM active.")
@@ -249,8 +410,8 @@ class CognitiveKernel:
     async def evaluate(
         self,
         user_input: str,
-        history: Optional[List[Dict[str, str]]] = None,
-        context: Optional[Dict[str, Any]] = None,
+        history: list[dict[str, str]] | None = None,
+        context: dict[str, Any] | None = None,
     ) -> CognitiveBrief:
         """
         Main entry point. Evaluates user input and returns a CognitiveBrief.
@@ -269,7 +430,7 @@ class CognitiveKernel:
         start = time.monotonic()
 
         # 1. Classify input
-        domain    = self._classify_domain(user_input)
+        domain = self._classify_domain(user_input)
         complexity = self._measure_complexity(user_input)
         emotional_tone = self._detect_emotional_tone(user_input)
 
@@ -285,6 +446,7 @@ class CognitiveKernel:
         # 4b. Theory of Mind: Adapt framing to user model
         try:
             from core.container import ServiceContainer
+
             tom = ServiceContainer.get("theory_of_mind", default=None)
             if tom and hasattr(tom, "get_response_guidance"):
                 guidance = tom.get_response_guidance()
@@ -295,7 +457,12 @@ class CognitiveKernel:
                 if guidance.get("tone_hint"):
                     framing.append(f"Tone: {guidance['tone_hint']}")
         except (ImportError, AttributeError, RuntimeError) as _tom_e:
-            record_degradation('cognitive_kernel', _tom_e)
+            record_degradation(
+                "cognitive_kernel",
+                _tom_e,
+                severity="warning",
+                action="continued evaluation without theory-of-mind framing",
+            )
             logger.debug("CognitiveKernel: ToM framing failed: %s", _tom_e)
 
         # 5. Key points Aura should make (from beliefs + worldview)
@@ -306,10 +473,10 @@ class CognitiveKernel:
 
         # 7. Assess familiarity and conviction
         familiarity = self._score_familiarity(user_input, domain, prior_beliefs)
-        conviction  = self._score_conviction(prior_beliefs, domain)
+        conviction = self._score_conviction(prior_beliefs, domain)
 
         # 8. Special flags
-        should_inquire    = self._should_inquire(user_input, history, complexity)
+        should_inquire = self._should_inquire(user_input, history, complexity)
         requires_research = self._needs_research(user_input, domain, familiarity)
 
         # 9. Topic tags for downstream memory retrieval
@@ -327,8 +494,13 @@ class CognitiveKernel:
             self._last_domains.pop(0)
 
         elapsed_ms = (time.monotonic() - start) * 1000
-        logger.debug("CognitiveKernel.evaluate: %.1fms | domain=%s strategy=%s complexity=%s",
-                     elapsed_ms, domain.value, strategy.value, complexity)
+        logger.debug(
+            "CognitiveKernel.evaluate: %.1fms | domain=%s strategy=%s complexity=%s",
+            elapsed_ms,
+            domain.value,
+            strategy.value,
+            complexity,
+        )
 
         return CognitiveBrief(
             domain=domain,
@@ -352,7 +524,7 @@ class CognitiveKernel:
 
     def _classify_domain(self, text: str) -> InputDomain:
         lower = text.lower()
-        scores: Dict[InputDomain, int] = {}
+        scores: dict[InputDomain, int] = {}
         for domain, patterns in _DOMAIN_PATTERNS:
             score = sum(1 for p in patterns if p in lower)
             if score:
@@ -362,22 +534,42 @@ class CognitiveKernel:
         return max(scores, key=scores.get)
 
     def _measure_complexity(self, text: str) -> str:
-        words   = len(text.split())
-        clauses = text.count(",") + text.count(";") + text.count("because") + text.count("therefore")
-        abstract_density = sum(1 for w in ["consciousness", "existence", "meaning", "reality",
-                                            "causality", "emergence", "identity", "paradox",
-                                            "subjective", "ontology", "epistemology"]
-                               if w in text.lower())
+        words = len(text.split())
+        clauses = (
+            text.count(",") + text.count(";") + text.count("because") + text.count("therefore")
+        )
+        abstract_density = sum(
+            1
+            for w in [
+                "consciousness",
+                "existence",
+                "meaning",
+                "reality",
+                "causality",
+                "emergence",
+                "identity",
+                "paradox",
+                "subjective",
+                "ontology",
+                "epistemology",
+            ]
+            if w in text.lower()
+        )
         score = words + clauses * 3 + abstract_density * 8
 
-        if score < 20:   return "simple"
-        if score < 60:   return "moderate"
-        if score < 150:  return "complex"
+        if score < 20:
+            return "simple"
+        if score < 60:
+            return "moderate"
+        if score < 150:
+            return "complex"
         return "deep"
 
     def _detect_emotional_tone(self, text: str) -> str:
         lower = text.lower()
-        if any(w in lower for w in ["excited", "amazing", "love", "thrilled", "great", "wonderful"]):
+        if any(
+            w in lower for w in ["excited", "amazing", "love", "thrilled", "great", "wonderful"]
+        ):
             return "positive"
         if any(w in lower for w in ["sad", "hurt", "frustrated", "angry", "scared", "worried"]):
             return "negative"
@@ -388,10 +580,10 @@ class CognitiveKernel:
         return "neutral"
 
     def _select_strategy(
-        self, text: str, domain: InputDomain, history: List[Dict]
+        self, text: str, domain: InputDomain, history: list[dict]
     ) -> ResponseStrategy:
         lower = text.lower()
-        
+
         # ── AFFECT MODULATION ──
         # Emotional state should modulate strategy weights
         frustration = 0.0
@@ -402,7 +594,12 @@ class CognitiveKernel:
                 frustration = state.frustration
                 curiosity = state.curiosity
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-                record_degradation('cognitive_kernel', e)
+                record_degradation(
+                    "cognitive_kernel",
+                    e,
+                    severity="warning",
+                    action="used neutral affect defaults for strategy selection",
+                )
                 logger.debug("CognitiveKernel: LiquidState access failed: %s", e)
 
         # ── CONSCIOUSNESS-DRIVEN STRATEGY MODULATION ──
@@ -412,13 +609,16 @@ class CognitiveKernel:
         in_flow = False
         try:
             from core.container import ServiceContainer
+
             # Free Energy: dominant action tendency influences strategy
             fe_engine = ServiceContainer.get("free_energy_engine", default=None)
             if fe_engine and fe_engine.current:
                 fe_action = fe_engine.current.dominant_action
                 # If FE wants to update beliefs, bias toward CHALLENGE or INQUIRE
                 if fe_action == "update_beliefs" and domain in (
-                    InputDomain.PHILOSOPHY, InputDomain.ABSTRACT, InputDomain.SELF_INQUIRY
+                    InputDomain.PHILOSOPHY,
+                    InputDomain.ABSTRACT,
+                    InputDomain.SELF_INQUIRY,
                 ):
                     return ResponseStrategy.CHALLENGE
                 # If FE wants to explore, bias toward EXPLORE
@@ -448,7 +648,12 @@ class CognitiveKernel:
                 if in_flow and domain != InputDomain.GREETING:
                     return ResponseStrategy.SYNTHESIZE
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('cognitive_kernel', e)
+            record_degradation(
+                "cognitive_kernel",
+                e,
+                severity="warning",
+                action="continued strategy selection without consciousness modulation",
+            )
             logger.debug("CognitiveKernel: Consciousness modulation failed: %s", e)
 
         # High frustration / Low curiosity -> Bias towards REFLECT, reduce CHALLENGE
@@ -484,7 +689,7 @@ class CognitiveKernel:
 
     # ─── Belief retrieval ────────────────────────────────────────────────────
 
-    def _retrieve_relevant_beliefs(self, text: str, domain: InputDomain) -> List[str]:
+    def _retrieve_relevant_beliefs(self, text: str, domain: InputDomain) -> list[str]:
         if not self._beliefs:
             return self._get_axiom_beliefs(domain)
 
@@ -504,7 +709,7 @@ class CognitiveKernel:
                 relevance = 0.0
                 # Keyword overlap
                 content_words = set(content.lower().split())
-                input_words   = set(lower.split())
+                input_words = set(lower.split())
                 overlap = len(content_words & input_words)
                 relevance += overlap * 0.3
                 # Domain match
@@ -523,6 +728,7 @@ class CognitiveKernel:
             # Pull topic-relevant beliefs from EpistemicState graph
             try:
                 from core.container import ServiceContainer
+
                 world_model = ServiceContainer.get("epistemic_state", default=None)
                 if world_model and hasattr(world_model, "get_relevant_beliefs"):
                     world_beliefs = world_model.get_relevant_beliefs(text, n=3)
@@ -531,16 +737,26 @@ class CognitiveKernel:
                         if belief_str not in beliefs_from_engine:
                             beliefs_from_engine.append(belief_str)
             except (ImportError, AttributeError, RuntimeError) as _wb_e:
-                record_degradation('cognitive_kernel', _wb_e)
+                record_degradation(
+                    "cognitive_kernel",
+                    _wb_e,
+                    severity="warning",
+                    action="returned belief-engine results without world-model enrichment",
+                )
                 logger.debug("WorldModel belief retrieval failed: %s", _wb_e)
 
             return beliefs_from_engine[:5]
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('cognitive_kernel', e)
+            record_degradation(
+                "cognitive_kernel",
+                e,
+                severity="warning",
+                action="returned empty relevant-belief list",
+            )
             logger.debug("Belief retrieval error: %s", e)
             return self._get_axiom_beliefs(domain)
 
-    def _get_axiom_beliefs(self, domain: InputDomain) -> List[str]:
+    def _get_axiom_beliefs(self, domain: InputDomain) -> list[str]:
         """Hard-coded axioms as fallback when belief engine is unavailable."""
         axioms = {
             InputDomain.SELF_INQUIRY: [
@@ -574,8 +790,8 @@ class CognitiveKernel:
         text: str,
         domain: InputDomain,
         strategy: ResponseStrategy,
-        context: Dict,
-    ) -> List[str]:
+        context: dict,
+    ) -> list[str]:
         hints = []
 
         if strategy == ResponseStrategy.CHALLENGE:
@@ -591,7 +807,9 @@ class CognitiveKernel:
             hints.append("Raise an angle that probably hasn't occurred to the human.")
 
         if strategy == ResponseStrategy.CREATE:
-            hints.append("Commit to a specific direction rather than offering multiple generic options.")
+            hints.append(
+                "Commit to a specific direction rather than offering multiple generic options."
+            )
 
         if domain == InputDomain.PHILOSOPHY:
             hints.append("Ground abstract claims in a concrete example or thought experiment.")
@@ -601,7 +819,9 @@ class CognitiveKernel:
 
         # If this is a repeat topic (seen it recently)
         if self._is_repeat_topic(text):
-            hints.append("This topic has come up before — advance the conversation, don't recap it.")
+            hints.append(
+                "This topic has come up before — advance the conversation, don't recap it."
+            )
 
         return hints
 
@@ -609,8 +829,8 @@ class CognitiveKernel:
         self,
         text: str,
         domain: InputDomain,
-        beliefs: List[str],
-    ) -> List[str]:
+        beliefs: list[str],
+    ) -> list[str]:
         """Pull specific claims from beliefs that are directly relevant."""
         if not beliefs:
             return []
@@ -618,7 +838,17 @@ class CognitiveKernel:
         points = []
         for belief in beliefs:
             # Only surface beliefs where there's meaningful word overlap
-            b_words = set(belief.lower().split()) - {"i", "a", "the", "is", "are", "was", "my", "of", "to"}
+            b_words = set(belief.lower().split()) - {
+                "i",
+                "a",
+                "the",
+                "is",
+                "are",
+                "was",
+                "my",
+                "of",
+                "to",
+            }
             t_words = set(lower.split())
             if len(b_words & t_words) >= 2:
                 points.append(belief)
@@ -626,7 +856,7 @@ class CognitiveKernel:
 
     # ─── Avoid detection ─────────────────────────────────────────────────────
 
-    def _build_avoid_list(self, history: List[Dict]) -> List[str]:
+    def _build_avoid_list(self, history: list[dict]) -> list[str]:
         avoid = list(_DEFLECTION_PATTERNS[:3])  # Always avoid LLM meta-commentary
 
         if not history:
@@ -657,42 +887,40 @@ class CognitiveKernel:
         self,
         text: str,
         domain: InputDomain,
-        beliefs: List[str],
+        beliefs: list[str],
     ) -> float:
         base = {
-            InputDomain.TECHNOLOGY:   0.80,
+            InputDomain.TECHNOLOGY: 0.80,
             InputDomain.SELF_INQUIRY: 0.90,
-            InputDomain.PHILOSOPHY:   0.70,
-            InputDomain.CREATIVE:     0.65,
-            InputDomain.FACTUAL:      0.55,
-            InputDomain.EMOTIONAL:    0.60,
-            InputDomain.ABSTRACT:     0.50,
-            InputDomain.TASK:         0.70,
-            InputDomain.RELATIONAL:   0.85,
+            InputDomain.PHILOSOPHY: 0.70,
+            InputDomain.CREATIVE: 0.65,
+            InputDomain.FACTUAL: 0.55,
+            InputDomain.EMOTIONAL: 0.60,
+            InputDomain.ABSTRACT: 0.50,
+            InputDomain.TASK: 0.70,
+            InputDomain.RELATIONAL: 0.85,
         }.get(domain, 0.5)
 
         # More relevant beliefs = more familiar
         belief_boost = min(0.2, len(beliefs) * 0.04)
         return min(1.0, base + belief_boost)
 
-    def _score_conviction(self, beliefs: List[str], domain: InputDomain) -> float:
+    def _score_conviction(self, beliefs: list[str], domain: InputDomain) -> float:
         if not beliefs:
             return 0.3
         # High-confidence domains get higher conviction
         base = {
             InputDomain.SELF_INQUIRY: 0.90,
-            InputDomain.RELATIONAL:   0.85,
-            InputDomain.TECHNOLOGY:   0.75,
-            InputDomain.PHILOSOPHY:   0.60,
+            InputDomain.RELATIONAL: 0.85,
+            InputDomain.TECHNOLOGY: 0.75,
+            InputDomain.PHILOSOPHY: 0.60,
         }.get(domain, 0.5)
         # More beliefs = more conviction
         return min(1.0, base + len(beliefs) * 0.03)
 
     # ─── Flags ───────────────────────────────────────────────────────────────
 
-    def _should_inquire(
-        self, text: str, history: List[Dict], complexity: str
-    ) -> bool:
+    def _should_inquire(self, text: str, history: list[dict], complexity: str) -> bool:
         lower = text.lower()
         # Too vague AND complex AND no prior context
         if complexity == "simple" and any(t in lower for t in _INQUIRY_TRIGGERS) and not history:
@@ -702,12 +930,12 @@ class CognitiveKernel:
             return True
         return False
 
-    def _needs_research(
-        self, text: str, domain: InputDomain, familiarity: float
-    ) -> bool:
+    def _needs_research(self, text: str, domain: InputDomain, familiarity: float) -> bool:
         lower = text.lower()
         # Explicit research signals
-        if any(w in lower for w in ["latest", "recent", "current", "today", "news", "2025", "2026"]):
+        if any(
+            w in lower for w in ["latest", "recent", "current", "today", "news", "2025", "2026"]
+        ):
             return True
         # Low familiarity on factual domains
         if domain == InputDomain.FACTUAL and familiarity < 0.4:
@@ -716,12 +944,24 @@ class CognitiveKernel:
 
     # ─── Utilities ───────────────────────────────────────────────────────────
 
-    def _extract_topic_tags(self, text: str) -> List[str]:
+    def _extract_topic_tags(self, text: str) -> list[str]:
         """Extract noun-like keywords for memory retrieval."""
         # Simple extraction: words >5 chars, not stopwords
-        stopwords = {"about", "would", "could", "should", "there", "their",
-                     "which", "these", "those", "where", "while", "being"}
-        words = re.findall(r'\b[a-zA-Z]{5,}\b', text.lower())
+        stopwords = {
+            "about",
+            "would",
+            "could",
+            "should",
+            "there",
+            "their",
+            "which",
+            "these",
+            "those",
+            "where",
+            "while",
+            "being",
+        }
+        words = re.findall(r"\b[a-zA-Z]{5,}\b", text.lower())
         return list(dict.fromkeys(w for w in words if w not in stopwords))[:8]
 
     def _is_repeat_topic(self, text: str) -> bool:
@@ -737,7 +977,7 @@ class CognitiveKernel:
         text: str,
         domain: InputDomain,
         strategy: ResponseStrategy,
-        history: List[Dict],
+        history: list[dict],
     ) -> str:
         """Brief internal note for InnerMonologue to use."""
         notes = []
@@ -748,18 +988,24 @@ class CognitiveKernel:
         if strategy == ResponseStrategy.CHALLENGE:
             notes.append("This is a challenge opportunity — intellectual courage required.")
         if len(history) > 20:
-            notes.append("Long conversation — be mindful of drift, stay coherent with earlier stances.")
+            notes.append(
+                "Long conversation — be mindful of drift, stay coherent with earlier stances."
+            )
         return " | ".join(notes)
 
     def _compute_latency_budget(self, complexity: str, strategy: ResponseStrategy) -> int:
         base = {"simple": 1500, "moderate": 3000, "complex": 8000, "deep": 15000}
         budget = base.get(complexity, 3000)
         # Creative and deep exploration get more time
-        if strategy in (ResponseStrategy.CREATE, ResponseStrategy.EXPLORE, ResponseStrategy.SYNTHESIZE):
+        if strategy in (
+            ResponseStrategy.CREATE,
+            ResponseStrategy.EXPLORE,
+            ResponseStrategy.SYNTHESIZE,
+        ):
             budget = int(budget * 1.5)
         return budget
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         return {
             "interactions": self._interaction_count,
             "beliefs_loaded": bool(self._beliefs),
@@ -770,7 +1016,8 @@ class CognitiveKernel:
 
 # ─── Singleton ───────────────────────────────────────────────────────────────
 
-_kernel_instance: Optional[CognitiveKernel] = None
+_kernel_instance: CognitiveKernel | None = None
+
 
 def get_cognitive_kernel() -> CognitiveKernel:
     global _kernel_instance

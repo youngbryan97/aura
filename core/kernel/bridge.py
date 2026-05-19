@@ -21,8 +21,10 @@ logger = logging.getLogger(__name__)
 def _clamp(value: float, lower: float, upper: float) -> float:
     return max(lower, min(upper, float(value)))
 
+
 class Phase(ABC):
     """Base class for all Unitary Kernel phases."""
+
     def __init__(self, kernel: AuraKernel = None):
         """Store a reference to the owning kernel."""
         self.kernel = kernel
@@ -38,16 +40,18 @@ class Phase(ABC):
         obj = getattr(state.cognition, "current_objective", None)
         return await self.execute(state, objective=obj)
 
+
 class LegacyPhase(Phase):
     """
     The 'Kernel Bridge' Pattern.
     Wraps the existing modular chaos as a single Phase within the new Kernel.
     Allows for one-at-a-time migration of modules with zero downtime.
     """
+
     def __init__(self, kernel: AuraKernel):
         """Initialize the legacy bridge; the orchestrator is lazily constructed on first execute."""
         self.kernel = kernel
-        self.legacy_orchestrator: Any = None # To be RobustOrchestrator()
+        self.legacy_orchestrator: Any = None  # To be RobustOrchestrator()
         self._legacy_tasks: set[asyncio.Task] = set()
         logger.info("Bridge: LegacyPhase bridge established.")
 
@@ -60,17 +64,32 @@ class LegacyPhase(Phase):
         normalized = cls._normalize_origin(origin)
         if not normalized:
             return False
-        if normalized in {"user", "voice", "admin", "api", "gui", "ws", "websocket", "direct", "external"}:
+        if normalized in {
+            "user",
+            "voice",
+            "admin",
+            "api",
+            "gui",
+            "ws",
+            "websocket",
+            "direct",
+            "external",
+        }:
             return True
         tokens = {token for token in normalized.split("_") if token}
-        return bool(tokens & {"user", "voice", "admin", "api", "gui", "ws", "websocket", "direct", "external"})
+        return bool(
+            tokens
+            & {"user", "voice", "admin", "api", "gui", "ws", "websocket", "direct", "external"}
+        )
 
     async def execute(self, state: AuraState, objective: str | None = None, **kwargs) -> AuraState:
         """
         Delegates to the old world, but enforces the new state invariants.
         """
         priority = bool(kwargs.get("priority", False))
-        current_origin = self._normalize_origin(getattr(getattr(state, "cognition", None), "current_origin", ""))
+        current_origin = self._normalize_origin(
+            getattr(getattr(state, "cognition", None), "current_origin", "")
+        )
 
         # Constitutional migration hardening:
         # once the kernel is actively handling a foreground/user-facing turn,
@@ -90,28 +109,44 @@ class LegacyPhase(Phase):
             # and ensure the Orchestrator is aware of the Kernel's hierarchy.
             from core.kernel.kernel_interface import get_kernel_interface
             from core.orchestrator.main import RobustOrchestrator
+
             self.legacy_orchestrator = RobustOrchestrator(kernel_interface=get_kernel_interface())
-            self.legacy_orchestrator.state = state 
-            
+            self.legacy_orchestrator.state = state
+
             # Force the legacy orchestrator to use the Kernel's Service Registry
             # This prevents it from hitting ServiceContainer.get("affect_engine")
             # and getting a 'rogue' engine.
             self.legacy_orchestrator._affect_engine_override = AffectBridge(self.kernel)
             self.legacy_orchestrator._motivation_engine_override = MotivationBridge(self.kernel)
-            
+
             # Register bridges in ServiceContainer for other legacy components.
             # Wrap in try-except because the container locks after boot — if another
             # LegacyPhase instance or boot path already registered these, skip silently.
             from core.container import ServiceContainer
+
             try:
-                ServiceContainer.register_instance("affect_engine", self.legacy_orchestrator._affect_engine_override)
+                ServiceContainer.register_instance(
+                    "affect_engine", self.legacy_orchestrator._affect_engine_override
+                )
             except (RuntimeError, AttributeError, TypeError, ValueError) as _reg_err:
-                record_degradation('bridge', _reg_err)
+                record_degradation(
+                    "bridge",
+                    _reg_err,
+                    severity="warning",
+                    action="continued with existing affect_engine bridge registration",
+                )
                 logger.debug("Bridge: affect_engine already registered, skipping: %s", _reg_err)
             try:
-                ServiceContainer.register_instance("motivation_engine", self.legacy_orchestrator._motivation_engine_override)
+                ServiceContainer.register_instance(
+                    "motivation_engine", self.legacy_orchestrator._motivation_engine_override
+                )
             except (RuntimeError, AttributeError, TypeError, ValueError) as _reg_err:
-                record_degradation('bridge', _reg_err)
+                record_degradation(
+                    "bridge",
+                    _reg_err,
+                    severity="warning",
+                    action="continued with existing motivation_engine bridge registration",
+                )
                 logger.debug("Bridge: motivation_engine already registered, skipping: %s", _reg_err)
             logger.info("Bridge: Legacy engines registered in ServiceContainer.")
             try:
@@ -126,22 +161,27 @@ class LegacyPhase(Phase):
                     context={"phase": "legacy_bridge"},
                 )
             except (ImportError, AttributeError, RuntimeError) as exc:
-                record_degradation('bridge', exc)
+                record_degradation(
+                    "bridge",
+                    exc,
+                    severity="warning",
+                    action="continued legacy bridge startup without degraded-event telemetry",
+                )
                 logger.debug("Bridge: legacy activation degraded-event logging failed: %s", exc)
-            
+
         logger.debug("Delegating objective '%s' to Legacy Bridge...", objective)
-        
+
         # 1. Sync Kernel State -> Legacy Orchestrator (Conversation History)
         if hasattr(self.legacy_orchestrator, "conversation_history"):
             self.legacy_orchestrator.conversation_history = state.cognition.history
-            
+
         # 2. Forward to legacy logic
         # process_user_input_priority is the most robust entry point for objective-driven thinking
         await self.legacy_orchestrator.process_user_input_priority(objective, origin="kernel")
-        
+
         # 3. Sync Legacy Orchestrator -> Kernel State
         state.cognition.history = self.legacy_orchestrator.conversation_history
-        
+
         return state
 
     async def cleanup(self):
@@ -155,9 +195,10 @@ class LegacyPhase(Phase):
                     task.cancel()
             await asyncio.gather(*self._legacy_tasks, return_exceptions=True)
             self._legacy_tasks.clear()
-        
+
         if self.legacy_orchestrator and hasattr(self.legacy_orchestrator, "stop"):
             await self.legacy_orchestrator.stop()
+
 
 class AffectBridge:
     """
@@ -165,13 +206,14 @@ class AffectBridge:
     Allows old modules to 'think' they are talking to a singleton engine,
     while they are actually reading/writing to the monolithic AuraState.
     """
+
     def __init__(self, kernel: AuraKernel):
         """Store a reference to the kernel for live state access."""
         self.kernel = kernel
 
     def get_status(self) -> dict:
         """Proxies to kernel state affect."""
-        state = self.kernel.state # Use live kernel state
+        state = self.kernel.state  # Use live kernel state
         if not state:
             return {}
         aff = state.affect
@@ -179,7 +221,7 @@ class AffectBridge:
             "mood": aff.dominant_emotion.capitalize(),
             "energy": int(aff.physiology["heart_rate"]),
             "curiosity": int(aff.curiosity * 100),
-            "valence": aff.valence
+            "valence": aff.valence,
         }
 
     def get_state_sync(self) -> dict:
@@ -189,19 +231,17 @@ class AffectBridge:
     async def update(self, **kwargs):
         """
         [CF-4] FIX: Instead of mutating vault._current directly, we inject
-        a percept into the live kernel.state. The AffectUpdatePhase will 
+        a percept into the live kernel.state. The AffectUpdatePhase will
         process this on the next tick, ensuring the mutation is persisted.
         """
         state = self.kernel.state
         if not state:
             return
-        
+
         # Inject as a 'virtual_percept' for the next tick
-        state.world.recent_percepts.append({
-            "type": "legacy_update",
-            "intensity": kwargs.get("intensity", 0.5),
-            "payload": kwargs
-        })
+        state.world.recent_percepts.append(
+            {"type": "legacy_update", "intensity": kwargs.get("intensity", 0.5), "payload": kwargs}
+        )
         logger.debug("AffectBridge: Injected legacy update into percept stream.")
 
     async def apply_stimulus(self, stimulus_type: str, intensity: float):
@@ -225,18 +265,28 @@ class AffectBridge:
 
         affect = state.affect
         emotions = affect.emotions
-        dominant = max(emotions.items(), key=lambda item: item[1])[0] if emotions else affect.dominant_emotion
+        dominant = (
+            max(emotions.items(), key=lambda item: item[1])[0]
+            if emotions
+            else affect.dominant_emotion
+        )
 
         if q_norm > 0.5 and dominant in emotions:
-            emotions[dominant] = _clamp(emotions.get(dominant, 0.0) + ((q_norm - 0.5) * 0.1), 0.0, 1.0)
+            emotions[dominant] = _clamp(
+                emotions.get(dominant, 0.0) + ((q_norm - 0.5) * 0.1), 0.0, 1.0
+            )
 
         if pri > 0.7:
             emotions["awe"] = _clamp(emotions.get("awe", 0.0) + ((pri - 0.7) * 0.05), 0.0, 1.0)
 
         if trend > 0.02:
-            emotions["anticipation"] = _clamp(emotions.get("anticipation", 0.0) + (trend * 0.5), 0.0, 1.0)
+            emotions["anticipation"] = _clamp(
+                emotions.get("anticipation", 0.0) + (trend * 0.5), 0.0, 1.0
+            )
         elif trend < -0.02:
-            emotions["sadness"] = _clamp(emotions.get("sadness", 0.0) + (abs(trend) * 0.3), 0.0, 1.0)
+            emotions["sadness"] = _clamp(
+                emotions.get("sadness", 0.0) + (abs(trend) * 0.3), 0.0, 1.0
+            )
 
         affect.physiology["heart_rate"] = _clamp(
             affect.physiology.get("heart_rate", 72.0) + ((q_norm - 0.5) * 2.0),
@@ -258,6 +308,7 @@ class AffectBridge:
     def current(self):
         """Support for legacy .current property."""
         from types import SimpleNamespace
+
         state = self.kernel.state
         if not state:
             return SimpleNamespace(energy=0.5, curiosity=0.5, valence=0.0)
@@ -265,13 +316,15 @@ class AffectBridge:
         return SimpleNamespace(
             energy=float((aff.physiology["heart_rate"] - 60) / 40.0),
             curiosity=float(aff.curiosity),
-            valence=float(aff.valence)
+            valence=float(aff.valence),
         )
+
 
 class MotivationBridge:
     """
     [PEER BRIDGE] Redirects legacy motivation lookups to the Kernel's Vault.
     """
+
     def __init__(self, kernel: AuraKernel):
         """Store a reference to the kernel for live state access."""
         self.kernel = kernel
