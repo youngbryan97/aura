@@ -1,4 +1,4 @@
-"""core/verifiers/decision_verifier.py
+"""core/verification/decision_verifier.py
 
 Verifies proposed plans and actions against system constraints and ethical guidelines.
 Provides numeric uncertainty calibration for decision endpoints.

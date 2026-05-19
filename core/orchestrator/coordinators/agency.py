@@ -8,7 +8,7 @@ import asyncio
 from typing import Any, Dict, Optional
 
 from core.health.degraded_events import record_degraded_event
-from core.verifiers.decision_verifier import DecisionVerifier
+from core.verification.decision_verifier import DecisionVerifier
 
 logger = logging.getLogger(__name__)
 
