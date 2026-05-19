@@ -1594,7 +1594,7 @@ def test_consciousness_system_required_substrate_start_failure_allows_retry(
     monkeypatch.setattr(
         system,
         "record_degradation",
-        lambda module, exc: recorded.append((module, type(exc).__name__)),
+        lambda module, exc, **_kwargs: recorded.append((module, type(exc).__name__)),
     )
 
     class _BrokenSubstrate:
@@ -1619,6 +1619,8 @@ def test_consciousness_system_required_substrate_start_failure_allows_retry(
 
     assert cs._running is False
     assert substrate.start_calls == 1
+    assert cs.layer_status["liquid_substrate"] == "degraded"
+    assert "liquid_substrate" in cs._degraded_layers
     assert recorded == [("system", "RuntimeError")]
 
 
@@ -1629,7 +1631,7 @@ def test_consciousness_system_stop_records_shutdown_failure_and_resets_running(
     monkeypatch.setattr(
         system,
         "record_degradation",
-        lambda module, exc: recorded.append((module, type(exc).__name__)),
+        lambda module, exc, **_kwargs: recorded.append((module, type(exc).__name__)),
     )
 
     class _BrokenSubstrate:
