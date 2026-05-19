@@ -1,0 +1,34 @@
+{
+  "generated_at_unix": 1779228811.8783228,
+  "generated_at_iso": "2026-05-19T15:13:31-0700",
+  "system": {
+    "os": "Darwin",
+    "release": "25.4.0",
+    "machine": "arm64",
+    "processor": "arm",
+    "python_version": "3.14.3",
+    "python_version_ok": true
+  },
+  "dependencies": {
+    "pydantic": "available",
+    "psutil": "available",
+    "pytest": "available",
+    "asyncio": "available",
+    "pyautogui": "available",
+    "core_dependencies_ok": true
+  },
+  "database": {
+    "db_path": "/Users/bryan/.aura/live-source/tests/test_projects.db",
+    "db_exists": true,
+    "schema_ok": true,
+    "detail": "Existing projects and tasks tables verified."
+  },
+  "accelerator": {
+    "is_apple_silicon": true,
+    "mlx_available": true,
+    "torch_available": true,
+    "torch_device": "mps",
+    "guidance": "Hardware acceleration configuration is healthy."
+  },
+  "overall_healthy": true
+}

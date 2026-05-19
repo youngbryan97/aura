@@ -973,6 +973,7 @@ class MLXLocalClient:
                     "♻️ [MLX] Cleared stale foreground owner %s during lane status check.",
                     stale_owner,
                 )
+        self._check_lane_state_staleness()  # [STABILITY v54] Eagerly check and reset stuck/stale lane states
         worker_alive = self.is_alive()
         lane_state = self._lane_state
         lane_error = self._lane_error

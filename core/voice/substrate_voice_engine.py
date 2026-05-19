@@ -574,8 +574,13 @@ def get_substrate_voice_engine() -> SubstrateVoiceEngine:
         # Register in ServiceContainer
         try:
             from core.container import ServiceContainer
-            ServiceContainer.register("substrate_voice_engine", _instance)
-        except (ImportError, AttributeError, RuntimeError):
-            pass  # no-op: intentional
+            from core.exceptions import ContainerError
+            if not getattr(ServiceContainer, "_registration_locked", False):
+                ServiceContainer.register("substrate_voice_engine", _instance)
+            else:
+                logger.warning("⚠️ [SubstrateVoiceEngine] Cannot register 'substrate_voice_engine' because ServiceContainer registration is locked.")
+        except (ImportError, AttributeError, RuntimeError, ContainerError) as exc:
+            logger.warning("⚠️ [SubstrateVoiceEngine] Container registration failed: %s", exc)
         logger.info("🗣️ [SubstrateVoiceEngine] Initialized — substrate controls the voice.")
     return _instance
+

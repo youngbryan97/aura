@@ -2533,6 +2533,7 @@ async def test_metabolic_coordinator_terminal_self_heal_is_task_tracked(monkeypa
 
     monkeypatch.setattr(metabolic_module, "get_task_tracker", lambda: _Tracker())
     monkeypatch.setattr("core.terminal_monitor.get_terminal_monitor", lambda: _Monitor())
+    monkeypatch.setattr("core.runtime.background_policy.background_activity_reason", lambda *args, **kwargs: "")
 
     await coord.run_terminal_self_heal()
     await orch._current_thought_task

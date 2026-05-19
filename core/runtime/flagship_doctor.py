@@ -274,6 +274,166 @@ def run_doctor(root: str | Path, *, include_gates: bool = True) -> DoctorReport:
     return DoctorReport(root=str(root), created_at=time.time(), overall=overall, findings=findings)
 
 
+import gc
+import sqlite3
+import threading
+import logging
+
+logger = logging.getLogger("Aura.FlagshipDoctor")
+
+
+class FlagshipDoctorDaemon:
+    """Active background doctor daemon for event-loop latency tracking and database/memory self-healing."""
+
+    def __init__(
+        self,
+        root_dir: str | Path | None = None,
+        check_interval: float = 1.0,
+        lag_threshold: float = 5.0,
+        ram_threshold: float = 90.0,
+    ) -> None:
+        self.root = Path(root_dir or ".").resolve()
+        self.check_interval = check_interval
+        self.lag_threshold = lag_threshold
+        self.ram_threshold = ram_threshold
+        self._last_heartbeat = time.time()
+        self._running = False
+        self._monitor_thread: threading.Thread | None = None
+        self._loop: Any = None
+
+    def start(self, loop: Any = None) -> None:
+        """Start the background monitoring thread and event-loop heartbeat updater."""
+        if self._running:
+            return
+        
+        import asyncio
+        try:
+            self._loop = loop or asyncio.get_running_loop()
+        except RuntimeError:
+            logger.warning("FlagshipDoctorDaemon: No running event loop found during start. Heartbeat updater deferred.")
+        
+        self._running = True
+        self._last_heartbeat = time.time()
+        
+        # Schedule the heartbeat task on the event loop
+        if self._loop and self._loop.is_running():
+            self._loop.create_task(self._heartbeat_updater())
+            
+        self._monitor_thread = threading.Thread(
+            target=self._monitor_loop,
+            daemon=True,
+            name="AuraFlagshipDoctorDaemon"
+        )
+        self._monitor_thread.start()
+
+    def stop(self) -> None:
+        """Stop the background monitoring thread."""
+        self._running = False
+        if self._monitor_thread:
+            self._monitor_thread.join(timeout=2.0)
+            self._monitor_thread = None
+
+    async def _heartbeat_updater(self) -> None:
+        """Async task that constantly updates the heartbeat timestamp on the event loop."""
+        import asyncio
+        while self._running:
+            self._last_heartbeat = time.time()
+            try:
+                await asyncio.sleep(0.5)
+            except asyncio.CancelledError:
+                break
+
+    def _monitor_loop(self) -> None:
+        """Standard thread loop running in the background to detect event-loop stalls or high memory."""
+        logger.info("FlagshipDoctorDaemon background thread started.")
+        
+        while self._running:
+            time.sleep(self.check_interval)
+            if not self._running:
+                break
+                
+            # 1. Event Loop Lag check
+            lag = time.time() - self._last_heartbeat
+            
+            # 2. RAM Pressure check
+            ram_percent = 0.0
+            try:
+                import psutil
+                ram_percent = psutil.virtual_memory().percent
+            except ImportError:
+                pass
+                
+            # Trigger self-healing if limits are violated
+            if lag > self.lag_threshold or (ram_percent > 0.0 and ram_percent >= self.ram_threshold):
+                logger.warning(
+                    "⚠️ [HEALTH DEGRADED] FlagshipDoctorDaemon triggered self-healing. Lag: %.2fs, RAM: %.1f%%",
+                    lag,
+                    ram_percent
+                )
+                try:
+                    self._execute_self_healing(lag, ram_percent)
+                except (RuntimeError, OSError, AttributeError, ValueError, TypeError, ImportError, sqlite3.Error) as e:
+                    logger.error("FlagshipDoctorDaemon self-healing failed: %s", e)
+
+    def _execute_self_healing(self, lag: float, ram_percent: float) -> None:
+        """Executes garbage collection and compacts SQLite databases under pressure."""
+        # 1. Run CPU Garbage Collection
+        logger.info("♻️ Reclaiming memory via gc.collect()...")
+        gc.collect()
+        
+        # 2. Compact SQLite Databases (specifically test_projects.db)
+        db_paths = [
+            self.root / "tests" / "test_projects.db",
+            Path.home() / ".aura" / "live-source" / "tests" / "test_projects.db",
+        ]
+        
+        compacted_count = 0
+        for db_path in db_paths:
+            if db_path.exists():
+                try:
+                    logger.info("🗄️ Compacting SQLite database: %s", db_path)
+                    conn = sqlite3.connect(str(db_path), timeout=5.0)
+                    conn.execute("VACUUM;")
+                    conn.close()
+                    compacted_count += 1
+                except (sqlite3.Error, OSError, RuntimeError, ValueError) as e:
+                    logger.error("Failed to compact DB %s: %s", db_path, e)
+                    
+        # 3. Trigger global database maintenance if available
+        try:
+            from core.persistence.db_maintenance import get_db_maintenance
+            maint = get_db_maintenance()
+            logger.info("🗄️ Triggering global DatabaseMaintenance pass...")
+            maint.run_maintenance(force=True)
+            compacted_count += 1
+        except ImportError:
+            pass
+        except (RuntimeError, AttributeError, ValueError, TypeError, OSError) as e:
+            logger.error("Global database maintenance run failed: %s", e)
+            
+        # 4. Record systemic degradation telemetry
+        try:
+            from core.runtime.errors import record_degradation
+            record_degradation(
+                "flagship_doctor",
+                RuntimeError(f"Self-healing active: lag={lag:.2f}s, RAM={ram_percent:.1f}%"),
+                severity="warning",
+                action=f"reclaimed RAM with gc.collect() and compacted {compacted_count} databases"
+            )
+        except (ImportError, RuntimeError, AttributeError, ValueError, TypeError, OSError) as e:
+            logger.error("Failed to record degradation telemetry: %s", e)
+
+
+_daemon_instance: FlagshipDoctorDaemon | None = None
+
+
+def get_flagship_doctor_daemon(root_dir: str | Path | None = None) -> FlagshipDoctorDaemon:
+    global _daemon_instance
+    if _daemon_instance is None:
+        _daemon_instance = FlagshipDoctorDaemon(root_dir=root_dir)
+    return _daemon_instance
+
+
 def main(argv: Optional[list[str]] = None) -> int:
     import argparse
 

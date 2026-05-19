@@ -116,6 +116,12 @@ class ContextStreamingMixin:
                 )
                 logger.debug("Suppressed Exception: %s", _exc)
 
+        # Cortana Cognitive State Injection
+        from core.container import ServiceContainer
+        cortana = ServiceContainer.get("cortana", default=None)
+        if cortana:
+            ctx["cognitive_state"] = cortana.get_system_prompt_injection()
+
         # Sentient Context Injection: Affect & Drives
         ctx["emotional_state"] = "Stable"
         if getattr(self, "affect_engine", None):
@@ -383,6 +389,36 @@ class ContextStreamingMixin:
             # Cleanup: Update history and memory after stream finishes
             self.conversation_history.append({"role": "user", "content": message})
             self.conversation_history.append({"role": self.AI_ROLE, "content": token_buffer})
+
+            # Cortana Turn Recording & Pruning
+            from core.container import ServiceContainer
+            cortana = ServiceContainer.get("cortana", default=None)
+            if cortana:
+                hist_str = str(self.conversation_history)
+                est_tokens = int(len(hist_str) / 4)
+                cortana.record_turn(
+                    context_tokens=est_tokens,
+                    max_tokens=32768,
+                    response_quality=0.9,
+                    identity_markers_present=True,
+                    topics_in_play=1,
+                    resolved_topics=1
+                )
+                if cortana.should_prune():
+                    logger.info("🧠 Cortana: Saturation detected. Compacting history asynchronously...")
+                    self._fire_and_forget(
+                        self._prune_history_async(),
+                        name="orchestrator.cortana.prune_history"
+                    )
+
+            # JARVIS activity telemetry
+            jarvis = ServiceContainer.get("jarvis", default=None)
+            if jarvis:
+                jarvis.record_activity(user_input=message, response=token_buffer)
+                self._fire_and_forget(
+                    jarvis.run_cycle(),
+                    name="orchestrator.jarvis.run_cycle",
+                )
 
             # Satisfy drive — robustly
             if hasattr(self, "drives") and self.drives and hasattr(self.drives, "satisfy"):

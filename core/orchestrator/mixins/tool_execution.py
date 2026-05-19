@@ -171,6 +171,26 @@ class ToolExecutionMixin:
                 logger.debug("Constitutional tool completion failed: %s", _finish_exc)
                 return False
 
+        # ── EDI PROGRESSIVE AUTONOMY GATE ────────────────────────────────
+        edi = ServiceContainer.get("edi", default=None)
+        if edi:
+            # Map tool name to risk level
+            if tool_name in ("shell", "command", "run_command", "execute"):
+                risk_level = "critical"
+            elif tool_name in ("file_write", "write_file", "replace_file_content", "multi_replace_file_content", "write_to_file", "edit_file"):
+                risk_level = "high"
+            elif tool_name in ("browser", "read_file", "view_file", "list_dir", "grep_search"):
+                risk_level = "medium"
+            else:
+                risk_level = "low"
+            
+            allowed, reason = edi.can_do(tool_name, risk_level)
+            if not allowed:
+                logger.warning("🔓 EDI blocked tool '%s' (risk: %s): %s", tool_name, risk_level, reason)
+                result = {"ok": False, "error": f"EDI blocked: {reason}"}
+                _record_coding_tool_event(result, success=False, error=reason)
+                return result
+
         # ── UNIFIED WILL GATE ────────────────────────────────────────────
         try:
             from core.will import ActionDomain, get_will
@@ -532,11 +552,23 @@ class ToolExecutionMixin:
                     name="orchestrator.affect_engine.apply_stimulus",
                 )
 
+            # Record EDI trust signal feedback
+            if edi:
+                if success:
+                    edi.record_positive_signal(f"Success: {tool_name}")
+                else:
+                    edi.record_negative_signal(f"Failure: {tool_name} - {result.get('error', 'unknown')}")
+
             await _finish_constitutional_tool_execution(result, success=success)
             _record_coding_tool_event(result, success=success, error=str(result.get("error", "")))
             return result
 
         except _TOOL_EXECUTION_RECOVERABLE_ERRORS as e:
+            # Record EDI failure signal on crash
+            edi = ServiceContainer.get("edi", default=None)
+            if edi:
+                edi.record_negative_signal(f"Crash: {tool_name} - {type(e).__name__}")
+
             _record_tool_degradation(
                 e,
                 action="returned structured execution_jolt after tool execution failed",

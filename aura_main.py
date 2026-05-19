@@ -735,6 +735,25 @@ async def _boot_runtime_orchestrator(
             record_degradation('aura_main', exc)
             logger.warning("stem-cell capture at boot failed: %s", exc)
 
+    if not _foreground_only_runtime() and _env_flag("AURA_ENABLE_FLAGSHIP_DOCTOR", True):
+        try:
+            from core.runtime.flagship_doctor import get_flagship_doctor_daemon
+            daemon = get_flagship_doctor_daemon(root_dir=PROJECT_ROOT)
+            daemon.start(asyncio.get_running_loop())
+            ServiceContainer.register_instance("flagship_doctor_daemon", daemon, required=False)
+            
+            from core.runtime.shutdown_coordinator import get_shutdown_coordinator
+            get_shutdown_coordinator().register(
+                daemon.stop,
+                phase="task_supervisor",
+                name="flagship_doctor_daemon",
+                timeout=5.0
+            )
+            logger.info("🩺 FlagshipDoctorDaemon started and registered for shutdown.")
+        except Exception as exc:
+            record_degradation('aura_main', exc)
+            logger.warning("FlagshipDoctorDaemon failed to start: %s", exc)
+
     return orchestrator
 
 
@@ -754,6 +773,17 @@ def _register_runtime_singletons(orchestrator: Any) -> None:
         record_degradation("aura_main", exc)
         logger.warning("ServiceContainer unavailable during service registration: %s", exc)
         return
+
+    # ── Substrate Voice Engine ──
+    try:
+        if not ServiceContainer.has("substrate_voice_engine"):
+            from core.voice.substrate_voice_engine import get_substrate_voice_engine
+            # Eagerly initialize and register the voice engine singleton
+            get_substrate_voice_engine()
+    except _AURA_MAIN_BOUNDARY_ERRORS as exc:
+        record_degradation('aura_main', exc)
+        logger.warning("substrate_voice_engine eager registration failed: %s", exc)
+
 
     try:
         from core.utils.task_tracker import get_task_tracker

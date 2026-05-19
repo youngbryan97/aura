@@ -693,6 +693,12 @@ class InferenceGate:
                     "🔍 [WATCHDOG] MLX warmup_in_flight stuck for >300s. Force-clearing."
                 )
                 self._mlx_client._warmup_in_flight = False
+                if self._prewarm_task and not self._prewarm_task.done():
+                    logger.warning(
+                        "🔍 [WATCHDOG] Stuck prewarm task found during watchdog cleanup. Cancelling."
+                    )
+                    self._prewarm_task.cancel()
+                    self._prewarm_task = None
 
         # 3. Detect completed-but-unreaped prewarm tasks
         if self._prewarm_task and self._prewarm_task.done():
@@ -835,6 +841,16 @@ class InferenceGate:
         # for >90s with no progress and no active task, force to "cold" so the next
         # user request triggers a fresh warmup instead of waiting on a ghost.
         if lane_state in ("warming", "recovering") and not lane["conversation_ready"]:
+            # [STABILITY v54] Eagerly cancel and clear prewarm task if it has been active for >300s.
+            if self._prewarm_task and not self._prewarm_task.done():
+                transition_at = getattr(self._mlx_client, "_lane_transition_at", 0.0) if self._mlx_client else 0.0
+                if transition_at > 0 and (time.time() - transition_at) > 300.0:
+                    logger.warning(
+                        "🔍 [WATCHDOG] Prewarm task is active for >300s (stuck). Cancelling task."
+                    )
+                    self._prewarm_task.cancel()
+                    self._prewarm_task = None
+
             last_progress = max(
                 float(lane.get("last_transition_at", 0.0) or 0.0),
                 float(lane.get("last_progress_at", 0.0) or 0.0),

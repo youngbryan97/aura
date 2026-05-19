@@ -60,9 +60,17 @@ class SwarmProtocol:
             self._mood_broadcast_task.cancel()
 
     async def _handle_peer(self, reader, writer):
-        data = await reader.read(4096)
         try:
-            message = json.loads(data.decode())
+            data = await reader.read(4096)
+            if not data or not data.strip():
+                return
+            try:
+                decoded = data.decode('utf-8', errors='ignore')
+                message = json.loads(decoded)
+            except (json.JSONDecodeError, UnicodeDecodeError, ValueError) as exc:
+                logger.debug("Received malformed/non-JSON data from peer: %s", exc)
+                return
+
             peer_id = message.get("node_id")
             if peer_id:
                 self.peers.add(writer.get_extra_info('peername')[0])
@@ -71,8 +79,11 @@ class SwarmProtocol:
             record_degradation('swarm_protocol', e)
             logger.debug("Swarm gossip error: %s", e)
         finally:
-            writer.close()
-            await writer.wait_closed()
+            try:
+                writer.close()
+                await writer.wait_closed()
+            except (OSError, ConnectionError):
+                pass
 
     async def _process_gossip(self, message: Dict[str, Any]):
         msg_type = message.get("type")

@@ -1013,36 +1013,42 @@ def register_all_fictional_engines(orchestrator=None) -> dict[str, Any]:
         or ProactiveAnticipationEngine(orchestrator=orchestrator)
     )
     ServiceContainer.register_instance(ServiceNames.JARVIS, engines["jarvis"])
+    ServiceContainer.register_instance("jarvis", engines["jarvis"])
 
     engines["cortana"] = (
         ServiceContainer.get(ServiceNames.CORTANA, default=None)
         or CognitiveHealthMonitor()
     )
     ServiceContainer.register_instance(ServiceNames.CORTANA, engines["cortana"])
+    ServiceContainer.register_instance("cortana", engines["cortana"])
 
     engines["edi"] = (
         ServiceContainer.get(ServiceNames.EDI, default=None)
         or ProgressiveAutonomySystem()
     )
     ServiceContainer.register_instance(ServiceNames.EDI, engines["edi"])
+    ServiceContainer.register_instance("edi", engines["edi"])
 
     engines["ava"] = (
         ServiceContainer.get(ServiceNames.AVA, default=None)
         or SocialModelingEngine()
     )
     ServiceContainer.register_instance(ServiceNames.AVA, engines["ava"])
+    ServiceContainer.register_instance("ava", engines["ava"])
 
     engines["skynet"] = (
         ServiceContainer.get(ServiceNames.SKYNET, default=None)
         or DistributedResilienceCore()
     )
     ServiceContainer.register_instance(ServiceNames.SKYNET, engines["skynet"])
+    ServiceContainer.register_instance("skynet", engines["skynet"])
 
     engines["mist"] = (
         ServiceContainer.get(ServiceNames.MIST, default=None)
         or TemporalDilationScheduler(orchestrator=orchestrator)
     )
     ServiceContainer.register_instance(ServiceNames.MIST, engines["mist"])
+    ServiceContainer.register_instance("mist", engines["mist"])
 
     if foreground_only:
         logger.info("✅ Fictional AI engines registered without background loops (foreground-only boot).")

@@ -805,6 +805,13 @@ class MessageHandlingMixin:
                         async with self._lock:
                             self._record_message_in_history(message, origin)
                             self._record_message_in_history(response, "assistant")
+
+                        # JARVIS activity telemetry
+                        jarvis = ServiceContainer.get("jarvis", default=None)
+                        if jarvis:
+                            jarvis.record_activity(user_input=message, response=response or "")
+                            self._fire_and_forget(jarvis.run_cycle(), name="orchestrator.jarvis.run_cycle")
+
                         return response
 
                 # ── FALLBACK: Direct InferenceGate (kernel not ready) ──
@@ -1044,6 +1051,12 @@ class MessageHandlingMixin:
                         action="continued response delivery without epistemic filter ingest",
                     )
                     logger.debug("Epistemic filter ingest skipped: %s", _exc)
+
+                # JARVIS activity telemetry
+                jarvis = ServiceContainer.get("jarvis", default=None)
+                if jarvis:
+                    jarvis.record_activity(user_input=message, response=response or "")
+                    self._fire_and_forget(jarvis.run_cycle(), name="orchestrator.jarvis.run_cycle")
 
                 return response
             finally:

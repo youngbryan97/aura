@@ -223,14 +223,14 @@ private final class GradientProgressBar: NSView {
         layer?.masksToBounds = false
 
         trackLayer.backgroundColor = NSColor.auraTrack.cgColor
-        trackLayer.cornerRadius = 9
+        trackLayer.cornerRadius = 4
         layer?.addSublayer(trackLayer)
 
         fillGlowLayer.backgroundColor = NSColor.auraBlue.withAlphaComponent(0.55).cgColor
-        fillGlowLayer.cornerRadius = 9
+        fillGlowLayer.cornerRadius = 4
         fillGlowLayer.shadowColor = NSColor.auraViolet.cgColor
         fillGlowLayer.shadowOpacity = 0.9
-        fillGlowLayer.shadowRadius = 12
+        fillGlowLayer.shadowRadius = 8
         fillGlowLayer.shadowOffset = .zero
         layer?.addSublayer(fillGlowLayer)
 
@@ -241,7 +241,7 @@ private final class GradientProgressBar: NSView {
         ]
         fillGradientLayer.startPoint = CGPoint(x: 0.0, y: 0.5)
         fillGradientLayer.endPoint = CGPoint(x: 1.0, y: 0.5)
-        fillGradientLayer.cornerRadius = 9
+        fillGradientLayer.cornerRadius = 4
         layer?.addSublayer(fillGradientLayer)
     }
 
@@ -252,11 +252,11 @@ private final class GradientProgressBar: NSView {
 
     override func layout() {
         super.layout()
-        let rect = bounds.insetBy(dx: 0, dy: 3)
+        let rect = bounds
         trackLayer.frame = rect
 
         let clamped = max(0.0, min(100.0, progress))
-        let fillWidth = max(18.0, rect.width * CGFloat(clamped / 100.0))
+        let fillWidth = max(8.0, rect.width * CGFloat(clamped / 100.0))
         let fillRect = CGRect(x: rect.minX, y: rect.minY, width: min(fillWidth, rect.width), height: rect.height)
 
         fillGlowLayer.isHidden = clamped <= 0.0
@@ -342,6 +342,8 @@ private final class CapsuleButton: NSButton {
     }
 
     private let style: Style
+    private var isHovered = false
+    private var trackingArea: NSTrackingArea?
 
     init(title: String, style: Style, target: AnyObject?, action: Selector) {
         self.style = style
@@ -353,7 +355,7 @@ private final class CapsuleButton: NSButton {
         bezelStyle = .regularSquare
         focusRingType = .none
         wantsLayer = true
-        layer?.cornerRadius = 14
+        layer?.cornerRadius = 21
         layer?.borderWidth = 1
         updateAppearance()
     }
@@ -368,12 +370,43 @@ private final class CapsuleButton: NSButton {
         return NSSize(width: base.width + 30, height: 42)
     }
 
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let existing = trackingArea {
+            removeTrackingArea(existing)
+        }
+        let options: NSTrackingArea.Options = [.mouseEnteredAndExited, .activeInActiveApp]
+        let area = NSTrackingArea(rect: bounds, options: options, owner: self, userInfo: nil)
+        addTrackingArea(area)
+        trackingArea = area
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        isHovered = true
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = 0.2
+            context.allowsImplicitAnimation = true
+            updateAppearance()
+        }, completionHandler: nil)
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        isHovered = false
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = 0.2
+            context.allowsImplicitAnimation = true
+            updateAppearance()
+        }, completionHandler: nil)
+    }
+
     private func updateAppearance() {
         let font = NSFont.systemFont(ofSize: 15, weight: .semibold)
         switch style {
         case .accent:
-            layer?.backgroundColor = NSColor.auraViolet.withAlphaComponent(0.22).cgColor
-            layer?.borderColor = NSColor.auraViolet.withAlphaComponent(0.44).cgColor
+            let bgAlpha: CGFloat = isHovered ? 0.35 : 0.22
+            let borderAlpha: CGFloat = isHovered ? 0.66 : 0.44
+            layer?.backgroundColor = NSColor.auraViolet.withAlphaComponent(bgAlpha).cgColor
+            layer?.borderColor = NSColor.auraViolet.withAlphaComponent(borderAlpha).cgColor
             attributedTitle = NSAttributedString(
                 string: title,
                 attributes: [
@@ -382,18 +415,23 @@ private final class CapsuleButton: NSButton {
                 ]
             )
         case .secondary:
-            layer?.backgroundColor = NSColor.white.withAlphaComponent(0.06).cgColor
-            layer?.borderColor = NSColor.white.withAlphaComponent(0.10).cgColor
+            let bgAlpha: CGFloat = isHovered ? 0.14 : 0.04
+            let borderAlpha: CGFloat = isHovered ? 0.22 : 0.10
+            let textColor = isHovered ? NSColor.white : NSColor(calibratedWhite: 0.92, alpha: 1.0)
+            layer?.backgroundColor = NSColor.white.withAlphaComponent(bgAlpha).cgColor
+            layer?.borderColor = NSColor.white.withAlphaComponent(borderAlpha).cgColor
             attributedTitle = NSAttributedString(
                 string: title,
                 attributes: [
                     .font: font,
-                    .foregroundColor: NSColor(calibratedWhite: 0.92, alpha: 1.0),
+                    .foregroundColor: textColor,
                 ]
             )
         case .subtle:
-            layer?.backgroundColor = NSColor.black.withAlphaComponent(0.14).cgColor
-            layer?.borderColor = NSColor.white.withAlphaComponent(0.08).cgColor
+            let bgAlpha: CGFloat = isHovered ? 0.22 : 0.14
+            let borderAlpha: CGFloat = isHovered ? 0.16 : 0.08
+            layer?.backgroundColor = NSColor.black.withAlphaComponent(bgAlpha).cgColor
+            layer?.borderColor = NSColor.white.withAlphaComponent(borderAlpha).cgColor
             attributedTitle = NSAttributedString(
                 string: title,
                 attributes: [
@@ -402,8 +440,10 @@ private final class CapsuleButton: NSButton {
                 ]
             )
         case .danger:
-            layer?.backgroundColor = NSColor(calibratedRed: 0.46, green: 0.14, blue: 0.21, alpha: 0.34).cgColor
-            layer?.borderColor = NSColor(calibratedRed: 1.0, green: 0.42, blue: 0.67, alpha: 0.36).cgColor
+            let bgAlpha: CGFloat = isHovered ? 0.50 : 0.34
+            let borderAlpha: CGFloat = isHovered ? 0.50 : 0.36
+            layer?.backgroundColor = NSColor(calibratedRed: 0.46, green: 0.14, blue: 0.21, alpha: bgAlpha).cgColor
+            layer?.borderColor = NSColor(calibratedRed: 1.0, green: 0.42, blue: 0.67, alpha: borderAlpha).cgColor
             attributedTitle = NSAttributedString(
                 string: title,
                 attributes: [
@@ -610,13 +650,15 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate {
         let contentView = LauncherBackgroundView(frame: frame)
         window.contentView = contentView
 
-        let contentCard = NSView()
+        let contentCard = NSVisualEffectView()
         contentCard.translatesAutoresizingMaskIntoConstraints = false
+        contentCard.state = .active
+        contentCard.material = .hudWindow
+        contentCard.blendingMode = .behindWindow
         contentCard.wantsLayer = true
-        contentCard.layer?.backgroundColor = NSColor.auraPanel.cgColor
         contentCard.layer?.cornerRadius = 32
         contentCard.layer?.borderColor = NSColor.auraPanelBorder.cgColor
-        contentCard.layer?.borderWidth = 1
+        contentCard.layer?.borderWidth = 1.2
         contentCard.layer?.shadowColor = NSColor.black.cgColor
         contentCard.layer?.shadowOpacity = 0.30
         contentCard.layer?.shadowRadius = 36
@@ -872,7 +914,7 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate {
             progressBelowBadge,
             progressBelowIcon,
             progressBelowSummary,
-            progressIndicator.heightAnchor.constraint(equalToConstant: 20),
+            progressIndicator.heightAnchor.constraint(equalToConstant: 8),
 
             footerLabel.leadingAnchor.constraint(equalTo: heroPanel.leadingAnchor, constant: 32),
             footerLabel.trailingAnchor.constraint(equalTo: heroPanel.trailingAnchor, constant: -32),
