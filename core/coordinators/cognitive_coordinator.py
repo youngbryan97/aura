@@ -1,9 +1,9 @@
 """Cognitive Coordinator — agentic loop, tool execution, autonomous thought,
 reasoning shortcuts, and knowledge extraction.
 
-Extracted from orchestrator.py as part of the God Object decomposition.
+Extracted from orchestrator.py as part of the orchestrator ownership split.
 
-Concern Boundaries (for future decomposition):
+Runtime ownership boundaries:
   - Response finalization & output filtering → finalize_response(), generate_fallback()
   - Constitutional safety → apply_constitutional_guard()
   - Tool execution → execute_tool()
@@ -14,18 +14,61 @@ Concern Boundaries (for future decomposition):
 All tool execution is gated through AuthorityGateway → UnifiedWill.
 All autonomous actions produce WillReceipts via the authority chain.
 """
-from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import re
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
+from core.runtime.errors import record_degradation
 from core.runtime.governance_policy import allow_direct_user_shortcut
 from core.runtime.turn_analysis import analyze_turn
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger(__name__)
+
+_COGNITIVE_SUBSYSTEM = "cognitive_coordinator"
+_COGNITIVE_BOUNDARY_ERRORS = (Exception,)
+_RESPONSE_BACKGROUND_DELAY_SECONDS = 0.5
+
+
+def _record_cognitive_degradation(
+    error: BaseException,
+    *,
+    action: str = "cognitive operation degraded and isolated",
+    severity: str = "degraded",
+) -> None:
+    record_degradation(_COGNITIVE_SUBSYSTEM, error, severity=severity, action=action)
+
+
+def _close_if_possible(awaitable) -> None:
+    try:
+        close = awaitable.close
+    except AttributeError:
+        return
+    try:
+        close()
+    except _COGNITIVE_BOUNDARY_ERRORS as exc:
+        _record_cognitive_degradation(exc, action="unscheduled cognitive awaitable close failed")
+
+
+def _schedule_cognitive_task(awaitable, *, name: str, tracker=None):
+    try:
+        task_owner = tracker if tracker is not None else get_task_tracker()
+        try:
+            schedule = task_owner.create_task
+        except AttributeError:
+            schedule = task_owner.track
+        return schedule(awaitable, name=name)
+    except RuntimeError as exc:
+        _close_if_possible(awaitable)
+        logger.debug("Cognitive background task %s deferred outside an event loop: %s", name, exc)
+        return None
+    except _COGNITIVE_BOUNDARY_ERRORS as exc:
+        _close_if_possible(awaitable)
+        _record_cognitive_degradation(exc, action=f"background task {name} was not scheduled")
+        logger.debug("Cognitive background task %s scheduling failed: %s", name, exc)
+        return None
 
 
 class CognitiveCoordinator:
@@ -40,8 +83,8 @@ class CognitiveCoordinator:
         self.orch = orch
 
         # Extracted focused modules
-        from core.coordinators.tool_executor import ToolExecutor
         from core.coordinators.knowledge_extractor import KnowledgeExtractor
+        from core.coordinators.tool_executor import ToolExecutor
 
         self._tool_executor = ToolExecutor(orch)
         self._knowledge_extractor = KnowledgeExtractor(orch)
@@ -50,7 +93,7 @@ class CognitiveCoordinator:
     # Response Finalization & Output Filtering
     # ------------------------------------------------------------------
 
-    async def finalize_response(self, message: str, response: str, origin: str, trace, successful_tools: List[str]) -> str:
+    async def finalize_response(self, message: str, response: str, origin: str, trace, successful_tools: list[str]) -> str:
         """Apply final touches: Fallback, Security, Social Drive, Meta-Learning."""
         from core.utils.task_tracker import task_tracker
         orch = self.orch
@@ -82,68 +125,88 @@ class CognitiveCoordinator:
                     if enhanced and enhanced != response:
                         response = enhanced
                         
-            except Exception as e:
-                record_degradation('cognitive_coordinator', e)
-                record_degradation('cognitive_coordinator', e)
+            except _COGNITIVE_BOUNDARY_ERRORS as e:
+                _record_cognitive_degradation(e, action="epistemic humility gate skipped")
                 logger.debug("Epistemic humility gate skipped: %s", e)
         # ── End Epistemic Humility Gate ──────────────────────────────────────
         if hasattr(orch, 'meta_learning') and orch.meta_learning and successful_tools:
             for t in successful_tools:
-                orch.meta_learning.record_usage(t)
+                try:
+                    orch.meta_learning.record_usage(t)
+                except _COGNITIVE_BOUNDARY_ERRORS as exc:
+                    _record_cognitive_degradation(exc, action=f"meta-learning usage not recorded for {t}")
+                    logger.debug("Meta-learning usage record failed for %s: %s", t, exc)
         if origin in ("user", "voice"):
-            trace.record_step("meta_learning", {"tools_used": successful_tools})
+            try:
+                trace.record_step("meta_learning", {"tools_used": successful_tools})
+            except _COGNITIVE_BOUNDARY_ERRORS as exc:
+                _record_cognitive_degradation(exc, action="meta-learning trace step skipped")
         if hasattr(orch, 'social') and orch.social:
             try:
                 orch.social.update_after_interaction(message, response)
-            except Exception as _e:
-                record_degradation('cognitive_coordinator', _e)
-                record_degradation('cognitive_coordinator', _e)
+            except _COGNITIVE_BOUNDARY_ERRORS as _e:
+                _record_cognitive_degradation(_e, action="social model update skipped")
                 logger.error("Social model update failed: %s", _e)
         if origin in ("user", "voice") and hasattr(orch, 'self_modifier') and orch.self_modifier:
-            orch.self_modifier.on_success(message, response, successful_tools)
+            try:
+                orch.self_modifier.on_success(message, response, successful_tools)
+            except _COGNITIVE_BOUNDARY_ERRORS as exc:
+                _record_cognitive_degradation(exc, action="self-modifier success hook skipped")
+                logger.debug("Self-modifier success hook failed: %s", exc)
         if hasattr(orch, 'affect_engine') and orch.affect_engine:
             try:
                 orch.affect_engine.process_response(message, response)
-            except Exception as e:
-                record_degradation('cognitive_coordinator', e)
-                record_degradation('cognitive_coordinator', e)
+            except _COGNITIVE_BOUNDARY_ERRORS as e:
+                _record_cognitive_degradation(e, action="affect response processing skipped")
                 logger.error("Affect processing failed: %s", e)
         if origin in ("user", "voice"):
-            await asyncio.sleep(0.5)
-            orch._trigger_background_reflection(response)
-            orch._trigger_background_learning(message, response)
+            await asyncio.sleep(_RESPONSE_BACKGROUND_DELAY_SECONDS)
+            try:
+                orch._trigger_background_reflection(response)
+                orch._trigger_background_learning(message, response)
+            except _COGNITIVE_BOUNDARY_ERRORS as exc:
+                _record_cognitive_degradation(exc, action="background reflection or learning trigger skipped")
+                logger.debug("Background response hooks failed: %s", exc)
         if hasattr(orch, 'cognition') and orch.cognition:
-             try:
-                 orch.cognition.record_interaction(message, response, domain="general")
-             except Exception as e:
-                 record_degradation('cognitive_coordinator', e)
-                 record_degradation('cognitive_coordinator', e)
-                 logger.error("Failed to record interaction in cognitive layer: %s", e)
-        trace.record_step("end", {"response": (response or "")[:100]})
-        trace.save()
+            try:
+                orch.cognition.record_interaction(message, response, domain="general")
+            except _COGNITIVE_BOUNDARY_ERRORS as e:
+                _record_cognitive_degradation(e, action="cognitive interaction record skipped")
+                logger.error("Failed to record interaction in cognitive layer: %s", e)
+        try:
+            trace.record_step("end", {"response": (response or "")[:100]})
+            trace.save()
+        except _COGNITIVE_BOUNDARY_ERRORS as exc:
+            _record_cognitive_degradation(exc, action="cognitive trace finalization skipped")
         orch._last_thought_time = time.time()
         if getattr(orch, 'drives', None):
-            await orch.drives.satisfy("social", 10.0)
-        if orch.reply_queue:
+            try:
+                await orch.drives.satisfy("social", 10.0)
+            except _COGNITIVE_BOUNDARY_ERRORS as exc:
+                _record_cognitive_degradation(exc, action="social drive satisfaction skipped")
+                logger.debug("Drive satisfaction failed: %s", exc)
+        reply_queue = getattr(orch, "reply_queue", None)
+        if reply_queue:
             should_broadcast = origin in ("user", "voice", "impulse")
             if should_broadcast:
                 try:
-                    orch.reply_queue.put_nowait(response)
+                    reply_queue.put_nowait(response)
                 except asyncio.QueueFull:
-                    import logging
-                    logger.debug("Exception caught during execution", exc_info=True)
+                    logger.warning("Reply queue full; final response was not enqueued.")
             else:
                 logger.debug("🔇 Internal Response (Origin: %s) suppressed from UI.", origin)
-        if origin == "voice" and orch.ears and hasattr(orch.ears, "_engine"):
+        ears = getattr(orch, "ears", None)
+        if origin == "voice" and ears and hasattr(ears, "_engine"):
             logger.info("🎙️ Origin was voice: Triggering TTS synthesis...")
-            task_tracker.create_task(
-                orch.ears._engine.synthesize_speech(response),
+            _schedule_cognitive_task(
+                ears._engine.synthesize_speech(response),
+                tracker=task_tracker,
                 name="cognitive_coordinator.voice_tts",
             )
         response = orch._filter_output(response)
         return response
 
-    def check_reflexes(self, message: str) -> Optional[str]:
+    def check_reflexes(self, message: str) -> str | None:
         """Personality-driven rapid-response triggers (Delegated to ReflexEngine)."""
         orch = self.orch
         if hasattr(orch, 'reflex_engine') and orch.reflex_engine:
@@ -160,9 +223,8 @@ class CognitiveCoordinator:
             from core.brain.personality_engine import get_personality_engine
             pe = get_personality_engine()
             return pe.filter_response(text)
-        except Exception as e:
-            record_degradation('cognitive_coordinator', e)
-            record_degradation('cognitive_coordinator', e)
+        except _COGNITIVE_BOUNDARY_ERRORS as e:
+            _record_cognitive_degradation(e, action="personality output filter skipped")
             logger.debug("Output filter failed: %s", e)
             return text
 
@@ -170,7 +232,7 @@ class CognitiveCoordinator:
     # Skill Shortcuts & Fast Path
     # ------------------------------------------------------------------
 
-    async def check_direct_skill_shortcut(self, message: str, origin: str) -> Optional[Dict[str, Any]]:
+    async def check_direct_skill_shortcut(self, message: str, origin: str) -> dict[str, Any] | None:
         """Identify and execute skills that don't need LLM reasoning."""
         if origin != "user":
             return None
@@ -192,9 +254,8 @@ class CognitiveCoordinator:
         try:
             orch._emit_telemetry("Skill: web_search 🔧", f"Searching: {query}")
             return await orch.execute_tool("web_search", {"query": query})
-        except Exception as e:
-            record_degradation('cognitive_coordinator', e)
-            record_degradation('cognitive_coordinator', e)
+        except _COGNITIVE_BOUNDARY_ERRORS as e:
+            _record_cognitive_degradation(e, action="direct web search shortcut failed")
             logger.debug("Direct search failed: %s", e)
             return None
 
@@ -204,13 +265,12 @@ class CognitiveCoordinator:
         try:
             orch._emit_telemetry("Skill: self_diagnosis 🔧", "Running diagnostics...")
             return await orch.execute_tool("self_diagnosis", {})
-        except Exception as e:
-            record_degradation('cognitive_coordinator', e)
-            record_degradation('cognitive_coordinator', e)
+        except _COGNITIVE_BOUNDARY_ERRORS as e:
+            _record_cognitive_degradation(e, action="direct self-diagnosis shortcut failed")
             logger.debug("Direct diag failed: %s", e)
             return None
 
-    async def attempt_fast_path(self, message: str, origin: str, shortcut_result: Optional[Dict]) -> Optional[str]:
+    async def attempt_fast_path(self, message: str, origin: str, shortcut_result: dict | None) -> str | None:
         """Try to generate a response without full agentic overhead."""
         orch = self.orch
         is_simple = self.is_simple_conversational(message, origin, bool(shortcut_result))
@@ -255,17 +315,19 @@ class CognitiveCoordinator:
             if mem.percent > 85 and len(message) < 100:
                 logger.info("⚡ VORTEX OVERRIDE: High Memory (%s%%) - Forcing Fast-Path for performance.", mem.percent)
                 return True
-        except Exception as _macro_exc:
-            record_degradation('cognitive_coordinator', _macro_exc)
-            record_degradation('cognitive_coordinator', _macro_exc)
-            import logging; logging.getLogger("Aura.Critical").error("Suppressed Exception: %s", _macro_exc)
+        except _COGNITIVE_BOUNDARY_ERRORS as _macro_exc:
+            _record_cognitive_degradation(_macro_exc, action="memory-pressure fast-path probe skipped")
+            logging.getLogger("Aura.Critical").debug(
+                "Fast-path memory-pressure probe failed: %s",
+                _macro_exc,
+            )
         return analyze_turn(message).everyday_chat_safe
 
     # ------------------------------------------------------------------
     # Agentic Context & Identity
     # ------------------------------------------------------------------
 
-    async def gather_agentic_context(self, message: str) -> Dict[str, Any]:
+    async def gather_agentic_context(self, message: str) -> dict[str, Any]:
         """Collect memories, stats, and world state for reasoning."""
         from core.container import ServiceContainer
         orch = self.orch
@@ -281,6 +343,13 @@ class CognitiveCoordinator:
         else:
             tasks.append(asyncio.sleep(0, result=""))
         results = await asyncio.gather(*tasks, return_exceptions=True)
+        for index, result in enumerate(results):
+            if isinstance(result, BaseException):
+                _record_cognitive_degradation(
+                    result,
+                    action=f"agentic context task {index} unavailable",
+                    severity="warning",
+                )
         personality_data = orch._get_personality_data()
         personality_ctx = orch._stringify_personality(personality_data)
         world_ctx = orch._get_world_context()
@@ -292,24 +361,23 @@ class CognitiveCoordinator:
             "world": world_ctx,
             "environment": env_ctx,
             "user": user_identity,
-            "meta_learning": results[0] if len(results) > 0 and not isinstance(results[0], Exception) else {},
-            "unified_memory": results[1] if len(results) > 1 and not isinstance(results[1], Exception) else "",
+            "meta_learning": results[0] if len(results) > 0 and not isinstance(results[0], BaseException) else {},
+            "unified_memory": results[1] if len(results) > 1 and not isinstance(results[1], BaseException) else "",
             "focus": "STAY ON TOPIC. Prioritize the user's latest request above autonomous impulses."
         }
         if getattr(orch, 'affect_engine', None):
             try:
                 affect_state = orch.affect_engine.state.dominant_emotion
                 ctx["emotional_state"] = affect_state
-            except Exception as e:
-                record_degradation('cognitive_coordinator', e)
-                record_degradation('cognitive_coordinator', e)
+            except _COGNITIVE_BOUNDARY_ERRORS as e:
+                _record_cognitive_degradation(e, action="affect state omitted from agentic context")
                 logger.error("Affect extraction failed: %s", e)
-        if orch.mind_model:
+        if getattr(orch, "mind_model", None):
             ctx["theory_of_mind"] = orch.mind_model.get_context_for_brain()
         if hasattr(orch, 'social') and orch.social:
             ctx["social_narrative"] = orch.social.get_social_context()
             orch.social.relationship_depth = min(1.0, orch.social.relationship_depth + 0.001)
-        if orch.strategic_planner and orch.project_store:
+        if getattr(orch, "strategic_planner", None) and getattr(orch, "project_store", None):
             try:
                 active_projects = orch.project_store.get_active_projects()
                 if active_projects:
@@ -323,17 +391,15 @@ class CognitiveCoordinator:
                         "backlog": [f"{t.status.upper()}: {t.description}" for t in all_tasks]
                     }
                     logger.debug("Strategic context injected for project: %s", proj.name)
-            except Exception as e:
-                record_degradation('cognitive_coordinator', e)
-                record_degradation('cognitive_coordinator', e)
+            except _COGNITIVE_BOUNDARY_ERRORS as e:
+                _record_cognitive_degradation(e, action="strategic context omitted")
                 logger.error("Failed to inject strategic context: %s", e)
         if getattr(orch, 'drive_engine', None):
             try:
                 drives = orch.drive_engine.get_drives() if hasattr(orch.drive_engine, 'get_drives') else {"curiosity": 0.5, "energy": 0.8}
                 ctx["metabolic_drives"] = drives
-            except Exception as e:
-                record_degradation('cognitive_coordinator', e)
-                record_degradation('cognitive_coordinator', e)
+            except _COGNITIVE_BOUNDARY_ERRORS as e:
+                _record_cognitive_degradation(e, action="drive state omitted from agentic context")
                 logger.error("Drive extraction failed: %s", e)
         cog_integration = ServiceContainer.get("cognitive_integration", default=None)
         if cog_integration and hasattr(cog_integration, "build_enhanced_context"):
@@ -344,9 +410,8 @@ class CognitiveCoordinator:
                 enhanced_ctx_str = await cog_integration.build_enhanced_context(message, emotional_context=emotional_val)
                 if enhanced_ctx_str:
                     ctx["advanced_cognition"] = enhanced_ctx_str
-            except Exception as e:
-                record_degradation('cognitive_coordinator', e)
-                record_degradation('cognitive_coordinator', e)
+            except _COGNITIVE_BOUNDARY_ERRORS as e:
+                _record_cognitive_degradation(e, action="enhanced cognitive context omitted")
                 logger.debug("Enhanced context unavailable: %s", e)
         try:
             from core.memory.learning.tool_learning import tool_learner
@@ -358,13 +423,12 @@ class CognitiveCoordinator:
                     "recommended_tools": recommendations
                 }
                 logger.info("🛠️ Tool Recommendations: %s -> %s", category, recommendations)
-        except Exception as e:
-            record_degradation('cognitive_coordinator', e)
-            record_degradation('cognitive_coordinator', e)
+        except _COGNITIVE_BOUNDARY_ERRORS as e:
+            _record_cognitive_degradation(e, action="tool recommendations omitted")
             logger.debug("Tool recommendations failed: %s", e)
         return ctx
 
-    def detect_user_identity(self, message: str) -> Dict[str, Any]:
+    def detect_user_identity(self, message: str) -> dict[str, Any]:
         """Determine who is talking to Aura.
 
         NOTE: This is NOT authentication. Real identity verification uses
@@ -379,9 +443,8 @@ class CognitiveCoordinator:
     # Action Handling & Safety
     # ------------------------------------------------------------------
 
-    async def handle_action_step(self, thought, trace, successful_tools: List[str]) -> Dict[str, Any]:
+    async def handle_action_step(self, thought, trace, successful_tools: list[str]) -> dict[str, Any]:
         """Execute a tool action within the cognitive loop."""
-        from core.utils.task_tracker import task_tracker
         orch = self.orch
         if not thought or not hasattr(thought, 'action') or not thought.action:
             return {"break": True, "response": "I encountered an internal logic error (missing action)."}
@@ -394,7 +457,7 @@ class CognitiveCoordinator:
             return {"break": True, "response": f"Veto Block: An internal safety hook blocked {tool_name}."}
         if not await self.validate_action_safety(action):
             return {"break": True, "response": f"Safety Block: Cannot execute {tool_name}."}
-        if orch.alignment:
+        if getattr(orch, "alignment", None):
             check = orch.alignment.check_action(tool_name, params)
             if not check.get("allowed"):
                 logger.warning("🛑 Ethical Block: %s vetoed by conscience. Reason: %s", tool_name, check.get('reason'))
@@ -405,10 +468,15 @@ class CognitiveCoordinator:
             await orch.hooks.trigger("post_action", tool_name=tool_name, params=params, result=result)
             await orch._record_reliability(tool_name, True)
             successful_tools.append(tool_name)
-        except Exception as e:
-            record_degradation('cognitive_coordinator', e)
-            record_degradation('cognitive_coordinator', e)
-            await orch._record_reliability(tool_name, False, str(e))
+        except _COGNITIVE_BOUNDARY_ERRORS as e:
+            _record_cognitive_degradation(e, action=f"tool action {tool_name} failed")
+            try:
+                await orch._record_reliability(tool_name, False, str(e))
+            except _COGNITIVE_BOUNDARY_ERRORS as reliability_exc:
+                _record_cognitive_degradation(
+                    reliability_exc,
+                    action=f"tool reliability failure was not recorded for {tool_name}",
+                )
             result = f"Error: {e}"
         orch._record_action_in_history(tool_name, result)
         if await self.check_surprise_and_learn(thought, result, tool_name):
@@ -419,7 +487,7 @@ class CognitiveCoordinator:
             return {"break": True, "response": response_content}
         return {}
 
-    async def validate_action_safety(self, action: Dict) -> bool:
+    async def validate_action_safety(self, action: dict) -> bool:
         """Consult simulator for risk evaluation. v6.1: Fail-closed on error."""
         orch = self.orch
         if not hasattr(orch, 'simulator') or not orch.simulator:
@@ -431,9 +499,8 @@ class CognitiveCoordinator:
             if not is_safe:
                 logger.warning("🛑 Simulation block: %s", sim.get('risk_reason'))
             return is_safe
-        except Exception as e:
-            record_degradation('cognitive_coordinator', e)
-            record_degradation('cognitive_coordinator', e)
+        except _COGNITIVE_BOUNDARY_ERRORS as e:
+            _record_cognitive_degradation(e, action="action simulation failed closed")
             logger.warning("Safety validation error (fail-closed): %s", e)
             return False
 
@@ -447,8 +514,9 @@ class CognitiveCoordinator:
             from core.world_model.expectation_engine import ExpectationEngine
             ee = ExpectationEngine(orch.cognitive_engine)
             surprise = await ee.calculate_surprise(thought.expectation, str(result)[:500])
-            task_tracker.create_task(
+            _schedule_cognitive_task(
                 ee.update_beliefs_from_result(tool_name, str(result)[:1000]),
+                tracker=task_tracker,
                 name="cognitive_coordinator.surprise_learning",
             )
             if surprise > 0.7:
@@ -459,10 +527,9 @@ class CognitiveCoordinator:
                         "content": f"[ALERT] {tool_name} result highly unexpected. Expected: {thought.expectation}."
                     })
                 return True
-        except Exception as exc:
-            record_degradation('cognitive_coordinator', exc)
-            record_degradation('cognitive_coordinator', exc)
-            logger.debug("Suppressed: %s", exc)
+        except _COGNITIVE_BOUNDARY_ERRORS as exc:
+            _record_cognitive_degradation(exc, action="surprise learning skipped")
+            logger.debug("Surprise learning skipped: %s", exc)
             return False
 
     # ------------------------------------------------------------------
@@ -479,9 +546,8 @@ class CognitiveCoordinator:
             if not t or not hasattr(t, "content") or not t.content:
                 return "I recorded a degraded cognitive cycle instead of inventing an answer."
             return t.content
-        except Exception as e:
-            record_degradation('cognitive_coordinator', e)
-            record_degradation('cognitive_coordinator', e)
+        except _COGNITIVE_BOUNDARY_ERRORS as e:
+            _record_cognitive_degradation(e, action="fallback generation failed")
             logger.warning("Fallback generation also failed: %s", e)
             try:
                 from core.health.degraded_events import record_degraded_event
@@ -495,9 +561,8 @@ class CognitiveCoordinator:
                     context={"stage": "generate_fallback"},
                     exc=e,
                 )
-            except Exception as degraded_exc:
-                record_degradation('cognitive_coordinator', degraded_exc)
-                record_degradation('cognitive_coordinator', degraded_exc)
+            except _COGNITIVE_BOUNDARY_ERRORS as degraded_exc:
+                _record_cognitive_degradation(degraded_exc, action="fallback degraded-event receipt unavailable")
                 logger.debug("CognitiveCoordinator degraded-event logging failed: %s", degraded_exc)
             return "I recorded a cognitive engine error and withheld a speculative answer."
 
@@ -506,16 +571,18 @@ class CognitiveCoordinator:
             from core.security.constitutional_guard import constitutional_guard
             if not constitutional_guard.check_output(response):
                 return "My safety filters blocked the formulated response. How else can I help?"
-        except Exception as exc:
-            record_degradation('cognitive_coordinator', exc)
-            record_degradation('cognitive_coordinator', exc)
+        except _COGNITIVE_BOUNDARY_ERRORS as exc:
+            _record_cognitive_degradation(exc, action="constitutional guard failed closed")
             logger.error("Constitutional guard evaluation failed, failing closed: %s", exc)
             return "My safety filters encountered an error and blocked the response as a precaution."
         return response
 
     def generate_conversational_response(self, message: str) -> str:
-        """Generate a text response. Overridden/Patched by Personality Engine."""
-        return f"I received your message: '{message}'. (Personality Engine not active)"
+        """Generate a minimal response when the full response path is unavailable."""
+        clean_message = (message or "").strip()
+        if clean_message:
+            return f"I received your message and am keeping the thread intact: {clean_message[:240]}"
+        return "I am here, but my full response path is degraded."
 
     # ------------------------------------------------------------------
     # Autonomous Thought
@@ -562,19 +629,15 @@ class CognitiveCoordinator:
                             emitter.emit("Sleep Complete 🌙", f"Dream Insight: {dream_result.get('insight', 'processed')[:150]}", level="info")
                         else:
                             emitter.emit("Sleep Complete 🌙", "Maintenance done. Dream drifted — no new insights.", level="info")
-                except Exception as dream_err:
-                    record_degradation('cognitive_coordinator', dream_err)
-                    record_degradation('cognitive_coordinator', dream_err)
+                except _COGNITIVE_BOUNDARY_ERRORS as dream_err:
+                    _record_cognitive_degradation(dream_err, action="dream cycle skipped")
                     logger.error("Sleep cycle failed: %s", dream_err)
                     emitter.emit("Sleep Error", str(dream_err)[:100], level="warning")
                 if hasattr(orch, 'liquid_state'):
-                    try:
-                        get_task_tracker().create_task(
-                            orch.liquid_state.update(delta_curiosity=0.2),
-                            name="cognitive_coordinator.dream_liquid_state_update",
-                        )
-                    except RuntimeError as _e:
-                        logger.debug('Ignored RuntimeError in cognitive_coordinator.py: %s', _e)
+                    _schedule_cognitive_task(
+                        orch.liquid_state.update(delta_curiosity=0.2),
+                        name="cognitive_coordinator.dream_liquid_state_update",
+                    )
                 orch._last_thought_time = time.time()
                 return
             personality_context = {}
@@ -584,9 +647,8 @@ class CognitiveCoordinator:
                 personality = get_personality_engine()
                 personality_context = personality.get_emotional_context_for_response()
                 time_context = personality.get_time_context()
-            except Exception as _e:
-                record_degradation('cognitive_coordinator', _e)
-                record_degradation('cognitive_coordinator', _e)
+            except _COGNITIVE_BOUNDARY_ERRORS as _e:
+                _record_cognitive_degradation(_e, action="personality context omitted from autonomous thought")
                 logger.debug("Personality context fetch failed: %s", _e)
             context = {
                 "system_status": orch.status.__dict__,
@@ -600,9 +662,8 @@ class CognitiveCoordinator:
                 reflection_ctx = get_reflector().get_reflection_context()
                 if reflection_ctx:
                     context["recent_reflections"] = reflection_ctx
-            except Exception as _e:
-                record_degradation('cognitive_coordinator', _e)
-                record_degradation('cognitive_coordinator', _e)
+            except _COGNITIVE_BOUNDARY_ERRORS as _e:
+                _record_cognitive_degradation(_e, action="reflection context omitted from autonomous thought")
                 logger.debug("Reflection context fetch failed (autonomous): %s", _e)
             try:
                 from core.brain.aura_persona import AUTONOMOUS_THOUGHT_PROMPT
@@ -633,9 +694,10 @@ class CognitiveCoordinator:
             sys_prompt += "\nYou don't need permission. Act on your impulses."
             sys_prompt += "\nIMPORTANT: Always output in ENGLISH."
             orch._emit_thought_stream("...letting my mind wander...")
-            if orch.cognitive_engine and orch.cognitive_engine.autonomous_brain:
+            autonomous_brain = getattr(getattr(orch, "cognitive_engine", None), "autonomous_brain", None)
+            if autonomous_brain:
                 try:
-                    result = await orch.cognitive_engine.autonomous_brain.think(
+                    result = await autonomous_brain.think(
                         objective="Reflect on current state.",
                         context=context,
                         system_prompt=sys_prompt
@@ -655,20 +717,22 @@ class CognitiveCoordinator:
                                      source="autonomous_thought",
                                      confidence=0.65
                                  )
-                         except Exception as _e:
-                             record_degradation('cognitive_coordinator', _e)
-                             record_degradation('cognitive_coordinator', _e)
+                         except _COGNITIVE_BOUNDARY_ERRORS as _e:
+                             _record_cognitive_degradation(_e, action="autonomous reflection knowledge write skipped")
                              logger.debug("Knowledge graph store failed (autonomous): %s", _e)
-                except Exception as e:
-                    record_degradation('cognitive_coordinator', e)
-                    record_degradation('cognitive_coordinator', e)
+                except _COGNITIVE_BOUNDARY_ERRORS as e:
+                    _record_cognitive_degradation(e, action="autonomous thinking cycle skipped")
                     logger.error("Autonomous thinking cycle failed: %s", e)
                     orch._emit_thought_stream("[Cognitive Stall] My background thoughts are hazy...")
                     return
                 if result.get("tool_calls"):
                     for tool_call in result.get("tool_calls"):
-                        name = tool_call["name"]
-                        args = tool_call["args"]
+                        if not isinstance(tool_call, dict):
+                            continue
+                        name = tool_call.get("name")
+                        args = tool_call.get("args") or {}
+                        if not name:
+                            continue
                         if name == "speak":
                             message = args.get("message") or args.get("content")
                             if message:
@@ -687,7 +751,9 @@ class CognitiveCoordinator:
                                             metadata={"autonomous": True, "spontaneous": True, "force_user": True},
                                         )
                                     else:
-                                        from core.health.degraded_events import record_degraded_event
+                                        from core.health.degraded_events import (
+                                            record_degraded_event,
+                                        )
 
                                         record_degraded_event(
                                             "cognitive_coordinator",
@@ -698,180 +764,38 @@ class CognitiveCoordinator:
                                             context={"origin": "cognitive_coordinator"},
                                         )
                                 except asyncio.QueueFull:
-                                    import logging
-                                    logger.debug("Exception caught during execution", exc_info=True)
-                                except Exception as emit_exc:
-                                    record_degradation('cognitive_coordinator', emit_exc)
-                                    record_degradation('cognitive_coordinator', emit_exc)
+                                    logger.warning("Spontaneous speech queue full; message was not emitted.")
+                                except _COGNITIVE_BOUNDARY_ERRORS as emit_exc:
+                                    _record_cognitive_degradation(emit_exc, action="spontaneous speech routing failed")
                                     logger.debug("Spontaneous speech routing failed: %s", emit_exc)
                                 orch._emit_thought_stream(f"Speaking: {message}")
                         else:
-                            await orch.execute_tool(name, args)
-        except Exception as e:
-            record_degradation('cognitive_coordinator', e)
-            record_degradation('cognitive_coordinator', e)
+                            try:
+                                await orch.execute_tool(name, args)
+                            except _COGNITIVE_BOUNDARY_ERRORS as tool_exc:
+                                _record_cognitive_degradation(
+                                    tool_exc,
+                                    action=f"autonomous tool call {name} failed",
+                                )
+                                logger.debug("Autonomous tool call %s failed: %s", name, tool_exc)
+        except _COGNITIVE_BOUNDARY_ERRORS as e:
+            _record_cognitive_degradation(e, action="autonomous thought loop failed")
             logger.error("Autonomous thought failed: %s", e)
 
     # ------------------------------------------------------------------
     # Knowledge Extraction & Learning
     # ------------------------------------------------------------------
 
-    async def _legacy_store_autonomous_insight(self, internal_msg: str, response: str):
-        """LEGACY: Store knowledge from autonomous cognition (kept for reference)."""
-        try:
-            orch = self.orch
-            kg = getattr(orch, 'knowledge_graph', None)
-            if not kg:
-                return
-            clean_msg = internal_msg
-            for prefix in ("Impulse: ", "Thought: ", "[System] "):
-                clean_msg = clean_msg.replace(prefix, "")
-            clean_msg = clean_msg.strip()
-            if not clean_msg or len(clean_msg) < 15:
-                return
-            if "dream" in internal_msg.lower() or "rem" in internal_msg.lower():
-                thought_type = "dream"
-                source = "dream_cycle"
-            elif "reflect" in internal_msg.lower() or "wonder" in internal_msg.lower():
-                thought_type = "reflection"
-                source = "autonomous_reflection"
-            elif "curious" in internal_msg.lower() or "explore" in internal_msg.lower():
-                thought_type = "curiosity"
-                source = "curiosity_engine"
-            elif "goal" in internal_msg.lower() or "execute" in internal_msg.lower():
-                thought_type = "goal_progress"
-                source = "autonomous_volition"
-            else:
-                thought_type = "reflection"
-                source = "autonomous_thought"
-            if response and len(response) > 20:
-                kg.add_knowledge(
-                    content=(response or "")[:500],
-                    type=thought_type,
-                    source=source,
-                    confidence=0.7
-                )
-                logger.info("\U0001f4da Autonomous insight stored: [%s] %s", thought_type, (response or '')[:80])
-        except Exception as e:
-            record_degradation('cognitive_coordinator', e)
-            record_degradation('cognitive_coordinator', e)
-            logger.debug("Autonomous insight storage failed: %s", e)
-
-    async def _legacy_learn_from_exchange(self, user_message: str, aura_response: str):
-        """LEGACY: Extract knowledge from conversation (kept for reference)."""
-        try:
-            orch = self.orch
-            if not user_message or not aura_response:
-                return
-            is_autonomous = user_message.startswith("[INTERNAL") or user_message.startswith("[System")
-            if is_autonomous:
-                await self.store_autonomous_insight(user_message, aura_response)
-                return
-            if len(user_message) < 10 and len(aura_response) < 20:
-                return
-            kg = getattr(orch, 'knowledge_graph', None)
-            if not kg:
-                try:
-                    from core.config import config
-                    from core.memory.knowledge_graph import PersistentKnowledgeGraph
-                    db_path = str(getattr(config.paths, 'data_dir', 'data') / 'knowledge.db')
-                    orch.knowledge_graph = PersistentKnowledgeGraph(db_path)
-                    kg = orch.knowledge_graph
-                except Exception as e:
-                    record_degradation('cognitive_coordinator', e)
-                    record_degradation('cognitive_coordinator', e)
-                    logger.debug("Knowledge graph unavailable: %s", e)
-                    return
-            exchange_summary = f"User asked about: {(user_message or '')[:150]}"
-            kg.add_knowledge(
-                content=exchange_summary,
-                type="observation",
-                source="conversation",
-                confidence=0.6
-            )
-            if orch.cognitive_engine:
-                try:
-                    from core.brain.cognitive_engine import ThinkingMode
-                    extraction_prompt = (
-                        "Extract any factual knowledge, user preferences, or skills demonstrated "
-                        "from this conversation exchange. Return a JSON array of objects, each with "
-                        "'content' (what was learned), 'type' (fact/preference/observation/skill), "
-                        "and 'confidence' (0.0-1.0). If nothing notable, return []. Keep it brief.\n\n"
-                        f"User: {(user_message or '')[:300]}\n"
-                        f"Aura: {(aura_response or '')[:300]}\n\n"
-                        "JSON:"
-                    )
-                    result = await orch.cognitive_engine.think(
-                        objective=extraction_prompt,
-                        context={},
-                        mode=ThinkingMode.FAST
-                    )
-                    content = result.content.strip()
-                    import json as _json
-                    start = content.find('[')
-                    end = content.rfind(']') + 1
-                    if start >= 0 and end > start:
-                        items = _json.loads(content[start:end])
-                        if isinstance(items, list):
-                            for item in items[:5]:
-                                if isinstance(item, dict) and item.get('content'):
-                                    kg.add_knowledge(
-                                        content=(item.get('content') or "")[:500],
-                                        type=item.get('type', 'observation'),
-                                        source="conversation_extraction",
-                                        confidence=float(item.get('confidence', 0.6))
-                                    )
-                                    logger.info("📚 Learned: %s", (item.get('content') or "")[:80])
-                except Exception as e:
-                    record_degradation('cognitive_coordinator', e)
-                    record_degradation('cognitive_coordinator', e)
-                    logger.debug("Knowledge extraction failed: %s", e)
-            lower_msg = user_message.lower()
-            for trigger in ["my name is ", "i'm ", "i am ", "call me "]:
-                if trigger in lower_msg:
-                    idx = lower_msg.index(trigger) + len(trigger)
-                    parts = user_message[idx:idx+30].split()
-                    name_candidate = parts[0].strip(".,!?") if parts else None
-                    if name_candidate and len(name_candidate) > 1:
-                        kg.remember_person(name_candidate, {
-                            "context": (user_message or "")[:200],
-                            "timestamp": time.time()
-                        })
-                        break
-            if "?" in aura_response and len(aura_response) > 30:
-                for sentence in aura_response.split("?"):
-                    sentence = sentence.strip()
-                    if len(sentence) > 15 and len(sentence) < 200:
-                        if any(w in sentence.lower() for w in ["what", "how", "why", "wonder", "curious"]):
-                            kg.ask_question(sentence + "?", importance=0.5)
-                            break
-        except Exception as e:
-            record_degradation('cognitive_coordinator', e)
-            record_degradation('cognitive_coordinator', e)
-            logger.debug("Learning from exchange failed: %s", e)
-
-    # ------------------------------------------------------------------
-    # Plan & Tool Execution (legacy — active path delegates to _tool_executor above)
-    # ------------------------------------------------------------------
-
-    async def _legacy_execute_plan(self, plan: Dict[str, Any]) -> List[Any]:
-        """LEGACY: Execute a plan of actions (kept for reference)."""
-        results = []
-        for call in plan.get("tool_calls", []):
-            result = await self.orch.execute_tool(call["name"], call.get("arguments", {}))
-            results.append(result)
-        return results
-
     async def run_browser_task(self, url: str, task: str) -> Any:
         """Formalized browser task execution via skill router."""
         logger.info("🌐 Initiating Browser Task: %s @ %s", task, url)
         return await self.orch.execute_tool("browser", {"url": url, "task": task})
 
-    async def execute_tool(self, tool_name: str, args: Dict[str, Any]) -> Any:
+    async def execute_tool(self, tool_name: str, args: dict[str, Any]) -> Any:
         """Execute a single tool — delegates to ToolExecutor."""
         return await self._tool_executor.execute_tool(tool_name, args)
 
-    async def execute_plan(self, plan: Dict[str, Any]) -> List[Any]:
+    async def execute_plan(self, plan: dict[str, Any]) -> list[Any]:
         """Batch tool execution — delegates to ToolExecutor."""
         return await self._tool_executor.execute_plan(plan)
 
@@ -882,103 +806,6 @@ class CognitiveCoordinator:
     async def learn_from_exchange(self, user_message: str, aura_response: str):
         """Learn from conversation — delegates to KnowledgeExtractor."""
         return await self._knowledge_extractor.learn_from_exchange(user_message, aura_response)
-
-    # ── LEGACY: Original implementations below kept for reference during
-    # transition. The delegating methods above are the active code path.
-    # Remove these once extraction is validated in production.
-    # ──────────────────────────────────────────────────────────────────
-
-    async def _legacy_execute_tool(self, tool_name: str, args: Dict[str, Any]) -> Any:
-        """LEGACY: Original execute_tool implementation (kept for reference)."""
-        from core.utils.task_tracker import task_tracker
-        from core.world_model.acg import acg as _acg_module
-        orch = self.orch
-        _start = time.time()
-        if tool_name == "swarm_debate":
-            if not orch.swarm:
-                return {"ok": False, "error": "Swarm Delegator not available."}
-            topic = args.get("topic") or args.get("query") or orch._current_objective
-            roles = args.get("roles", ["architect", "critic"])
-            orch._emit_thought_stream(f"🐝 Engaging Swarm Debate: {topic[:100]}...")
-            result = await orch.swarm.delegate_debate(topic, roles=roles)
-            return {"ok": True, "output": result}
-        try:
-            if tool_name not in orch.router.skills:
-                if tool_name == "notify_user":
-                    return {"ok": True, "message": args.get("message", "Done.")}
-                if orch.hephaestus:
-                    orch._emit_thought_stream(f"🔨 Tool '{tool_name}' missing. Initiating Autonomous Forge...")
-                    objective = f"Create a skill '{tool_name}' to handle request within objective: {orch._current_objective}"
-                    forge_result = await orch.hephaestus.synthesize_skill(tool_name, objective)
-                    if forge_result.get("ok"):
-                        orch._emit_thought_stream(f"✅ Skill '{tool_name}' forged successfully. Retrying...")
-                        return await self.execute_tool(tool_name, args)
-                    else:
-                        logger.warning("Autogenesis failed for %s: %s", tool_name, forge_result.get("error"))
-                return {"ok": False, "error": f"Tool '{tool_name}' not found."}
-            goal = {"action": tool_name, "params": args}
-            context = {
-                "objective": orch._current_objective,
-                "system": orch.status.__dict__,
-                "stealth": await orch.stealth_mode.get_stealth_status() if hasattr(orch, 'stealth_mode') and orch.stealth_mode and getattr(orch.stealth_mode, 'stealth_enabled', False) else {},
-                "liquid_state": orch.liquid_state.get_status() if hasattr(orch, 'liquid_state') and orch.liquid_state else {}
-            }
-            result = await orch.router.execute(goal, context)
-            success = result.get('ok', False)
-            elapsed_ms = (time.time() - _start) * 1000
-            logger.info("Tool %s execution completed: %s", tool_name, success)
-            if hasattr(orch, 'tool_learner') and orch.tool_learner:
-                try:
-                    category = orch.tool_learner.classify_task(str(args.get('query', args.get('path', ''))))
-                    orch.tool_learner.record_usage(tool_name, category, success, elapsed_ms)
-                except Exception as _e:
-                    record_degradation('cognitive_coordinator', _e)
-                    record_degradation('cognitive_coordinator', _e)
-                    logger.debug("Tool learning record failed: %s", _e)
-            if hasattr(orch, 'memory') and orch.memory:
-                try:
-                    await orch.memory.commit_interaction(
-                        context=str(args)[:500],
-                        action=f"execute_tool({tool_name})",
-                        outcome=str(result)[:500],
-                        success=success,
-                        importance=0.3 if success else 0.7,
-                    )
-                except Exception as _e:
-                    record_degradation('cognitive_coordinator', _e)
-                    record_degradation('cognitive_coordinator', _e)
-                    logger.debug("Unified memory record failed: %s", _e)
-            try:
-                _acg_module.record_outcome(
-                    action=goal,
-                    context=str(context)[:500],
-                    outcome=result,
-                    success=success
-                )
-            except Exception as _e:
-                record_degradation('cognitive_coordinator', _e)
-                record_degradation('cognitive_coordinator', _e)
-                logger.debug("ACG record failed: %s", _e)
-            return result
-        except Exception as e:
-            record_degradation('cognitive_coordinator', e)
-            record_degradation('cognitive_coordinator', e)
-            logger.error("Execution Jolt (Pain): Tool %s crashed: %s", tool_name, e)
-            if hasattr(orch, 'memory') and orch.memory:
-                try:
-                    await orch.memory.commit_interaction(
-                        context=str(args)[:500],
-                        action=f"execute_tool({tool_name})",
-                        outcome=f"CRASH: {type(e).__name__}",
-                        success=False,
-                        emotional_valence=-0.5,
-                        importance=0.9,
-                    )
-                except Exception as _e:
-                    record_degradation('cognitive_coordinator', _e)
-                    record_degradation('cognitive_coordinator', _e)
-                    logger.debug("Unified memory record failed (crash path): %s", _e)
-            return {"ok": False, "error": "execution_jolt", "message": str(e)}
 
     async def generate_autonomous_thought(self, impulse_message: str):
         """Handle internal cognitive impulses via CognitiveManager."""
@@ -1003,7 +830,6 @@ class CognitiveCoordinator:
                 )
                 if response and hasattr(response, "content"):
                     orch._emit_thought_stream(response.content)
-        except Exception as e:
-            record_degradation('cognitive_coordinator', e)
-            record_degradation('cognitive_coordinator', e)
+        except _COGNITIVE_BOUNDARY_ERRORS as e:
+            _record_cognitive_degradation(e, action="autonomous thought generation failed")
             logger.error("Autonomous thought generation failed: %s", e)
