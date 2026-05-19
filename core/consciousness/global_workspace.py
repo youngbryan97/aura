@@ -10,13 +10,44 @@ from enum import Enum, auto
 from typing import TYPE_CHECKING, Any
 
 from core.container import ServiceContainer
-from core.runtime.errors import record_degradation
+from core.runtime.errors import Severity, record_degradation
 from core.utils.task_tracker import get_task_tracker
 
 if TYPE_CHECKING:
     from core.resilience.inhibition_manager import InhibitionManager
 
 logger = logging.getLogger("Consciousness.GlobalWorkspace")
+
+_WORKSPACE_RECOVERABLE_ERRORS = (
+    ImportError,
+    AttributeError,
+    RuntimeError,
+    OSError,
+    ConnectionError,
+    TimeoutError,
+    TypeError,
+    ValueError,
+)
+
+
+def _record_workspace_degradation(
+    error: BaseException,
+    *,
+    phase: str,
+    action: str,
+    severity: Severity = "warning",
+) -> None:
+    record_degradation(
+        "global_workspace",
+        error,
+        severity=severity,
+        action=action,
+        extra={"phase": phase},
+    )
+
+
+def _error_summary(error: BaseException) -> str:
+    return f"{type(error).__qualname__}: {error}"[:240]
 
 
 
@@ -111,8 +142,13 @@ class CognitiveCandidate:
                         
                 if aligned:
                     fe_bias = boost_magnitude
-        except Exception:
-            pass
+        except _WORKSPACE_RECOVERABLE_ERRORS as exc:
+            _record_workspace_degradation(
+                exc,
+                phase="free_energy_priority",
+                action="Skipped free-energy priority bias and used base salience only",
+                severity="debug",
+            )
 
         return min(1.0, (self.priority + self.affect_weight * 0.3 + self.focus_bias + fe_bias) * (0.7 + 0.3 * recency))
 
@@ -178,8 +214,34 @@ class GlobalWorkspace:
         self.ignited: bool = False          # True when ignition_level >= threshold
         self._ignition_count: int = 0       # Total ignition events
         self._current_phi: float = 0.0      # Φ from substrate (updated externally)
+        self._degraded_channels: dict[str, str] = {}
+        self._degradation_events: list[dict[str, Any]] = []
+        self._processor_failures: dict[str, int] = {}
         
         logger.info("GlobalWorkspace initialized (ignition_threshold=%.2f).", self._IGNITION_THRESHOLD)
+
+    def _record_degradation(
+        self,
+        error: BaseException,
+        *,
+        phase: str,
+        action: str,
+        severity: Severity = "warning",
+    ) -> None:
+        summary = _error_summary(error)
+        self._degraded_channels[phase] = summary
+        self._degradation_events.append(
+            {
+                "tick": self._tick,
+                "phase": phase,
+                "severity": severity,
+                "error": summary,
+                "action": action,
+            }
+        )
+        if len(self._degradation_events) > 50:
+            self._degradation_events = self._degradation_events[-50:]
+        _record_workspace_degradation(error, phase=phase, action=action, severity=severity)
 
     @property
     def history(self) -> list[BroadcastRecord]:
@@ -209,12 +271,28 @@ class GlobalWorkspace:
                 
             # Check global inhibition
             if self._global_inhibition is None:
-                self._global_inhibition = ServiceContainer.get("inhibition_manager", default=None)
+                try:
+                    self._global_inhibition = ServiceContainer.get("inhibition_manager", default=None)
+                except _WORKSPACE_RECOVERABLE_ERRORS as exc:
+                    self._record_degradation(
+                        exc,
+                        phase="global_inhibition_lookup",
+                        action="Continued workspace submission with local inhibition only",
+                        severity="warning",
+                    )
             
             if self._global_inhibition:
-                if await self._global_inhibition.is_inhibited(candidate.source):
-                    logger.debug("GW: %s is GLOBAL-inhibited", candidate.source)
-                    return False
+                try:
+                    if await self._global_inhibition.is_inhibited(candidate.source):
+                        logger.debug("GW: %s is GLOBAL-inhibited", candidate.source)
+                        return False
+                except _WORKSPACE_RECOVERABLE_ERRORS as exc:
+                    self._record_degradation(
+                        exc,
+                        phase="global_inhibition_check",
+                        action="Allowed candidate through local competition because global inhibition check failed",
+                        severity="warning",
+                    )
             
             # Φ-aware priority boost: high integration → higher salience
             if self._current_phi > 0.1:
@@ -238,9 +316,14 @@ class GlobalWorkspace:
                         if h:
                             h.strength = 10.0 # Thicken the visual noise
                         get_task_tracker().create_task(mycelium.emit_reflex("NEURAL_FLOOD", {"source": candidate.source}))
-                except (ImportError, AttributeError, RuntimeError) as _e:
-                    record_degradation('global_workspace', _e)
-                    logger.debug('Ignored Exception in global_workspace.py: %s', _e)
+                except _WORKSPACE_RECOVERABLE_ERRORS as _e:
+                    self._record_degradation(
+                        _e,
+                        phase="seizure_guard_reflex",
+                        action="Dropped flooded workspace bid and skipped mycelial flood reflex",
+                        severity="warning",
+                    )
+                    logger.debug("GW seizure guard reflex failed after dropping bid: %s", _e)
                 return False
 
             # Replace any existing candidate from same source (only one bid per source)
@@ -275,15 +358,19 @@ class GlobalWorkspace:
 
         # Mycelial Pulse (Proof of Life for Workspace)
         try:
-            from core.container import ServiceContainer
             mycelium = ServiceContainer.get("mycelial_network", default=None)
             if mycelium:
                 hypha = mycelium.get_hypha("consciousness", "workspace")
                 if hypha:
                     hypha.pulse(success=True)
-        except (ImportError, AttributeError, RuntimeError) as _e:
-            record_degradation('global_workspace', _e)
-            logger.debug('Ignored Exception in global_workspace.py: %s', _e)
+        except _WORKSPACE_RECOVERABLE_ERRORS as _e:
+            self._record_degradation(
+                _e,
+                phase="workspace_pulse",
+                action="Skipped mycelial proof-of-life pulse and continued workspace competition",
+                severity="debug",
+            )
+            logger.debug("GW mycelial proof-of-life pulse skipped: %s", _e)
 
         async with self._lock:
             # Decay inhibition counters
@@ -334,16 +421,26 @@ class GlobalWorkspace:
                 winner_source=winner.source,
                 all_candidates=all_candidates_data,
             )
-        except (ImportError, AttributeError, RuntimeError) as _pa_exc:
-            record_degradation('global_workspace', _pa_exc)
+        except _WORKSPACE_RECOVERABLE_ERRORS as _pa_exc:
+            self._record_degradation(
+                _pa_exc,
+                phase="peripheral_awareness",
+                action="Retained broadcast winner and skipped peripheral awareness side-feed",
+                severity="warning",
+            )
             logger.debug("GW peripheral awareness feed skipped: %s", _pa_exc)
 
         try:
             from core.unity import get_unity_runtime
 
             get_unity_runtime().record_workspace_competition(winner, losers)
-        except (ImportError, AttributeError, RuntimeError) as exc:
-            record_degradation('global_workspace', exc)
+        except _WORKSPACE_RECOVERABLE_ERRORS as exc:
+            self._record_degradation(
+                exc,
+                phase="unity_runtime",
+                action="Retained broadcast record and skipped unity workspace frame",
+                severity="warning",
+            )
             logger.debug("GW unity workspace frame skipped: %s", exc)
 
         # --- Ignition Detection ---
@@ -377,8 +474,13 @@ class GlobalWorkspace:
                     prediction="phi_determines_coherence_not_broadcast",
                     confidence=0.6,
                 )
-            except (ImportError, AttributeError, RuntimeError) as exc:
-                record_degradation("global_workspace", exc)
+            except _WORKSPACE_RECOVERABLE_ERRORS as exc:
+                self._record_degradation(
+                    exc,
+                    phase="theory_arbitration",
+                    action="Recorded ignition locally and skipped theory arbitration prediction feed",
+                    severity="warning",
+                )
                 logger.debug("GW theory arbitration feed skipped: %s", exc)
 
         # 4. Neural Feed Transparency (Phase 13)
@@ -396,17 +498,30 @@ class GlobalWorkspace:
                         "losers": [loser.source for loser in losers[:3]]
                     }
                 )
-        except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('global_workspace', e)
+        except _WORKSPACE_RECOVERABLE_ERRORS as e:
+            self._record_degradation(
+                e,
+                phase="thought_stream",
+                action="Retained winner and skipped Neural Feed transparency event",
+                severity="warning",
+            )
             logger.debug("Failed to emit Neural Feed match: %s", e)
 
         # Update attention schema with winner (outside lock)
         if self.attention_schema:
-            await self.attention_schema.set_focus(
-                content=winner.content,
-                source=winner.source,
-                priority=winner.effective_priority,
-            )
+            try:
+                await self.attention_schema.set_focus(
+                    content=winner.content,
+                    source=winner.source,
+                    priority=winner.effective_priority,
+                )
+            except _WORKSPACE_RECOVERABLE_ERRORS as exc:
+                self._record_degradation(
+                    exc,
+                    phase="attention_schema",
+                    action="Retained broadcast winner and skipped attention-schema focus update",
+                    severity="warning",
+                )
 
         # Broadcast to all registered processors (outside lock, concurrent)
         if self._processors:
@@ -428,8 +543,15 @@ class GlobalWorkspace:
             res = fn(event)
             if res is not None and inspect.isawaitable(res):
                 await res
-        except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-            record_degradation('global_workspace', e)
+        except _WORKSPACE_RECOVERABLE_ERRORS as e:
+            processor_name = getattr(fn, "__qualname__", getattr(fn, "__name__", fn.__class__.__name__))
+            self._processor_failures[processor_name] = self._processor_failures.get(processor_name, 0) + 1
+            self._record_degradation(
+                e,
+                phase="processor_broadcast",
+                action=f"Isolated processor {processor_name} failure and continued remaining broadcasts",
+                severity="warning",
+            )
             logger.error("GW processor error: %s", e)
 
     # ------------------------------------------------------------------
@@ -450,6 +572,9 @@ class GlobalWorkspace:
             "ignited": self.ignited,
             "ignition_count": self._ignition_count,
             "phi": round(self._current_phi, 4),
+            "degraded_channels": dict(self._degraded_channels),
+            "recent_degradations": list(self._degradation_events[-5:]),
+            "processor_failures": dict(self._processor_failures),
         }
 
     def update_phi(self, phi: float) -> None:
