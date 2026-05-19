@@ -1,8 +1,8 @@
-"""interface/routes/inner_state.py -- Proof Surface API
-=======================================================
-Exposes Aura's internal coherence in a way people can see.
+"""interface/routes/inner_state.py -- Inner State Runtime API
+=============================================================
+Exposes Aura's internal coherence and causal control state.
 
-This is the visible proof layer showing:
+This is the visible runtime layer showing:
   - Current self-state (identity, condition, commitments)
   - Unified Will decisions (last 5 with full provenance)
   - Drive levels (curiosity, energy, social, competence)
@@ -10,13 +10,17 @@ This is the visible proof layer showing:
   - Active initiatives and last selected
   - System coherence metrics
 
-This endpoint is how you prove to yourself and anyone watching
-that the system is doing what you think it's doing.
+This endpoint is a runtime receipt surface: it shows which internal
+systems are alive, what they most recently decided, and what causal
+state is available to shape behavior.
 """
 from __future__ import annotations
 
+import asyncio
+import inspect
 import logging
 import time
+from dataclasses import asdict
 from typing import Any
 
 from fastapi import APIRouter
@@ -25,9 +29,27 @@ from fastapi.responses import JSONResponse
 from core.container import ServiceContainer
 from core.runtime.errors import record_degradation
 
-logger = logging.getLogger("Aura.ProofSurface")
+logger = logging.getLogger("Aura.InnerState")
 
 router = APIRouter(prefix="/api", tags=["inner-state"])
+_INNER_STATE_ERRORS = (
+    AttributeError,
+    ConnectionError,
+    ImportError,
+    KeyError,
+    LookupError,
+    OSError,
+    RuntimeError,
+    TimeoutError,
+    TypeError,
+    ValueError,
+)
+
+
+async def _await_maybe(value: Any, *, deadline_seconds: float = 2.0) -> Any:
+    if inspect.isawaitable(value):
+        return await asyncio.wait_for(value, timeout=deadline_seconds)
+    return value
 
 
 def _build_unity_surface() -> dict[str, Any]:
@@ -77,13 +99,13 @@ def _build_unity_surface() -> dict[str, Any]:
 
 @router.get("/inner-state")
 async def get_inner_state() -> JSONResponse:
-    """Return the full inner state proof surface.
+    """Return the full inner state runtime surface.
 
-    This is the single endpoint that proves Aura is a unified organism.
+    This is the single endpoint that exposes Aura's unified runtime state.
     """
     result: dict[str, Any] = {
         "timestamp": time.time(),
-        "proof_version": "1.0",
+        "surface_version": "1.0",
     }
 
     # 1. Unified Will — last 5 decisions with provenance
@@ -95,7 +117,7 @@ async def get_inner_state() -> JSONResponse:
             "recent_decisions": will.get_recent_decisions(n=5),
             "recent_refusals": will.get_recent_refusals(n=3),
         }
-    except Exception as e:
+    except _INNER_STATE_ERRORS as e:
         record_degradation('inner_state', e)
         result["will"] = {"error": str(e)}
 
@@ -103,7 +125,6 @@ async def get_inner_state() -> JSONResponse:
     try:
         canonical = ServiceContainer.get("canonical_self", default=None)
         if canonical:
-            from dataclasses import asdict
             try:
                 self_dict = asdict(canonical)
                 # Trim for readability
@@ -111,11 +132,11 @@ async def get_inner_state() -> JSONResponse:
                     if isinstance(self_dict[key], (list, dict)) and len(str(self_dict[key])) > 500:
                         self_dict[key] = str(self_dict[key])[:500] + "..."
                 result["self"] = self_dict
-            except Exception:
+            except _INNER_STATE_ERRORS:
                 result["self"] = {"name": getattr(canonical, "identity", {}).get("name", "Aura")}
         else:
             result["self"] = {"status": "not_booted"}
-    except Exception as e:
+    except _INNER_STATE_ERRORS as e:
         record_degradation('inner_state', e)
         result["self"] = {"error": str(e)}
 
@@ -127,16 +148,11 @@ async def get_inner_state() -> JSONResponse:
                 "vector": drive.get_drive_vector() if hasattr(drive, "get_drive_vector") else {},
                 "status": {},
             }
-            try:
-                import asyncio
-                status = asyncio.get_event_loop().run_until_complete(drive.get_status())
-                result["drives"]["status"] = status
-            except RuntimeError:
-                # Already in async context
-                result["drives"]["status"] = "async_context"
+            if hasattr(drive, "get_status"):
+                result["drives"]["status"] = await _await_maybe(drive.get_status())
         else:
             result["drives"] = {"status": "not_booted"}
-    except Exception as e:
+    except _INNER_STATE_ERRORS as e:
         record_degradation('inner_state', e)
         result["drives"] = {"error": str(e)}
 
@@ -147,7 +163,7 @@ async def get_inner_state() -> JSONResponse:
         result["world"] = ws.get_status()
         result["world"]["context_summary"] = ws.get_context_summary()
         result["world"]["salient_events"] = ws.get_salient_events(limit=5)
-    except Exception as e:
+    except _INNER_STATE_ERRORS as e:
         record_degradation('inner_state', e)
         result["world"] = {"error": str(e)}
 
@@ -157,7 +173,7 @@ async def get_inner_state() -> JSONResponse:
         synth = get_initiative_synthesizer()
         result["synthesis"] = synth.get_status()
         result["synthesis"]["recent"] = synth.get_recent_syntheses(n=3)
-    except Exception as e:
+    except _INNER_STATE_ERRORS as e:
         record_degradation('inner_state', e)
         result["synthesis"] = {"error": str(e)}
 
@@ -178,7 +194,7 @@ async def get_inner_state() -> JSONResponse:
                 result["last_initiative"] = {"status": "no_selections_yet"}
         else:
             result["last_initiative"] = {"status": "not_booted"}
-    except Exception as e:
+    except _INNER_STATE_ERRORS as e:
         record_degradation('inner_state', e)
         result["last_initiative"] = {"error": str(e)}
 
@@ -192,7 +208,7 @@ async def get_inner_state() -> JSONResponse:
             for name, sv in steering._vectors.items():
                 try:
                     active_weights[name] = round(sv.compute_weight(moods), 4)
-                except Exception as exc:
+                except _INNER_STATE_ERRORS as exc:
                     record_degradation("inner_state", exc)
                     logger.debug("Affective steering weight unavailable for %s: %s", name, exc)
             result["affective_steering"] = {
@@ -201,7 +217,7 @@ async def get_inner_state() -> JSONResponse:
             }
         else:
             result["affective_steering"] = {"status": "not_booted"}
-    except Exception as e:
+    except _INNER_STATE_ERRORS as e:
         record_degradation('inner_state', e)
         result["affective_steering"] = {"error": str(e)}
 
@@ -214,7 +230,7 @@ async def get_inner_state() -> JSONResponse:
             }
             try:
                 result["coherence"]["phi_contribution"] = round(field.get_phi_contribution(), 4)
-            except Exception as exc:
+            except _INNER_STATE_ERRORS as exc:
                 record_degradation("inner_state", exc)
                 logger.debug("Phi contribution unavailable: %s", exc)
         else:
@@ -225,7 +241,7 @@ async def get_inner_state() -> JSONResponse:
             result["coherence"]["phi"] = round(float(phi.get_live_phi(include_surrogate=True)), 6)
         elif phi and hasattr(phi, "current_phi"):
             result["coherence"]["phi"] = round(phi.current_phi, 6)
-    except Exception as e:
+    except _INNER_STATE_ERRORS as e:
         record_degradation('inner_state', e)
         result["coherence"] = {"error": str(e)}
 
@@ -235,7 +251,7 @@ async def get_inner_state() -> JSONResponse:
         if isinstance(result.get("coherence"), dict) and isinstance(result["unity"], dict):
             result["coherence"]["unity_score"] = result["unity"].get("unity_score")
             result["coherence"]["fragmentation_score"] = result["unity"].get("fragmentation_score")
-    except Exception as e:
+    except _INNER_STATE_ERRORS as e:
         record_degradation('inner_state', e)
         result["unity"] = {"error": str(e)}
 
@@ -255,7 +271,7 @@ async def get_inner_state() -> JSONResponse:
             ]
         else:
             result["goals"] = []
-    except Exception as e:
+    except _INNER_STATE_ERRORS as e:
         record_degradation('inner_state', e)
         result["goals"] = {"error": str(e)}
 
@@ -264,20 +280,12 @@ async def get_inner_state() -> JSONResponse:
         gate = ServiceContainer.get("inference_gate", default=None)
         if gate:
             if hasattr(gate, "ensure_all_tiers_healthy"):
-                import asyncio
-                try:
-                    loop = asyncio.get_event_loop()
-                    if loop.is_running():
-                        result["llm_tiers"] = {"status": "check_via_tick"}
-                    else:
-                        result["llm_tiers"] = loop.run_until_complete(gate.ensure_all_tiers_healthy())
-                except RuntimeError:
-                    result["llm_tiers"] = {"status": "async_context"}
+                result["llm_tiers"] = await _await_maybe(gate.ensure_all_tiers_healthy())
             if hasattr(gate, "get_conversation_status"):
                 result["cortex_lane"] = gate.get_conversation_status()
         else:
             result["llm_tiers"] = {"status": "not_booted"}
-    except Exception as e:
+    except _INNER_STATE_ERRORS as e:
         record_degradation('inner_state', e)
         result["llm_tiers"] = {"error": str(e)}
 
@@ -286,7 +294,7 @@ async def get_inner_state() -> JSONResponse:
         from core.continuous_cognition import get_continuous_cognition
         ccl = get_continuous_cognition()
         result["cognition_loop"] = ccl.get_status()
-    except Exception as e:
+    except _INNER_STATE_ERRORS as e:
         record_degradation('inner_state', e)
         result["cognition_loop"] = {"error": str(e)}
 
@@ -294,7 +302,7 @@ async def get_inner_state() -> JSONResponse:
     try:
         from core.governance_context import get_governance_status
         result["governance"] = get_governance_status()
-    except Exception as e:
+    except _INNER_STATE_ERRORS as e:
         record_degradation('inner_state', e)
         result["governance"] = {"error": str(e)}
 
@@ -314,11 +322,11 @@ async def get_inner_state() -> JSONResponse:
                 result["affect"] = {"status": "no_sync_api"}
         else:
             result["affect"] = {"status": "not_booted"}
-    except Exception as e:
+    except _INNER_STATE_ERRORS as e:
         record_degradation('inner_state', e)
         result["affect"] = {"error": str(e)}
 
-    # 11. Philosophy / proof stream surfaces
+    # 11. Philosophy / receipt stream surfaces
     try:
         grounding = ServiceContainer.get("sensorimotor_grounding_bridge", default=None)
         generator = ServiceContainer.get("substrate_token_generator", default=None)
@@ -344,14 +352,14 @@ async def get_inner_state() -> JSONResponse:
                 overt.status() if overt and hasattr(overt, "status") else {"status": "not_booted"}
             ),
         }
-    except Exception as e:
+    except _INNER_STATE_ERRORS as e:
         record_degradation('inner_state', e)
         result["philosophy_surface"] = {"error": str(e)}
 
     # 12. Complete subsystem component registry
     try:
         result["subsystems"] = ServiceContainer.get_all_subsystem_statuses()
-    except Exception as e:
+    except _INNER_STATE_ERRORS as e:
         record_degradation('inner_state', e)
         result["subsystems"] = {"error": str(e)}
 
@@ -362,7 +370,7 @@ async def get_inner_state() -> JSONResponse:
 async def get_unity_state() -> JSONResponse:
     try:
         return JSONResponse(content=_build_unity_surface())
-    except Exception as e:
+    except _INNER_STATE_ERRORS as e:
         record_degradation('inner_state', e)
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
@@ -381,6 +389,6 @@ async def verify_will_receipt(receipt_id: str) -> JSONResponse:
             "verified": verified,
             "timestamp": time.time(),
         })
-    except Exception as e:
+    except _INNER_STATE_ERRORS as e:
         record_degradation('inner_state', e)
         return JSONResponse(content={"error": str(e)}, status_code=500)
