@@ -589,3 +589,85 @@ async def test_task_engine_execute_plan_resumes_from_completed_steps():
 
     assert step_pending.status == StepStatus.SUCCEEDED
     assert plan.status == "succeeded"
+
+
+@pytest.mark.asyncio
+async def test_task_engine_resilience_integration(monkeypatch):
+    class MockResilienceEngine:
+        def __init__(self):
+            self.persist_allowed = True
+            self.effort = 1.0
+            self.successes = []
+            self.failures = []
+
+        def should_persist(self, domain: str) -> bool:
+            return self.persist_allowed
+
+        def get_effort_modifier(self) -> float:
+            return self.effort
+
+        def record_success(self, domain: str, stakes: float = 0.5):
+            self.successes.append((domain, stakes))
+
+        def record_failure(self, domain: str, severity: float = 0.5, stakes: float = 0.5):
+            self.failures.append((domain, severity, stakes))
+
+    mock_resilience = MockResilienceEngine()
+
+    def _fake_get(name, default=None):
+        if name == "resilience_engine":
+            return mock_resilience
+        return default
+    monkeypatch.setattr("core.container.ServiceContainer.get", staticmethod(_fake_get))
+
+    # Test 1: Suppression during depletion
+    mock_resilience.persist_allowed = False
+    mock_resilience.effort = 0.0
+
+    kernel = SimpleNamespace(organs={"llm": SimpleNamespace(get_instance=lambda: None)}, state=None)
+    engine = AutonomousTaskEngine(kernel)
+    engine._safety_registry = SimpleNamespace(is_allowed=AsyncCallRecorder(return_value=True))
+
+    res = await engine.execute_goal("Plan and write a report")
+    assert res.succeeded is False
+    assert "too exhausted or depleted" in res.summary
+
+    # Test 2: Decompose goal dynamic step limits under strain
+    mock_resilience.persist_allowed = True
+    mock_resilience.effort = 0.5  # strain reduces steps to 50%
+    engine.MAX_STEPS = 10
+
+    # Let's mock llm.think to return 10 steps
+    ten_steps = [{"description": f"Step {i}", "tool": "think"} for i in range(10)]
+    llm = SimpleNamespace(think=AsyncCallRecorder(return_value=json.dumps(ten_steps)))
+    kernel.organs["llm"] = SimpleNamespace(get_instance=lambda: llm)
+
+    plan = await engine._decompose_goal("Write a report", "plan-strain", context=None)
+    assert len(plan.steps) == 5  # 10 * 0.5 = 5 steps capped
+    assert ("planning", 0.6) in mock_resilience.successes
+
+    # Test 3: Tool retry suppressed when should_persist is False
+    mock_resilience.persist_allowed = False
+    engine._invoke_tool = AsyncCallRecorder(return_value="result")
+    engine._verify_step = AsyncCallRecorder(return_value=False)
+    engine._persist_plan_state = lambda plan: None
+    engine._record_coding_execution = lambda *_args, **_kwargs: None
+    engine._context_origin = lambda context: "user"
+    engine._compact_tool_result = lambda result: str(result)
+    engine.STEP_TIMEOUT = 1.0
+    engine.MAX_RETRIES = 3
+
+    step = TaskStep(
+        step_id="step-1",
+        description="Verify this",
+        tool="think",
+        args={},
+        success_criterion="done",
+    )
+    plan = TaskPlan(plan_id="plan-1", goal="Test", steps=[step], trace_id="tr")
+    
+    await engine._execute_step_with_retry(step, plan)
+    # Since should_persist is False, it breaks out on first attempt
+    assert step.attempts == 0
+    assert "Suppressed by ResilienceEngine" in step.error
+

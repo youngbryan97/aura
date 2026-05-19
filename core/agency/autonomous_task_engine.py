@@ -571,7 +571,27 @@ class AutonomousTaskEngine:
                 steps_total=0,
             )
 
+        # 0.5. Resilience Check: Are we depleted or unable to persist?
+        try:
+            from core.container import ServiceContainer
+            resilience = ServiceContainer.get("resilience_engine", default=None)
+            if resilience:
+                if not resilience.should_persist("task_execution") or resilience.get_effort_modifier() <= 0.0:
+                    logger.warning("TaskEngine: Execution suppressed due to depletion/exhaustion in ResilienceEngine")
+                    return TaskResult(
+                        plan_id=requested_plan_id,
+                        goal=goal,
+                        succeeded=False,
+                        summary="I am currently too exhausted or depleted to perform autonomous tasks. Please let me rest.",
+                        trace_id=trace_id,
+                        steps_completed=0,
+                        steps_total=0,
+                    )
+        except Exception as resilience_exc:
+            logger.debug("Failed to perform resilience checks in TaskEngine: %s", resilience_exc)
+
         plan = self._find_resume_candidate(goal, context)
+
         if plan is None:
             plan = await self._decompose_goal(goal, requested_plan_id, context)
             plan.context = dict(context or {})
@@ -832,6 +852,17 @@ class AutonomousTaskEngine:
         context: dict | None,
     ) -> TaskPlan:
         """Use LLM to decompose goal into concrete, verifiable steps."""
+        # Dynamically scale plan complexity based on ResilienceEngine fatigue
+        max_steps = self.MAX_STEPS
+        try:
+            from core.container import ServiceContainer
+            resilience = ServiceContainer.get("resilience_engine", default=None)
+            if resilience:
+                effort = resilience.get_effort_modifier()
+                max_steps = max(1, int(self.MAX_STEPS * effort))
+        except Exception as e:
+            logger.debug("Failed to scale MAX_STEPS in _decompose_goal: %s", e)
+
         if self._looks_like_learning_resource_bundle(goal):
             bundle_plan = self._build_learning_resource_plan(goal, plan_id, context)
             if bundle_plan is not None:
@@ -873,7 +904,7 @@ For each step, provide:
 7. parallel_safe: true only for read-only steps that can safely run concurrently
 
 Rules:
-- Maximum {self.MAX_STEPS} steps
+- Maximum {max_steps} steps
 - Each step must be atomic and verifiable
 - Steps should be ordered by dependency
 - Prefer parallel-safe steps when possible
@@ -922,7 +953,7 @@ Respond ONLY with a JSON array, no other text:
 
             steps_data = json.loads(raw[start_idx:end_idx])
             steps = []
-            for i, s in enumerate(steps_data[: self.MAX_STEPS]):
+            for i, s in enumerate(steps_data[: max_steps]):
                 tool_name = s.get("tool", "think")
                 steps.append(
                     TaskStep(
@@ -948,6 +979,15 @@ Respond ONLY with a JSON array, no other text:
             if context and context.get("source_memory"):
                 await self._mycelial.add_edge(context["source_memory"], goal[:40])
 
+            # Record planning success to ResilienceEngine
+            try:
+                from core.container import ServiceContainer
+                resilience = ServiceContainer.get("resilience_engine", default=None)
+                if resilience:
+                    resilience.record_success("planning", stakes=0.6)
+            except Exception as res_err:
+                logger.debug("Failed to record planning success: %s", res_err)
+
             return TaskPlan(
                 plan_id=plan_id, goal=goal, steps=steps, trace_id="", context=dict(context or {})
             )
@@ -964,6 +1004,16 @@ Respond ONLY with a JSON array, no other text:
         ) as e:
             record_degradation("autonomous_task_engine", e)
             logger.error("TaskEngine: decomposition failed: %s", e)
+
+            # Record planning failure to ResilienceEngine
+            try:
+                from core.container import ServiceContainer
+                resilience = ServiceContainer.get("resilience_engine", default=None)
+                if resilience:
+                    resilience.record_failure("planning", severity=0.5, stakes=0.6)
+            except Exception as res_err:
+                logger.debug("Failed to record planning failure: %s", res_err)
+
             if self._requires_grounded_action(goal, context):
                 fallback = self._build_grounded_fallback_plan(goal, plan_id, context)
                 if fallback is not None:
@@ -1997,6 +2047,17 @@ Respond ONLY with a JSON array, no other text:
     async def _execute_step_with_retry(self, step: TaskStep, plan: TaskPlan) -> None:
         """Execute a single step with up to MAX_RETRIES retries."""
         for attempt in range(self.MAX_RETRIES + 1):
+            # Query resilience engine to see if we should persist this tool_execution
+            try:
+                from core.container import ServiceContainer
+                resilience = ServiceContainer.get("resilience_engine", default=None)
+                if resilience and not resilience.should_persist("tool_execution"):
+                    step.error = "Suppressed by ResilienceEngine: depletion or excessive failures"
+                    logger.warning("TaskEngine: step '%s' retry suppressed by ResilienceEngine", step.description[:40])
+                    break
+            except Exception as res_err:
+                logger.debug("Failed to check should_persist: %s", res_err)
+
             step.attempts += 1
             step.status = StepStatus.RUNNING
             step.started_at = time.time()
@@ -2013,6 +2074,17 @@ Respond ONLY with a JSON array, no other text:
             )
             self._persist_plan_state(plan)
 
+            # Dynamically scale step timeout based on ResilienceEngine effort
+            step_timeout = self.STEP_TIMEOUT
+            try:
+                from core.container import ServiceContainer
+                resilience = ServiceContainer.get("resilience_engine", default=None)
+                if resilience:
+                    effort = resilience.get_effort_modifier()
+                    step_timeout = max(15.0, self.STEP_TIMEOUT * max(0.3, effort))
+            except Exception:
+                pass
+
             try:
                 # Issue ATE-001: asyncio.timeout() is 3.11+, use wait_for for compatibility
                 resolved_args = self._resolve_step_args(step.args, plan, step)
@@ -2024,7 +2096,7 @@ Respond ONLY with a JSON array, no other text:
                         plan.is_shadow,
                         origin=self._context_origin(plan.context),
                     ),
-                    timeout=self.STEP_TIMEOUT,
+                    timeout=step_timeout,
                 )
 
                 step.raw_result = self._compact_tool_result(raw_result)
@@ -2063,6 +2135,16 @@ Respond ONLY with a JSON array, no other text:
                         step.description[:40],
                         attempt + 1,
                     )
+                    
+                    # Record success to ResilienceEngine
+                    try:
+                        from core.container import ServiceContainer
+                        resilience = ServiceContainer.get("resilience_engine", default=None)
+                        if resilience:
+                            resilience.record_success("tool_execution", stakes=0.5)
+                    except Exception as res_err:
+                        logger.debug("Failed to record success: %s", res_err)
+
                     self._persist_plan_state(plan)
                     return
                 else:
@@ -2085,6 +2167,16 @@ Respond ONLY with a JSON array, no other text:
                         step.description[:40],
                         attempt + 1,
                     )
+
+                    # Record failure to ResilienceEngine
+                    try:
+                        from core.container import ServiceContainer
+                        resilience = ServiceContainer.get("resilience_engine", default=None)
+                        if resilience:
+                            resilience.record_failure("tool_execution", severity=0.3, stakes=0.5)
+                    except Exception as res_err:
+                        logger.debug("Failed to record verification failure: %s", res_err)
+
                     # Modify args for retry: ask LLM for an alternative approach
                     if attempt < self.MAX_RETRIES - 1:
                         new_args = await self._get_alternative_approach(step)
@@ -2106,7 +2198,7 @@ Respond ONLY with a JSON array, no other text:
                     self._persist_plan_state(plan)
 
             except TimeoutError:
-                step.error = f"timeout after {self.STEP_TIMEOUT}s"
+                step.error = f"timeout after {step_timeout}s"
                 self._record_coding_execution(
                     "record_execution_step",
                     step_description=step.description,
@@ -2123,6 +2215,16 @@ Respond ONLY with a JSON array, no other text:
                     step.description[:40],
                     attempt + 1,
                 )
+
+                # Record failure to ResilienceEngine
+                try:
+                    from core.container import ServiceContainer
+                    resilience = ServiceContainer.get("resilience_engine", default=None)
+                    if resilience:
+                        resilience.record_failure("tool_execution", severity=0.6, stakes=0.5)
+                except Exception as res_err:
+                    logger.debug("Failed to record timeout failure: %s", res_err)
+
                 self._persist_plan_state(plan)
             except (RuntimeError, asyncio.CancelledError, AttributeError) as e:
                 record_degradation("autonomous_task_engine", e)
@@ -2144,6 +2246,16 @@ Respond ONLY with a JSON array, no other text:
                     e,
                     attempt + 1,
                 )
+
+                # Record failure to ResilienceEngine
+                try:
+                    from core.container import ServiceContainer
+                    resilience = ServiceContainer.get("resilience_engine", default=None)
+                    if resilience:
+                        resilience.record_failure("tool_execution", severity=0.8, stakes=0.5)
+                except Exception as res_err:
+                    logger.debug("Failed to record exception failure: %s", res_err)
+
                 self._persist_plan_state(plan)
 
         # If all retries fail
