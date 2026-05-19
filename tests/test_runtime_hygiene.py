@@ -286,7 +286,7 @@ def test_stability_guardian_treats_slow_user_facing_ticks_as_info():
 
 
 def test_stability_guardian_flags_actual_event_loop_lag():
-    guardian = StabilityGuardian(SimpleNamespace(start_time=time.time()))
+    guardian = StabilityGuardian(SimpleNamespace(start_time=time.time() - 1000.0))
     now = time.time()
     guardian.record_tick_health(
         SimpleNamespace(

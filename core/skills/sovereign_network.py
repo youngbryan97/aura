@@ -236,12 +236,14 @@ class SovereignNetworkSkill(BaseSkill):
                     writer.close()
                     try:
                         await writer.wait_closed()
-                    except (RuntimeError, asyncio.CancelledError, TimeoutError, AttributeError) as close_exc:
+                    except asyncio.CancelledError:
+                        raise
+                    except (RuntimeError, OSError, TimeoutError, AttributeError) as close_exc:
                         logger.debug("TCP peer writer close failed for %s:%s: %s", host, first_port, close_exc)
                     return {"address": host, "rpc_port": first_port, "source": "tcp_connect"}
                 except asyncio.CancelledError:
                     raise
-                except (RuntimeError, asyncio.CancelledError, TimeoutError, AttributeError) as e:
+                except (RuntimeError, OSError, TimeoutError, AttributeError) as e:
                     logger.debug("TCP peer probe failed for %s:%s: %s", host, first_port, e)
                     return None
 

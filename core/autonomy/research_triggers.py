@@ -61,7 +61,7 @@ def emit_research_trigger(
         with path.open("a", encoding="utf-8") as f:
             f.write(json.dumps(record) + "\n")
         _maybe_truncate_ring(path)
-    except (json.JSONDecodeError, TypeError, ValueError):
+    except Exception:
         pass  # no-op: intentional
 
 

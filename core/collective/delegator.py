@@ -57,6 +57,18 @@ class AgentDelegator(AuraBaseModule):
             self._scavenger_task.cancel()
         self.logger.info("🐝 AgentDelegator systems stopped")
 
+    def is_alive(self) -> bool:
+        """Returns True if the delegator is active and healthy."""
+        if not self.running:
+            return False
+        if self._scavenger_task and self._scavenger_task.done() and not self._scavenger_task.cancelled():
+            try:
+                if self._scavenger_task.exception():
+                    return False
+            except Exception:
+                return False
+        return True
+
     async def _scavenger_loop(self):
         """Periodically prunes completed agents to prevent memory bloat."""
         while self.running:

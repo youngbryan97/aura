@@ -105,3 +105,50 @@ async def test_belief_sync_discovery_defers_when_background_policy_blocks(monkey
 
     engine.execute.assert_not_awaited()
     assert sleep_calls["count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_agent_delegator_liveness():
+    orchestrator = MagicMock()
+    
+    with patch("core.collective.delegator.AgentDelegator._scavenger_loop", new=lambda self: None):
+        delegator = AgentDelegator(orchestrator)
+        assert not delegator.is_alive()
+        
+        with patch("core.collective.delegator.get_task_tracker") as mock_tracker:
+            mock_task = MagicMock()
+            mock_task.done.return_value = False
+            mock_tracker.return_value.create_task.return_value = mock_task
+            
+            await delegator.start()
+            assert delegator.is_alive()
+            
+            await delegator.stop()
+            assert not delegator.is_alive()
+
+
+def test_agent_delegator_health_contract_evaluation(monkeypatch):
+    from core.container import ServiceContainer
+    from core.runtime.health_contract import evaluate_health
+    
+    orchestrator = MagicMock()
+    delegator = AgentDelegator(orchestrator)
+    
+    # Register delegator
+    ServiceContainer.register_instance("agent_delegator", delegator)
+    
+    try:
+        # Check before starting
+        verdict = evaluate_health()
+        status = next(s for s in verdict.services if s.requirement.container_key == "agent_delegator")
+        assert status.present
+        assert status.liveness_ok is False
+        
+        # Start and check again
+        delegator.running = True
+        verdict = evaluate_health()
+        status = next(s for s in verdict.services if s.requirement.container_key == "agent_delegator")
+        assert status.present
+        assert status.liveness_ok is True
+    finally:
+        ServiceContainer._services.pop("agent_delegator", None)

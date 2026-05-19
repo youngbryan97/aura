@@ -72,7 +72,50 @@ class CognitiveCandidate:
         """Priority decays slightly with age (recent events are more salient)."""
         age = time.time() - self.submitted_at
         recency = max(0.0, 1.0 - (age / 10.0))  # Full weight within 10s, then decays
-        return min(1.0, (self.priority + self.affect_weight * 0.3 + self.focus_bias) * (0.7 + 0.3 * recency))
+        
+        # Free Energy dynamic gating
+        fe_bias = 0.0
+        try:
+            from core.consciousness.free_energy import get_free_energy_engine
+            fe_engine = get_free_energy_engine()
+            if fe_engine and fe_engine.current:
+                fe_state = fe_engine.current
+                dom_action = fe_state.dominant_action
+                fe_val = fe_state.free_energy
+                
+                # High free energy makes the gate much more selective (higher boost for aligned action)
+                boost_magnitude = 0.25 * fe_val
+                
+                aligned = False
+                src = self.source.lower()
+                ct = self.content_type
+                
+                if dom_action == "update_beliefs":
+                    if ct == ContentType.MEMORIAL or any(x in src for x in ("belief", "memory", "epistemic", "prediction")):
+                        aligned = True
+                elif dom_action == "act_on_world":
+                    if ct == ContentType.INTENTIONAL or any(x in src for x in ("motivation", "action", "goal", "agency")):
+                        aligned = True
+                elif dom_action == "explore":
+                    if ct == ContentType.PERCEPTUAL or any(x in src for x in ("curiosity", "exploration", "perceptual", "search")):
+                        aligned = True
+                elif dom_action == "reflect":
+                    if ct == ContentType.META or any(x in src for x in ("hot", "reflection", "self", "identity")):
+                        aligned = True
+                elif dom_action == "engage":
+                    if ct in (ContentType.LINGUISTIC, ContentType.SOCIAL) or any(x in src for x in ("chat", "user", "linguistic", "social")):
+                        aligned = True
+                elif dom_action == "rest":
+                    if ct == ContentType.SOMATIC or any(x in src for x in ("soma", "sleep", "rest")):
+                        aligned = True
+                        
+                if aligned:
+                    fe_bias = boost_magnitude
+        except Exception:
+            pass
+
+        return min(1.0, (self.priority + self.affect_weight * 0.3 + self.focus_bias + fe_bias) * (0.7 + 0.3 * recency))
+
 
 
 @dataclass

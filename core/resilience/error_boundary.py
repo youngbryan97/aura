@@ -155,7 +155,7 @@ def error_boundary(
                 result = await func(*args, **kwargs)
                 breaker.record_success()
                 return result
-            except (RuntimeError, AttributeError, TypeError, ValueError) as e:
+            except Exception as e:
                 record_degradation('error_boundary', e)
                 breaker.record_failure(e)
                 logger.warning("Error in boundary [%s]: %s", breaker_name, e)
@@ -174,7 +174,7 @@ def error_boundary(
                 result = func(*args, **kwargs)
                 breaker.record_success()
                 return result
-            except (RuntimeError, AttributeError, TypeError, ValueError) as e:
+            except Exception as e:
                 record_degradation('error_boundary', e)
                 breaker.record_failure(e)
                 logger.warning("Error in boundary [%s]: %s", breaker_name, e)
@@ -232,7 +232,7 @@ async def wrap_phase(
         breaker.record_success()
         return result if result is not None else state
 
-    except (RuntimeError, AttributeError, TypeError, ValueError) as e:
+    except Exception as e:
         record_degradation('error_boundary', e)
         breaker.record_failure(e)
         _clear_failed_user_facing_response_state(phase_name, state, e)

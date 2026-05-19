@@ -119,20 +119,6 @@ class MetricsCollector:
         }
 
 
-class MetricTimer:
-    def __init__(self, collector: MetricsCollector, name: str) -> None:
-        self.collector = collector
-        self.name = name
-        self.start_time = 0.0
-
-    def __enter__(self) -> MetricTimer:
-        self.start_time = time.perf_counter()
-        return self
-
-    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
-        duration = time.perf_counter() - self.start_time
-        self.collector.record_duration(self.name, duration)
-
     # ── Collection ────────────────────────────────────────────────
 
     def collect(self) -> list[MetricSample]:
@@ -387,6 +373,21 @@ class MetricTimer:
 
         lines.append("")
         return "\n".join(lines)
+
+
+class MetricTimer:
+    def __init__(self, collector: MetricsCollector, name: str) -> None:
+        self.collector = collector
+        self.name = name
+        self.start_time = 0.0
+
+    def __enter__(self) -> MetricTimer:
+        self.start_time = time.perf_counter()
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        duration = time.perf_counter() - self.start_time
+        self.collector.record_duration(self.name, duration)
 
 
 # Singleton

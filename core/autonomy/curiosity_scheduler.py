@@ -394,7 +394,7 @@ class CuriosityScheduler:
                 "curiosity": float(state.get("curiosity", 0.5)),
                 "energy": float(state.get("energy", 0.5)),
             }
-        except (OSError, ConnectionError, TimeoutError) as e:
+        except Exception as e:
             record_degradation('curiosity_scheduler', e)
             logger.debug("substrate read failed; defaulting: %s", e)
             return {"valence": 0.0, "arousal": 0.5, "curiosity": 0.5, "energy": 0.5}
@@ -402,7 +402,7 @@ class CuriosityScheduler:
     def _safe_drain_triggers(self) -> List[Any]:
         try:
             return list(self._trigger_drainer() or [])
-        except (RuntimeError, AttributeError, TypeError, ValueError) as e:
+        except Exception as e:
             record_degradation('curiosity_scheduler', e)
             logger.debug("trigger drain failed: %s", e)
             return []

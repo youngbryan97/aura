@@ -1759,6 +1759,41 @@ class InferenceGate:
         return 512
 
     @classmethod
+    def _get_system_phi(cls) -> float:
+        """Redundantly retrieve the active system-level integration (Phi) from the mind."""
+        try:
+            from core.container import ServiceContainer
+            loop = ServiceContainer.get("closed_causal_loop", default=None)
+            if loop is not None and getattr(loop, "_loop_state", None) is not None:
+                phi_est = getattr(loop._loop_state, "phi_estimate", 0.0)
+                if phi_est > 0.0:
+                    return float(phi_est)
+        except Exception:
+            pass
+
+        try:
+            from core.consciousness.phi_compute import get_phi_computer
+            pc = get_phi_computer()
+            if pc is not None:
+                phi_latest = pc.latest_phi
+                if phi_latest > 0.0:
+                    return float(phi_latest)
+        except Exception:
+            pass
+
+        try:
+            from core.container import ServiceContainer
+            phi_core = ServiceContainer.get("phi_core", default=None)
+            if phi_core is not None and getattr(phi_core, "_last_result", None) is not None:
+                res = phi_core._last_result
+                if res is not None:
+                    return float(res.phi_s)
+        except Exception:
+            pass
+
+        return 0.5  # Neutral default/fallback
+
+    @classmethod
     def _adaptive_max_tokens_for_prompt(
         cls,
         prompt: str,
@@ -1783,6 +1818,12 @@ class InferenceGate:
             adapted = max(adapted, 6144)
         elif shape.requires_single_reply_coverage:
             adapted = max(adapted, 4096)
+
+        # Scale the token budget based on system coherence/integration level (Phi)
+        phi = cls._get_system_phi()
+        phi_scale = max(0.5, min(1.6, 0.6 + phi * 2.0))
+        adapted = int(adapted * phi_scale)
+
         try:
             foreground_cap = int(os.environ.get("AURA_FOREGROUND_CHAT_MAX_TOKENS", "8192"))
         except (TypeError, ValueError):
@@ -3643,6 +3684,29 @@ class InferenceGate:
                 action="kept default resource-stakes action envelope",
             )
             logger.debug("ResourceStakesLedger unavailable: %s", _stakes_exc)
+
+        # ── Phi (Integrated Information): scale token budget based on cognitive integration ──
+        try:
+            from core.container import ServiceContainer
+            phi_val = 1.0  # default
+            phi_core = ServiceContainer.get("phi_core", default=None)
+            if phi_core is not None:
+                if hasattr(phi_core, "get_live_phi"):
+                    phi_val = max(0.0, float(phi_core.get_live_phi(include_surrogate=True)))
+                elif hasattr(phi_core, "_last_result") and phi_core._last_result:
+                    phi_val = float(phi_core._last_result.phi_s)
+            
+            # Scale token budget:
+            # When Φ is high (highly integrated thought), we allow maximum token budget.
+            # When Φ is low (< 0.8), the budget is dynamically scaled down (min 20%).
+            # This forces the model to be extremely concise and structured when integration is compromised.
+            if phi_val < 0.8:
+                phi_scale = 0.2 + 0.8 * (phi_val / 0.8)
+                max_tokens = max(256, int(max_tokens * phi_scale))
+                logger.info("🧠 [PHI CONTROL] Integration Φ=%.3f -> scaling token budget by %.2f (max_tokens=%d)", 
+                            phi_val, phi_scale, max_tokens)
+        except Exception as exc:
+            logger.debug("Phi token budget scaling skipped: %s", exc)
 
         # ── Affective Circumplex: let somatic state modulate generation params ──
         # Only applies on user-facing, non-background requests. Background tasks

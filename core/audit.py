@@ -62,10 +62,40 @@ class AuditLog:
             self._con.close()
             self._con = None
 
+    def _heal_database(self):
+        self.close()
+        db_file = Path(self._db_path)
+        if db_file.exists():
+            try:
+                # Rename the main database file
+                corrupt_path = db_file.with_suffix(f".db.corrupt.{int(time.time())}")
+                db_file.rename(corrupt_path)
+                logger.warning("Corrupted audit database moved to %s", corrupt_path)
+                # Also delete WAL and SHM files if they exist
+                db_file.with_suffix(".db-wal").unlink(missing_ok=True)
+                db_file.with_suffix(".db-shm").unlink(missing_ok=True)
+            except OSError as ex:
+                logger.error("Failed to rename corrupted audit database: %s. Attempting to delete it.", ex)
+                try:
+                    db_file.unlink(missing_ok=True)
+                    db_file.with_suffix(".db-wal").unlink(missing_ok=True)
+                    db_file.with_suffix(".db-shm").unlink(missing_ok=True)
+                except OSError:
+                    pass
+        # Re-initialize
+        self._init()
+
     def _init(self):
-        con = self._connect()
-        con.executescript(_SCHEMA)
-        con.commit()
+        try:
+            con = self._connect()
+            con.executescript(_SCHEMA)
+            con.commit()
+        except sqlite3.DatabaseError as e:
+            if "malformed" in str(e).lower() or "corrupt" in str(e).lower():
+                logger.error("Audit database is malformed on init: %s. Healing database...", e)
+                self._heal_database()
+            else:
+                raise
 
     def record(
         self,
@@ -79,8 +109,8 @@ class AuditLog:
         session_id: Optional[str] = None,
     ) -> str:
         entry_id = str(uuid.uuid4())[:12]
-        con = self._connect()
         try:
+            con = self._connect()
             con.execute(
                 "INSERT INTO audit_log VALUES (?,?,?,?,?,?,?,?,?,?)",
                 (
@@ -93,7 +123,31 @@ class AuditLog:
                 ),
             )
             con.commit()
-        except (sqlite3.Error, OSError) as e:
+        except sqlite3.DatabaseError as e:
+            if "malformed" in str(e).lower() or "corrupt" in str(e).lower():
+                logger.error("Audit database is malformed on record: %s. Healing...", e)
+                self._heal_database()
+                try:
+                    con = self._connect()
+                    con.execute(
+                        "INSERT INTO audit_log VALUES (?,?,?,?,?,?,?,?,?,?)",
+                        (
+                            entry_id, action_type, description, actor,
+                            skill_name,
+                            json.dumps(params, default=str) if params else None,
+                            1 if result_ok is True else (0 if result_ok is False else None),
+                            cid, session_id,
+                            time.time(),
+                        ),
+                    )
+                    con.commit()
+                except Exception as retry_err:
+                    record_degradation('audit', retry_err)
+                    logger.error("Failed to record audit entry after healing: %s", retry_err)
+            else:
+                record_degradation('audit', e)
+                logger.error("Failed to record audit entry: %s", e)
+        except OSError as e:
             record_degradation('audit', e)
             logger.error("Failed to record audit entry: %s", e)
         return entry_id
@@ -117,28 +171,47 @@ class AuditLog:
             query += " WHERE " + " AND ".join(conditions)
         query += " ORDER BY created_at DESC LIMIT ?"
         args.append(limit)
-        with self._connect() as con:
+        try:
+            con = self._connect()
             rows = con.execute(query, args).fetchall()
+        except sqlite3.DatabaseError as e:
+            if "malformed" in str(e).lower() or "corrupt" in str(e).lower():
+                logger.error("Audit database is malformed on get_recent: %s. Healing...", e)
+                self._heal_database()
+                con = self._connect()
+                rows = con.execute(query, args).fetchall()
+            else:
+                raise
         return [dict(r) for r in rows]
 
     def get_autonomous_summary(self, since_hours: float = 24.0) -> Dict[str, Any]:
         """Summary of autonomous actions in the last N hours."""
         cutoff = time.time() - (since_hours * 3600)
-        with self._connect() as con:
-            total = con.execute(
-                "SELECT COUNT(*) FROM audit_log WHERE actor != 'user' AND created_at > ?",
-                (cutoff,),
-            ).fetchone()[0]
-            by_type = con.execute(
-                "SELECT action_type, COUNT(*) as c FROM audit_log "
-                "WHERE actor != 'user' AND created_at > ? GROUP BY action_type",
-                (cutoff,),
-            ).fetchall()
-            failures = con.execute(
-                "SELECT COUNT(*) FROM audit_log "
-                "WHERE actor != 'user' AND result_ok = 0 AND created_at > ?",
-                (cutoff,),
-            ).fetchone()[0]
+        try:
+            return self._get_autonomous_summary_internal(cutoff, since_hours)
+        except sqlite3.DatabaseError as e:
+            if "malformed" in str(e).lower() or "corrupt" in str(e).lower():
+                logger.error("Audit database is malformed on summary: %s. Healing...", e)
+                self._heal_database()
+                return self._get_autonomous_summary_internal(cutoff, since_hours)
+            raise
+
+    def _get_autonomous_summary_internal(self, cutoff: float, since_hours: float) -> Dict[str, Any]:
+        con = self._connect()
+        total = con.execute(
+            "SELECT COUNT(*) FROM audit_log WHERE actor != 'user' AND created_at > ?",
+            (cutoff,),
+        ).fetchone()[0]
+        by_type = con.execute(
+            "SELECT action_type, COUNT(*) as c FROM audit_log "
+            "WHERE actor != 'user' AND created_at > ? GROUP BY action_type",
+            (cutoff,),
+        ).fetchall()
+        failures = con.execute(
+            "SELECT COUNT(*) FROM audit_log "
+            "WHERE actor != 'user' AND result_ok = 0 AND created_at > ?",
+            (cutoff,),
+        ).fetchone()[0]
         return {
             "period_hours": since_hours,
             "total_autonomous_actions": total,
@@ -149,6 +222,16 @@ class AuditLog:
     def get_skill_performance_stats(self, since_hours: float = 24.0) -> List[Dict[str, Any]]:
         """Calculates performance statistics for each skill in the last N hours."""
         cutoff = time.time() - (since_hours * 3600)
+        try:
+            return self._get_skill_performance_stats_internal(cutoff)
+        except sqlite3.DatabaseError as e:
+            if "malformed" in str(e).lower() or "corrupt" in str(e).lower():
+                logger.error("Audit database is malformed on stats: %s. Healing...", e)
+                self._heal_database()
+                return self._get_skill_performance_stats_internal(cutoff)
+            raise
+
+    def _get_skill_performance_stats_internal(self, cutoff: float) -> List[Dict[str, Any]]:
         query = """
             SELECT 
                 skill_name,
@@ -159,8 +242,8 @@ class AuditLog:
             WHERE action_type = 'skill_call' AND created_at > ? AND skill_name IS NOT NULL
             GROUP BY skill_name
         """
-        with self._connect() as con:
-            rows = con.execute(query, (cutoff,)).fetchall()
+        con = self._connect()
+        rows = con.execute(query, (cutoff,)).fetchall()
         
         stats = []
         for r in rows:

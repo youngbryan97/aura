@@ -583,6 +583,7 @@ class StabilityGuardian:
         # for every thread) to a worker thread. The previous implementation
         # ran entirely on the event loop and was itself a frequent source
         # of the 0.5–2.5s lag spikes it was meant to diagnose.
+        loop = None
         try:
             loop = asyncio.get_running_loop()
             live_tasks = sorted(
@@ -590,12 +591,15 @@ class StabilityGuardian:
             )
         except (RuntimeError, AttributeError, TypeError, ValueError):
             live_tasks = []
-        try:
-            loop.run_in_executor(None, self._dump_thread_stacks_blocking, label, live_tasks)
-        except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
-            record_degradation('stability_guardian', exc)
-            logger.debug("StabilityGuardian thread dump dispatch failed: %s", exc)
-            return False
+        if loop is not None:
+            try:
+                loop.run_in_executor(None, self._dump_thread_stacks_blocking, label, live_tasks)
+            except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                record_degradation('stability_guardian', exc)
+                logger.debug("StabilityGuardian thread dump dispatch failed: %s", exc)
+                return False
+        else:
+            self._dump_thread_stacks_blocking(label, live_tasks)
         return True
 
     @staticmethod

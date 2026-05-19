@@ -146,6 +146,13 @@ RUNTIME_CONTRACT: list[ServiceRequirement] = [
         "Multi-agent debate and reasoning.",
     ),
     ServiceRequirement(
+        "Agent Delegator",
+        "agent_delegator",
+        ServiceTier.OPTIONAL,
+        "Coordinates parallel task execution and specialized agents.",
+        liveness_check="is_alive",
+    ),
+    ServiceRequirement(
         "Stability Guardian",
         "stability_guardian",
         ServiceTier.OPTIONAL,

@@ -85,6 +85,26 @@ class AttentionSchema:
         """
         if self._lock is None: self._lock = asyncio.Lock()
         async with self._lock:
+            # Enforce focus stability/rigidity under high cognitive tension (variational Free Energy)
+            try:
+                from core.consciousness.free_energy import get_free_energy_engine
+                fe_engine = get_free_energy_engine()
+                if fe_engine is not None and fe_engine.current is not None:
+                    fe = fe_engine.current.free_energy
+                    if fe > 0.6 and self.current_focus is not None:
+                        # If the proposed source is different from current focus, apply rigidity gate
+                        if source != self.current_focus.source:
+                            required_priority = 0.3 + fe * 0.4
+                            if priority < required_priority:
+                                logger.info(
+                                    "🔒 [ATTENTION GATING] Focus shift blocked due to high Free Energy (F=%.3f). "
+                                    "Priority %.2f < %.2f required. Retaining focus source '%s'.",
+                                    fe, priority, required_priority, self.current_focus.source
+                                )
+                                return self.current_focus
+            except Exception as e:
+                logger.debug("Failed to apply Free Energy focus gating in AttentionSchema: %s", e)
+
             focus = AttentionalFocus(
                 content=content,
                 source=source,

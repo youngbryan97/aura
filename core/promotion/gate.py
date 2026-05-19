@@ -195,7 +195,7 @@ class PromotionGate:
                     reasons.append(
                         f"will_{outcome}:{will_out.get('reason', 'no_reason')}"
                     )
-            except (OSError, ConnectionError, TimeoutError) as exc:  # noqa: BLE001 — fail-closed
+            except Exception as exc:  # noqa: BLE001 — fail-closed
                 accepted = False
                 reasons.append(f"will_decide_raised:{type(exc).__name__}")
 

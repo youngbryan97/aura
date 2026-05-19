@@ -306,6 +306,18 @@ async def orchestrator_shutdown(orch: RobustOrchestrator) -> None:
 
     try:
         from core.container import ServiceContainer
+        delegator = ServiceContainer.get("agent_delegator", default=None)
+        if delegator and hasattr(delegator, "stop"):
+            await asyncio.wait_for(delegator.stop(), timeout=5.0)
+    except (ImportError, AttributeError, RuntimeError, TimeoutError) as exc:
+        _record_shutdown_degradation(
+            exc,
+            action="continued shutdown after agent delegator stop failed",
+        )
+        logger.debug("Agent delegator stop error: %s", exc)
+
+    try:
+        from core.container import ServiceContainer
 
         await asyncio.wait_for(ServiceContainer.shutdown(), timeout=5.0)
     except TimeoutError:

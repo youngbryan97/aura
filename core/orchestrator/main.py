@@ -424,33 +424,40 @@ class RobustOrchestrator(
 
     async def _process_cycle(self):
         """Legacy shim for the cognitive loop. Delegated to self.cognitive_loop."""
-        if hasattr(self, "cognitive_loop") and self.cognitive_loop:
-            await self.cognitive_loop._process_cycle()
-        else:
-            # Basic increment for tests/skeletal mode matching status expectancy
-            self.status.cycle_count += 1
+        try:
+            if hasattr(self, "cognitive_loop") and self.cognitive_loop:
+                await self.cognitive_loop._process_cycle()
+            else:
+                # Basic increment for tests/skeletal mode matching status expectancy
+                self.status.cycle_count += 1
 
-            # [LEGACY COMPAT] Trigger personality update
-            pe = getattr(self, "_personality_engine", None)
-            if not pe:
-                pe = ServiceContainer.get("personality_engine", default=None)
+                # [LEGACY COMPAT] Trigger personality update
+                pe = getattr(self, "_personality_engine", None)
+                if not pe:
+                    pe = ServiceContainer.get("personality_engine", default=None)
 
-            if pe and hasattr(pe, "update"):
-                if inspect.iscoroutinefunction(pe.update):
-                    # We are in an async method, but the legacy test double might be sync.
-                    # We'll try to await if it's a coroutine, otherwise call sync
-                    try:
-                        res = pe.update()
-                        if asyncio.iscoroutine(res):
-                            await res
-                    except TypeError as _exc:
-                        logger.debug("Suppressed TypeError: %s", _exc)
-                else:
-                    pe.update()
+                if pe and hasattr(pe, "update"):
+                    if inspect.iscoroutinefunction(pe.update):
+                        # We are in an async method, but the legacy test double might be sync.
+                        # We'll try to await if it's a coroutine, otherwise call sync
+                        try:
+                            res = pe.update()
+                            if asyncio.iscoroutine(res):
+                                await res
+                        except TypeError as _exc:
+                            logger.debug("Suppressed TypeError: %s", _exc)
+                    else:
+                        pe.update()
 
-            logger.debug(
-                "Shim: _process_cycle called but no cognitive_loop found. Basic increment."
+                logger.debug(
+                    "Shim: _process_cycle called but no cognitive_loop found. Basic increment."
+                )
+        except _ORCHESTRATOR_RECOVERABLE_ERRORS as e:
+            _record_main_degradation(
+                e,
+                action="continued processing legacy process cycle after failure",
             )
+            logger.error("Error in _process_cycle: %s", e)
 
     # --- END SHIMS ---
 
@@ -692,6 +699,16 @@ class RobustOrchestrator(
                 await asyncio.wait_for(self.attention_summarizer.start(), timeout=15.0)
             if hasattr(self, "swarm") and self.swarm:
                 await asyncio.wait_for(self.swarm.start(), timeout=15.0)
+            try:
+                delegator = ServiceContainer.get("agent_delegator", default=None)
+                if delegator and hasattr(delegator, "start"):
+                    await asyncio.wait_for(delegator.start(), timeout=15.0)
+            except _ORCHESTRATOR_RECOVERABLE_ERRORS as e:
+                _record_main_degradation(
+                    e,
+                    action="continued startup after agent delegator startup failed",
+                )
+                logger.error("Failed to start Agent Delegator: %s", e)
 
             # 📖 [PEER MODE] Evolution 2: Private Inner World
             if hasattr(self, "narrative_engine"):

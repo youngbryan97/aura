@@ -58,7 +58,7 @@ class DreamCoordinator:
     async def run_dreamer_v2(self) -> None:
         """Priority 3: Full biological sleep cycle."""
         async def _run():
-            dreamer = ServiceContainer.get("dreamer_v2", default=None)
+            dreamer = ServiceContainer.get("dreamer_v2", default=None) or ServiceContainer.get("dreaming_process", default=None)
             if dreamer:
                 # Assume dreamer has a dream() method or similar
                 if hasattr(dreamer, "dream"):
