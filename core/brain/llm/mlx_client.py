@@ -1157,7 +1157,7 @@ class MLXLocalClient:
         wait_started = loop.time()
         last_log_at = 0.0
 
-        while max(0.0, loop.time() - wait_started) <= wait_budget:
+        while True:
             if self._request_lock.acquire(False):
                 self._request_lock_owner_label = str(owner_label or "")
                 self._request_lock_acquired_at = time.time()

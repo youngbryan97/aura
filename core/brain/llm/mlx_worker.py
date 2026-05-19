@@ -21,6 +21,16 @@ from .model_registry import resolve_personality_adapter
 
 logger = logging.getLogger("MLXWorker")
 
+
+def _record_mlx_degradation(
+    exc: BaseException,
+    *,
+    action: str,
+    severity: str = "warning",
+) -> None:
+    record_degradation("mlx_worker", exc, severity=severity, action=action)
+
+
 _CORRUPT_LANGUAGE_MARKERS = re.compile(
     r"\b(?:xublcate|ingediate|evocer)\b",
     re.IGNORECASE,
@@ -196,7 +206,11 @@ class IPCWriterThread(threading.Thread):
                     # the local buffer when it is saturated with telemetry.
                     self.mp_queue.put(item, block=True, timeout=5.0)
                 except (RuntimeError, AttributeError, TypeError, ValueError) as _exc:
-                    record_degradation('mlx_worker', _exc)
+                    _record_mlx_degradation(
+                        _exc,
+                        action="dropped essential IPC message after parent queue write failed",
+                        severity="critical",
+                    )
                     logger.debug("Suppressed Exception: %s", _exc)
             # Drop non-essential telemetry if buffer is full.
 
@@ -277,9 +291,12 @@ def _setup_worker_env():
             os.environ["SDKROOT"] = sdk_path
             os.environ["AURA_SDK_PATH"] = sdk_path # Cache for subsequent spawns
         except (subprocess.SubprocessError, OSError) as e:
-            record_degradation('mlx_worker', e)
+            _record_mlx_degradation(
+                e,
+                action="continued worker startup without probed SDKROOT",
+                severity="degraded",
+            )
             print(f"⚠️ [MLX_WORKER_ENV] Failed to probe environment: {e}")
-            return # Exit early if SDK probe fails critically
 
     try:
         ver_info = platform.mac_ver()
@@ -299,7 +316,11 @@ def _setup_worker_env():
         if cpath_parts:
             os.environ["CPATH"] = ":".join(cpath_parts + [os.environ.get("CPATH", "")]).strip(":")
     except (OSError, RuntimeError, ValueError) as e:
-        record_degradation('mlx_worker', e)
+        _record_mlx_degradation(
+            e,
+            action="continued worker startup without derived Mac deployment target/CPATH",
+            severity="degraded",
+        )
         print(f"⚠️ [MLX_WORKER_ENV] Failed to probe Mac version/CPATH: {e}")
 
     os.environ["MLX_NUM_THREADS"] = "10"   # M-series has 10+ perf cores
@@ -317,7 +338,11 @@ def _clear_mlx_cache(mx_module: Any) -> None:
         try:
             mx_module.metal.clear_cache()
         except (RuntimeError, AttributeError, TypeError, ValueError) as _exc:
-            record_degradation('mlx_worker', _exc)
+            _record_mlx_degradation(
+                _exc,
+                action="continued after MLX cache clear fallback failed",
+                severity="degraded",
+            )
             logger.debug("Suppressed Exception: %s", _exc)
 
 
@@ -627,11 +652,19 @@ def _mlx_worker_loop(
             mx.set_cache_limit(limit)
             logger.info("Metal cache limit set to %sMB", limit // (1024**2))
         except (ImportError, OSError, RuntimeError, AttributeError) as e:
-            record_degradation('mlx_worker', e)
+            _record_mlx_degradation(
+                e,
+                action="fell back to conservative Metal cache limit after adaptive cache limit failed",
+                severity="degraded",
+            )
             try:
                 mx.metal.set_cache_limit(1024 * 1024 * 1024 * 24)
-            except (AttributeError, RuntimeError):
-                pass  # no-op: mx.metal API unavailable
+            except (AttributeError, RuntimeError) as fallback_exc:
+                _record_mlx_degradation(
+                    fallback_exc,
+                    action="continued without explicit Metal cache limit after fallback failed",
+                    severity="degraded",
+                )
 
     # [PERFORMANCE] Metal probes shifted to after model load or triggered on demand
     # Initializing the model first is more critical for 'perceived' speed.
@@ -651,7 +684,11 @@ def _mlx_worker_loop(
                 model, tokenizer = load(model_path, adapter_path=adapter_path)
                 logger.info("Model loaded with Aura personality LoRA fused.")
             except (RuntimeError, AttributeError, TypeError, ValueError) as adapter_exc:
-                record_degradation('mlx_worker', adapter_exc)
+                _record_mlx_degradation(
+                    adapter_exc,
+                    action="loaded base model after LoRA adapter load failed",
+                    severity="degraded",
+                )
                 logger.warning(
                     "⚠️ [WORKER] LoRA adapter failed to load for %s: %s. Using base model + prompt hardening.",
                     os.path.basename(model_path),
@@ -683,13 +720,19 @@ def _mlx_worker_loop(
             else:
                 logger.error("FATAL: Steering Engine attached but NOT ACTIVE — "
                                "vectors may be missing.")
-                record_degradation('mlx_worker',
+                _record_mlx_degradation(
                     RuntimeError("Steering attached but inactive"),
                     severity="critical",
-                    action="Crashing worker to prevent unsteered inference")
+                    action="crashed worker to prevent unsteered inference",
+                )
                 raise RuntimeError("Steering liveness gate failed: Engine inactive")
         except (ImportError, AttributeError, RuntimeError) as se:
-            record_degradation('affective_steering', se)
+            record_degradation(
+                "affective_steering",
+                se,
+                severity="critical",
+                action="crashed MLX worker to prevent unsteered inference",
+            )
             logger.error("FATAL: Affective steering failed to attach. Cannot run sovereign inference unsteered. %s", se)
             raise RuntimeError(f"Steering liveness gate failed: {se}") from se
 
@@ -699,8 +742,12 @@ def _mlx_worker_loop(
                 # Convention: substrate_mem[-1] = 1.0 if steering active, 0.0 if not
                 # (substrate_mem is a multiprocessing.Array of floats; last slot reserved)
                 substrate_mem[-1] = 1.0 if _steering_active else 0.0
-            except (TypeError, ValueError, IndexError):
-                pass  # Non-fatal; parent will treat absence as unknown
+            except (TypeError, ValueError, IndexError) as shared_state_exc:
+                _record_mlx_degradation(
+                    shared_state_exc,
+                    action="continued with parent steering liveness shared-state unavailable",
+                    severity="warning",
+                )
 
         # Apply Recurrent Depth — Mythos-inspired layer looping.
         # This changes HOW the model processes: middle layers loop N times,
@@ -711,12 +758,20 @@ def _mlx_worker_loop(
             if apply_for_model(model):
                 logger.info("🧠 Recurrent Depth ACTIVE — model now thinks before answering.")
         except (ImportError, AttributeError, RuntimeError) as rd_exc:
-            record_degradation('mlx_worker', rd_exc)
+            _record_mlx_degradation(
+                rd_exc,
+                action="continued inference with recurrent depth disabled",
+                severity="degraded",
+            )
             logger.warning("Recurrent depth not applied: %s", rd_exc)
 
         ipc_writer.put({"status": "ok", "action": "init", "device": device})
     except (ImportError, AttributeError, RuntimeError) as e:
-        record_degradation('mlx_worker', e)
+        _record_mlx_degradation(
+            e,
+            action="reported initialization error and exited worker loop before accepting jobs",
+            severity="critical",
+        )
         import traceback
         err_detail = f"{e}\n{traceback.format_exc()}"
         logger.error("Worker Init Error: %s", err_detail)
@@ -728,6 +783,7 @@ def _mlx_worker_loop(
                 "detail": err_detail,
             }
         )
+        return
     # ZENITH: Prompt Cache LRU for massive speedup in multi-turn
     prompt_cache_budget = _prompt_cache_entry_budget_for_model(model_path)
     prompt_cache_lru = (
@@ -764,18 +820,36 @@ def _mlx_worker_loop(
                     if engine is not None and not engine.is_active():
                         # We must not silently fall back to prompt-driven roleplay.
                         # If the latent bridge is severed, the system must act severed.
+                        _record_mlx_degradation(
+                            RuntimeError("Affective steering became inactive during generation"),
+                            action="blocked generation because steering liveness failed",
+                            severity="critical",
+                        )
                         logger.error("🚨 [WORKER] Affective steering is inactive! Gating response.")
-                        response_text = "I am experiencing a severe cognitive dissociation (affective steering failure) and cannot formulate a coherent response."
                         ipc_writer.put({
                             "id": job.get("id"),
                             "action": "generate",
-                            "status": "ok", 
-                            "text": response_text,
-                            "tokens_used": len(response_text.split())
+                            "status": "error",
+                            "message": "Affective steering is inactive; generation blocked.",
+                            "tokens_used": 0,
                         })
                         continue
                 except (RuntimeError, AttributeError, TypeError) as _e:
-                    logger.warning("Failed to check steering active state: %s", _e)
+                    _record_mlx_degradation(
+                        _e,
+                        action="blocked generation because steering liveness could not be verified",
+                        severity="critical",
+                    )
+                    logger.error("Failed to check steering active state: %s", _e)
+                    ipc_writer.put(
+                        {
+                            "id": job.get("id"),
+                            "action": "generate",
+                            "status": "error",
+                            "message": "Affective steering liveness check failed; generation blocked.",
+                        }
+                    )
+                    continue
 
                 prompt = job.get("prompt")
                 messages = job.get("messages")
@@ -792,7 +866,11 @@ def _mlx_worker_loop(
                             tokenize=False
                         )
                     except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-                        record_degradation('mlx_worker', e)
+                        _record_mlx_degradation(
+                            e,
+                            action="continued generation with raw prompt after native chat/tool template failed",
+                            severity="degraded",
+                        )
                         logger.warning("❌ [WORKER] Native template compilation failed: %s", e)
 
                 temp = job.get("temp", 0.7)
@@ -868,7 +946,11 @@ def _mlx_worker_loop(
                         logits_processors.append(json_start_processor)
                         logger.info("🎯 [WORKER] JSON start enforcement ACTIVE.")
                     except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-                        record_degradation('mlx_worker', e)
+                        _record_mlx_degradation(
+                            e,
+                            action="continued structured generation without JSON start logits processor",
+                            severity="degraded",
+                        )
                         logger.warning("Failed to setup JSON logits processor: %s", e)
                 
                 if logits_processors:
@@ -940,7 +1022,11 @@ def _mlx_worker_loop(
                                         substrate_mem=substrate_mem,
                                     )
                                 except (ImportError, AttributeError, RuntimeError) as _sent_exc:
-                                    record_degradation('mlx_worker', _sent_exc)
+                                    _record_mlx_degradation(
+                                        _sent_exc,
+                                        action="continued generation without TokenSentinel intervention checks",
+                                        severity="degraded",
+                                    )
                                     sentinel = None
                                     logger.debug("TokenSentinel not available: %s", _sent_exc)
 
@@ -1026,31 +1112,31 @@ def _mlx_worker_loop(
 
                                     # ── Sentinel: feed every token ────────────────────
                                     if sentinel is not None:
-                                        signal = sentinel.feed(response.text)
-                                        if signal.type == InterventionType.ABORT_LOOP:
+                                        sentinel_signal = sentinel.feed(response.text)
+                                        if sentinel_signal.type == InterventionType.ABORT_LOOP:
                                             logger.warning(
                                                 "🚨 [SENTINEL] Aborting loop at token %d: %s",
-                                                token_count, signal.reason,
+                                                token_count, sentinel_signal.reason,
                                             )
-                                            current_response = signal.clean_prefix
+                                            current_response = sentinel_signal.clean_prefix
                                             sentinel_aborted = True
                                             sentinel_loop_aborted = True
                                             break
-                                        elif signal.type == InterventionType.ABORT_ONTOLOGY_VIOLATION:
+                                        elif sentinel_signal.type == InterventionType.ABORT_ONTOLOGY_VIOLATION:
                                             logger.warning(
                                                 "🚨 [SENTINEL] Aborting due to ontological violation at token %d: %s",
-                                                token_count, signal.reason,
+                                                token_count, sentinel_signal.reason,
                                             )
                                             sentinel_aborted = True
                                             sentinel_ontology_aborted = True
                                             break
-                                        elif signal.type in (InterventionType.ABORT_CAPITULATION,
-                                                             InterventionType.ABORT_BOUNDARY):
+                                        elif sentinel_signal.type in (InterventionType.ABORT_CAPITULATION,
+                                                                      InterventionType.ABORT_BOUNDARY):
                                             # Mid-generation abort: the LLM started capitulating.
                                             # Replace response with deterministic refusal.
                                             logger.warning(
                                                 "🚨 [SENTINEL] Aborting generation at token %d: %s",
-                                                token_count, signal.reason,
+                                                token_count, sentinel_signal.reason,
                                             )
                                             current_response = get_refusal_fallback(seed=token_count)
                                             sentinel_aborted = True
@@ -1177,7 +1263,11 @@ def _mlx_worker_loop(
                         if engine is not None and response_text.strip():
                             engine.observe_generation(response_text)
                     except (RuntimeError, AttributeError, TypeError, ValueError) as steering_obs_exc:
-                        record_degradation("mlx_worker", steering_obs_exc)
+                        _record_mlx_degradation(
+                            steering_obs_exc,
+                            action="returned generation after affective steering observation failed",
+                            severity="warning",
+                        )
                         logger.debug("Affective steering post-generation observation failed: %s", steering_obs_exc)
                     
                     # : Tag with action: "generate" so client can distinguish
@@ -1190,7 +1280,11 @@ def _mlx_worker_loop(
                         "tokens_used": total_generated_tokens
                     })
                 except (ImportError, AttributeError, RuntimeError) as e:
-                    record_degradation('mlx_worker', e)
+                    _record_mlx_degradation(
+                        e,
+                        action="returned generate error and cleared MLX cache after generation failure",
+                        severity="degraded",
+                    )
                     logger.error("Generation failed: %s", e)
                     ipc_writer.put({"status": "error", "action": "generate", "message": str(e)})
                 finally:
@@ -1200,6 +1294,40 @@ def _mlx_worker_loop(
                         _clear_mlx_cache(mx)
             
             elif action == "stream":
+                try:
+                    if engine is not None and not engine.is_active():
+                        _record_mlx_degradation(
+                            RuntimeError("Affective steering became inactive during streaming"),
+                            action="blocked stream because steering liveness failed",
+                            severity="critical",
+                        )
+                        logger.error("🚨 [WORKER] Affective steering is inactive! Gating stream.")
+                        ipc_writer.put(
+                            {
+                                "id": job.get("id"),
+                                "action": "stream",
+                                "status": "error",
+                                "message": "Affective steering is inactive; stream blocked.",
+                            }
+                        )
+                        continue
+                except (RuntimeError, AttributeError, TypeError) as _e:
+                    _record_mlx_degradation(
+                        _e,
+                        action="blocked stream because steering liveness could not be verified",
+                        severity="critical",
+                    )
+                    logger.error("Failed to check steering active state before stream: %s", _e)
+                    ipc_writer.put(
+                        {
+                            "id": job.get("id"),
+                            "action": "stream",
+                            "status": "error",
+                            "message": "Affective steering liveness check failed; stream blocked.",
+                        }
+                    )
+                    continue
+
                 prompt = job.get("prompt")
                 temp = job.get("temp", 0.7)
                 top_p = job.get("top_p", 0.9)
@@ -1293,11 +1421,11 @@ def _mlx_worker_loop(
 
                                 # ── Sentinel: mid-stream intervention ─────
                                 if stream_sentinel is not None:
-                                    signal = stream_sentinel.feed(token_text)
-                                    if signal.type == InterventionType.ABORT_LOOP:
+                                    sentinel_signal = stream_sentinel.feed(token_text)
+                                    if sentinel_signal.type == InterventionType.ABORT_LOOP:
                                         logger.warning(
                                             "🚨 [SENTINEL-STREAM] Aborting loop at token %d: %s",
-                                            token_count, signal.reason,
+                                            token_count, sentinel_signal.reason,
                                         )
                                         ipc_writer.put({
                                             "id": job.get("id"),
@@ -1308,11 +1436,11 @@ def _mlx_worker_loop(
                                             "timestamp": time.time(),
                                         })
                                         break
-                                    elif signal.type in (InterventionType.ABORT_CAPITULATION,
-                                                         InterventionType.ABORT_BOUNDARY):
+                                    elif sentinel_signal.type in (InterventionType.ABORT_CAPITULATION,
+                                                                  InterventionType.ABORT_BOUNDARY):
                                         logger.warning(
                                             "🚨 [SENTINEL-STREAM] Aborting at token %d: %s",
-                                            token_count, signal.reason,
+                                            token_count, sentinel_signal.reason,
                                         )
                                         # Send the refusal as the final token
                                         ipc_writer.put({
@@ -1355,7 +1483,11 @@ def _mlx_worker_loop(
                     
                     ipc_writer.put({"status": "ok", "action": "stream_done"})
                 except (ImportError, AttributeError, RuntimeError) as e:
-                    record_degradation('mlx_worker', e)
+                    _record_mlx_degradation(
+                        e,
+                        action="returned stream error and cleared MLX cache after streaming failure",
+                        severity="degraded",
+                    )
                     logger.error("Streaming failed: %s", e)
                     ipc_writer.put({"status": "error", "action": "stream", "message": str(e)})
                 finally:
@@ -1389,8 +1521,12 @@ def _mlx_worker_loop(
         except KeyboardInterrupt:
             logger.info("🛑 [WORKER] Shutdown signal received; exiting quietly.")
             break
-        except (RuntimeError, TypeError, ValueError, OSError, IOError, AttributeError) as e:
-            record_degradation('mlx_worker', e)
+        except (RuntimeError, TypeError, ValueError, OSError, AttributeError) as e:
+            _record_mlx_degradation(
+                e,
+                action="reported worker action error to parent IPC and continued request loop",
+                severity="degraded",
+            )
             import traceback
             tb = traceback.format_exc()
             resolved_action = locals().get("action") or "unknown"

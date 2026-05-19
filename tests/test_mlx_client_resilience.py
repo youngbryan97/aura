@@ -30,6 +30,38 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
             12.0,
         )
 
+    async def test_foreground_request_lock_timeout_preempts_wedged_holder(self):
+        from core.brain.llm.mlx_client import _new_shared_future
+
+        client = MLXLocalClient(model_path=QWEN32_MODEL)
+        stuck = _new_shared_future()
+        client._request_lock.acquire()
+        client._request_lock_owner_label = "Cortex"
+        client._request_lock_acquired_at = time.time() - 2.0
+        client._current_gen_future = stuck
+        client._last_heartbeat = 0.0
+
+        try:
+            with patch.object(client, "_request_lock_timeout", return_value=0.05), patch.object(
+                client, "_first_token_sla", return_value=0.01
+            ):
+                acquired = await client._acquire_request_lock(
+                    owner_label="live_chat",
+                    deadline=None,
+                    foreground_request=True,
+                )
+
+            self.assertFalse(acquired)
+            self.assertEqual(
+                client._deferred_reboot_reason,
+                "foreground_preemption_wedged_holder",
+            )
+            self.assertTrue(stuck.done())
+        finally:
+            client._current_gen_future = None
+            with contextlib.suppress(RuntimeError):
+                client._request_lock.release()
+
     async def test_worker_sanitizer_finishes_current_request_for_caller_recovery(self):
         worker_source = await asyncio.to_thread(
             Path("core/brain/llm/mlx_worker.py").read_text,

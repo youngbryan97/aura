@@ -2,6 +2,7 @@
 
 import os
 import sys
+import types
 
 
 def test_setup_worker_env_not_called_at_import():
@@ -110,6 +111,147 @@ def test_record_mlx_degradation_preserves_action_and_severity():
     assert recent
     assert recent[0].severity == "error"
     assert recent[0].action == "marked lane failed and applied spawn backoff"
+
+
+def _install_worker_fakes(monkeypatch, mlx_worker, *, load_impl, steering_engine=None):
+    class FakeQueue:
+        def __init__(self, items=()):
+            self.items = list(items)
+            self.writes = []
+
+        def get(self):
+            if not self.items:
+                raise AssertionError("worker read from an empty fake request queue")
+            return self.items.pop(0)
+
+        def put(self, item, *_, **__):
+            self.writes.append(item)
+
+    class FakeIPCWriter:
+        def __init__(self, response_queue):
+            self.response_queue = response_queue
+
+        def start(self):
+            return None
+
+        def put(self, item):
+            self.response_queue.put(item)
+
+    class FakeWorkerThread:
+        def __init__(self, *_, **__):
+            return None
+
+        def start(self):
+            return None
+
+        def start_job(self):
+            return None
+
+        def activity(self):
+            return None
+
+        def stop_job(self):
+            return None
+
+    mlx_core = types.ModuleType("mlx.core")
+    mlx_core.set_cache_limit = lambda *_args, **_kwargs: None
+    mlx_core.clear_cache = lambda *_args, **_kwargs: None
+    mlx_core.metal = types.SimpleNamespace(
+        set_cache_limit=lambda *_args, **_kwargs: None,
+        clear_cache=lambda *_args, **_kwargs: None,
+    )
+    mlx_pkg = types.ModuleType("mlx")
+    mlx_pkg.core = mlx_core
+    mlx_lm = types.ModuleType("mlx_lm")
+    mlx_lm.load = load_impl
+    sample_utils = types.ModuleType("mlx_lm.sample_utils")
+    sample_utils.make_sampler = lambda **_kwargs: object()
+
+    monkeypatch.setitem(sys.modules, "mlx", mlx_pkg)
+    monkeypatch.setitem(sys.modules, "mlx.core", mlx_core)
+    monkeypatch.setitem(sys.modules, "mlx_lm", mlx_lm)
+    monkeypatch.setitem(sys.modules, "mlx_lm.sample_utils", sample_utils)
+    monkeypatch.setattr(mlx_worker, "_setup_worker_env", lambda: None)
+    monkeypatch.setattr(mlx_worker, "resolve_personality_adapter", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(mlx_worker, "IPCWriterThread", FakeIPCWriter)
+    monkeypatch.setattr(mlx_worker, "HeartbeatThread", FakeWorkerThread)
+    monkeypatch.setattr(mlx_worker, "JobWatchdog", FakeWorkerThread)
+
+    if steering_engine is not None:
+        steering_mod = types.ModuleType("core.consciousness.affective_steering")
+        steering_mod.get_steering_engine = lambda: steering_engine
+        monkeypatch.setitem(sys.modules, "core.consciousness.affective_steering", steering_mod)
+
+    return FakeQueue
+
+
+def test_worker_init_failure_exits_before_accepting_jobs(monkeypatch):
+    from core.brain.llm import mlx_worker
+    from core.runtime.errors import get_degradation_tracker
+
+    tracker = get_degradation_tracker()
+    tracker.reset()
+
+    def load_failure(*_args, **_kwargs):
+        raise RuntimeError("model load failed")
+
+    queue_factory = _install_worker_fakes(monkeypatch, mlx_worker, load_impl=load_failure)
+    requests = queue_factory([{"action": "generate", "prompt": "must not be read"}])
+    responses = queue_factory()
+
+    mlx_worker._mlx_worker_loop("fake-model", requests, responses)
+
+    assert requests.items == [{"action": "generate", "prompt": "must not be read"}]
+    assert responses.writes[-1]["status"] == "error"
+    assert responses.writes[-1]["action"] == "init"
+    recent = tracker.recent(subsystem="mlx_worker", limit=1)
+    assert recent
+    assert recent[0].severity == "critical"
+    assert recent[0].action == "reported initialization error and exited worker loop before accepting jobs"
+
+
+def test_worker_blocks_generation_when_steering_liveness_drops(monkeypatch):
+    from core.brain.llm import mlx_worker
+    from core.runtime.errors import get_degradation_tracker
+
+    tracker = get_degradation_tracker()
+    tracker.reset()
+
+    class FakeSteeringEngine:
+        _alpha = 1.0
+
+        def __init__(self):
+            self.checks = 0
+
+        def attach(self, *_args, **_kwargs):
+            return None
+
+        def is_active(self):
+            self.checks += 1
+            return self.checks == 1
+
+    steering_engine = FakeSteeringEngine()
+    queue_factory = _install_worker_fakes(
+        monkeypatch,
+        mlx_worker,
+        load_impl=lambda *_args, **_kwargs: (object(), object()),
+        steering_engine=steering_engine,
+    )
+    requests = queue_factory([{"id": "g1", "action": "generate", "prompt": "hello"}, None])
+    responses = queue_factory()
+
+    mlx_worker._mlx_worker_loop("fake-model", requests, responses)
+
+    assert responses.writes[0]["status"] == "ok"
+    generation_error = responses.writes[1]
+    assert generation_error["id"] == "g1"
+    assert generation_error["action"] == "generate"
+    assert generation_error["status"] == "error"
+    assert "steering" in generation_error["message"].lower()
+    recent = tracker.recent(subsystem="mlx_worker", limit=1)
+    assert recent
+    assert recent[0].severity == "critical"
+    assert recent[0].action == "blocked generation because steering liveness failed"
 
 
 def test_response_listener_shutdown_awareness():
