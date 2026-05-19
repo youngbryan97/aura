@@ -1,25 +1,27 @@
 """Autonomous Self-Modification Engine
 Orchestrates the complete self-improvement system.
 """
-from core.runtime.errors import record_degradation
-from core.runtime.atomic_writer import atomic_write_text
 import asyncio
 import logging
 import os
-import time
 import random
 import threading
+import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
+from core.runtime.atomic_writer import atomic_write_text
+from core.runtime.errors import record_degradation
+
+from .boot_validator import GhostBootValidator
 from .code_repair import AutonomousCodeRepair
 
 # Import all subsystems
 from .error_intelligence import ErrorIntelligenceSystem
-from .learning_system import MetaLearning, SelfImprovementLearning
-from .safe_modification import SafeSelfModification, LogicTransplant
 from .kernel_refiner import KernelRefiner
-from .boot_validator import GhostBootValidator
+from .learning_system import MetaLearning, SelfImprovementLearning
+from .repair_registry import append_repair_entry
+from .safe_modification import LogicTransplant, SafeSelfModification
 from .shadow_ast_healer import ShadowASTHealer
 from .shadow_runtime import get_shadow_runtime
 
@@ -150,9 +152,9 @@ class AutonomousSelfModificationEngine:
     def on_error(
         self,
         error: Exception,
-        context: Dict[str, Any],
-        skill_name: Optional[str] = None,
-        goal: Optional[str] = None
+        context: dict[str, Any],
+        skill_name: str | None = None,
+        goal: str | None = None
     ):
         """Hook for existing error handling.
         Call this whenever an error occurs in your system.
@@ -175,8 +177,8 @@ class AutonomousSelfModificationEngine:
     def on_skill_execution(
         self,
         skill_name: str,
-        goal: Dict[str, Any],
-        result: Dict[str, Any],
+        goal: dict[str, Any],
+        result: dict[str, Any],
         duration: float
     ):
         """Hook for successful executions.
@@ -188,7 +190,7 @@ class AutonomousSelfModificationEngine:
     # Manual Fix Workflow
     # ========================================================================
     
-    async def diagnose_current_bugs(self) -> List[Dict[str, Any]]:
+    async def diagnose_current_bugs(self) -> list[dict[str, Any]]:
         """Analyze current bugs and generate diagnoses.
         
         Returns:
@@ -202,7 +204,7 @@ class AutonomousSelfModificationEngine:
         logger.info("Found %d bugs that can be fixed", len(bugs))
         return bugs
     
-    async def propose_fix(self, bug: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    async def propose_fix(self, bug: dict[str, Any]) -> dict[str, Any] | None:
         """Generate a fix proposal for a specific bug (Async).
         
         Args:
@@ -252,7 +254,7 @@ class AutonomousSelfModificationEngine:
         
         # Issue 96: Deep Validation via Branching Futures
         logger.info("🔬 Initiating Branching Futures Validation for %s...", sample_event.file_path)
-        from core.skills.branching_futures import BranchingFuturesSkill, BranchingFuturesInput
+        from core.skills.branching_futures import BranchingFuturesInput, BranchingFuturesSkill
         branching_skill = BranchingFuturesSkill()
         
         # Ask the ghost thread to apply the fix and verify the system stays stable
@@ -282,9 +284,9 @@ class AutonomousSelfModificationEngine:
     
     async def apply_fix(
         self,
-        fix_proposal: Dict[str, Any],
+        fix_proposal: dict[str, Any],
         force: bool = False,
-        test_results: Optional[Dict[str, Any]] = None
+        test_results: dict[str, Any] | None = None
     ) -> bool:
         """Apply a fix proposal with Swarm Review and Safe Modification (Phase 31)."""
         # Level 3 Check
@@ -338,15 +340,13 @@ class AutonomousSelfModificationEngine:
         # Phase 31: Permanent Persistence via SafeSelfModification
         async with self._fix_lock:
             try:
-                # First, we still write to pending_patch.py as a 'registry' of recent changes
-                # but we ALSO apply to the real file via SafeSelfModification
-                patch_dir = self.code_base / "core" / "patches"
-                patch_dir.mkdir(parents=True, exist_ok=True)
-                patch_file = patch_dir / "pending_patch.py"
-                
-                with open(patch_file, "a") as f:
-                    f.write(f"\n# [APPLIED] Fix for {fix.target_file} at {time.ctime()}\n")
-                    f.write(f"'''\n{fix.fixed_code}\n'''\n")
+                try:
+                    append_repair_entry(fix, final_test_results, self.code_base)
+                except (OSError, TypeError, ValueError) as exc:
+                    record_degradation("self_modification_engine", exc)
+                    logger.error("Self-modification registry write failed: %s", exc)
+                    logger.error("Refusing to apply fix without a durable self-modification registry entry.")
+                    return False
 
                 # Delegate permanent application to SafeSelfModification
                 # This handles: Backups, Git branches, Ghost Boot, and Rollback
@@ -395,7 +395,7 @@ class AutonomousSelfModificationEngine:
         
         return False # Fallback
 
-    async def _swarm_review(self, proposal: Dict[str, Any]) -> bool:
+    async def _swarm_review(self, proposal: dict[str, Any]) -> bool:
         """Recursive check: spawn a swarm debate to review the proposed fix."""
         from core.container import ServiceContainer
         swarm = ServiceContainer.get("agent_delegator", default=None)
@@ -428,7 +428,7 @@ class AutonomousSelfModificationEngine:
             logger.error("Swarm review failed: %s. Proceeding with caution.", e)
             return True
 
-    async def report_optimization(self, issue: Dict[str, Any]) -> bool:
+    async def report_optimization(self, issue: dict[str, Any]) -> bool:
         """Manually report an optimization opportunity (Async).
         
         Args:
@@ -483,7 +483,7 @@ class AutonomousSelfModificationEngine:
     # Automatic Fix Workflow
     # ========================================================================
     
-    async def run_autonomous_cycle(self) -> Dict[str, Any]:
+    async def run_autonomous_cycle(self) -> dict[str, Any]:
         """Run one autonomous self-improvement cycle (Async).
         
         [GENESIS] Volition-scaled logic:
@@ -598,7 +598,7 @@ class AutonomousSelfModificationEngine:
     # Refinement (Recursive Self-Architecture)
     # ========================================================================
     
-    async def run_refinement_cycle(self) -> Dict[str, Any]:
+    async def run_refinement_cycle(self) -> dict[str, Any]:
         """Run a proactive architectural refinement cycle.
         
         Hunts for bottlenecks in core reasoning logic and optimizes them.
@@ -682,7 +682,7 @@ class AutonomousSelfModificationEngine:
         await asyncio.sleep(10)
         logger.info("Monitoring loop starting...")
         _consecutive_failures = 0
-        _MAX_FAILURES = 5
+        _max_failures = 5
         _backoff = self.monitor_interval
         
         while self.monitoring_enabled:
@@ -717,8 +717,8 @@ class AutonomousSelfModificationEngine:
                     _backoff = self.monitor_interval
                 
                 # Circuit breaker: stop trying if we keep failing
-                if _consecutive_failures >= _MAX_FAILURES:
-                    logger.warning("🛑 Self-modification circuit breaker tripped after %s consecutive failures. Cooling down 30min.", _MAX_FAILURES)
+                if _consecutive_failures >= _max_failures:
+                    logger.warning("🛑 Self-modification circuit breaker tripped after %s consecutive failures. Cooling down 30min.", _max_failures)
                     await asyncio.sleep(1800)  # 30 minute cooldown
                     _consecutive_failures = 0
                     _backoff = self.monitor_interval
@@ -757,7 +757,7 @@ class AutonomousSelfModificationEngine:
         await asyncio.sleep(300)  # Boot grace: all subsystems need time to register first heartbeat
         logger.info("Health Watcher starting (boot grace complete).")
         _injection_cooldowns: dict[str, float] = {}  # subsystem → last injection time
-        _INJECTION_COOLDOWN = 300.0  # 5 minutes between injections per subsystem
+        _injection_cooldown = 300.0  # 5 minutes between injections per subsystem
 
         while self.monitoring_enabled:
             try:
@@ -778,7 +778,7 @@ class AutonomousSelfModificationEngine:
 
                         # Rate limit: don't re-inject for the same subsystem within cooldown
                         last_injection = _injection_cooldowns.get(name, 0.0)
-                        if (now - last_injection) < _INJECTION_COOLDOWN:
+                        if (now - last_injection) < _injection_cooldown:
                             continue
 
                         # Staleness threshold: only inject if stale for >2x expected interval
@@ -834,7 +834,7 @@ class AutonomousSelfModificationEngine:
     # Reporting & Status
     # ========================================================================
     
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Get comprehensive system status"""
         # Error intelligence status
         ei_status = self.error_intelligence.get_status()
