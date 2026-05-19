@@ -1,46 +1,110 @@
 from __future__ import annotations
-from core.runtime.errors import record_degradation
 
 import logging
 import re
 import time
-from typing import Optional, TYPE_CHECKING
-from core.runtime.skill_task_bridge import looks_like_execution_report, looks_like_multi_step_skill_request
+from typing import TYPE_CHECKING
+
+from core.kernel.bridge import Phase
+from core.phases.response_contract import build_response_contract
+from core.runtime.errors import record_degradation
+from core.runtime.skill_task_bridge import (
+    looks_like_execution_report,
+    looks_like_multi_step_skill_request,
+)
 from core.runtime.structured_input import looks_like_learning_resource_bundle
 from core.runtime.turn_analysis import analyze_turn, canonical_turn_text, looks_like_deep_mind_probe
 from core.state.aura_state import AuraState, CognitiveMode
-from core.kernel.bridge import Phase
-from core.phases.response_contract import build_response_contract
 
 if TYPE_CHECKING:
     from core.kernel.aura_kernel import AuraKernel
 
 logger = logging.getLogger("Aura.Kernel.Cognitive")
 
-_USER_FACING_ORIGINS = frozenset({
-    "user", "voice", "admin", "api", "gui", "ws", "websocket", "direct", "external",
-})
 
-_DEEP_HANDOFF_KEYWORDS = frozenset({
-    "flagship architecture", "architecture deep dive", "architecture audit",
-    "security audit", "mathematical proof", "deep dive",
-    "complex analysis", "bottleneck analysis", "vulnerability scan",
-    "formal proof", "root cause analysis",
-})
+def _record_cognitive_routing_degradation(
+    error: BaseException,
+    *,
+    action: str,
+    severity: str = "warning",
+) -> None:
+    record_degradation("cognitive_routing_unitary", error, severity=severity, action=action)
 
-_CODING_ROUTE_MARKERS = frozenset({
-    "debug", "traceback", "stack trace", "failing test", "pytest",
-    "refactor", "performance", "latency", "memory leak",
-    "race condition", "deadlock", "regression", "compile",
-    "build", "patch", "exception", "crash", "segfault",
-})
 
-_FOLLOWUP_CODING_MARKERS = frozenset({
-    "keep going", "keep it going", "continue", "go ahead", "try again",
-    "let's do it", "lets do it", "do it", "resume",
-    "fix it", "fix that", "patch it", "finish it", "does that solve it",
-    "why is that failing", "what about the test", "what about that bug",
-})
+_USER_FACING_ORIGINS = frozenset(
+    {
+        "user",
+        "voice",
+        "admin",
+        "api",
+        "gui",
+        "ws",
+        "websocket",
+        "direct",
+        "external",
+    }
+)
+
+_DEEP_HANDOFF_KEYWORDS = frozenset(
+    {
+        "flagship architecture",
+        "architecture deep dive",
+        "architecture audit",
+        "security audit",
+        "mathematical proof",
+        "deep dive",
+        "complex analysis",
+        "bottleneck analysis",
+        "vulnerability scan",
+        "formal proof",
+        "root cause analysis",
+    }
+)
+
+_CODING_ROUTE_MARKERS = frozenset(
+    {
+        "debug",
+        "traceback",
+        "stack trace",
+        "failing test",
+        "pytest",
+        "refactor",
+        "performance",
+        "latency",
+        "memory leak",
+        "race condition",
+        "deadlock",
+        "regression",
+        "compile",
+        "build",
+        "patch",
+        "exception",
+        "crash",
+        "segfault",
+    }
+)
+
+_FOLLOWUP_CODING_MARKERS = frozenset(
+    {
+        "keep going",
+        "keep it going",
+        "continue",
+        "go ahead",
+        "try again",
+        "let's do it",
+        "lets do it",
+        "do it",
+        "resume",
+        "fix it",
+        "fix that",
+        "patch it",
+        "finish it",
+        "does that solve it",
+        "why is that failing",
+        "what about the test",
+        "what about that bug",
+    }
+)
 
 _FILE_REF_PATTERN = re.compile(
     r"(?<![A-Za-z0-9_])(?:\.{0,2}/|/)?[A-Za-z0-9_.~/-]+\.(?:py|md|json|toml|ya?ml|txt|js|ts|tsx|sh|swift|rs|go|cpp|c|h)"
@@ -76,14 +140,14 @@ class CognitiveRoutingPhase(Phase):
     Directly interfaces with the LLM Organ for intent classification.
     """
 
-    def __init__(self, kernel: "AuraKernel"):
+    def __init__(self, kernel: AuraKernel):
         super().__init__(kernel)
 
     @staticmethod
     def _normalize_origin(origin: str) -> str:
         normalized = str(origin or "").strip().lower().replace("-", "_")
         while normalized.startswith("routing_"):
-            normalized = normalized[len("routing_"):]
+            normalized = normalized[len("routing_") :]
         return normalized
 
     @classmethod
@@ -105,7 +169,9 @@ class CognitiveRoutingPhase(Phase):
         return len({match.group(0) for match in _FILE_REF_PATTERN.finditer(str(text or ""))})
 
     @classmethod
-    def _build_coding_route_metadata(cls, text: str, *, analysis, intent_type: str) -> dict[str, object]:
+    def _build_coding_route_metadata(
+        cls, text: str, *, analysis, intent_type: str
+    ) -> dict[str, object]:
         lowered = str(text or "").lower()
         word_count = len(str(text or "").split())
         file_ref_count = cls._count_file_refs(text)
@@ -120,7 +186,9 @@ class CognitiveRoutingPhase(Phase):
             route_hints = {}
 
         active_thread = bool(route_hints.get("active_coding_thread"))
-        followup_coding = active_thread and any(marker in lowered for marker in _FOLLOWUP_CODING_MARKERS)
+        followup_coding = active_thread and any(
+            marker in lowered for marker in _FOLLOWUP_CODING_MARKERS
+        )
         marker_hit = any(marker in lowered for marker in _CODING_ROUTE_MARKERS)
         if is_execution_report:
             return {
@@ -216,7 +284,12 @@ class CognitiveRoutingPhase(Phase):
             return True
         if any(
             bool(metadata.get(flag))
-            for flag in ("has_test_failure", "has_runtime_error", "has_verification_failure", "has_active_plan")
+            for flag in (
+                "has_test_failure",
+                "has_runtime_error",
+                "has_verification_failure",
+                "has_active_plan",
+            )
         ):
             return True
         return float(metadata.get("coding_complexity_score", 0.0) or 0.0) >= 0.60
@@ -256,7 +329,9 @@ class CognitiveRoutingPhase(Phase):
             analysis=current_analysis,
             intent_type=intent_type,
         )
-        if bool(metadata.get("execution_report")) or getattr(current_analysis, "is_execution_report", False):
+        if bool(metadata.get("execution_report")) or getattr(
+            current_analysis, "is_execution_report", False
+        ):
             return False
 
         # Only explicit deep-dive technical keywords trigger handoff
@@ -275,10 +350,7 @@ class CognitiveRoutingPhase(Phase):
         return bool(
             metadata.get("has_test_failure")
             and metadata.get("file_ref_count", 0) >= 2  # Multiple files = actually complex
-            and (
-                "pytest" in lower
-                or "traceback" in lower
-            )
+            and ("pytest" in lower or "traceback" in lower)
         )
 
     @staticmethod
@@ -313,7 +385,9 @@ class CognitiveRoutingPhase(Phase):
         state.response_modifiers["model_tier"] = model_tier
         state.response_modifiers["deep_handoff"] = deep_handoff
         state.response_modifiers["coding_request"] = bool(metadata.get("coding_request"))
-        state.response_modifiers["coding_complexity_score"] = float(metadata.get("coding_complexity_score", 0.0) or 0.0)
+        state.response_modifiers["coding_complexity_score"] = float(
+            metadata.get("coding_complexity_score", 0.0) or 0.0
+        )
         state.response_modifiers["execution_report"] = bool(metadata.get("execution_report"))
         state.response_modifiers["coding_route_hints"] = {
             "file_ref_count": int(metadata.get("file_ref_count", 0) or 0),
@@ -335,7 +409,7 @@ class CognitiveRoutingPhase(Phase):
             float(metadata.get("coding_complexity_score", 0.0) or 0.0),
         )
 
-    async def execute(self, state: AuraState, objective: Optional[str] = None, **kwargs) -> AuraState:
+    async def execute(self, state: AuraState, objective: str | None = None, **kwargs) -> AuraState:
         priority = kwargs.get("priority", False)
         if not objective:
             return state
@@ -366,7 +440,9 @@ class CognitiveRoutingPhase(Phase):
             or "[sensory update" in _lower_obj
             or "[sensory feed" in _lower_obj
         ):
-            logger.info("🧭 Routing: SYSTEM DIRECTIVE / SENSORY FEED detected — fast-path CHAT bypass.")
+            logger.info(
+                "🧭 Routing: SYSTEM DIRECTIVE / SENSORY FEED detected — fast-path CHAT bypass."
+            )
             new_state.cognition.current_mode = CognitiveMode.REACTIVE
             new_state.response_modifiers["intent_type"] = "CHAT"
             new_state.response_modifiers["semantic_intent"] = "casual"
@@ -494,12 +570,18 @@ class CognitiveRoutingPhase(Phase):
             return new_state
 
         # [MCP AUTONOMY] Automatic routing for external foundation models and integrations
-        _MCP_SIGNALS = (
-            "foundation model", "scientific database", "mcp server", 
-            "enterprise query", "weather data", "mcp client",
-            "model context protocol", "external mcp", "query mcp"
+        _mcp_signals = (
+            "foundation model",
+            "scientific database",
+            "mcp server",
+            "enterprise query",
+            "weather data",
+            "mcp client",
+            "model context protocol",
+            "external mcp",
+            "query mcp",
         )
-        if any(sig in lower_obj for sig in _MCP_SIGNALS):
+        if any(sig in lower_obj for sig in _mcp_signals):
             logger.info("🧭 Routing: MCP Client autonomous trigger detected.")
             new_state.cognition.current_mode = CognitiveMode.DELIBERATE
             self._stamp_llm_route(
@@ -511,30 +593,55 @@ class CognitiveRoutingPhase(Phase):
                 route_meta=route_meta,
             )
             new_state.response_modifiers["matched_skills"] = ["mcp_client"]
-            new_state.world.recent_percepts.append({
-                "type": "goal_achieved",
-                "content": "Autonomous MCP Client activation",
-                "intensity": 0.5,
-                "timestamp": time.time()
-            })
+            new_state.world.recent_percepts.append(
+                {
+                    "type": "goal_achieved",
+                    "content": "Autonomous MCP Client activation",
+                    "intensity": 0.5,
+                    "timestamp": time.time(),
+                }
+            )
             return new_state
 
-        _TASK_SIGNALS = (
-            "create ", "build ", "write a ", "write me ", "generate a ",
-            "set up ", "automate ", "organize ", "plan ", "schedule ",
-            "make me ", "develop ", "implement ", "design ", "prepare ",
-            "put together ", "compose a ",
+        _task_signals = (
+            "create ",
+            "build ",
+            "write a ",
+            "write me ",
+            "generate a ",
+            "set up ",
+            "automate ",
+            "organize ",
+            "plan ",
+            "schedule ",
+            "make me ",
+            "develop ",
+            "implement ",
+            "design ",
+            "prepare ",
+            "put together ",
+            "compose a ",
         )
         import re as _re
+
         _task_hit = any(
-            (s in lower_obj if " " in s else bool(_re.search(s, lower_obj)))
-            for s in _TASK_SIGNALS
+            (s in lower_obj if " " in s else bool(_re.search(s, lower_obj))) for s in _task_signals
         )
         _is_long_goal = len(objective.split()) > 10 and any(
-            lower_obj.startswith(v) for v in (
-                "can you ", "please ", "i need you to ", "i want you to ",
-                "could you ", "would you ", "help me ", "write ", "create ",
-                "build ", "make ", "generate ",
+            lower_obj.startswith(v)
+            for v in (
+                "can you ",
+                "please ",
+                "i need you to ",
+                "i want you to ",
+                "could you ",
+                "would you ",
+                "help me ",
+                "write ",
+                "create ",
+                "build ",
+                "make ",
+                "generate ",
             )
         )
         if is_user_facing and _looks_like_simple_dialogue_request(objective):
@@ -563,9 +670,12 @@ class CognitiveRoutingPhase(Phase):
             return new_state
 
         skill_objective = canonical_turn_text(objective) or objective
-        is_learning_bundle = looks_like_learning_resource_bundle(objective) or looks_like_learning_resource_bundle(skill_objective)
+        is_learning_bundle = looks_like_learning_resource_bundle(
+            objective
+        ) or looks_like_learning_resource_bundle(skill_objective)
         try:
             from core.container import ServiceContainer
+
             cap = ServiceContainer.get("capability_engine", default=None)
             if (
                 cap
@@ -583,7 +693,10 @@ class CognitiveRoutingPhase(Phase):
                         )
                     elif looks_like_multi_step_skill_request(skill_objective, matched):
                         new_state.response_modifiers["matched_skills"] = matched
-                        logger.info("🧭 Routing: multi-step skill-backed task detected → TASK via %s", matched[:3])
+                        logger.info(
+                            "🧭 Routing: multi-step skill-backed task detected → TASK via %s",
+                            matched[:3],
+                        )
                         new_state.cognition.current_mode = CognitiveMode.DELIBERATE
                         self._stamp_llm_route(
                             new_state,
@@ -593,12 +706,14 @@ class CognitiveRoutingPhase(Phase):
                             analysis=analysis,
                             route_meta=route_meta,
                         )
-                        new_state.world.recent_percepts.append({
-                            "type": "goal_achieved",
-                            "content": f"Skill pattern match: {matched[0]}",
-                            "intensity": 0.4,
-                            "timestamp": time.time()
-                        })
+                        new_state.world.recent_percepts.append(
+                            {
+                                "type": "goal_achieved",
+                                "content": f"Skill pattern match: {matched[0]}",
+                                "intensity": 0.4,
+                                "timestamp": time.time(),
+                            }
+                        )
                         return new_state
                     else:
                         new_state.response_modifiers["matched_skills"] = matched
@@ -612,15 +727,21 @@ class CognitiveRoutingPhase(Phase):
                             analysis=analysis,
                             route_meta=route_meta,
                         )
-                        new_state.world.recent_percepts.append({
-                            "type": "goal_achieved",
-                            "content": f"Skill pattern match: {matched[0]}",
-                            "intensity": 0.4,
-                            "timestamp": time.time()
-                        })
+                        new_state.world.recent_percepts.append(
+                            {
+                                "type": "goal_achieved",
+                                "content": f"Skill pattern match: {matched[0]}",
+                                "intensity": 0.4,
+                                "timestamp": time.time(),
+                            }
+                        )
                         return new_state
-        except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('cognitive_routing_unitary', e)
+        except (ImportError, AttributeError) as e:
+            _record_cognitive_routing_degradation(
+                e,
+                action="continued with deterministic routing after capability intent detection failed",
+                severity="error",
+            )
             logger.debug("🧭 Routing: detect_intent check failed: %s", e)
 
         if is_user_facing and analysis.intent_type == "TASK" and not is_deep_mind_probe:
@@ -691,7 +812,9 @@ class CognitiveRoutingPhase(Phase):
         if is_user_facing:
             logger.info("🧭 Routing: governed default chat route for user-facing turn.")
             new_state.cognition.current_mode = (
-                CognitiveMode.DELIBERATE if analysis.suggests_deliberate_mode else CognitiveMode.REACTIVE
+                CognitiveMode.DELIBERATE
+                if analysis.suggests_deliberate_mode
+                else CognitiveMode.REACTIVE
             )
             self._stamp_llm_route(
                 new_state,
@@ -723,12 +846,16 @@ class CognitiveRoutingPhase(Phase):
             skill_hint = ""
             try:
                 from core.container import ServiceContainer
+
                 cap = ServiceContainer.get("capability_engine", default=None)
                 if cap and hasattr(cap, "skills"):
                     names = sorted(cap.skills.keys())[:30]
                     skill_hint = "Available skills: " + ", ".join(names) + "\n"
             except (ImportError, AttributeError, RuntimeError) as _exc:
-                record_degradation('cognitive_routing_unitary', _exc)
+                _record_cognitive_routing_degradation(
+                    _exc,
+                    action="continued LLM classification without capability skill hint",
+                )
                 logger.debug("Suppressed Exception: %s", _exc)
 
             prompt = (
@@ -794,13 +921,17 @@ class CognitiveRoutingPhase(Phase):
                     route_meta=route_meta,
                 )
 
-            new_state.world.recent_percepts.append({
-                "type": "goal_achieved",
-                "content": f"Routed intent: {new_state.response_modifiers['intent_type']}",
-                "intensity": 0.4,
-                "timestamp": time.time()
-            })
-            logger.info("🧭 Routing: LLM classified → %s", new_state.response_modifiers["intent_type"])
+            new_state.world.recent_percepts.append(
+                {
+                    "type": "goal_achieved",
+                    "content": f"Routed intent: {new_state.response_modifiers['intent_type']}",
+                    "intensity": 0.4,
+                    "timestamp": time.time(),
+                }
+            )
+            logger.info(
+                "🧭 Routing: LLM classified → %s", new_state.response_modifiers["intent_type"]
+            )
 
         except RuntimeError:
             logger.warning("🧭 Routing: LLM Organ not ready, defaulting to CHAT.")
@@ -813,8 +944,12 @@ class CognitiveRoutingPhase(Phase):
                 analysis=analysis,
                 route_meta=route_meta,
             )
-        except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('cognitive_routing_unitary', e)
+        except (ImportError, AttributeError) as e:
+            _record_cognitive_routing_degradation(
+                e,
+                action="fell back to governed reactive chat route after classifier failed",
+                severity="error",
+            )
             logger.error("🧭 Routing: Classification error: %s", e)
             new_state.cognition.current_mode = CognitiveMode.REACTIVE
             self._stamp_llm_route(
