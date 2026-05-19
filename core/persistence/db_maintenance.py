@@ -16,15 +16,32 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import sqlite3
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.Persistence.Maintenance")
+_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _record_db_degradation(
+    exc: BaseException,
+    *,
+    action: str,
+    severity: str = "warning",
+) -> None:
+    record_degradation("db_maintenance", exc, severity=severity, action=action)
+
+
+def _quote_identifier(identifier: str) -> str:
+    if not _IDENTIFIER_RE.fullmatch(identifier):
+        raise ValueError(f"unsafe SQLite identifier: {identifier!r}")
+    return f'"{identifier}"'
 
 # ── Retention Policies ────────────────────────────────────────────────────
 
@@ -90,12 +107,13 @@ class MaintenanceResult:
     wal_checkpointed: bool = False
     wal_pages_moved: int = 0
     vacuum_run: bool = False
-    integrity_ok: Optional[bool] = None
-    rows_deleted: Dict[str, int] = field(default_factory=dict)
-    rows_archived: Dict[str, int] = field(default_factory=dict)
+    integrity_ok: bool | None = None
+    rows_deleted: dict[str, int] = field(default_factory=dict)
+    rows_archived: dict[str, int] = field(default_factory=dict)
     db_size_bytes: int = 0
     wal_size_bytes: int = 0
-    errors: List[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
+    skipped_policies: list[str] = field(default_factory=list)
 
     @property
     def duration_s(self) -> float:
@@ -107,7 +125,7 @@ class MaintenanceResult:
     def total_rows_deleted(self) -> int:
         return sum(self.rows_deleted.values())
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "started_at": self.started_at,
             "completed_at": self.completed_at,
@@ -122,6 +140,7 @@ class MaintenanceResult:
             "db_size_bytes": self.db_size_bytes,
             "wal_size_bytes": self.wal_size_bytes,
             "errors": self.errors,
+            "skipped_policies": self.skipped_policies,
         }
 
 
@@ -135,8 +154,8 @@ class DatabaseMaintenance:
 
     def __init__(
         self,
-        db_path: Optional[str] = None,
-        retention_policies: Optional[List[RetentionPolicy]] = None,
+        db_path: str | None = None,
+        retention_policies: list[RetentionPolicy] | None = None,
         *,
         vacuum_interval_hours: float = 24.0,
         checkpoint_interval_minutes: float = 15.0,
@@ -160,10 +179,10 @@ class DatabaseMaintenance:
         self._last_vacuum_time: float = 0.0
         self._last_checkpoint_time: float = 0.0
         self._last_integrity_time: float = 0.0
-        self._last_result: Optional[MaintenanceResult] = None
+        self._last_result: MaintenanceResult | None = None
         self._total_passes: int = 0
 
-    def _get_connection(self) -> Optional[sqlite3.Connection]:
+    def _get_connection(self) -> sqlite3.Connection | None:
         """Get a maintenance connection with appropriate settings."""
         try:
             path = Path(self._db_path)
@@ -174,28 +193,44 @@ class DatabaseMaintenance:
             conn.execute("PRAGMA busy_timeout=10000;")
             return conn
         except (sqlite3.Error, OSError) as exc:
-            record_degradation("db_maintenance", exc)
+            _record_db_degradation(
+                exc,
+                action="skipped database maintenance pass because SQLite connection could not be opened",
+            )
             logger.warning("Maintenance: Cannot connect to DB: %s", exc)
             return None
 
     def _table_exists(self, conn: sqlite3.Connection, table_name: str) -> bool:
         """Check if a table exists in the database."""
         try:
+            _quote_identifier(table_name)
             cursor = conn.execute(
                 "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
                 (table_name,),
             )
             return cursor.fetchone() is not None
-        except sqlite3.Error:
+        except (sqlite3.Error, ValueError) as exc:
+            _record_db_degradation(
+                exc,
+                severity="warning",
+                action=f"treated table {table_name!r} as missing during maintenance",
+            )
             return False
 
     def _column_exists(self, conn: sqlite3.Connection, table: str, column: str) -> bool:
         """Check if a column exists in a table."""
         try:
-            cursor = conn.execute(f"PRAGMA table_info({table})")
+            quoted_table = _quote_identifier(table)
+            _quote_identifier(column)
+            cursor = conn.execute(f"PRAGMA table_info({quoted_table})")
             columns = [row[1] for row in cursor.fetchall()]
             return column in columns
-        except sqlite3.Error:
+        except (sqlite3.Error, ValueError) as exc:
+            _record_db_degradation(
+                exc,
+                severity="warning",
+                action=f"treated column {table}.{column} as missing during maintenance",
+            )
             return False
 
     def run_checkpoint(self, conn: sqlite3.Connection, result: MaintenanceResult) -> None:
@@ -218,15 +253,33 @@ class DatabaseMaintenance:
                 result.wal_pages_moved,
             )
         except sqlite3.Error as exc:
-            record_degradation("db_maintenance", exc)
+            _record_db_degradation(
+                exc,
+                action="left WAL checkpoint schedule unchanged after passive checkpoint failed",
+            )
             result.errors.append(f"checkpoint: {exc}")
 
     def run_retention(self, conn: sqlite3.Connection, result: MaintenanceResult) -> None:
         """Apply tiered retention policies — delete old rows in batches."""
         for policy in self._retention_policies:
+            try:
+                table = _quote_identifier(policy.table_name)
+                timestamp_column = _quote_identifier(policy.timestamp_column)
+                archive_table = _quote_identifier(f"{policy.table_name}_archive")
+            except ValueError as exc:
+                _record_db_degradation(
+                    exc,
+                    action=f"skipped unsafe retention policy for {policy.table_name!r}",
+                )
+                result.errors.append(f"retention_policy_invalid_{policy.table_name}: {exc}")
+                result.skipped_policies.append(policy.table_name)
+                continue
+
             if not self._table_exists(conn, policy.table_name):
+                result.skipped_policies.append(policy.table_name)
                 continue
             if not self._column_exists(conn, policy.table_name, policy.timestamp_column):
+                result.skipped_policies.append(policy.table_name)
                 continue
 
             try:
@@ -234,22 +287,26 @@ class DatabaseMaintenance:
 
                 # Archive before delete if configured
                 if policy.archive_before_delete:
-                    archive_table = f"{policy.table_name}_archive"
-                    if not self._table_exists(conn, archive_table):
+                    archive_table_name = f"{policy.table_name}_archive"
+                    if not self._table_exists(conn, archive_table_name):
                         try:
                             conn.execute(
                                 f"CREATE TABLE IF NOT EXISTS {archive_table} "
-                                f"AS SELECT * FROM {policy.table_name} WHERE 0"
+                                f"AS SELECT * FROM {table} WHERE 0"
                             )
-                        except sqlite3.Error:
-                            pass  # Archive table creation is best-effort
+                        except sqlite3.Error as exc:
+                            _record_db_degradation(
+                                exc,
+                                action=f"continued retention for {policy.table_name} without archive table creation",
+                            )
+                            result.errors.append(f"archive_create_{policy.table_name}: {exc}")
 
-                    if self._table_exists(conn, archive_table):
+                    if self._table_exists(conn, archive_table_name):
                         try:
                             cursor = conn.execute(
                                 f"INSERT INTO {archive_table} "
-                                f"SELECT * FROM {policy.table_name} "
-                                f"WHERE {policy.timestamp_column} < ? "
+                                f"SELECT * FROM {table} "
+                                f"WHERE {timestamp_column} < ? "
                                 f"LIMIT ?",
                                 (cutoff, policy.batch_size),
                             )
@@ -257,17 +314,20 @@ class DatabaseMaintenance:
                             if archived > 0:
                                 result.rows_archived[policy.table_name] = archived
                         except sqlite3.Error as exc:
-                            record_degradation("db_maintenance", exc)
+                            _record_db_degradation(
+                                exc,
+                                action=f"continued retention delete for {policy.table_name} after archive insert failed",
+                            )
                             result.errors.append(
                                 f"archive_{policy.table_name}: {exc}"
                             )
 
                 # Delete expired rows in batches
                 cursor = conn.execute(
-                    f"DELETE FROM {policy.table_name} "
+                    f"DELETE FROM {table} "
                     f"WHERE rowid IN ("
-                    f"  SELECT rowid FROM {policy.table_name} "
-                    f"  WHERE {policy.timestamp_column} < ? "
+                    f"  SELECT rowid FROM {table} "
+                    f"  WHERE {timestamp_column} < ? "
                     f"  LIMIT ?"
                     f")",
                     (cutoff, policy.batch_size),
@@ -281,15 +341,30 @@ class DatabaseMaintenance:
                         policy.table_name,
                         policy.max_age_days,
                     )
-            except sqlite3.Error as exc:
-                record_degradation("db_maintenance", exc)
+            except (sqlite3.Error, ValueError) as exc:
+                _record_db_degradation(
+                    exc,
+                    action=f"skipped retention delete for {policy.table_name} after policy operation failed",
+                )
                 result.errors.append(f"retention_{policy.table_name}: {exc}")
 
         # Commit all retention changes
         try:
             conn.commit()
         except sqlite3.Error as exc:
-            record_degradation("db_maintenance", exc)
+            _record_db_degradation(
+                exc,
+                action="rolled back retention transaction after commit failed",
+                severity="degraded",
+            )
+            try:
+                conn.rollback()
+            except sqlite3.Error as rollback_exc:
+                _record_db_degradation(
+                    rollback_exc,
+                    action="left retention transaction state to connection close after rollback failed",
+                    severity="degraded",
+                )
             result.errors.append(f"retention_commit: {exc}")
 
     def run_vacuum(self, conn: sqlite3.Connection, result: MaintenanceResult) -> None:
@@ -318,7 +393,10 @@ class DatabaseMaintenance:
             result.vacuum_run = True
             self._last_vacuum_time = now
         except sqlite3.Error as exc:
-            record_degradation("db_maintenance", exc)
+            _record_db_degradation(
+                exc,
+                action="left vacuum schedule unchanged after incremental vacuum failed",
+            )
             result.errors.append(f"vacuum: {exc}")
 
     def run_integrity_check(
@@ -352,10 +430,19 @@ class DatabaseMaintenance:
                         detail=error_msg[:500],
                         severity="critical",
                     )
-                except (ImportError, AttributeError, RuntimeError) as _exc:
+                except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as _exc:
+                    _record_db_degradation(
+                        _exc,
+                        severity="degraded",
+                        action="left integrity failure in maintenance result after incident reporting failed",
+                    )
                     logger.debug("Suppressed %s in core.persistence.db_maintenance: %s", type(_exc).__name__, _exc)
         except sqlite3.Error as exc:
-            record_degradation("db_maintenance", exc)
+            _record_db_degradation(
+                exc,
+                action="left last successful integrity timestamp unchanged after integrity check failed",
+                severity="degraded",
+            )
             result.errors.append(f"integrity_check: {exc}")
 
     def check_size(self, result: MaintenanceResult) -> None:
@@ -384,7 +471,12 @@ class DatabaseMaintenance:
                         detail=f"{result.db_size_bytes / (1024*1024):.1f} MB > {self._max_db_size_bytes / (1024*1024):.1f} MB",
                         severity="warning",
                     )
-                except (ImportError, AttributeError, RuntimeError) as _exc:
+                except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as _exc:
+                    _record_db_degradation(
+                        _exc,
+                        severity="warning",
+                        action="kept database-size warning in logs after incident reporting failed",
+                    )
                     logger.debug("Suppressed %s in core.persistence.db_maintenance: %s", type(_exc).__name__, _exc)
 
             # Alert if WAL is growing too large (> 50MB)
@@ -399,11 +491,19 @@ class DatabaseMaintenance:
                 from core.observability.metrics import get_metrics
                 get_metrics().set_gauge("db_size_bytes", float(result.db_size_bytes))
                 get_metrics().set_gauge("wal_size_bytes", float(result.wal_size_bytes))
-            except (ImportError, AttributeError) as _exc:
+            except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as _exc:
+                _record_db_degradation(
+                    _exc,
+                    severity="debug",
+                    action="completed size check without metrics gauge update",
+                )
                 logger.debug("Suppressed %s in core.persistence.db_maintenance: %s", type(_exc).__name__, _exc)
 
         except (OSError, sqlite3.Error) as exc:
-            record_degradation("db_maintenance", exc)
+            _record_db_degradation(
+                exc,
+                action="completed maintenance pass without filesystem size telemetry",
+            )
             result.errors.append(f"size_check: {exc}")
 
     def run_maintenance(self, *, force: bool = False) -> MaintenanceResult:
@@ -428,30 +528,33 @@ class DatabaseMaintenance:
             result.completed_at = time.time()
             return result
 
+        phases = (
+            ("checkpoint", lambda: self.run_checkpoint(conn, result)),
+            ("retention", lambda: self.run_retention(conn, result)),
+            ("vacuum", lambda: self.run_vacuum(conn, result)),
+            ("integrity", lambda: self.run_integrity_check(conn, result)),
+            ("size", lambda: self.check_size(result)),
+        )
         try:
-            # 1. WAL checkpoint (most frequent)
-            self.run_checkpoint(conn, result)
-
-            # 2. Tiered retention (delete old data)
-            self.run_retention(conn, result)
-
-            # 3. Incremental vacuum (reclaim space)
-            self.run_vacuum(conn, result)
-
-            # 4. Integrity check (weekly)
-            self.run_integrity_check(conn, result)
-
-            # 5. Size monitoring (always)
-            self.check_size(result)
-
-        except (sqlite3.Error, OSError) as exc:
-            record_degradation("db_maintenance", exc)
-            result.errors.append(f"maintenance_pass: {exc}")
+            for phase_name, phase in phases:
+                try:
+                    phase()
+                except (sqlite3.Error, OSError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                    _record_db_degradation(
+                        exc,
+                        action=f"continued database maintenance pass after {phase_name} phase failed",
+                        severity="degraded",
+                    )
+                    result.errors.append(f"{phase_name}_phase: {exc}")
         finally:
             try:
                 conn.close()
-            except sqlite3.Error:
-                pass  # Connection already closed
+            except sqlite3.Error as exc:
+                _record_db_degradation(
+                    exc,
+                    severity="warning",
+                    action="completed database maintenance pass after connection close failed",
+                )
 
         result.completed_at = time.time()
         self._last_result = result
@@ -477,7 +580,7 @@ class DatabaseMaintenance:
 
         return result
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Return current maintenance status for observability."""
         return {
             "total_passes": self._total_passes,
@@ -500,7 +603,7 @@ class DatabaseMaintenance:
 
 # ── Singleton ─────────────────────────────────────────────────────────────
 
-_instance: Optional[DatabaseMaintenance] = None
+_instance: DatabaseMaintenance | None = None
 
 
 def get_db_maintenance() -> DatabaseMaintenance:
