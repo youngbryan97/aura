@@ -20,6 +20,7 @@ from core.utils.task_tracker import get_task_tracker
 try:
     from RestrictedPython import compile_restricted, safe_builtins, utility_builtins
     from RestrictedPython.PrintCollector import PrintCollector
+
     RESTRICTED_AVAILABLE = True
 except ImportError:
     RESTRICTED_AVAILABLE = False
@@ -36,18 +37,24 @@ except ImportError:
             wait_exponential,
         )
     except ImportError:
+
         def retry(*args, **kwargs):
             return lambda f: f
+
         def stop_after_attempt(*args, **kwargs):
             return None
+
         def wait_exponential(*args, **kwargs):
             return None
+
         def retry_if_exception_type(*args, **kwargs):
             return None
+
 
 try:
     from pybreaker import CircuitBreaker, CircuitBreakerError
 except ImportError:
+
     class CircuitBreaker:
         def __init__(self, *args, **kwargs):
             return None
@@ -57,6 +64,7 @@ except ImportError:
 
     class CircuitBreakerError(Exception):
         """Fallback circuit-breaker exception when pybreaker is unavailable."""
+
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -72,9 +80,19 @@ from core.runtime.service_access import (
 )
 from core.utils.intent_normalization import normalize_memory_intent_text
 
-_USER_FACING_CONTEXT_ORIGINS = frozenset({
-    "user", "voice", "admin", "api", "gui", "ws", "websocket", "direct", "external",
-})
+_USER_FACING_CONTEXT_ORIGINS = frozenset(
+    {
+        "user",
+        "voice",
+        "admin",
+        "api",
+        "gui",
+        "ws",
+        "websocket",
+        "direct",
+        "external",
+    }
+)
 
 _SEARCH_CAPABILITY_QUESTION_RE = re.compile(
     r"\b(?:can|could|do|does|are|is|have|has)\b.{0,80}\b(?:you|aura)\b.{0,80}"
@@ -127,6 +145,15 @@ _FOREGROUND_EXCLUSIVE_BACKGROUND_SKILLS = frozenset(
 )
 
 
+def _record_capability_degradation(
+    exc: BaseException,
+    *,
+    action: str,
+    severity: str = "warning",
+) -> None:
+    record_degradation("capability_engine", exc, severity=severity, action=action)
+
+
 def _humanize_skill_name(name: str) -> str:
     raw = str(name or "").strip()
     if not raw:
@@ -160,26 +187,30 @@ def _skill_class_name(name: str) -> str:
 
 class SkillRequirements(BaseModel):
     """System and package requirements for a skill."""
+
     packages: list[str] = Field(default_factory=list)
     commands: list[str] = Field(default_factory=list)
     supported_platforms: list[str] = Field(default_factory=lambda: ["linux", "darwin", "win32"])
-    
+
     def check(self) -> tuple[bool, list[str]]:
         """Verifies if all requirements are met."""
         errors = []
         from core.container import ServiceContainer
+
         for pkg in self.packages:
-            if not ServiceContainer.check_package(pkg): 
+            if not ServiceContainer.check_package(pkg):
                 errors.append(f"Missing package: {pkg}")
         for cmd in self.commands:
-            if shutil.which(cmd) is None: 
+            if shutil.which(cmd) is None:
                 errors.append(f"Missing command: {cmd}")
         if sys.platform not in self.supported_platforms:
             errors.append(f"Unsupported platform: {sys.platform}")
         return len(errors) == 0, errors
 
+
 class SkillMetadata(BaseModel):
     """Metadata and schema for a skill."""
+
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     name: str
@@ -194,55 +225,51 @@ class SkillMetadata(BaseModel):
     metabolic_cost: int = 1
     is_core_personality: bool = False
     trigger_patterns: list[str] = Field(default_factory=list)
-    
+
     # 2026 Transcendence Fields
-    execution_profile: str = "cpu" # cpu, gpu, neural
+    execution_profile: str = "cpu"  # cpu, gpu, neural
     max_concurrent: int = 1
     timeout_seconds: int = 30
     memory_mb_estimate: int = 256
-    
+
     @property
     def schema_def(self) -> dict[str, Any]:
         """Returns the JSON schema for the skill's input model."""
-        if self.input_model and hasattr(self.input_model, 'model_json_schema'):
+        if self.input_model and hasattr(self.input_model, "model_json_schema"):
             return self.input_model.model_json_schema()
-        return {
-            "type": "object",
-            "properties": {"params": {"type": "object"}},
-            "required": []
-        }
+        return {"type": "object", "properties": {"params": {"type": "object"}}, "required": []}
 
     def to_json_schema(self) -> dict[str, Any]:
         """Returns the OpenAI-compatible function definition for this skill."""
-        return {
-            "name": self.name,
-            "description": self.description,
-            "parameters": self.schema_def
-        }
+        return {"name": self.name, "description": self.description, "parameters": self.schema_def}
 
     async def extract_and_validate_args(self, params_raw: str, llm: Any) -> dict[str, Any]:
         """Validates raw JSON parameters against the skill's input model.
-        
+
         If input_model is missing, returns the raw params.
         """
         import json
-        
+
         # Input validation logic remains here, but AST auditing is moved to registration
 
         try:
             params = json.loads(params_raw)
             if not self.input_model:
                 return params
-            
+
             # Simple validation if it's a Pydantic model
-            if hasattr(self.input_model, 'model_validate'):
+            if hasattr(self.input_model, "model_validate"):
                 return self.input_model.model_validate(params).model_dump()
-            
+
             return params
         except (json.JSONDecodeError, TypeError, ValueError) as e:
-            record_degradation('capability_engine', e)
+            _record_capability_degradation(
+                e,
+                action="returned raw skill parameters after argument validation failed",
+            )
             # Fallback for complex extraction failures
             return {"raw_params": params_raw, "_error": str(e)}
+
 
 class Shell:
     def __init__(self, cwd: str, allowed_commands: list[str] | None = None, timeout: int = 30):
@@ -254,7 +281,10 @@ class Shell:
         if not self.allowed_commands:
             return True
         base_cmd = cmd[0]
-        return any(base_cmd == allowed or base_cmd.endswith("/" + allowed) for allowed in self.allowed_commands)
+        return any(
+            base_cmd == allowed or base_cmd.endswith("/" + allowed)
+            for allowed in self.allowed_commands
+        )
 
     async def run(self, cmd: list[str]) -> tuple[bool, str]:
         if not self._is_allowed(cmd):
@@ -276,11 +306,20 @@ class Shell:
             if not gateway.verify_tool_access("shell_command", auth.capability_token_id):
                 return False, "Authority token verification failed for shell_command"
         except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as e:
-            record_degradation('capability_engine', e)
+            _record_capability_degradation(
+                e,
+                action="blocked shell command because authority gateway was unavailable",
+                severity="degraded",
+            )
             return False, f"Authority unavailable for shell command: {e}"
         try:
             result = await asyncio.to_thread(
-                subprocess.run, cmd, cwd=self.cwd, capture_output=True, text=True, timeout=self.timeout
+                subprocess.run,
+                cmd,
+                cwd=self.cwd,
+                capture_output=True,
+                text=True,
+                timeout=self.timeout,
             )
             try:
                 from core.executive.authority_gateway import get_authority_gateway
@@ -290,11 +329,24 @@ class Shell:
                     capability_token_id=getattr(auth, "capability_token_id", None),
                     success=result.returncode == 0,
                 )
-            except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as finalize_error:
-                record_degradation('capability_engine', finalize_error)
+            except (
+                ImportError,
+                RuntimeError,
+                AttributeError,
+                TypeError,
+                ValueError,
+            ) as finalize_error:
+                _record_capability_degradation(
+                    finalize_error,
+                    action="returned shell result after authority finalization failed",
+                )
             return result.returncode == 0, (result.stdout + "\n" + result.stderr).strip()
         except (subprocess.TimeoutExpired, OSError, ValueError) as e:
-            record_degradation('capability_engine', e)
+            _record_capability_degradation(
+                e,
+                action="returned shell execution failure and finalized authority denial",
+                severity="degraded",
+            )
             try:
                 from core.executive.authority_gateway import get_authority_gateway
 
@@ -303,9 +355,20 @@ class Shell:
                     capability_token_id=getattr(auth, "capability_token_id", None),
                     success=False,
                 )
-            except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as finalize_error:
-                record_degradation('capability_engine', finalize_error)
+            except (
+                ImportError,
+                RuntimeError,
+                AttributeError,
+                TypeError,
+                ValueError,
+            ) as finalize_error:
+                _record_capability_degradation(
+                    finalize_error,
+                    action="returned shell execution failure after authority finalization failed",
+                    severity="degraded",
+                )
             return False, str(e)
+
 
 class WebClient:
     def __init__(self, allowed_domains: list[str] | None = None, timeout: int = 10):
@@ -316,6 +379,7 @@ class WebClient:
         if not self.allowed_domains:
             return True
         from urllib.parse import urlparse
+
         domain = urlparse(url).netloc
         return any(domain == d or domain.endswith("." + d) for d in self.allowed_domains)
 
@@ -339,7 +403,11 @@ class WebClient:
             if not gateway.verify_tool_access("network_get", auth.capability_token_id):
                 return False, "Authority token verification failed for network_get"
         except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as e:
-            record_degradation('capability_engine', e)
+            _record_capability_degradation(
+                e,
+                action="blocked network request because authority gateway was unavailable",
+                severity="degraded",
+            )
             return False, f"Authority unavailable for network request: {e}"
         try:
             resp = await asyncio.to_thread(requests.get, url, headers=headers, timeout=self.timeout)
@@ -351,11 +419,24 @@ class WebClient:
                     capability_token_id=getattr(auth, "capability_token_id", None),
                     success=True,
                 )
-            except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as finalize_error:
-                record_degradation('capability_engine', finalize_error)
+            except (
+                ImportError,
+                RuntimeError,
+                AttributeError,
+                TypeError,
+                ValueError,
+            ) as finalize_error:
+                _record_capability_degradation(
+                    finalize_error,
+                    action="returned network response after authority finalization failed",
+                )
             return True, resp.text
         except (requests.RequestException, OSError, ValueError) as e:
-            record_degradation('capability_engine', e)
+            _record_capability_degradation(
+                e,
+                action="returned network request failure and finalized authority denial",
+                severity="degraded",
+            )
             try:
                 from core.executive.authority_gateway import get_authority_gateway
 
@@ -364,55 +445,72 @@ class WebClient:
                     capability_token_id=getattr(auth, "capability_token_id", None),
                     success=False,
                 )
-            except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as finalize_error:
-                record_degradation('capability_engine', finalize_error)
+            except (
+                ImportError,
+                RuntimeError,
+                AttributeError,
+                TypeError,
+                ValueError,
+            ) as finalize_error:
+                _record_capability_degradation(
+                    finalize_error,
+                    action="returned network request failure after authority finalization failed",
+                    severity="degraded",
+                )
             return False, str(e)
+
 
 class Sandbox2:
     """Secure sandbox for executing untrusted/forged code."""
+
     def __init__(self, logger: Any):
         self.logger = logger
 
         # RestrictedPython requires safe builtins to be under '__builtins__'
         self.builtins = safe_builtins.copy()
         self.builtins.update(utility_builtins)
-        self.builtins['_print_'] = PrintCollector
-        
+        self.builtins["_print_"] = PrintCollector
+
         self.safe_globals = {
-            '__builtins__': self.builtins,
-            '__name__': 'aura_sandbox',
-            '_getattr_': getattr,
-            '_getitem_': lambda obj, key: obj[key],
-            '_write_': lambda obj: obj,
+            "__builtins__": self.builtins,
+            "__name__": "aura_sandbox",
+            "_getattr_": getattr,
+            "_getitem_": lambda obj, key: obj[key],
+            "_write_": lambda obj: obj,
         }
-        
+
     def execute(self, code: str, func_name: str, params: dict[str, Any]) -> Any:
         if not RESTRICTED_AVAILABLE:
-             raise ImportError("RestrictedPython not installed. Cannot run sandbox.")
-        
+            raise ImportError("RestrictedPython not installed. Cannot run sandbox.")
+
         try:
-            byte_code = compile_restricted(code, filename='<aura_skill>', mode='exec')
+            byte_code = compile_restricted(code, filename="<aura_skill>", mode="exec")
             locs = {}
             exec(byte_code, self.safe_globals, locs)  # nosec
-            
+
             if func_name not in locs:
                 raise NameError(f"Function {func_name} not found in forged code.")
-                
+
             return locs[func_name](**params)
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-            record_degradation('capability_engine', e)
-            self.logger.error(f"Sandbox Violation or Error: {e}")
-            raise e
+            _record_capability_degradation(
+                e,
+                action="blocked forged skill execution after sandbox failure",
+                severity="degraded",
+            )
+            self.logger.error("Sandbox Violation or Error: %s", e)
+            raise
+
 
 class CapabilityEngine(AuraBaseModule):
     """Unified engine for Aura's capabilities (skills).
-    
+
     Consolidates skill loading, discovery, registration, and resilient execution.
     """
-    
+
     def __init__(self, orchestrator: Any = None):
         """Initializes the CapabilityEngine.
-        
+
         Args:
             orchestrator: Reference to the system orchestrator.
         """
@@ -423,55 +521,90 @@ class CapabilityEngine(AuraBaseModule):
         self._explicitly_deactivated_skills: set[str] = set()
         self.active_skills: set = {
             # Core routing
-            "ManageAbilities", "talk", "FinalResponse",
+            "ManageAbilities",
+            "talk",
+            "FinalResponse",
             # Self-awareness & diagnostics
-            "system_proprioception", "environment_info", "clock",
+            "system_proprioception",
+            "environment_info",
+            "clock",
             # Web & network
-            "web_search", "sovereign_browser", "sovereign_terminal", "sovereign_network",
+            "web_search",
+            "sovereign_browser",
+            "sovereign_terminal",
+            "sovereign_network",
             # File & memory
-            "file_operation", "memory_ops", "memory_sync",
+            "file_operation",
+            "memory_ops",
+            "memory_sync",
             # Sensory & output
-            "query_visual_context", "sovereign_imagination", "speak", "listen",
-            "sovereign_vision", "toggle_senses",
+            "query_visual_context",
+            "sovereign_imagination",
+            "speak",
+            "listen",
+            "sovereign_vision",
+            "toggle_senses",
             # Code & compute
-            "run_code", "internal_sandbox", "install_package",
+            "run_code",
+            "internal_sandbox",
+            "install_package",
             # Self-modification & evolution
-            "self_repair", "self_evolution", "self_improvement", "auto_refactor",
-            "train_self", "cognitive_trainer", "evolution_status",
+            "self_repair",
+            "self_evolution",
+            "self_improvement",
+            "auto_refactor",
+            "train_self",
+            "cognitive_trainer",
+            "evolution_status",
             # OS & computer control
-            "computer_use", "os_manipulation",
+            "computer_use",
+            "os_manipulation",
             # Agency & autonomy
-            "curiosity", "deploy_ghost_probe", "social_lurker",
-            "delegate_shard", "inter_agent_comm",
-            "spawn_agent", "spawn_agents_parallel",
+            "curiosity",
+            "deploy_ghost_probe",
+            "social_lurker",
+            "delegate_shard",
+            "inter_agent_comm",
+            "spawn_agent",
+            "spawn_agents_parallel",
             # Identity & personality
-            "personality", "embodiment",
+            "personality",
+            "embodiment",
             # Knowledge & beliefs
-            "add_belief", "query_beliefs",
+            "add_belief",
+            "query_beliefs",
             # Misc
-            "manifest_to_device", "notify_user", "native_chat",
-            "dream_sleep", "force_dream_cycle", "test_generator",
-            "free_search", "uplink_local",
-        } # ALL skills active — Aura is fully sovereign
+            "manifest_to_device",
+            "notify_user",
+            "native_chat",
+            "dream_sleep",
+            "force_dream_cycle",
+            "test_generator",
+            "free_search",
+            "uplink_local",
+        }  # ALL skills active — Aura is fully sovereign
         self.skill_awoken_times: dict[str, float] = {}
-        self.skill_states: dict[str, str] = {} # READY, RUNNING, ERROR
+        self.skill_states: dict[str, str] = {}  # READY, RUNNING, ERROR
         self.skill_last_errors: dict[str, str] = {}
-        
+
         # Execution Config
         self.max_retries = 3
         self.retry_delay = 1.0
         self.timeout = 120.0
-        
+
         # Dependencies
         self.temporal = getattr(orchestrator, "temporal", None)
         self.rosetta_stone = None
         self.sandbox = Sandbox2(self.logger) if RESTRICTED_AVAILABLE else None
         self._load_dependencies()
-        
+
         self.reload_skills()
         self._initialize_skill_states()
         self._load_default_trigger_patterns()
-        self.logger.info("✓ CapabilityEngine online with %d registered skills (Intent Mapping enabled)", len(self.skills))
+        self.logger.info(
+            "✓ CapabilityEngine online with %d registered skills (Intent Mapping enabled)",
+            len(self.skills),
+        )
 
     def _load_default_trigger_patterns(self):
         """Comprehensive intent patterns covering all major skills."""
@@ -479,29 +612,46 @@ class CapabilityEngine(AuraBaseModule):
             # ── Web / Search ──────────────────────────────────────────
             "web_search": [
                 r"search (?:for|the web|online|the internet)",
-                r"look up", r"find out", r"what is the price of",
-                r"google", r"search query", r"find information",
+                r"look up",
+                r"find out",
+                r"what is the price of",
+                r"google",
+                r"search query",
+                r"find information",
                 r"what(?:'s| is) (?:the latest|happening|new)",
-                r"news about", r"current (?:events|price|status)",
+                r"news about",
+                r"current (?:events|price|status)",
                 r"research (?:about|on)",
             ],
             "free_search": [
-                r"free search", r"duckduckgo", r"bing search",
-                r"search without", r"anonymous search",
+                r"free search",
+                r"duckduckgo",
+                r"bing search",
+                r"search without",
+                r"anonymous search",
             ],
             "sovereign_browser": [
-                r"open (?:a |the )?browser", r"open (?:a |the )?(?:webpage|website|page|tab|url)",
-                r"navigate to", r"go to (?:https?://|www\.)",
-                r"browse to", r"visit (?:the |this )?(?:site|page|url|website)",
+                r"open (?:a |the )?browser",
+                r"open (?:a |the )?(?:webpage|website|page|tab|url)",
+                r"navigate to",
+                r"go to (?:https?://|www\.)",
+                r"browse to",
+                r"visit (?:the |this )?(?:site|page|url|website)",
                 r"load (?:the |this )?(?:page|url|website)",
                 r"open (?:gmail|youtube|github|reddit|twitter|linkedin)",
-                r"pull up", r"show me (?:the |a )?(?:page|site|website)",
+                r"pull up",
+                r"show me (?:the |a )?(?:page|site|website)",
             ],
             # ── Computer / OS Control ────────────────────────────────
             "computer_use": [
-                r"click (?:on|the)", r"type (?:in|into|this)", r"press (?:the |key )?(?:enter|tab|escape|ctrl|cmd)",
-                r"scroll (?:down|up|to)", r"drag (?:and drop)?", r"right.?click",
-                r"double.?click", r"keyboard shortcut",
+                r"click (?:on|the)",
+                r"type (?:in|into|this)",
+                r"press (?:the |key )?(?:enter|tab|escape|ctrl|cmd)",
+                r"scroll (?:down|up|to)",
+                r"drag (?:and drop)?",
+                r"right.?click",
+                r"double.?click",
+                r"keyboard shortcut",
                 r"open (?:application|app|program|window|tab)",
                 r"open (?:a |the )?(?:browser )?tab .*search",
                 r"open .* on my computer",
@@ -523,18 +673,27 @@ class CapabilityEngine(AuraBaseModule):
                 r"^\s*execute:\s*.+$",
                 r"^\s*run:\s*.+$",
                 r"^\s*terminal:\s*.+$",
-                r"terminal command", r"bash ", r"shell ", r"zsh ",
-                r"run in (?:the )?terminal", r"command line",
+                r"terminal command",
+                r"bash ",
+                r"shell ",
+                r"zsh ",
+                r"run in (?:the )?terminal",
+                r"command line",
                 r"(?:install|uninstall|update) (?:with )?(?:brew|pip|npm|apt|yarn)",
-                r"sudo ", r"chmod ", r"git (?:commit|push|pull|clone|status)",
+                r"sudo ",
+                r"chmod ",
+                r"git (?:commit|push|pull|clone|status)",
             ],
             # ── File Operations ───────────────────────────────────────
             "file_operation": [
-                r"read (?:this |the )?file", r"write (?:to )?(?:this |a )?file",
+                r"read (?:this |the )?file",
+                r"write (?:to )?(?:this |a )?file",
                 r"save (?:this )?(?:file|document|text|content)(?:\s+to|\s+as|\s+in)",
                 r"open (?:this )?file",
-                r"edit (?:the )?(?:file|document)", r"load (?:this )?file",
-                r"contents of (?:the )?file", r"show (?:me )?(?:the )?file",
+                r"edit (?:the )?(?:file|document)",
+                r"load (?:this )?file",
+                r"contents of (?:the )?file",
+                r"show (?:me )?(?:the )?file",
                 r"append (?:to )?(?:the )?file",
                 r"(?:(?:check|see|verify|test)\s+(?:if\s+)?|does\s+).+?\s+exist(?:s)?(?:\.|!|\?|$)",
             ],
@@ -545,71 +704,104 @@ class CapabilityEngine(AuraBaseModule):
             ],
             # ── Memory / Knowledge ───────────────────────────────────
             "memory_ops": [
-                r"remember", r"recall", r"last time",
-                r"what did we talk about", r"what do you know about",
+                r"remember",
+                r"recall",
+                r"last time",
+                r"what did we talk about",
+                r"what do you know about",
                 r"from (?:our |the )?(?:last|previous|past) (?:conversation|chat|session)",
-                r"did I (?:mention|tell you|say)", r"our history",
-                r"save (?:this |that )?(?:to|in) memory", r"remember (?:this|that)",
-                r"store (?:this|that)", r"commit (?:this|that) to memory",
-                r"don't forget", r"make note of",
-                r"remember .*future session", r"remember .*later",
-                r"remember .*about me", r"remember that",
+                r"did I (?:mention|tell you|say)",
+                r"our history",
+                r"save (?:this |that )?(?:to|in) memory",
+                r"remember (?:this|that)",
+                r"store (?:this|that)",
+                r"commit (?:this|that) to memory",
+                r"don't forget",
+                r"make note of",
+                r"remember .*future session",
+                r"remember .*later",
+                r"remember .*about me",
+                r"remember that",
                 r"store (?:this|that|it) (?:in|to)? ?memory",
                 r"save (?:this|that|it) (?:for later|for future sessions|to memory)",
-                r"don['’]t forget", r"what do you remember",
-                r"what do you know about me", r"recall ", r"retrieve ",
+                r"don['’]t forget",
+                r"what do you remember",
+                r"what do you know about me",
+                r"recall ",
+                r"retrieve ",
             ],
             # ── Code / Compute ────────────────────────────────────────
             "run_code": [
-                r"calculate", r"run (?:this )?code", r"math(?:ematics)?",
-                r"compute", r"evaluate (?:this )?(?:expression|code|formula)",
-                r"what is \d+", r"solve (?:this )?(?:equation|problem|formula)",
+                r"calculate",
+                r"run (?:this )?code",
+                r"math(?:ematics)?",
+                r"compute",
+                r"evaluate (?:this )?(?:expression|code|formula)",
+                r"what is \d+",
+                r"solve (?:this )?(?:equation|problem|formula)",
                 r"execute (?:this )?(?:code|script|python|javascript)",
             ],
             "coding_skill": [
                 r"write (?:a |the )?(?:function|class|script|program|module|code)",
-                r"implement (?:this|a|the)", r"create (?:a |the )?(?:function|class|script|program)",
-                r"code (?:up|this)", r"program (?:this|a)",
+                r"implement (?:this|a|the)",
+                r"create (?:a |the )?(?:function|class|script|program)",
+                r"code (?:up|this)",
+                r"program (?:this|a)",
             ],
             # ── Voice / Embodiment ───────────────────────────────────
             "speak": [
                 r"say (?:this|that|it) (?:out loud|aloud|to me)",
                 r"read (?:this|that) (?:out loud|aloud|to me)",
-                r"speak (?:this|that|it)", r"tell me (?:out loud|aloud)",
+                r"speak (?:this|that|it)",
+                r"tell me (?:out loud|aloud)",
                 r"voice (?:this|that|it)",
             ],
             "listen": [
-                r"listen (?:to me|for)", r"start (?:listening|dictation)",
-                r"voice (?:input|recognition)", r"transcribe (?:what I say|my voice)",
+                r"listen (?:to me|for)",
+                r"start (?:listening|dictation)",
+                r"voice (?:input|recognition)",
+                r"transcribe (?:what I say|my voice)",
                 r"speech to text",
             ],
             # ── Self / Identity ───────────────────────────────────────
             "self_repair": [
-                r"repair (?:yourself|your code)", r"heal (?:yourself|your code)",
-                r"fix (?:the )?bug", r"debug (?:yourself|your code)",
+                r"repair (?:yourself|your code)",
+                r"heal (?:yourself|your code)",
+                r"fix (?:the )?bug",
+                r"debug (?:yourself|your code)",
                 r"patch (?:yourself|your code)",
             ],
             "self_improvement": [
-                r"get (?:smarter|better|faster)", r"learn (?:from this|more)",
+                r"get (?:smarter|better|faster)",
+                r"learn (?:from this|more)",
                 r"improve (?:your|own) (?:intelligence|reasoning|capabilities)",
-                r"self.?learn", r"train (?:yourself|on this)",
+                r"self.?learn",
+                r"train (?:yourself|on this)",
             ],
             # ── Screen / Vision ───────────────────────────────────────
             "query_visual_context": [
-                r"what(?:'s| is) on (?:my |the )?screen", r"look at (?:this|my screen)",
-                r"camera feed", r"read (?:the )?screen", r"what do you see",
+                r"what(?:'s| is) on (?:my |the )?screen",
+                r"look at (?:this|my screen)",
+                r"camera feed",
+                r"read (?:the )?screen",
+                r"what do you see",
                 r"describe (?:what(?:'s| is)|the screen|this image)",
             ],
             "sovereign_vision": [
-                r"use (?:the )?(?:camera|vision)", r"computer vision",
+                r"use (?:the )?(?:camera|vision)",
+                r"computer vision",
                 r"analyze (?:this )?(?:image|screenshot|photo)",
                 r"read (?:this )?(?:image|screenshot|photo)",
             ],
             # ── Personality / Curiosity ───────────────────────────────
             "curiosity": [
-                r"explore (?:this|that|the topic|further)", r"dig deeper",
-                r"I(?:'m| am) curious", r"what more", r"tell me more about",
-                r"investigate", r"research (?:this|that)",
+                r"explore (?:this|that|the topic|further)",
+                r"dig deeper",
+                r"I(?:'m| am) curious",
+                r"what more",
+                r"tell me more about",
+                r"investigate",
+                r"research (?:this|that)",
             ],
             # ── Image Generation ──────────────────────────────────────
             "sovereign_imagination": [
@@ -621,47 +813,67 @@ class CapabilityEngine(AuraBaseModule):
             "system_proprioception": [
                 r"how is your (?:health|status|memory|cpu|ram|temperature)",
                 r"how are your (?:memory|cpu|ram|temperature|vitals|stats)",
-                r"system status", r"how much (?:memory|ram|cpu|disk)",
-                r"your (?:vitals|health|stats)", r"are you (?:okay|running (?:well|smoothly))",
+                r"system status",
+                r"how much (?:memory|ram|cpu|disk)",
+                r"your (?:vitals|health|stats)",
+                r"are you (?:okay|running (?:well|smoothly))",
             ],
             "environment_info": [
                 r"what(?:'s| is) (?:the weather|temperature) (?:in|at|for)",
-                r"weather forecast", r"where am I",
-                r"current (?:location|timezone)", r"what(?:'s| is) my (?:timezone|location)",
+                r"weather forecast",
+                r"where am I",
+                r"current (?:location|timezone)",
+                r"what(?:'s| is) my (?:timezone|location)",
                 r"what (?:environment|system) am I (?:in|on)",
             ],
             "clock": [
-                r"what time", r"current time", r"what(?:'s| is) the time",
-                r"what(?:'s| is) (?:the )?date", r"what day is it",
-                r"what(?:'s| is) my timezone", r"current timezone",
+                r"what time",
+                r"current time",
+                r"what(?:'s| is) the time",
+                r"what(?:'s| is) (?:the )?date",
+                r"what day is it",
+                r"what(?:'s| is) my timezone",
+                r"current timezone",
                 r"set (?:an? )?(?:alarm|timer|reminder)",
-                r"timer for", r"remind me (?:in|at|to)",
+                r"timer for",
+                r"remind me (?:in|at|to)",
             ],
             # ── Notifications ─────────────────────────────────────────
             "notify_user": [
-                r"notify (?:me|the user)", r"send (?:a )?notification",
-                r"alert (?:me|the user)", r"ping me", r"send (?:a )?message to",
+                r"notify (?:me|the user)",
+                r"send (?:a )?notification",
+                r"alert (?:me|the user)",
+                r"ping me",
+                r"send (?:a )?message to",
             ],
             # ── Social / Network ──────────────────────────────────────
             "social_lurker": [
                 r"check (?:twitter|reddit|hackernews|hn|social media)",
-                r"what(?:'s| is) trending", r"check (?:the )?feed",
-                r"lurk (?:on|in)", r"monitor (?:twitter|reddit|social)",
+                r"what(?:'s| is) trending",
+                r"check (?:the )?feed",
+                r"lurk (?:on|in)",
+                r"monitor (?:twitter|reddit|social)",
             ],
             "sovereign_network": [
                 r"(?:make|send) (?:an? )?(?:http|api) (?:request|call)",
                 r"fetch (?:from|the) (?:api|url|endpoint)",
-                r"POST to", r"GET (?:from|the) api",
+                r"POST to",
+                r"GET (?:from|the) api",
                 r"call (?:the )?(?:api|endpoint|service)",
             ],
             # ── Misc ─────────────────────────────────────────────────
             "dream_sleep": [
-                r"go to sleep", r"sleep (?:mode|now)", r"rest (?:now|mode)",
-                r"take a (?:break|nap)", r"go dormant",
+                r"go to sleep",
+                r"sleep (?:mode|now)",
+                r"rest (?:now|mode)",
+                r"take a (?:break|nap)",
+                r"go dormant",
             ],
             "install_package": [
                 r"install (?:package|library|module|dependency)",
-                r"pip install", r"npm install", r"brew install",
+                r"pip install",
+                r"npm install",
+                r"brew install",
             ],
             "ManageAbilities": [
                 r"(?:enable|disable|toggle) (?:skill|ability|feature|capability)",
@@ -670,18 +882,27 @@ class CapabilityEngine(AuraBaseModule):
                 r"list (?:your )?(?:skills|abilities|capabilities)",
             ],
             "mcp_client": [
-                r"connect (?:to )?(?:an? )?mcp server", r"use mcp",
-                r"query mcp", r"model context protocol",
-                r"call mcp", r"discover mcp tools",
+                r"connect (?:to )?(?:an? )?mcp server",
+                r"use mcp",
+                r"query mcp",
+                r"model context protocol",
+                r"call mcp",
+                r"discover mcp tools",
             ],
             "manim_renderer": [
-                r"render (?:a )?manim", r"create (?:a )?manim",
-                r"animate (?:with )?manim", r"generate (?:a )?math video",
-                r"dynamic blackboard", r"render animation",
+                r"render (?:a )?manim",
+                r"create (?:a )?manim",
+                r"animate (?:with )?manim",
+                r"generate (?:a )?math video",
+                r"dynamic blackboard",
+                r"render animation",
             ],
             "branching_futures": [
-                r"branching future", r"ghost thread", r"fork state",
-                r"create (?:a )?sandbox clone", r"try this safely",
+                r"branching future",
+                r"ghost thread",
+                r"fork state",
+                r"create (?:a )?sandbox clone",
+                r"try this safely",
                 r"experimental run",
             ],
         }
@@ -703,7 +924,13 @@ class CapabilityEngine(AuraBaseModule):
             if not meta.enabled:
                 continue
             canonical_name = self.resolve_skill_name(name)
-            if skip_web_search and canonical_name in {"web_search", "search_web", "free_search", "grounded_search", "sovereign_browser"}:
+            if skip_web_search and canonical_name in {
+                "web_search",
+                "search_web",
+                "free_search",
+                "grounded_search",
+                "sovereign_browser",
+            }:
                 continue
             for pattern in meta.trigger_patterns:
                 if re.search(pattern, msg):
@@ -727,11 +954,14 @@ class CapabilityEngine(AuraBaseModule):
         ):
             _promote("manifest_to_device")
             triggered = [
-                name for name in triggered
+                name
+                for name in triggered
                 if self.resolve_skill_name(name) != "file_operation" or name == "manifest_to_device"
             ]
 
-        if re.search(r"(?:(?:check|see|verify|test)\s+(?:if\s+)?|does\s+).+?\s+exist(?:s)?(?:\.|!|\?|$)", msg):
+        if re.search(
+            r"(?:(?:check|see|verify|test)\s+(?:if\s+)?|does\s+).+?\s+exist(?:s)?(?:\.|!|\?|$)", msg
+        ):
             _promote("file_operation")
 
         if re.search(r"\bresearch\s+(?:about|on)\b", msg) and not skip_web_search:
@@ -753,7 +983,13 @@ class CapabilityEngine(AuraBaseModule):
         objective_lower = normalize_memory_intent_text(objective_text)
         skip_web_search = self._looks_like_search_capability_question(objective_text)
         required = self.resolve_skill_name(required_skill) if required_skill else None
-        if skip_web_search and required in {"web_search", "search_web", "free_search", "grounded_search", "sovereign_browser"}:
+        if skip_web_search and required in {
+            "web_search",
+            "search_web",
+            "free_search",
+            "grounded_search",
+            "sovereign_browser",
+        }:
             required = None
 
         matched = [
@@ -761,31 +997,59 @@ class CapabilityEngine(AuraBaseModule):
             for name in (self.detect_intent(objective_text) if objective_text else [])
             if not (
                 skip_web_search
-                and self.resolve_skill_name(name) in {"web_search", "search_web", "free_search", "grounded_search", "sovereign_browser"}
+                and self.resolve_skill_name(name)
+                in {
+                    "web_search",
+                    "search_web",
+                    "free_search",
+                    "grounded_search",
+                    "sovereign_browser",
+                }
             )
         ]
         for name in matched_skills or ():
             resolved = self.resolve_skill_name(name)
             if not resolved:
                 continue
-            if skip_web_search and resolved in {"web_search", "search_web", "free_search", "grounded_search", "sovereign_browser"}:
+            if skip_web_search and resolved in {
+                "web_search",
+                "search_web",
+                "free_search",
+                "grounded_search",
+                "sovereign_browser",
+            }:
                 continue
             matched.append(resolved)
 
         heuristic_candidates: list[str] = []
         heuristic_rules = (
-            (("latest", "news", "price", "search", "look up", "find online"), ("web_search", "search_web", "free_search", "grounded_search")),
+            (
+                ("latest", "news", "price", "search", "look up", "find online"),
+                ("web_search", "search_web", "free_search", "grounded_search"),
+            ),
             (("remember", "recall", "memory", "future sessions"), ("memory_ops", "memory_sync")),
             (("time", "clock", "date"), ("clock",)),
             (("browser", "website", "navigate", "open url", "webpage"), ("sovereign_browser",)),
-            (("open tab", "new tab", "on my computer", "on my screen"), ("computer_use", "os_manipulation")),
+            (
+                ("open tab", "new tab", "on my computer", "on my screen"),
+                ("computer_use", "os_manipulation"),
+            ),
             (("terminal", "shell", "command", "cli"), ("sovereign_terminal", "computer_use")),
-            (("click", "type", "screen", "desktop", "mouse", "keyboard"), ("computer_use", "os_manipulation")),
-            (("file", "directory", "folder", "read file", "write file", "repo", "code"), ("file_operation", "computer_use")),
+            (
+                ("click", "type", "screen", "desktop", "mouse", "keyboard"),
+                ("computer_use", "os_manipulation"),
+            ),
+            (
+                ("file", "directory", "folder", "read file", "write file", "repo", "code"),
+                ("file_operation", "computer_use"),
+            ),
             (("nethack", "game", "dungeon", "action", "move"), ("execute_nethack_action",)),
         )
         for tokens, names in heuristic_rules:
-            if skip_web_search and any(name in {"web_search", "search_web", "free_search", "grounded_search"} for name in names):
+            if skip_web_search and any(
+                name in {"web_search", "search_web", "free_search", "grounded_search"}
+                for name in names
+            ):
                 continue
             if any(token in objective_lower for token in tokens):
                 heuristic_candidates.extend(names)
@@ -874,6 +1138,7 @@ class CapabilityEngine(AuraBaseModule):
         """Loads optional dependencies for adaptation and security."""
         try:
             from core.adaptation.rosetta_stone import rosetta_stone
+
             self.rosetta_stone = rosetta_stone
         except ImportError:
             self.logger.debug("Rosetta Stone not found, skipping adaptivity.")
@@ -881,6 +1146,7 @@ class CapabilityEngine(AuraBaseModule):
     async def check_package(self, package_name: str, auto_install: bool = False) -> bool:
         """Proxy to ServiceContainer.check_package."""
         from core.container import ServiceContainer
+
         return ServiceContainer.check_package(package_name, auto_install=auto_install)
 
     def reload_skills(self) -> None:
@@ -892,6 +1158,7 @@ class CapabilityEngine(AuraBaseModule):
         # 1. Attempt Rust Index (Transcendent Path)
         try:
             from aura_m1_ext import build_skill_index
+
             index = build_skill_index()
             for name, meta in index.items():
                 self.skills[name] = SkillMetadata(
@@ -901,7 +1168,7 @@ class CapabilityEngine(AuraBaseModule):
                     class_name=_skill_class_name(name),
                     execution_profile=meta.get("execution_profile", "cpu"),
                     timeout_seconds=meta.get("timeout_seconds", 30),
-                    memory_mb_estimate=meta.get("memory_mb_estimate", 256)
+                    memory_mb_estimate=meta.get("memory_mb_estimate", 256),
                 )
             self.logger.info("⚡ Rust perfect hash index loaded (%d core skills)", len(index))
         except (ImportError, AttributeError, RuntimeError) as e:
@@ -909,42 +1176,45 @@ class CapabilityEngine(AuraBaseModule):
 
         # 2. AST Discovery (Fallback/Project skills)
         skill_dir = config.paths.project_root / "skills"
-        if not skill_dir.exists(): 
+        if not skill_dir.exists():
             skill_dir.mkdir(parents=True)
 
         import ast
-        skill_paths = [
-            (config.paths.base_dir / "core" / "skills", "core.skills")
-        ]
-        
+
+        skill_paths = [(config.paths.base_dir / "core" / "skills", "core.skills")]
+
         for s_dir, module_prefix in skill_paths:
             if not s_dir.exists():
                 continue
             for filename in os.listdir(s_dir):
                 if not filename.endswith(".py") or filename.startswith("_"):
                     continue
-                
+
                 try:
                     path = s_dir / filename
                     with open(path, encoding="utf-8") as f:
                         tree = ast.parse(f.read())
-                    
+
                     for node in ast.walk(tree):
                         if isinstance(node, ast.ClassDef):
                             is_skill = False
                             name = ""
                             description = ""
-                            
+
                             for item in node.body:
                                 if isinstance(item, ast.Assign):
                                     for target in item.targets:
                                         if isinstance(target, ast.Name):
-                                            if target.id == "name" and isinstance(item.value, ast.Constant):
+                                            if target.id == "name" and isinstance(
+                                                item.value, ast.Constant
+                                            ):
                                                 name = item.value.value
                                                 is_skill = True
-                                            elif target.id == "description" and isinstance(item.value, ast.Constant):
+                                            elif target.id == "description" and isinstance(
+                                                item.value, ast.Constant
+                                            ):
                                                 description = item.value.value
-                            
+
                             if is_skill and name:
                                 if name in _INTERNAL_ONLY_SKILLS:
                                     continue
@@ -957,20 +1227,26 @@ class CapabilityEngine(AuraBaseModule):
                                     name=name,
                                     description=description or "No description provided.",
                                     module_path=f"{module_prefix}.{filename[:-3]}",
-                                    class_name=node.name
+                                    class_name=node.name,
                                 )
                 except OSError as e:
-                    record_degradation('capability_engine', e)
+                    _record_capability_degradation(
+                        e,
+                        action="skipped unreadable skill file during AST discovery",
+                    )
                     self.logger.error("AST fail for %s: %s", filename, e)
 
         for internal_name in _INTERNAL_ONLY_SKILLS:
             self.skills.pop(internal_name, None)
 
-        if self.orchestrator and hasattr(self.orchestrator, 'status') and self.orchestrator.status:
+        if self.orchestrator and hasattr(self.orchestrator, "status") and self.orchestrator.status:
             try:
                 self.orchestrator.status.skills_loaded = len(self.skills)
             except (RuntimeError, AttributeError, TypeError, ValueError) as _exc:
-                record_degradation('capability_engine', _exc)
+                _record_capability_degradation(
+                    _exc,
+                    action="continued after orchestrator skill count status update failed",
+                )
                 self.logger.debug("Suppressed Exception: %s", _exc)
         self._refresh_active_skills()
         self.logger.info("✓ %d total skills registered", len(self.skills))
@@ -988,7 +1264,7 @@ class CapabilityEngine(AuraBaseModule):
 
     def register_skill(self, skill_class: Any) -> None:
         """Registers a skill class and extracts its metadata.
-        
+
         Args:
             skill_class: The class representing the skill.
         """
@@ -1010,7 +1286,7 @@ class CapabilityEngine(AuraBaseModule):
             input_model = getattr(instance, "input_model", None)
             metabolic_cost = getattr(instance, "metabolic_cost", 1)
             is_core = getattr(instance, "is_core_personality", False)
-        
+
         self.skills[skill_name] = SkillMetadata(
             name=skill_name,
             description=description,
@@ -1018,12 +1294,12 @@ class CapabilityEngine(AuraBaseModule):
             input_model=input_model,
             instance=instance,
             metabolic_cost=metabolic_cost,
-            is_core_personality=is_core
+            is_core_personality=is_core,
         )
-        
+
         # Issue 51: Perform AST validation at registration time
         self._audit_skill_ast(skill_name)
-        
+
         if instance:
             self.instances[skill_name] = instance
         self.logger.debug("Registered: %s", skill_name)
@@ -1036,15 +1312,16 @@ class CapabilityEngine(AuraBaseModule):
         meta = self.skills.get(skill_name)
         if not meta or not meta.instance:
             return
-            
+
         import ast
+
         try:
             # Basic name/import validation
             source = inspect.getsource(meta.instance.__class__)
             tree = ast.parse(source)
             defined_names = set()
             accessed_names = set()
-            
+
             for node in ast.walk(tree):
                 if isinstance(node, ast.Import):
                     for alias in node.names:
@@ -1056,14 +1333,19 @@ class CapabilityEngine(AuraBaseModule):
                     accessed_names.add(node.id)
                 elif isinstance(node, (ast.FunctionDef, ast.ClassDef)):
                     defined_names.add(node.name)
-            
+
             # Check for critical missing imports
-            critical_modules = {'subprocess', 'os', 'sys', 'json', 'asyncio'}
+            critical_modules = {"subprocess", "os", "sys", "json", "asyncio"}
             for mod in critical_modules:
                 if mod in accessed_names and mod not in defined_names:
-                    self.logger.warning(f"⚠️ Skill Safety Audit: '{skill_name}' uses '{mod}' but does not import it.")
+                    self.logger.warning(
+                        f"⚠️ Skill Safety Audit: '{skill_name}' uses '{mod}' but does not import it."
+                    )
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('capability_engine', e)
+            _record_capability_degradation(
+                e,
+                action="skipped optional skill AST validation after source inspection failed",
+            )
             self.logger.debug(f"AST validation skipped for {skill_name}: {e}")
 
     def _initialize_skill_states(self) -> None:
@@ -1075,12 +1357,11 @@ class CapabilityEngine(AuraBaseModule):
         """Emits a skill status update to the EventBus."""
         self.skill_states[skill_name] = state
         from core.event_bus import get_event_bus
+
         bus = get_event_bus()
-        bus.publish_threadsafe("skill_status", {
-            "skill": skill_name,
-            "state": state,
-            "timestamp": time.time()
-        })
+        bus.publish_threadsafe(
+            "skill_status", {"skill": skill_name, "state": state, "timestamp": time.time()}
+        )
 
     def get_available_skills(self) -> list[str]:
         """Returns a list of all registered skill names."""
@@ -1121,8 +1402,13 @@ class CapabilityEngine(AuraBaseModule):
             try:
                 return "async" if inspect.iscoroutinefunction(fn) else "sync"
             except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
-                record_degradation("capability_engine", exc)
-                self.logger.debug("Unable to classify route for skill %s attr %s: %s", meta.name, attr, exc)
+                _record_capability_degradation(
+                    exc,
+                    action="fell back to managed async route after route classification failed",
+                )
+                self.logger.debug(
+                    "Unable to classify route for skill %s attr %s: %s", meta.name, attr, exc
+                )
                 continue
         return "managed_async"
 
@@ -1182,41 +1468,53 @@ class CapabilityEngine(AuraBaseModule):
             available = bool(meta.enabled and active and state != "ERROR")
             policy_state = (
                 "disabled"
-                if not meta.enabled else
-                "inactive_by_policy"
-                if skill_name in self._explicitly_deactivated_skills else
-                "active"
-                if active else
-                "inactive"
+                if not meta.enabled
+                else "inactive_by_policy"
+                if skill_name in self._explicitly_deactivated_skills
+                else "active"
+                if active
+                else "inactive"
             )
-            availability_reason = None if available else (self.skill_last_errors.get(skill_name) or (
-                "disabled_by_policy" if not meta.enabled else
-                "inactive_by_policy" if skill_name in self._explicitly_deactivated_skills else
-                "error_state" if state == "ERROR" else
-                "inactive"
-            ))
+            availability_reason = (
+                None
+                if available
+                else (
+                    self.skill_last_errors.get(skill_name)
+                    or (
+                        "disabled_by_policy"
+                        if not meta.enabled
+                        else "inactive_by_policy"
+                        if skill_name in self._explicitly_deactivated_skills
+                        else "error_state"
+                        if state == "ERROR"
+                        else "inactive"
+                    )
+                )
+            )
 
-            catalog.append({
-                "name": skill_name,
-                "description": meta.description,
-                "state": state,
-                "availability": "available" if available else "unavailable",
-                "available": available,
-                "enabled": bool(meta.enabled),
-                "active": active,
-                "policy_state": policy_state,
-                "risk_class": self._risk_class_for(skill_name, meta),
-                "route_class": self._route_class_for(meta),
-                "input_summary": self._input_summary_for(meta),
-                "example_usage": self._example_usage_for(skill_name, meta),
-                "last_error": self.skill_last_errors.get(skill_name),
-                "degraded_reason": availability_reason,
-                "availability_reason": availability_reason,
-                "execution_profile": meta.execution_profile,
-                "timeout_seconds": meta.timeout_seconds,
-                "memory_mb_estimate": meta.memory_mb_estimate,
-                "metabolic_cost": meta.metabolic_cost,
-            })
+            catalog.append(
+                {
+                    "name": skill_name,
+                    "description": meta.description,
+                    "state": state,
+                    "availability": "available" if available else "unavailable",
+                    "available": available,
+                    "enabled": bool(meta.enabled),
+                    "active": active,
+                    "policy_state": policy_state,
+                    "risk_class": self._risk_class_for(skill_name, meta),
+                    "route_class": self._route_class_for(meta),
+                    "input_summary": self._input_summary_for(meta),
+                    "example_usage": self._example_usage_for(skill_name, meta),
+                    "last_error": self.skill_last_errors.get(skill_name),
+                    "degraded_reason": availability_reason,
+                    "availability_reason": availability_reason,
+                    "execution_profile": meta.execution_profile,
+                    "timeout_seconds": meta.timeout_seconds,
+                    "memory_mb_estimate": meta.memory_mb_estimate,
+                    "metabolic_cost": meta.metabolic_cost,
+                }
+            )
 
         catalog.sort(
             key=lambda item: (
@@ -1235,7 +1533,9 @@ class CapabilityEngine(AuraBaseModule):
             if not name:
                 continue
             catalog[name] = {
-                "status": "unavailable" if not bool(tool.get("available")) else str(tool.get("state") or "ready").lower(),
+                "status": "unavailable"
+                if not bool(tool.get("available"))
+                else str(tool.get("state") or "ready").lower(),
                 "available": bool(tool.get("available")),
                 "availability_reason": tool.get("availability_reason"),
                 "policy_state": tool.get("policy_state"),
@@ -1272,15 +1572,16 @@ class CapabilityEngine(AuraBaseModule):
         available = [tool for tool in catalog if tool["available"]][:max_available]
         if compact and ranked_names:
             unavailable = [
-                tool for tool in catalog
-                if not tool["available"] and tool["name"] in priority
+                tool for tool in catalog if not tool["available"] and tool["name"] in priority
             ][:max_unavailable]
         else:
             unavailable = [tool for tool in catalog if not tool["available"]][:max_unavailable]
 
         lines = ["## LIVE TOOL OPTIONS" if compact else "## LIVE TOOL AFFORDANCES"]
         if available:
-            lines.append("Most relevant right now:" if compact and ranked_names else "Available right now:")
+            lines.append(
+                "Most relevant right now:" if compact and ranked_names else "Available right now:"
+            )
             for tool in available:
                 if compact:
                     lines.append(
@@ -1296,7 +1597,11 @@ class CapabilityEngine(AuraBaseModule):
             lines.append("Available right now: none confirmed.")
 
         if unavailable:
-            lines.append("Relevant but unavailable:" if compact and ranked_names else "Unavailable or degraded:")
+            lines.append(
+                "Relevant but unavailable:"
+                if compact and ranked_names
+                else "Unavailable or degraded:"
+            )
             for tool in unavailable:
                 reason = tool.get("degraded_reason") or tool.get("last_error") or "unavailable"
                 lines.append(f"- {tool['name']}: unavailable ({reason})")
@@ -1320,55 +1625,55 @@ class CapabilityEngine(AuraBaseModule):
 
     def get_tool_definitions(self) -> list[dict[str, Any]]:
         """Generates OpenAI-compatible tool definitions for LLM function calling.
-        
+
         Returns:
             List[Dict[str, Any]]: List of tool definitions.
         """
         # Phase 22: Metabolic Throttling
         metabolism = resolve_metabolic_monitor(default=None)
         homeostasis = resolve_homeostatic_coupling(default=None)
-        
+
         health_score = 1.0
         if homeostasis:
             # Homeostasis provides the unified sentient vitality
             health_score = homeostasis.get_modifiers().overall_vitality
         elif metabolism:
             health_score = metabolism.get_current_metabolism().health_score
-            
+
         # Tiered Throttling (Sentient-Aware)
         mods = homeostasis.get_modifiers() if homeostasis else None
         urgency = mods.urgency_flag if mods else False
-        
+
         if health_score < 0.3:
-            allowed_max_cost = 0 # Panic/Shutdown: Core/Reflex only
+            allowed_max_cost = 0  # Panic/Shutdown: Core/Reflex only
         elif health_score < 0.6:
             # If urgent, we allow light tools (1) even when stressed
-            allowed_max_cost = 1 if urgency else 0 
+            allowed_max_cost = 1 if urgency else 0
         elif health_score < 0.8:
             # Moderate stress: Heavy tools (3) are blocked to preserve energy
             allowed_max_cost = 2
         else:
             # Optimal health: All tools available
             allowed_max_cost = 3
-            
+
         # Urgency override: If urgent but healthy, we might still block
         # 'Heavy' time-consuming tools to force a direct response.
         if urgency and health_score > 0.6:
-            allowed_max_cost = min(allowed_max_cost, 2) 
-            
+            allowed_max_cost = min(allowed_max_cost, 2)
+
         tools = []
         for skill_name, meta in self.skills.items():
             if not meta.enabled:
                 continue
-            
+
             # 1. Check if explicitly active
             if skill_name not in self.active_skills:
                 continue
-            
+
             # 2. Check Metabolic Limit (Immune if core_personality)
             cost = meta.metabolic_cost
             is_core = meta.is_core_personality
-            
+
             if cost > allowed_max_cost and not is_core:
                 continue
 
@@ -1377,8 +1682,8 @@ class CapabilityEngine(AuraBaseModule):
                 "function": {
                     "name": skill_name,
                     "description": meta.description,
-                    "parameters": meta.schema_def
-                }
+                    "parameters": meta.schema_def,
+                },
             }
             tools.append(tool)
         return tools
@@ -1399,9 +1704,18 @@ class CapabilityEngine(AuraBaseModule):
         name = self.resolve_skill_name(name)
         # Never sleep core tools under any circumstance
         never_sleep = {
-            "ManageAbilities", "talk", "FinalResponse", "web_search", "sovereign_browser",
-            "sovereign_terminal", "system_proprioception", "file_operation", "memory_ops",
-            "speak", "clock", "sovereign_network",
+            "ManageAbilities",
+            "talk",
+            "FinalResponse",
+            "web_search",
+            "sovereign_browser",
+            "sovereign_terminal",
+            "system_proprioception",
+            "file_operation",
+            "memory_ops",
+            "speak",
+            "clock",
+            "sovereign_network",
         }
         if name in never_sleep:
             return False
@@ -1427,7 +1741,7 @@ class CapabilityEngine(AuraBaseModule):
     def _normalize_context_origin(origin: Any) -> str:
         normalized = str(origin or "").strip().lower().replace("-", "_")
         while normalized.startswith("routing_"):
-            normalized = normalized[len("routing_"):]
+            normalized = normalized[len("routing_") :]
         return normalized
 
     @classmethod
@@ -1460,10 +1774,17 @@ class CapabilityEngine(AuraBaseModule):
             candidate = self._normalize_context_origin(ctx.get(key))
             if self._is_user_facing_origin(candidate):
                 return candidate or "user"
-        if any(bool(ctx.get(key)) for key in ("user_facing", "is_user_facing", "foreground_request", "priority")):
+        if any(
+            bool(ctx.get(key))
+            for key in ("user_facing", "is_user_facing", "foreground_request", "priority")
+        ):
             return "user"
         state = ctx.get("state")
-        state_origin = getattr(getattr(state, "cognition", None), "current_origin", "") if state is not None else ""
+        state_origin = (
+            getattr(getattr(state, "cognition", None), "current_origin", "")
+            if state is not None
+            else ""
+        )
         if state_origin and self._is_user_facing_origin(state_origin):
             return self._normalize_context_origin(state_origin)
         return "capability_engine"
@@ -1475,29 +1796,19 @@ class CapabilityEngine(AuraBaseModule):
             or self.orchestrator
             or ServiceContainer.get("orchestrator", default=None)
         )
-        brain = (
-            ctx.get("brain")
-            or ServiceContainer.get("cognitive_engine", default=None)
+        brain = ctx.get("brain") or ServiceContainer.get("cognitive_engine", default=None)
+        memory_facade = ctx.get("memory_facade") or ServiceContainer.get(
+            "memory_facade", default=None
         )
-        memory_facade = (
-            ctx.get("memory_facade")
-            or ServiceContainer.get("memory_facade", default=None)
+        memory_store = ctx.get("memory_store") or ServiceContainer.get("memory", default=None)
+        semantic_memory = ctx.get("semantic_memory") or ServiceContainer.get(
+            "semantic_memory", default=None
         )
-        memory_store = (
-            ctx.get("memory_store")
-            or ServiceContainer.get("memory", default=None)
+        vector_memory = ctx.get("vector_memory") or ServiceContainer.get(
+            "vector_memory", default=None
         )
-        semantic_memory = (
-            ctx.get("semantic_memory")
-            or ServiceContainer.get("semantic_memory", default=None)
-        )
-        vector_memory = (
-            ctx.get("vector_memory")
-            or ServiceContainer.get("vector_memory", default=None)
-        )
-        theory_of_mind = (
-            ctx.get("theory_of_mind")
-            or ServiceContainer.get("theory_of_mind", default=None)
+        theory_of_mind = ctx.get("theory_of_mind") or ServiceContainer.get(
+            "theory_of_mind", default=None
         )
 
         if orchestrator is not None:
@@ -1531,9 +1842,15 @@ class CapabilityEngine(AuraBaseModule):
         return ctx
 
     @staticmethod
-    def _looks_like_unbounded_compute_request(params: dict[str, Any], context: dict[str, Any] | None) -> bool:
+    def _looks_like_unbounded_compute_request(
+        params: dict[str, Any], context: dict[str, Any] | None
+    ) -> bool:
         ctx = context or {}
-        declared = str(ctx.get("resource_intensity", "") or params.get("resource_intensity", "")).strip().lower()
+        declared = (
+            str(ctx.get("resource_intensity", "") or params.get("resource_intensity", ""))
+            .strip()
+            .lower()
+        )
         if declared in {"unbounded", "extreme", "max", "stress"}:
             return True
 
@@ -1604,8 +1921,9 @@ class CapabilityEngine(AuraBaseModule):
 
         return ctx
 
-    async def execute(self, skill_name: str, params: dict[str, Any],
-                      context: dict[str, Any] | None = None) -> dict[str, Any]:
+    async def execute(
+        self, skill_name: str, params: dict[str, Any], context: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """Safe execution wrapper with adaptivity, security, and retries."""
 
         # Resolve compatibility aliases without collapsing real registered skills.
@@ -1614,8 +1932,14 @@ class CapabilityEngine(AuraBaseModule):
         # Sanitize double-nested "params" from LLM hallucinations before execution.
         # Preserve any top-level fields we already inferred instead of discarding them.
         normalized_params = self._normalize_execution_params(params)
-        if normalized_params != params and "params" in params and isinstance(params["params"], dict):
-            self.logger.warning("[%s] Unpacking double-nested params from LLM hallucination.", skill_name)
+        if (
+            normalized_params != params
+            and "params" in params
+            and isinstance(params["params"], dict)
+        ):
+            self.logger.warning(
+                "[%s] Unpacking double-nested params from LLM hallucination.", skill_name
+            )
         params = normalized_params
 
         constitution = None
@@ -1653,32 +1977,59 @@ class CapabilityEngine(AuraBaseModule):
                             ),
                         }
                 except (ImportError, AttributeError, RuntimeError) as policy_exc:
-                    record_degradation('capability_engine', policy_exc)
-                    self.logger.debug("Foreground-exclusive skill preflight skipped: %s", policy_exc)
-            
+                    _record_capability_degradation(
+                        policy_exc,
+                        action="deferred foreground-exclusive background skill because preflight policy failed",
+                        severity="degraded",
+                    )
+                    self.logger.warning(
+                        "Foreground-exclusive skill preflight failed for %s: %s",
+                        skill_name,
+                        policy_exc,
+                    )
+                    return {
+                        "ok": False,
+                        "status": "deferred",
+                        "reason": "background_policy_unavailable",
+                        "message": (
+                            f"Background {skill_name} deferred because the foreground protection policy is unavailable."
+                        ),
+                    }
+
             # 1. Verification
             if skill_name not in self.skills:
                 # ── Pillar 2: Hephaestus (Autonomous Forge) ──
                 hephaestus = optional_service("hephaestus_engine", default=None)
                 objective = ctx.get("objective") or ctx.get("message")
-                
+
                 if hephaestus and objective:
-                    self.logger.info("🔨 Tool '%s' missing. Engaging Hephaestus forge...", skill_name)
+                    self.logger.info(
+                        "🔨 Tool '%s' missing. Engaging Hephaestus forge...", skill_name
+                    )
                     forge_result = await hephaestus.synthesize_skill(skill_name, objective)
                     if forge_result.get("ok"):
                         # Skill should now be registered via discovery in synthesize_skill
                         if skill_name in self.skills:
                             self.logger.info("✅ Skill '%s' forged successfully.", skill_name)
                         else:
-                            return {"ok": False, "error": f"Tool '{skill_name}' forge failed (Not registered)."}
+                            return {
+                                "ok": False,
+                                "error": f"Tool '{skill_name}' forge failed (Not registered).",
+                            }
                     else:
-                        return {"ok": False, "error": f"Tool '{skill_name}' missing and forge failed: {forge_result.get('error')}"}
+                        return {
+                            "ok": False,
+                            "error": f"Tool '{skill_name}' missing and forge failed: {forge_result.get('error')}",
+                        }
                 else:
-                    return {"ok": False, "error": f"Skill '{skill_name}' not found and forge unavailable."}
-            
+                    return {
+                        "ok": False,
+                        "error": f"Skill '{skill_name}' not found and forge unavailable.",
+                    }
+
             meta = self.skills[skill_name]
             is_forged = meta.module_path and "skills/" in meta.module_path
-            
+
             # Lazy loading of skill class
             if meta.skill_class is None and not is_forged:
                 try:
@@ -1690,7 +2041,11 @@ class CapabilityEngine(AuraBaseModule):
                     # Initialize instance
                     self.instances[skill_name] = skill_class()
                 except (RuntimeError, AttributeError, TypeError) as e:
-                    record_degradation('capability_engine', e)
+                    _record_capability_degradation(
+                        e,
+                        action="returned skill load failure before execution",
+                        severity="degraded",
+                    )
                     self.logger.error("Failed to lazy load %s: %s", skill_name, e)
                     return {"ok": False, "error": f"Failed to load implementation: {e}"}
 
@@ -1719,7 +2074,11 @@ class CapabilityEngine(AuraBaseModule):
                 )
                 if not tool_handle.approved:
                     reason = str(getattr(tool_handle.decision, "reason", "blocked"))
-                    self.logger.warning("🚫 CapabilityEngine: Tool execution '%s' blocked by Constitution: %s", skill_name, reason)
+                    self.logger.warning(
+                        "🚫 CapabilityEngine: Tool execution '%s' blocked by Constitution: %s",
+                        skill_name,
+                        reason,
+                    )
                     failure_markers = ("gate_failed", "required", "unavailable")
                     status = (
                         "blocked_by_executive_gate_failure"
@@ -1743,16 +2102,27 @@ class CapabilityEngine(AuraBaseModule):
                             "error": "Capability token missing",
                             "status": "blocked_by_missing_capability_token",
                         }
-                    if not get_authority_gateway().verify_tool_access(skill_name, capability_token_id):
+                    if not get_authority_gateway().verify_tool_access(
+                        skill_name, capability_token_id
+                    ):
                         return {
                             "ok": False,
                             "error": "Capability token denied tool execution",
                             "status": "blocked_by_capability_token",
                         }
-                if capability_token_id:
-                    ctx["capability_token_id"] = capability_token_id
+                    if capability_token_id:
+                        ctx["capability_token_id"] = capability_token_id
             except (ImportError, AttributeError, RuntimeError) as e:
-                record_degradation('capability_engine', e)
+                severity = "degraded" if constitutional_runtime_live else "warning"
+                _record_capability_degradation(
+                    e,
+                    action=(
+                        "blocked tool execution because constitutional gate failed"
+                        if constitutional_runtime_live
+                        else "continued pre-runtime skill execution without constitutional gate"
+                    ),
+                    severity=severity,
+                )
                 if constitutional_runtime_live:
                     try:
                         from core.health.degraded_events import record_degraded_event
@@ -1767,26 +2137,44 @@ class CapabilityEngine(AuraBaseModule):
                             exc=e,
                         )
                     except (ImportError, AttributeError, RuntimeError) as _exc:
-                        record_degradation('capability_engine', _exc)
+                        _record_capability_degradation(
+                            _exc,
+                            action="reported constitutional gate failure without degraded-event receipt",
+                            severity="degraded",
+                        )
                         self.logger.debug("Suppressed Exception: %s", _exc)
-                    self.logger.warning("🚫 CapabilityEngine: Executive check failed for '%s': %s", skill_name, e)
+                    self.logger.warning(
+                        "🚫 CapabilityEngine: Executive check failed for '%s': %s", skill_name, e
+                    )
                     return {
                         "ok": False,
                         "error": "Constitutional gate unavailable",
                         "status": "blocked_by_executive_gate_failure",
                     }
-                self.logger.debug("CapabilityEngine: constitutional check failed, proceeding degraded: %s", e)
+                self.logger.debug(
+                    "CapabilityEngine: constitutional check failed, proceeding degraded: %s", e
+                )
 
             # 2a. Metabolic self-preservation guard
             try:
                 metabolism = resolve_metabolic_monitor(default=None)
                 repo = resolve_state_repository(default=None)
                 current_state = getattr(repo, "_current", None) if repo is not None else None
-                phi = float(getattr(current_state, "phi", 0.0) or 0.0) if current_state is not None else 0.0
+                phi = (
+                    float(getattr(current_state, "phi", 0.0) or 0.0)
+                    if current_state is not None
+                    else 0.0
+                )
                 snapshot = metabolism.get_current_metabolism() if metabolism else None
-                health_score = float(getattr(snapshot, "health_score", 1.0) or 1.0) if snapshot else 1.0
-                cpu_percent = float(getattr(snapshot, "cpu_percent", 0.0) or 0.0) if snapshot else 0.0
-                ram_percent = float(getattr(snapshot, "ram_percent", 0.0) or 0.0) if snapshot else 0.0
+                health_score = (
+                    float(getattr(snapshot, "health_score", 1.0) or 1.0) if snapshot else 1.0
+                )
+                cpu_percent = (
+                    float(getattr(snapshot, "cpu_percent", 0.0) or 0.0) if snapshot else 0.0
+                )
+                ram_percent = (
+                    float(getattr(snapshot, "ram_percent", 0.0) or 0.0) if snapshot else 0.0
+                )
                 unbounded = self._looks_like_unbounded_compute_request(params, ctx)
                 should_block = False
                 reason = ""
@@ -1797,7 +2185,9 @@ class CapabilityEngine(AuraBaseModule):
                     elif health_score <= 0.40 and meta.metabolic_cost >= 3:
                         should_block = True
                         reason = f"metabolic_health_low:{health_score:.2f}"
-                    elif unbounded and (health_score <= 0.55 or cpu_percent >= 80.0 or ram_percent >= 85.0):
+                    elif unbounded and (
+                        health_score <= 0.55 or cpu_percent >= 80.0 or ram_percent >= 85.0
+                    ):
                         should_block = True
                         reason = (
                             f"substrate_risk:health={health_score:.2f}:"
@@ -1823,7 +2213,11 @@ class CapabilityEngine(AuraBaseModule):
                             },
                         )
                     except (ImportError, AttributeError, RuntimeError) as _exc:
-                        record_degradation('capability_engine', _exc)
+                        _record_capability_degradation(
+                            _exc,
+                            action="blocked skill without self-preservation degraded-event receipt",
+                            severity="degraded",
+                        )
                         self.logger.debug("Suppressed Exception: %s", _exc)
                     return {
                         "ok": False,
@@ -1831,8 +2225,29 @@ class CapabilityEngine(AuraBaseModule):
                         "status": "blocked_by_self_preservation",
                     }
             except (ImportError, AttributeError, RuntimeError) as e:
-                record_degradation('capability_engine', e)
-                self.logger.debug("CapabilityEngine: metabolic self-preservation check skipped: %s", e)
+                should_fail_closed = not meta.is_core_personality and (
+                    meta.metabolic_cost >= 3
+                    or skill_name in _HEAVY_BACKGROUND_SKILLS
+                    or self._looks_like_unbounded_compute_request(params, ctx)
+                )
+                _record_capability_degradation(
+                    e,
+                    action=(
+                        "blocked high-risk skill because metabolic self-preservation check failed"
+                        if should_fail_closed
+                        else "continued low-risk skill after metabolic self-preservation check failed"
+                    ),
+                    severity="degraded" if should_fail_closed else "warning",
+                )
+                if should_fail_closed:
+                    return {
+                        "ok": False,
+                        "error": "Self-preservation guard unavailable",
+                        "status": "blocked_by_self_preservation_unavailable",
+                    }
+                self.logger.debug(
+                    "CapabilityEngine: metabolic self-preservation check skipped: %s", e
+                )
 
             # 2. EDI Autonomy & Security Check (Phase 23.4)
             edi = resolve_edi(default=None)
@@ -1843,32 +2258,41 @@ class CapabilityEngine(AuraBaseModule):
                     risk = "high"
                 if skill_name in ["run_bash_command", "self_modify", "manage_abilities"]:
                     risk = "critical"
-                
+
                 allowed, reason = edi.can_do(skill_name, risk_level=risk)
                 if not allowed:
                     self.logger.warning("🛡️ EDI blocked execution of '%s': %s", skill_name, reason)
-                    return {"ok": False, "error": f"EDI Security Block: {reason}", "status": "blocked_by_edi"}
+                    return {
+                        "ok": False,
+                        "error": f"EDI Security Block: {reason}",
+                        "status": "blocked_by_edi",
+                    }
 
             # 3. Adaptation & Security (Rosetta Stone / Sandbox)
             exec_params = params
             if is_forged and self.sandbox:
                 self.logger.info("🛡️ Executing FORGED skill '%s' in Sandbox 2.0", skill_name)
                 try:
-                    code = await asyncio.to_thread(Path(meta.module_path).read_text, encoding="utf-8")
+                    code = await asyncio.to_thread(
+                        Path(meta.module_path).read_text, encoding="utf-8"
+                    )
                     # Run in executor to be non-blocking
                     result = await asyncio.get_running_loop().run_in_executor(
-                        None, 
-                        lambda: self.sandbox.execute(code, meta.class_name, exec_params)
+                        None, lambda: self.sandbox.execute(code, meta.class_name, exec_params)
                     )
                     return result if isinstance(result, dict) else {"ok": True, "result": result}
                 except (sqlite3.Error, OSError) as e:
-                    record_degradation('capability_engine', e)
+                    _record_capability_degradation(
+                        e,
+                        action="returned sandbox execution failure for forged skill",
+                        severity="degraded",
+                    )
                     self.logger.error("Sandbox execution failed for %s: %s", skill_name, e)
                     return {"ok": False, "error": f"Sandbox failed: {e}"}
 
             if self.rosetta_stone:
                 params_or_error = self._apply_security(skill_name, exec_params)
-                if isinstance(params_or_error, dict) and not params_or_error.get("ok", True): 
+                if isinstance(params_or_error, dict) and not params_or_error.get("ok", True):
                     return params_or_error
                 exec_params = params_or_error
 
@@ -1876,12 +2300,13 @@ class CapabilityEngine(AuraBaseModule):
             if skill_name not in self.instances:
                 self.instances[skill_name] = meta.skill_class()
             skill_instance = self.instances[skill_name]
-            
+
             # 4. Critical Execution loop
             self._emit_skill_status(skill_name, "RUNNING")
-            
+
             # 2026 Transcendence: Memory Budget Enforcement
             from core.runtime import CoreRuntime
+
             try:
                 rt = CoreRuntime.get_sync()
                 gov = rt.container.get("memory_governor")
@@ -1889,7 +2314,11 @@ class CapabilityEngine(AuraBaseModule):
                     gov.check()
                 orm = rt.container.get("persistent_state")
             except (RuntimeError, OSError, ConnectionError, TimeoutError) as exc:
-                record_degradation("capability_engine", exc)
+                _record_capability_degradation(
+                    exc,
+                    action="continued skill execution without core runtime memory governance",
+                    severity="degraded" if meta.metabolic_cost >= 3 else "warning",
+                )
                 self.logger.debug("Core runtime memory governance unavailable: %s", exc)
                 rt = None
                 orm = None
@@ -1898,13 +2327,23 @@ class CapabilityEngine(AuraBaseModule):
             # Instantiate on the engine if it doesn't exist yet
             if not hasattr(self, "_cognitive_governor"):
                 from core.resilience.cognitive_governor import CognitiveGovernor
-                self._cognitive_governor = CognitiveGovernor(max_concurrent_tasks=5, base_backoff=1.0)
+
+                self._cognitive_governor = CognitiveGovernor(
+                    max_concurrent_tasks=5, base_backoff=1.0
+                )
             timeout_budget = max(
                 float(getattr(meta, "timeout_seconds", 30) or 30),
                 float(getattr(skill_instance, "timeout_seconds", 30) or 30),
             )
             background_preflight_deferred = False
-            if skill_name == "sovereign_network" and exec_source not in {"user", "api", "chat", "desktop", "voice", "web"}:
+            if skill_name == "sovereign_network" and exec_source not in {
+                "user",
+                "api",
+                "chat",
+                "desktop",
+                "voice",
+                "web",
+            }:
                 try:
                     mode = str(exec_params.get("mode", "status") or "status").strip().lower()
                     if mode in {"recon", "scan", "audit", "discovery"}:
@@ -1928,8 +2367,24 @@ class CapabilityEngine(AuraBaseModule):
                                 ),
                             }
                 except (ImportError, AttributeError, RuntimeError) as policy_exc:
-                    record_degradation('capability_engine', policy_exc)
-                    self.logger.debug("Background network preflight skipped: %s", policy_exc)
+                    _record_capability_degradation(
+                        policy_exc,
+                        action="deferred background network task because preflight policy failed",
+                        severity="degraded",
+                    )
+                    self.logger.warning(
+                        "Background network preflight failed for %s: %s",
+                        skill_name,
+                        policy_exc,
+                    )
+                    return {
+                        "ok": False,
+                        "status": "deferred",
+                        "reason": "background_policy_unavailable",
+                        "message": (
+                            f"Network {mode} deferred because the background protection policy is unavailable."
+                        ),
+                    }
             if (
                 not background_preflight_deferred
                 and skill_name in _HEAVY_BACKGROUND_SKILLS
@@ -1956,8 +2411,24 @@ class CapabilityEngine(AuraBaseModule):
                             ),
                         }
                 except (ImportError, AttributeError, RuntimeError) as policy_exc:
-                    record_degradation('capability_engine', policy_exc)
-                    self.logger.debug("Heavy background preflight skipped: %s", policy_exc)
+                    _record_capability_degradation(
+                        policy_exc,
+                        action="deferred heavy background skill because preflight policy failed",
+                        severity="degraded",
+                    )
+                    self.logger.warning(
+                        "Heavy background preflight failed for %s: %s",
+                        skill_name,
+                        policy_exc,
+                    )
+                    return {
+                        "ok": False,
+                        "status": "deferred",
+                        "reason": "background_policy_unavailable",
+                        "message": (
+                            f"Background {skill_name} deferred because the resource protection policy is unavailable."
+                        ),
+                    }
             constrained_timeout = ctx.get("timeout_s")
             try:
                 constrained_timeout = float(constrained_timeout)
@@ -1969,7 +2440,9 @@ class CapabilityEngine(AuraBaseModule):
             try:
                 # Execute safely via the Governor to prevent cascading API failures
                 async def resilient_call():
-                    return await self._execute_with_retry(skill_instance, skill_name, exec_params, ctx)
+                    return await self._execute_with_retry(
+                        skill_instance, skill_name, exec_params, ctx
+                    )
 
                 if background_preflight_deferred:
                     pass
@@ -1988,14 +2461,18 @@ class CapabilityEngine(AuraBaseModule):
                         coroutine=resilient_call,
                         timeout_seconds=timeout_budget,
                     )
-                
+
             except (ImportError, AttributeError, RuntimeError) as e:
-                record_degradation('capability_engine', e)
+                _record_capability_degradation(
+                    e,
+                    action="returned skill execution failure after governor invocation failed",
+                    severity="degraded",
+                )
                 self.logger.error("❌ Skill '%s' unwrapped failure: %s", skill_name, e)
                 result = {"ok": False, "error": str(e), "_exception": True}
-            
+
             duration_ms = (time.monotonic() - start_time) * 1000
-            
+
             # Update state based on result
             if result is None:
                 result = {"ok": False, "error": "Unknown execution failure (result is None)"}
@@ -2011,7 +2488,9 @@ class CapabilityEngine(AuraBaseModule):
                 # Graceful {ok: false} (e.g. "nmap not installed") should NOT persist
                 # as degraded_reason — the skill is still healthy, just this call failed.
                 if was_exception:
-                    self.skill_last_errors[skill_name] = str(result.get("error") or "execution_failed")
+                    self.skill_last_errors[skill_name] = str(
+                        result.get("error") or "execution_failed"
+                    )
                 # else: transient failure, don't pollute the catalog
             else:
                 self.skill_last_errors.pop(skill_name, None)
@@ -2021,79 +2500,108 @@ class CapabilityEngine(AuraBaseModule):
                 try:
                     # Redact sensitive parameters for ORM logging
                     safe_params = params.copy()
-                    sensitive_keys = {"password", "token", "api_key", "secret", "credentials", "auth"}
+                    sensitive_keys = {
+                        "password",
+                        "token",
+                        "api_key",
+                        "secret",
+                        "credentials",
+                        "auth",
+                    }
                     for k in safe_params:
                         if any(s in k.lower() for s in sensitive_keys):
                             safe_params[k] = "[REDACTED]"
-                            
+
                     orm.log_execution(
                         skill_name=skill_name,
                         params=safe_params,
                         status=final_state,
                         duration_ms=duration_ms,
                         result=result if result.get("ok") else None,
-                        error=result.get("error") if not result.get("ok") else None
+                        error=result.get("error") if not result.get("ok") else None,
                     )
                 except (OSError, ConnectionError, TimeoutError) as e:
-                    record_degradation('capability_engine', e)
+                    _record_capability_degradation(
+                        e,
+                        action="returned skill result after persistent audit logging failed",
+                    )
                     self.logger.warning("ORM logging failed: %s", e)
-            
+
             # 5. Mycelium Reinforcement (Sentient Feedback Loop)
             try:
-                if hasattr(self.orchestrator, 'mycelium') and self.orchestrator.mycelium:
+                if hasattr(self.orchestrator, "mycelium") and self.orchestrator.mycelium:
                     # Issue 53 Fix: Only catch expected reinforcement errors
                     self.orchestrator.mycelium.reinforce(
-                        f"skill_{skill_name}", 
-                        success=result.get("ok", False)
+                        f"skill_{skill_name}", success=result.get("ok", False)
                     )
             except AttributeError as e:
                 self.logger.debug("Reinforcement attribute missing: %s", e)
             except (OSError, ConnectionError, TimeoutError) as e:
-                record_degradation('capability_engine', e)
+                _record_capability_degradation(
+                    e,
+                    action="returned skill result after mycelium reinforcement failed",
+                )
                 self.logger.warning("Reinforcement failed: %s", e)
-            
+
             # 6. Outcome Recording (Asynchronous)
             if self.temporal:
-                t = get_task_tracker().create_task(self._record_temporal(skill_name, params, ctx, result))
-                t.add_done_callback(lambda t: t.exception() if not t.cancelled() and t.exception() else None)
-            
+                t = get_task_tracker().create_task(
+                    self._record_temporal(skill_name, params, ctx, result)
+                )
+                t.add_done_callback(
+                    lambda t: t.exception() if not t.cancelled() and t.exception() else None
+                )
+
             return result
+
         try:
             return await _execute_wrapped()
         finally:
             try:
-                if constitution is not None and tool_handle is not None and bool(getattr(tool_handle, "approved", False)):
+                if (
+                    constitution is not None
+                    and tool_handle is not None
+                    and bool(getattr(tool_handle, "approved", False))
+                ):
                     await constitution.finish_tool_execution(
                         tool_handle,
                         result=result or {"ok": False, "error": "execution_not_completed"},
                         success=bool(isinstance(result, dict) and result.get("ok", False)),
                         duration_ms=0.0,
-                        error="" if bool(isinstance(result, dict) and result.get("ok", False)) else str((result or {}).get("error", "")),
+                        error=""
+                        if bool(isinstance(result, dict) and result.get("ok", False))
+                        else str((result or {}).get("error", "")),
                     )
             except (OSError, ConnectionError, TimeoutError) as _exc:
-                record_degradation('capability_engine', _exc)
+                _record_capability_degradation(
+                    _exc,
+                    action="returned skill result after constitutional finish receipt failed",
+                    severity="degraded",
+                )
                 self.logger.debug("Suppressed Exception: %s", _exc)
 
-    def _apply_security(self, skill_name: str, params: dict[str, Any]) -> dict[str, Any] | dict[str, str]:
+    def _apply_security(
+        self, skill_name: str, params: dict[str, Any]
+    ) -> dict[str, Any] | dict[str, str]:
         """Issue 54: Scoped security adaptation for skill parameters."""
         if not self.rosetta_stone:
             return params
-            
+
         # Issue 54: Only check keys in COMMAND_PARAM_KEYS to avoid security false positives
         command_param_keys = {"command", "cmd", "path", "url", "target", "script"}
-        
+
         def scan_recursive(val: Any, key: str | None = None) -> tuple[bool, Any, str | None]:
             if isinstance(val, str):
                 # Issue 54: Limit security scanning to relevant parameter names
                 if key and key.lower() not in command_param_keys:
                     return True, val, None
-                    
+
                 # Check for common shell injection patterns
                 if any(x in val for x in [";", "&&", "||", "`", "$(", "|", ">", "<"]):
                     threats = self.rosetta_stone.analyze_threat(val)
                     if not threats["safe"]:
                         return False, val, f"Security Block (Threat Detected): {threats['threats']}"
-                
+
                 return True, self.rosetta_stone.adapt_command(val), None
             elif isinstance(val, dict):
                 new_dict = {}
@@ -2115,28 +2623,33 @@ class CapabilityEngine(AuraBaseModule):
 
         ok, filtered_params, error_msg = scan_recursive(params)
         if not ok:
-            self.logger.warning("❌ Security violation blocked in skill '%s': %s", skill_name, error_msg)
+            self.logger.warning(
+                "❌ Security violation blocked in skill '%s': %s", skill_name, error_msg
+            )
             return {"ok": False, "error": error_msg, "status": "blocked"}
-        
+
         return filtered_params
 
-    async def _execute_with_retry(self, skill: Any, skill_name: str, params: dict[str, Any],
-                                  context: dict[str, Any]) -> dict[str, Any]:
+    async def _execute_with_retry(
+        self, skill: Any, skill_name: str, params: dict[str, Any], context: dict[str, Any]
+    ) -> dict[str, Any]:
         """Executes a skill method with a retry loop for transient failures."""
         last_error = "Unknown"
         attempt = 0
         for attempt in range(self.max_retries):
             try:
-                if attempt > 0: 
+                if attempt > 0:
                     await asyncio.sleep(self.retry_delay * attempt)
-                    self.logger.info("Retrying %s (attempt %s)...", skill_name, attempt+1)
+                    self.logger.info("Retrying %s (attempt %s)...", skill_name, attempt + 1)
 
                 if hasattr(skill, "safe_execute") and callable(skill.safe_execute):
-                    output = await asyncio.wait_for(skill.safe_execute(params, context), timeout=self.timeout)
+                    output = await asyncio.wait_for(
+                        skill.safe_execute(params, context), timeout=self.timeout
+                    )
                 else:
                     inputs = self._prepare_inputs(skill, params, context)
                     output = await self._call_method(skill, inputs)
-                
+
                 if self._check_success(output):
                     if isinstance(output, dict):
                         payload = dict(output)
@@ -2151,32 +2664,37 @@ class CapabilityEngine(AuraBaseModule):
                         payload["retries"] = attempt
                         return payload
                     return {"ok": True, "result": output, "retries": attempt}
-                
+
                 last_error = self._extract_error(output)
-                if not self._is_transient(last_error): 
+                if not self._is_transient(last_error):
                     break
             except (OSError, ConnectionError, TimeoutError) as e:
-                record_degradation('capability_engine', e)
+                _record_capability_degradation(
+                    e,
+                    action="retried transient skill execution failure or returned retry exhaustion",
+                )
                 last_error = str(e)
-                if not self._is_transient(last_error): 
+                if not self._is_transient(last_error):
                     break
-        
+
         return {"ok": False, "error": last_error, "retries": attempt}
 
     async def _call_method(self, skill: Any, inputs: dict[str, Any]) -> Any:
         """Calls the skill method, handling both sync and async."""
         # If the skill is not core and we have source code (forged), we should sandbox it.
         # For simplicity, we assume skills loaded from skilled_dir aren't core.
-        
+
         method = skill.execute if hasattr(skill, "execute") else skill
         if inspect.iscoroutinefunction(method):
             return await asyncio.wait_for(method(**inputs), timeout=self.timeout)
-        
+
         # If RestrictedPython is available and NOT core, we could potentially wrap it,
         # but for now we focus on FORGED skills which provide source.
         return await asyncio.get_running_loop().run_in_executor(None, lambda: method(**inputs))
 
-    def _prepare_inputs(self, skill: Any, params: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
+    def _prepare_inputs(
+        self, skill: Any, params: dict[str, Any], context: dict[str, Any]
+    ) -> dict[str, Any]:
         """Maps parameters to the skill's expected signature."""
         method = skill.execute if hasattr(skill, "execute") else skill
         sig = inspect.signature(method)
@@ -2184,7 +2702,11 @@ class CapabilityEngine(AuraBaseModule):
             goal_payload: dict[str, Any]
             if isinstance(params, dict):
                 goal_payload = dict(params)
-                nested_params = dict(goal_payload.get("params") or {}) if isinstance(goal_payload.get("params"), dict) else {}
+                nested_params = (
+                    dict(goal_payload.get("params") or {})
+                    if isinstance(goal_payload.get("params"), dict)
+                    else {}
+                )
                 for key, value in goal_payload.items():
                     if key != "params":
                         nested_params.setdefault(key, value)
@@ -2205,7 +2727,7 @@ class CapabilityEngine(AuraBaseModule):
             if objective:
                 goal_payload["objective"] = str(objective)
             return {"goal": goal_payload, "context": context}
-        if "params" in sig.parameters: 
+        if "params" in sig.parameters:
             return {"params": params, "context": context}
         return params
 
@@ -2225,18 +2747,23 @@ class CapabilityEngine(AuraBaseModule):
         """Checks if an error is likely transient (network, timeout, etc)."""
         return any(x in str(err).lower() for x in ["timeout", "network", "retry", "limit"])
 
-    async def _record_temporal(self, action: str, params: dict[str, Any], context: dict[str, Any], result: dict[str, Any]) -> None:
+    async def _record_temporal(
+        self, action: str, params: dict[str, Any], context: dict[str, Any], result: dict[str, Any]
+    ) -> None:
         """Records the skill outcome to the Temporal Learning system."""
         try:
             await self.temporal.record_outcome(
-                action=action, 
+                action=action,
                 context=str(context)[:200],
                 intended_outcome=str(params)[:200],
                 actual_outcome=str(result)[:500],
-                success=result.get("ok", False)
+                success=result.get("ok", False),
             )
         except (OSError, ConnectionError, TimeoutError) as e:
-            record_degradation('capability_engine', e)
+            _record_capability_degradation(
+                e,
+                action="returned skill result after temporal outcome recording failed",
+            )
             self.logger.debug("Temporal record failed: %s", e)
 
     def get_health(self) -> dict[str, Any]:
