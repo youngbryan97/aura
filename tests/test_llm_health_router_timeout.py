@@ -1,9 +1,15 @@
 import time
+from pathlib import Path
 
 import pytest
 
 from core.brain.llm.llm_router import IntelligentLLMRouter, LLMEndpoint, LLMTier
 from core.brain.llm_health_router import EndpointHealth, HealthAwareLLMRouter
+from tools.audit_degradation import analyze_file
+
+
+def test_llm_health_router_degradation_audit_is_clean():
+    assert analyze_file(Path("core/brain/llm_health_router.py")) == []
 
 
 class _TimeoutRecordingClient:
@@ -25,7 +31,12 @@ class _PromptOnlyClient:
     def __init__(self):
         self.calls = []
 
-    async def think(self, prompt: str, system_prompt: str = "", timeout: float = 0.0):
+    async def think(
+        self,
+        prompt: str,
+        system_prompt: str = "",
+        timeout: float = 0.0,  # noqa: ASYNC109 - fake client verifies timeout forwarding.
+    ):
         self.calls.append(
             {
                 "prompt": prompt,

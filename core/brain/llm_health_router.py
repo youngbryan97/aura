@@ -14,22 +14,19 @@ Drop-in: replace the existing router instantiation in orchestrator_boot.py
 with HealthAwareLLMRouter.
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
-
 
 import asyncio
 import inspect
 import logging
 import os
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import httpx
-from core.runtime.desktop_boot_safety import desktop_safe_boot_enabled
-from core.utils.task_tracker import get_task_tracker
+
+from core.brain.llm.chat_format import format_chatml_messages
 from core.brain.llm.model_registry import (
     BRAINSTEM_ENDPOINT,
     DEEP_ENDPOINT,
@@ -46,11 +43,35 @@ from core.brain.llm.runtime_wiring import (
     should_force_tool_handoff,
 )
 from core.phases.response_contract import ResponseContract
+from core.runtime.desktop_boot_safety import desktop_safe_boot_enabled
+from core.runtime.errors import record_degradation
 from core.runtime.turn_analysis import analyze_turn
+from core.utils.concurrency import RobustLock
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Brain.HealthRouter")
 
-from core.brain.llm.chat_format import format_chatml_messages
+
+def _record_router_degradation(
+    exc: BaseException,
+    *,
+    action: str,
+    severity: str = "warning",
+) -> None:
+    record_degradation("llm_health_router", exc, severity=severity, action=action)
+
+
+_ROUTER_CLIENT_ERRORS = (
+    httpx.HTTPError,
+    OSError,
+    ConnectionError,
+    TimeoutError,
+    RuntimeError,
+    TypeError,
+    ValueError,
+    Exception,
+)
+
 
 _USER_FACING_ORIGINS = frozenset({
     "user",
@@ -201,7 +222,7 @@ class EndpointHealth:
             return True
         return False
 
-    def status_dict(self) -> Dict[str, Any]:
+    def status_dict(self) -> dict[str, Any]:
         return {
             "name": self.name,
             "tier": getattr(self, "tier", "standard"),
@@ -216,7 +237,7 @@ class EndpointHealth:
 
 # ── Validator ─────────────────────────────────────────────────────────────────
 
-def validate_response(text: Optional[str], min_tokens: int = 1) -> tuple[bool, str]:
+def validate_response(text: str | None, min_tokens: int = 1) -> tuple[bool, str]:
     """
     Returns (is_valid, reason).
     A response is invalid if:
@@ -364,7 +385,10 @@ def _local_client_failure_reason(client: Any) -> str:
                     break
             candidate = next_candidate
     except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
-        record_degradation('llm_health_router', exc)
+        _record_router_degradation(
+            exc,
+            action="continued without local lane failure detail after client inspection failed",
+        )
         logger.debug("Local client lane inspection failed: %s", exc)
     return ""
 
@@ -380,11 +404,10 @@ def _supports_foreground_cloud_recovery(error: str) -> bool:
 
 # ── Main Router ───────────────────────────────────────────────────────────────
 
-from core.utils.concurrency import RobustLock
 
 class HealthMonitorShim:
     """Compatibility shim for legacy components expecting a health_monitor object."""
-    def __init__(self, router: "HealthAwareLLMRouter"):
+    def __init__(self, router: HealthAwareLLMRouter):
         self._router = router
 
     def is_healthy(self, name: str) -> bool:
@@ -403,7 +426,7 @@ class HealthAwareLLMRouter:
     """
 
     def __init__(self):
-        self.endpoints: Dict[str, EndpointHealth] = {}
+        self.endpoints: dict[str, EndpointHealth] = {}
         self.health_monitor = HealthMonitorShim(self)
         self._lock = RobustLock()
         self._created_at = time.monotonic()
@@ -411,15 +434,15 @@ class HealthAwareLLMRouter:
         self.last_tier: str = "local"
         self.last_user_tier: str = "local"
         self.last_user_endpoint: str = PRIMARY_ENDPOINT
-        self.last_endpoint: Optional[str] = None
-        self.last_background_endpoint: Optional[str] = None
-        self.last_background_tier: Optional[str] = None
+        self.last_endpoint: str | None = None
+        self.last_background_endpoint: str | None = None
+        self.last_background_tier: str | None = None
         self.last_user_error: str = ""
         self.last_background_error: str = ""
         self._last_fallback_warning_at: float = 0.0
         logger.info("HealthAwareLLMRouter initialized (Legacy-Compatible mode)")
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Aggregate endpoint statistics for proprioceptive telemetry."""
         total_calls = 0
         total_tokens = 0
@@ -456,7 +479,7 @@ class HealthAwareLLMRouter:
         client: Any = None,
         failure_threshold: int = 3,
         recovery_timeout: float = 30.0,
-    ) -> "HealthAwareLLMRouter":
+    ) -> HealthAwareLLMRouter:
         name = normalize_endpoint_name(name) or name
         ep = EndpointHealth(
             name=name,
@@ -472,7 +495,7 @@ class HealthAwareLLMRouter:
         logger.info("Registered endpoint: %s (%s) tier=%s local=%s", name, model, tier, is_local)
         return self
 
-    def register_endpoint(self, ep_obj: Any) -> "HealthAwareLLMRouter":
+    def register_endpoint(self, ep_obj: Any) -> HealthAwareLLMRouter:
         """Compatibility method for Unified Cognitive Engine / AutonomousBrain."""
         # ep_obj is expected to have: name, tier, model_name, client
         name = normalize_endpoint_name(getattr(ep_obj, "name", "unknown")) or "unknown"
@@ -526,10 +549,10 @@ class HealthAwareLLMRouter:
     async def generate(
         self,
         prompt: str,
-        system_prompt: Optional[str] = None,
-        timeout: float = 120.0,
-        prefer_tier: Optional[str] = None,
-        schema: Optional[Dict] = None,
+        system_prompt: str | None = None,
+        timeout: float = 120.0,  # noqa: ASYNC109 - public router API accepts timeout budgets.
+        prefer_tier: str | None = None,
+        schema: dict | None = None,
         **kwargs,
     ) -> str:
         """
@@ -578,12 +601,12 @@ class HealthAwareLLMRouter:
     async def generate_with_metadata(
         self,
         prompt: str,
-        system_prompt: Optional[str] = None,
-        timeout: float = 180.0,
-        prefer_tier: Optional[str] = None,
-        schema: Optional[Dict] = None,
+        system_prompt: str | None = None,
+        timeout: float = 180.0,  # noqa: ASYNC109 - public router API accepts timeout budgets.
+        prefer_tier: str | None = None,
+        schema: dict | None = None,
         **kwargs,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Try each endpoint in order. Return first valid response with full metadata.
         Falls back to local if all remote endpoints fail.
@@ -608,7 +631,7 @@ class HealthAwareLLMRouter:
         )
         state = kwargs.pop("state", None)
         skip_runtime_payload = bool(kwargs.pop("skip_runtime_payload", False))
-        contract: Optional[ResponseContract] = None
+        contract: ResponseContract | None = None
         prepared_messages = kwargs.get("messages")
         _runtime_state = state
         if skip_runtime_payload:
@@ -678,12 +701,12 @@ class HealthAwareLLMRouter:
 
     async def think(
         self,
-        prompt: Optional[str] = None,
-        system_prompt: Optional[str] = None,
-        prefer_tier: Optional[str] = None,
-        schema: Optional[Dict] = None,
+        prompt: str | None = None,
+        system_prompt: str | None = None,
+        prefer_tier: str | None = None,
+        schema: dict | None = None,
         **kwargs,
-    ) -> Optional[str]:
+    ) -> str | None:
         """
         Unified interface for non-chat callers. Routes through the health-aware
         endpoint selection, then normalises to Optional[str].
@@ -737,14 +760,18 @@ class HealthAwareLLMRouter:
             # Return None so the caller can retry or fallback properly.
             return None
         except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
-            record_degradation('llm_health_router', exc)
+            _record_router_degradation(
+                exc,
+                action="returned no router thought after endpoint generation failed",
+                severity="degraded",
+            )
             logger.warning("[LLMRouter.think] Failed: %s", exc)
             return None
 
     async def classify(
         self,
         prompt: str,
-        system_prompt: Optional[str] = None,
+        system_prompt: str | None = None,
         prefer_tier: str = "primary",
         **kwargs
     ) -> str:
@@ -791,7 +818,11 @@ class HealthAwareLLMRouter:
                 
             return text
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('llm_health_router', e)
+            _record_router_degradation(
+                e,
+                action="defaulted intent classification to casual after classifier failed",
+                severity="degraded",
+            )
             logger.error("❌ Intent classification failed: %s. Defaulting to 'casual'.", e)
             return "casual"
 
@@ -799,11 +830,11 @@ class HealthAwareLLMRouter:
         self,
         objective: str,
         system_prompt: str = "",
-        tools: Optional[Dict[str, Any]] = None,
+        tools: dict[str, Any] | None = None,
         max_turns: int = 5,
-        context: Optional[Dict[str, Any]] = None,
+        context: dict[str, Any] | None = None,
         **kwargs,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         origin = str(kwargs.get("origin", "") or "").lower()
         purpose = str(kwargs.get("purpose", "") or "").lower()
         is_bg = self._is_background_request(
@@ -840,7 +871,7 @@ class HealthAwareLLMRouter:
             is_background=is_bg,
         )
         available = [ep for ep in self.endpoints.values() if ep.is_available()]
-        ordered: List[EndpointHealth] = []
+        ordered: list[EndpointHealth] = []
         seen = set()
         for name in preferred_names:
             ep = self.endpoints.get(name)
@@ -851,7 +882,7 @@ class HealthAwareLLMRouter:
             if ep.name not in seen:
                 ordered.append(ep)
 
-        def _call_kwargs(method: Any) -> Dict[str, Any]:
+        def _call_kwargs(method: Any) -> dict[str, Any]:
             try:
                 sig = inspect.signature(method)
             except (TypeError, ValueError):
@@ -890,7 +921,11 @@ class HealthAwareLLMRouter:
                         self.last_user_tier = ep.tier
                     return result
             except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
-                record_degradation('llm_health_router', exc)
+                _record_router_degradation(
+                    exc,
+                    action="recorded endpoint failure and continued tool-capable route fallback",
+                    severity="degraded",
+                )
                 logger.warning("think_and_act on %s failed: %s", ep.name, exc)
                 ep.record_failure(str(exc))
 
@@ -903,12 +938,13 @@ class HealthAwareLLMRouter:
         )
         return {"content": text or "", "turns": 0, "tool_calls": []}
 
-    async def _get_mycelial_direction(self, prompt: str) -> Optional[Dict[str, Any]]:
+    async def _get_mycelial_direction(self, prompt: str) -> dict[str, Any] | None:
         """Query Mycelium for routing guidance (v31)."""
         try:
             from core.container import ServiceContainer
             mycelium = ServiceContainer.get("mycelium", default=None)
-            if not mycelium: return None
+            if not mycelium:
+                return None
             
             # 1. Match hardwired pathways
             # v42 FIX: Skip large prompts (likely background tasks/logs) to avoid false 'null' matches
@@ -929,15 +965,19 @@ class HealthAwareLLMRouter:
                 
                 return {"pathway_id": pathway.pathway_id}
             return None
-        except (ImportError, AttributeError, RuntimeError):
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            _record_router_degradation(
+                exc,
+                action="continued routing without mycelial direction after guidance lookup failed",
+            )
             return None
 
-    def _flatten_messages_for_local_model(self, messages: List[Dict[str, str]], require_json: bool) -> str:
+    def _flatten_messages_for_local_model(self, messages: list[dict[str, str]], require_json: bool) -> str:
         """Flatten messages into a Qwen/ChatML prompt for local MLX models."""
         return format_chatml_messages(messages, require_json=require_json)
 
     @staticmethod
-    def _coerce_prompt_from_messages(messages: Any) -> Tuple[str, Optional[str]]:
+    def _coerce_prompt_from_messages(messages: Any) -> tuple[str, str | None]:
         """Serialize a full OpenAI-style message list into prompt/system fields.
 
         This keeps the health-aware router aligned with the legacy router so
@@ -947,8 +987,8 @@ class HealthAwareLLMRouter:
         if not messages or not isinstance(messages, list):
             return "", None
 
-        system_parts: List[str] = []
-        convo_parts: List[str] = []
+        system_parts: list[str] = []
+        convo_parts: list[str] = []
 
         for msg in messages:
             if not isinstance(msg, dict):
@@ -974,7 +1014,7 @@ class HealthAwareLLMRouter:
         return prompt, system_prompt
 
     @staticmethod
-    def _normalize_prefer_tier(prefer_tier: Optional[Any]) -> Optional[str]:
+    def _normalize_prefer_tier(prefer_tier: Any | None) -> str | None:
         if prefer_tier is None:
             return None
         if not isinstance(prefer_tier, str):
@@ -994,12 +1034,12 @@ class HealthAwareLLMRouter:
         return aliases.get(tier, tier)
 
     @staticmethod
-    def _origin_tokens(origin: Optional[str]) -> set[str]:
+    def _origin_tokens(origin: str | None) -> set[str]:
         normalized = str(origin or "").strip().lower().replace("-", "_")
         return {token for token in normalized.split("_") if token}
 
     @classmethod
-    def _is_user_facing_origin(cls, origin: Optional[str]) -> bool:
+    def _is_user_facing_origin(cls, origin: str | None) -> bool:
         tokens = cls._origin_tokens(origin)
         return bool(tokens & _USER_FACING_ORIGINS)
 
@@ -1007,8 +1047,8 @@ class HealthAwareLLMRouter:
     def _is_background_request(
         cls,
         *,
-        origin: Optional[str],
-        purpose: Optional[str],
+        origin: str | None,
+        purpose: str | None,
         explicit_background: bool,
     ) -> bool:
         if explicit_background:
@@ -1149,7 +1189,7 @@ class HealthAwareLLMRouter:
         allow_cloud_fallback: bool,
         *,
         is_background: bool,
-    ) -> List[str]:
+    ) -> list[str]:
         if prefer_tier == "tertiary":
             names = [BRAINSTEM_ENDPOINT, FALLBACK_ENDPOINT]
             if allow_cloud_fallback:
@@ -1173,7 +1213,7 @@ class HealthAwareLLMRouter:
         return names
 
     @staticmethod
-    def _matches_selector(ep: EndpointHealth, selector: Tuple[str, str]) -> bool:
+    def _matches_selector(ep: EndpointHealth, selector: tuple[str, str]) -> bool:
         kind, value = selector
         if kind == "name":
             return ep.name == value
@@ -1234,10 +1274,14 @@ class HealthAwareLLMRouter:
                 await primary_client.warmup()
                 logger.info("♻️ Router: restored %s after deep handoff.", PRIMARY_ENDPOINT)
         except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
-            record_degradation('llm_health_router', exc)
+            _record_router_degradation(
+                exc,
+                action="continued after deep handoff without confirmed primary restore",
+                severity="degraded",
+            )
             logger.warning("Router: failed to restore primary model after deep handoff: %s", exc)
 
-    async def unload_models(self, keep: Optional[List[str]] = None) -> None:
+    async def unload_models(self, keep: list[str] | None = None) -> None:
         """Unload local model workers so MemoryGovernor can genuinely reclaim RAM."""
         keep_set = set(keep or [])
         for name, endpoint in self.endpoints.items():
@@ -1246,7 +1290,11 @@ class HealthAwareLLMRouter:
             try:
                 await self._reboot_endpoint_client(endpoint.client)
             except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
-                record_degradation('llm_health_router', exc)
+                _record_router_degradation(
+                    exc,
+                    action="continued unload sweep after endpoint client reboot failed",
+                    severity="degraded",
+                )
                 logger.debug("Router unload skipped for %s: %s", name, exc)
 
         try:
@@ -1254,7 +1302,11 @@ class HealthAwareLLMRouter:
             if hasattr(mx, "clear_cache"):
                 mx.clear_cache()
         except (ImportError, AttributeError, RuntimeError) as _exc:
-            record_degradation('llm_health_router', _exc)
+            _record_router_degradation(
+                _exc,
+                action="completed unload sweep without clearing MLX global cache",
+                severity="degraded",
+            )
             logger.debug("Suppressed Exception: %s", _exc)
 
     def clear_cache(self) -> None:
@@ -1268,12 +1320,12 @@ class HealthAwareLLMRouter:
     async def _generate_core(
         self,
         prompt: str,
-        system_prompt: Optional[str] = None,
-        timeout: float = 120.0,
-        prefer_tier: Optional[str] = None,
-        schema: Optional[Dict] = None,
+        system_prompt: str | None = None,
+        timeout: float = 120.0,  # noqa: ASYNC109 - public router API accepts timeout budgets.
+        prefer_tier: str | None = None,
+        schema: dict | None = None,
         **kwargs,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         purpose = str(kwargs.get("purpose", "") or "").lower()
         classification_mode = purpose == "classification" or "intent classifier" in str(system_prompt or "").lower()
 
@@ -1312,15 +1364,17 @@ class HealthAwareLLMRouter:
             substrate = ServiceContainer.peek("liquid_substrate", default=None)
             if substrate:
                 mood = substrate.get_summary()
-                if mood: ctx_summary.append(f"[Affect: {mood}]")
+                if mood:
+                    ctx_summary.append(f"[Affect: {mood}]")
 
             # Somatic Proprioception
             soma = ServiceContainer.peek("soma", default=None)
             if soma:
-              hw = getattr(soma, "hardware", {})
-              cpu = hw.get("cpu_usage", 0)
-              vram = hw.get("vram_usage", 0)
-              if cpu > 10: ctx_summary.append(f"[Soma: CPU {cpu:.0f}%, VRAM {vram:.0f}%]")
+                hw = getattr(soma, "hardware", {})
+                cpu = hw.get("cpu_usage", 0)
+                vram = hw.get("vram_usage", 0)
+                if cpu > 10:
+                    ctx_summary.append(f"[Soma: CPU {cpu:.0f}%, VRAM {vram:.0f}%]")
 
             if ctx_summary:
                 context_header = " ".join(ctx_summary)
@@ -1346,7 +1400,6 @@ class HealthAwareLLMRouter:
         origin = str(kwargs.get("origin", "") or "").lower()
         purpose = str(kwargs.get("purpose", "") or "").lower()
         explicit_background = bool(kwargs.get("is_background", False))
-        requested_tier = self._normalize_prefer_tier(prefer_tier) if prefer_tier else None
         is_bg = self._is_background_request(
             origin=origin,
             purpose=purpose,
@@ -1386,7 +1439,10 @@ class HealthAwareLLMRouter:
                             "error": f"background_deferred:{background_deferral}",
                         }
             except (ImportError, AttributeError, RuntimeError) as exc:
-                record_degradation('llm_health_router', exc)
+                _record_router_degradation(
+                    exc,
+                    action="continued background routing without inference-gate deferral signal",
+                )
                 logger.debug("Background router deferral probe failed: %s", exc)
             if self._foreground_quiet_window_active():
                 return {
@@ -1461,7 +1517,7 @@ class HealthAwareLLMRouter:
             logger.info("🛡️ Router: suppressing implicit secondary request without explicit deep handoff.")
             prefer_tier = "primary"
 
-        selectors: List[Tuple[str, str]] = []
+        selectors: list[tuple[str, str]] = []
         if prefer_endpoint:
             selectors.append(("name", prefer_endpoint))
 
@@ -1517,7 +1573,7 @@ class HealthAwareLLMRouter:
                 ])
 
         if selectors:
-            ordered: List[EndpointHealth] = []
+            ordered: list[EndpointHealth] = []
             seen = set()
             for selector in selectors:
                 for ep in available:
@@ -1674,8 +1730,12 @@ class HealthAwareLLMRouter:
                             "Endpoint %s failed validation: %s",
                             ep.name, last_error
                         )
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
-                record_degradation('llm_health_router', exc)
+            except _ROUTER_CLIENT_ERRORS as exc:
+                _record_router_degradation(
+                    exc,
+                    action="recorded endpoint failure and continued fallback chain after generation exception",
+                    severity="degraded",
+                )
                 logger.error("Endpoint %s raised exception: %s", ep.name, exc)
                 ep.record_failure(str(exc))
                 last_error = str(exc)
@@ -1696,16 +1756,16 @@ class HealthAwareLLMRouter:
         self,
         ep: EndpointHealth,
         prompt: str,
-        system_prompt: Optional[str],
-        timeout: float,
-        schema: Optional[Dict] = None,
+        system_prompt: str | None,
+        timeout: float,  # noqa: ASYNC109 - endpoint adapter receives caller timeout budgets.
+        schema: dict | None = None,
         **kwargs,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Make the actual call and validate the response."""
         start = time.time()
 
         try:
-            def _call_kwargs(method: Any) -> Dict[str, Any]:
+            def _call_kwargs(method: Any) -> dict[str, Any]:
                 try:
                     sig = inspect.signature(method)
                 except (TypeError, ValueError):
@@ -1777,7 +1837,8 @@ class HealthAwareLLMRouter:
                         # Normalize: think() might return (success, res, meta) or just res (str)
                         if isinstance(result, tuple) and len(result) == 3:
                             success, res, meta = result
-                            if success: raw_text = res
+                            if success:
+                                raw_text = res
                         else:
                             # Unified interface: raw_text is the result itself
                             raw_text = result
@@ -1787,7 +1848,7 @@ class HealthAwareLLMRouter:
                             system_prompt=system_prompt,
                             **_call_kwargs(client.call),
                         )
-                        if success: 
+                        if success:
                             raw_text = res
                         elif meta and meta.get("error"):
                             client_failure = meta.get("error")
@@ -1870,8 +1931,12 @@ class HealthAwareLLMRouter:
                     # as a circuit-breaker failure or it will permanently mark Cortex as dead.
                     logger.warning("Client adapter method missing for %s: %s", ep.name, ae)
                     return {"ok": False, "error": f"client_adapter_missing_method:{ae}"}
-                except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
-                    record_degradation('llm_health_router', e)
+                except _ROUTER_CLIENT_ERRORS as e:
+                    _record_router_degradation(
+                        e,
+                        action="raised endpoint client adapter failure to caller after recording router degradation",
+                        severity="error",
+                    )
                     logger.error("Client adapter call failed for %s: %s", ep.name, e)
                     raise e
 
@@ -1912,11 +1977,15 @@ class HealthAwareLLMRouter:
             }
 
         except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
-            record_degradation('llm_health_router', exc)
+            _record_router_degradation(
+                exc,
+                action="recorded HTTP endpoint failure and raised for fallback handling",
+                severity="error",
+            )
             ep.record_failure(str(exc))
             raise
 
-    def get_health_report(self) -> Dict[str, Any]:
+    def get_health_report(self) -> dict[str, Any]:
         """Summary of router state for the GUI."""
         active_name = self.last_user_endpoint or "Unknown"
         background_name = self.last_background_endpoint
@@ -2020,12 +2089,20 @@ def build_router_from_config(config) -> HealthAwareLLMRouter:
 
             logger.info("✅ Local runtime client instantiated for HealthAwareLLMRouter")
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('llm_health_router', e)
+            _record_router_degradation(
+                e,
+                action="continued router build without standalone local runtime client",
+                severity="degraded",
+            )
             logger.error("❌ Failed to instantiate local runtime client: %s", e)
     else:
         logger.info("🛡️ HealthRouter using existing InferenceGate; skipping standalone local runtime bootstrap.")
 
-    from core.brain.llm.model_registry import get_active_model, get_brainstem_path, get_fallback_path
+    from core.brain.llm.model_registry import (
+        get_active_model,
+        get_brainstem_path,
+        get_fallback_path,
+    )
     active_model = get_active_model()
     brainstem_path = get_brainstem_path()
     fallback_path = get_fallback_path()
@@ -2074,7 +2151,11 @@ def build_router_from_config(config) -> HealthAwareLLMRouter:
         )
         logger.info("✅ %s registered with lazy 72B client.", DEEP_ENDPOINT)
     except (ImportError, AttributeError, RuntimeError) as e:
-        record_degradation('llm_health_router', e)
+        _record_router_degradation(
+            e,
+            action="continued router build without deep solver lane registration",
+            severity="degraded",
+        )
         logger.error("❌ Failed to register %s: %s", DEEP_ENDPOINT, e)
 
     # Brainstem (7B) — fast local fallback.
@@ -2090,7 +2171,11 @@ def build_router_from_config(config) -> HealthAwareLLMRouter:
         )
         logger.info("✅ %s registered with lazy 7B client.", BRAINSTEM_ENDPOINT)
     except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
-        record_degradation('llm_health_router', e)
+        _record_router_degradation(
+            e,
+            action="continued router build without brainstem fallback lane registration",
+            severity="error",
+        )
         logger.error("❌ Failed to register %s: %s", BRAINSTEM_ENDPOINT, e)
 
     # Emergency reflex lane (1.5B / CPU-friendly).
@@ -2107,20 +2192,28 @@ def build_router_from_config(config) -> HealthAwareLLMRouter:
         )
         logger.info("🚨 EMERGENCY Tier registered: %s lazy bypass", FALLBACK_ENDPOINT)
     except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-        record_degradation('llm_health_router', e)
+        _record_router_degradation(
+            e,
+            action="continued router build with degraded emergency fallback coverage",
+            severity="critical",
+        )
         logger.error("❌ Failed to register %s: %s", FALLBACK_ENDPOINT, e)
 
     # Gemini Cloud Fallback (used when ALL local models fail)
     gemini_key = os.environ.get("GEMINI_API_KEY")
     if gemini_key:
         try:
-            from core.brain.llm.gemini_adapter import GeminiAdapter, DailyRateLimiter
+            from core.brain.llm.gemini_adapter import DailyRateLimiter, GeminiAdapter
             
             # SHARED rate limiter — all Gemini endpoints coordinate backoff
             try:
                 from core.config import config as _cfg
                 state_path = str(_cfg.paths.data_dir / "gemini_rate_state.json")
-            except (ImportError, AttributeError, RuntimeError):
+            except (ImportError, AttributeError, RuntimeError) as e:
+                _record_router_degradation(
+                    e,
+                    action="continued Gemini registration without persisted shared rate-limit state",
+                )
                 state_path = None
             shared_limiter = DailyRateLimiter(state_path=state_path)
             
@@ -2164,7 +2257,11 @@ def build_router_from_config(config) -> HealthAwareLLMRouter:
             )
             logger.info("✅ Gemini cloud fallbacks registered (2.0-flash, 2.5-flash, 2.5-pro) — shared rate limiter.")
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('llm_health_router', e)
+            _record_router_degradation(
+                e,
+                action="continued router build with local-only fallback coverage after Gemini registration failed",
+                severity="degraded",
+            )
             logger.error("❌ Failed to register Gemini fallbacks: %s", e)
 
     return router
@@ -2182,7 +2279,7 @@ def build_router_from_config(config) -> HealthAwareLLMRouter:
 # orchestrator has booted yet (supports test harnesses and standalone scripts).
 # ─────────────────────────────────────────────────────────────────────────────
 
-def get_llm_router() -> "HealthAwareLLMRouter":
+def get_llm_router() -> HealthAwareLLMRouter:
     """Return the process-wide router, constructing it on first use if needed."""
     from core.container import ServiceContainer
     existing = ServiceContainer.get("llm_router", default=None)
