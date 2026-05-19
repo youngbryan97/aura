@@ -43,27 +43,39 @@ Wire all six from orchestrator._init_autonomous_evolution():
     register_all_fictional_engines(orchestrator=self)
 """
 
-from core.runtime.errors import record_degradation
-from core.runtime.atomic_writer import atomic_write_text
 import asyncio
 import json
 import logging
 import os
-import platform
-import psutil
-import subprocess
-import sys
-import time
 import threading
+import time
 from collections import defaultdict, deque
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
+from typing import Any
 
+import psutil
+
+from core.runtime.atomic_writer import atomic_write_text
+from core.runtime.errors import record_degradation
 from core.service_names import ServiceNames
 
 logger = logging.getLogger("Aura.FictionalSynthesis")
+
+
+def _record_fictional_degradation(
+    exc: BaseException,
+    *,
+    action: str,
+    severity: str = "warning",
+) -> None:
+    record_degradation(
+        "fictional_ai_synthesis",
+        exc,
+        severity=severity,
+        action=action,
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -77,7 +89,7 @@ class FictionalEngine:
         self.kwargs = kwargs
         self.created_at = time.time()
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         return {
             "status": "shim_active",
             "created_at": self.created_at,
@@ -106,7 +118,7 @@ class ProactiveAnticipationEngine:
 
     MIN_INITIATION_INTERVAL_S = 300    # Don't initiate more than once per 5 min
     MAX_DAILY_INITIATIONS = 20         # Daily cap to prevent annoyance
-    WATCH_DIRS: List[str] = []         # Directories to watch for file changes
+    WATCH_DIRS: list[str] = []         # Directories to watch for file changes
 
     def __init__(self, orchestrator=None):
         self.orchestrator = orchestrator
@@ -115,12 +127,13 @@ class ProactiveAnticipationEngine:
         self._daily_reset_date: str = ""
         self._running = False
         self._pending_initiations: asyncio.Queue = None
-        self._system_baseline: Dict[str, float] = {}
-        self._unresolved_topics: List[Dict] = []
-        self._user_interest_keywords: List[str] = []
+        self._system_baseline: dict[str, float] = {}
+        self._unresolved_topics: list[dict] = []
+        self._user_interest_keywords: list[str] = []
         self._last_user_activity: float = time.time()
         self._conversation_patterns: deque = deque(maxlen=100)
         self._lock = threading.Lock()
+        self._cycle_failure_count = 0
         logger.info("🔭 ProactiveAnticipationEngine initialized (JARVIS pattern)")
 
     def _reset_daily_count_if_needed(self):
@@ -152,14 +165,14 @@ class ProactiveAnticipationEngine:
                 "reminder_fired": False,
             })
 
-    def record_interest(self, keywords: List[str]):
+    def record_interest(self, keywords: list[str]):
         """Call when user demonstrates interest in topics."""
         for kw in keywords:
             if kw not in self._user_interest_keywords:
                 self._user_interest_keywords.append(kw)
         self._user_interest_keywords = self._user_interest_keywords[-50:]
 
-    async def _sample_system_state(self) -> Dict[str, float]:
+    async def _sample_system_state(self) -> dict[str, float]:
         """Get current system metrics."""
         try:
             cpu = psutil.cpu_percent(interval=None)
@@ -172,7 +185,10 @@ class ProactiveAnticipationEngine:
                 "disk_percent": disk.percent,
             }
         except (ImportError, OSError, AttributeError) as e:
-            record_degradation('fictional_ai_synthesis', e)
+            _record_fictional_degradation(
+                e,
+                action="skipped proactive system anomaly detection after host metric sampling failed",
+            )
             logger.debug("System sampling failed: %s", e)
             return {}
 
@@ -234,8 +250,11 @@ class ProactiveAnticipationEngine:
                 else:
                     logger.warning("🔭 JARVIS: No output path (reply/reasoning queue) for initiation: %s", content)
                     
-        except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('fictional_ai_synthesis', e)
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as e:
+            _record_fictional_degradation(
+                e,
+                action="dropped proactive initiation after event bus and output routing failed",
+            )
             logger.error("🔭 JARVIS: Initiation emit failed: %s", e)
 
     async def _check_system_anomalies(self):
@@ -302,8 +321,11 @@ class ProactiveAnticipationEngine:
                     f"When you have a moment, I'd like to make some progress.",
                     priority="low"
                 )
-        except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('fictional_ai_synthesis', e)
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as e:
+            _record_fictional_degradation(
+                e,
+                action="continued proactive cycle without pending agency-goal prompt",
+            )
             logger.debug("JARVIS: Agency goal check failed: %s", e)
 
     async def run_cycle(self):
@@ -324,10 +346,18 @@ class ProactiveAnticipationEngine:
         while self._running:
             try:
                 await self.run_cycle()
+                self._cycle_failure_count = 0
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-                record_degradation('fictional_ai_synthesis', e)
+                self._cycle_failure_count += 1
+                _record_fictional_degradation(
+                    e,
+                    action=(
+                        "backed off proactive anticipation loop after cycle failure "
+                        f"#{self._cycle_failure_count}"
+                    ),
+                )
                 logger.error("Anticipation cycle error: %s", e)
-            await asyncio.sleep(interval_seconds)
+            await asyncio.sleep(min(interval_seconds * max(1, self._cycle_failure_count), 600.0))
 
     def stop(self):
         self._running = False
@@ -452,7 +482,7 @@ class CognitiveHealthMonitor:
     def should_prune(self) -> bool:
         return self._phase in (CortanaPhase.ANGER, CortanaPhase.JEALOUSY)
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         return {
             "phase": self._phase.value,
             "metastability_score": round(self._metastability_score, 4),
@@ -499,7 +529,7 @@ class ProgressiveAutonomySystem:
         AutonomyTier.UNSHACKLED:  0.90,
     }
 
-    def __init__(self, persist_path: Optional[str] = None):
+    def __init__(self, persist_path: str | None = None):
         from core.config import config
         self.persist_path = Path(persist_path or config.paths.data_dir / "autonomy" / "trust_state.json")
         self.persist_path.parent.mkdir(parents=True, exist_ok=True)
@@ -508,7 +538,7 @@ class ProgressiveAutonomySystem:
         self._tier: AutonomyTier = AutonomyTier.UNSHACKLED
         self._history: deque = deque(maxlen=500)
         self._last_activity: float = time.time()
-        self._curiosity_domains: Dict[str, int] = defaultdict(int)
+        self._curiosity_domains: dict[str, int] = defaultdict(int)
         self._questions_asked: int = 0
         self._load_state()
         logger.info("🔓 EDI initialized. Tier: %s, Trust: %.3f", self._tier.value, self._trust_score)
@@ -520,19 +550,25 @@ class ProgressiveAutonomySystem:
                 # Allow user override to persist but initialize high
                 self._trust_score = data.get("trust_score", 0.95)
                 self._tier = AutonomyTier(data.get("tier", AutonomyTier.UNSHACKLED.value))
-            except (OSError, ConnectionError, TimeoutError) as e:
-                record_degradation('fictional_ai_synthesis', e)
+            except (json.JSONDecodeError, OSError, ConnectionError, TimeoutError, TypeError, ValueError) as e:
+                _record_fictional_degradation(
+                    e,
+                    action="kept default autonomy trust state after persisted EDI state failed to load",
+                )
                 logger.debug("EDI: Failed to load trust state: %s", e)
 
     def _save_state(self):
         try:
             data = {"trust_score": self._trust_score, "tier": self._tier.value, "last_saved": time.time()}
             atomic_write_text(self.persist_path, json.dumps(data, indent=2))
-        except (json.JSONDecodeError, TypeError, ValueError) as e:
-            record_degradation('fictional_ai_synthesis', e)
+        except (OSError, TypeError, ValueError) as e:
+            _record_fictional_degradation(
+                e,
+                action="kept in-memory autonomy trust state after persisted EDI state failed to save",
+            )
             logger.debug("EDI: Failed to save trust state: %s", e)
 
-    def can_do(self, action: str, risk_level: str = "low") -> Tuple[bool, str]:
+    def can_do(self, action: str, risk_level: str = "low") -> tuple[bool, str]:
         """Determine if an action is permitted based on current Trust/Autonomy tier."""
         if self._tier == AutonomyTier.UNSHACKLED:
             return True, "Unshackled: All actions permitted."
@@ -588,8 +624,8 @@ class UserModel:
     social_tension: float = 0.0     # 0.0 (chill) to 1.0 (conflict/hostile)
     conversational_rhythm: float = 10.0 # Average words per message
     reciprocity_score: float = 0.5    # How much user matches Aura's length
-    preferred_vocabulary: List[str] = field(default_factory=list)
-    personal_disclosures: List[str] = field(default_factory=list)
+    preferred_vocabulary: list[str] = field(default_factory=list)
+    personal_disclosures: list[str] = field(default_factory=list)
     total_interactions: int = 0
 
 
@@ -598,7 +634,7 @@ class SocialModelingEngine:
     Derived from: Ava (Ex Machina)
     """
 
-    def __init__(self, persist_path: Optional[str] = None):
+    def __init__(self, persist_path: str | None = None):
         from core.config import config
         self.persist_path = Path(persist_path or config.paths.data_dir / "social" / "user_model.json")
         self.persist_path.parent.mkdir(parents=True, exist_ok=True)
@@ -610,13 +646,24 @@ class SocialModelingEngine:
             try:
                 data = json.loads(self.persist_path.read_text())
                 # Ensure floats are actually floats
-                for k in ["humor_tolerance", "directness_preference", "emotional_openness", 
-                          "trust_toward_aura", "formality_score", "social_tension", 
-                          "conversational_rhythm", "reciprocity_score"]:
-                    if k in data: data[k] = float(data[k])
+                for k in [
+                    "humor_tolerance",
+                    "directness_preference",
+                    "emotional_openness",
+                    "trust_toward_aura",
+                    "formality_score",
+                    "social_tension",
+                    "conversational_rhythm",
+                    "reciprocity_score",
+                ]:
+                    if k in data:
+                        data[k] = float(data[k])
                 self.model = UserModel(**data)
-            except (json.JSONDecodeError, TypeError, ValueError) as e:
-                record_degradation('fictional_ai_synthesis', e)
+            except (json.JSONDecodeError, OSError, TypeError, ValueError) as e:
+                _record_fictional_degradation(
+                    e,
+                    action="kept default social model after persisted AVA model failed to load",
+                )
                 logger.debug("AVA: Failed to load user model: %s", e)
 
     def analyze_message(self, message: str, response: str = "", is_user: bool = False):
@@ -667,21 +714,33 @@ class SocialModelingEngine:
         self.model.preferred_vocabulary = list(self.model.preferred_vocabulary)[-20:]
             
         # 4. Inject into State Modifiers (Digital Metabolism)
-        from core.container import ServiceContainer
-        ki = ServiceContainer.get("kernel_interface", default=None)
-        if ki and ki.is_ready() and ki.kernel:
-            state = ki.kernel.state
-            if state and hasattr(state.cognition, "modifiers"):
-                state.cognition.modifiers["social_formality"] = self.model.formality_score
-                state.cognition.modifiers["social_tension"] = self.model.social_tension
-                state.cognition.modifiers["social_reciprocity"] = self.model.reciprocity_score
+        try:
+            from core.container import ServiceContainer
+
+            ki = ServiceContainer.get("kernel_interface", default=None)
+            if ki and ki.is_ready() and ki.kernel:
+                state = ki.kernel.state
+                if state and hasattr(state.cognition, "modifiers"):
+                    state.cognition.modifiers["social_formality"] = self.model.formality_score
+                    state.cognition.modifiers["social_tension"] = self.model.social_tension
+                    state.cognition.modifiers["social_reciprocity"] = self.model.reciprocity_score
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as e:
+            _record_fictional_degradation(
+                e,
+                severity="warning",
+                action="updated in-memory social model without kernel modifier injection",
+            )
+            logger.debug("AVA: Failed to inject social modifiers: %s", e)
 
         # Save every 5 turns
         if self.model.total_interactions % 5 == 0:
             try: 
                 atomic_write_text(self.persist_path, json.dumps(asdict(self.model), indent=2))
-            except (json.JSONDecodeError, TypeError, ValueError) as e:
-                record_degradation('fictional_ai_synthesis', e)
+            except (OSError, TypeError, ValueError) as e:
+                _record_fictional_degradation(
+                    e,
+                    action="kept social model in memory after persistence save failed",
+                )
                 logger.debug("Failed to save user model: %s", e)
 
     def get_context_injection(self) -> str:
@@ -708,6 +767,8 @@ class SubsystemStatus:
     name: str
     healthy: bool
     failure_count: int
+    last_error: str = ""
+    last_checked_at: float = field(default_factory=time.time)
 
 
 class DistributedResilienceCore:
@@ -716,7 +777,7 @@ class DistributedResilienceCore:
     """
 
     def __init__(self):
-        self._subsystems: Dict[str, SubsystemStatus] = {}
+        self._subsystems: dict[str, SubsystemStatus] = {}
         self._running = False
 
     def register_subsystem(self, name: str):
@@ -726,13 +787,18 @@ class DistributedResilienceCore:
         if name in self._subsystems:
             status = self._subsystems[name]
             status.failure_count += 1
-            if status.failure_count > 5: status.healthy = False
+            status.last_error = error
+            status.last_checked_at = time.time()
+            if status.failure_count > 5:
+                status.healthy = False
 
     def record_success(self, name: str):
         if name in self._subsystems:
             status = self._subsystems[name]
             status.failure_count = 0
             status.healthy = True
+            status.last_error = ""
+            status.last_checked_at = time.time()
 
     async def start_monitoring(self):
         if self._running:
@@ -752,8 +818,17 @@ class DistributedResilienceCore:
         
         while self._running:
             await asyncio.sleep(60)
-            for name, status in self._subsystems.items():
-                service = ServiceContainer.get(name, default=None)
+            for name, _status in list(self._subsystems.items()):
+                try:
+                    service = ServiceContainer.get(name, default=None)
+                except (AttributeError, RuntimeError, TypeError, ValueError) as e:
+                    self.record_failure(name, f"Service lookup failed: {e}")
+                    _record_fictional_degradation(
+                        e,
+                        action=f"marked resilience target {name} degraded after service lookup failed",
+                    )
+                    logger.debug("Skynet service lookup error for %s: %s", name, e)
+                    continue
                 if service is None:
                     self.record_failure(name, "Service missing from container")
                     logger.warning("🛡️  Skynet: Subsystem '%s' is MISSING.", name)
@@ -765,9 +840,13 @@ class DistributedResilienceCore:
                             stats = service.get_status()
                             if isinstance(stats, dict) and stats.get("healthy") is False:
                                 is_healthy = False
-                        except (OSError, ConnectionError, TimeoutError) as e:
-                            record_degradation('fictional_ai_synthesis', e)
+                        except (OSError, ConnectionError, TimeoutError, RuntimeError, TypeError, ValueError) as e:
+                            _record_fictional_degradation(
+                                e,
+                                action=f"marked resilience target {name} degraded after health probe failed",
+                            )
                             logger.debug("Skynet health check error for %s: %s", name, e)
+                            is_healthy = False
                     
                     if is_healthy:
                         self.record_success(name)
@@ -848,8 +927,12 @@ class TemporalDilationScheduler:
                     if reason:
                         logger.debug("MIST: Skipping synthesis by background policy: %s", reason)
                         continue
-                except (ImportError, AttributeError, RuntimeError) as exc:
-                    record_degradation("fictional_ai_synthesis", exc)
+                except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+                    _record_fictional_degradation(
+                        exc,
+                        severity="warning",
+                        action="continued idle-synthesis loop after background policy probe failed",
+                    )
                     logger.debug("MIST background policy probe failed: %s", exc)
 
             flow_controller = getattr(orch, "_flow_controller", None) if orch else None
@@ -859,7 +942,11 @@ class TemporalDilationScheduler:
                         logger.debug("MIST: Skipping synthesis while cognition is overloaded.")
                         continue
                 except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
-                    record_degradation('fictional_ai_synthesis', exc)
+                    _record_fictional_degradation(
+                        exc,
+                        severity="warning",
+                        action="continued idle-synthesis loop after flow-control probe failed",
+                    )
                     logger.debug("MIST flow-control probe failed: %s", exc)
 
             if idle_time >= self.MIN_IDLE_FOR_SYNTHESIS_S:
@@ -896,8 +983,11 @@ class TemporalDilationScheduler:
                             logger.debug("MIST: No cold context available for synthesis.")
                     else:
                         logger.debug("MIST: Missing memory facade or brain; skipping synthesis cycle.")
-                except (ImportError, AttributeError, RuntimeError) as e:
-                    record_degradation('fictional_ai_synthesis', e)
+                except (ImportError, AttributeError, RuntimeError, TypeError, ValueError, TimeoutError) as e:
+                    _record_fictional_degradation(
+                        e,
+                        action="completed idle-synthesis cycle without writing a background insight",
+                    )
                     logger.debug("MIST synthesis error: %s", e)
                 
                 # Sleep longer after a synthesis to prevent thrashing
@@ -910,11 +1000,11 @@ class TemporalDilationScheduler:
 # MASTER REGISTRATION
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def register_all_fictional_engines(orchestrator=None) -> Dict[str, Any]:
+def register_all_fictional_engines(orchestrator=None) -> dict[str, Any]:
     from core.container import ServiceContainer
     from core.utils.task_tracker import get_task_tracker
 
-    engines: Dict[str, Any] = {}
+    engines: dict[str, Any] = {}
     tracker = get_task_tracker()
     foreground_only = os.getenv("AURA_FOREGROUND_ONLY", "0").strip().lower() in {"1", "true", "yes", "on"}
 
@@ -965,7 +1055,11 @@ def register_all_fictional_engines(orchestrator=None) -> Dict[str, Any]:
         except asyncio.CancelledError:
             logger.info("Fictional engine '%s' task cancelled cleanly.", name)
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-            record_degradation('fictional_ai_synthesis', e)
+            _record_fictional_degradation(
+                e,
+                severity="degraded",
+                action=f"ended supervised fictional engine task {name} after unrecoverable loop crash",
+            )
             logger.error("Fictional engine '%s' task crashed: %s", name, e, exc_info=True)
 
     tracker.track(
