@@ -10,6 +10,17 @@ from core.config import config
 logger = logging.getLogger(__name__)
 
 
+def _record_identity_degradation(
+    exc: BaseException,
+    *,
+    action: str,
+    severity: str = "warning",
+) -> None:
+    """Record degradation inside boot identity initialization."""
+    record_degradation("boot_identity", exc, severity=severity, action=action)
+
+
+
 def _env_flag(name: str, default: bool = False) -> bool:
     value = os.getenv(name)
     if value is None:
@@ -53,8 +64,8 @@ class BootIdentityMixin:
             )
 
             logger.info("🎬 Fictional Engine Synthesis Complete (JARVIS-class online)")
-        except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('boot_identity', e)
+        except Exception as e:
+            _record_identity_degradation(e, action="continued boot without registering JARVIS-class fictional engines", severity="error")
             logger.error("🎬 Fictional Engine Synthesis failed: %s", e)
 
     async def _init_self_modification_engine(self):
@@ -82,8 +93,8 @@ class BootIdentityMixin:
                 # [STABILITY] Use local variable to satisfy Pyre2 None check
                 modifier.start_monitoring()
                 logger.info("🧬 Self-Modification Engine Active")
-        except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('boot_identity', e)
+        except Exception as e:
+            _record_identity_degradation(e, action="continued boot with disabled self-modification engine", severity="error")
             logger.warning("🧬 Self-Modification Engine init failed: %s", e)
             self.self_modifier = None
 
@@ -99,8 +110,8 @@ class BootIdentityMixin:
                 if identity:
                     gate.identity_guard.identity = identity
                 logger.info("🛡️  Identity Guard Gate active on OutputGate")
-        except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('boot_identity', e)
+        except Exception as e:
+            _record_identity_degradation(e, action="continued boot with unguarded OutputGate", severity="error")
             logger.error("Identity Guard initialization failed: %s", e)
 
     async def _init_persona_evolver(self):
@@ -111,8 +122,8 @@ class BootIdentityMixin:
             self.persona_evolver = PersonaEvolver(self)
             ServiceContainer.register_instance("persona_evolver", self.persona_evolver)
             logger.info("🧬 Persona Evolver initialized (waiting for heartbeat)")
-        except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('boot_identity', e)
+        except Exception as e:
+            _record_identity_degradation(e, action="continued boot with disabled persona evolution", severity="error")
             logger.error("Failed to init Persona Evolver: %s", e)
             self.persona_evolver = None
 
@@ -139,8 +150,8 @@ class BootIdentityMixin:
             social = ServiceContainer.get("theory_of_mind")
             ServiceContainer.register_instance("moral", moral)
             ServiceContainer.register_instance("social", social)
-        except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('boot_identity', e)
+        except Exception as e:
+            _record_identity_degradation(e, action="continued boot with missing soul/moral system integration", severity="error")
             logger.error("Failed to integrate moral systems: %s", e)
 
     def _init_architecture(self):
@@ -170,8 +181,8 @@ class BootIdentityMixin:
                     from core.consciousness.contract import attach_contract
 
                     attach_contract(self)
-                except (ImportError, AttributeError, RuntimeError) as e:
-                    record_degradation('boot_identity', e)
+                except Exception as e:
+                    _record_identity_degradation(e, action="skipped attaching consciousness contract to boot runtime")
                     logger.debug("Failed to attach consciousness contract: %s", e)
 
             # 4. Liquid Substrate Bridge (v6 Integration)
@@ -181,8 +192,8 @@ class BootIdentityMixin:
                 )
 
                 bridge_to_orchestrator(self)
-            except (ImportError, AttributeError, RuntimeError) as e:
-                record_degradation('boot_identity', e)
+            except Exception as e:
+                _record_identity_degradation(e, action="continued boot with disconnected liquid substrate bridge", severity="error")
                 logger.error("Liquid Substrate bridge failed: %s", e, exc_info=True)
 
             # 5. Moral Agency & Personality (The 'Soul')
@@ -191,8 +202,8 @@ class BootIdentityMixin:
 
             logger.info("✓ Core Architecture ACTIVE")
 
-        except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('boot_identity', e)
+        except Exception as e:
+            _record_identity_degradation(e, action="continued boot with degraded Core Architecture configuration", severity="error")
             logger.error("Failed to initialize Core Architecture: %s", e)
 
     def _initialize_execution_hardened(self):
