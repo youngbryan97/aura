@@ -14,6 +14,17 @@ from core.runtime.governance_policy import allow_simple_query_bypass
 logger = logging.getLogger("Aura.ReActLoop")
 
 
+def _record_react_degradation(
+    exc: BaseException,
+    *,
+    action: str,
+    severity: str = "warning",
+) -> None:
+    """Record degradation inside the ReAct Loop component with standard structured attributes."""
+    record_degradation("react_loop", exc, severity=severity, action=action)
+
+
+
 class _ParagraphTextExtractor(HTMLParser):
     def __init__(self):
         super().__init__()
@@ -191,7 +202,7 @@ class ActionExecutor:
             else:
                 return Observation(content="Unknown action type", success=False)
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-            record_degradation('react_loop', e)
+            _record_react_degradation(e, action="raised action execution failure to caller", severity="error")
             logger.error("Action execution failed: %s", e)
             return Observation(
                 content=f"Action failed: {str(e)[:200]}",
@@ -226,7 +237,7 @@ class ActionExecutor:
                     else:
                         results.append(f"[Memory] {str(ep)[:200]}")
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('react_loop', e)
+            _record_react_degradation(e, action="continued episodic recall with empty results")
             logger.debug("Episodic recall failed: %s", e)
 
         # Semantic memory — optional; supports sync and async search APIs
@@ -248,7 +259,7 @@ class ActionExecutor:
                         content = str(f)
                     results.append(f"[Fact] {content[:200]}")
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('react_loop', e)
+            _record_react_degradation(e, action="continued semantic search with empty results")
             logger.debug("Semantic search failed: %s", e)
 
         if not results:
@@ -272,7 +283,7 @@ class ActionExecutor:
             content = json.dumps(result, indent=2) if isinstance(result, dict) else str(result)
             return Observation(content=content[:1000], success=True, source=tool_name)
         except (json.JSONDecodeError, TypeError, ValueError) as e:
-            record_degradation('react_loop', e)
+            _record_react_degradation(e, action="returned tool error observation to reasoning loop", severity="error")
             return Observation(content=f"Tool error: {e}", success=False, error=str(e))
 
     async def _execute_web_search(self, action: Action) -> Observation:
@@ -321,7 +332,7 @@ class ActionExecutor:
                         source="web_search",
                     )
             except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
-                record_degradation('react_loop', e)
+                _record_react_degradation(e, action="fell back to direct web search integration after orchestrated search failed")
                 logger.debug("ReAct: orchestrated web_search failed, falling back: %s", e)
 
         import os
@@ -371,7 +382,7 @@ class ActionExecutor:
                 )
                 
             except (ImportError, AttributeError, RuntimeError) as e:
-                record_degradation('react_loop', e)
+                _record_react_degradation(e, action="fell back to sovereign browser web search after gemini search failed")
                 import traceback
                 logger.warning("Grounded Search failed (%s), falling back to Sovereign/DDG", e)
                 traceback.print_exc()
@@ -390,7 +401,7 @@ class ActionExecutor:
                     source="web_browser"
                 )
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('react_loop', e)
+            _record_react_degradation(e, action="fell back to deep crawling after sovereign browser search failed")
             logger.debug("ReAct: Sovereign browser search failed: %s", e)
 
         # Fallback Pipeline 2: Deep Crawler (legacy HTML search + scrape)
@@ -411,7 +422,7 @@ class ActionExecutor:
                         )
                     ]
                 except (ImportError, ModuleNotFoundError) as sc_err:
-                    record_degradation('react_loop', sc_err)
+                    _record_react_degradation(sc_err, action="fell back to raw DuckDuckGo HTML search index")
                     try:
                         from urllib.parse import quote_plus
 
@@ -425,10 +436,10 @@ class ActionExecutor:
                                 source="web_ddgs_snippets",
                             )
                     except (httpx.HTTPError, ValueError, OSError) as html_err:
-                        record_degradation('react_loop', html_err)
+                        _record_react_degradation(html_err, action="returned search index unavailable observation")
                     return Observation(content=f"Search index dependency unavailable: {sc_err}", success=False)
                 except (ImportError, AttributeError, RuntimeError) as sc_err:
-                    record_degradation('react_loop', sc_err)
+                    _record_react_degradation(sc_err, action="returned search index completely blocked observation")
                     return Observation(content=f"Search index completely blocked: {sc_err}", success=False)
                 
                 if not results:
@@ -468,7 +479,7 @@ class ActionExecutor:
                         source="web_deep_crawl"
                     )
                 except (ImportError, AttributeError, RuntimeError) as crawl_err:
-                    record_degradation('react_loop', crawl_err)
+                    _record_react_degradation(crawl_err, action="fell back to ddg snippet search after crawler failure")
                     # If scraping the page fails, just return the search snippets
                     snippets = "\n".join([f"- {r.get('title')}: {r.get('body')} ({r.get('href')})" for r in results])
                     return Observation(
@@ -480,7 +491,7 @@ class ActionExecutor:
             return await asyncio.to_thread(_deep_crawl)
             
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('react_loop', e)
+            _record_react_degradation(e, action="returned all web search methods failed observation", severity="error")
             return Observation(content=f"All web search fallback methods failed: {e}", success=False)
 
     # Sandbox policy lives at class scope so a safe __import__ can consult it
@@ -600,7 +611,7 @@ class ActionExecutor:
             )
 
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('react_loop', e)
+            _record_react_degradation(e, action="returned python execution sandbox error observation", severity="error")
             return Observation(
                 content=f"Python error: {type(e).__name__}: {e}",
                 success=False,
@@ -620,7 +631,7 @@ class ActionExecutor:
                     )
                     return Observation(content=formatted, success=True, source="knowledge_graph")
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('react_loop', e)
+            _record_react_degradation(e, action="continued knowledge graph search with empty results")
             logger.debug("KG query failed: %s", e)
 
         return Observation(content="Knowledge graph not available.", success=False, source="knowledge_graph")
@@ -635,7 +646,7 @@ class ActionExecutor:
                 status = affect.get_status()
                 parts.append(f"Mood: {status.get('mood')} | Energy: {status.get('energy')}%")
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('react_loop', e)
+            _record_react_degradation(e, action="continued self-reflection without affect status")
             logger.debug("ReAct: Self-reflection (affect) failed: %s", e)
 
         try:
@@ -645,7 +656,7 @@ class ActionExecutor:
                 parts.append(f"Goals pending: {len(ctx.get('spontaneous_actions', []))}")
                 parts.append(f"Social hunger: {ctx.get('social_hunger', 0):.2f}")
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('react_loop', e)
+            _record_react_degradation(e, action="continued self-reflection without agency status")
             logger.debug("ReAct: Self-reflection (agency) failed: %s", e)
 
         if not parts:
@@ -819,7 +830,7 @@ class ReActLoop:
                 yield {"type": "final", "content": content, "total_steps": 0, "trace": trace}
                 return
             except (ImportError, AttributeError, RuntimeError) as e:
-                record_degradation('react_loop', e)
+                _record_react_degradation(e, action="continued on full reasoning path after fast path failed")
                 logger.error("Simple query fast path failed: %s", e)
         elif self._is_simple_query(query):
             logger.debug("ReAct: Simple query detected but staying on the governed reasoning path")
@@ -848,7 +859,7 @@ class ReActLoop:
                         )
                         raw_output = llm_response.content if hasattr(llm_response, 'content') else str(llm_response)
                     except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
-                        record_degradation('react_loop', e)
+                        _record_react_degradation(e, action="terminated react loop step due to LLM reasoning call failure", severity="error")
                         logger.error("ReAct: LLM call failed at step %d: %s", step_num, e)
                         trace.terminated_reason = "llm_error"
                         trace.final_answer = "I encountered a reasoning error. Let me try a direct response."
@@ -1023,7 +1034,7 @@ class ReActLoop:
                 },
             )
         except (ImportError, AttributeError, RuntimeError) as exc:
-            record_degradation('react_loop', exc)
+            _record_react_degradation(exc, action="skipped episode persistence to episodic memory")
             logger.debug("ReAct: episode recording skipped: %s", exc)
 
     async def run(self, query: str, context: Dict[str, Any] = None) -> ReActTrace:
