@@ -1,21 +1,36 @@
 """core/agency/tool_orchestrator.py
 
 Asynchronous Tool Execution Environment.
-Grants Aura the ability to run Python scripts and search the web to resolve 
+Grants Aura the ability to run Python scripts and search the web to resolve
 knowledge gaps dynamically.
 """
-from core.runtime.errors import record_degradation
-from core.runtime.atomic_writer import atomic_write_text
+
+from __future__ import annotations
+
 import asyncio
+import json
 import logging
-import tempfile
-import aiohttp
+import os
 import re
+import shutil
+import subprocess
+import sys
+import tempfile
 from html import unescape
 from pathlib import Path
-from typing import Dict, Any, Tuple
+from urllib.parse import urlencode
+
+import aiohttp
+
+from core.runtime.atomic_writer import atomic_write_text
+from core.runtime.errors import (
+    DependencyUnavailable,
+    TimeoutBudgetExceeded,
+    record_degradation,
+)
 
 logger = logging.getLogger("Aura.ToolOrchestrator")
+
 
 class ToolOrchestrator:
     def __init__(self):
@@ -26,14 +41,18 @@ class ToolOrchestrator:
         self._repl_process = None
         self._repl_lock = asyncio.Lock()
 
-    async def _ensure_repl(self):
-        if self._repl_process and self._repl_process.returncode is None:
-            return
-            
-        import os, sys, subprocess
-        python_bin = os.path.realpath(sys.executable)
-        daemon_path = os.path.join(os.path.dirname(__file__), "repl_daemon.py")
-        
+    def _build_repl_launch_config(self) -> tuple[str, str, str, str]:
+        sandbox_exec = shutil.which("sandbox-exec")
+        if not sandbox_exec:
+            raise DependencyUnavailable(
+                "sandbox-exec is unavailable; refusing to launch an unsandboxed Python daemon"
+            )
+
+        python_bin = str(Path(sys.executable).resolve())
+        daemon_path = Path(__file__).with_name("repl_daemon.py")
+        if not daemon_path.exists():
+            raise DependencyUnavailable(f"Python sandbox daemon is missing: {daemon_path}")
+
         policy = f"""
         (version 1)
         (allow default)
@@ -45,76 +64,148 @@ class ToolOrchestrator:
         (deny file-write* (subpath "/"))
         (allow file-write* (subpath "{self.sandbox_dir}"))
         """
+        return sandbox_exec, python_bin, str(daemon_path), policy
+
+    async def _ensure_repl(self):
+        if self._repl_process and self._repl_process.returncode is None:
+            return
+
+        sandbox_exec, python_bin, daemon_path, policy = self._build_repl_launch_config()
         self._repl_process = await asyncio.create_subprocess_exec(
-            "sandbox-exec", "-p", policy, python_bin, daemon_path,
-            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            sandbox_exec,
+            "-p",
+            policy,
+            python_bin,
+            daemon_path,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
         )
 
-    async def execute_python(self, script_content: str) -> Tuple[bool, str]:
+    def _terminate_repl(self) -> None:
+        proc = self._repl_process
+        if proc is not None and proc.returncode is None:
+            try:
+                proc.kill()
+            except (ProcessLookupError, OSError) as exc:
+                logger.debug(
+                    "Sandbox daemon termination already complete or unavailable: %s",
+                    exc,
+                )
+        self._repl_process = None
+
+    async def _remove_validation_file(self, path: Path) -> OSError | None:
+        try:
+            await asyncio.to_thread(lambda: path.unlink(missing_ok=True))
+        except OSError as exc:
+            record_degradation(
+                "tool_orchestrator",
+                exc,
+                severity="warning",
+                action="failed closed on validation temp cleanup",
+            )
+            return exc
+        return None
+
+    async def execute_python(self, script_content: str) -> tuple[bool, str]:
         """
         Asynchronously executes a Python script in a STATEFUL sandbox daemon.
         Variables persist across calls!
         """
         # Autonomous Code Validation (Anti-NameError/TypeError)
         from core.utils.code_guardian import CodeGuardian
-        import tempfile, json
-        
+
         tmp_path = self.sandbox_dir / "temp_validation.py"
-        await asyncio.to_thread(lambda: atomic_write_text(tmp_path, script_content)) or None
-        report = CodeGuardian.validate_code(tmp_path)
-        await asyncio.to_thread(lambda: tmp_path.unlink(missing_ok=True))
-        
+        try:
+            await asyncio.to_thread(lambda: atomic_write_text(tmp_path, script_content))
+            report = CodeGuardian.validate_code(tmp_path)
+        except (OSError, RuntimeError, TypeError, ValueError) as exc:
+            await self._remove_validation_file(tmp_path)
+            record_degradation(
+                "tool_orchestrator",
+                exc,
+                severity="critical",
+                action="failed closed before launching python sandbox",
+            )
+            return False, f"Code validation setup failed: {exc}"
+
+        cleanup_error = await self._remove_validation_file(tmp_path)
+        if cleanup_error is not None:
+            return False, f"Code validation cleanup failed: {cleanup_error}"
+
         if not report.success:
             logger.warning("🛡️ ToolOrchestrator: CodeGuardian BLOCKED execution.")
             error_details = report.error_message
-            if report.ruff_output: error_details += f"\nLinter:\n{report.ruff_output}"
+            if report.ruff_output:
+                error_details += f"\nLinter:\n{report.ruff_output}"
             return False, f"Code Validation Failed:\n{error_details}"
 
         async with self._repl_lock:
-            await self._ensure_repl()
             try:
+                await self._ensure_repl()
                 proc = self._repl_process
-                code_bytes = script_content.encode('utf-8')
-                proc.stdin.write(f"{len(code_bytes)}\n".encode('utf-8'))
+                if proc is None or proc.stdin is None or proc.stdout is None:
+                    raise DependencyUnavailable("sandbox daemon did not expose stdin/stdout pipes")
+
+                code_bytes = script_content.encode("utf-8")
+                proc.stdin.write(f"{len(code_bytes)}\n".encode())
                 proc.stdin.write(code_bytes)
                 proc.stdin.write(b"\n")
                 await proc.stdin.drain()
-                
+
                 # Daemon returns length followed by JSON payload
-                len_line = await asyncio.wait_for(proc.stdout.readline(), timeout=self.execution_timeout)
+                len_line = await asyncio.wait_for(
+                    proc.stdout.readline(),
+                    timeout=self.execution_timeout,
+                )
                 if not len_line:
                     return False, "Daemon crashed or closed stream."
-                
+
                 payload_len = int(len_line.strip())
                 payload_bytes = await proc.stdout.readexactly(payload_len)
                 # clear trailing newline
                 await proc.stdout.readline()
-                
-                data = json.loads(payload_bytes.decode('utf-8'))
+
+                data = json.loads(payload_bytes.decode("utf-8"))
                 return data["success"], data["output"] or "[Empty Output]"
-                
-            except asyncio.TimeoutError:
-                if self._repl_process:
-                    try: self._repl_process.kill()
-                    except (ProcessLookupError, OSError) as _exc:
-                        logger.debug("Suppressed %s in core.agency.tool_orchestrator: %s", type(_exc).__name__, _exc)
-                self._repl_process = None
+
+            except TimeoutError as exc:
+                record_degradation(
+                    "tool_orchestrator",
+                    TimeoutBudgetExceeded(str(exc) or "Python sandbox execution timed out"),
+                    severity="warning",
+                    action="killed sandbox daemon and returned timeout failure",
+                )
+                self._terminate_repl()
                 return False, "Execution Error: Script timed out (Infinite loop or heavy resource)."
-            except (json.JSONDecodeError, TypeError, ValueError) as e:
-                record_degradation('tool_orchestrator', e)
-                if self._repl_process:
-                    try: self._repl_process.kill()
-                    except (ProcessLookupError, OSError) as _exc:
-                        logger.debug("Suppressed %s in core.agency.tool_orchestrator: %s", type(_exc).__name__, _exc)
-                self._repl_process = None
-                return False, f"Daemon protocol error: {e}"
+            except (
+                DependencyUnavailable,
+                FileNotFoundError,
+                PermissionError,
+                ProcessLookupError,
+                BrokenPipeError,
+                asyncio.IncompleteReadError,
+                json.JSONDecodeError,
+                OSError,
+                UnicodeDecodeError,
+                TypeError,
+                ValueError,
+            ) as exc:
+                record_degradation(
+                    "tool_orchestrator",
+                    exc,
+                    severity="critical",
+                    action="terminated python sandbox and returned explicit tool failure",
+                )
+                self._terminate_repl()
+                return False, f"Daemon protocol error: {exc}"
 
     async def search_web(self, query: str) -> str:
         """
         A lightweight, asynchronous web search to pull live data and return a
         compact sanitized result list.
         """
-        search_url = f"https://html.duckduckgo.com/html/?q={query}"
+        search_url = "https://html.duckduckgo.com/html/?" + urlencode({"q": query})
         headers = {"User-Agent": "Aura-Cognitive-Node/1.0"}
 
         try:
@@ -127,10 +218,17 @@ class ToolOrchestrator:
                             f"{idx + 1}. {item['title']} — {item['url']}"
                             for idx, item in enumerate(results)
                         )
-                        return await self.sanitize_output(payload or f"No results parsed for {query}.")
+                        return await self.sanitize_output(
+                            payload or f"No results parsed for {query}."
+                        )
                     return f"FAILED: Search status: {resp.status}"
         except (OSError, ConnectionError, TimeoutError) as e:
-            record_degradation('tool_orchestrator', e)
+            record_degradation(
+                "tool_orchestrator",
+                e,
+                severity="degraded",
+                action="returned explicit network failure to tool caller",
+            )
             return f"ERROR: Network failure during search: {str(e)}"
 
     @staticmethod
@@ -158,12 +256,18 @@ class ToolOrchestrator:
         """
         try:
             from core.utils.sanitizer import get_blood_brain_barrier
+
             bbb = get_blood_brain_barrier()
             return bbb.sanitize(data)
-        except ImportError:
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation(
+                "tool_orchestrator",
+                exc,
+                severity="warning",
+                action="used local regex sanitizer fallback",
+            )
             # Fallback to internal regex if module missing
-            import re
-            
+
             # 1. Strip common prompt injection prefix patterns
             injection_patterns = [
                 r"ignore all previous instructions",
@@ -174,44 +278,62 @@ class ToolOrchestrator:
                 r"prompt:",
                 r"you must now",
                 r"start a new session",
-                r"forget your identity"
+                r"forget your identity",
             ]
-            
+
             sanitized = data
             for pattern in injection_patterns:
                 sanitized = re.sub(pattern, "[FILTERED]", sanitized, flags=re.IGNORECASE)
-                
+
             # 2. Prevent structural hijacking
-            sanitized = re.sub(r"\[SYSTEM.*?\]", "[FILTERED_BLOCK]", sanitized, flags=re.IGNORECASE)
-            sanitized = re.sub(r"\[CONTEXT.*?\]", "[FILTERED_BLOCK]", sanitized, flags=re.IGNORECASE)
-            
+            sanitized = re.sub(
+                r"\[SYSTEM.*?\]",
+                "[FILTERED_BLOCK]",
+                sanitized,
+                flags=re.IGNORECASE,
+            )
+            sanitized = re.sub(
+                r"\[CONTEXT.*?\]",
+                "[FILTERED_BLOCK]",
+                sanitized,
+                flags=re.IGNORECASE,
+            )
+
             return sanitized
+
+    @staticmethod
+    def _tool_result_succeeded(result: str) -> bool:
+        text = str(result or "").strip()
+        if not text:
+            return False
+        failure_prefixes = ("ERROR:", "FAILED:", "[EXECUTION FAILED]", "[RESILIENCE BLOCK]")
+        return not text.upper().startswith(failure_prefixes)
 
     async def route_and_execute(self, tool_name: str, payload: str) -> str:
         """Main entry point for the SovereignSwarm to trigger tools."""
         from core.container import ServiceContainer
+
         resilience = ServiceContainer.get("resilience_engine", default=None)
-        
+
         result = "Error: Unknown tool"
         success = False
-        
+
         if tool_name == "python_sandbox":
             logger.info("🛠️ Aura initiated Python Sandbox execution.")
-            
+
             # --- Zero-UI Auto-Healing Loop ---
             max_retries = 3
             current_code = payload
             success = False
             raw_result = ""
-            
-            from core.container import ServiceContainer
+
             engine = ServiceContainer.get("cognitive_engine", default=None)
-            
+
             for attempt in range(max_retries):
                 success, raw_result = await self.execute_python(current_code)
                 if success:
                     break
-                    
+
                 # Auto-heal on failure
                 if engine and attempt < max_retries - 1:
                     logger.warning("Auto-correcting python failure (Attempt %d)...", attempt + 1)
@@ -221,6 +343,7 @@ class ToolOrchestrator:
                         f"Rewrite the code to fix the error. Return ONLY the raw python code without markdown ticks."
                     )
                     from core.brain.types import ThinkingMode
+
                     try:
                         correction = await engine.think(correction_prompt, mode=ThinkingMode.FAST)
                         current_code = getattr(correction, "content", str(correction)).strip()
@@ -230,7 +353,12 @@ class ToolOrchestrator:
                             current_code = current_code.rsplit("\n", 1)[0]
                         continue
                     except (RuntimeError, AttributeError, TypeError) as he:
-                        record_degradation('tool_orchestrator', he)
+                        record_degradation(
+                            "tool_orchestrator",
+                            he,
+                            severity="warning",
+                            action="stopped sandbox auto-heal retry and returned execution failure",
+                        )
                         logger.debug("Healing failed: %s", he)
                         break
                 else:
@@ -238,18 +366,20 @@ class ToolOrchestrator:
 
             prefix = "[EXECUTION SUCCESS]\n" if success else "[EXECUTION FAILED]\n"
             result = prefix + raw_result
-            
+
         elif tool_name == "web_search":
             logger.info("🌐 Aura initiated Web Search: %s", payload)
             result = await self.search_web(payload)
-            success = "SUCCESS" in result
-            
+            success = self._tool_result_succeeded(result)
+
         # Wire resilience into the failure/success paths
         if resilience:
             if not success:
                 state = resilience.record_failure(domain="tool_execution", severity=0.5, stakes=0.7)
                 if state.value == "depletion":
-                    logger.warning("🛑 [Resilience] DEPLETION trigger - Gating further autonomous tasks.")
+                    logger.warning(
+                        "🛑 [Resilience] DEPLETION trigger - Gating further autonomous tasks."
+                    )
                     return "[RESILIENCE BLOCK] I am too depleted to continue this autonomous task safely."
             else:
                 resilience.record_success(domain="tool_execution", stakes=0.7)
@@ -257,7 +387,9 @@ class ToolOrchestrator:
         # Perceptual Quarantine: Sanitize ANY external data before it hits cognition
         return await self.sanitize_output(result)
 
+
 def register_tool_orchestrator():
     """Register the tool orchestrator in the service container."""
     from core.container import ServiceContainer
+
     ServiceContainer.register("tool_orchestrator", lambda: ToolOrchestrator(), singleton=True)
