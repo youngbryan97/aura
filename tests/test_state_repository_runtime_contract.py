@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 import pytest
 
 import core.state.state_repository as state_module
@@ -57,3 +59,25 @@ def test_state_queue_coalescing_is_bounded_and_keeps_latest(tmp_path):
     assert dropped == 2
     assert repo._mutation_queue.qsize() == 1
     assert repo._mutation_queue.get_nowait() == {"version": 3}
+
+
+def test_state_repository_liveness_requires_owner_state_db_and_consumer(tmp_path):
+    repo = StateRepository(db_path=str(tmp_path / "state.db"), is_vault_owner=True)
+    assert repo.is_initialized() is False
+
+    repo._current = object()
+    repo._db = object()
+    repo._consumer_task = SimpleNamespace(done=lambda: False)
+
+    assert repo.is_initialized() is True
+
+
+def test_state_repository_liveness_requires_proxy_transport_path():
+    repo = StateRepository(is_vault_owner=False)
+    repo._current = object()
+
+    assert repo.is_initialized() is False
+
+    repo._shm = object()
+
+    assert repo.is_initialized() is True

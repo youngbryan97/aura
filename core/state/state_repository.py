@@ -31,8 +31,14 @@ logger = logging.getLogger(__name__)
 
 _STATE_SUBSYSTEM = "state_repository"
 _STATE_BOUNDARY_ERRORS = (
-    AttributeError, ImportError, LookupError, OSError,
-    RuntimeError, TimeoutError, TypeError, ValueError,
+    AttributeError,
+    ImportError,
+    LookupError,
+    OSError,
+    RuntimeError,
+    TimeoutError,
+    TypeError,
+    ValueError,
     asyncio.InvalidStateError,
 )
 
@@ -67,7 +73,9 @@ def _schedule_state_task(awaitable: Any, *, name: str, tracker: Any = None) -> a
         return schedule(awaitable, name=name)
     except RuntimeError as exc:
         _close_if_possible(awaitable)
-        logger.debug("StateRepository background task %s deferred outside an event loop: %s", name, exc)
+        logger.debug(
+            "StateRepository background task %s deferred outside an event loop: %s", name, exc
+        )
         return None
     except _STATE_BOUNDARY_ERRORS as exc:
         _close_if_possible(awaitable)
@@ -88,7 +96,7 @@ def get_state_shm_size_bytes() -> int:
     try:
         import psutil
 
-        total_gb = psutil.virtual_memory().total / float(1024 ** 3)
+        total_gb = psutil.virtual_memory().total / float(1024**3)
     except _STATE_BOUNDARY_ERRORS:
         total_gb = 0.0
 
@@ -98,28 +106,33 @@ def get_state_shm_size_bytes() -> int:
         return 8 * 1024 * 1024
     return 2 * 1024 * 1024
 
+
 class StateVersionConflictError(Exception):
     """Raised when a state commit is rejected due to version stagnation or backtrack."""
+
     def __init__(self, current_v: int, rejected_v: int, cause: str):
         self.current_v = current_v
         self.rejected_v = rejected_v
         self.cause = cause
-        super().__init__(f"State version conflict: current={current_v}, rejected={rejected_v} (cause={cause})")
+        super().__init__(
+            f"State version conflict: current={current_v}, rejected={rejected_v} (cause={cause})"
+        )
+
 
 class StateRepository:
     """
     Persists and retrieves AuraState.
     The 'continuity' is here — not in the LLM context window.
-    
+
     Uses an append-only log so the full history of Aura's
     state transitions is recoverable. This IS the long-term memory
     of experience (episodic), separate from semantic memory (vector store).
     """
 
     # ── Long-Run Stability Config ──────────────────────────────────────────
-    STATE_LOG_MAX_ROWS = 500           # Keep last N state versions
-    STATE_LOG_PRUNE_EVERY = 100        # Prune check interval (commits)
-    STATE_LOG_VACUUM_EVERY = 1000      # VACUUM interval (commits)
+    STATE_LOG_MAX_ROWS = 500  # Keep last N state versions
+    STATE_LOG_PRUNE_EVERY = 100  # Prune check interval (commits)
+    STATE_LOG_VACUUM_EVERY = 1000  # VACUUM interval (commits)
     DB_PAYLOAD_MAX_BYTES = 8 * 1024 * 1024
     TRANSPORT_SNAPSHOT_MAX_ITEMS = 64
     TRANSPORT_SNAPSHOT_MAX_TEXT = 4096
@@ -137,12 +150,12 @@ class StateRepository:
         self._mutation_queue: asyncio.Queue = asyncio.Queue(maxsize=self._mutation_queue_maxsize)
         self._is_processing = False
         self._consumer_task: asyncio.Task | None = None
-        self._buffer: dict[str, list] = {} # Per-trace buffer for causal ordering
+        self._buffer: dict[str, list] = {}  # Per-trace buffer for causal ordering
         self._shm: SharedMemoryTransport | None = None
         self._db: aiosqlite.Connection | None = None
         self._transport: Any = None
         self._dropped_commit_count = 0
-        self._commit_counter = 0       # Tracks commits for prune/VACUUM scheduling
+        self._commit_counter = 0  # Tracks commits for prune/VACUUM scheduling
         self._last_commit_at = 0.0
         self._last_commit_duration_ms = 0.0
         self._last_serialization_ms = 0.0
@@ -151,12 +164,14 @@ class StateRepository:
         self._last_shm_write_mode = "idle"
         self._last_shm_overflow_bytes = 0
 
-
     @property
     def lock(self) -> Any:
         if self._lock is None:
             from core.utils.concurrency import get_robust_lock
-            self._lock = get_robust_lock(f"StateRepository:{'Owner' if self.is_vault_owner else 'Proxy'}")
+
+            self._lock = get_robust_lock(
+                f"StateRepository:{'Owner' if self.is_vault_owner else 'Proxy'}"
+            )
         return self._lock
 
     async def _ensure_db(self) -> aiosqlite.Connection:
@@ -168,14 +183,18 @@ class StateRepository:
 
         if self._db is not None:
             # Check for loop mismatch
-            bound_loop = getattr(self._db, '_get_loop', lambda: getattr(self._db, '_loop', None))()
+            bound_loop = getattr(self._db, "_get_loop", lambda: getattr(self._db, "_loop", None))()
             if bound_loop != current_loop:
-                logger.debug("Loop mismatch detected in StateRepository DB connection. Reconnecting.")
+                logger.debug(
+                    "Loop mismatch detected in StateRepository DB connection. Reconnecting."
+                )
                 try:
                     if self._db is not None:
                         await self._db.close()
                 except _STATE_BOUNDARY_ERRORS as _e:
-                    _record_state_degradation(_e, action="stale loop-bound DB connection close skipped")
+                    _record_state_degradation(
+                        _e, action="stale loop-bound DB connection close skipped"
+                    )
                     logger.debug("StateRepository stale DB close skipped: %s", _e)
                 self._db = None
 
@@ -183,11 +202,12 @@ class StateRepository:
             self._db = await aiosqlite.connect(self.db_path)
             await self._db.execute("PRAGMA journal_mode=WAL")
             await self._db.execute("PRAGMA synchronous=NORMAL")
-            
+
         return self._db
 
     async def initialize(self) -> None:
         from .aura_state import AuraState
+
         serialized_current: str | None = None
         boot_governance_decision = SimpleNamespace(
             receipt_id="state_repository_bootstrap",
@@ -208,13 +228,11 @@ class StateRepository:
                     timestamp REAL NOT NULL
                 )
             """)
-            await db.execute(
-                "CREATE INDEX IF NOT EXISTS idx_version ON state_log(version)"
-            )
+            await db.execute("CREATE INDEX IF NOT EXISTS idx_version ON state_log(version)")
             await db.commit()
             # Load latest from DB
             await self._load_latest_state()
-            
+
             # Ensure we have a default state if DB is empty
             if self._current is None:
                 from core.governance_context import governed_scope
@@ -227,24 +245,34 @@ class StateRepository:
                 serialized_current = self._serialize(self._current)
                 async with governed_scope(boot_governance_decision):
                     await self._commit_to_db(self._current, serialized_current)
-            
+
             # Setup SHM for writing
-            self._shm = SharedMemoryTransport(name="aura_state_shm", size=get_state_shm_size_bytes())
+            self._shm = SharedMemoryTransport(
+                name="aura_state_shm", size=get_state_shm_size_bytes()
+            )
             if self._shm:
                 try:
                     await self._shm.create()
                 except PermissionError as e:
-                    logger.warning("⚠️ [STATE] Shared memory unavailable in this runtime. Continuing without SHM: %s", e)
+                    logger.warning(
+                        "⚠️ [STATE] Shared memory unavailable in this runtime. Continuing without SHM: %s",
+                        e,
+                    )
                     self._shm = None
                 except OSError as e:
-                    logger.warning("⚠️ [STATE] Shared memory initialization failed. Continuing without SHM: %s", e)
+                    logger.warning(
+                        "⚠️ [STATE] Shared memory initialization failed. Continuing without SHM: %s",
+                        e,
+                    )
                     self._shm = None
 
                 # Synchronously write to SHM so it's ready before MindTick boots
                 if self._shm:
                     try:
                         if serialized_current is None:
-                            serialized_current = await asyncio.to_thread(self._serialize, self._current)
+                            serialized_current = await asyncio.to_thread(
+                                self._serialize, self._current
+                            )
                         from core.governance_context import governed_scope
 
                         async with governed_scope(boot_governance_decision):
@@ -258,15 +286,19 @@ class StateRepository:
                         logger.warning("⚠️ [STATE] Initial SHM write failed: %s", e)
 
             logger.info("✓ [STATE] Vault Owner Initialized with SHM for writing.")
-            
+
             # Start consumer
             self._is_processing = True
             if self._start_consumer_task() is None:
-                logger.warning("⚠️ [STATE] Mutation consumer scheduling deferred; runtime repair will retry.")
+                logger.warning(
+                    "⚠️ [STATE] Mutation consumer scheduling deferred; runtime repair will retry."
+                )
         else:
             self._transport = self._resolve_transport()
             # Proxy Mode: Attach to SHM for reading
-            self._shm = SharedMemoryTransport(name="aura_state_shm", size=get_state_shm_size_bytes())
+            self._shm = SharedMemoryTransport(
+                name="aura_state_shm", size=get_state_shm_size_bytes()
+            )
             if self._shm:
                 try:
                     await asyncio.wait_for(self._shm.attach(), timeout=2.5)
@@ -278,19 +310,24 @@ class StateRepository:
                             logger.info("✓ [STATE] Proxy Attached and Synced from Shared Memory")
                             break
                         await asyncio.sleep(0.2)
-                    
+
                     if not self._current:
-                         logger.warning("⚠️ [STATE] Proxy attached but SHM is empty (Wait possible)")
+                        logger.warning("⚠️ [STATE] Proxy attached but SHM is empty (Wait possible)")
                 except _STATE_BOUNDARY_ERRORS as e:
                     _record_state_degradation(e)
-                    logger.warning("⚠️ [STATE] Failed to attach to SHM, falling back to boot state: %s", e)
+                    logger.warning(
+                        "⚠️ [STATE] Failed to attach to SHM, falling back to boot state: %s", e
+                    )
                     self._shm = None
             if not self._current:
                 await self._fetch_state_from_vault()
             if not self._current:
                 from .aura_state import AuraState
+
                 self._current = AuraState()
-                logger.warning("⚠️ [STATE] Proxy could not hydrate from SHM or Vault. Using local boot snapshot.")
+                logger.warning(
+                    "⚠️ [STATE] Proxy could not hydrate from SHM or Vault. Using local boot snapshot."
+                )
 
     def _resolve_transport(self) -> Any:
         """Resolve the latest ActorBus instance from the container when needed."""
@@ -315,7 +352,9 @@ class StateRepository:
             logger.debug("🔄 [STATE] ActorBus unavailable; cannot fetch state from Vault yet.")
             return self._current
         if not self._transport_has_vault():
-            logger.debug("🔄 [STATE] ActorBus present but state_vault transport not registered yet.")
+            logger.debug(
+                "🔄 [STATE] ActorBus present but state_vault transport not registered yet."
+            )
             return self._current
 
         try:
@@ -330,33 +369,39 @@ class StateRepository:
 
         return self._current
 
-
-    async def commit(self, new_state: AuraState, cause: str, trace_id: str | None = None) -> AuraState:
+    async def commit(
+        self, new_state: AuraState, cause: str, trace_id: str | None = None
+    ) -> AuraState:
         """Queue a state transition for atomic owner-side processing."""
         if os.environ.get("AURA_STRICT_RUNTIME") == "1":
             from core.runtime.gateways import StateMutationRequest
             from core.state.state_gateway import get_state_gateway
+
             gw = get_state_gateway()
             try:
-                await gw.mutate(StateMutationRequest(
-                    key="aura_state_commit",
-                    new_value={"version": getattr(new_state, "version", 0)},
-                    cause=cause
-                ))
+                await gw.mutate(
+                    StateMutationRequest(
+                        key="aura_state_commit",
+                        new_value={"version": getattr(new_state, "version", 0)},
+                        cause=cause,
+                    )
+                )
             except PermissionError as exc:
                 raise RuntimeError(f"Strict Runtime: Direct state mutation blocked: {exc}") from exc
 
         trace_id = trace_id or f"trace_{int(time.time() * 1000)}"
         if self.is_vault_owner:
-            await self._enqueue_owner_commit({
-                "type": "commit",
-                "state": new_state,
-                "cause": cause,
-                "trace_id": trace_id,
-                "ts": time.time()
-            })
+            await self._enqueue_owner_commit(
+                {
+                    "type": "commit",
+                    "state": new_state,
+                    "cause": cause,
+                    "trace_id": trace_id,
+                    "ts": time.time(),
+                }
+            )
             return new_state  # Processor keeps the 'live' reference
-        
+
         # Proxy to owner via shared bus
         transport = self._resolve_transport()
         if transport:
@@ -380,7 +425,8 @@ class StateRepository:
                     _record_state_degradation(e)
                     logger.warning(
                         "⚠️ [STATE] Vault pipe broken (attempt %d/2): %s — state not persisted this tick.",
-                        attempt + 1, type(e).__name__,
+                        attempt + 1,
+                        type(e).__name__,
                     )
                     self._transport = None
                     transport = self._resolve_transport()
@@ -392,7 +438,9 @@ class StateRepository:
                 except _STATE_BOUNDARY_ERRORS as e:
                     _record_state_degradation(e)
                     last_error = e
-                    logger.warning("❌ [STATE] Proxy Commit Request FAILED (attempt %d/2): %s", attempt + 1, e)
+                    logger.warning(
+                        "❌ [STATE] Proxy Commit Request FAILED (attempt %d/2): %s", attempt + 1, e
+                    )
                     self._transport = None
                     transport = self._resolve_transport()
                     if attempt == 0:
@@ -402,7 +450,7 @@ class StateRepository:
                 raise last_error
         else:
             logger.error("🛑 [STATE] Commit failed: ActorBus/Transport missing in Proxy Mode")
-        
+
         return new_state
 
     async def _enqueue_owner_commit(self, payload: dict[str, Any]) -> None:
@@ -449,7 +497,7 @@ class StateRepository:
 
     async def get_state(self) -> AuraState | None:
         """
-        Retrieve the latest state. 
+        Retrieve the latest state.
         In Proxy mode, this reads from Shared Memory for zero-latency access.
         """
         if self.is_vault_owner:
@@ -594,7 +642,9 @@ class StateRepository:
         try:
             start_ser = time.perf_counter()
             if self._should_use_bounded_db_snapshot(new_state, cause):
-                serialized_data = await asyncio.to_thread(self._serialize_transport_snapshot, new_state)
+                serialized_data = await asyncio.to_thread(
+                    self._serialize_transport_snapshot, new_state
+                )
             else:
                 serialized_data = await asyncio.to_thread(self._serialize, new_state)
                 payload_bytes = len(serialized_data.encode("utf-8"))
@@ -605,7 +655,9 @@ class StateRepository:
                         payload_bytes,
                         self.DB_PAYLOAD_MAX_BYTES,
                     )
-                    serialized_data = await asyncio.to_thread(self._serialize_transport_snapshot, new_state)
+                    serialized_data = await asyncio.to_thread(
+                        self._serialize_transport_snapshot, new_state
+                    )
             ser_ms = (time.perf_counter() - start_ser) * 1000
             self._last_serialization_ms = ser_ms
             if ser_ms > 20:
@@ -617,27 +669,37 @@ class StateRepository:
 
         async with self.lock:
             current = self._current
-            previous_pending = list(getattr(getattr(current, "cognition", None), "pending_initiatives", []) or []) if current else []
+            previous_pending = (
+                list(getattr(getattr(current, "cognition", None), "pending_initiatives", []) or [])
+                if current
+                else []
+            )
             # Atomic Version Guard
             if current and new_state.version <= current.version:
                 if cause != "bootstrap":
                     logger.debug(
                         "[STATE] Atomic Guard Reject: Version %d <= current %d (Cause: %s)",
-                        new_state.version, self._current.version, cause
+                        new_state.version,
+                        self._current.version,
+                        cause,
                     )
                     return
 
             new_state.transition_cause = cause
             new_state.updated_at = time.time()
-            
+
             # --- ATOMIC MEMORY UPDATE ---
             self._current = new_state
-            logger.debug("💾 [STATE] Memory state updated to v%d. Releasing lock for IO.", new_state.version)
+            logger.debug(
+                "💾 [STATE] Memory state updated to v%d. Releasing lock for IO.", new_state.version
+            )
 
         try:
             from core.constitution import ProposalKind, get_constitutional_core
 
-            current_pending = list(getattr(getattr(new_state, "cognition", None), "pending_initiatives", []) or [])
+            current_pending = list(
+                getattr(getattr(new_state, "cognition", None), "pending_initiatives", []) or []
+            )
             previous_keys = {
                 json.dumps(item, sort_keys=True, default=str)
                 for item in previous_pending
@@ -652,7 +714,9 @@ class StateRepository:
                     continue
                 constitution.record_external_decision(
                     kind=ProposalKind.INITIATIVE,
-                    source=str(item.get("source") or getattr(new_state, "transition_origin", "system")),
+                    source=str(
+                        item.get("source") or getattr(new_state, "transition_origin", "system")
+                    ),
                     summary=str(item.get("goal") or item.get("type") or "initiative"),
                     outcome="recorded",
                     reason=f"state_commit:{cause}",
@@ -701,7 +765,9 @@ class StateRepository:
         return is_user_facing_origin(origin)
 
     def _should_use_bounded_db_snapshot(self, state: AuraState, cause: str) -> bool:
-        origin = getattr(state, "transition_origin", "") or getattr(getattr(state, "cognition", None), "current_origin", "")
+        origin = getattr(state, "transition_origin", "") or getattr(
+            getattr(state, "cognition", None), "current_origin", ""
+        )
         if not self._is_user_facing_origin(origin):
             return True
         cause_lower = str(cause or "").strip().lower()
@@ -758,10 +824,23 @@ class StateRepository:
             "vault_transport_available": vault_transport_available,
         }
 
+    def is_initialized(self) -> bool:
+        """Return True only when continuity state and transport are usable."""
+        status = self.get_runtime_status()
+        if not bool(status["state_available"]):
+            return False
+        if self.is_vault_owner:
+            return bool(status["db_connected"] and status["consumer_alive"])
+        return bool(status["consumer_alive"])
+
     async def repair_runtime(self) -> dict[str, Any]:
         actions: list[str] = []
 
-        if self.is_vault_owner and self._is_processing and (self._consumer_task is None or self._consumer_task.done()):
+        if (
+            self.is_vault_owner
+            and self._is_processing
+            and (self._consumer_task is None or self._consumer_task.done())
+        ):
             if self._start_consumer_task() is not None:
                 self._repair_count += 1
                 actions.append("restarted_consumer")
@@ -861,52 +940,72 @@ class StateRepository:
                 identity.get("current_narrative"),
                 limit=2048,
             )
-            identity["concept_graph"] = self._bounded_transport_value(identity.get("concept_graph", {}))
+            identity["concept_graph"] = self._bounded_transport_value(
+                identity.get("concept_graph", {})
+            )
 
         cognition = snapshot.get("cognition")
         if isinstance(cognition, dict):
             cognition["working_memory"] = self._bounded_transport_value(
-                list(cognition.get("working_memory", []) or [])[-self.TRANSPORT_WORKING_MEMORY_LIMIT:],
+                list(cognition.get("working_memory", []) or [])[
+                    -self.TRANSPORT_WORKING_MEMORY_LIMIT :
+                ],
                 max_items=self.TRANSPORT_WORKING_MEMORY_LIMIT,
                 prefer_tail=True,
             )
             cognition["long_term_memory"] = self._bounded_transport_value(
-                list(cognition.get("long_term_memory", []) or [])[-self.TRANSPORT_LONG_TERM_MEMORY_LIMIT:],
+                list(cognition.get("long_term_memory", []) or [])[
+                    -self.TRANSPORT_LONG_TERM_MEMORY_LIMIT :
+                ],
                 max_items=self.TRANSPORT_LONG_TERM_MEMORY_LIMIT,
                 prefer_tail=True,
             )
             cognition["active_goals"] = self._bounded_transport_value(
-                list(cognition.get("active_goals", []) or [])[-self.TRANSPORT_GOAL_LIMIT:],
+                list(cognition.get("active_goals", []) or [])[-self.TRANSPORT_GOAL_LIMIT :],
                 max_items=self.TRANSPORT_GOAL_LIMIT,
                 prefer_tail=True,
             )
             cognition["pending_initiatives"] = self._bounded_transport_value(
-                list(cognition.get("pending_initiatives", []) or [])[-self.TRANSPORT_GOAL_LIMIT:],
+                list(cognition.get("pending_initiatives", []) or [])[-self.TRANSPORT_GOAL_LIMIT :],
                 max_items=self.TRANSPORT_GOAL_LIMIT,
                 prefer_tail=True,
             )
             cognition["pending_intents"] = self._bounded_transport_value(
-                list(cognition.get("pending_intents", []) or [])[-self.TRANSPORT_GOAL_LIMIT:],
+                list(cognition.get("pending_intents", []) or [])[-self.TRANSPORT_GOAL_LIMIT :],
                 max_items=self.TRANSPORT_GOAL_LIMIT,
                 prefer_tail=True,
             )
-            cognition["rolling_summary"] = self._truncate_transport_text(cognition.get("rolling_summary"))
-            cognition["last_response"] = self._truncate_transport_text(cognition.get("last_response"), limit=2048)
-            cognition["modifiers"] = self._bounded_transport_value(cognition.get("modifiers", {}), max_items=48)
+            cognition["rolling_summary"] = self._truncate_transport_text(
+                cognition.get("rolling_summary")
+            )
+            cognition["last_response"] = self._truncate_transport_text(
+                cognition.get("last_response"), limit=2048
+            )
+            cognition["modifiers"] = self._bounded_transport_value(
+                cognition.get("modifiers", {}), max_items=48
+            )
 
         world = snapshot.get("world")
         if isinstance(world, dict):
-            world["known_entities"] = self._bounded_transport_value(world.get("known_entities", {}), max_items=96)
-            world["relationship_graph"] = self._bounded_transport_value(world.get("relationship_graph", {}), max_items=96)
+            world["known_entities"] = self._bounded_transport_value(
+                world.get("known_entities", {}), max_items=96
+            )
+            world["relationship_graph"] = self._bounded_transport_value(
+                world.get("relationship_graph", {}), max_items=96
+            )
             world["recent_percepts"] = self._bounded_transport_value(
-                list(world.get("recent_percepts", []) or [])[-self.TRANSPORT_PERCEPT_LIMIT:],
+                list(world.get("recent_percepts", []) or [])[-self.TRANSPORT_PERCEPT_LIMIT :],
                 max_items=self.TRANSPORT_PERCEPT_LIMIT,
                 prefer_tail=True,
             )
-            world["spatial_context"] = self._bounded_transport_value(world.get("spatial_context", {}), max_items=24)
+            world["spatial_context"] = self._bounded_transport_value(
+                world.get("spatial_context", {}), max_items=24
+            )
 
         snapshot["health"] = self._bounded_transport_value(snapshot.get("health", {}), max_items=64)
-        snapshot["response_modifiers"] = self._bounded_transport_value(snapshot.get("response_modifiers", {}), max_items=48)
+        snapshot["response_modifiers"] = self._bounded_transport_value(
+            snapshot.get("response_modifiers", {}), max_items=48
+        )
 
         return json.dumps(snapshot, ensure_ascii=False)
 
@@ -918,7 +1017,11 @@ class StateRepository:
             self._last_shm_write_mode = "disabled"
             return "disabled"
 
-        payload = serialized_state.encode("utf-8") if isinstance(serialized_state, str) else bytes(serialized_state)
+        payload = (
+            serialized_state.encode("utf-8")
+            if isinstance(serialized_state, str)
+            else bytes(serialized_state)
+        )
         if len(payload) > shm.payload_capacity:
             hot_snapshot_payload: bytes | None = None
             try:
@@ -979,11 +1082,10 @@ class StateRepository:
     async def get_history(self, limit: int = 100) -> list[AuraState]:
         """Read recent persisted state snapshots from the shared DB connection."""
         db = await self._ensure_db()
-            
+
         try:
             async with db.execute(
-                "SELECT state_json FROM state_log ORDER BY version DESC LIMIT ?",
-                (limit,)
+                "SELECT state_json FROM state_log ORDER BY version DESC LIMIT ?", (limit,)
             ) as cursor:
                 rows = await cursor.fetchall()
             return [self._deserialize(row[0]) for row in rows]
@@ -995,7 +1097,7 @@ class StateRepository:
     async def _load_latest_state(self) -> None:
         """Hydrate the latest persisted state from the shared DB connection."""
         db = await self._ensure_db()
-            
+
         try:
             async with db.execute(
                 "SELECT state_json FROM state_log ORDER BY version DESC LIMIT 1"
@@ -1018,7 +1120,7 @@ class StateRepository:
             _record_state_degradation(_e, action="state log persistence probe skipped")
             logger.debug("StateRepository persistence probe skipped: %s", _e)
         return False
-        
+
     async def rollback(self, reason: str = "Unknown") -> AuraState | None:
         """Rollback to the last stable state in the log."""
         async with self.lock:
@@ -1027,25 +1129,31 @@ class StateRepository:
             if len(history) < 2:
                 logger.error("🛑 [STATE] Rollback failed: Insufficient history.")
                 return self._current
-            
+
             # Revert to the state BEFORE the current one
             previous_state = history[1]
-            if previous_state is None or (self._current and previous_state.version >= self._current.version):
-                logger.error("🛑 [STATE] Rollback failed: Previous state is not older than current.")
+            if previous_state is None or (
+                self._current and previous_state.version >= self._current.version
+            ):
+                logger.error(
+                    "🛑 [STATE] Rollback failed: Previous state is not older than current."
+                )
                 return self._current
             # Derive a new 'stabilized' state from the previous one
             stabilized_state = await previous_state.derive_async(f"rollback: {reason}")
-            
+
             # Commit the stabilized state
             try:
                 serialized = self._serialize(stabilized_state)
                 await self._commit_to_db(stabilized_state, serialized)
                 self._current = stabilized_state
-                logger.info("✅ [STATE] Rollback complete. Restored to version %d", stabilized_state.version)
+                logger.info(
+                    "✅ [STATE] Rollback complete. Restored to version %d", stabilized_state.version
+                )
             except _STATE_BOUNDARY_ERRORS as e:
                 _record_state_degradation(e)
                 logger.error("🛑 [STATE] Rollback persistence failed: %s", e)
-            
+
             return self._current
 
     @effect_sink("state.commit_to_db", allowed_domains=("state_mutation",))
@@ -1059,8 +1167,14 @@ class StateRepository:
                         """INSERT OR REPLACE INTO state_log 
                            (state_id, version, parent_state_id, transition_cause, state_json, timestamp)
                            VALUES (?, ?, ?, ?, ?, ?)""",
-                        (state.state_id, state.version, state.parent_state_id, 
-                         state.transition_cause, serialized_data, state.updated_at)
+                        (
+                            state.state_id,
+                            state.version,
+                            state.parent_state_id,
+                            state.transition_cause,
+                            serialized_data,
+                            state.updated_at,
+                        ),
                     )
                     await db.commit()
                 logger.debug("💾 State v%s committed to Vault DB.", state.version)
@@ -1116,7 +1230,9 @@ class StateRepository:
             await db.commit()
             logger.info(
                 "🧹 [STATE] Pruned state log: removed up to %d of %d rows (keeping %d).",
-                excess, total, self.STATE_LOG_MAX_ROWS,
+                excess,
+                total,
+                self.STATE_LOG_MAX_ROWS,
             )
         except _STATE_BOUNDARY_ERRORS as e:
             _record_state_degradation(e)
@@ -1125,6 +1241,7 @@ class StateRepository:
     def _vacuum_sync(self) -> None:
         """Run VACUUM synchronously in a thread to reclaim disk space."""
         import sqlite3
+
         try:
             conn = sqlite3.connect(self.db_path)
             conn.execute("VACUUM")
@@ -1140,22 +1257,27 @@ class StateRepository:
             memo = set()
             # Ensure recursion limit is sufficient for deep state trees
             import sys
+
             if sys.getrecursionlimit() < 2000:
                 sys.setrecursionlimit(2000)
-        
+
         # 1. Depth Guard
         if depth > 80:
-            logger.error("🚨 [STATE] Serialization depth limit exceeded (>80). CRITICAL RECURSION RISK.")
+            logger.error(
+                "🚨 [STATE] Serialization depth limit exceeded (>80). CRITICAL RECURSION RISK."
+            )
             return f"<DEPTH_LIMIT_REACHED: {type(obj).__name__}>"
 
         # 2. Cycle Detection
         obj_id = id(obj)
         # We only track complexity/containers for cycles
         is_container = dataclasses.is_dataclass(obj) or isinstance(obj, (dict, list, tuple))
-        
+
         if is_container:
             if obj_id in memo:
-                logger.warning("♻️ [STATE] Circular reference detected: %s (id=%d)", type(obj).__name__, obj_id)
+                logger.warning(
+                    "♻️ [STATE] Circular reference detected: %s (id=%d)", type(obj).__name__, obj_id
+                )
                 return f"<CircularReference: {type(obj).__name__}>"
             memo.add(obj_id)
 
@@ -1170,19 +1292,21 @@ class StateRepository:
                     value = getattr(obj, f.name)
                     result[f.name] = self._circular_safe_asdict(value, memo, depth + 1)
                 return result
-            
+
             elif isinstance(obj, dict):
-                return {str(k): self._circular_safe_asdict(v, memo, depth + 1) for k, v in obj.items()}
-            
+                return {
+                    str(k): self._circular_safe_asdict(v, memo, depth + 1) for k, v in obj.items()
+                }
+
             elif isinstance(obj, (list, tuple)):
                 return [self._circular_safe_asdict(i, memo, depth + 1) for i in obj]
-            
+
             elif isinstance(obj, Enum):
                 return obj.value
-            
+
             elif isinstance(obj, (str, int, float, bool, type(None))):
                 return obj
-            
+
             else:
                 # Prevent recursion via __str__/repr on unknown objects
                 type_name = type(obj).__name__
@@ -1203,8 +1327,8 @@ class StateRepository:
             raise ValueError("Cannot serialize None state")
         if not state.state_id:
             logger.warning("[STATE] Serializing state with missing state_id. Assigning default.")
-            state.state_id = f"st_{int(time.time()*1000)}"
-            
+            state.state_id = f"st_{int(time.time() * 1000)}"
+
         try:
             d = self._circular_safe_asdict(state)
             return json.dumps(d, ensure_ascii=False)
@@ -1229,15 +1353,16 @@ class StateRepository:
             SomaState,
             WorldModel,
         )
+
         data = json.loads(json_str)
         # Reconstruct nested dataclasses with safety defaults
-        data['identity'] = IdentityKernel(**data.get('identity', {}))
-        data['affect'] = AffectVector(**data.get('affect', {}))
-        
-        cog = data.get('cognition', {})
-        legacy_pending_intents = data.pop('pending_intents', None)
-        if 'current_mode' in cog:
-            cog['current_mode'] = CognitiveMode(cog['current_mode'])
+        data["identity"] = IdentityKernel(**data.get("identity", {}))
+        data["affect"] = AffectVector(**data.get("affect", {}))
+
+        cog = data.get("cognition", {})
+        legacy_pending_intents = data.pop("pending_intents", None)
+        if "current_mode" in cog:
+            cog["current_mode"] = CognitiveMode(cog["current_mode"])
         phenomenal = cog.get("phenomenal_state")
         if isinstance(phenomenal, dict):
             cog["phenomenal_state"] = PhenomenalField(**phenomenal)
@@ -1246,27 +1371,25 @@ class StateRepository:
             cog["unity_state"] = UnityState.from_dict(unity_state)
         if legacy_pending_intents and "pending_intents" not in cog:
             cog["pending_intents"] = legacy_pending_intents
-        data['cognition'] = CognitiveContext(**cog)
-        
-        data['world'] = WorldModel(**data.get('world', {}))
-        data['soma'] = SomaState(**data.get('soma', {}))
-        data['motivation'] = MotivationState(**data.get('motivation', {}))
-        
+        data["cognition"] = CognitiveContext(**cog)
+
+        data["world"] = WorldModel(**data.get("world", {}))
+        data["soma"] = SomaState(**data.get("soma", {}))
+        data["motivation"] = MotivationState(**data.get("motivation", {}))
+
         # ColdStore hydration (including CurriculumItems)
-        cold_data = data.get('cold', {})
-        curriculum_data = cold_data.get('training_curriculum', [])
-        cold_data['training_curriculum'] = [CurriculumItem(**item) for item in curriculum_data]
-        data['cold'] = ColdStore(**cold_data)
-        
+        cold_data = data.get("cold", {})
+        curriculum_data = cold_data.get("training_curriculum", [])
+        cold_data["training_curriculum"] = [CurriculumItem(**item) for item in curriculum_data]
+        data["cold"] = ColdStore(**cold_data)
+
         # Health field reconstruction
-        data['health'] = data.get('health', {
-            "circuits": {},
-            "capabilities": {},
-            "watchdog_timestamp": time.time()
-        })
-        
+        data["health"] = data.get(
+            "health", {"circuits": {}, "capabilities": {}, "watchdog_timestamp": time.time()}
+        )
+
         # Remove transport-injected fields
-        data.pop('_bus_id', None)
-        data.pop('_transport_snapshot_kind', None)
-        
+        data.pop("_bus_id", None)
+        data.pop("_transport_snapshot_kind", None)
+
         return AuraState(**data)
