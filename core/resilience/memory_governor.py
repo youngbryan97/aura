@@ -122,7 +122,7 @@ class MemoryGovernor:
             logger.info("🛡️ Memory Governor shutdown complete. All worker handles purged.")
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
             record_degradation('memory_governor', e)
-            logger.error(f"Error during Memory Governor shutdown: {e}")
+            logger.error("Error during Memory Governor shutdown: %s", e)
 
     async def _run_loop(self):
         """Periodic resource check and enforcement."""
@@ -326,7 +326,7 @@ class MemoryGovernor:
                             sentinel.release()
                 except (ImportError, AttributeError, RuntimeError) as e:
                     record_degradation('memory_governor', e)
-                    logger.debug(f"[MLX] Cache clear skipped: {e}")
+                    logger.debug("[MLX] Cache clear skipped: %s", e)
             except ImportError as _e:
                 logger.debug('Ignored ImportError in memory_governor.py: %s', _e)
 
@@ -352,7 +352,7 @@ class MemoryGovernor:
                 self._last_vacuum_time = time.monotonic()
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('memory_governor', e)
-            logger.error(f"VACUUM Failed: {e}")
+            logger.error("VACUUM Failed: %s", e)
 
     async def _periodic_vector_prune(self):
         """Prune low-salience memories on a real schedule, not only under pressure."""
@@ -363,7 +363,7 @@ class MemoryGovernor:
             self._last_vector_prune_time = time.monotonic()
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
             record_degradation('memory_governor', e)
-            logger.error(f"Periodic vector prune failed: {e}")
+            logger.error("Periodic vector prune failed: %s", e)
 
     async def _critical_cleanup(self):
         """Maximum effort cleanup."""
@@ -419,4 +419,4 @@ class MemoryGovernor:
                 root.force_compiler_wake()
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('memory_governor', e)
-            logger.error(f"Failed to pulse platform root: {e}")
+            logger.error("Failed to pulse platform root: %s", e)

@@ -61,7 +61,7 @@ class Tricorder:
             z_score = abs(latency - mean) / std_dev
             
             if z_score > self._anomaly_threshold:
-                logger.warning(f"🚨 [PRECRIME] Latency Anomaly Detected: z={z_score:.2f}. Foreseeing system stall.")
+                logger.warning("🚨 [PRECRIME] Latency Anomaly Detected: z=%s. Foreseeing system stall.", f"{z_score:.2f}")
                 if self._event_bus:
                     self._event_bus.publish_threadsafe("core/cybernetics/precrime_alert", {
                         "z_score": z_score,

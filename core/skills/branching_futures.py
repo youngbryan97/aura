@@ -43,7 +43,7 @@ class BranchingFuturesSkill(BaseSkill):
         branch_id = f"future_{uuid.uuid4().hex[:6]}"
         sandbox_dir = os.path.join(tempfile.gettempdir(), f"aura_branch_{branch_id}")
         
-        logger.info(f"Initiating Branching Future: {branch_id}")
+        logger.info("Initiating Branching Future: %s", branch_id)
         
         try:
             # Fork the codebase
@@ -92,7 +92,7 @@ if __name__ == "__main__":
             env["AURA_BRANCH_ID"] = branch_id
             env["AURA_HEADLESS"] = "1"
             
-            logger.info(f"Launching ghost inference thread in {sandbox_dir}...")
+            logger.info("Launching ghost inference thread in %s...", sandbox_dir)
             
             cmd = ["python3", ".branch_runner.py"]
             

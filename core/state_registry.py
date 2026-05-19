@@ -106,14 +106,14 @@ class UnifiedStateRegistry:
                     except (RuntimeError, AttributeError, TypeError, ValueError) as e:
                         record_degradation('state_registry', e)
                         self.failed_notifications += 1
-                        logger.error(f"StateRegistry listener failed: {e}")
+                        logger.error("StateRegistry listener failed: %s", e)
                 
                 self._notify_queue.task_done()
             except asyncio.CancelledError:
                 break
             except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('state_registry', e)
-                logger.error(f"StateRegistry dispatcher error: {e}")
+                logger.error("StateRegistry dispatcher error: %s", e)
                 await asyncio.sleep(0.1)
 
     async def update(self, **kwargs):
@@ -140,7 +140,7 @@ class UnifiedStateRegistry:
                     setattr(self._state, key, value)
                     has_changes = True
             else:
-                logger.warning(f"Attempted to update unknown state field: {key}")
+                logger.warning("Attempted to update unknown state field: %s", key)
         
         if has_changes:
             self._state.version += 1

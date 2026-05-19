@@ -66,7 +66,7 @@ Prediction:"""
             )
         except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
             record_degradation('predictive_engine', e)
-            logger.error(f"Prediction failed: {e}")
+            logger.error("Prediction failed: %s", e)
             prediction_text = "I predict a continuation of the current thread."
         
         # Estimate confidence from affect — high curiosity = high uncertainty

@@ -40,10 +40,10 @@ class DesktopNotifier:
                 capture_output=True,
                 timeout=5
             )
-            logger.debug(f"Pushed macOS notification: {title} | {message}")
+            logger.debug("Pushed macOS notification: %s | %s", title, message)
         except (subprocess.SubprocessError, OSError) as e:
             record_degradation('notifications', e)
-            logger.error(f"Failed to send desktop notification: {e}")
+            logger.error("Failed to send desktop notification: %s", e)
 
     @staticmethod
     def push_insight(message: str) -> None:

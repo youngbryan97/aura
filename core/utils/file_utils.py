@@ -32,7 +32,7 @@ def atomic_write_json(file_path: str, data: Any, indent: int = 2) -> None:
         os.replace(temp_path, file_path)
     except (RuntimeError, AttributeError, TypeError, ValueError) as e:
         record_degradation('file_utils', e)
-        logger.error(f"Atomic write to {file_path} failed: {e}")
+        logger.error("Atomic write to %s failed: %s", file_path, e)
         if os.path.exists(temp_path):
             try:
                 os.remove(temp_path)

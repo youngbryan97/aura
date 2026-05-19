@@ -83,7 +83,7 @@ class CapabilityGuard:
         """Checks if the system is allowed to read from a path."""
         p = Path(path).resolve()
         if self._is_restricted_path(p):
-            logger.warning(f"SecurityViolation: Access Denied (Restricted Pattern): {path}")
+            logger.warning("SecurityViolation: Access Denied (Restricted Pattern): %s", path)
             return False
 
         allowed_dirs = self.capabilities.get("file_system", {}).get("allowed_read", [])
@@ -108,14 +108,14 @@ class CapabilityGuard:
             # Explicitly log the mismatch without suppressing the full context
             logger.debug("Path %s is not under Data Dir: %s", p, e)
 
-        logger.warning(f"SecurityViolation: Access Denied (Path not in manifest): {path}")
+        logger.warning("SecurityViolation: Access Denied (Path not in manifest): %s", path)
         return False
 
     def can_write_path(self, path: str) -> bool:
         """Checks if the system is allowed to write to a path."""
         p = Path(path).resolve()
         if self._is_restricted_path(p):
-            logger.warning(f"SecurityViolation: Write Denied (Restricted Pattern): {path}")
+            logger.warning("SecurityViolation: Write Denied (Restricted Pattern): %s", path)
             return False
 
         allowed_dirs = self.capabilities.get("file_system", {}).get("allowed_write", [])
@@ -136,7 +136,7 @@ class CapabilityGuard:
         except ValueError as e:
             logger.debug("Write path %s check: not under data dir (%s)", p, e)
 
-        logger.warning(f"SecurityViolation: Write Denied (Path not in manifest): {path}")
+        logger.warning("SecurityViolation: Write Denied (Path not in manifest): %s", path)
         return False
 
     def can_call_tool(self, tool_name: str, args: Dict[str, Any]) -> bool:

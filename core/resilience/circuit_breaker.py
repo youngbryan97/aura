@@ -77,7 +77,7 @@ class CircuitBreaker:
             if self.state == CircuitState.OPEN:
                 elapsed = time.monotonic() - self.last_failure_time
                 if elapsed > self.current_recovery_timeout:
-                    logger.info(f"⚡ Circuit '{self.name}' trial (Streak: {self.total_failure_streak}, Cooldown: {self.current_recovery_timeout}s).")
+                    logger.info("⚡ Circuit '%s' trial (Streak: %s, Cooldown: %ss).", self.name, self.total_failure_streak, self.current_recovery_timeout)
                     self.state = CircuitState.HALF_OPEN
                     self._update_metrics()
                 else:
@@ -102,7 +102,7 @@ class CircuitBreaker:
     def _record_success(self):
         """Resets the circuit upon a successful operation."""
         if self.state == CircuitState.HALF_OPEN:
-            logger.info(f"✅ Circuit '{self.name}' recovered (state: CLOSED).")
+            logger.info("✅ Circuit '%s' recovered (state: CLOSED).", self.name)
         self.state = CircuitState.CLOSED
         self.failure_count = 0
         self.total_failure_streak = 0
@@ -119,12 +119,12 @@ class CircuitBreaker:
         if self.state == CircuitState.HALF_OPEN:
             self.state = CircuitState.OPEN
             self.total_failure_streak += 1
-            logger.warning(f"🚨 Circuit '{self.name}' trial failed (Streak: {self.total_failure_streak}). Re-opening.")
+            logger.warning("🚨 Circuit '%s' trial failed (Streak: %s). Re-opening.", self.name, self.total_failure_streak)
         elif self.failure_count >= self.failure_threshold:
             if self.state != CircuitState.OPEN:
                 self.state = CircuitState.OPEN
                 self.total_failure_streak += 1
-                logger.critical(f"🚨 Circuit '{self.name}' tripped (Streak: {self.total_failure_streak})!")
+                logger.critical("🚨 Circuit '%s' tripped (Streak: %s)!", self.name, self.total_failure_streak)
         self._update_metrics()
 
     # --- Legacy & Compatibility Methods ---

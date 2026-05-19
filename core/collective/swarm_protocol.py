@@ -69,7 +69,7 @@ class SwarmProtocol:
                 await self._process_gossip(message)
         except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
             record_degradation('swarm_protocol', e)
-            logger.debug(f"Swarm gossip error: {e}")
+            logger.debug("Swarm gossip error: %s", e)
         finally:
             writer.close()
             await writer.wait_closed()
@@ -96,7 +96,7 @@ class SwarmProtocol:
         elif msg_type == "skill_verification":
             # Consensus Gating: Verify a forged skill
             skill_id = message.get("skill_id")
-            logger.info(f"🤝 Swarm Consensus requested for skill: {skill_id}")
+            logger.info("🤝 Swarm Consensus requested for skill: %s", skill_id)
             # Automatically approve for now (In real AGI, other nodes would run tests)
             await self.broadcast({"type": "skill_approved", "skill_id": skill_id, "node_id": self.node_id})
 

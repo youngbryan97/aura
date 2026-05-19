@@ -74,7 +74,7 @@ class RobustLock:
                 m = get_metrics()._custom_gauges.get("gpu_utilization", 0)
                 if m > 0.8:
                     wait_time = max(wait_time, 180.0)
-                    logger.debug(f"🛡️ [ADAPTIVE] GPU Saturated ({m:.2f}). Extending '{self.name}' timeout to {wait_time}s")
+                    logger.debug("🛡️ [ADAPTIVE] GPU Saturated (%s). Extending '%s' timeout to %ss", f"{m:.2f}", self.name, wait_time)
             except (ImportError, AttributeError, RuntimeError) as _exc:
                 record_degradation('concurrency', _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
@@ -122,16 +122,16 @@ class RobustLock:
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:
                 record_degradation('concurrency', e)
                 watchdog.report_release(self.id)
-                logger.error(f"Unexpected error acquiring lock '{self.name}': {e}")
+                logger.error("Unexpected error acquiring lock '%s': %s", self.name, e)
                 break
 
             if success:
                 watchdog.report_acquire_success(self.id)
-                logger.debug(f"Successfully locked: '{self.name}'")
+                logger.debug("Successfully locked: '%s'", self.name)
                 return True
 
             watchdog.report_release(self.id)
-            logger.warning(f"Attempt {attempt + 1}/{max_retries}: Timeout waiting for '{self.name}'.")
+            logger.warning("Attempt %s/%s: Timeout waiting for '%s'.", attempt + 1, max_retries, self.name)
             await asyncio.sleep(random.uniform(0.1, 0.5))
 
         # Safety valve: force-release the EXISTING lock (don't reinitialize)
@@ -163,10 +163,10 @@ class RobustLock:
                 self._lock.release()
                 from core.resilience.lock_watchdog import get_lock_watchdog
                 get_lock_watchdog().report_release(self.id)
-                logger.debug(f"Released lock: '{self.name}'")
+                logger.debug("Released lock: '%s'", self.name)
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('concurrency', e)
-            logger.debug(f"RobustLock.release() error for '{self.name}': {e}")
+            logger.debug("RobustLock.release() error for '%s': %s", self.name, e)
 
     def force_release(self):
         """CRITICAL: Force release the lock to break a detected deadlock.
@@ -174,7 +174,7 @@ class RobustLock:
         Replaces the lock entirely so that the blocked thread can proceed.
         The thread holding the old lock will release the old lock safely.
         """
-        logger.critical(f"⚠️ FORCE RELEASING LOCK '{self.name}' due to deadlock watchdog!")
+        logger.critical("⚠️ FORCE RELEASING LOCK '%s' due to deadlock watchdog!", self.name)
         try:
             self._lock = threading.Lock()
         except RuntimeError:
@@ -222,7 +222,7 @@ class DeadlockPrevention:
         # Step 1: Strict Ordering (Sort the requested resources by name)
         sorted_resources = sorted(resources, key=lambda r: r.name)
         resource_names = [r.name for r in sorted_resources]
-        logger.debug(f"Starting multi-lock acquisition for: {resource_names}")
+        logger.debug("Starting multi-lock acquisition for: %s", resource_names)
         
         for attempt in range(max_retries):
             acquired_locks: List[LockableResource] = []
@@ -238,14 +238,14 @@ class DeadlockPrevention:
                     break
             
             if success:
-                logger.info(f"All locks acquired for: {resource_names}")
+                logger.info("All locks acquired for: %s", resource_names)
                 return True
             else:
                 # Phase 4a: Release what we managed to grab
                 for res in reversed(acquired_locks):
                     res.lock.release()
                 
-                logger.debug(f"Backing off after failed attempt {attempt + 1} for {resource_names}")
+                logger.debug("Backing off after failed attempt %s for %s", attempt + 1, resource_names)
                 # Phase 4b: Randomized backoff before next attempt
                 await asyncio.sleep(random.uniform(0.1, 0.5))
         
@@ -388,21 +388,21 @@ class RobustSemaphore:
         thread primitive itself. That avoids orphaned background threads that
         can still acquire the permit after asyncio-side cancellation/timeout.
         """
-        logger.debug(f"Attempting to acquire semaphore: '{self.name}'")
+        logger.debug("Attempting to acquire semaphore: '%s'", self.name)
         if timeout is None:
             acquired = await asyncio.to_thread(self._sem.acquire)
         else:
             acquired = await asyncio.to_thread(self._sem.acquire, True, max(0.0, float(timeout)))
         if acquired:
-            logger.debug(f"Acquired semaphore: '{self.name}'")
+            logger.debug("Acquired semaphore: '%s'", self.name)
         else:
-            logger.debug(f"Semaphore acquire timed out: '{self.name}'")
+            logger.debug("Semaphore acquire timed out: '%s'", self.name)
         return bool(acquired)
 
     def release(self):
         """Release the underlying threading.Semaphore."""
         self._sem.release()
-        logger.debug(f"Released semaphore: '{self.name}'")
+        logger.debug("Released semaphore: '%s'", self.name)
 
     async def __aenter__(self):
         await self.acquire()

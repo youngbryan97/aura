@@ -37,10 +37,10 @@ class LifespanManager:
                 svc = ServiceContainer.get(name)
                 if svc and hasattr(svc, "start") and asyncio.iscoroutinefunction(svc.start):
                     await svc.start()
-                    logger.info(f"✅ {name} started")
+                    logger.info("✅ %s started", name)
             except (ImportError, AttributeError, RuntimeError) as e:
                 record_degradation('lifespan', e)
-                logger.critical(f"❌ {name} failed to start: {e}")
+                logger.critical("❌ %s failed to start: %s", name, e)
                 await self.emergency_shutdown()
                 raise
 
@@ -59,16 +59,16 @@ class LifespanManager:
                 svc = ServiceContainer.get(name)
                 if svc and hasattr(svc, "stop") and asyncio.iscoroutinefunction(svc.stop):
                     await asyncio.wait_for(svc.stop(), timeout=8.0)
-                    logger.info(f"✅ {name} stopped cleanly")
+                    logger.info("✅ %s stopped cleanly", name)
                 elif svc and hasattr(svc, "stop"):
                     # Fallback for non-async stop if any
                     svc.stop()
-                    logger.info(f"✅ {name} stopped (sync)")
+                    logger.info("✅ %s stopped (sync)", name)
             except asyncio.TimeoutError:
-                logger.error(f"⏰ {name} shutdown timeout — force cancelling")
+                logger.error("⏰ %s shutdown timeout — force cancelling", name)
             except (ImportError, AttributeError, RuntimeError) as e:
                 record_degradation('lifespan', e)
-                logger.error(f"⚠️ {name} shutdown error: {e}")
+                logger.error("⚠️ %s shutdown error: %s", name, e)
 
         self._running = False
         logger.info("✅ Aura shutdown complete — all resources released.")

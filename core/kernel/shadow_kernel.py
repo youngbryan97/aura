@@ -93,7 +93,7 @@ class ShadowExecutionPhase(Phase):
                 return False
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
             record_degradation('shadow_kernel', e)
-            logger.error(f"Sandbox: Critical failure during structural validation: {e}")
+            logger.error("Sandbox: Critical failure during structural validation: %s", e)
             return False
             
         return True
@@ -160,12 +160,12 @@ class ShadowExecutionPhase(Phase):
             # Non-blocking get from queue
             result = result_queue.get_nowait()
             if not result.get("ok"):
-                logger.error(f"Sandbox: Mutation failed: {result.get('trace') or result.get('info')}")
+                logger.error("Sandbox: Mutation failed: %s", result.get('trace') or result.get('info'))
                 return False
                 
-            logger.info(f"Sandbox: Mutation validated successfully: {result.get('info')}")
+            logger.info("Sandbox: Mutation validated successfully: %s", result.get('info'))
             return True
         except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
             record_degradation('shadow_kernel', e)
-            logger.error(f"Sandbox: Failed to retrieve result from worker: {e}")
+            logger.error("Sandbox: Failed to retrieve result from worker: %s", e)
             return False

@@ -230,7 +230,7 @@ class ServiceContainer:
                 required=required,
                 dependencies=dependencies,
             )
-            logger.debug(f"Registered static service: {name}")
+            logger.debug("Registered static service: %s", name)
     @classmethod
     def unlock_registration(cls, *, caller: str = "unknown", reason: str = ""):
         """Unlock registration to allow dynamic service updates.
@@ -326,7 +326,7 @@ class ServiceContainer:
                 required=required,
                 initialized=True
             )
-            logger.debug(f"Registered pre-built instance: {name}")
+            logger.debug("Registered pre-built instance: %s", name)
 
     @classmethod
     def set(cls, name: str, instance: Any, required: bool = True):

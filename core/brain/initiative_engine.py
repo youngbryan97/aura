@@ -75,7 +75,7 @@ class ProactiveInitiativeEngine:
                         self_modifier.on_error(e, {"source": "initiative_engine", "loop": "proactive_loop"})
                 except (ImportError, AttributeError, RuntimeError) as container_err:
                     record_degradation('initiative_engine', container_err)
-                    logger.debug(f"InitiativeEngine: Self-modification integration failed: {container_err}")
+                    logger.debug("InitiativeEngine: Self-modification integration failed: %s", container_err)
                 await asyncio.sleep(5)
 
     def stop(self):
@@ -119,7 +119,7 @@ class ProactiveInitiativeEngine:
                         last_topic = getattr(last_memory, "content", "nothing recently")
             except (RuntimeError, AttributeError, TypeError) as e:
                 record_degradation('initiative_engine', e)
-                logger.debug(f"InitiativeEngine: Last entry recall failed: {e}")
+                logger.debug("InitiativeEngine: Last entry recall failed: %s", e)
 
         # Personality Resonance (The Mind behind the choice)
         resonance = self.affect.get_resonance_string() if hasattr(self.affect, "get_resonance_string") else "Aura (Core) 100%"
@@ -239,4 +239,4 @@ class ProactiveInitiativeEngine:
             
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('initiative_engine', e)
-            logger.error(f"Proactive generation failed: {e}")
+            logger.error("Proactive generation failed: %s", e)

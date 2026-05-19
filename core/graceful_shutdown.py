@@ -24,7 +24,7 @@ class GracefulShutdown:
         """Register a cleanup hook. Hooks are executed in LIFO order."""
         if hook not in cls._hooks:
             cls._hooks.append(hook)
-            logger.debug(f"Registered shutdown hook: {hook.__name__ if hasattr(hook, '__name__') else str(hook)}")
+            logger.debug("Registered shutdown hook: %s", hook.__name__ if hasattr(hook, '__name__') else str(hook))
 
     @classmethod
     def setup_signals(cls):
@@ -53,7 +53,7 @@ class GracefulShutdown:
         request_shutdown(f"signal:{getattr(sig, 'name', sig)}" if sig else "graceful_shutdown")
         
         prefix = f"Received signal {sig}: " if sig else ""
-        logger.warning(f"🛑 {prefix}Initiating graceful shutdown of Aura components...")
+        logger.warning("🛑 %sInitiating graceful shutdown of Aura components...", prefix)
         
         # Shutdown Services in reverse order
         while cls._hooks:
@@ -68,7 +68,7 @@ class GracefulShutdown:
                 logger.info(f"   [✓] Shutdown hook completed.")
             except (RuntimeError, AttributeError, TypeError) as e:
                 record_degradation('graceful_shutdown', e)
-                logger.error(f"   [!] Shutdown hook failed: {e}")
+                logger.error("   [!] Shutdown hook failed: %s", e)
 
         # Also trigger ServiceContainer shutdown if it exists
         try:
@@ -77,7 +77,7 @@ class GracefulShutdown:
             await container.shutdown()
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('graceful_shutdown', e)
-            logger.error(f"Error during container shutdown: {e}")
+            logger.error("Error during container shutdown: %s", e)
 
         logger.info("✅ All Aura core services gracefully terminated. Goodbye.")
         

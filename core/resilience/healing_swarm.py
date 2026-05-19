@@ -43,7 +43,7 @@ class HealingSwarmService:
                 await self.reconcile_subsystems()
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:
                 record_degradation('healing_swarm', e)
-                logger.error(f"Healing Swarm monitor loop failed: {e}")
+                logger.error("Healing Swarm monitor loop failed: %s", e)
                 await asyncio.sleep(10)
 
     async def reconcile_subsystems(self):

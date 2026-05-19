@@ -41,7 +41,7 @@ class NetHackEnv:
             logger.debug("NetHack reset screen did not settle before timeout.")
             
         raw_text = str(self.child.before or "") + str(self.child.after or "")
-        logger.debug(f"NetHack Initial Screen: {raw_text[:200]}...")
+        logger.debug("NetHack Initial Screen: %s...", f"{raw_text[:200]}")
         self.last_obs = self.parser.parse(raw_text)
         return self.last_obs
         

@@ -74,7 +74,7 @@ class SystemStateMonitor:
         t.add_done_callback(lambda t: t.exception() if not t.cancelled() and t.exception() else None)
         
         if stability < 0.6:
-            logger.warning(f"Cognitive stability low: {stability:.2f}. Triggering dream cycle.")
+            logger.warning("Cognitive stability low: %s. Triggering dream cycle.", f"{stability:.2f}")
             try:
                 from core.scheduler import scheduler, TaskSpec
                 

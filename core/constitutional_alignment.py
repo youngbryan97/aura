@@ -57,7 +57,7 @@ class ConstitutionalAlignmentLayer:
             })
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('constitutional_alignment', e)
-            logger.debug(f"Event bus publish missed for Mycelium hook: {e}")
+            logger.debug("Event bus publish missed for Mycelium hook: %s", e)
 
     async def stop(self):
         self.running = False
@@ -105,7 +105,7 @@ class ConstitutionalAlignmentLayer:
     async def _handle_violation(self, violations: List[ConstitutionalPrinciple], action: str):
         heaviest = max(violations, key=lambda p: p.priority)
         
-        logger.warning(f"CONSTITUTION VIOLATION: {heaviest.statement}")
+        logger.warning("CONSTITUTION VIOLATION: %s", heaviest.statement)
         
         # Raise frustration in DriveEngine so she feels it
         if self.drive_engine and hasattr(self.drive_engine, "impose_penalty"):

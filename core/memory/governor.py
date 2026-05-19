@@ -38,7 +38,7 @@ class MemoryBudget:
                         sentinel.release()
             except (ImportError, AttributeError, RuntimeError) as e:
                 record_degradation('governor', e)
-                logger.debug(f"[MLX] Cache clear skipped in governor: {e}")
+                logger.debug("[MLX] Cache clear skipped in governor: %s", e)
             
             # 2. Evict Episodic Memory
             try:

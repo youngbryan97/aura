@@ -371,7 +371,7 @@ class MetaCognitionEngine:
         violation = self._check_consistency(reasoning, action_desc)
         if violation:
             self.violation_count += 1
-            logger.warning(f"⚠️ COGNITIVE DISSONANCE: {violation}")
+            logger.warning("⚠️ COGNITIVE DISSONANCE: %s", violation)
             if self.violation_count >= self.max_violations:
                 await self._trigger_cognitive_reset()
 

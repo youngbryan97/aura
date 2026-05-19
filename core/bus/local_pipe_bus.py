@@ -506,7 +506,7 @@ class LocalPipeBus:
                         metadata={"error": str(e)}
                     )
                 except (ImportError, AttributeError, RuntimeError) as _heal_e:
-                    logger.debug(f"Deep repair scheduling failed: {_heal_e}")
+                    logger.debug("Deep repair scheduling failed: %s", _heal_e)
                     
                 await asyncio.sleep(1.0)
 
@@ -537,7 +537,7 @@ class LocalPipeBus:
                         metadata={"error": str(e)}
                     )
                 except (ImportError, AttributeError, RuntimeError) as _heal_e:
-                    logger.debug(f"Deep repair scheduling failed: {_heal_e}")
+                    logger.debug("Deep repair scheduling failed: %s", _heal_e)
                     
                 await asyncio.sleep(1.0)
 
@@ -583,7 +583,7 @@ class LocalPipeBus:
                     metadata={"error": str(e), "msg_type": msg.get("type")}
                 )
             except (ImportError, AttributeError, RuntimeError) as _heal_e:
-                logger.debug(f"Deep repair scheduling failed: {_heal_e}")
+                logger.debug("Deep repair scheduling failed: %s", _heal_e)
                 
             if msg.get("is_request") and "request_id" in msg:
                 err_resp = {

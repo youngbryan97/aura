@@ -187,7 +187,7 @@ class MindTick:
     def register_phase(self, name: str, phase_fn: PhaseCallable):
         """Register a new cognitive phase to execute every tick."""
         self.phases.append((name, phase_fn))
-        logger.info(f"🧠 MindTick: Registered phase '{name}'")
+        logger.info("🧠 MindTick: Registered phase '%s'", name)
 
     def reload_phases(self):
         """Dynamically reloads all phase modules and re-bootstraps the pipeline."""
@@ -510,7 +510,7 @@ class MindTick:
                             )
                             self._last_prediction_time = time.time()
                             breaker.record_success()
-                            logger.info(f"🔮 MindTick: Predicted: {prediction.content[:50]}...")
+                            logger.info("🔮 MindTick: Predicted: %s...", f"{prediction.content[:50]}")
                         except _MIND_BOUNDARY_ERRORS as e:
                             detail = f"{type(e).__name__}: {e}" if str(e) else type(e).__name__
                             logger.warning("⚠️ MindTick: Prediction failed/stalled: %s", detail)
@@ -655,7 +655,7 @@ class MindTick:
                             breaker = self.phase_breakers.setdefault(name, CircuitBreaker(f"phase_{name}", max_failures=max_f, reset_timeout=60.0))
                             
                             if not breaker.is_available:
-                                logger.warning(f"⚠️ MindTick: Phase '{name}' SKIPPED (Circuit Open)")
+                                logger.warning("⚠️ MindTick: Phase '%s' SKIPPED (Circuit Open)", name)
                                 continue
 
                             try:
@@ -676,22 +676,22 @@ class MindTick:
                                 tick_metadata.phase_durations[name] = phase_duration
                                 
                                 if phase_duration > 1.0:
-                                    logger.warning(f"🐢 MindTick: Slow phase detected: '{name}' took {phase_duration:.3f}s")
+                                    logger.warning("🐢 MindTick: Slow phase detected: '%s' took %ss", name, f"{phase_duration:.3f}")
                                 
                                 breaker.record_success()
                             except TimeoutError:
-                                logger.error(f"🛑 MindTick: Phase '{name}' STALLED (timeout). Tripping circuit.")
+                                logger.error("🛑 MindTick: Phase '%s' STALLED (timeout). Tripping circuit.", name)
                                 breaker.record_failure()
                             except _MIND_BOUNDARY_ERRORS as phase_err:
                                 _record_mind_degradation(phase_err)
-                                logger.error(f"❌ MindTick: Phase '{name}' failed: {phase_err}")
+                                logger.error("❌ MindTick: Phase '%s' failed: %s", name, phase_err)
                                 breaker.record_failure()
                                 
                             # Auto-reset breakers if system has been stable for 100+ cycles.
                             if self._tick_count % 100 == 0:
                                 for b in self.phase_breakers.values():
                                     if not b.is_available:
-                                        logger.info(f"♻️ MindTick: Periodic recovery - Resetting circuit for phase {b.name}")
+                                        logger.info("♻️ MindTick: Periodic recovery - Resetting circuit for phase %s", b.name)
                                         b.reset()
                     
                         if "response_generation" not in tick_metadata.phases_executed:
@@ -732,7 +732,7 @@ class MindTick:
                             )
                     except _MIND_BOUNDARY_ERRORS as e:
                         _record_mind_degradation(e)
-                        logger.debug(f"MindTick: Objective cleanup failed: {e}")
+                        logger.debug("MindTick: Objective cleanup failed: %s", e)
                     return current_state
 
                 if mycelium:
@@ -789,7 +789,7 @@ class MindTick:
                     actual = self._get_actual_from_state(current_state)
                     if actual:
                         error = await self.predictive_engine.evaluate(prediction, actual, current_state)
-                        logger.info(f"💥 MindTick: Surprise signal: {error.surprise_signal:.2f}")
+                        logger.info("💥 MindTick: Surprise signal: %s", f"{error.surprise_signal:.2f}")
                         # Feed surprise into affect update (arousal/curiosity)
                         current_state.affect.arousal = min(1.0, current_state.affect.arousal + error.surprise_signal * 0.2)
                         current_state.affect.curiosity = min(1.0, current_state.affect.curiosity + error.surprise_signal * 0.1)
@@ -808,7 +808,7 @@ class MindTick:
                                 logger.info("🌐 CausalWorldModel learned new observation from surprise signal.")
                         except _MIND_BOUNDARY_ERRORS as cwm_e:
                             _record_mind_degradation(cwm_e)
-                            logger.error(f"Failed to record causal observation in MindTick: {cwm_e}")
+                            logger.error("Failed to record causal observation in MindTick: %s", cwm_e)
 
                 # 5.5 Goal evaluation — check for goal completion every ~30 ticks
                 if self._tick_count % 30 == 0:
@@ -928,7 +928,7 @@ class MindTick:
                         logger.debug("💓 MindTick: Skipping commit due to concurrent update (Atomic Guard).")
                     except _MIND_BOUNDARY_ERRORS as e:
                         _record_mind_degradation(e)
-                        logger.error(f"❌ MindTick: Commit failed: {e}")
+                        logger.error("❌ MindTick: Commit failed: %s", e)
                         
                 # Subconscious Memory Consolidation ("Dreaming")
                 if self.mode != CognitiveMode.SLEEP and current_state.cognition.working_memory:
@@ -1160,7 +1160,7 @@ class MindTick:
                         logger.warning("💉 [IMMUNE] Pulse Audit: Found stale PID file for non-existent process %d", pid)
                         immunity.registry.match_and_repair("PID file already exists")
                 except (ValueError, OSError) as e:
-                    logger.debug(f"MindTick: PID check failed (likely stale/malformed): {e}")
+                    logger.debug("MindTick: PID check failed (likely stale/malformed): %s", e)
 
             # 2. Resource Leak Probe (Memory)
             import psutil

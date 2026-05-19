@@ -230,7 +230,7 @@ class SelfOptimizer:
                             sentinel.release()
                 except (ImportError, AttributeError, RuntimeError) as e:
                     record_degradation('self_optimizer', e)
-                    logger.debug(f"[MLX] Cache clear skipped: {e}")
+                    logger.debug("[MLX] Cache clear skipped: %s", e)
             except ImportError as _e:
                 logger.debug('Ignored ImportError in self_optimizer.py: %s', _e)
     async def _cleanup_temp(self, temp_dir: Path):
@@ -242,7 +242,7 @@ class SelfOptimizer:
                 logger.debug("🧠 Nucleus: Temporary training data cleaned.")
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('self_optimizer', e)
-            logger.warning(f"Failed to cleanup optimizer temp dir: {e}")
+            logger.warning("Failed to cleanup optimizer temp dir: %s", e)
 
 
 

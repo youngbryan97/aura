@@ -1096,7 +1096,7 @@ class SovereignVoiceEngine:
                         break
                     except (RuntimeError, AttributeError, TypeError, ValueError) as e:
                         record_degradation('voice_engine', e)
-                        logger.error(f"Error in voice stream: {e}")
+                        logger.error("Error in voice stream: %s", e)
                         break
 
                     if self._xtts_engine:
@@ -1113,7 +1113,7 @@ class SovereignVoiceEngine:
 
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:
                 record_degradation('voice_engine', e)
-                logger.error(f"Playback error in stream: {e}")
+                logger.error("Playback error in stream: %s", e)
                 self._pulse_hypha("cognition", "voice_engine", success=False)
             finally:
                 self.is_speaking = False

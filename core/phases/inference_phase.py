@@ -72,7 +72,7 @@ class InferencePhase(Phase):
                 state.cognition.modifiers["momentum"] = data.get("momentum", "flowing")
                 state.cognition.modifiers["conversation_hooks"] = data.get("conversation_hooks", [])
                 
-                logger.info(f"Deep Inference: Intent='{data.get('implicit_intent')}', Subtext='{data.get('user_subtext')}'")
+                logger.info("Deep Inference: Intent='%s', Subtext='%s'", data.get('implicit_intent'), data.get('user_subtext'))
             
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('inference_phase', e)

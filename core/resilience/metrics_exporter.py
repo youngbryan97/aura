@@ -51,17 +51,17 @@ class MetricsExporter:
             try:
                 self.actual_port = self._find_free_port(self.port)
             except OSError as e:
-                logger.warning(f"Default port {self.port} busy, searching for alternative: {e}")
+                logger.warning("Default port %s busy, searching for alternative: %s", self.port, e)
                 self.actual_port = self._find_free_port(self.port + 1, max_attempts=50)
 
             # Phase 33: start_http_server is synchronous and can block on DNS (socket.getfqdn)
             # We wrap it in to_thread to prevent event loop stalls during boot.
             await asyncio.to_thread(start_http_server, self.actual_port)
-            logger.info(f"📊 Metrics Exporter ONLINE (port {self.actual_port})")
+            logger.info("📊 Metrics Exporter ONLINE (port %s)", self.actual_port)
             self._task = get_task_tracker().create_task(self._monitor_loop())
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
             record_degradation('metrics_exporter', e)
-            logger.error(f"Failed to start Metrics Exporter: {e}")
+            logger.error("Failed to start Metrics Exporter: %s", e)
             self.running = False
 
     async def stop(self):
@@ -88,7 +88,7 @@ class MetricsExporter:
                 break
             except (ImportError, OSError, AttributeError) as e:
                 record_degradation('metrics_exporter', e)
-                logger.debug(f"Metrics monitor tick failed: {e}")
+                logger.debug("Metrics monitor tick failed: %s", e)
                 await asyncio.sleep(10)
 
 # Global helper for counting tokens

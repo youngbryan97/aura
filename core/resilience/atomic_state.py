@@ -37,7 +37,7 @@ class AtomicStateManager:
             )
         """)
         await db.commit()
-        logger.info(f"📁 Atomic State DB initialized at {self.db_path}")
+        logger.info("📁 Atomic State DB initialized at %s", self.db_path)
 
     async def get(self, key: str, default: Any = None) -> Any:
         """Get state value by key."""

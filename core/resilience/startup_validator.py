@@ -294,9 +294,9 @@ class StartupValidator:
         for check in self.checks:
             icon = "✓" if check.passed else ("!" if not check.critical else "✗")
             label = f"[{icon}] {check.name}"
-            logger.info(f"{label:<30} | {check.message}")
+            logger.info("%s | %s", f"{label:<30}", check.message)
 
         logger.info("="*60)
         final_status = "PASSED" if all(c.passed or not c.critical for c in self.checks) else "FAILED"
-        logger.info(f" FINAL STATUS: {final_status}")
+        logger.info(" FINAL STATUS: %s", final_status)
         logger.info("="*60 + "\n")

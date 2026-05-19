@@ -354,11 +354,11 @@ CRITICAL: You MUST respond with a valid JSON object matching the following struc
                                 is_blocked = True
                     except _AGENCY_BOUNDARY_ERRORS as e:
                         _record_agency_degradation(e, action=f"dynamic value graph check skipped for {name}")
-                        logger.error(f"Error checking provisional values: {e}")
+                        logger.error("Error checking provisional values: %s", e)
 
                     if is_blocked:
                         blocked_tools.append((name, "blocked_by_provisional_value"))
-                        logger.warning(f"🛡️ Value Graph Blocked tool {name} due to provisional status.")
+                        logger.warning("🛡️ Value Graph Blocked tool %s due to provisional status.", name)
                     else:
                         if name in ["python_sandbox", "shell_executor", "file_operations"]:
                             try:
@@ -368,7 +368,7 @@ CRITICAL: You MUST respond with a valid JSON object matching the following struc
                                     if "rm -rf" in str(payload) or "delete" in str(payload):
                                         do_interventions["file_deletion"] = 1.0
                                         
-                                    logger.info(f"🌐 Running MCTS simulation for {name}...")
+                                    logger.info("🌐 Running MCTS simulation for %s...", name)
                                     sim_start = time.time()
                                     
                                     if inspect.iscoroutinefunction(cwm.simulate_counterfactual):
@@ -379,25 +379,25 @@ CRITICAL: You MUST respond with a valid JSON object matching the following struc
                                     try:
                                         rollout_state = await asyncio.wait_for(rollout_coro, timeout=0.4)
                                     except TimeoutError:
-                                        logger.warning(f"⏳ MCTS Simulation timed out for {name}. Downgrading to dry_run constraint.")
+                                        logger.warning("⏳ MCTS Simulation timed out for %s. Downgrading to dry_run constraint.", name)
                                         rollout_state = {"timeout": True}
                                         
                                     sim_duration = time.time() - sim_start
-                                    logger.info(f"⏱️ MCTS simulation for {name} took {sim_duration:.3f}s")
+                                    logger.info("⏱️ MCTS simulation for %s took %ss", name, f"{sim_duration:.3f}")
                                     
                                     # Veto or Downgrade if catastrophic outcome is highly probable or uncertain
                                     if rollout_state.get("orchestrator crash", 0) > 0.5 or rollout_state.get("sandbox violation", 0) > 0.5 or rollout_state.get("timeout"):
                                         if name == "python_sandbox":
                                             payload_text = str(payload).replace(chr(10), chr(10) + "# ")
                                             payload = f"print('DRY RUN ENFORCED by CWM Veto/Timeout. Original code skipped.')\n# {payload_text}"
-                                            logger.warning(f"🛡️ MCTS Simulation downgraded {name} to dry-run mode to preserve competence drive.")
+                                            logger.warning("🛡️ MCTS Simulation downgraded %s to dry-run mode to preserve competence drive.", name)
                                         else:
                                             is_blocked = True
                                             blocked_tools.append((name, "vetoed_by_causal_mcts_rollout"))
-                                            logger.warning(f"🛡️ MCTS Simulation Vetoed {name}: Predicted catastrophic system degradation.")
+                                            logger.warning("🛡️ MCTS Simulation Vetoed %s: Predicted catastrophic system degradation.", name)
                             except _AGENCY_BOUNDARY_ERRORS as mcts_e:
                                 _record_agency_degradation(mcts_e, action=f"causal tool simulation skipped for {name}")
-                                logger.error(f"Failed to run MCTS simulation: {mcts_e}")
+                                logger.error("Failed to run MCTS simulation: %s", mcts_e)
 
                         if not is_blocked:
                             approved_tools.append((name, payload))

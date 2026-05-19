@@ -85,13 +85,13 @@ class NightlyLoRATrainer:
             for ex in examples:
                 f.write(json.dumps(ex) + "\n")
         
-        logger.info(f"🌙 Nightly LoRA: Generated {len(examples)} training examples.")
+        logger.info("🌙 Nightly LoRA: Generated %s training examples.", len(examples))
         # Trigger LoRA training
         await self._trigger_lora_training(output_file)
     
     async def _trigger_lora_training(self, data_path: Path) -> None:
         # Using mlx-lm for Apple Silicon (mac)
-        logger.info(f"🌙 Nightly LoRA: Triggering mlx_lm.lora fine-tune on {self.model_path}")
+        logger.info("🌙 Nightly LoRA: Triggering mlx_lm.lora fine-tune on %s", self.model_path)
         adapter_path = f"data/lora_adapters/{datetime.now().date()}"
         try:
             proc = await asyncio.create_subprocess_exec(
@@ -106,7 +106,7 @@ class NightlyLoRATrainer:
             logger.info("✅ Nightly LoRA: Fine-tuning pass complete.")
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
             record_degradation('nightly_lora', e)
-            logger.error(f"❌ Nightly LoRA: Training failed: {e}")
+            logger.error("❌ Nightly LoRA: Training failed: %s", e)
             return
 
         # Post-training identity validation

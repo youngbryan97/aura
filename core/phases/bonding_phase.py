@@ -78,7 +78,7 @@ class BondingPhase(Phase):
                 # Neuroticism (emotional volatility) stabilizes with trust
                 growth["neuroticism"] = max(-0.1, growth["neuroticism"] - 0.0005)
             
-            logger.debug(f"Bonding Update: Level={state.identity.bonding_level:.4f}, Growth={growth}")
+            logger.debug("Bonding Update: Level=%s, Growth=%s", f"{state.identity.bonding_level:.4f}", growth)
             
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('bonding_phase', e)

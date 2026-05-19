@@ -150,7 +150,7 @@ class HierarchicalMemoryOrchestrator:
             summary_data = self._parse_json(raw_summary)
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
             record_degradation('hierarchical_memory_orchestrator', e)
-            logger.error(f"Hierarchical compaction summary failed: {e}")
+            logger.error("Hierarchical compaction summary failed: %s", e)
             summary_data = {}
 
         chapter_note = {
@@ -168,7 +168,7 @@ class HierarchicalMemoryOrchestrator:
                 await self.narrative.inject_chapter_note(chapter_note)
         except (RuntimeError, AttributeError, TypeError) as e:
             record_degradation('hierarchical_memory_orchestrator', e)
-            logger.warning(f"Failed to store chapter note in BlackHole: {e}")
+            logger.warning("Failed to store chapter note in BlackHole: %s", e)
         
         compacted = [
             {
@@ -195,5 +195,5 @@ class HierarchicalMemoryOrchestrator:
             return json.loads(clean)
         except (json.JSONDecodeError, TypeError, ValueError) as e:
             record_degradation('hierarchical_memory_orchestrator', e)
-            logger.debug(f"JSON parse failed: {e}")
+            logger.debug("JSON parse failed: %s", e)
             return {}

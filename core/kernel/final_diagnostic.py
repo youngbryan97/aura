@@ -36,7 +36,7 @@ async def diagnostic():
         llm = kernel.organs.get("llm")
         if llm:
             instance = llm.get_instance()
-            logger.info(f"LLM Organ Instance Class: {instance.__class__.__name__}")
+            logger.info("LLM Organ Instance Class: %s", instance.__class__.__name__)
             if "MockLLM" in instance.__class__.__name__:
                 logger.error("❌ FAILED: LLM resolved to MockLLM")
             else:

@@ -69,5 +69,5 @@ class ParallelThoughtStream:
             return branches[:3]
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('parallel_thought', e)
-            logger.warning(f"Parallel thought branching failed: {e}")
+            logger.warning("Parallel thought branching failed: %s", e)
             return []

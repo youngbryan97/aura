@@ -160,7 +160,7 @@ Example: "When a specialized resource is abruptly depleted, systemic adaptation 
                     
             except (ImportError, AttributeError, RuntimeError) as e:
                 record_degradation('abstraction_engine', e)
-                logger.error(f"Failed to commit first principle: {e}")
+                logger.error("Failed to commit first principle: %s", e)
 
     async def get_core_principles(self, limit: int = 5) -> str:
         """Retrieves the most frequently applied principles to inject into the system prompt."""
@@ -191,7 +191,7 @@ Example: "When a specialized resource is abruptly depleted, systemic adaptation 
             
         except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
             record_degradation('abstraction_engine', e)
-            logger.error(f"Failed to load principles: {e}")
+            logger.error("Failed to load principles: %s", e)
             return ""
 
     async def increment_application_counts(self, active_principles: list[str]):
@@ -228,7 +228,7 @@ Example: "When a specialized resource is abruptly depleted, systemic adaptation 
                     )
             except (ImportError, AttributeError, RuntimeError) as e:
                 record_degradation('abstraction_engine', e)
-                logger.error(f"Failed to increment principle counts: {e}")
+                logger.error("Failed to increment principle counts: %s", e)
 
 def register_abstraction_engine():
     """Register the abstraction engine in the service container."""

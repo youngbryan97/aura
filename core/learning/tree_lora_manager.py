@@ -146,7 +146,7 @@ class TreeLoRAManager:
         self.tree[parent.layer_idx][new_id] = new_node
         parent.children.append(new_id)
         
-        logger.info(f"TreeLoRA: Branched new adapter {new_id} from {parent.node_id}")
+        logger.info("TreeLoRA: Branched new adapter %s from %s", new_id, parent.node_id)
         return new_id
 
     def compose_adapters(self, leaf_node_id: str, layer_idx: int) -> Dict[str, np.ndarray]:
@@ -183,7 +183,7 @@ class TreeLoRAManager:
             return
             
         node.is_active = False
-        logger.info(f"TreeLoRA: Pruned adapter node {node_id}")
+        logger.info("TreeLoRA: Pruned adapter node %s", node_id)
 
     @staticmethod
     def _cosine_similarity(v1: np.ndarray, v2: np.ndarray) -> float:

@@ -108,7 +108,7 @@ class SupervisionTree:
         """Register a new actor spec."""
         with self._lock:
             self._actors[spec.name] = ManagedActor(spec=spec)
-        logger.info(f"🛡️ Actor Registered for Supervision: {spec.name}")
+        logger.info("🛡️ Actor Registered for Supervision: %s", spec.name)
 
     def is_actor_running(self, name: str) -> bool:
         with self._lock:
@@ -161,7 +161,7 @@ class SupervisionTree:
 
             # If already running, just return existing pipe
             if actor.process and actor.process.is_alive():
-                logger.debug(f"🛡️ start_actor: {name} is already alive (PID: {actor.process.pid}). Returning existing pipe.")
+                logger.debug("🛡️ start_actor: %s is already alive (PID: %s). Returning existing pipe.", name, actor.process.pid)
                 return actor.pipe
 
         import multiprocessing
@@ -192,7 +192,7 @@ class SupervisionTree:
             )
             actor.health_gate.record_heartbeat()
 
-        logger.info(f"🚀 Actor Started: {name} (PID: {proc.pid})")
+        logger.info("🚀 Actor Started: %s (PID: %s)", name, proc.pid)
         return parent_pipe
 
     def stop_actor(self, name: str):
@@ -205,12 +205,12 @@ class SupervisionTree:
         with self._lock:
             actor = self._actors.get(name)
         if actor and actor.process:
-            logger.info(f"🛑 Stopping Actor: {name}")
+            logger.info("🛑 Stopping Actor: %s", name)
             try:
                 actor.process.kill()  # Immediate kill, no graceful shutdown
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:
                 record_degradation('tree', e)
-                logger.debug(f"Error stopping actor {name}: {e}")
+                logger.debug("Error stopping actor %s: %s", name, e)
             finally:
                 self._close_pipe(actor.pipe)
                 with self._lock:
@@ -275,17 +275,17 @@ class SupervisionTree:
 
             if actor.process and not actor.process.is_alive():
                 exit_code = actor.process.exitcode
-                logger.warning(f"⚠️ Actor CRASHED: {name} (Exit Code: {exit_code})")
+                logger.warning("⚠️ Actor CRASHED: %s (Exit Code: %s)", name, exit_code)
                 self._handle_failure(name)
             
             elif actor.process and actor.health_gate and actor.monitor_health:
                 if not actor.health_gate.is_healthy():
-                    logger.error(f"🚨 Actor STALLED (Liveness Failure): {name}")
+                    logger.error("🚨 Actor STALLED (Liveness Failure): %s", name)
                     self.stop_actor(name)
                     self._handle_failure(name)
             
             elif actor.process is None and actor.next_restart_time > 0 and now >= actor.next_restart_time:
-                logger.info(f"♻️ Restarting Actor {name} after backoff...")
+                logger.info("♻️ Restarting Actor %s after backoff...", name)
                 actor.next_restart_time = 0 # Reset
                 self._restart_actor(name)
 
@@ -311,7 +311,7 @@ class SupervisionTree:
                  actor.consecutive_failures = 1 # Reset window
              
             if actor.consecutive_failures > actor.spec.max_restarts:
-                logger.error(f"🛑 CIRCUIT BROKEN: Actor {name} failed too many times in window.")
+                logger.error("🛑 CIRCUIT BROKEN: Actor %s failed too many times in window.", name)
                 actor.is_circuit_broken = True
                 return
 
@@ -322,7 +322,7 @@ class SupervisionTree:
             actor.next_restart_time = now + delay
             attempt = actor.consecutive_failures
             max_restarts = actor.spec.max_restarts
-        logger.info(f"⏳ Scheduling Restart for {name} (Attempt {attempt}/{max_restarts}) in {delay:.1f}s...")
+        logger.info("⏳ Scheduling Restart for %s (Attempt %s/%s) in %ss...", name, attempt, max_restarts, f"{delay:.1f}")
 
     def _restart_actor(self, name: str):
         """Internal helper to start actor and trigger callback."""
@@ -337,7 +337,7 @@ class SupervisionTree:
                 callback(name, new_pipe)
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:
                 record_degradation('tree', e)
-                logger.error(f"❌ Restart callback failed for {name}: {e}")
+                logger.error("❌ Restart callback failed for %s: %s", name, e)
 
     def stop_all(self):
         """Kill everything."""
@@ -351,7 +351,7 @@ class SupervisionTree:
         import multiprocessing
         for p in multiprocessing.active_children():
             if p.name.startswith("AuraActor:"):
-                logger.info(f"🧹 Reaping orphaned actor: {p.name}")
+                logger.info("🧹 Reaping orphaned actor: %s", p.name)
                 p.terminate()
                 p.join(timeout=1.0)
                 if p.is_alive(): p.kill()

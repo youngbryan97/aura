@@ -19,21 +19,21 @@ class DreamCoordinator:
 
     async def _execute_with_lock(self, name: str, coro_func: Callable[[], Coroutine[Any, Any, Any]]) -> Any:
         if self._lock.locked():
-            logger.debug(f"DreamCoordinator: {name} deferred, another dream cycle is running.")
+            logger.debug("DreamCoordinator: %s deferred, another dream cycle is running.", name)
             return None
         
         async with self._lock:
             try:
-                logger.info(f"DreamCoordinator: Starting {name}...")
+                logger.info("DreamCoordinator: Starting %s...", name)
                 start_t = time.time()
                 result = await coro_func()
                 elapsed = time.time() - start_t
                 self._last_run[name] = time.time()
-                logger.info(f"DreamCoordinator: Finished {name} in {elapsed:.2f}s")
+                logger.info("DreamCoordinator: Finished %s in %ss", name, f"{elapsed:.2f}")
                 return result
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:
                 record_degradation("dream_coordinator", e)
-                logger.error(f"DreamCoordinator: Failed {name}: {e}")
+                logger.error("DreamCoordinator: Failed %s: %s", name, e)
                 return None
 
     async def run_resilience_dream(self) -> None:

@@ -625,7 +625,7 @@ def _mlx_worker_loop(
             total_ram = psutil.virtual_memory().total
             limit = compute_mlx_cache_limit(total_ram)
             mx.set_cache_limit(limit)
-            logger.info(f"Metal cache limit set to {limit // (1024**2)}MB")
+            logger.info("Metal cache limit set to %sMB", limit // (1024**2))
         except (ImportError, OSError, RuntimeError, AttributeError) as e:
             record_degradation('mlx_worker', e)
             try:
@@ -644,10 +644,10 @@ def _mlx_worker_loop(
     # The adapter is the v3 training (22 characters, val loss 0.102).
     try:
         adapter_path = resolve_personality_adapter(model_path, backend="mlx")
-        logger.info(f"Loading model: {model_path}")
+        logger.info("Loading model: %s", model_path)
         if adapter_path and os.path.isdir(adapter_path):
             try:
-                logger.info(f"Loading with LoRA adapter: {adapter_path}")
+                logger.info("Loading with LoRA adapter: %s", adapter_path)
                 model, tokenizer = load(model_path, adapter_path=adapter_path)
                 logger.info("Model loaded with Aura personality LoRA fused.")
             except (RuntimeError, AttributeError, TypeError, ValueError) as adapter_exc:
@@ -690,7 +690,7 @@ def _mlx_worker_loop(
                 raise RuntimeError("Steering liveness gate failed: Engine inactive")
         except (ImportError, AttributeError, RuntimeError) as se:
             record_degradation('affective_steering', se)
-            logger.error(f"FATAL: Affective steering failed to attach. Cannot run sovereign inference unsteered. {se}")
+            logger.error("FATAL: Affective steering failed to attach. Cannot run sovereign inference unsteered. %s", se)
             raise RuntimeError(f"Steering liveness gate failed: {se}") from se
 
         # Write steering liveness to shared state so parent can query it
@@ -712,14 +712,14 @@ def _mlx_worker_loop(
                 logger.info("🧠 Recurrent Depth ACTIVE — model now thinks before answering.")
         except (ImportError, AttributeError, RuntimeError) as rd_exc:
             record_degradation('mlx_worker', rd_exc)
-            logger.warning(f"Recurrent depth not applied: {rd_exc}")
+            logger.warning("Recurrent depth not applied: %s", rd_exc)
 
         ipc_writer.put({"status": "ok", "action": "init", "device": device})
     except (ImportError, AttributeError, RuntimeError) as e:
         record_degradation('mlx_worker', e)
         import traceback
         err_detail = f"{e}\n{traceback.format_exc()}"
-        logger.error(f"Worker Init Error: {err_detail}")
+        logger.error("Worker Init Error: %s", err_detail)
         ipc_writer.put(
             {
                 "status": "error",
@@ -793,7 +793,7 @@ def _mlx_worker_loop(
                         )
                     except (RuntimeError, AttributeError, TypeError, ValueError) as e:
                         record_degradation('mlx_worker', e)
-                        logger.warning(f"❌ [WORKER] Native template compilation failed: {e}")
+                        logger.warning("❌ [WORKER] Native template compilation failed: %s", e)
 
                 temp = job.get("temp", 0.7)
                 top_p = job.get("top_p", 0.9)
@@ -853,7 +853,7 @@ def _mlx_worker_loop(
                 except ImportError as _exc:
                     logger.debug("Suppressed %s in core.brain.llm.mlx_worker: %s", type(_exc).__name__, _exc)
                 except (ImportError, AttributeError, RuntimeError) as e:
-                    logger.warning(f"Could not apply penalty logits processors: {e}")
+                    logger.warning("Could not apply penalty logits processors: %s", e)
 
                 if schema:
                     try:
@@ -869,7 +869,7 @@ def _mlx_worker_loop(
                         logger.info("🎯 [WORKER] JSON start enforcement ACTIVE.")
                     except (RuntimeError, AttributeError, TypeError, ValueError) as e:
                         record_degradation('mlx_worker', e)
-                        logger.warning(f"Failed to setup JSON logits processor: {e}")
+                        logger.warning("Failed to setup JSON logits processor: %s", e)
                 
                 if logits_processors:
                     kwargs["logits_processors"] = logits_processors
@@ -1105,7 +1105,7 @@ def _mlx_worker_loop(
                                 
                                 if sentinel_loop_aborted:
                                     if internal_attempt < max_internal_retries:
-                                        logger.warning(f"⚠️ [WORKER] Retrying generation cleanly after loop abort (attempt {internal_attempt + 1})...")
+                                        logger.warning("⚠️ [WORKER] Retrying generation cleanly after loop abort (attempt %s)...", internal_attempt + 1)
                                         if prompt_cache_lru is not None:
                                             prompt_cache_lru.clear()
                                         if mx and device != "cpu":
@@ -1122,7 +1122,7 @@ def _mlx_worker_loop(
 
                                 if sentinel_ontology_aborted:
                                     if internal_attempt < max_internal_retries:
-                                        logger.warning(f"⚠️ [WORKER] Retrying generation cleanly after ontological violation (attempt {internal_attempt + 1})...")
+                                        logger.warning("⚠️ [WORKER] Retrying generation cleanly after ontological violation (attempt %s)...", internal_attempt + 1)
                                         if prompt_cache_lru is not None:
                                             prompt_cache_lru.clear()
                                         if mx and device != "cpu":
@@ -1146,7 +1146,7 @@ def _mlx_worker_loop(
                                 if response_text.strip() or not schema:
                                     break # Success or not a structured task
                                 
-                                logger.warning(f"⚠️ [WORKER] Empty structured response on attempt {internal_attempt + 1}. Retrying...")
+                                logger.warning("⚠️ [WORKER] Empty structured response on attempt %s. Retrying...", internal_attempt + 1)
                             finally:
                                 watchdog.stop_job()
                             
@@ -1191,7 +1191,7 @@ def _mlx_worker_loop(
                     })
                 except (ImportError, AttributeError, RuntimeError) as e:
                     record_degradation('mlx_worker', e)
-                    logger.error(f"Generation failed: {e}")
+                    logger.error("Generation failed: %s", e)
                     ipc_writer.put({"status": "error", "action": "generate", "message": str(e)})
                 finally:
                     # [STABILITY v52] Guarantee VRAM gets purged after standard generation 
@@ -1242,7 +1242,7 @@ def _mlx_worker_loop(
                 except ImportError as _exc:
                     logger.debug("Suppressed %s in core.brain.llm.mlx_worker: %s", type(_exc).__name__, _exc)
                 except (ImportError, AttributeError, RuntimeError) as e:
-                    logger.warning(f"Could not apply penalty logits processors: {e}")
+                    logger.warning("Could not apply penalty logits processors: %s", e)
                 
                 if logits_processors:
                     kwargs["logits_processors"] = logits_processors
@@ -1356,7 +1356,7 @@ def _mlx_worker_loop(
                     ipc_writer.put({"status": "ok", "action": "stream_done"})
                 except (ImportError, AttributeError, RuntimeError) as e:
                     record_degradation('mlx_worker', e)
-                    logger.error(f"Streaming failed: {e}")
+                    logger.error("Streaming failed: %s", e)
                     ipc_writer.put({"status": "error", "action": "stream", "message": str(e)})
                 finally:
                     # [STABILITY v52] Guarantee VRAM gets purged after streaming

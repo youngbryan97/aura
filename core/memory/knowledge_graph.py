@@ -648,7 +648,7 @@ class PersistentKnowledgeGraph:
                 
             # Circuit breaker: Graph is too dense, abort search to preserve VRAM/CPU
             if nodes_explored > max_nodes:
-                logger.warning(f"Knowledge Graph traversal aborted: exceeded max node limit ({max_nodes}).")
+                logger.warning("Knowledge Graph traversal aborted: exceeded max node limit (%s).", max_nodes)
                 return None 
 
             current_id, path = queue.pop(0)

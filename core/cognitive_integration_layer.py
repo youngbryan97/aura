@@ -222,7 +222,7 @@ class CognitiveIntegrationLayer:
                     ServiceContainer.register_instance(name, instance)
                 except _CIL_RECOVERABLE_ERRORS as register_err:
                     record_degradation('cognitive_integration_layer', register_err)
-                    logger.warning(f"⚠️ [BOOT] Could not register '{name}' in ServiceContainer: {register_err}")
+                    logger.warning("⚠️ [BOOT] Could not register '%s' in ServiceContainer: %s", name, register_err)
 
             _safe_register("cognitive_kernel", self.kernel)
 

@@ -129,7 +129,7 @@ class ContinuousSimulatorLoop:
                     # Fire and forget injection
                     asyncio.create_task(substrate.inject_stimulus(delta, weight=0.2))
         except (ImportError, AttributeError, RuntimeError) as e:
-            logger.debug(f"Embodied grounding injection failed: {e}")
+            logger.debug("Embodied grounding injection failed: %s", e)
 
     def physical_intervention(self, entity_id: str, action: str, intensity: float) -> float:
         """
@@ -169,5 +169,5 @@ class ContinuousSimulatorLoop:
             target_val_observed=outcome_magnitude
         )
         
-        logger.info(f"Embodied Intervention: do({action} on {ent.class_name}) -> SCM Updated.")
+        logger.info("Embodied Intervention: do(%s on %s) -> SCM Updated.", action, ent.class_name)
         return outcome_magnitude

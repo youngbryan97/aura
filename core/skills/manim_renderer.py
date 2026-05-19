@@ -69,7 +69,7 @@ class ManimRendererSkill(BaseSkill):
             params.scene_name
         ]
 
-        logger.info(f"Rendering Manim scene '{params.scene_name}' in {temp_dir}...")
+        logger.info("Rendering Manim scene '%s' in %s...", params.scene_name, temp_dir)
         
         try:
             process = await asyncio.create_subprocess_exec(
@@ -91,7 +91,7 @@ class ManimRendererSkill(BaseSkill):
             
             if process.returncode != 0:
                 err_msg = stderr_b.decode("utf-8") if stderr_b else "Unknown error"
-                logger.error(f"Manim render failed: {err_msg}")
+                logger.error("Manim render failed: %s", err_msg)
                 return {
                     "ok": False,
                     "error": f"Manim compilation failed:\n{err_msg}"

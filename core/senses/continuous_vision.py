@@ -206,7 +206,7 @@ class ContinuousSensoryBuffer:
                             self.frame_buffer.append(("image/jpeg", jpeg_bytes.tobytes()))
             except (ImportError, AttributeError, RuntimeError) as e:
                 record_degradation('continuous_vision', e)
-                logger.error(f"Sensory Buffer capture failed: {e}")
+                logger.error("Sensory Buffer capture failed: %s", e)
 
             await asyncio.sleep(2.0)
 
@@ -247,5 +247,5 @@ class ContinuousSensoryBuffer:
                 return "My cognitive systems are not equipped for that visual request."
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('continuous_vision', e)
-            logger.error(f"Visual reasoning failed: {e}")
+            logger.error("Visual reasoning failed: %s", e)
             return f"I had an error analyzing my vision: {e}"

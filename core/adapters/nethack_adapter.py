@@ -30,7 +30,7 @@ class NetHackAdapter:
         env["NETHACKOPTIONS"] = rc_path
         
         # Start nethack
-        logger.info(f"Spawning: {self.nethack_path} -u {name}")
+        logger.info("Spawning: %s -u %s", self.nethack_path, name)
         self.child = pexpect.spawn(f"{self.nethack_path} -u {name}", env=env, encoding='utf-8')
         self.child.setwinsize(24, 80)
         logger.info("NetHack process spawned. Waiting for initialization...")
@@ -107,7 +107,7 @@ class NetHackAdapter:
                     # For now, just terminate as it's an automated process
                     self.child.terminate(force=True)
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-                logger.error(f"Error terminating NetHack process: {e}")
+                logger.error("Error terminating NetHack process: %s", e)
             finally:
                 self.child = None
         logger.info("NetHack adapter stopped.")

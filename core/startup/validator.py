@@ -78,11 +78,11 @@ class StartupValidator:
 
         for r in results:
             icon = "✅" if r.passed else ("⚠️ " if r.severity == "warn" else "❌")
-            logger.info(f"  {icon}  {r.name}")
+            logger.info("  %s  %s", icon, r.name)
             if not r.passed:
-                logger.info(f"       → {r.message}")
+                logger.info("       → %s", r.message)
                 if r.fix_hint:
-                    logger.info(f"       💡 Fix: {r.fix_hint}")
+                    logger.info("       💡 Fix: %s", r.fix_hint)
                 if r.severity == "error":
                     critical_failures += 1
                 else:
@@ -90,9 +90,9 @@ class StartupValidator:
 
         logger.info(divider)
         if critical_failures == 0:
-            logger.info(f"  ✅ All checks passed ({warnings} warnings)")
+            logger.info("  ✅ All checks passed (%s warnings)", warnings)
         else:
-            logger.error(f"  ❌ {critical_failures} critical failure(s) — Aura cannot start")
+            logger.error("  ❌ %s critical failure(s) — Aura cannot start", critical_failures)
         logger.info(divider + "\n")
 
         return critical_failures == 0

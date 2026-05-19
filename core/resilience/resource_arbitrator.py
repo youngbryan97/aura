@@ -62,7 +62,7 @@ class ResourceArbitrator:
             return fd
         except (OSError, IOError) as e:
             record_degradation('resource_arbitrator', e)
-            logger.error(f"Failed to open VRAM lock file: {e}")
+            logger.error("Failed to open VRAM lock file: %s", e)
             return None
 
     def _get_worker_sem(self, worker: Optional[str]):
@@ -172,7 +172,7 @@ class ResourceArbitrator:
             
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
             record_degradation('resource_arbitrator', e)
-            logger.error(f"Error acquiring VRAM lock: {e}")
+            logger.error("Error acquiring VRAM lock: %s", e)
             os.close(fd)
             return False
 
@@ -187,7 +187,7 @@ class ResourceArbitrator:
                 logger.info("🧬 EVOLUTION token released.")
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:
                 record_degradation('resource_arbitrator', e)
-                logger.error(f"Error releasing VRAM lock: {e}")
+                logger.error("Error releasing VRAM lock: %s", e)
 
     def is_inference_busy(self) -> bool:
         """Check if primary inference is active."""

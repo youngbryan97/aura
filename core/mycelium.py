@@ -1162,7 +1162,7 @@ class MycelialNetwork:
                         logger.info("🛡️ Memory Governor shutdown complete. All worker handles leaked/active were purged.")
                 except (RuntimeError, AttributeError, TypeError) as e:
                     record_degradation('mycelium', e)
-                    logger.error(f"Error during Memory Governor shutdown: {e}")
+                    logger.error("Error during Memory Governor shutdown: %s", e)
                 logger.info("🍄 [MYCELIUM] Pulse check loop shutting down.")
                 break
             except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:

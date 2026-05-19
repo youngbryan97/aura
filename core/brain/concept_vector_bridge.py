@@ -55,7 +55,7 @@ class ConceptVectorBridge:
             self.active_streams[target] = []
             
         self.active_streams[target].append(thought)
-        logger.debug(f"🌌 [Cryptolalia] {source} -> {target} (Vector dim: {len(semantic_vector)})")
+        logger.debug("🌌 [Cryptolalia] %s -> %s (Vector dim: %s)", source, target, len(semantic_vector))
         
         # Fire event for the decoder or monitoring
         event_bus = ServiceContainer.get("event_bus", default=None)
@@ -103,7 +103,7 @@ class ConceptVectorBridge:
             return vector
         except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
             record_degradation('concept_vector_bridge', e)
-            logger.error(f"Failed to generate concept vector: {e}")
+            logger.error("Failed to generate concept vector: %s", e)
             return []
 
 def register_concept_bridge(orchestrator=None):

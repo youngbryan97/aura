@@ -209,7 +209,7 @@ class AutonomousInitiativeLoop:
                     title = latest.title
                     
                     if title not in self._seen_titles:
-                        logger.info(f"📰 New world event detected: {title}")
+                        logger.info("📰 New world event detected: %s", title)
                         self._seen_titles.add(title)
 
                         # Limit memory of titles
@@ -250,7 +250,7 @@ class AutonomousInitiativeLoop:
                             
             except (ImportError, AttributeError, RuntimeError) as e:
                 record_degradation('autonomous_initiative_loop', e)
-                logger.debug(f"World watcher loop transient error: {e}")
+                logger.debug("World watcher loop transient error: %s", e)
                 
             # Check every 10 minutes (600s)
             await asyncio.sleep(600)
@@ -283,7 +283,7 @@ class AutonomousInitiativeLoop:
                             )
             except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('autonomous_initiative_loop', e)
-                logger.debug(f"Knowledge gap monitor loop error: {e}")
+                logger.debug("Knowledge gap monitor loop error: %s", e)
                 
             await asyncio.sleep(30) # Check every 30s
 
@@ -449,7 +449,7 @@ class AutonomousInitiativeLoop:
         """Explicitly triggered when a gap is found."""
         if not _background_initiative_allowed(self.orchestrator):
             return
-        logger.info(f"🔍 Knowledge gap found: '{topic}'. Initiating autonomous browser research.")
+        logger.info("🔍 Knowledge gap found: '%s'. Initiating autonomous browser research.", topic)
 
         try:
             from core.thought_stream import get_emitter

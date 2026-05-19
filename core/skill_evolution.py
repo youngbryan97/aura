@@ -65,11 +65,11 @@ class SkillEvolutionEngine:
             context={"target_skill": skill_name},
             lifespan=600 # 10 minutes research
         )
-        logger.info(f"Spawned evolution shard for skill: {skill_name}")
+        logger.info("Spawned evolution shard for skill: %s", skill_name)
 
     def propose_mutation(self, mutation: SkillMutation):
         """Publish a mutation proposed by a shard to the EventBus (Issue 93)."""
-        logger.info(f"New mutation proposed for {mutation.skill_name}: {mutation.rationale}")
+        logger.info("New mutation proposed for %s: %s", mutation.skill_name, mutation.rationale)
         
         # Publish to EventBus
         from core.event_bus import get_event_bus

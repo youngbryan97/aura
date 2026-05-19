@@ -49,7 +49,7 @@ class TaskRegistry:
             metadata=metadata or {}
         )
         self._tasks[task_id] = task
-        logger.debug(f"📋 Task Registered: {description} (ID: {task_id})")
+        logger.debug("📋 Task Registered: %s (ID: %s)", description, task_id)
         return task_id
 
     def update_task(
@@ -63,7 +63,7 @@ class TaskRegistry:
         """Update task status or progress."""
         task = self._tasks.get(task_id)
         if not task:
-            logger.warning(f"❓ Attempted to update non-existent task: {task_id}")
+            logger.warning("❓ Attempted to update non-existent task: %s", task_id)
             return
 
         if status:
@@ -78,9 +78,9 @@ class TaskRegistry:
         task.updated_at = time.time()
         
         if status == TaskStatus.COMPLETED:
-             logger.debug(f"✅ Task Completed: {task.description}")
+             logger.debug("✅ Task Completed: %s", task.description)
         elif status == TaskStatus.FAILED:
-             logger.error(f"❌ Task Failed: {task.description} -> {error}")
+             logger.error("❌ Task Failed: %s -> %s", task.description, error)
 
     def get_task(self, task_id: str | None) -> TaskInfo | None:
         if not task_id:
@@ -102,7 +102,7 @@ class TaskRegistry:
         for tid in to_remove:
             del self._tasks[tid]
         if to_remove:
-            logger.debug(f"🧹 Pruned {len(to_remove)} tasks from registry.")
+            logger.debug("🧹 Pruned %s tasks from registry.", len(to_remove))
 
 _registry_instance: TaskRegistry | None = None
 

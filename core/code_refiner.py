@@ -92,7 +92,7 @@ class CodeRefinerService:
 
         except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
             record_degradation('code_refiner', e)
-            logger.error(f"Failed to analyze {file_path}: {e}")
+            logger.error("Failed to analyze %s: %s", file_path, e)
             
         return proposals
 
@@ -104,7 +104,7 @@ class CodeRefinerService:
             all_proposals.extend(file_proposals)
             
         self.proposals = all_proposals
-        logger.info(f"Audit complete. Found {len(all_proposals)} refinement targets.")
+        logger.info("Audit complete. Found %s refinement targets.", len(all_proposals))
         return all_proposals
 
     def get_highest_impact_proposals(self, limit: int = 5) -> List[RefinementProposal]:

@@ -62,7 +62,7 @@ class MetaCognitionShard:
                 await self.perform_audit()
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:
                 record_degradation('meta_cognition_shard', e)
-                logger.error(f"Meta-Cognition audit loop failed: {e}")
+                logger.error("Meta-Cognition audit loop failed: %s", e)
                 await asyncio.sleep(10)
 
     async def evolve(self):
@@ -79,7 +79,7 @@ class MetaCognitionShard:
             logger.info("🧠 Meta-Evolution cycle completed successfully (v35).")
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
             record_degradation('meta_cognition_shard', e)
-            logger.error(f"Meta-Evolution failed: {e}")
+            logger.error("Meta-Evolution failed: %s", e)
 
     async def _validate_stability(self) -> bool:
         """Checks if the system is stable enough for self-modification."""
@@ -141,7 +141,7 @@ class MetaCognitionShard:
                 return True
         except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
             record_degradation('meta_cognition_shard', e)
-            logger.debug(f"Repetition detection error: {e}")
+            logger.debug("Repetition detection error: %s", e)
         return False
 
     async def _detect_latency_spike(self) -> bool:
@@ -152,7 +152,7 @@ class MetaCognitionShard:
                 if start_time > 0:
                     delta = time.monotonic() - start_time
                     if delta > 30.0:  # 30 second timeout for cognitive cycles
-                        logger.warning(f"🧠 DETECTED LATENCY SPIKE / STALL (Delta: {delta:.2f}s)")
+                        logger.warning("🧠 DETECTED LATENCY SPIKE / STALL (Delta: %ss)", f"{delta:.2f}")
                         return True
         except (RuntimeError, AttributeError, TypeError) as e:
             record_degradation('meta_cognition_shard', e)
@@ -166,7 +166,7 @@ class MetaCognitionShard:
             if ls and hasattr(ls, "v") and np:
                 volatility = np.mean(np.abs(ls.v))
                 if volatility > 0.8:
-                    logger.warning(f"🧠 DETECTED AFFECTIVE COLLAPSE (Volatility: {volatility:.2f})")
+                    logger.warning("🧠 DETECTED AFFECTIVE COLLAPSE (Volatility: %s)", f"{volatility:.2f}")
                     return True
         except (RuntimeError, AttributeError, TypeError) as e:
             record_degradation('meta_cognition_shard', e)
@@ -175,14 +175,14 @@ class MetaCognitionShard:
 
     async def _push_correction(self, correction_type: str, hint: str):
         """Inject a corrective shard into the next inference cycle."""
-        logger.info(f"🧠 Pushing {correction_type} correction: {hint}")
+        logger.info("🧠 Pushing %s correction: %s", correction_type, hint)
         try:
             if hasattr(self.orchestrator, "add_correction_shard"):
                 # Format hint to include type
                 formatted_hint = f"[{correction_type.upper()}] {hint}"
                 self.orchestrator.add_correction_shard(formatted_hint)
             else:
-                logger.debug(f"Correction logged (orchestrator missing add_correction_shard): {hint}")
+                logger.debug("Correction logged (orchestrator missing add_correction_shard): %s", hint)
         except (RuntimeError, AttributeError, TypeError) as e:
             record_degradation('meta_cognition_shard', e)
-            logger.error(f"Failed to push correction: {e}")
+            logger.error("Failed to push correction: %s", e)

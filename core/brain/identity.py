@@ -98,7 +98,7 @@ class IdentityService:
             logger.info("Identity state loaded successfully.")
         except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
             record_degradation('identity', e)
-            logger.error(f"Failed to load identity state: {e}")
+            logger.error("Failed to load identity state: %s", e)
 
     def save(self):
         """Persist identity state to disk."""
@@ -112,7 +112,7 @@ class IdentityService:
             logger.info("Identity state persisted.")
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
             record_degradation('identity', e)
-            logger.error(f"Failed to persist identity state: {e}")
+            logger.error("Failed to persist identity state: %s", e)
 
     def _constitutional_gate_active(self) -> bool:
         try:
@@ -229,7 +229,7 @@ class IdentityService:
             if len(self.state.inner_insights) > 50:
                 self.state.inner_insights.pop(0)
             self.save()
-            logger.info(f"✨ New Inner Insight recorded: {insight[:50]}...")
+            logger.info("✨ New Inner Insight recorded: %s...", f"{insight[:50]}")
 
     def score_goal(self, goal_text: str) -> float:
         """Score a goal based on alignment with beliefs and values.

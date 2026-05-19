@@ -31,7 +31,7 @@ class MLXVisionClient:
             if self._process is not None and self._process.is_alive():
                 return
                 
-            logger.info(f"Starting MLX Vision Worker for {self.model_path}")
+            logger.info("Starting MLX Vision Worker for %s", self.model_path)
             # Ensure spawn method for MLX Metal compatibility
             ctx = mp.get_context("spawn") if hasattr(mp, "get_context") else mp
             
@@ -76,7 +76,7 @@ class MLXVisionClient:
             except queue.Empty:
                 continue
             except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
-                logger.error(f"Vision listener error: {e}")
+                logger.error("Vision listener error: %s", e)
 
     def see(self, prompt: str, image_base64: str, max_tokens: int = 512, temp: float = 0.0) -> str:
         """

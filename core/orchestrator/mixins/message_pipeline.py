@@ -170,7 +170,7 @@ class MessagePipelineMixin:
             return response
         except (RuntimeError, asyncio.CancelledError, TimeoutError, AttributeError) as e:
             record_degradation('message_pipeline', e)
-            logger.warning(f"[ConstitutionalGuard] Error — passing raw response. Reason: {e}")
+            logger.warning("[ConstitutionalGuard] Error — passing raw response. Reason: %s", e)
             return response
 
     async def _run_guard_inner(self, response: str) -> str:

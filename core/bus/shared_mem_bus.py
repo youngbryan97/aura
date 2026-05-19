@@ -229,7 +229,7 @@ class SharedMemoryTransport:
             buf = shm.buf
             if buf is not None:
                 buf[:self.size] = bytes(self.size)
-            logger.debug(f"Shared Memory Segment Created: {self.name} ({self.size} bytes)")
+            logger.debug("Shared Memory Segment Created: %s (%s bytes)", self.name, self.size)
         except FileExistsError:
             # Already exists, just attach
             await self.attach()
@@ -243,7 +243,7 @@ class SharedMemoryTransport:
                 )
                 self._create_file_backed_segment()
                 return
-            logger.error(f"Failed to create shared memory {self.name}: {e}")
+            logger.error("Failed to create shared memory %s: %s", self.name, e)
             raise
 
     async def attach(self):
@@ -258,18 +258,18 @@ class SharedMemoryTransport:
                     self.shm = shared_memory.SharedMemory(name=self.name)
                 self.size = getattr(self.shm, "size", self.size) or self.size
                 self._backend = "posix_shm"
-                logger.debug(f"✓ Attached to Shared Memory: {self.name}")
+                logger.debug("✓ Attached to Shared Memory: %s", self.name)
                 return
             except FileNotFoundError:
                 if fallback_path.exists():
                     self._attach_file_backed_segment()
                     return
                 if attempt < max_retries - 1:
-                    logger.debug(f"⏳ SHM '{self.name}' not found. Retrying in {retry_delay}s... (Attempt {attempt+1}/{max_retries})")
+                    logger.debug("⏳ SHM '%s' not found. Retrying in %ss... (Attempt %s/%s)", self.name, retry_delay, attempt+1, max_retries)
                     await asyncio.sleep(retry_delay) # Async sleep
                     retry_delay = min(retry_delay * 1.5, 5.0) # Exponential backoff with cap
                 else:
-                    logger.error(f"❌ Shared memory segment not found after {max_retries} attempts: {self.name}")
+                    logger.error("❌ Shared memory segment not found after %s attempts: %s", max_retries, self.name)
                     raise
             except (RuntimeError, AttributeError, TypeError) as e:
                 record_degradation('shared_mem_bus', e)
@@ -281,7 +281,7 @@ class SharedMemoryTransport:
                         await asyncio.sleep(retry_delay)
                         retry_delay = min(retry_delay * 1.5, 5.0)
                         continue
-                logger.error(f"❌ Failed to attach to shared memory {self.name}: {e}")
+                logger.error("❌ Failed to attach to shared memory %s: %s", self.name, e)
                 raise
 
     def write(self, data: Any):
@@ -326,7 +326,7 @@ class SharedMemoryTransport:
         # 2. Get current version and ensure it's EVEN
         current_ver = int.from_bytes(buf[0:8], byteorder='big')
         if current_ver % 2 != 0:
-            logger.warning(f"SHM {self.name}: Pre-write version is ODD ({current_ver}) - repairing.")
+            logger.warning("SHM %s: Pre-write version is ODD (%s) - repairing.", self.name, current_ver)
             current_ver += 1
         
         try:
@@ -351,11 +351,11 @@ class SharedMemoryTransport:
             if hasattr(buf, 'obj') and isinstance(buf.obj, mmap.mmap):
                 buf.obj.flush()
                 
-            logger.debug(f"Wrote {length} bytes to {self.name} (Ver: {current_ver + 2})")
+            logger.debug("Wrote %s bytes to %s (Ver: %s)", length, self.name, current_ver + 2)
         except (RuntimeError, AttributeError, TypeError) as e:
             record_degradation('shared_mem_bus', e)
             # [RECOVERY] Always restore to a known-even version on failure to unblock readers
-            logger.error(f"Write failure on {self.name}: {e}. Restoring version {current_ver}.")
+            logger.error("Write failure on %s: %s. Restoring version %s.", self.name, e, current_ver)
             try:
                 buf[0:8] = current_ver.to_bytes(8, byteorder='big')
                 if hasattr(buf, 'obj') and isinstance(buf.obj, mmap.mmap):
@@ -384,9 +384,9 @@ class SharedMemoryTransport:
                 # 2. If version is ODD, a write is in progress. Wait and retry.
                 if v1 % 2 != 0:
                     if attempt > 7:
-                        logger.warning(f"⚠️ SHM {self.name}: Persistent ODD version ({v1}) detected. Possible dead writer.")
+                        logger.warning("⚠️ SHM %s: Persistent ODD version (%s) detected. Possible dead writer.", self.name, v1)
                         if self._is_owner:
-                            logger.info(f"🛠️ SHM {self.name}: Owner repairing stale version lock.")
+                            logger.info("🛠️ SHM %s: Owner repairing stale version lock.", self.name)
                             buf[0:8] = (v1 + 1).to_bytes(8, byteorder='big')
                             if hasattr(buf, 'obj') and isinstance(buf.obj, mmap.mmap):
                                 buf.obj.flush()
@@ -410,14 +410,14 @@ class SharedMemoryTransport:
                     return json.loads(content)
                 
                 # Otherwise, a write occurred during our read. Retry.
-                logger.debug(f"Torn read detected on {self.name} (v1={v1}, v2={v2}), retrying...")
+                logger.debug("Torn read detected on %s (v1=%s, v2=%s), retrying...", self.name, v1, v2)
                 await asyncio.sleep(0.001 * (attempt + 1)) # Async sleep
                 
-            logger.warning(f"Failed to read atomic state from {self.name} after 10 attempts.")
+            logger.warning("Failed to read atomic state from %s after 10 attempts.", self.name)
             return None
         except (json.JSONDecodeError, TypeError, ValueError) as e:
             record_degradation('shared_mem_bus', e)
-            logger.error(f"Read failure on {self.name}: {e}")
+            logger.error("Read failure on %s: %s", self.name, e)
             return None
 
     def close(self):
@@ -433,10 +433,10 @@ class SharedMemoryTransport:
                     # [REAPER] Deregister before unlinking
                     self._deregister_from_reaper(self.name)
                     shm.unlink()
-                    logger.debug(f"Shared Memory Segment Unlinked: {self.name}")
+                    logger.debug("Shared Memory Segment Unlinked: %s", self.name)
                 except (RuntimeError, AttributeError, TypeError, ValueError) as e:
                     record_degradation('shared_mem_bus', e)
-                    logger.debug(f"Unlink failed (already gone?): {e}")
+                    logger.debug("Unlink failed (already gone?): %s", e)
             shm.close()
             self.shm = None
 

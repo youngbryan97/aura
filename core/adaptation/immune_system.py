@@ -205,20 +205,20 @@ class ImmuneSystem:
             snapshot = Path(snapshot_path).resolve()
             
             if not str(snapshot).startswith(str(base_dir)):
-                logger.error(f"🛑 Security violation: Rollback path traversal detected! {snapshot_path}")
+                logger.error("🛑 Security violation: Rollback path traversal detected! %s", snapshot_path)
                 return
 
             if not snapshot.exists():
-                logger.error(f"Rollback failed: Snapshot {snapshot_path} not found.")
+                logger.error("Rollback failed: Snapshot %s not found.", snapshot_path)
                 return
 
-            logger.warning(f"🚨 CRITICAL FAILURE: Rolling back to {snapshot_path}")
+            logger.warning("🚨 CRITICAL FAILURE: Rolling back to %s", snapshot_path)
             target = Path("core/cognitive_kernel.py")
             await asyncio.to_thread(shutil.copy2, snapshot, target)
-            logger.info(f"✅ Rollback complete: {target} restored.")
+            logger.info("✅ Rollback complete: %s restored.", target)
         except (OSError, IOError) as e:
             record_degradation('immune_system', e)
-            logger.error(f"Rollback error: {e}")
+            logger.error("Rollback error: %s", e)
         finally:
             self.rollback_active = False
 

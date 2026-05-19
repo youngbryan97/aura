@@ -42,7 +42,7 @@ class SpeculativeArena:
             self.branches[branch.branch_id] = branch
             branch_ids.append(branch.branch_id)
         
-        logger.info(f"Arena: Opened with {count} speculative branches.")
+        logger.info("Arena: Opened with %s speculative branches.", count)
         return branch_ids
 
     async def execute_branch(self, branch_id: str, mutated_code: str, validator_code: str) -> bool:
@@ -71,7 +71,7 @@ class SpeculativeArena:
             raise ValueError(f"Branch {branch_id} not found in Arena")
             
         winner = self.branches[branch_id]
-        logger.info(f"Arena: Promoting branch {branch_id} (Score: {winner.score}) to Canonical.")
+        logger.info("Arena: Promoting branch %s (Score: %s) to Canonical.", branch_id, winner.score)
         
         # Lineage update
         winner.state.transition_cause = f"arena_promotion: {branch_id}"

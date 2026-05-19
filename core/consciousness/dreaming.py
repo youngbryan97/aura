@@ -85,7 +85,7 @@ class DreamingProcess:
                 break
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:
                 record_degradation('dreaming', e)
-                logger.error(f"Error in dreaming loop: {e}")
+                logger.error("Error in dreaming loop: %s", e)
 
     def _should_dream(self) -> bool:
         """Determine if it's a good time to dream (Low Pulse)."""
@@ -202,7 +202,7 @@ class DreamingProcess:
             # 2. Extract recurring patterns from episodes
             patterns = self._extract_patterns(recent_events)
             monologue = self._compose_reflection(recent_events)
-            logger.info(f"🌙 Dream Monologue: {monologue[:100]}...")
+            logger.info("🌙 Dream Monologue: %s...", f"{monologue[:100]}")
             logger.info("🌙 Extracted %d patterns from episodes", len(patterns))
 
             # 3. Feed patterns into EpistemicState (world model) as beliefs
@@ -266,7 +266,7 @@ class DreamingProcess:
                     logger.info("🧠 Consolidating semantic memories via VectorEngine...")
                     consolidated_count = await vector_mem.consolidate(brain=None)
                     if consolidated_count > 0:
-                        logger.info(f"💾 Consolidated {consolidated_count} semantic clusters into insights.")
+                        logger.info("💾 Consolidated %s semantic clusters into insights.", consolidated_count)
             except (ImportError, AttributeError, RuntimeError) as exc:
                 record_degradation('dreaming', exc)
                 logger.debug("Dream: vector memory consolidation failed: %s", exc)
@@ -276,7 +276,7 @@ class DreamingProcess:
 
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('dreaming', e)
-            logger.error(f"Dream cycle failed: {e}")
+            logger.error("Dream cycle failed: %s", e)
 
     async def _get_recent_summary(self) -> str:
         """Extract a summary of recent activity using the Episodic Memory system."""
@@ -295,7 +295,7 @@ class DreamingProcess:
             return "\n".join(summary)
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('dreaming', e)
-            logger.debug(f"Failed to get recent summary: {e}")
+            logger.debug("Failed to get recent summary: %s", e)
             return ""
 
     def _process_growth(self, events: str, patterns: Optional[List[Dict]] = None):

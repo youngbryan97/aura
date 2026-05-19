@@ -51,14 +51,14 @@ def _mlx_vision_worker_loop(model_path: str, req_q: mp.Queue, res_q: mp.Queue):
         from mlx_vlm import load, generate
         from mlx_vlm.utils import load_config
         
-        logger.info(f"Loading Vision Model: {model_path}")
+        logger.info("Loading Vision Model: %s", model_path)
         model, processor = load(model_path)
         config = load_config(model_path)
         logger.info("Vision Model loaded.")
         
         res_q.put({"status": "ok", "action": "init"})
     except (ImportError, AttributeError, RuntimeError) as e:
-        logger.error(f"Failed to load vision model: {e}")
+        logger.error("Failed to load vision model: %s", e)
         res_q.put({"status": "error", "action": "init", "message": str(e)})
         return
         
@@ -108,10 +108,10 @@ def _mlx_vision_worker_loop(model_path: str, req_q: mp.Queue, res_q: mp.Queue):
                 except (ImportError, AttributeError, RuntimeError) as eval_e:
                     import traceback
                     err = f"{eval_e}\n{traceback.format_exc()}"
-                    logger.error(f"Vision eval error: {err}")
+                    logger.error("Vision eval error: %s", err)
                     res_q.put({"status": "error", "action": "see", "id": job.get("id"), "message": str(eval_e)})
                     
         except KeyboardInterrupt:
             break
         except (ImportError, AttributeError, RuntimeError) as e:
-            logger.error(f"Worker loop error: {e}")
+            logger.error("Worker loop error: %s", e)

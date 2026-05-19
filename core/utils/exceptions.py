@@ -102,4 +102,4 @@ def capture_and_log(error_or_func=None, context=None):
         logger.error(f"Captured Error: {error_or_func} | Context: {context}", exc_info=True)
         _record_exception_degraded_event(error_or_func, context if isinstance(context, dict) else {})
     elif error_or_func is not None:
-         logger.error(f"Captured Issue: {error_or_func} | Context: {context}")
+         logger.error("Captured Issue: %s | Context: %s", error_or_func, context)

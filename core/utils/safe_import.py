@@ -14,7 +14,7 @@ def safe_import(name: str, optional: bool = False) -> Any:
         mod = importlib.import_module(name)
         return mod
     except ImportError as e:
-        logger.warning(f"safe_import: missing '{name}': {e}")
+        logger.warning("safe_import: missing '%s': %s", name, e)
         if optional:
             # return a simple dummy to avoid attribute errors
             dummy = SimpleNamespace(__missing__=True, __name__=name)

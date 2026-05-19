@@ -17,7 +17,7 @@ async def get_breaker(service_name: str, failure_threshold: int = 3, recovery_ti
         _factory_lock = asyncio.Lock()
     async with _factory_lock:
         if service_name not in _breakers:
-            logger.info(f"🌿 Establishing new resilience root for '{service_name}'.")
+            logger.info("🌿 Establishing new resilience root for '%s'.", service_name)
             _breakers[service_name] = CircuitBreaker(failure_threshold, recovery_timeout)
         return _breakers[service_name]
 

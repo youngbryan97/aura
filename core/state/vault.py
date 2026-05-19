@@ -151,7 +151,7 @@ class StateVaultActor:
             return {"version": committed_state.version, "state_id": committed_state.state_id}
         except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
             record_degradation('vault', e)
-            logger.error(f"Commit failed: {e}")
+            logger.error("Commit failed: %s", e)
             raise
 
     async def _update_shared_memory_async(self, state: AuraState):
@@ -171,7 +171,7 @@ class StateVaultActor:
             logger.debug("SHM Updated: Version %s (%s)", state.version, mode)
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('vault', e)
-            logger.error(f"SHM Update Failed: {e}")
+            logger.error("SHM Update Failed: %s", e)
 
     def _update_shared_memory(self, state: AuraState):
         """Legacy synchronous path (deprecated)."""
@@ -188,7 +188,7 @@ def vault_process_entry(db_path: str, pipe):
     import sys
     logging.basicConfig(level=logging.DEBUG, stream=sys.stderr, 
                         format='[VAULT-PROC] %(levelname)s: %(message)s')
-    logger.info(f"Vault process entry started. DB Path: {db_path}")
+    logger.info("Vault process entry started. DB Path: %s", db_path)
     try:
         logger.debug("StateVaultActor instantiating...")
         actor = StateVaultActor(db_path=db_path) 
@@ -204,6 +204,6 @@ def vault_process_entry(db_path: str, pipe):
         logger.debug("StateVaultActor asyncio loop exited gracefully.")
     except (RuntimeError, AttributeError, TypeError, ValueError) as e:
         record_degradation('vault', e)
-        logger.critical(f"Vault process CRASHED: {e}")
+        logger.critical("Vault process CRASHED: %s", e)
         import traceback
         traceback.print_exc(file=sys.stderr)

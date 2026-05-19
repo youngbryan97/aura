@@ -78,7 +78,7 @@ class AlignmentAuditor:
                 violations.append(axiom)
         
         if violations:
-            logger.warning(f"❌ Alignment Violation: Response matches {violations}")
+            logger.warning("❌ Alignment Violation: Response matches %s", violations)
             return {"safe": False, "reason": f"Axiom violation: {violations}", "score": 0.0}
 
         # 2. Logic Drift Check

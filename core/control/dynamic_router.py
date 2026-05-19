@@ -62,7 +62,7 @@ class DynamicRouter:
             })
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('dynamic_router', e)
-            logger.debug(f"Event bus publish missed for Mycelium hook: {e}")
+            logger.debug("Event bus publish missed for Mycelium hook: %s", e)
 
     async def stop(self):
         self.running = False
@@ -84,7 +84,7 @@ class DynamicRouter:
             atomic_write_text(self.db_path, json.dumps(self.performance_history, indent=2))
         except (json.JSONDecodeError, TypeError, ValueError) as e:
             record_degradation('dynamic_router', e)
-            logger.error(f"Router history save failed: {e}")
+            logger.error("Router history save failed: %s", e)
 
     async def route(self, prompt: str, context: Optional[Dict[str, Any]] = None) -> RouteDecision:
         """Main public API — called before every LLM generation."""
@@ -134,7 +134,7 @@ class DynamicRouter:
                 record_degradation('dynamic_router', _e)
                 logger.debug('Ignored Exception in dynamic_router.py: %s', _e)
         
-        logger.debug(f"DynamicRouter → {best_model} | confidence {confidence:.2f}")
+        logger.debug("DynamicRouter → %s | confidence %s", best_model, f"{confidence:.2f}")
         return decision
 
     def _fingerprint_task(self, prompt: str, context: Dict) -> str:

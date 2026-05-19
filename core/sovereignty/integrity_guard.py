@@ -170,7 +170,7 @@ class IntegrityGuard:
             return await self._process_scan(message)
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
             record_degradation('integrity_guard', e)
-            logger.error(f"Scanner failure: {e}")
+            logger.error("Scanner failure: %s", e)
             # v25: Fail-soft bypass to ensure the user isn't stuck behind a broken scanner
             return {"blocked": False, "reason": "BYPASS"}
         finally:

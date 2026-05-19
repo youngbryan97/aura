@@ -20,7 +20,7 @@ class HotfixEngine:
         """
         Reloads a specific module and updates ServiceContainer if necessary.
         """
-        logger.info(f"🆕 Hotfixing module: {module_name}")
+        logger.info("🆕 Hotfixing module: %s", module_name)
         try:
             if module_name not in sys.modules:
                 return {"ok": False, "error": f"Module {module_name} not currently loaded."}
@@ -37,11 +37,11 @@ class HotfixEngine:
             # This is complex because we need to know what instances belong to this module.
             # We'll rely on services to self-update or we can scan ServiceContainer.
             
-            logger.info(f"✅ Hotfix applied to {module_name}. Total reloads: {self.reloads_total}")
+            logger.info("✅ Hotfix applied to %s. Total reloads: %s", module_name, self.reloads_total)
             return {"ok": True, "reloaded": module_name}
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
             record_degradation('hotfix_engine', e)
-            logger.error(f"❌ Hotfix stage fail for {module_name}: {e}")
+            logger.error("❌ Hotfix stage fail for %s: %s", module_name, e)
             return {"ok": False, "error": str(e)}
 
     async def patch_service(self, service_name: str, module_name: str):
@@ -54,6 +54,6 @@ class HotfixEngine:
             reloaded_module = sys.modules[module_name]
             # Assuming CamelCase service name matches class name or similar
             # This is a guestimation for now.
-            logger.info(f"Service {service_name} re-registration in Mycelium requested.")
+            logger.info("Service %s re-registration in Mycelium requested.", service_name)
             return True
         return False

@@ -58,7 +58,7 @@ class ConversationalMemoryGuard:
             logger.info("🧠 ConversationalMemoryGuard: Compression complete. Context window optimized.")
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('conversational_guard', e)
-            logger.error(f"Memory compression failed: {e}")
+            logger.error("Memory compression failed: %s", e)
 
     def get_prompt_for_tier(self, tier: str, system_vibe: str, current_user_input: str) -> str:
         """Dynamically scales the context window based on the hardware executing it."""
@@ -91,7 +91,7 @@ class ConversationalMemoryGuard:
                 
             mlx_prompt = f"{base_system_prompt}\n{history}\nUSER: {current_user_input}"
             
-            logger.info(f"LOCAL tier: Context assembled at {len(mlx_prompt)} chars.")
+            logger.info("LOCAL tier: Context assembled at %s chars.", len(mlx_prompt))
             return mlx_prompt
         
         return f"{base_system_prompt}\nUSER: {current_user_input}"

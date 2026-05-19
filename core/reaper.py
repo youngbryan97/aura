@@ -74,7 +74,7 @@ class ReaperManifest:
                 raise
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('reaper', e)
-            logger.error(f"[REAPER] Manifest save failed: {e}")
+            logger.error("[REAPER] Manifest save failed: %s", e)
 
     def _load(self):
         try:
@@ -113,7 +113,7 @@ def reaper_loop(kernel_pid: int, manifest_path: Path):
             logger.debug('Ignored PermissionError in reaper.py: %s', _e)
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
             record_degradation('reaper', e)
-            logger.debug(f"[REAPER] Existence check failed (non-fatal): {e}")
+            logger.debug("[REAPER] Existence check failed (non-fatal): %s", e)
             
         time.sleep(POLL_INTERVAL)
 

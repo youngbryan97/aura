@@ -44,7 +44,7 @@ class OutputFormatterMixin:
         }
         for banned, replacement in banned_phrases.items():
             if banned in text:
-                logger.warning(f"🚨 Identity Flux Guard triggered: neutralizing '{banned}'")
+                logger.warning("🚨 Identity Flux Guard triggered: neutralizing '%s'", banned)
                 text = text.replace(banned, replacement).strip()
             
         # Personality Engine Filter

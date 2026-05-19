@@ -240,7 +240,7 @@ class PersistentComputeCostTracker:
             if self.total_ergs % 100 < 50 or len(self.cost_history) % 10 == 0:
                 self._save_state()
                 
-        logger.debug(f"🔋 Metabolic Cost: {ergs:.2f} ergs ({op_type})")
+        logger.debug("🔋 Metabolic Cost: %s ergs (%s)", f"{ergs:.2f}", op_type)
         return ergs
 
     def get_metabolic_rate(self, window_s: int = 60) -> float:

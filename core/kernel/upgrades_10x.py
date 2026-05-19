@@ -99,7 +99,7 @@ class EternalMemoryPhase(Phase):
                     return [json.loads(l) for l in deque(f, limit)]
             except (json.JSONDecodeError, TypeError, ValueError) as e:
                 record_degradation('upgrades_10x', e)
-                logger.error(f"Failed to read eternal slice: {e}")
+                logger.error("Failed to read eternal slice: %s", e)
         return []
 
     async def _get_cached_or_refresh_summary(self) -> List[Dict[str, str]]:

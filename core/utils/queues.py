@@ -156,7 +156,7 @@ class BackpressuredQueue:
             await asyncio.wait_for(self._q.put(item), timeout=timeout)
         except asyncio.TimeoutError:
             self.dropped_count += 1
-            logger.warning(f"⚠️ Queue Backpressure: Dropped item. Total dropped: {self.dropped_count}")
+            logger.warning("⚠️ Queue Backpressure: Dropped item. Total dropped: %s", self.dropped_count)
 
     def put_nowait(self, item):
         """Standard put_nowait with drop tracking."""
@@ -165,7 +165,7 @@ class BackpressuredQueue:
             self._q.put_nowait(item)
         except asyncio.QueueFull:
             self.dropped_count += 1
-            logger.warning(f"⚠️ Queue Full (nowait): Dropped item {type(item).__name__}")
+            logger.warning("⚠️ Queue Full (nowait): Dropped item %s", type(item).__name__)
 
     async def get(self):
         self._ensure_queue()
@@ -227,7 +227,7 @@ class PriorityBackpressuredQueue(BackpressuredQueue):
             if isinstance(payload_data, dict) and payload_data.get("origin"):
                 standardized.origin = str(payload_data["origin"])
             elif standardized.origin == "unknown":
-                logger.warning(f"Message lacked explicit origin, defaulting to system. Payload: {str(payload_data)[:50]}")
+                logger.warning("Message lacked explicit origin, defaulting to system. Payload: %s", f"{str(payload_data)[:50]}")
                 standardized.origin = "system"
         else:
             standardized = item

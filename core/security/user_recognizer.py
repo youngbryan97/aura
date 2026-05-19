@@ -427,7 +427,7 @@ def _cli_setup():
         return
     recognizer = UserRecognizer()
     if recognizer.setup_passphrase(p1):
-        logger.info(f"\n✓ Passphrase set. Stored in: {PROFILE_PATH}")
+        logger.info("\n✓ Passphrase set. Stored in: %s", PROFILE_PATH)
         logger.info("Aura will recognize you when you include it in your first message.")
     else:
         logger.warning("Setup failed — passphrase must be at least 8 characters.")

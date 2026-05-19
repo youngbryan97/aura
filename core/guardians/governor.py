@@ -64,7 +64,7 @@ class SystemGovernor:
             
         if new_mode != self.current_mode:
             self.current_mode = new_mode
-            logger.warning(f"⚠️ SystemGovernor shifted Operational Mode: {self.current_mode.value}")
+            logger.warning("⚠️ SystemGovernor shifted Operational Mode: %s", self.current_mode.value)
             
         return self.current_mode
         

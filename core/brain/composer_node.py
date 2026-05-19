@@ -29,7 +29,7 @@ class ComposerNode:
             logger.info("🎨 Composer Node Online (Style Transfer Enabled).")
         except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
             record_degradation('composer_node', e)
-            logger.error(f"Composer setup failed: {e}")
+            logger.error("Composer setup failed: %s", e)
 
     async def stylize_desktop(self, style_prompt: str) -> Dict[str, Any]:
         """
@@ -56,7 +56,7 @@ class ComposerNode:
         # For now, we delegate to the capability engine for an img2img skill
         # if one exists, otherwise we fallback to high-fidelity description + generation.
         
-        logger.info(f"🎭 Stylizing desktop with prompt: '{style_prompt}'")
+        logger.info("🎭 Stylizing desktop with prompt: '%s'", style_prompt)
         
         try:
             # Prototype workflow:
@@ -87,5 +87,5 @@ class ComposerNode:
             
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('composer_node', e)
-            logger.error(f"Stylization workflow failed: {e}")
+            logger.error("Stylization workflow failed: %s", e)
             return {"ok": False, "error": str(e)}

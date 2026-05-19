@@ -70,7 +70,7 @@ class AirlockProtocol:
         """
         Executes the Airlock Gauntlet on a proposed code mutation.
         """
-        logger.warning(f"🔒 AIRLOCK PROTOCOL ENGAGED for Mutation {hypothesis_id}")
+        logger.warning("🔒 AIRLOCK PROTOCOL ENGAGED for Mutation %s", hypothesis_id)
         
         branch_name = f"mutation/{self._safe_branch_suffix(hypothesis_id)}"
         
@@ -134,7 +134,7 @@ class AirlockProtocol:
             return {"success": False, "reason": str(e), "stdout": e.result.stdout, "stderr": e.result.stderr}
         except _AIRLOCK_RECOVERABLE_ERRORS as e:
             record_degradation('airlock', e)
-            logger.error(f"Airlock Exception: {e}")
+            logger.error("Airlock Exception: %s", e)
             await self._recover_state()
             return {"success": False, "reason": str(e)}
 
@@ -182,7 +182,7 @@ class AirlockProtocol:
             await self._cleanup_worktree()
         except _AIRLOCK_RECOVERABLE_ERRORS as e:
             record_degradation('airlock', e)
-            logger.critical(f"FATAL: Airlock failed to recover base state! {e}")
+            logger.critical("FATAL: Airlock failed to recover base state! %s", e)
 
     @staticmethod
     async def _default_command_runner(

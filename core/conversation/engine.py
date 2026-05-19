@@ -190,7 +190,7 @@ class ConversationEngine:
                 logger.info("🧠 [PHASE 6] Hierarchical Memory Orchestrator integrated.")
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('engine', e)
-            logger.warning(f"⚠️ [PHASE 6] Failed to initialize Hierarchical Memory: {e}")
+            logger.warning("⚠️ [PHASE 6] Failed to initialize Hierarchical Memory: %s", e)
             self.hierarchical_memory = None
 
     def get_context(self, conversation_id) -> ConversationContext:

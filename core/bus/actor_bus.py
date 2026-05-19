@@ -64,7 +64,7 @@ class ActorBus:
             logger.debug("ActorBus activity monitor hookup failed for %s: %s", name, e)
         transport.start()
         self._transports[name] = transport
-        logger.info(f"📡 Registered Actor Transport: {name}")
+        logger.info("📡 Registered Actor Transport: %s", name)
         return True
 
     def has_actor(self, name: str) -> bool:
@@ -74,7 +74,7 @@ class ActorBus:
         """Hot-swap an actor's transport with a new connection (e.g. after a restart)."""
         old_transport = self._transports.get(name)
         if old_transport:
-            logger.info(f"🔄 Hot-swapping transport for {name}...")
+            logger.info("🔄 Hot-swapping transport for %s...", name)
             await old_transport.stop()
         
         # Register new transport
@@ -118,7 +118,7 @@ class ActorBus:
                     import psutil
                     if psutil.virtual_memory().percent < 90:
                         from core.runtime.self_healing import get_healer
-                        logger.warning(f"Active repair triggered for telemetry broadcast error: {e}")
+                        logger.warning("Active repair triggered for telemetry broadcast error: %s", e)
                         record_degradation('actor_bus', e, action="scheduled_deep_repair", receipt_required=True)
                         get_healer().schedule_deep_repair(
                             "core/bus/actor_bus.py",
@@ -130,7 +130,7 @@ class ActorBus:
                 except (ImportError, AttributeError, RuntimeError):
                     record_degradation('actor_bus', e)
                     
-                logger.error(f"Telemetry broadcast error: {e}")
+                logger.error("Telemetry broadcast error: %s", e)
                 await asyncio.sleep(0.1)
 
     async def broadcast_telemetry(self, topic: str, payload: Any):
@@ -203,7 +203,7 @@ class ActorBus:
         # Congestion Check (High Water Mark)
         pending = len(transport._pending_requests)
         if pending > self._high_water_mark:
-            logger.warning(f"⚠️ Bus Congested: {pending} pending requests for {actor}")
+            logger.warning("⚠️ Bus Congested: %s pending requests for %s", pending, actor)
             return False
             
         return True
@@ -214,7 +214,7 @@ class ActorBus:
         if not transport:
             # Routing: Forward to kernel if it's a child process
             if "kernel" in self._transports:
-                logger.debug(f"🔀 Routing request for '{actor}' via kernel...")
+                logger.debug("🔀 Routing request for '%s' via kernel...", actor)
                 return await self.request("kernel", "route_request", {
                     "target": actor,
                     "type": msg_type,
@@ -236,12 +236,12 @@ class ActorBus:
             
             latency = (time.time() - start) * 1000
             if latency > 100:
-                logger.debug(f"🐢 Slow bus request to {actor}: {latency:.1f}ms")
+                logger.debug("🐢 Slow bus request to %s: %sms", actor, f"{latency:.1f}")
                 
             return result
             
         except (asyncio.TimeoutError, BusDegraded, BrokenPipeError, ConnectionResetError) as e:
-            logger.warning(f"📡 Bus degraded for {actor} → {e}")
+            logger.warning("📡 Bus degraded for %s → %s", actor, e)
             raise
 
     async def send(self, actor: str, msg_type: str, payload: Any):
@@ -250,18 +250,18 @@ class ActorBus:
         if not transport:
             # Routing: Forward to kernel if it's a child process
             if "kernel" in self._transports:
-                logger.debug(f"🔀 Routing send for '{actor}' via kernel...")
+                logger.debug("🔀 Routing send for '%s' via kernel...", actor)
                 await self.send("kernel", "route_send", {
                     "target": actor,
                     "type": msg_type,
                     "payload": payload
                 })
                 return
-            logger.error(f"❌ Unknown actor: {actor}")
+            logger.error("❌ Unknown actor: %s", actor)
             return
 
         if not await self._health_ping(actor):
-            logger.error(f"❌ Cannot send to {actor}: Bus degraded")
+            logger.error("❌ Cannot send to %s: Bus degraded", actor)
             return
 
         await transport.send(msg_type, payload)

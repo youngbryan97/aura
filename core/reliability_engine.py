@@ -90,7 +90,7 @@ class ReliabilityEngine:
             global_stability = self._compute_global_stability()
 
             if global_stability < self.global_stability_threshold:
-                logger.warning(f"⚠️ Global stability {global_stability:.2f} — triggering degradation")
+                logger.warning("⚠️ Global stability %s — triggering degradation", f"{global_stability:.2f}")
                 await self._trigger_graceful_degradation()
 
     def _compute_global_stability(self) -> float:
@@ -102,10 +102,10 @@ class ReliabilityEngine:
     async def _open_circuit(self, service_name: str):
         svc = self.services[service_name]
         svc.circuit_open = True
-        logger.error(f"🔴 Circuit breaker OPEN for {service_name}")
+        logger.error("🔴 Circuit breaker OPEN for %s", service_name)
         await asyncio.sleep(self.circuit_timeout)
         svc.circuit_open = False
-        logger.info(f"🟢 Circuit breaker CLOSED for {service_name}")
+        logger.info("🟢 Circuit breaker CLOSED for %s", service_name)
 
     async def _trigger_graceful_degradation(self):
         """Universal safe mode: drop low-priority tasks, pause non-critical shards."""
@@ -113,10 +113,10 @@ class ReliabilityEngine:
             from core.brain.reasoning_queue import get_reasoning_queue, ReasoningPriority
             rq = get_reasoning_queue()
             dropped = await rq.prune_low_priority(threshold_priority=ReasoningPriority.HIGH.value)
-            logger.info(f"🛡️ Degradation: dropped {dropped} low-priority tasks")
+            logger.info("🛡️ Degradation: dropped %s low-priority tasks", dropped)
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('reliability_engine', e)
-            logger.error(f"Failed to access reasoning queue during degradation: {e}")
+            logger.error("Failed to access reasoning queue during degradation: %s", e)
 
         # Call any registered callbacks (e.g. swarm pause)
         for cb in self._on_degrade_callbacks:
@@ -124,7 +124,7 @@ class ReliabilityEngine:
                 await cb()
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:
                 record_degradation('reliability_engine', e)
-                logger.error(f"Degradation callback failed: {e}")
+                logger.error("Degradation callback failed: %s", e)
 
     def register_degrade_callback(self, cb: Callable):
         self._on_degrade_callbacks.append(cb)

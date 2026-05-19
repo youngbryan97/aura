@@ -106,7 +106,7 @@ class Soma:
                 break
             except (ImportError, AttributeError, RuntimeError) as e:
                 record_degradation('soma', e)
-                logger.error(f"Soma loop error: {e}")
+                logger.error("Soma loop error: %s", e)
                 await asyncio.sleep(10)
 
     async def _check_latency(self) -> float:

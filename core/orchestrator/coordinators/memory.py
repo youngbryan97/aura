@@ -33,7 +33,7 @@ class MemoryCoordinator:
                         self._memory = get_vault()
                     except (RuntimeError, AttributeError, TypeError, ValueError) as e:
                         record_degradation('memory', e)
-                        logger.error(f"Fallback to vault failed: {e}")
+                        logger.error("Fallback to vault failed: %s", e)
                         self._memory = None
                     return self._memory
                 
@@ -74,7 +74,7 @@ class MemoryCoordinator:
                     return await asyncio.to_thread(self.memory.get_hot_memory, limit=limit)
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:
                 record_degradation('memory', e)
-                logger.error(f"MemoryCoordinator.get_hot_memory failed: {e}")
+                logger.error("MemoryCoordinator.get_hot_memory failed: %s", e)
         return {}
 
     async def commit_interaction(
@@ -140,7 +140,7 @@ class MemoryCoordinator:
                     await asyncio.to_thread(self.memory.prune_low_salience, threshold_days=threshold_days)
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:
                 record_degradation('memory', e)
-                logger.error(f"MemoryCoordinator.prune_low_salience failed: {e}")
+                logger.error("MemoryCoordinator.prune_low_salience failed: %s", e)
 
     async def get_cold_memory_context(self, query: str, limit: int = 5) -> Dict[str, Any]:
         """Compatibility alias for vector search."""
@@ -166,7 +166,7 @@ class MemoryCoordinator:
                 return res if isinstance(res, dict) else {"results": res}
         except (RuntimeError, AttributeError, TypeError) as e:
             record_degradation('memory', e)
-            logger.error(f"Memory retrieval failure: {e}")
+            logger.error("Memory retrieval failure: %s", e)
             
         return {"results": []}
 

@@ -26,7 +26,7 @@ class CodingSkill(BaseSkill):
         if not task:
             return {"ok": False, "error": "No coding task provided"}
 
-        logger.info(f"Executing coding task in {language}")
+        logger.info("Executing coding task in %s", language)
 
         # The local_llm.py now automatically handles the <think> directive detection,
         # but the coding skill forces the 'coding' task tier explicitly.
@@ -72,5 +72,5 @@ class CodingSkill(BaseSkill):
             }
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('coding_skill', e)
-            logger.error(f"Coding skill failed: {e}")
+            logger.error("Coding skill failed: %s", e)
             return {"ok": False, "error": str(e)}

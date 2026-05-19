@@ -52,7 +52,7 @@ class CriticEngine:
             })
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('critic_engine', e)
-            logger.debug(f"Event bus publish missed for Mycelium hook: {e}")
+            logger.debug("Event bus publish missed for Mycelium hook: %s", e)
 
     async def stop(self):
         self.running = False
@@ -98,7 +98,7 @@ class CriticEngine:
                     })
                 except (RuntimeError, AttributeError, TypeError, ValueError) as e:
                     record_degradation('critic_engine', e)
-                    logger.debug(f"Failed to emit CEL thought: {e}")
+                    logger.debug("Failed to emit CEL thought: %s", e)
             
             logger.info(f"Critic judgment @ step {judgment.step_number}: {judgment.recommendation} "
                        f"(progress: {judgment.goal_progress:.2f})")
@@ -106,7 +106,7 @@ class CriticEngine:
             return judgment
         except (RuntimeError, AttributeError, TypeError) as e:
             record_degradation('critic_engine', e)
-            logger.error(f"Critic generation failed: {e}")
+            logger.error("Critic generation failed: %s", e)
             return CriticJudgment(len(executed_steps), 0.4, "Critique failed", [], "continue", "I'm having trouble reflecting.")
 
     def _build_critique_prompt(self, plan: ExecutionPlan, executed_steps: List[Dict]) -> str:
@@ -164,7 +164,7 @@ Be concise. No extra text."""
             )
         except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
             record_degradation('critic_engine', e)
-            logger.debug(f"Critic parse error: {e}")
+            logger.debug("Critic parse error: %s", e)
             # Safe fallback
             return CriticJudgment(current_step, 0.4, "Parse failed", [], "continue", "Something feels off in my reasoning...")
 
@@ -178,7 +178,7 @@ Be concise. No extra text."""
                     await get_event_bus().publish("planner.force_replan", {"reason": judgment.first_person_thought})
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('critic_engine', e)
-            logger.debug(f"Critic background injection error: {e}")
+            logger.debug("Critic background injection error: %s", e)
 
     async def spawn_critical_shard(self, research_insight: str, context: str = "") -> bool:
         """Phase 8: Spawn a recursive critic shard to audit a specific research finding.
@@ -194,7 +194,7 @@ Be concise. No extra text."""
         goal = f"Critically audit this research insight: {research_insight[:100]}"
         shard_context = f"Context: {context}\nAudit focus: Detect ethical risks, strategic inconsistencies, or logical fallacies."
         
-        logger.info(f"⚖️ Spawning Critical Shard for: {research_insight[:50]}...")
+        logger.info("⚖️ Spawning Critical Shard for: %s...", f"{research_insight[:50]}")
         return await swarm.spawn_shard(goal, shard_context)
 
 # Singleton

@@ -137,7 +137,7 @@ class BackupManager:
         backup_name = f"aura_backup_{timestamp}"
         backup_path = self.backup_dir / backup_name
         
-        logger.info(f"Creating backup: {backup_name}.zip")
+        logger.info("Creating backup: %s.zip", backup_name)
         self._backup_in_progress = True
         try:
             # Reclaim space before backup
@@ -153,7 +153,7 @@ class BackupManager:
             
             final_path = self.backup_dir / f"{backup_name}.zip"
             if final_path.exists():
-                logger.info(f"Backup created successfully: {final_path}")
+                logger.info("Backup created successfully: %s", final_path)
                 await self._enforce_rotation()
                 self._last_backup_at = time.time()
                 self._last_backup_path = final_path
@@ -161,7 +161,7 @@ class BackupManager:
             return None
         except (OSError, IOError) as e:
             record_degradation('backup', e)
-            logger.error(f"Backup failed: {e}")
+            logger.error("Backup failed: %s", e)
             return None
         finally:
             self._backup_in_progress = False
@@ -173,12 +173,12 @@ class BackupManager:
             
             while len(backups) > self.max_backups:
                 oldest = backups.pop(0)
-                logger.debug(f"Removing old backup: {oldest}")
+                logger.debug("Removing old backup: %s", oldest)
                 await asyncio.to_thread(os.remove, oldest)
                 
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
             record_degradation('backup', e)
-            logger.error(f"Failed to enforce backup rotation: {e}")
+            logger.error("Failed to enforce backup rotation: %s", e)
 
     async def ensure_recent_backup(self, max_age_s: Optional[float] = None) -> Optional[Path]:
         target_age = float(max_age_s or (self.backup_interval_s * 1.5))

@@ -88,7 +88,7 @@ class RunManager:
         )
         self.current_record = record
         self.records.append(record)
-        logger.info(f"Run started: {run_id} mode={self.mode}")
+        logger.info("Run started: %s mode=%s", run_id, self.mode)
         return record
 
     def record_step(self, frame) -> None:
@@ -133,7 +133,7 @@ class RunManager:
             )
 
         self.current_record = None
-        logger.info(f"Run ended: {record.run_id} reason={terminal_reason} steps={record.total_steps}")
+        logger.info("Run ended: %s reason=%s steps=%s", record.run_id, terminal_reason, record.total_steps)
         return record
 
     def mark_contaminated(self, reason: str) -> None:

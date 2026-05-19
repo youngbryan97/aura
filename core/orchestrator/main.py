@@ -516,7 +516,7 @@ class RobustOrchestrator(OrchestratorBootMixin, StatusManagerMixin, Orchestrator
         except _ORCHESTRATOR_RECOVERABLE_ERRORS as e:
             record_degradation('main', e)
             
-            logger.critical(f"❌ Boot Validator crashed: {e}")
+            logger.critical("❌ Boot Validator crashed: %s", e)
             return False
 
         # Handle lazy initialization of subsystems

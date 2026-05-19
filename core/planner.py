@@ -489,7 +489,7 @@ class Planner:
                             working_goal = f"{working_goal}\n\n[Relevant Long-Term Memories]:\n{memory_context}"
                 except (ImportError, AttributeError, RuntimeError) as e:
                     record_degradation('planner', e)
-                    logger.debug(f"Long-term memory recall failed in planner: {e}")
+                    logger.debug("Long-term memory recall failed in planner: %s", e)
                     
                 prompt = self._build_planning_prompt(working_goal)
                 

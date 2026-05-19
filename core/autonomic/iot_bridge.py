@@ -46,7 +46,7 @@ class PhysicalActuator:
         except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
             record_degradation('iot_bridge', e)
             if not self._unreachable:
-                logger.warning(f"IoT Discovery failed (disabling further attempts): {e}")
+                logger.warning("IoT Discovery failed (disabling further attempts): %s", e)
                 self._unreachable = True
             return []
 
@@ -79,7 +79,7 @@ class PhysicalActuator:
         """
         payload = {"device": device_id, "action": action, "params": parameters}
         await self._fire_webhook(f"/api/webhook/{device_id}_control", payload)
-        logger.info(f"🔌 Actuation Triggered: {device_id} -> {action}")
+        logger.info("🔌 Actuation Triggered: %s -> %s", device_id, action)
 
     async def _fire_webhook(self, endpoint: str, payload: Dict[str, Any]):
         """Non-blocking HTTP request to local physical endpoints."""
@@ -89,11 +89,11 @@ class PhysicalActuator:
             async with aiohttp.ClientSession() as session:
                 async with session.post(f"{self.base_url}{endpoint}", headers=self.headers, json=payload, timeout=5.0) as resp:
                     if resp.status not in (200, 201):
-                        logger.debug(f"IoT Bridge failed: HTTP {resp.status}")
+                        logger.debug("IoT Bridge failed: HTTP %s", resp.status)
                     else:
                         self._unreachable = False
         except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
             record_degradation('iot_bridge', e)
             if not self._unreachable:
-                logger.warning(f"IoT Bridge Connection Error (disabling further attempts): {e}")
+                logger.warning("IoT Bridge Connection Error (disabling further attempts): %s", e)
                 self._unreachable = True

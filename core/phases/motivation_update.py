@@ -85,14 +85,14 @@ class MotivationUpdatePhase(Phase):
             recovery = 0.5 * dt / 60 # Recover 0.5 units per minute
             mot.budgets["social"]["level"] = min(100.0, mot.budgets["social"]["level"] + recovery)
             mot.budgets["integrity"]["level"] = min(100.0, mot.budgets["integrity"]["level"] + recovery)
-            logger.debug(f"🧡 Drive Recovery active: social={mot.budgets['social']['level']:.1f}")
+            logger.debug("🧡 Drive Recovery active: social=%s", f"{mot.budgets['social']['level']:.1f}")
         
         # 2. Intention Assessment (The "Will")
         # Only assess if we are not already in its own autonomous thought or deliberate mode
         if next_state.cognition.current_mode.value != "deliberate":
             intention = self._assess_needs(next_state)
             if intention:
-                logger.info(f"✨ Motivation Phase: Generated Intention -> {intention['goal']}")
+                logger.info("✨ Motivation Phase: Generated Intention -> %s", intention['goal'])
                 next_state, decision = await propose_governed_initiative_to_state(
                     next_state,
                     intention["goal"],

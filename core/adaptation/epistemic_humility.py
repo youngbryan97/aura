@@ -82,7 +82,7 @@ class EpistemicHumility:
         if len(self.failures) > 100:
             self.failures.pop(0)
             
-        logger.warning(f"Recorded failure from {source}: {str(error)[:100]}...")
+        logger.warning("Recorded failure from %s: %s...", source, f"{str(error)[:100]}")
 
     async def _critic_loop(self):
         """Periodically evaluates the failure stream for patterns."""
@@ -102,7 +102,7 @@ class EpistemicHumility:
             
         recent_failures = [f for f in self.failures if time.time() - f.timestamp < 3600]
         if len(recent_failures) >= 3:
-            logger.info(f"Analyzing {len(recent_failures)} recent failures for patterns...")
+            logger.info("Analyzing %s recent failures for patterns...", len(recent_failures))
             
             # 1. Lower confidence in Epistemic Tracker
             tracker = ServiceContainer.get("epistemic_tracker", default=None)
@@ -153,7 +153,7 @@ class EpistemicHumility:
 
                 heuristic = LearnedHeuristic(domain=domain, rule=rule)
                 self.heuristics[domain] = heuristic
-                logger.info(f"✨ Synthesized new heuristic for {domain}: {rule}")
+                logger.info("✨ Synthesized new heuristic for %s: %s", domain, rule)
 
                 # AUDIT-FIX: Dedup with HeuristicSynthesizer — push to shared pool
                 # so both systems don't inject the same rule twice into the prompt.
@@ -170,7 +170,7 @@ class EpistemicHumility:
                 
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('epistemic_humility', e)
-            logger.error(f"Failed to synthesize heuristic: {e}")
+            logger.error("Failed to synthesize heuristic: %s", e)
 
     def _select_domain(self, failures: List[FailureEvent]) -> str:
         sources = [f.source for f in failures if f.source]
@@ -204,7 +204,7 @@ class EpistemicHumility:
                 json.dump(data, f, indent=4)
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
             record_degradation('epistemic_humility', e)
-            logger.error(f"Failed to save epistemic humility state: {e}")
+            logger.error("Failed to save epistemic humility state: %s", e)
 
     def _load(self):
         if not self.data_path.exists(): return
@@ -217,7 +217,7 @@ class EpistemicHumility:
             }
         except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
             record_degradation('epistemic_humility', e)
-            logger.error(f"Failed to load epistemic humility state: {e}")
+            logger.error("Failed to load epistemic humility state: %s", e)
 
 def register_epistemic_humility(orchestrator):
     eh = EpistemicHumility(orchestrator)

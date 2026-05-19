@@ -34,14 +34,14 @@ class PriorityGator:
         
         # Heuristic: If we are burning > 50 ergs/sec, gate low priority tasks
         if rate > 50.0 and priority < 0.3:
-            logger.warning(f"🔋 GATOR: Gating low-priority task '{task_name}' due to high metabolic rate ({rate:.2f} ergs/s)")
+            logger.warning("🔋 GATOR: Gating low-priority task '%s' due to high metabolic rate (%s ergs/s)", task_name, f"{rate:.2f}")
             return False
             
         # Hard cap on total ergs in recent window (metabolic fatigue)
         # This prevents 'burnout' from too many background loops
         burn_report = self.cost_tracker.get_burn_report()
         if burn_report["avg_rate"] > 100.0 and priority < 0.6:
-            logger.warning(f"🔋 GATOR: System fatigue detected. Gating '{task_name}' (priority {priority})")
+            logger.warning("🔋 GATOR: System fatigue detected. Gating '%s' (priority %s)", task_name, priority)
             return False
             
         return True

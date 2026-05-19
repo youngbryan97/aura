@@ -24,7 +24,7 @@ async def eternal_lifecycle():
             
             # Thermal/Memory Emergency
             if mem > 88:
-                logger.warning(f"⚠️ High memory pressure ({mem}%). Triggering emergency eviction.")
+                logger.warning("⚠️ High memory pressure (%s%). Triggering emergency eviction.", mem)
                 await rt.state_manager.snapshot("thermal_emergency")
                 try:
                     from core.utils.gpu_sentinel import get_gpu_sentinel, GPUPriority
@@ -39,7 +39,7 @@ async def eternal_lifecycle():
                             sentinel.release()
                 except (ImportError, AttributeError, RuntimeError) as e:
                     record_degradation('eternal_lifecycle', e)
-                    logger.debug(f"[MLX] Cache clear skipped in eternal: {e}")
+                    logger.debug("[MLX] Cache clear skipped in eternal: %s", e)
                 
                 # Evict episodic memory if pressure persists
                 if mem > 92:
@@ -59,13 +59,13 @@ async def eternal_lifecycle():
                     logger.debug("Nightly LoRA module not found, skipping.")
                 except (ImportError, AttributeError, RuntimeError) as e:
                     record_degradation('eternal_lifecycle', e)
-                    logger.error(f"Nightly maintenance failed: {e}")
+                    logger.error("Nightly maintenance failed: %s", e)
 
         except RuntimeError as _e:
             # Runtime not yet initialized
             logger.debug('Ignored RuntimeError in eternal_lifecycle.py: %s', _e)
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('eternal_lifecycle', e)
-            logger.error(f"Error in eternal_loop: {e}")
+            logger.error("Error in eternal_loop: %s", e)
             
         await asyncio.sleep(1)

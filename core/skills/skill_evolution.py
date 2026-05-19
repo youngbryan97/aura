@@ -31,7 +31,7 @@ class SkillEvolver:
         Returns:
             (success, message, code_or_error)
         """
-        logger.info(f"🧬 Evolving new skill for goal: {goal}")
+        logger.info("🧬 Evolving new skill for goal: %s", goal)
         
         prompt = f"""
 You are the cognitive architect of Aura.
@@ -101,7 +101,7 @@ Draft the Python code for this highly capable new skill now:
             with open(filepath, "w", encoding="utf-8") as f:
                 f.write(code)
                 
-            logger.info(f"✨ Successfully evolved new skill: {class_name} at {filename}")
+            logger.info("✨ Successfully evolved new skill: %s at %s", class_name, filename)
             
             # 5. Log the autonomous creation to the audit trail
             self.audit.log_action(
@@ -118,7 +118,7 @@ Draft the Python code for this highly capable new skill now:
             
         except (OSError, IOError) as e:
             record_degradation('skill_evolution', e)
-            logger.error(f"Failed to evolve skill: {e}")
+            logger.error("Failed to evolve skill: %s", e)
             return False, f"Exception during skill evolution: {e}", ""
 
 

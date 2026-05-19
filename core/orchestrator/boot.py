@@ -590,10 +590,10 @@ class OrchestratorBootMixin(
                     await self.metrics_exporter.start()
                     ServiceContainer.register_instance("metrics_exporter", self.metrics_exporter)
                 except (ImportError, ModuleNotFoundError) as e:
-                    logger.warning(f"📈 [BOOT] Metrics Exporter skipped: {e}")
+                    logger.warning("📈 [BOOT] Metrics Exporter skipped: %s", e)
                 except (RuntimeError, AttributeError, TypeError, ValueError) as e:
                     record_degradation('boot', e)
-                    logger.error(f"📈 [BOOT] Metrics Exporter failed to start: {e}")
+                    logger.error("📈 [BOOT] Metrics Exporter failed to start: %s", e)
                 
                 # Phase 4 Advanced Features (Unified Meta-Cognition & Resilience Shards)
                 try:
@@ -605,7 +605,7 @@ class OrchestratorBootMixin(
                     logger.info("🧠 Meta-Cognition Shard initialized and started.")
                 except (ImportError, AttributeError, RuntimeError) as e:
                     record_degradation('boot', e)
-                    logger.error(f"🛑 Failed to init Meta-Cognition Shard: {e}")
+                    logger.error("🛑 Failed to init Meta-Cognition Shard: %s", e)
 
                 if os.getenv("AURA_FOREGROUND_ONLY", "0").lower() in {"1", "true", "yes", "on"} or os.getenv("AURA_ENABLE_SELF_HEALING", "1").lower() in {"0", "false", "no", "off"}:
                     logger.info("Healing Swarm disabled for foreground-only boot.")
@@ -619,7 +619,7 @@ class OrchestratorBootMixin(
                         logger.info("🛡️ Healing Swarm Service initialized and started.")
                     except (ImportError, AttributeError, RuntimeError) as e:
                         record_degradation('boot', e)
-                        logger.error(f"🛑 Failed to init Healing Swarm: {e}")
+                        logger.error("🛑 Failed to init Healing Swarm: %s", e)
                 
                 self.hotfix_engine = HotfixEngine(self)
                 ServiceContainer.register_instance("hotfix_engine", self.hotfix_engine)

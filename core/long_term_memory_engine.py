@@ -69,7 +69,7 @@ class LongTermMemoryEngine:
             })
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('long_term_memory_engine', e)
-            logger.debug(f"Event bus publish missed for Mycelium hook: {e}")
+            logger.debug("Event bus publish missed for Mycelium hook: %s", e)
 
     async def stop(self):
         self.running = False
@@ -82,7 +82,7 @@ class LongTermMemoryEngine:
             try:
                 data = json.loads(self.db_path.read_text())
                 self.memories = [TaggedMemory(**m) for m in data]
-                logger.info(f"Loaded {len(self.memories)} emotionally tagged memories")
+                logger.info("Loaded %s emotionally tagged memories", len(self.memories))
             except (json.JSONDecodeError, TypeError, ValueError) as _e:
                 record_degradation('long_term_memory_engine', _e)
                 logger.debug('Ignored Exception in long_term_memory_engine.py: %s', _e)
@@ -95,7 +95,7 @@ class LongTermMemoryEngine:
             atomic_write(str(self.db_path), json.dumps(data, indent=2))
         except (json.JSONDecodeError, TypeError, ValueError) as e:
             record_degradation('long_term_memory_engine', e)
-            logger.error(f"Memory save failed: {e}")
+            logger.error("Memory save failed: %s", e)
 
     async def store(self, content: str, valence: float = 0.0, importance: float = 0.5, tags: List[str] = None):
         """Call this after every important conversation turn or autonomous insight."""
@@ -200,7 +200,7 @@ class LongTermMemoryEngine:
                             })
                         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
                             record_degradation('long_term_memory_engine', e)
-                            logger.debug(f"CEL emission failed in nightly consolidation: {e}")
+                            logger.debug("CEL emission failed in nightly consolidation: %s", e)
             self._save_memories()
 
 # Singleton

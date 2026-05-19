@@ -37,7 +37,7 @@ class PersonaEvolver:
             await self.run_evolution_cycle(force=True, custom_reflection=reflection)
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
             record_degradation('persona_evolver', e)
-            logger.error(f"Persona evolution failed: {e}")
+            logger.error("Persona evolution failed: %s", e)
 
     async def run_evolution_cycle(self, force: bool = False, custom_reflection: str = None):
         """Analyze memory and apply drift to personality if needed."""

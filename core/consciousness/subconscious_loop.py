@@ -82,7 +82,7 @@ class SubconsciousLoop:
                 break
             except (RuntimeError, AttributeError, TypeError) as e:
                 record_degradation('subconscious_loop', e)
-                logger.error(f"Subconscious loop fault: {e}")
+                logger.error("Subconscious loop fault: %s", e)
 
     async def _perform_subconscious_beat(self):
         """Execute one cycle of background processing."""
@@ -98,7 +98,7 @@ class SubconsciousLoop:
                 self.last_dream_cycle = now
             except (ImportError, AttributeError, RuntimeError) as e:
                 record_degradation('subconscious_loop', e)
-                logger.debug(f"Subconscious dreaming failed: {e}")
+                logger.debug("Subconscious dreaming failed: %s", e)
                 self.last_dream_cycle = now + 60.0  # Back off a bit
 
         # 2. Epistemic Foraging / Hypothesis Testing (Sandbox)
@@ -110,7 +110,7 @@ class SubconsciousLoop:
                 self.last_sandbox_experiment = now
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:
                 record_degradation('subconscious_loop', e)
-                logger.debug(f"Subconscious sandbox beat failed: {e}")
+                logger.debug("Subconscious sandbox beat failed: %s", e)
                 self.last_sandbox_experiment = now + 120.0
 
     async def _run_proactive_sandbox(self):
@@ -181,12 +181,12 @@ except (ImportError, AttributeError, RuntimeError) as e:
                     # --- PHASE 23.2: DECODER OBSERVER ---
                     # The human sees the approximated translation, not the 768-dim float array
                     translation = decoder.approximate_translation(vector_insight)
-                    logger.info(f"🌌 [Latent Transmission {thought_id}] {translation}")
+                    logger.info("🌌 [Latent Transmission %s] %s", thought_id, translation)
                 else:
-                    logger.debug(f"Subconscious Sandbox Result: {result}")
+                    logger.debug("Subconscious Sandbox Result: %s", result)
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('subconscious_loop', e)
-            logger.debug(f"Subconscious sandbox run failed: {e}")
+            logger.debug("Subconscious sandbox run failed: %s", e)
             error_text = f"{type(e).__name__}: {e}"
         finally:
             if handle is not None and constitutional_core is not None:

@@ -45,5 +45,5 @@ def robust_json_parse(raw_output: str) -> Dict[str, Any]:
             return repairer.parse_sync(raw_output)
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('json_repair', e)
-            logger.error(f"FATAL: JSON Repair engine failed: {e}")
+            logger.error("FATAL: JSON Repair engine failed: %s", e)
             return {}

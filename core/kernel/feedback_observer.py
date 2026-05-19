@@ -274,9 +274,9 @@ class FeedbackObserver:
         if not entries:
             logger.info("[FeedbackObserver] No ticks recorded yet.")
             return
-        logger.info(f"\n{'─'*70}")
-        logger.info(f"  AURA FEEDBACK LOOP — last {len(entries)} ticks")
-        logger.info(f"{'─'*70}")
+        logger.info("\n%s", '─'*70)
+        logger.info("  AURA FEEDBACK LOOP — last %s ticks", len(entries))
+        logger.info("%s", '─'*70)
         for e in entries:
             logger.info(e.summary())
             logger.info("")
@@ -284,4 +284,4 @@ class FeedbackObserver:
         logger.info(f"  Loop active: {loop.get('affect_loop_active')}  "
               f"Phi trend: {loop.get('phi_trending')}  "
               f"avg Δval/tick: {loop.get('avg_val_delta_5')}")
-        logger.info(f"{'─'*70}\n")
+        logger.info("%s\n", '─'*70)

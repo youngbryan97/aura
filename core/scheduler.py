@@ -70,10 +70,10 @@ class Scheduler:
         lock, _stop = self._ensure_async_primitives()
         async with lock:
             if spec.name in self._tasks:
-                logger.warning(f"Task {spec.name} already registered. Updating spec.")
+                logger.warning("Task %s already registered. Updating spec.", spec.name)
             self._tasks[spec.name] = spec
             self._health[spec.name] = "registered"
-            logger.debug(f"Registered task: {spec.name} (interval={spec.tick_interval})")
+            logger.debug("Registered task: %s (interval=%s)", spec.name, spec.tick_interval)
 
     async def start(self):
         """Ignite the scheduling loop."""
@@ -125,7 +125,7 @@ class Scheduler:
                 continue
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:
                 record_degradation('scheduler', e)
-                logger.error(f"Scheduler Fatal Crash: {e}")
+                logger.error("Scheduler Fatal Crash: %s", e)
                 logger.error(traceback.format_exc())
                 self.state = Lifecycle.RECOVERING
                 await asyncio.sleep(1.0)
@@ -149,9 +149,9 @@ class Scheduler:
         except (RuntimeError, AttributeError, TypeError) as e:
             record_degradation('scheduler', e)
             self._health[spec.name] = f"error: {type(e).__name__}"
-            logger.error(f"Task {spec.name} failed: {e}")
+            logger.error("Task %s failed: %s", spec.name, e)
             if spec.critical:
-                logger.critical(f"CRITICAL Task {spec.name} failed! Triggering recovery.")
+                logger.critical("CRITICAL Task %s failed! Triggering recovery.", spec.name)
                 self.state = Lifecycle.RECOVERING
         finally:
             spec.running_task = None

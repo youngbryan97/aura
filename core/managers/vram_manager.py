@@ -68,15 +68,15 @@ class VRAMManager:
         """Acquire the Neural Engine lock for a specific model."""
         await self._lock.acquire()
         if self.active_model and self.active_model != model_name:
-            logger.info(f"VRAM Swap: Unloading {self.active_model} for {model_name}")
+            logger.info("VRAM Swap: Unloading %s for %s", self.active_model, model_name)
             self.purge()
         self.active_model = model_name
-        logger.debug(f"VRAM Lock Acquired: {model_name}")
+        logger.debug("VRAM Lock Acquired: %s", model_name)
 
     def release(self):
         """Release the Neural Engine lock."""
         self._lock.release()
-        logger.debug(f"VRAM Lock Released: {self.active_model}")
+        logger.debug("VRAM Lock Released: %s", self.active_model)
 
     def acquire_session(self, model_name: str):
         """Returns an async context manager for VRAM usage."""

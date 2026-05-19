@@ -42,7 +42,7 @@ class MacOSTTS(TTSEngine):
                     proc.terminate()
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:
                 record_degradation('voice_presence', e)
-                logger.debug(f"MacOSTTS: Cleanup of previous process failed: {e}")
+                logger.debug("MacOSTTS: Cleanup of previous process failed: %s", e)
             
         clean = self._clean(text)
         if not clean: return
@@ -63,7 +63,7 @@ class MacOSTTS(TTSEngine):
                     proc.terminate()
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:
                 record_degradation('voice_presence', e)
-                logger.debug(f"MacOSTTS: Stop failed: {e}")
+                logger.debug("MacOSTTS: Stop failed: %s", e)
 
     @staticmethod
     def _clean(text: str) -> str:
@@ -152,4 +152,4 @@ async def maybe_speak_response(response: str, state: Any) -> None:
             await voice.speak_response(response, phi=getattr(state, "phi", 0.0))
     except (ImportError, AttributeError, RuntimeError) as e:
         record_degradation('voice_presence', e)
-        logger.debug(f"maybe_speak_response failed: {e}")
+        logger.debug("maybe_speak_response failed: %s", e)

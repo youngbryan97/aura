@@ -74,7 +74,7 @@ class RepairPhase(Phase):
                 discovered.append(pattern)
 
         if discovered:
-            logger.warning(f"🤖 Roboticism detected in response: {discovered}")
+            logger.warning("🤖 Roboticism detected in response: %s", discovered)
             
             # [STRATEGY 1] String-level 'Soft Repair'
             # Surgically remove or replace common offenders.

@@ -604,7 +604,7 @@ class MessageHandlingMixin:
         # [ARCHITECTURE] Moved ABOVE deduplication to ensure reflexes fire even if
         # the screen hasn't advanced since the last sensor tick.
         has_contract = "[EMBODIED CONTROL CONTRACT]" in message
-        logger.debug(f"Input core: has_contract={has_contract}, origin={origin}, message_len={len(message)}")
+        logger.debug("Input core: has_contract=%s, origin=%s, message_len=%s", has_contract, origin, len(message))
         
         if has_contract:
             somatic_response = await self._check_embodied_reflexes(message)

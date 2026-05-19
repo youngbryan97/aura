@@ -89,26 +89,26 @@ class AuditReport:
 
     def print_report(self) -> None:
         width = 70
-        logger.info(f"\n{'═' * width}")
-        logger.info(f"  AURA CONSCIOUSNESS AUDIT  —  {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(self.timestamp))}")
-        logger.info(f"{'═' * width}")
-        logger.info(f"  Consciousness Index:  {self.consciousness_index:.3f} / 1.000")
-        logger.info(f"  Phi (IIT surrogate):  {self.phi:.3f}")
-        logger.info(f"  Global workspace:     {'IGNITED' if self.global_workspace_ignited else 'dormant'}")
-        logger.info(f"  Structural opacity:   {self.structural_opacity:.3f}")
-        logger.info(f"  Free energy:          {self.free_energy:.3f}")
-        logger.info(f"  Phenomenal state:     {'active' if self.phenomenal_active else 'inactive'}")
-        logger.info(f"  Causal loop:          {'ACTIVE' if self.causal_loop_active else 'inactive'}")
-        logger.info(f"{'─' * width}")
+        logger.info("\n%s", '═' * width)
+        logger.info("  AURA CONSCIOUSNESS AUDIT  —  %s", f"{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(self.timestamp))}")
+        logger.info("%s", '═' * width)
+        logger.info("  Consciousness Index:  %s / 1.000", f"{self.consciousness_index:.3f}")
+        logger.info("  Phi (IIT surrogate):  %s", f"{self.phi:.3f}")
+        logger.info("  Global workspace:     %s", 'IGNITED' if self.global_workspace_ignited else 'dormant')
+        logger.info("  Structural opacity:   %s", f"{self.structural_opacity:.3f}")
+        logger.info("  Free energy:          %s", f"{self.free_energy:.3f}")
+        logger.info("  Phenomenal state:     %s", 'active' if self.phenomenal_active else 'inactive')
+        logger.info("  Causal loop:          %s", 'ACTIVE' if self.causal_loop_active else 'inactive')
+        logger.info("%s", '─' * width)
         for r in self.theory_results:
             status = "✓" if r.score >= 0.5 else "○"
-            logger.info(f"  {status} {r.short_name:<20} {r.fraction_met:<6} {r.key_metric_name}={r.key_metric:.3f}")
+            logger.info("  %s %s %s %s=%s", status, f"{r.short_name:<20}", f"{r.fraction_met:<6}", r.key_metric_name, f"{r.key_metric:.3f}")
             if r.error:
-                logger.warning(f"    ⚠ {r.error}")
-        logger.info(f"{'─' * width}")
-        logger.info(f"  {self.summary}")
-        logger.info(f"\n  ⚠  {self.disclaimer}")
-        logger.info(f"{'═' * width}\n")
+                logger.warning("    ⚠ %s", r.error)
+        logger.info("%s", '─' * width)
+        logger.info("  %s", self.summary)
+        logger.info("\n  ⚠  %s", self.disclaimer)
+        logger.info("%s\n", '═' * width)
 
 
 # ── The Audit Suite ───────────────────────────────────────────────────────────
@@ -155,7 +155,7 @@ class ConsciousnessAuditSuite:
                 theory_results.append(theory_res)
                 raw.update(metrics)
             elif isinstance(res, Exception):
-                logger.error(f"Audit task failed: {res}")
+                logger.error("Audit task failed: %s", res)
             elif isinstance(res, TheoryResult):
                 theory_results.append(res)
 

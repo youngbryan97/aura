@@ -48,7 +48,7 @@ class LockWatchdog:
             )
         except (ImportError, AttributeError, RuntimeError):
             self._task = get_task_tracker().create_task(self._monitor_loop(), name="aura.lock_watchdog")
-        logger.info(f"🛡️ LockWatchdog ACTIVE (Threshold: {self._threshold}s).")
+        logger.info("🛡️ LockWatchdog ACTIVE (Threshold: %ss).", self._threshold)
 
     async def stop(self):
         """Stops the monitoring task."""
@@ -180,7 +180,7 @@ class LockWatchdog:
                 break
             except (ImportError, AttributeError, RuntimeError) as e:
                 record_degradation('lock_watchdog', e)
-                logger.error(f"Error in LockWatchdog loop: {e}")
+                logger.error("Error in LockWatchdog loop: %s", e)
 
 def get_lock_watchdog() -> LockWatchdog:
     return LockWatchdog()

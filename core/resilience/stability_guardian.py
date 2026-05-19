@@ -71,14 +71,14 @@ class SystemHealthReport:
 
     def print_summary(self) -> None:
         status = "HEALTHY" if self.overall_healthy else "DEGRADED"
-        logger.info(f"\n[StabilityGuardian] {status}  {time.strftime('%H:%M:%S', time.localtime(self.timestamp))}")
-        logger.info(f"  Memory: {self.memory_pct:.0f}%  CPU: {self.cpu_pct:.0f}%  Tasks: {self.task_count}")
-        logger.info(f"  Tick rate: {self.tick_rate_hz:.2f}Hz  Mean tick: {self.mean_tick_ms:.0f}ms")
+        logger.info("\n[StabilityGuardian] %s  %s", status, f"{time.strftime('%H:%M:%S', time.localtime(self.timestamp))}")
+        logger.info("  Memory: %s%  CPU: %s%  Tasks: %s", f"{self.memory_pct:.0f}", f"{self.cpu_pct:.0f}", self.task_count)
+        logger.info("  Tick rate: %sHz  Mean tick: %sms", f"{self.tick_rate_hz:.2f}", f"{self.mean_tick_ms:.0f}")
         for c in self.checks:
             icon = "✓" if c.healthy else ("⚠" if c.severity in ("warning", "info") else "✗")
-            logger.info(f"  {icon} {c.name}: {c.message}")
+            logger.info("  %s %s: %s", icon, c.name, c.message)
             if c.action_taken:
-                logger.info(f"     → {c.action_taken}")
+                logger.info("     → %s", c.action_taken)
 
 
 # ── The Guardian ──────────────────────────────────────────────────────────────
@@ -1152,7 +1152,7 @@ class StabilityGuardian:
                     record_degradation('stability_guardian', e)
                     action = f"Restart failed: {e}"
                     
-            logger.debug(f"[PID {os.getpid()}] StabilityGuardian: Total tasks: {len(tasks)}. Running task names: {running_names}")
+            logger.debug("[PID %s] StabilityGuardian: Total tasks: %s. Running task names: %s", os.getpid(), len(tasks), running_names)
             return HealthCheckResult(
                 "background_tasks", False,
                 f"Critical tasks not running in PID {os.getpid()}: {real_missing}. Tasks: {running_names}",

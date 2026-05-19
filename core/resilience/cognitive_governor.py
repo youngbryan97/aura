@@ -26,7 +26,7 @@ class CognitiveGovernor:
     ) -> Any:
         """Wraps critical cognitive tasks in a protective execution layer."""
         if self.circuit_state == "OPEN":
-            logger.warning(f"Circuit OPEN. Rejecting task {task_name}. Falling back to internal state.")
+            logger.warning("Circuit OPEN. Rejecting task %s. Falling back to internal state.", task_name)
             return {"status": "bypassed", "reason": "circuit_open"}
 
         async with self.semaphore:
@@ -40,13 +40,13 @@ class CognitiveGovernor:
                 return result
                 
             except asyncio.TimeoutError:
-                logger.error(f"Task {task_name} timed out.")
+                logger.error("Task %s timed out.", task_name)
                 await self._record_failure()
                 return {"status": "timeout", "error": "Operation took too long"}
                 
             except (RuntimeError, asyncio.CancelledError, TimeoutError, AttributeError) as e:
                 record_degradation('cognitive_governor', e)
-                logger.error(f"Task {task_name} failed: {e}")
+                logger.error("Task %s failed: %s", task_name, e)
                 await self._record_failure()
                 return {"status": "failed", "error": str(e)}
 

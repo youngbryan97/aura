@@ -304,7 +304,7 @@ class ProactiveAnticipationEngine:
                 )
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('fictional_ai_synthesis', e)
-            logger.debug(f"JARVIS: Agency goal check failed: {e}")
+            logger.debug("JARVIS: Agency goal check failed: %s", e)
 
     async def run_cycle(self):
         """Single monitoring cycle — call from heartbeat loop."""

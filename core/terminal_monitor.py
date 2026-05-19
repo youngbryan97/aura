@@ -129,7 +129,7 @@ class TerminalMonitor:
                 tmp.replace(BLACKLIST_PATH)
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('terminal_monitor', e)
-            logger.error(f"Failed to save blacklist: {e}")
+            logger.error("Failed to save blacklist: %s", e)
 
     def _attach_handler(self):
         """Attach a log handler that captures ERROR/CRITICAL messages."""
@@ -320,7 +320,7 @@ class TerminalMonitor:
                     self._blacklist.add(entry.fingerprint)
                     self._save_blacklist()
                     self._circuit_breaker_open = True
-                    logger.warning(f"🔴 Circuit breaker OPEN on persistent failure: {entry.fingerprint}")
+                    logger.warning("🔴 Circuit breaker OPEN on persistent failure: %s", entry.fingerprint)
                     return None
 
                 if reliability:

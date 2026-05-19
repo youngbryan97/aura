@@ -37,5 +37,5 @@ class VisualContextSkill(BaseSkill):
             }
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('visual_context_skill', e)
-            logger.error(f"VisualContextSkill failed: {e}")
+            logger.error("VisualContextSkill failed: %s", e)
             return {"ok": False, "error": str(e)}

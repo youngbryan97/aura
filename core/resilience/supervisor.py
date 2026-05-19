@@ -96,7 +96,7 @@ class SovereignSupervisor:
                     logger.log(level, "[Sub] %s", line)
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
             record_degradation('supervisor', e)
-            logger.error(f"Error reading pipe {label}: {e}")
+            logger.error("Error reading pipe %s: %s", label, e)
 
     async def _monitor_process(self):
         """Blocks while monitoring the process. Returns when process exits."""

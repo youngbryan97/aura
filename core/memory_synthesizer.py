@@ -204,7 +204,7 @@ class MemorySynthesizer:
         
         # Optionally log the turn for debugging
         domain = getattr(brief, 'domain', 'general') if brief else 'general'
-        logger.info(f"🧠 Turn Synthesized | Domain: {domain} | Msg: {user_input[:40]}...")
+        logger.info("🧠 Turn Synthesized | Domain: %s | Msg: %s...", domain, f"{user_input[:40]}")
 
     # ─── Synthesis ───────────────────────────────────────────────────────────
 

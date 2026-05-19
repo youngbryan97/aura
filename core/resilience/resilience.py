@@ -25,5 +25,5 @@ async def retry_with_backoff(func: Callable, max_attempts=5, base_delay=0.1):
             if attempt == max_attempts - 1:
                 raise
             delay = base_delay * (2 ** attempt) + random.uniform(0, 0.1)
-            logger.info(f"⏳ Retry {attempt+1}/{max_attempts} after {delay:.2f}s due to {type(e).__name__}")
+            logger.info("⏳ Retry %s/%s after %ss due to %s", attempt+1, max_attempts, f"{delay:.2f}", type(e).__name__)
             await asyncio.sleep(delay)

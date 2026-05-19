@@ -63,7 +63,7 @@ class SibylSystem:
             })
         
         if self._hue_score > 200:
-            logger.critical(f"🌫️ [SIBYL] HUE IS {hue_label} ({self._hue_score:.0f}). Judgment imminent.")
+            logger.critical("🌫️ [SIBYL] HUE IS %s (%s). Judgment imminent.", hue_label, f"{self._hue_score:.0f}")
 
     def get_status(self) -> Dict[str, Any]:
         return {

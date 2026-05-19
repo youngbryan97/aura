@@ -54,7 +54,7 @@ class SovereignImaginationSkill(BaseSkill):
             return False
 
         model_id = "black-forest-labs/FLUX.1-schnell"
-        logger.info(f"Loading FLUX.1-schnell on {self.device}... (first run downloads ~12GB)")
+        logger.info("Loading FLUX.1-schnell on %s... (first run downloads ~12GB)", self.device)
 
         try:
             self.pipeline = FluxPipeline.from_pretrained(
@@ -69,7 +69,7 @@ class SovereignImaginationSkill(BaseSkill):
             return True
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
             record_degradation('sovereign_imagination', e)
-            logger.error(f"Model load failed: {e}")
+            logger.error("Model load failed: %s", e)
             return False
 
     async def execute(self, params: ImageInput, context: Dict[str, Any]) -> Dict[str, Any]:
@@ -88,7 +88,7 @@ class SovereignImaginationSkill(BaseSkill):
         steps = params.steps
         guidance = params.guidance_scale
 
-        logger.info(f"Generating high-fidelity image: {prompt[:100]}...")
+        logger.info("Generating high-fidelity image: %s...", f"{prompt[:100]}")
 
         try:
             # Issue 78: Use asyncio.to_thread instead of loop.run_in_executor(None)
@@ -127,7 +127,7 @@ class SovereignImaginationSkill(BaseSkill):
 
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('sovereign_imagination', e)
-            logger.error(f"Generation failed: {e}")
+            logger.error("Generation failed: %s", e)
             return {"ok": False, "error": f"Generation failed: {e}"}
 
     async def on_stop_async(self):

@@ -78,7 +78,7 @@ class AuditLogger:
                     VALUES (?, ?, ?, ?, ?, ?)
                 """, (timestamp, actor, action, target, context_str, signature))
                 self._conn.commit()
-                logger.debug(f"Audit event recorded: [{action}] by [{actor}] on [{target}]")
+                logger.debug("Audit event recorded: [%s] by [%s] on [%s]", action, actor, target)
         except (sqlite3.Error, OSError) as e:
             record_degradation('audit_logger', e)
             logger.error(f"CRITICAL: Failed to write to audit log: {e}", exc_info=True)
@@ -92,13 +92,13 @@ class AuditLogger:
                     evt_id, ts, actor, action, target, ctx_str, stored_sig = row
                     expected_sig = self._sign(ts, actor, action, target, ctx_str)
                     if not hmac.compare_digest(stored_sig, expected_sig):
-                        logger.critical(f"AUDIT INTEGRITY VIOLATION DETECTED: Row {evt_id} tampered.")
+                        logger.critical("AUDIT INTEGRITY VIOLATION DETECTED: Row %s tampered.", evt_id)
                         return False
             logger.info("Audit log integrity verified: SUCCESS")
             return True
         except (sqlite3.Error, OSError) as e:
             record_degradation('audit_logger', e)
-            logger.error(f"Failed to verify audit log integrity: {e}")
+            logger.error("Failed to verify audit log integrity: %s", e)
             return False
 
 # Global instance

@@ -355,7 +355,7 @@ class ConsciousnessLoopMonitor:
         except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
             record_degradation('loop_monitor', e)
             # Degrade gracefully if ServiceContainer API changes
-            logger.debug(f"LoopMonitor: _get({key}) failed: {e}")
+            logger.debug("LoopMonitor: _get(%s) failed: %s", key, e)
             return None
 
 

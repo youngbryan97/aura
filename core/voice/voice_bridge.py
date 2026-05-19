@@ -28,7 +28,7 @@ class VoiceConversationBridge:
         Routes transcribed voice input into the cognitive engine.
         Supports real-time interruption of current speaking tasks.
         """
-        logger.info(f"🎙️ Voice Bridge: Routing utterance -> {text[:50]}...")
+        logger.info("🎙️ Voice Bridge: Routing utterance -> %s...", f"{text[:50]}")
         
         # 1. Interrupt any current TTS or thinking
         if self._active_utterance_task and not self._active_utterance_task.done():

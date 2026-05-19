@@ -158,7 +158,7 @@ class SensoryMotorCortex:
                 if change_percent > 0.10: # 10% change
                     now = time.time()
                     if now - self._last_trigger_time > self.camera_cooldown:
-                        logger.info(f"Visual delta detected ({change_percent:.1%}). Triggering cognition.")
+                        logger.info("Visual delta detected (%s). Triggering cognition.", f"{change_percent:.1%}")
                         self._trigger_visual_cognition(frame2)
                         self._last_trigger_time = now
                         self.last_interaction_time = now
@@ -169,7 +169,7 @@ class SensoryMotorCortex:
             cap.release()
         except (OSError, IOError) as e:
             record_degradation('sensory_motor_cortex', e)
-            logger.error(f"Visual cortex exception: {e}")
+            logger.error("Visual cortex exception: %s", e)
 
     def _trigger_visual_cognition(self, frame_data):
         """Injects visual stimulus into the orchestrator."""
@@ -309,7 +309,7 @@ class SensoryMotorCortex:
             now = time.time()
             if self._should_trigger_volition(now=now):
                 idle_duration = now - self.last_interaction_time
-                logger.info(f"System idle for {idle_duration/60:.1f}m. Triggering spontaneous volition.")
+                logger.info("System idle for %sm. Triggering spontaneous volition.", f"{idle_duration/60:.1f}")
                 await self._dispatch_idle_volition(reason="idle_timeout")
                 self.last_interaction_time = now # Reset clock
 

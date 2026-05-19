@@ -401,7 +401,7 @@ class NucleusManager(LLMProvider):
                     sentinel.release()
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('nucleus_manager', e)
-            logger.debug(f"[NUCLEUS] Cache clear skipped: {e}")
+            logger.debug("[NUCLEUS] Cache clear skipped: %s", e)
 
     # --- Abstract Method Implementations ---
 

@@ -116,7 +116,7 @@ class BoundaryGuard:
     def _record_violation(self, channel: str, detail: str) -> None:
         self.violations.append({"channel": channel, "detail": detail})
         self.contaminated = True
-        logger.warning(f"BoundaryViolation: {channel} {detail}")
+        logger.warning("BoundaryViolation: %s %s", channel, detail)
 
     def get_integrity_report(self, run_id: str, mode: str) -> IntegrityReport:
         """Generate integrity report for the run."""

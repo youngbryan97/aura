@@ -104,7 +104,7 @@ class LocalVoiceCortex:
             logger.info("✅ Voice Cortex online. Aura is listening locally.")
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
             record_degradation('local_voice_cortex', e)
-            logger.error(f"Failed to start Voice Cortex: {e}")
+            logger.error("Failed to start Voice Cortex: %s", e)
 
     async def stop(self):
         """Clean shutdown of audio hardware with queue drain."""
@@ -136,7 +136,7 @@ class LocalVoiceCortex:
         import os
         if os.environ.get("AURA_VOICE_SILENT", "0") == "1":
             return
-        logger.info(f"🗣️ Aura: {text}")
+        logger.info("🗣️ Aura: %s", text)
         try:
             from core.container import ServiceContainer
             voice = ServiceContainer.get("voice_engine", default=None)
@@ -147,12 +147,12 @@ class LocalVoiceCortex:
                 await asyncio.to_thread(subprocess.run, ["say", "-v", "Samantha", text])
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('local_voice_cortex', e)
-            logger.error(f"TTS failed: {e}")
+            logger.error("TTS failed: %s", e)
             try:
                 await asyncio.to_thread(subprocess.run, ["say", text])
             except (subprocess.SubprocessError, OSError) as e2:
                 record_degradation('local_voice_cortex', e2)
-                logger.error(f"Fallback TTS also failed: {e2}")
+                logger.error("Fallback TTS also failed: %s", e2)
 
     async def listen_loop(self):
         """Main VAD -> STT -> Orchestrator loop with timeout watchdog and auto-restart."""
@@ -175,7 +175,7 @@ class LocalVoiceCortex:
                 retry_delay = 1.0  # Reset on successful open
             except (OSError, IOError) as e:
                 record_degradation('local_voice_cortex', e)
-                logger.error(f"Could not open audio stream: {e}. Retrying in {retry_delay}s...")
+                logger.error("Could not open audio stream: %s. Retrying in %ss...", e, retry_delay)
                 await asyncio.sleep(retry_delay)
                 retry_delay = min(60.0, retry_delay * 2)
                 continue
@@ -217,7 +217,7 @@ class LocalVoiceCortex:
                         continue
                     except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
                         record_degradation('local_voice_cortex', e)
-                        logger.debug(f"Audio read error: {e}")
+                        logger.debug("Audio read error: %s", e)
                         break
 
                 if frames and self.is_listening:
@@ -273,7 +273,7 @@ class LocalVoiceCortex:
             transcript = result.get("text", "").strip()
             
             if transcript and len(transcript) > 2:
-                logger.info(f"👂 Heard: \"{transcript}\"")
+                logger.info("👂 Heard: \"%s\"", transcript)
                 
                 if self.orchestrator:
                     # Send to Broca's Area (fast local LLM)
@@ -285,4 +285,4 @@ class LocalVoiceCortex:
                         
         except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
             record_degradation('local_voice_cortex', e)
-            logger.error(f"Error processing audio segment: {e}")
+            logger.error("Error processing audio segment: %s", e)

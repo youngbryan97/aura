@@ -251,7 +251,7 @@ class StateRepository:
                             logger.info("✓ [STATE] Genesis overflow marker pushed to SHM.")
                     except _STATE_BOUNDARY_ERRORS as e:
                         _record_state_degradation(e)
-                        logger.warning(f"⚠️ [STATE] Initial SHM write failed: {e}")
+                        logger.warning("⚠️ [STATE] Initial SHM write failed: %s", e)
 
             logger.info("✓ [STATE] Vault Owner Initialized with SHM for writing.")
             
@@ -279,7 +279,7 @@ class StateRepository:
                          logger.warning("⚠️ [STATE] Proxy attached but SHM is empty (Wait possible)")
                 except _STATE_BOUNDARY_ERRORS as e:
                     _record_state_degradation(e)
-                    logger.warning(f"⚠️ [STATE] Failed to attach to SHM, falling back to boot state: {e}")
+                    logger.warning("⚠️ [STATE] Failed to attach to SHM, falling back to boot state: %s", e)
                     self._shm = None
             if not self._current:
                 await self._fetch_state_from_vault()
@@ -322,7 +322,7 @@ class StateRepository:
                 logger.info("✓ [STATE] Full state fetched from Vault via Bus.")
         except _STATE_BOUNDARY_ERRORS as e:
             _record_state_degradation(e)
-            logger.error(f"❌ [STATE] Full fetch failed: {e}")
+            logger.error("❌ [STATE] Full fetch failed: %s", e)
 
         return self._current
 
@@ -468,7 +468,7 @@ class StateRepository:
                             self._current = self._deserialize(json.dumps(data))
                         except _STATE_BOUNDARY_ERRORS as e:
                             _record_state_degradation(e)
-                            logger.error(f"Failed to auto-sync from SHM: {e}")
+                            logger.error("Failed to auto-sync from SHM: %s", e)
             except _STATE_BOUNDARY_ERRORS as e:
                 _record_state_degradation(e)
                 logger.warning("⚠️ [STATE] SHM read failed: %s", e)
@@ -1059,7 +1059,7 @@ class StateRepository:
                          state.transition_cause, serialized_data, state.updated_at)
                     )
                     await db.commit()
-                logger.debug(f"💾 State v{state.version} committed to Vault DB.")
+                logger.debug("💾 State v%s committed to Vault DB.", state.version)
                 break
             except aiosqlite.OperationalError as e:
                 if "database is locked" in str(e) and attempt < 2:

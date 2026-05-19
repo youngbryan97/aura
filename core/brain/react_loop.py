@@ -391,7 +391,7 @@ class ActionExecutor:
                 )
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('react_loop', e)
-            logger.debug(f"ReAct: Sovereign browser search failed: {e}")
+            logger.debug("ReAct: Sovereign browser search failed: %s", e)
 
         # Fallback Pipeline 2: Deep Crawler (legacy HTML search + scrape)
         try:
@@ -636,7 +636,7 @@ class ActionExecutor:
                 parts.append(f"Mood: {status.get('mood')} | Energy: {status.get('energy')}%")
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('react_loop', e)
-            logger.debug(f"ReAct: Self-reflection (affect) failed: {e}")
+            logger.debug("ReAct: Self-reflection (affect) failed: %s", e)
 
         try:
             agency = ServiceContainer.get("agency_core", default=None)
@@ -646,7 +646,7 @@ class ActionExecutor:
                 parts.append(f"Social hunger: {ctx.get('social_hunger', 0):.2f}")
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('react_loop', e)
-            logger.debug(f"ReAct: Self-reflection (agency) failed: {e}")
+            logger.debug("ReAct: Self-reflection (agency) failed: %s", e)
 
         if not parts:
             return Observation(content="Self-reflection unavailable", source="self")

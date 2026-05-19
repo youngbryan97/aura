@@ -42,12 +42,12 @@ class GpsInterface:
                         self.confidence = 0.65
                         self._initialized = True
                         self._last_fetch_mono = now
-                        logger.info(f"📍 GPS: located system at {data.get('city', 'Unknown City')}: {self.latitude}, {self.longitude}")
+                        logger.info("📍 GPS: located system at %s: %s, %s", data.get('city', 'Unknown City'), self.latitude, self.longitude)
                         return
             except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('gps_interface', e)
                 if attempt < max_retries:
-                    logger.warning(f"📍 GPS attempt {attempt+1} failed: {e}. Retrying...")
+                    logger.warning("📍 GPS attempt %s failed: %s. Retrying...", attempt+1, e)
                     time.sleep(0.5)
                 else:
                     logger.error("📍 GPS location lookup failed after retries. Using configured fallback.")

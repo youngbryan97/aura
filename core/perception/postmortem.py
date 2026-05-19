@@ -49,7 +49,7 @@ class PostmortemAnalyzer:
         """
         Uses the cognitive engine to reflect on the failure and extract actionable rules.
         """
-        logger.info(f"Initiating postmortem analysis for death: {death_message}")
+        logger.info("Initiating postmortem analysis for death: %s", death_message)
 
         prompt = f"""[POSTMORTEM ANALYSIS]
 You are analyzing a failure/death in an embodied environment session to extract lessons for future runs.
@@ -85,7 +85,7 @@ CORRECTIONS:
             return self._parse_llm_postmortem(content)
 
         except (ImportError, AttributeError, RuntimeError) as e:
-            logger.error(f"Postmortem analysis failed: {e}")
+            logger.error("Postmortem analysis failed: %s", e)
             return self._heuristic_postmortem(death_message, final_state_summary, recent_events, belief)
 
     def _parse_llm_postmortem(self, content: str) -> PostmortemReport:
@@ -170,7 +170,7 @@ CORRECTIONS:
             source="postmortem_experience"
         )
         self.kb.add_learned_affordance(aff)
-        logger.info(f"Learned new affordance from death: {aff.entity} -> {aff.action} -> {aff.effects[0]}")
+        logger.info("Learned new affordance from death: %s -> %s -> %s", aff.entity, aff.action, aff.effects[0])
 
     def _heuristic_postmortem(
         self,

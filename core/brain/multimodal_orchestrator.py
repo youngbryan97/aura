@@ -34,7 +34,7 @@ class MultimodalOrchestrator:
             logger.info("✨ Multimodal Rendering Engine Online.")
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('multimodal_orchestrator', e)
-            logger.error(f"Multimodal setup failed: {e}")
+            logger.error("Multimodal setup failed: %s", e)
 
     async def render(self, content: str, metadata: Optional[Dict[str, Any]] = None):
         """
@@ -97,7 +97,7 @@ class MultimodalOrchestrator:
                 if self.capability_engine:
                     skill_name = "local_media_generation" if "local_media_generation" in self.capability_engine.skills else "image_generation"
                     if skill_name in self.capability_engine.skills:
-                        logger.info(f"🎨 Multimodal Manifestation: Generating '{concept}'")
+                        logger.info("🎨 Multimodal Manifestation: Generating '%s'", concept)
                         # Fire and forget or track? For now, fire and forget.
                         # Real implementation would call the skill's execute.
-                        logger.debug(f"Multimodal: Asset gen triggered for '{concept}' via {skill_name} (fire-and-forget).")
+                        logger.debug("Multimodal: Asset gen triggered for '%s' via %s (fire-and-forget).", concept, skill_name)

@@ -58,7 +58,7 @@ class DecoupledVoiceEngine:
         if self._muted or not text or not text.strip():
             return
         self._speech_queue.put(text)
-        logger.debug(f"Queued speech: {text[:50]}...")
+        logger.debug("Queued speech: %s...", f"{text[:50]}")
 
     def interrupt(self):
         """Signal immediate silence."""
@@ -79,7 +79,7 @@ class DecoupledVoiceEngine:
             self._init_engines()
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('voice_engine_decoupled', e)
-            logger.error(f"Failed to init speech worker engines: {e}")
+            logger.error("Failed to init speech worker engines: %s", e)
             return
 
         while self._is_running:
@@ -93,14 +93,14 @@ class DecoupledVoiceEngine:
                 
                 self._last_speech_time = time.time()
                 self._speech_count += 1
-                logger.debug(f"Speech finished in {self._last_speech_time - start_time:.2f}s (Total: {self._speech_count})")
+                logger.debug("Speech finished in %ss (Total: %s)", f"{self._last_speech_time - start_time:.2f}", self._speech_count)
                 
                 self.state = VoiceState.IDLE
             except queue.Empty:
                 continue
             except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('voice_engine_decoupled', e)
-                logger.error(f"Speech worker error: {e}")
+                logger.error("Speech worker error: %s", e)
                 self.state = VoiceState.IDLE
 
     def _init_engines(self):
@@ -137,4 +137,4 @@ class DecoupledVoiceEngine:
                 
         except (subprocess.SubprocessError, OSError) as e:
             record_degradation('voice_engine_decoupled', e)
-            logger.error(f"TTS Synthesis error: {e}")
+            logger.error("TTS Synthesis error: %s", e)

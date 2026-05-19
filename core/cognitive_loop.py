@@ -66,7 +66,7 @@ class CognitiveLoop:
                 
                 # Watchdog Check
                 if time.monotonic() - self.last_cycle_time > self.stall_threshold:
-                    logger.critical(f"🚨 COGNITIVE STALL: No cycle for {self.stall_threshold}s. Recovering...")
+                    logger.critical("🚨 COGNITIVE STALL: No cycle for %ss. Recovering...", self.stall_threshold)
                     await self._recover_from_stall()
             except asyncio.CancelledError:
                 break
@@ -233,7 +233,7 @@ class CognitiveLoop:
         for key, name in critical_components.items():
             comp = optional_service(key, default=None)
             if comp is None:
-                logger.warning(f"🚨 [RECOVERY] Critical component '{name}' ({key}) missing from container. Triggering Orchestrator repair...")
+                logger.warning("🚨 [RECOVERY] Critical component '%s' (%s) missing from container. Triggering Orchestrator repair...", name, key)
                 if hasattr(self.orchestrator, "retry_cognitive_connection"):
                     # This often fixes the container state
                     await self.orchestrator.retry_cognitive_connection()
@@ -262,4 +262,4 @@ class CognitiveLoop:
                            await ce.unload_models()
                        except (RuntimeError, AttributeError, TypeError, ValueError) as e:
                            record_degradation('cognitive_loop', e)
-                           logger.error(f"Failed to unload models during recovery: {e}")
+                           logger.error("Failed to unload models during recovery: %s", e)

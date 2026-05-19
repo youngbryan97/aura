@@ -139,7 +139,7 @@ class ICELayer:
             f"🚨 [ICE] AWE CLASSIFIED: {anomaly['type']} ({description}). "
             f"Containment: {anomaly['containment']}"
         )
-        logger.warning(f"🚨 [ICE] EXECUTIVE VIOLATION DETECTED: {label}. Increasing threat level.")
+        logger.warning("🚨 [ICE] EXECUTIVE VIOLATION DETECTED: %s. Increasing threat level.", label)
 
         # Feed violation into learned detector
         detector = self._get_anomaly_detector()
@@ -196,7 +196,7 @@ class ICELayer:
         logger.critical("💀 [BLACK ICE] CRITICAL COGNITIVE THREAT. Commencing Countermeasures.")
         # Simulated SOAR actions
         user_id = payload.get("user_id", "unknown_subject")
-        logger.warning(f"🚫 [BLACK ICE] Blacklisting Subject: {user_id}")
+        logger.warning("🚫 [BLACK ICE] Blacklisting Subject: %s", user_id)
         if self._event_bus:
             self._event_bus.publish_threadsafe("core/security/black_ice_escalation", {
                 "subject": user_id,

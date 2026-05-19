@@ -42,7 +42,7 @@ class AgencyCoordinator:
         """Executes a skill via the capability engine."""
         engine = self.capability_engine
         if not engine:
-            logger.error(f"Capability engine not found for skill: {skill_name}")
+            logger.error("Capability engine not found for skill: %s", skill_name)
             return {"ok": False, "error": "No capability engine available"}
         
         try:
@@ -72,7 +72,7 @@ class AgencyCoordinator:
             return await engine.execute(skill_name, params, ctx)
         except (sqlite3.Error, OSError) as e:
             record_degradation('agency', e)
-            logger.error(f"Skill execution failed for {skill_name}: {e}")
+            logger.error("Skill execution failed for %s: %s", skill_name, e)
             record_degraded_event(
                 "agency_coordinator",
                 "skill_execution_failed",

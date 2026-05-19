@@ -68,7 +68,7 @@ class MCPClientSkill(BaseSkill):
                         if not params.tool_name:
                             return {"ok": False, "error": "tool_name is required for execute action"}
                             
-                        logger.info(f"Executing MCP Tool '{params.tool_name}' on {params.server_command}")
+                        logger.info("Executing MCP Tool '%s' on %s", params.tool_name, params.server_command)
                         exec_result = await session.call_tool(
                             params.tool_name, 
                             arguments=params.tool_args or {}

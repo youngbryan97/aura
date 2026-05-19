@@ -376,7 +376,7 @@ class AuraKernel:
             get_lock_watchdog().start()
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('aura_kernel', e)
-            logger.error(f"Failed to start LockWatchdog: {e}")
+            logger.error("Failed to start LockWatchdog: %s", e)
 
         try:
             # 1. Register Services (Explicit, Typed)
@@ -444,7 +444,7 @@ class AuraKernel:
                     logger.info("LLM organ instance: %s", llm_organ.instance.__class__.__name__)
             except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
                 record_degradation('aura_kernel', e)
-                logger.warning(f"Failed to log LLM instance class: {e}")
+                logger.warning("Failed to log LLM instance class: %s", e)
 
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('aura_kernel', e)
@@ -501,7 +501,7 @@ class AuraKernel:
             # Harder validation: Refuse boot if LLM is missing and no Mock available
             # (Though OrganStub usually provides a Mock, we verify here)
             for b_organ in broken:
-                logger.error(f"🛑 CRITICAL ORGAN FAILURE: {b_organ} instance is None.")
+                logger.error("🛑 CRITICAL ORGAN FAILURE: %s instance is None.", b_organ)
             if "llm" in broken:
                  raise RuntimeError("Kernel cannot start: LLM organ is dysfunctional.")
             
@@ -774,12 +774,12 @@ class AuraKernel:
             tricorder = self.organs.get("tricorder")
             if tricorder and tricorder.instance:
                 casie = tricorder.instance.score_user_message(objective)
-                logger.info(f"🎭 [CASIE] Strategy: {casie['strategy']} - {casie['description']}")
+                logger.info("🎭 [CASIE] Strategy: %s - %s", casie['strategy'], casie['description'])
                 
             # [SEVERANCE] Apply Persona Masking to Cognitive Cycle
             partition = state.context_partition
             if state.partition_mask:
-                logger.info(f"🎭 [SEVERANCE] Executing in {partition} partition. Field masking ACTIVE.")
+                logger.info("🎭 [SEVERANCE] Executing in %s partition. Field masking ACTIVE.", partition)
                 
             state.cognition.current_objective = objective
             get_executive_authority().record_objective_binding(
@@ -975,7 +975,7 @@ class AuraKernel:
                     self._guardian.record_tick_health(entry)
             except (ImportError, AttributeError, RuntimeError) as e:
                 record_degradation('aura_kernel', e)
-                logger.debug(f"StabilityGuardian: Health record skipped: {e}")
+                logger.debug("StabilityGuardian: Health record skipped: %s", e)
             
             # Log the loop summary
             logger.info("LOOP| %s", entry.summary())
@@ -1249,7 +1249,7 @@ class AuraKernel:
                     try:
                         exc = task.exception()
                     except (asyncio.CancelledError, Exception) as e:
-                        logger.debug(f"Background supervisor: Task exception ignored: {e}")
+                        logger.debug("Background supervisor: Task exception ignored: %s", e)
 
                     logger.error(
                         "⚠️ Background task '%s' died unexpectedly: %s",
