@@ -1,23 +1,34 @@
 """BootManager service for Aura - Full Extraction.
 Handles the procedural initialization of subsystems, decoupling the boot sequence from the core orchestrator.
 """
-from core.runtime.errors import record_degradation
-from core.utils.task_tracker import get_task_tracker
+from __future__ import annotations
+
 import asyncio
 import logging
 import time
-import os
-import signal
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
+from core.capability_engine import CapabilityEngine
 from core.config import config
 from core.container import ServiceContainer
 from core.orchestrator.types import SystemStatus
-from core.capability_engine import CapabilityEngine
+from core.runtime.errors import record_degradation
+from core.utils.task_tracker import get_task_tracker
+
 # privacy_stealth module removed from public repo
 
 logger = logging.getLogger("Aura.BootManager")
+
+
+def _record_boot_manager_degradation(
+    exc: BaseException,
+    *,
+    action: str,
+    severity: str = "warning",
+) -> None:
+    record_degradation("boot_manager", exc, severity=severity, action=action)
+
 
 class BootManager:
     """Manages the startup sequence for Aura.
@@ -30,7 +41,34 @@ class BootManager:
         self.orchestrator = orchestrator
         self.logger = logger
 
-    async def initialize(self, config_path: Optional[Path] = None, auto_fix_enabled: Optional[bool] = None) -> bool:
+    def _record_degradation(
+        self,
+        exc: BaseException,
+        *,
+        component: str,
+        action: str,
+        severity: str = "warning",
+        mark_status_error: bool = False,
+    ) -> None:
+        _record_boot_manager_degradation(exc, action=action, severity=severity)
+        status = getattr(self.orchestrator, "status", None)
+        if status is not None:
+            metrics = getattr(status, "health_metrics", None)
+            if isinstance(metrics, dict):
+                degraded = metrics.setdefault("boot_degraded_components", [])
+                if isinstance(degraded, list) and len(degraded) < 32:
+                    degraded.append(
+                        {
+                            "component": component,
+                            "severity": severity,
+                            "action": action,
+                            "error": type(exc).__name__,
+                        }
+                    )
+            if mark_status_error and hasattr(status, "add_error"):
+                status.add_error(f"{component}: {exc}")
+
+    async def initialize(self, config_path: Path | None = None, auto_fix_enabled: bool | None = None) -> bool:
         """Executes the full boot sequence."""
         # 1. Sync Init (Basic State)
         self._init_basic_state(config_path, auto_fix_enabled)
@@ -40,7 +78,7 @@ class BootManager:
         # 2. Async Init (Subsystems)
         return await self._async_init_subsystems()
 
-    def _init_basic_state(self, config_path: Optional[Path], auto_fix_enabled: Optional[bool]):
+    def _init_basic_state(self, config_path: Path | None, auto_fix_enabled: bool | None):
         self.orchestrator.status = SystemStatus()
         self.orchestrator.start_time = time.time()
         self.orchestrator.status.start_time = self.orchestrator.start_time
@@ -126,12 +164,21 @@ class BootManager:
             
             self.logger.info("✅ BOOT COMPLETE: Orchestrator architecture online")
             self.orchestrator.status.initialized = True
+            degraded = self.orchestrator.status.health_metrics.get("boot_degraded_components", [])
+            self.orchestrator.status.dependencies_ok = not bool(degraded)
+            self.orchestrator.status.health_metrics["boot_completed_at"] = time.time()
             return True
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('boot_manager', e)
+            self._record_degradation(
+                e,
+                component="boot_sequence",
+                action="failed boot closed and left orchestrator uninitialized",
+                severity="critical",
+                mark_status_error=True,
+            )
             self.logger.error("BOOT FAILED: %s", e, exc_info=True)
-            self.orchestrator.status.add_error(str(e))
             self.orchestrator.status.initialized = False
+            self.orchestrator.status.dependencies_ok = False
             return False
 
     def _async_init_threading(self):
@@ -155,7 +202,12 @@ class BootManager:
             watchdog.start()
             self.orchestrator._watchdog = watchdog
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('boot_manager', e)
+            self._record_degradation(
+                e,
+                component="system_watchdog",
+                action="continued boot without system watchdog registration",
+                severity="degraded",
+            )
             self.logger.warning("Failed to initialize System Watchdog: %s", e)
 
     def _init_skill_system(self):
@@ -186,12 +238,19 @@ class BootManager:
             from core.brain.reasoning_queue import get_reasoning_queue
             self.orchestrator.reasoning_queue = get_reasoning_queue()
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('boot_manager', e)
+            self._record_degradation(
+                e,
+                component="sensory_systems",
+                action="continued boot without local ears/vision/reasoning queue wiring",
+                severity="degraded",
+            )
             self.logger.error("Senses init failed: %s", e)
 
     def _init_autonomous_evolution(self):
         try:
-            from core.self_modification.self_modification_engine import AutonomousSelfModificationEngine
+            from core.self_modification.self_modification_engine import (
+                AutonomousSelfModificationEngine,
+            )
             self.orchestrator.self_modifier = AutonomousSelfModificationEngine(
                 self.orchestrator.cognitive_engine,
                 code_base_path=str(config.paths.base_dir),
@@ -200,7 +259,12 @@ class BootManager:
             if config.security.auto_fix_enabled:
                 self.orchestrator.self_modifier.start_monitoring()
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('boot_manager', e)
+            self._record_degradation(
+                e,
+                component="self_modification",
+                action="continued boot with autonomous self-modification disabled",
+                severity="degraded",
+            )
             self.logger.error("Self-mod failed: %s", e)
 
     def _init_metabolism(self):
@@ -210,21 +274,31 @@ class BootManager:
             monitor.start()
             ServiceContainer.register_instance("metabolic_monitor", monitor)
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('boot_manager', e)
+            self._record_degradation(
+                e,
+                component="metabolic_monitor",
+                action="continued boot without metabolic monitor process guard",
+                severity="degraded",
+            )
             self.logger.error("Metabolism init failed: %s", e)
 
     def _init_strategic_planning(self):
         try:
             from core.data.project_store import ProjectStore
-            from core.strategic_planner import StrategicPlanner
             from core.neural_feed import NeuralFeed
+            from core.strategic_planner import StrategicPlanner
             feed = NeuralFeed()
             ServiceContainer.register_instance("neural_feed", feed)
             store = ProjectStore(str(config.paths.data_dir / "projects.db"))
             planner = StrategicPlanner(self.orchestrator.cognitive_engine, store)
             ServiceContainer.register_instance("strategic_planner", planner)
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('boot_manager', e)
+            self._record_degradation(
+                e,
+                component="strategic_planning",
+                action="continued boot without strategic planner registration",
+                severity="degraded",
+            )
             self.logger.error("Strategy init failed: %s", e)
 
     async def _integrate_systems(self):
@@ -233,7 +307,12 @@ class BootManager:
             from core.master_moral_integration import integrate_complete_moral_and_sensory_systems
             integrate_complete_moral_and_sensory_systems(self.orchestrator)
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('boot_manager', e)
+            self._record_degradation(
+                e,
+                component="moral_sensory_integration",
+                action="continued boot without complete moral/sensory integration layer",
+                severity="degraded",
+            )
             self.logger.error("Moral integration failed: %s", e)
 
         # Autonomic Core
@@ -242,7 +321,12 @@ class BootManager:
             core = AutonomicCore(self.orchestrator)
             ServiceContainer.register_instance("autonomic_core", core)
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('boot_manager', e)
+            self._record_degradation(
+                e,
+                component="autonomic_core",
+                action="continued boot without autonomic core registration",
+                severity="degraded",
+            )
             self.logger.error("Autonomic Core failed: %s", e)
             
         # Advanced Cognition Layer
@@ -253,7 +337,12 @@ class BootManager:
             ServiceContainer.register_instance("cognitive_integration", cognition)
             self.orchestrator.cognition = cognition
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('boot_manager', e)
+            self._record_degradation(
+                e,
+                component="advanced_cognition",
+                action="continued boot without advanced cognitive integration layer",
+                severity="degraded",
+            )
             self.logger.error("Advanced cognition failed: %s", e)
 
     async def _recover_wal_state(self):
@@ -263,7 +352,12 @@ class BootManager:
             if pending:
                 self.logger.info("💾 WAL: Found %d interrupted thoughts", len(pending))
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-            record_degradation('boot_manager', e)
+            self._record_degradation(
+                e,
+                component="cognitive_wal",
+                action="continued boot without replaying interrupted cognitive WAL state",
+                severity="degraded",
+            )
             self.logger.error("WAL recovery failed: %s", e)
 
     def _calculate_temporal_drift(self):
@@ -273,7 +367,11 @@ class BootManager:
                 last_heartbeat = float(heartbeat_path.read_text())
                 drift = time.time() - last_heartbeat
                 self.orchestrator.status.temporal_drift_s = drift
-        except (OSError, IOError) as _exc:
-            record_degradation('boot_manager', _exc)
-            import logging
+        except OSError as _exc:
+            self._record_degradation(
+                _exc,
+                component="temporal_drift",
+                action="continued boot without persisted heartbeat drift measurement",
+                severity="warning",
+            )
             logger.debug("Exception caught during execution", exc_info=True)
