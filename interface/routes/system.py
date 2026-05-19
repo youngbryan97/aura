@@ -15,31 +15,71 @@ import time
 from datetime import UTC, datetime
 from typing import Any, cast
 
+import fastapi.responses as fastapi_responses
 import psutil
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from core.runtime.errors import record_degradation
-
-try:
-    from fastapi.responses import ORJSONResponse
-except Exception:
-    ORJSONResponse = JSONResponse
-
 from core.config import config
 from core.container import ServiceContainer
 from core.health.boot_status import build_boot_health_snapshot
+from core.runtime.errors import record_degradation
 from core.runtime_tools import get_runtime_state
 from core.scheduler import scheduler
 from core.version import VERSION, version_string
 from interface.auth import _require_internal, _restore_owner_session_from_request
 from interface.websocket_manager import broadcast_bus, ws_manager
 
+_SYSTEM_RECOVERABLE_ERRORS = (
+    AttributeError,
+    ImportError,
+    LookupError,
+    OSError,
+    RuntimeError,
+    TimeoutError,
+    TypeError,
+    ValueError,
+    asyncio.InvalidStateError,
+    asyncio.QueueEmpty,
+    asyncio.QueueFull,
+    json.JSONDecodeError,
+    psutil.Error,
+    Exception,
+)
+
+
+def _safe_float(value: Any, default: float = 0.0) -> float:
+    try:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return default
+    return number if math.isfinite(number) else default
+
+
+def _safe_int(value: Any, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError, OverflowError):
+        return default
+
+
+def _env_positive_float(name: str, default: float) -> float:
+    value = _safe_float(os.getenv(name, ""), default)
+    return value if value > 0.0 else default
+
+
+try:
+    ORJSONResponse = fastapi_responses.ORJSONResponse
+except _SYSTEM_RECOVERABLE_ERRORS:
+    ORJSONResponse = JSONResponse
+
 logger = logging.getLogger("Aura.Server.System")
 
 router = APIRouter()
 
-_DESKTOP_ACCESS_CACHE_TTL_S = float(os.getenv("AURA_DESKTOP_ACCESS_CACHE_TTL_S", "30") or 30.0)
+_DESKTOP_ACCESS_CACHE_TTL_S = _env_positive_float("AURA_DESKTOP_ACCESS_CACHE_TTL_S", 30.0)
+_SSE_IDLE_HEARTBEAT_S = _env_positive_float("AURA_SSE_IDLE_HEARTBEAT_S", 15.0)
+_SSE_QUEUE_BACKLOG_LIMIT = max(1, _safe_int(os.getenv("AURA_SSE_QUEUE_BACKLOG_LIMIT", ""), 100))
 _desktop_access_cache: dict[str, Any] = {
     "captured_at": 0.0,
     "payload": None,
@@ -48,32 +88,154 @@ _desktop_access_cache: dict[str, Any] = {
 
 # ── Collector Helpers ─────────────────────────────────────────
 
+def _fallback_conversation_lane_status(reason: str) -> dict[str, Any]:
+    desired_endpoint: str | None = None
+    background_endpoint: str | None = None
+    try:
+        from core.brain.llm.model_registry import BRAINSTEM_ENDPOINT, PRIMARY_ENDPOINT
+
+        desired_endpoint = PRIMARY_ENDPOINT
+        background_endpoint = BRAINSTEM_ENDPOINT
+    except _SYSTEM_RECOVERABLE_ERRORS as exc:
+        record_degradation("system", exc)
+        logger.debug("Conversation lane fallback endpoint lookup failed: %s", exc)
+
+    return {
+        "desired_model": "Cortex (32B)",
+        "desired_endpoint": desired_endpoint,
+        "foreground_endpoint": desired_endpoint,
+        "background_endpoint": background_endpoint,
+        "foreground_tier": "local",
+        "background_tier": "local_fast",
+        "state": "degraded",
+        "last_failure_reason": str(reason or "conversation_lane_status_unavailable")[:240],
+        "conversation_ready": False,
+        "last_transition_at": time.time(),
+        "warmup_attempted": False,
+        "warmup_in_flight": False,
+        "expected_model": "Cortex (32B)",
+        "detected_models": [],
+        "runtime_identity_ok": False,
+        "kernel_tick_age_s": None,
+    }
+
+
 def _collect_recent_degraded_events(limit: int = 12) -> list[dict[str, Any]]:
     try:
         from core.health.degraded_events import get_recent_degraded_events
 
         return get_recent_degraded_events(limit=limit)
-    except Exception as exc:
-        record_degradation('system', exc)
+    except _SYSTEM_RECOVERABLE_ERRORS as exc:
         record_degradation('system', exc)
         logger.debug("Recent degraded event collection failed: %s", exc)
         return []
 
 
 def _collect_conversation_lane_status() -> dict[str, Any]:
+    return _collect_conversation_lane_status_resilient()
+
+
+def _collect_conversation_lane_status_resilient() -> dict[str, Any]:
     """Import and delegate to the canonical implementation in chat routes."""
-    from interface.routes.chat import _collect_conversation_lane_status as _impl
-    return _impl()
+    overridden = globals().get("_collect_conversation_lane_status")
+    if callable(overridden) and overridden is not _NATIVE_CONVERSATION_LANE_STATUS_WRAPPER:
+        try:
+            lane = overridden()
+            if isinstance(lane, dict):
+                return lane
+            raise TypeError(f"conversation lane collector returned {type(lane).__name__}")
+        except _SYSTEM_RECOVERABLE_ERRORS as exc:
+            record_degradation("system", exc)
+            logger.debug("Overridden conversation lane status unavailable: %s", exc)
+            return _fallback_conversation_lane_status(str(exc))
+
+    try:
+        from interface.routes.chat import _collect_conversation_lane_status as _impl
+
+        lane = _impl()
+        if isinstance(lane, dict):
+            return lane
+        raise TypeError(f"conversation lane collector returned {type(lane).__name__}")
+    except _SYSTEM_RECOVERABLE_ERRORS as exc:
+        record_degradation("system", exc)
+        logger.debug("Conversation lane status unavailable: %s", exc)
+        return _fallback_conversation_lane_status(str(exc))
 
 
 def _conversation_lane_is_standby(lane: dict[str, Any] | None) -> bool:
-    from interface.routes.chat import _conversation_lane_is_standby as _impl
-    return _impl(lane)
+    return _conversation_lane_is_standby_resilient(lane)
+
+
+def _conversation_lane_is_standby_resilient(lane: dict[str, Any] | None) -> bool:
+    overridden = globals().get("_conversation_lane_is_standby")
+    if callable(overridden) and overridden is not _NATIVE_CONVERSATION_LANE_STANDBY_WRAPPER:
+        try:
+            return overridden(lane)
+        except _SYSTEM_RECOVERABLE_ERRORS as exc:
+            record_degradation("system", exc)
+            logger.debug("Overridden conversation lane standby helper unavailable: %s", exc)
+
+    try:
+        from interface.routes.chat import _conversation_lane_is_standby as _impl
+
+        return _impl(lane)
+    except _SYSTEM_RECOVERABLE_ERRORS as exc:
+        record_degradation("system", exc)
+        logger.debug("Conversation lane standby helper unavailable: %s", exc)
+        lane = dict(lane or {})
+        state = str(lane.get("state", "") or "").strip().lower()
+        return (
+            not bool(lane.get("conversation_ready", False))
+            and state in {"cold", "closed", ""}
+            and not bool(lane.get("warmup_attempted", False))
+            and not bool(lane.get("warmup_in_flight", False))
+        )
 
 
 def _conversation_lane_user_message(lane: dict[str, Any], **kwargs) -> str:
-    from interface.routes.chat import _conversation_lane_user_message as _impl
-    return _impl(lane, **kwargs)
+    return _conversation_lane_user_message_resilient(lane, **kwargs)
+
+
+def _conversation_lane_user_message_resilient(lane: dict[str, Any], **kwargs) -> str:
+    overridden = globals().get("_conversation_lane_user_message")
+    if callable(overridden) and overridden is not _NATIVE_CONVERSATION_LANE_MESSAGE_WRAPPER:
+        try:
+            return overridden(lane, **kwargs)
+        except _SYSTEM_RECOVERABLE_ERRORS as exc:
+            record_degradation("system", exc)
+            logger.debug("Overridden conversation lane message helper unavailable: %s", exc)
+
+    try:
+        from interface.routes.chat import _conversation_lane_user_message as _impl
+
+        return _impl(lane, **kwargs)
+    except _SYSTEM_RECOVERABLE_ERRORS as exc:
+        record_degradation("system", exc)
+        logger.debug("Conversation lane message helper unavailable: %s", exc)
+        reason = str((lane or {}).get("last_failure_reason") or exc or "status unavailable")
+        return f"The conversation lane is degraded right now: {reason[:180]}"
+
+
+_NATIVE_CONVERSATION_LANE_STATUS_WRAPPER = _collect_conversation_lane_status
+_NATIVE_CONVERSATION_LANE_STANDBY_WRAPPER = _conversation_lane_is_standby
+_NATIVE_CONVERSATION_LANE_MESSAGE_WRAPPER = _conversation_lane_user_message
+
+
+def _get_runtime_state_safe() -> dict[str, Any]:
+    try:
+        rt = get_runtime_state()
+        if isinstance(rt, dict):
+            return rt
+        raise TypeError(f"runtime state returned {type(rt).__name__}")
+    except _SYSTEM_RECOVERABLE_ERRORS as exc:
+        record_degradation("system", exc)
+        logger.debug("Runtime state snapshot failed: %s", exc)
+        return {
+            "state": {},
+            "status": "degraded",
+            "error": str(exc)[:240],
+            "timestamp": datetime.now(tz=UTC).isoformat(),
+        }
 
 
 def _collect_stability_details() -> dict[str, Any]:
@@ -103,14 +265,13 @@ def _collect_stability_details() -> dict[str, Any]:
             details["active_issues"] = active_issues
             details["memory_pct"] = report.get("memory_pct")
             details["cpu_pct"] = report.get("cpu_pct")
-    except Exception as exc:
-        record_degradation('system', exc)
+    except _SYSTEM_RECOVERABLE_ERRORS as exc:
         record_degradation('system', exc)
         logger.debug("Stability detail collection failed: %s", exc)
 
     try:
-        lane = _collect_conversation_lane_status()
-        lane_is_standby = _conversation_lane_is_standby(lane) if isinstance(lane, dict) else False
+        lane = _collect_conversation_lane_status_resilient()
+        lane_is_standby = _conversation_lane_is_standby_resilient(lane) if isinstance(lane, dict) else False
         if isinstance(lane, dict) and not bool(lane.get("conversation_ready", False)) and not lane_is_standby:
             details["healthy"] = False
             if details.get("status") == "unknown":
@@ -118,7 +279,7 @@ def _collect_stability_details() -> dict[str, Any]:
             details.setdefault("active_issues", []).append(
                 {
                     "name": "conversation_lane",
-                    "message": _conversation_lane_user_message(lane),
+                    "message": _conversation_lane_user_message_resilient(lane),
                     "severity": "warning" if str(lane.get("state", "") or "").lower() != "failed" else "error",
                     "action_taken": None,
                 }
@@ -139,8 +300,7 @@ def _collect_stability_details() -> dict[str, Any]:
                     "action_taken": None,
                 }
             )
-    except Exception as exc:
-        record_degradation('system', exc)
+    except _SYSTEM_RECOVERABLE_ERRORS as exc:
         record_degradation('system', exc)
         logger.debug("Conversation lane stability detail merge failed: %s", exc)
     if details.get("status") == "unknown":
@@ -262,8 +422,7 @@ async def _collect_soma_payload() -> dict[str, Any]:
                 "resource_anxiety": ram_pct,
                 "vitality": vitality,
             }
-        except Exception as exc:
-            record_degradation('system', exc)
+        except _SYSTEM_RECOVERABLE_ERRORS as exc:
             record_degradation('system', exc)
             logger.debug("Soma fallback telemetry failed: %s", exc)
             return {}
@@ -275,8 +434,7 @@ async def _collect_soma_payload() -> dict[str, Any]:
     if hasattr(soma, "pulse"):
         try:
             await asyncio.wait_for(soma.pulse(), timeout=0.25)
-        except Exception as exc:
-            record_degradation('system', exc)
+        except _SYSTEM_RECOVERABLE_ERRORS as exc:
             record_degradation('system', exc)
             logger.debug("Soma pulse refresh failed: %s", exc)
 
@@ -305,8 +463,7 @@ async def _collect_soma_payload() -> dict[str, Any]:
                 }
                 if any(value > 0.0 for value in payload.values()):
                     return payload
-    except Exception as exc:
-        record_degradation('system', exc)
+    except _SYSTEM_RECOVERABLE_ERRORS as exc:
         record_degradation('system', exc)
         logger.debug("Soma status collection failed: %s", exc)
     return _system_fallback()
@@ -317,8 +474,7 @@ def _collect_tool_catalog() -> list[dict[str, Any]]:
     if engine and hasattr(engine, "get_tool_catalog"):
         try:
             return list(engine.get_tool_catalog(include_inactive=True))
-        except Exception as exc:
-            record_degradation('system', exc)
+        except _SYSTEM_RECOVERABLE_ERRORS as exc:
             record_degradation('system', exc)
             logger.debug("Tool catalog collection failed: %s", exc)
     return []
@@ -344,22 +500,27 @@ def _collect_commitment_summary() -> dict[str, Any]:
                 for item in active[:5]
             ],
         }
-    except Exception as exc:
-        record_degradation('system', exc)
+    except _SYSTEM_RECOVERABLE_ERRORS as exc:
         record_degradation('system', exc)
         logger.debug("Commitment summary collection failed: %s", exc)
         return {"active_count": 0, "reliability_score": 1.0, "active": []}
 
 
 def _collect_voice_summary() -> dict[str, Any]:
-    from interface.routes.privacy import get_voice_engine_fn
-    _voice_engine_fn = get_voice_engine_fn()
+    try:
+        from interface.routes.privacy import get_voice_engine_fn
+
+        _voice_engine_fn = get_voice_engine_fn()
+    except _SYSTEM_RECOVERABLE_ERRORS as exc:
+        record_degradation("system", exc)
+        logger.debug("Voice engine resolver unavailable: %s", exc)
+        _voice_engine_fn = None
     voice_available = bool(_voice_engine_fn)
     summary = {
         "available": voice_available,
-        "microphone_enabled": True,
-        "speaking_enabled": True,
-        "streaming_available": True,
+        "microphone_enabled": voice_available,
+        "speaking_enabled": voice_available,
+        "streaming_available": voice_available,
         "state": "ready" if voice_available else "unavailable",
     }
     try:
@@ -377,8 +538,7 @@ def _collect_voice_summary() -> dict[str, Any]:
                     summary["state"] = str(voice_state).lower()
                 else:
                     summary["state"] = "listening" if getattr(voice, "is_listening", False) else "ready"
-    except Exception as exc:
-        record_degradation('system', exc)
+    except _SYSTEM_RECOVERABLE_ERRORS as exc:
         record_degradation('system', exc)
         logger.debug("Voice summary collection failed: %s", exc)
     return summary
@@ -441,8 +601,7 @@ async def _collect_desktop_access_summary() -> dict[str, Any]:
                 try:
                     text = skill._read_menu_clock_macos()
                     return {"ready": True, "text": text[:240]}
-                except Exception as exc:
-                    record_degradation('system', exc)
+                except _SYSTEM_RECOVERABLE_ERRORS as exc:
                     record_degradation('system', exc)
                     return {"ready": False, "error": str(exc)[:240]}
 
@@ -472,8 +631,7 @@ async def _collect_desktop_access_summary() -> dict[str, Any]:
             ) else
             "blocked"
         )
-    except Exception as exc:
-        record_degradation('system', exc)
+    except _SYSTEM_RECOVERABLE_ERRORS as exc:
         record_degradation('system', exc)
         logger.debug("Desktop access summary collection failed: %s", exc)
     _desktop_access_cache["captured_at"] = time.monotonic()
@@ -482,7 +640,7 @@ async def _collect_desktop_access_summary() -> dict[str, Any]:
 
 
 def _collect_runtime_capabilities(conversation_lane: dict[str, Any] | None = None) -> dict[str, Any]:
-    lane = conversation_lane if isinstance(conversation_lane, dict) else _collect_conversation_lane_status()
+    lane = conversation_lane if isinstance(conversation_lane, dict) else _collect_conversation_lane_status_resilient()
     payload: dict[str, Any] = {
         "local_backend": "unknown",
         "local_runtime": "offline",
@@ -509,15 +667,14 @@ def _collect_runtime_capabilities(conversation_lane: dict[str, Any] | None = Non
                 "fallback_model": FALLBACK_MODEL,
             }
         )
-    except Exception as exc:
-        record_degradation('system', exc)
+    except _SYSTEM_RECOVERABLE_ERRORS as exc:
         record_degradation('system', exc)
         logger.debug("Runtime capability backend lookup failed: %s", exc)
 
     state = str(payload.get("conversation_state", "") or "").lower()
     if bool(payload.get("conversation_ready")):
         payload["local_runtime"] = "online"
-    elif _conversation_lane_is_standby(lane):
+    elif _conversation_lane_is_standby_resilient(lane):
         payload["local_runtime"] = "standby"
     elif state in {"cold", "warming", "spawning", "handshaking", "recovering", "ready"}:
         payload["local_runtime"] = "warming"
@@ -538,14 +695,14 @@ def _derive_ui_status_flags(
         flags.append("booting")
     if bool(state_summary.get("thermal_guard")):
         flags.append("thermal_guard")
-    if float(state_summary.get("coherence_score", 1.0) or 1.0) < 0.72:
+    if _safe_float(state_summary.get("coherence_score"), 1.0) < 0.72:
         flags.append("coherence_low")
-    if float(state_summary.get("fragmentation_score", 0.0) or 0.0) > 0.4:
+    if _safe_float(state_summary.get("fragmentation_score"), 0.0) > 0.4:
         flags.append("fragmentation_high")
-    if int(state_summary.get("contradiction_count", 0) or 0) > 3:
+    if _safe_int(state_summary.get("contradiction_count"), 0) > 3:
         flags.append("contradictions_present")
     epistemics = state_summary.get("epistemics", {}) or {}
-    if int(epistemics.get("contested", 0) or 0) > 0:
+    if _safe_int(epistemics.get("contested"), 0) > 0:
         flags.append("beliefs_contested")
     unavailable_count = sum(1 for tool in tool_catalog if not bool(tool.get("available")))
     if unavailable_count >= 3:
@@ -563,16 +720,25 @@ async def telemetry_stream(request: Request):
     _require_internal(request)
 
     async def event_generator():
-        init_data = json.dumps({"type": "telemetry", "cpu_usage": psutil.cpu_percent(), "memory_usage": psutil.virtual_memory().percent})
+        try:
+            init_payload = {
+                "type": "telemetry",
+                "cpu_usage": psutil.cpu_percent(interval=None),
+                "memory_usage": psutil.virtual_memory().percent,
+                "timestamp": time.time(),
+            }
+        except _SYSTEM_RECOVERABLE_ERRORS as e:
+            record_degradation("system", e)
+            logger.debug("SSE initial telemetry snapshot failed: %s", e)
+            init_payload = {"type": "telemetry", "cpu_usage": 0.0, "memory_usage": 0.0, "timestamp": time.time()}
+        init_data = json.dumps(init_payload)
         yield f"event: telemetry\ndata: {init_data}\n\n"
 
+        q = None
         try:
             q = await broadcast_bus.subscribe()
-            while True:
-                if await request.is_disconnected():
-                    break
-
-                while q.qsize() > 100:
+            while not await request.is_disconnected():
+                while q.qsize() > _SSE_QUEUE_BACKLOG_LIMIT:
                     try:
                         q.get_nowait()
                         q.task_done()
@@ -580,21 +746,29 @@ async def telemetry_stream(request: Request):
                         break
 
                 try:
-                    _priority, _ts, msg = await q.get()
-                    msg_type = msg.get("type", "message")
-                    data = json.dumps(msg)
+                    item = await asyncio.wait_for(q.get(), timeout=_SSE_IDLE_HEARTBEAT_S)
+                except TimeoutError:
+                    heartbeat = json.dumps({"type": "heartbeat", "timestamp": time.time()})
+                    yield f"event: heartbeat\ndata: {heartbeat}\n\n"
+                    continue
+
+                try:
+                    _priority, _ts, msg = item
+                    safe_msg = _json_safe(msg) if isinstance(msg, dict) else {"type": "message", "payload": _json_safe(msg)}
+                    msg_type = str(safe_msg.get("type", "message") or "message")
+                    data = json.dumps(safe_msg)
                     yield f"event: {msg_type}\ndata: {data}\n\n"
-                    q.task_done()
                 except asyncio.CancelledError:
                     break
-                except Exception as e:
-                    record_degradation('system', e)
+                except _SYSTEM_RECOVERABLE_ERRORS as e:
                     record_degradation('system', e)
                     logger.debug("SSE generate error: %s", e)
                     await asyncio.sleep(0.1)
                     continue
+                finally:
+                    q.task_done()
         finally:
-            if 'q' in locals() and q:
+            if q is not None:
                 await broadcast_bus.unsubscribe(q)
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
@@ -616,8 +790,7 @@ async def metrics(request: Request):
             "cpu_usage": float(int(psutil.cpu_percent() * 10)) / 10.0 if 'psutil' in sys.modules else 0,
             "memory_usage": float(int(psutil.virtual_memory().percent * 10)) / 10.0 if 'psutil' in sys.modules else 0,
         }
-    except Exception as e:
-        record_degradation('system', e)
+    except _SYSTEM_RECOVERABLE_ERRORS as e:
         record_degradation('system', e)
         logger.error("Metrics collection failed: %s", e, exc_info=True)
         return ORJSONResponse({"status": "error", "message": "Metrics collection failed"}, status_code=500)
@@ -640,7 +813,7 @@ async def metrics_prometheus(request: Request):
             content=text,
             media_type="text/plain; version=0.0.4; charset=utf-8",
         )
-    except Exception as e:
+    except _SYSTEM_RECOVERABLE_ERRORS as e:
         record_degradation('system', e)
         logger.error("Prometheus metrics render failed: %s", e, exc_info=True)
         return ORJSONResponse(
@@ -661,7 +834,7 @@ async def healthz(request: Request):
 
         result = check_liveness()
         return JSONResponse(result, status_code=200)
-    except Exception as exc:
+    except _SYSTEM_RECOVERABLE_ERRORS as exc:
         record_degradation("system", exc)
         logger.warning("Liveness check degraded; returning process-level alive response: %s", exc)
         return JSONResponse({"status": "alive", "pid": os.getpid()}, status_code=200)
@@ -682,7 +855,7 @@ async def readyz(request: Request):
         result = check_readiness()
         status_code = 200 if result.get("ready", False) else 503
         return JSONResponse(result, status_code=status_code)
-    except Exception as e:
+    except _SYSTEM_RECOVERABLE_ERRORS as e:
         record_degradation('system', e)
         return JSONResponse(
             {"status": "not_ready", "ready": False, "issues": [str(e)]},
@@ -702,7 +875,7 @@ async def incidents(request: Request):
             "summary": manager.get_summary(),
             "active": manager.get_active(),
         })
-    except Exception as e:
+    except _SYSTEM_RECOVERABLE_ERRORS as e:
         record_degradation('system', e)
         return JSONResponse(
             {"summary": {}, "active": [], "error": str(e)},
@@ -717,7 +890,7 @@ async def db_maintenance_status(request: Request):
     try:
         from core.persistence.db_maintenance import get_db_maintenance
         return JSONResponse(get_db_maintenance().get_status())
-    except Exception as e:
+    except _SYSTEM_RECOVERABLE_ERRORS as e:
         record_degradation('system', e)
         return JSONResponse({"error": str(e)}, status_code=200)
 
@@ -729,7 +902,7 @@ async def resource_status(request: Request):
     try:
         from core.resource.resource_governor import get_resource_governor
         return JSONResponse(get_resource_governor().get_status())
-    except Exception as e:
+    except _SYSTEM_RECOVERABLE_ERRORS as e:
         record_degradation('system', e)
         return JSONResponse({"error": str(e)}, status_code=200)
 
@@ -741,7 +914,7 @@ async def initiative_overflow_status(request: Request):
     try:
         from core.autonomy.initiative_overflow import get_initiative_overflow
         return JSONResponse(get_initiative_overflow().get_status())
-    except Exception as e:
+    except _SYSTEM_RECOVERABLE_ERRORS as e:
         record_degradation('system', e)
         return JSONResponse({"error": str(e)}, status_code=200)
 
@@ -753,7 +926,7 @@ async def user_engagement_status(request: Request):
     try:
         from core.autonomy.user_response_tracker import get_user_response_tracker
         return JSONResponse(get_user_response_tracker().get_status())
-    except Exception as e:
+    except _SYSTEM_RECOVERABLE_ERRORS as e:
         record_degradation('system', e)
         return JSONResponse({"error": str(e)}, status_code=200)
 
@@ -775,20 +948,25 @@ async def gemini_usage(request: Request):
         state_path = str(config.paths.data_dir / "gemini_rate_state.json")
         limiter = DailyRateLimiter(state_path=state_path)
         return JSONResponse(limiter.get_usage())
-    except Exception as e:
-        record_degradation('system', e)
+    except _SYSTEM_RECOVERABLE_ERRORS as e:
         record_degradation('system', e)
         return JSONResponse({"error": str(e)}, status_code=500)
 
 
 @router.get("/health")
 async def api_health(request: Request):
-    from interface.routes.privacy import get_voice_engine_fn
-    _voice_engine_fn = get_voice_engine_fn()
-    
+    try:
+        from interface.routes.privacy import get_voice_engine_fn
+
+        _voice_engine_fn = get_voice_engine_fn()
+    except _SYSTEM_RECOVERABLE_ERRORS as e:
+        record_degradation("system", e)
+        logger.debug("Voice engine resolver unavailable for health payload: %s", e)
+        _voice_engine_fn = None
+
     _restore_owner_session_from_request(request)
     orch       = ServiceContainer.get("orchestrator", default=None)
-    rt         = get_runtime_state()
+    rt         = _get_runtime_state_safe()
     runtime_payload = rt.get("state", {}) if isinstance(rt.get("state"), dict) else {}
     status_obj = getattr(orch, "status", None)
 
@@ -800,8 +978,7 @@ async def api_health(request: Request):
         ram = psutil.virtual_memory().percent
         per_cpu = psutil.cpu_percent(interval=None, percpu=True)
         p_core = per_cpu[0] if len(per_cpu) > 1 else cpu
-    except Exception as e:
-        record_degradation('system', e)
+    except _SYSTEM_RECOVERABLE_ERRORS as e:
         record_degradation('system', e)
         logger.debug("Hardware stats collection failed: %s", e)
         cpu, ram, p_core = 0, 0, 0
@@ -810,11 +987,10 @@ async def api_health(request: Request):
     if orch and hasattr(orch, "get_status"):
         try:
             orch_status = orch.get_status()
-        except Exception as e:
-            record_degradation('system', e)
+        except _SYSTEM_RECOVERABLE_ERRORS as e:
             record_degradation('system', e)
             logger.debug("get_status failed: %s", e)
-    conversation_lane = _collect_conversation_lane_status()
+    conversation_lane = _collect_conversation_lane_status_resilient()
     boot_snapshot, _ = build_boot_health_snapshot(
         orch,
         rt,
@@ -845,8 +1021,7 @@ async def api_health(request: Request):
             }
             ls_dict = cast(dict, ls_data)
             ls_dict["vad"] = vad_data
-    except Exception as e:
-        record_degradation('system', e)
+    except _SYSTEM_RECOVERABLE_ERRORS as e:
         record_degradation('system', e)
         logger.debug("Liquid state/VAD lookup failed: %s", e)
     curiosity_status = orch_status.get("curiosity_status", {})
@@ -857,16 +1032,20 @@ async def api_health(request: Request):
         if meta:
             transcendence_data["meta_evolution"] = meta.get_health()
             transcendence_data["meta_evolution"]["active"] = True
-    except Exception as e:
-        record_degradation('system', e)
+    except _SYSTEM_RECOVERABLE_ERRORS as e:
         record_degradation('system', e)
         logger.debug("Transcendence status collection failed: %s", e)
 
-    # Agency: derive from energy + curiosity + active autonomous thought
-    _energy_raw = float(ls_data.get("energy", 0))
-    _curiosity_raw = float(ls_data.get("curiosity", 0))
-    _thinking = bool(orch and getattr(orch, "_current_thought_task", None)
-                     and not orch._current_thought_task.done())
+    # Agency: derive from energy + curiosity + active autonomous thought.
+    _energy_raw = _normalize_percentish(ls_data.get("energy")) or 0.0
+    _curiosity_raw = _normalize_percentish(ls_data.get("curiosity")) or 0.0
+    thought_task = getattr(orch, "_current_thought_task", None) if orch else None
+    try:
+        _thinking = bool(thought_task and hasattr(thought_task, "done") and not thought_task.done())
+    except _SYSTEM_RECOVERABLE_ERRORS as e:
+        record_degradation("system", e)
+        logger.debug("Current thought task status failed: %s", e)
+        _thinking = False
     _agency_score = (_energy_raw * 0.4 + _curiosity_raw * 0.4 + (30.0 if _thinking else 0.0))
     _agency_score = min(100.0, max(0.0, _agency_score))
 
@@ -879,7 +1058,7 @@ async def api_health(request: Request):
 
     cortex = {
         "agency":    float(int(_agency_score * 10)) / 10.0,
-        "curiosity": float(int(float(ls_data.get("curiosity", 0)) * 10)) / 10.0,
+        "curiosity": float(int(_curiosity_raw * 10)) / 10.0,
         "fixes":     orch_status.get("stats", {}).get("modifications_made", 0),
         "beliefs":   0,
         "episodes":  0,
@@ -889,10 +1068,10 @@ async def api_health(request: Request):
         "stealth":   config.security.enable_stealth_mode,
         "scratchpad": scratchpad_engine is not None,
         "forge":      ServiceContainer.get("hephaestus_engine", default=None) is not None,
-        "subconscious": "dreaming" if subconscious_active and getattr(orch, "boredom", 0) > 45 else ("awake" if subconscious_active else "idle"),
+        "subconscious": "dreaming" if subconscious_active and _safe_float(getattr(orch, "boredom", 0), 0.0) > 45 else ("awake" if subconscious_active else "idle"),
         "unity":      ServiceContainer.get("soma", default=None) is not None,
-        "p_core_usage": float(int(p_core * 10)) / 10.0,
-        "singularity_factor": float(int(transcendence_data.get("meta_evolution", {}).get("acceleration_factor", 1.0) * 100)) / 100.0,
+        "p_core_usage": float(int(_safe_float(p_core) * 10)) / 10.0,
+        "singularity_factor": float(int(_safe_float(transcendence_data.get("meta_evolution", {}).get("acceleration_factor"), 1.0) * 100)) / 100.0,
         "meta_loop_active": transcendence_data.get("meta_evolution", {}).get("active", False)
     }
 
@@ -911,16 +1090,25 @@ async def api_health(request: Request):
             if mem_mgr and hasattr(mem_mgr, "get_stats"):
                 mem_stats = mem_mgr.get_stats()
                 cortex["episodes"] = mem_stats.get("episodic_count", 0)
-    except Exception as e:
-        record_degradation('system', e)
+    except _SYSTEM_RECOVERABLE_ERRORS as e:
         record_degradation('system', e)
         logger.debug("Cortex supplementary metrics failed: %s", e)
 
-    moral = ServiceContainer.get("moral", default=None)
-    moral_data = moral.get_health() if moral and hasattr(moral, "get_health") else {}
+    moral_data = {}
+    try:
+        moral = ServiceContainer.get("moral", default=None)
+        moral_data = moral.get_health() if moral and hasattr(moral, "get_health") else {}
+    except _SYSTEM_RECOVERABLE_ERRORS as e:
+        record_degradation("system", e)
+        logger.debug("Moral health collection failed: %s", e)
 
-    homeostasis = ServiceContainer.get("homeostasis", default=None)
-    homeo_data = homeostasis.get_health() if homeostasis else {}
+    homeo_data = {}
+    try:
+        homeostasis = ServiceContainer.get("homeostasis", default=None)
+        homeo_data = homeostasis.get_health() if homeostasis and hasattr(homeostasis, "get_health") else {}
+    except _SYSTEM_RECOVERABLE_ERRORS as e:
+        record_degradation("system", e)
+        logger.debug("Homeostasis health collection failed: %s", e)
     liquid_state_payload = _collect_liquid_state_payload(
         cast(dict[str, Any], ls_data if isinstance(ls_data, dict) else {}),
         runtime_state=runtime_payload if isinstance(runtime_payload, dict) else {},
@@ -928,10 +1116,20 @@ async def api_health(request: Request):
     )
     soma_data = await _collect_soma_payload()
 
-    social = ServiceContainer.get("social", default=None)
-    social_data = social.get_health() if social else {"depth": 0.0}
+    social_data = {"depth": 0.0}
+    try:
+        social = ServiceContainer.get("social", default=None)
+        social_data = social.get_health() if social and hasattr(social, "get_health") else social_data
+    except _SYSTEM_RECOVERABLE_ERRORS as e:
+        record_degradation("system", e)
+        logger.debug("Social health collection failed: %s", e)
 
-    swarm_data = orch.swarm_status if orch and hasattr(orch, 'swarm_status') else {"active_count": 0}
+    swarm_data = {"active_count": 0}
+    try:
+        swarm_data = orch.swarm_status if orch and hasattr(orch, 'swarm_status') else swarm_data
+    except _SYSTEM_RECOVERABLE_ERRORS as e:
+        record_degradation("system", e)
+        logger.debug("Swarm status collection failed: %s", e)
 
     executive_closure_data = {}
     try:
@@ -940,8 +1138,7 @@ async def api_health(request: Request):
             executive_closure = ServiceContainer.get("executive_closure", default=None)
             if executive_closure and hasattr(executive_closure, "get_status"):
                 executive_closure_data = executive_closure.get_status()
-    except Exception as e:
-        record_degradation('system', e)
+    except _SYSTEM_RECOVERABLE_ERRORS as e:
         record_degradation('system', e)
         logger.debug("Executive closure status collection failed: %s", e)
 
@@ -952,8 +1149,7 @@ async def api_health(request: Request):
             evidence = ServiceContainer.get("consciousness_evidence", default=None)
             if evidence and hasattr(evidence, "snapshot"):
                 consciousness_evidence = evidence.snapshot()
-    except Exception as e:
-        record_degradation('system', e)
+    except _SYSTEM_RECOVERABLE_ERRORS as e:
         record_degradation('system', e)
         logger.debug("Consciousness evidence collection failed: %s", e)
 
@@ -962,8 +1158,7 @@ async def api_health(request: Request):
         executive_authority = ServiceContainer.get("executive_authority", default=None)
         if executive_authority and hasattr(executive_authority, "get_status"):
             executive_authority_data = executive_authority.get_status()
-    except Exception as e:
-        record_degradation('system', e)
+    except _SYSTEM_RECOVERABLE_ERRORS as e:
         record_degradation('system', e)
         logger.debug("Executive authority status collection failed: %s", e)
 
@@ -972,8 +1167,7 @@ async def api_health(request: Request):
         interaction_signals = ServiceContainer.get("interaction_signals", default=None)
         if interaction_signals and hasattr(interaction_signals, "get_status"):
             interaction_signals_data = interaction_signals.get_status()
-    except Exception as e:
-        record_degradation('system', e)
+    except _SYSTEM_RECOVERABLE_ERRORS as e:
         record_degradation('system', e)
         logger.debug("Interaction signal status collection failed: %s", e)
 
@@ -1029,8 +1223,7 @@ async def api_health(request: Request):
                 resilience_data["llm_endpoints"] = ep_status
 
         resilience_data["hardening_active"] = ServiceContainer.get("stability_guardian", default=None) is not None
-    except Exception as e:
-        record_degradation('system', e)
+    except _SYSTEM_RECOVERABLE_ERRORS as e:
         record_degradation('system', e)
         logger.debug("Resilience status collection failed: %s", e)
 
@@ -1047,8 +1240,7 @@ async def api_health(request: Request):
             qualia_data["dominant_dim"] = getattr(qualia, "_history", None) and len(qualia._history) > 0 and qualia._history[-1].dominant_dimension or "none"
             qualia_data["in_attractor"] = getattr(qualia, "_in_attractor", False)
             qualia_data["identity_coherence"] = round(float(getattr(qualia, "identity_drift_score", 1.0)) * 100, 1)
-    except Exception as e:
-        record_degradation('system', e)
+    except _SYSTEM_RECOVERABLE_ERRORS as e:
         record_degradation('system', e)
         logger.debug("Qualia status collection failed: %s", e)
 
@@ -1061,8 +1253,7 @@ async def api_health(request: Request):
                 mycelial_data["nodes"] = len(mycelium.pathways)
                 mycelial_data["edges"] = len(mycelium.hyphae)
             mycelial_data["health"] = "online"
-    except Exception as e:
-        record_degradation('system', e)
+    except _SYSTEM_RECOVERABLE_ERRORS as e:
         record_degradation('system', e)
         logger.debug("Mycelial network status collection failed: %s", e)
 
@@ -1084,8 +1275,7 @@ async def api_health(request: Request):
             tm = getattr(pn, "topo_memory", None)
             if tm:
                 pneuma_data["attractor_count"] = int(tm.attractor_count)
-    except Exception as e:
-        record_degradation('system', e)
+    except _SYSTEM_RECOVERABLE_ERRORS as e:
         record_degradation('system', e)
         logger.debug("PNEUMA status collection failed: %s", e)
 
@@ -1101,8 +1291,7 @@ async def api_health(request: Request):
             mhaf_data["nodes"] = len(mhaf._nodes)
             mhaf_data["edges"] = len(mhaf._edges)
             mhaf_data["free_energy"] = round(float(mhaf._free_energy), 4)
-    except Exception as e:
-        record_degradation('system', e)
+    except _SYSTEM_RECOVERABLE_ERRORS as e:
         record_degradation('system', e)
         logger.debug("MHAF status collection failed: %s", e)
     # Wire real PhiCore IIT 4.0 phi into the MHAF data (replaces the surrogate)
@@ -1121,8 +1310,7 @@ async def api_health(request: Request):
                 mhaf_data["phi_complex"] = result.is_complex
                 mhaf_data["phi_mip"] = result.mip_description
                 mhaf_data["phi_samples"] = result.tpm_n_samples
-    except Exception as e:
-        record_degradation('system', e)
+    except _SYSTEM_RECOVERABLE_ERRORS as e:
         record_degradation('system', e)
         logger.debug("PhiCore status collection failed: %s", e)
     if mhaf_data.get("phi", 0.0) <= 0.0:
@@ -1135,8 +1323,7 @@ async def api_health(request: Request):
                 if closed_loop_phi > 0.0:
                     mhaf_data["phi"] = round(closed_loop_phi, 4)
                     mhaf_data["phi_source"] = "closed_loop"
-        except Exception as e:
-            record_degradation('system', e)
+        except _SYSTEM_RECOVERABLE_ERRORS as e:
             record_degradation('system', e)
             logger.debug("Closed-loop phi fallback failed: %s", e)
     try:
@@ -1144,8 +1331,7 @@ async def api_health(request: Request):
         neo = get_neologism_engine()
         if neo:
             mhaf_data["lexicon_size"] = len(neo._lexicon)
-    except Exception as e:
-        record_degradation('system', e)
+    except _SYSTEM_RECOVERABLE_ERRORS as e:
         record_degradation('system', e)
         logger.debug("Neologism lexicon count failed: %s", e)
 
@@ -1160,8 +1346,7 @@ async def api_health(request: Request):
         ts = te.get_status()
         security_data["trust_level"] = ts.get("level", "guest")
         security_data["_stale"] = False
-    except Exception as e:
-        record_degradation('system', e)
+    except _SYSTEM_RECOVERABLE_ERRORS as e:
         record_degradation('system', e)
         logger.debug("Security status collection failed: %s", e)
     try:
@@ -1170,10 +1355,9 @@ async def api_health(request: Request):
         eps = ep.get_status()
         security_data["threat_score"] = eps.get("threat_score", 0.0)
         security_data["threat_level"] = eps.get("threat_level", "none")
-    except Exception as _exc:
+    except _SYSTEM_RECOVERABLE_ERRORS as _exc:
         record_degradation('system', _exc)
-        record_degradation('system', _exc)
-        logger.debug("Suppressed Exception: %s", _exc)
+        logger.debug("Emergency protocol status collection failed: %s", _exc)
     try:
         from core.security.integrity_guardian import get_integrity_guardian
         igs = get_integrity_guardian().get_status()
@@ -1181,17 +1365,15 @@ async def api_health(request: Request):
             igs.get("integrity_ok", igs.get("alert_count", 0) == 0)
         )
         security_data["integrity_files"] = igs.get("manifest_files", 0)
-    except Exception as _exc:
+    except _SYSTEM_RECOVERABLE_ERRORS as _exc:
         record_degradation('system', _exc)
-        record_degradation('system', _exc)
-        logger.debug("Suppressed Exception: %s", _exc)
+        logger.debug("Integrity guardian status collection failed: %s", _exc)
     try:
         from core.security.user_recognizer import get_user_recognizer
         security_data["passphrase_set"] = get_user_recognizer().has_passphrase()
-    except Exception as _exc:
+    except _SYSTEM_RECOVERABLE_ERRORS as _exc:
         record_degradation('system', _exc)
-        record_degradation('system', _exc)
-        logger.debug("Suppressed Exception: %s", _exc)
+        logger.debug("User recognizer status collection failed: %s", _exc)
 
     # ── Circadian State ──
     circadian_data: dict[str, Any] = {}
@@ -1206,8 +1388,7 @@ async def api_health(request: Request):
             "energy_modifier": round(s.energy_modifier, 3),
             "cognitive_mode": s.cognitive_mode,
         }
-    except Exception as e:
-        record_degradation('system', e)
+    except _SYSTEM_RECOVERABLE_ERRORS as e:
         record_degradation('system', e)
         logger.debug("Circadian status collection failed: %s", e)
 
@@ -1216,15 +1397,13 @@ async def api_health(request: Request):
     try:
         from core.consciousness.crsm_lora_bridge import get_crsm_lora_bridge
         substrate_data["lora_bridge"] = get_crsm_lora_bridge().get_status()
-    except Exception as e:
-        record_degradation('system', e)
+    except _SYSTEM_RECOVERABLE_ERRORS as e:
         record_degradation('system', e)
         logger.debug("LoRA bridge status failed: %s", e)
     try:
         from core.consciousness.experience_consolidator import get_experience_consolidator
         substrate_data["consolidator"] = get_experience_consolidator().get_status()
-    except Exception as e:
-        record_degradation('system', e)
+    except _SYSTEM_RECOVERABLE_ERRORS as e:
         record_degradation('system', e)
         logger.debug("Consolidator status failed: %s", e)
 
@@ -1244,8 +1423,7 @@ async def api_health(request: Request):
                 "last_tick_error": ms.get("last_tick_error", ""),
                 "_stale": False,
             }
-    except Exception as e:
-        record_degradation('system', e)
+    except _SYSTEM_RECOVERABLE_ERRORS as e:
         record_degradation('system', e)
         logger.debug("Morphogenesis status collection failed: %s", e)
 
@@ -1258,8 +1436,7 @@ async def api_health(request: Request):
         terminal_data["pending"] = len(tf._pending)
         tw = get_terminal_watchdog()
         terminal_data["watchdog"] = tw._running if tw else False
-    except Exception as e:
-        record_degradation('system', e)
+    except _SYSTEM_RECOVERABLE_ERRORS as e:
         record_degradation('system', e)
         logger.debug("Terminal fallback status collection failed: %s", e)
 
@@ -1283,7 +1460,7 @@ async def api_health(request: Request):
         }
 
         conversation_ready = bool(conversation_lane.get("conversation_ready", False))
-        lane_is_standby = _conversation_lane_is_standby(conversation_lane)
+        lane_is_standby = _conversation_lane_is_standby_resilient(conversation_lane)
         service_ok = bool(boot_snapshot.get("system_ready", False))
         diagnostics_data = {
             "stability_guardian": _collect_stability_details(),
@@ -1342,8 +1519,7 @@ async def api_health(request: Request):
             "boot":           boot_snapshot,
             "timestamp":      datetime.now(tz=UTC).isoformat(),
         }
-    except Exception as e:
-        record_degradation('system', e)
+    except _SYSTEM_RECOVERABLE_ERRORS as e:
         record_degradation('system', e)
         logger.error("Final health payload assembly failed: %s", e)
         payload = {
@@ -1368,10 +1544,9 @@ async def api_tools_catalog():
 
 @router.get("/ui/bootstrap")
 async def api_ui_bootstrap(request: Request = None):
-    from interface.routes.chat import _conversation_log, _conversation_log_lock
     _restore_owner_session_from_request(request)
     orch = ServiceContainer.get("orchestrator", default=None)
-    rt = get_runtime_state()
+    rt = _get_runtime_state_safe()
     constitutional_status = {}
     executive_status = {}
     state_summary = {
@@ -1396,8 +1571,7 @@ async def api_ui_bootstrap(request: Request = None):
         constitutional_core = get_constitutional_core(orch)
         constitutional_status = constitutional_core.get_status()
         state_summary = constitutional_core.snapshot()
-    except Exception as exc:
-        record_degradation('system', exc)
+    except _SYSTEM_RECOVERABLE_ERRORS as exc:
         record_degradation('system', exc)
         logger.debug("Bootstrap constitutional snapshot failed: %s", exc)
 
@@ -1405,8 +1579,7 @@ async def api_ui_bootstrap(request: Request = None):
         executive_authority = ServiceContainer.get("executive_authority", default=None)
         if executive_authority and hasattr(executive_authority, "get_status"):
             executive_status = executive_authority.get_status()
-    except Exception as exc:
-        record_degradation('system', exc)
+    except _SYSTEM_RECOVERABLE_ERRORS as exc:
         record_degradation('system', exc)
         logger.debug("Bootstrap executive snapshot failed: %s", exc)
 
@@ -1415,13 +1588,12 @@ async def api_ui_bootstrap(request: Request = None):
         interaction_signals = ServiceContainer.get("interaction_signals", default=None)
         if interaction_signals and hasattr(interaction_signals, "get_status"):
             interaction_signals_data = interaction_signals.get_status()
-    except Exception as exc:
-        record_degradation('system', exc)
+    except _SYSTEM_RECOVERABLE_ERRORS as exc:
         record_degradation('system', exc)
         logger.debug("Bootstrap interaction signal snapshot failed: %s", exc)
 
     tool_catalog = _collect_tool_catalog()
-    conversation_lane = _collect_conversation_lane_status()
+    conversation_lane = _collect_conversation_lane_status_resilient()
     boot_snapshot, _status_code = build_boot_health_snapshot(
         orch,
         rt,
@@ -1429,8 +1601,15 @@ async def api_ui_bootstrap(request: Request = None):
         conversation_lane=conversation_lane,
     )
     status_obj = getattr(orch, "status", None)
-    async with _conversation_log_lock:
-        recent_conversation = list(_conversation_log)[-40:]
+    recent_conversation: list[dict[str, Any]] = []
+    try:
+        from interface.routes.chat import _conversation_log, _conversation_log_lock
+
+        async with _conversation_log_lock:
+            recent_conversation = list(_conversation_log)[-40:]
+    except _SYSTEM_RECOVERABLE_ERRORS as exc:
+        record_degradation("system", exc)
+        logger.debug("Bootstrap conversation log snapshot failed: %s", exc)
 
     static_dir = config.paths.project_root / "interface" / "static"
     shell_dist_dir = static_dir / "shell" / "dist"
@@ -1454,10 +1633,18 @@ async def api_ui_bootstrap(request: Request = None):
             helper_payload = shell_status_helper() or {}
             if isinstance(helper_payload, dict):
                 legacy_ui_status.update(helper_payload)
-        except Exception as exc:
-            record_degradation('system', exc)
+        except _SYSTEM_RECOVERABLE_ERRORS as exc:
             record_degradation('system', exc)
             logger.debug("Bootstrap legacy shell status sync failed: %s", exc)
+
+    try:
+        bootstrap_cpu = psutil.cpu_percent(interval=None)
+        bootstrap_ram = psutil.virtual_memory().percent
+    except _SYSTEM_RECOVERABLE_ERRORS as exc:
+        record_degradation("system", exc)
+        logger.debug("Bootstrap telemetry resource sample failed: %s", exc)
+        bootstrap_cpu = 0.0
+        bootstrap_ram = 0.0
 
     payload = {
         "identity": {
@@ -1486,8 +1673,8 @@ async def api_ui_bootstrap(request: Request = None):
         "voice": _collect_voice_summary(),
         "interaction_signals": interaction_signals_data,
         "telemetry": {
-            "cpu_usage": psutil.cpu_percent(interval=None),
-            "ram_usage": psutil.virtual_memory().percent,
+            "cpu_usage": bootstrap_cpu,
+            "ram_usage": bootstrap_ram,
             "runtime": rt,
             "boot": boot_snapshot,
         },
@@ -1510,20 +1697,32 @@ async def api_ui_bootstrap(request: Request = None):
         },
         "timestamp": datetime.now(tz=UTC).isoformat(),
     }
-    return JSONResponse(payload)
+    return JSONResponse(_json_safe(payload))
 
 
 @router.get("/health/boot")
 async def api_boot_health():
     orch = ServiceContainer.get("orchestrator", default=None)
-    rt = get_runtime_state()
-    conversation_lane = _collect_conversation_lane_status()
-    payload, status_code = build_boot_health_snapshot(
-        orch,
-        rt,
-        is_gui_proxy=os.environ.get("AURA_GUI_PROXY") == "1",
-        conversation_lane=conversation_lane,
-    )
+    rt = _get_runtime_state_safe()
+    conversation_lane = _collect_conversation_lane_status_resilient()
+    try:
+        payload, status_code = build_boot_health_snapshot(
+            orch,
+            rt,
+            is_gui_proxy=os.environ.get("AURA_GUI_PROXY") == "1",
+            conversation_lane=conversation_lane,
+        )
+    except _SYSTEM_RECOVERABLE_ERRORS as exc:
+        record_degradation("system", exc)
+        logger.error("Boot health snapshot failed: %s", exc, exc_info=True)
+        payload = {
+            "ready": False,
+            "status": "degraded",
+            "issues": [str(exc)],
+            "conversation_lane": conversation_lane,
+            "timestamp": datetime.now(tz=UTC).isoformat(),
+        }
+        status_code = 503
     return JSONResponse(payload, status_code=status_code)
 
 
@@ -1551,18 +1750,15 @@ async def api_hot_reload(request: Request):
     """
     _require_internal(request)
 
-    from core.ops.hot_reload import get_hot_reloader
-
-    reloader = get_hot_reloader()
-
-    # Register in ServiceContainer if not already present
-    if ServiceContainer.get("hot_reloader", default=None) is None:
-        ServiceContainer.register_instance("hot_reloader", reloader)
-
-    filepath = request.query_params.get("file")
-    scope = request.query_params.get("scope", "all")
-
     try:
+        from core.ops.hot_reload import get_hot_reloader
+
+        reloader = get_hot_reloader()
+        if ServiceContainer.get("hot_reloader", default=None) is None:
+            ServiceContainer.register_instance("hot_reloader", reloader)
+
+        filepath = request.query_params.get("file")
+        scope = request.query_params.get("scope", "all")
         if filepath:
             result = await asyncio.to_thread(reloader.reload_file, filepath)
         else:
@@ -1570,8 +1766,7 @@ async def api_hot_reload(request: Request):
 
         status_code = 200 if result.ok else 207  # 207 Multi-Status for partial failure
         return JSONResponse(result.to_dict(), status_code=status_code)
-    except Exception as exc:
-        record_degradation('system', exc)
+    except _SYSTEM_RECOVERABLE_ERRORS as exc:
         record_degradation('system', exc)
         logger.error("Hot reload failed: %s", exc, exc_info=True)
         return JSONResponse(
@@ -1585,10 +1780,15 @@ async def api_hot_reload_status(request: Request):
     """Return the current state of the hot-reload engine."""
     _require_internal(request)
 
-    from core.ops.hot_reload import get_hot_reloader
+    try:
+        from core.ops.hot_reload import get_hot_reloader
 
-    reloader = get_hot_reloader()
-    return JSONResponse(reloader.get_status())
+        reloader = get_hot_reloader()
+        return JSONResponse(reloader.get_status())
+    except _SYSTEM_RECOVERABLE_ERRORS as exc:
+        record_degradation("system", exc)
+        logger.error("Hot reload status failed: %s", exc, exc_info=True)
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
 
 
 @router.get("/system/hot-reload/scopes", tags=["system"])
@@ -1596,17 +1796,22 @@ async def api_hot_reload_scopes(request: Request):
     """List all available reload scopes and their module prefixes."""
     _require_internal(request)
 
-    from core.ops.hot_reload import PROTECTED_MODULES, PROTECTED_PREFIXES, RELOAD_SCOPES
+    try:
+        from core.ops.hot_reload import PROTECTED_MODULES, PROTECTED_PREFIXES, RELOAD_SCOPES
 
-    return JSONResponse({
-        "scopes": {
-            name: {"prefixes": prefixes}
-            for name, prefixes in RELOAD_SCOPES.items()
-        },
-        "special_scopes": ["all"],
-        "special_scope_details": {
-            "all": "Curated live-safe union of reload scopes; excludes runtime-owned infrastructure that requires reboot."
-        },
-        "protected_modules": sorted(PROTECTED_MODULES),
-        "protected_prefixes": sorted(PROTECTED_PREFIXES),
-    })
+        return JSONResponse({
+            "scopes": {
+                name: {"prefixes": prefixes}
+                for name, prefixes in RELOAD_SCOPES.items()
+            },
+            "special_scopes": ["all"],
+            "special_scope_details": {
+                "all": "Curated live-safe union of reload scopes; excludes runtime-owned infrastructure that requires reboot."
+            },
+            "protected_modules": sorted(PROTECTED_MODULES),
+            "protected_prefixes": sorted(PROTECTED_PREFIXES),
+        })
+    except _SYSTEM_RECOVERABLE_ERRORS as exc:
+        record_degradation("system", exc)
+        logger.error("Hot reload scope listing failed: %s", exc, exc_info=True)
+        return JSONResponse({"ok": False, "error": str(exc), "scopes": {}}, status_code=500)
