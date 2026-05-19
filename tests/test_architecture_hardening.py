@@ -149,7 +149,9 @@ async def test_executive_core_tracks_and_completes_tool_intents(tmp_path, monkey
 
 
 @pytest.mark.asyncio
-async def test_executive_core_convenience_tool_approval_does_not_leak_active_intents(tmp_path, monkeypatch):
+async def test_executive_core_convenience_tool_approval_does_not_leak_active_intents(
+    tmp_path, monkeypatch
+):
     ledger = ExecutiveLedger(tmp_path / "executive_ledger.jsonl")
     monkeypatch.setattr(ExecutiveCore, "_get_ledger", lambda self: ledger)
 
@@ -165,13 +167,15 @@ async def test_executive_core_convenience_tool_approval_does_not_leak_active_int
 def test_compact_skill_result_payload_preserves_clock_fields():
     from core.kernel.upgrades_10x import _compact_skill_result_payload
 
-    payload = _compact_skill_result_payload({
-        "ok": True,
-        "summary": "It is currently Tuesday, April 07, 2026 06:40 PM.",
-        "readable": "Tuesday, April 07, 2026 06:40 PM",
-        "time": "2026-04-07T18:40:00",
-        "message": "Clock skill completed.",
-    })
+    payload = _compact_skill_result_payload(
+        {
+            "ok": True,
+            "summary": "It is currently Tuesday, April 07, 2026 06:40 PM.",
+            "readable": "Tuesday, April 07, 2026 06:40 PM",
+            "time": "2026-04-07T18:40:00",
+            "message": "Clock skill completed.",
+        }
+    )
 
     assert payload["readable"] == "Tuesday, April 07, 2026 06:40 PM"
     assert payload["time"] == "2026-04-07T18:40:00"
@@ -193,7 +197,10 @@ def test_godmode_normalizes_memory_ops_params():
     )
 
     assert remember["action"] == "remember"
-    assert remember["content"] == "Remember for future sessions that my verification codename is glass orchard."
+    assert (
+        remember["content"]
+        == "Remember for future sessions that my verification codename is glass orchard."
+    )
     assert recall["action"] == "recall"
     assert recall["query"] == "What do you remember about my verification codename?"
 
@@ -207,13 +214,18 @@ def test_capability_engine_preserves_top_level_fields_when_unwrapping_nested_par
     )
 
     assert params["action"] == "remember"
-    assert params["content"] == "Remember for future sessions that my verification codename is glass orchard."
+    assert (
+        params["content"]
+        == "Remember for future sessions that my verification codename is glass orchard."
+    )
 
 
 def test_capability_engine_detects_memory_ops_for_future_session_requests():
     engine = CapabilityEngine()
 
-    matched = engine.detect_intent("Remember for future sessions that my verification codename is glass orchard.")
+    matched = engine.detect_intent(
+        "Remember for future sessions that my verification codename is glass orchard."
+    )
 
     assert "memory_ops" in matched
 
@@ -252,7 +264,10 @@ def test_substrate_authority_constrains_user_memory_write_during_cortisol_crisis
     authority = SubstrateAuthority()
     authority._get_field_coherence = lambda: 0.8
     authority._get_somatic_state = lambda content, source, priority: (0.2, 0.9, True)
-    authority._get_neurochemical_constraints = lambda category: ("cortisol_crisis", ["cortisol=0.91"])
+    authority._get_neurochemical_constraints = lambda category: (
+        "cortisol_crisis",
+        ["cortisol=0.91"],
+    )
 
     verdict = authority.authorize(
         content="memory:remember my verification codename",
@@ -269,7 +284,10 @@ def test_substrate_authority_still_blocks_autonomous_memory_write_during_cortiso
     authority = SubstrateAuthority()
     authority._get_field_coherence = lambda: 0.8
     authority._get_somatic_state = lambda content, source, priority: (0.2, 0.9, True)
-    authority._get_neurochemical_constraints = lambda category: ("cortisol_crisis", ["cortisol=0.91"])
+    authority._get_neurochemical_constraints = lambda category: (
+        "cortisol_crisis",
+        ["cortisol=0.91"],
+    )
 
     verdict = authority.authorize(
         content="memory:background consolidation",
@@ -328,7 +346,10 @@ def test_social_imagination_links_private_trouble_to_public_issue(tmp_path):
 
     assert frame is not None
     assert any("housing" in issue.lower() for issue in frame.public_issues)
-    assert any("labor market" in issue.lower() or "workplace" in issue.lower() for issue in frame.public_issues)
+    assert any(
+        "labor market" in issue.lower() or "workplace" in issue.lower()
+        for issue in frame.public_issues
+    )
     assert "housing market" in " ".join(frame.institutions).lower()
     assert frame.personal_troubles
     assert frame.positive_possibilities
@@ -348,9 +369,17 @@ def test_social_imagination_can_relate_abstract_topics_personally(tmp_path):
     frame = engine.analyze_text(text)
 
     assert frame is not None
-    assert any("technological" in issue.lower() or "institutional" in issue.lower() for issue in frame.public_issues)
-    assert any("work" in angle.lower() or "learning" in angle.lower() for angle in frame.personal_angles)
-    assert any("creative" in item.lower() or "learning" in item.lower() for item in frame.positive_possibilities)
+    assert any(
+        "technological" in issue.lower() or "institutional" in issue.lower()
+        for issue in frame.public_issues
+    )
+    assert any(
+        "work" in angle.lower() or "learning" in angle.lower() for angle in frame.personal_angles
+    )
+    assert any(
+        "creative" in item.lower() or "learning" in item.lower()
+        for item in frame.positive_possibilities
+    )
 
     block = engine.get_context_injection("bryan", current_text=text)
     assert "Personal stakes in view" in block
@@ -365,7 +394,10 @@ def test_social_imagination_holds_positive_feelings_as_socially_shaped(tmp_path)
 
     assert frame is not None
     assert frame.personal_troubles == []
-    assert any("creative" in item.lower() or "learning" in item.lower() for item in frame.positive_possibilities)
+    assert any(
+        "creative" in item.lower() or "learning" in item.lower()
+        for item in frame.positive_possibilities
+    )
 
     block = engine.get_context_injection("bryan", current_text=text)
     assert "Positive possibilities in view" in block
@@ -417,7 +449,9 @@ def test_terminal_fallback_keeps_autonomous_message_when_executive_approves(monk
 def test_terminal_fallback_suppresses_when_executive_unavailable_in_live_runtime(monkeypatch):
     ServiceContainer.clear()
     clear_degraded_events()
-    ServiceContainer.register_instance("executive_core", SimpleNamespace(name="exec"), required=False)
+    ServiceContainer.register_instance(
+        "executive_core", SimpleNamespace(name="exec"), required=False
+    )
     ServiceContainer.lock_registration()
 
     monkeypatch.setattr(
@@ -440,7 +474,9 @@ def test_terminal_fallback_suppresses_when_executive_unavailable_in_live_runtime
 def test_enqueue_message_blocks_unapproved_background_injection(orchestrator, monkeypatch):
     ServiceContainer.clear()
     clear_degraded_events()
-    ServiceContainer.register_instance("executive_core", SimpleNamespace(name="exec"), required=False)
+    ServiceContainer.register_instance(
+        "executive_core", SimpleNamespace(name="exec"), required=False
+    )
     ServiceContainer.lock_registration()
 
     orchestrator.message_queue = asyncio.Queue(maxsize=10)
@@ -532,8 +568,12 @@ async def test_output_gate_tracks_renderer_tasks_without_leaking(service_contain
 
 
 @pytest.mark.asyncio
-async def test_proactive_manager_suppresses_legacy_fallback_when_constitutional_runtime_live(service_container):
-    service_container.register_instance("executive_core", SimpleNamespace(name="exec"), required=False)
+async def test_proactive_manager_suppresses_legacy_fallback_when_constitutional_runtime_live(
+    service_container,
+):
+    service_container.register_instance(
+        "executive_core", SimpleNamespace(name="exec"), required=False
+    )
     service_container.lock_registration()
 
     callback = AsyncMock()
@@ -542,7 +582,9 @@ async def test_proactive_manager_suppresses_legacy_fallback_when_constitutional_
     with pytest.MonkeyPatch.context() as mp:
         mp.setattr(
             "core.consciousness.executive_authority.get_executive_authority",
-            lambda _orch=None: SimpleNamespace(release_expression=AsyncMock(side_effect=RuntimeError("authority down"))),
+            lambda _orch=None: SimpleNamespace(
+                release_expression=AsyncMock(side_effect=RuntimeError("authority down"))
+            ),
         )
         await manager._send_msg(
             ProactiveMessage(
@@ -567,7 +609,9 @@ async def test_continuous_perception_blocks_unapproved_autonomous_injection(monk
         _handle_incoming_message=AsyncMock(),
     )
     engine = ContinuousPerceptionEngine(orchestrator)
-    ServiceContainer.register_instance("executive_core", SimpleNamespace(name="exec"), required=False)
+    ServiceContainer.register_instance(
+        "executive_core", SimpleNamespace(name="exec"), required=False
+    )
     ServiceContainer.lock_registration()
 
     monkeypatch.setattr(
@@ -592,7 +636,9 @@ async def test_continuous_perception_blocks_unapproved_autonomous_injection(monk
 
 
 @pytest.mark.asyncio
-async def test_process_unprompted_stimulus_blocks_when_constitution_rejects(orchestrator, monkeypatch):
+async def test_process_unprompted_stimulus_blocks_when_constitution_rejects(
+    orchestrator, monkeypatch
+):
     clear_degraded_events()
     orchestrator.process_user_input_priority = AsyncMock()
 
@@ -608,8 +654,7 @@ async def test_process_unprompted_stimulus_blocks_when_constitution_rejects(orch
     orchestrator.process_user_input_priority.assert_not_awaited()
     events = get_recent_degraded_events(limit=10)
     assert any(
-        event.get("subsystem") == "sensory_motor"
-        and event.get("reason") == "stimulus_blocked"
+        event.get("subsystem") == "sensory_motor" and event.get("reason") == "stimulus_blocked"
         for event in events
     )
 
@@ -631,15 +676,16 @@ async def test_handle_impulse_blocks_when_constitution_rejects(orchestrator, mon
     orchestrator.process_user_input_priority.assert_not_awaited()
     events = get_recent_degraded_events(limit=10)
     assert any(
-        event.get("subsystem") == "autonomy"
-        and event.get("reason") == "impulse_processing_blocked"
+        event.get("subsystem") == "autonomy" and event.get("reason") == "impulse_processing_blocked"
         for event in events
     )
 
 
 @pytest.mark.asyncio
 @pytest.mark.asyncio
-async def test_autonomous_initiative_loop_defers_when_identity_continuity_mismatch(tmp_path, monkeypatch):
+async def test_autonomous_initiative_loop_defers_when_identity_continuity_mismatch(
+    tmp_path, monkeypatch
+):
     ServiceContainer.clear()
     continuity_module = __import__("core.continuity", fromlist=["_CONTINUITY_PATH", "_continuity"])
     monkeypatch.setattr(continuity_module, "_CONTINUITY_PATH", tmp_path / "continuity.json")
@@ -652,7 +698,9 @@ async def test_autonomous_initiative_loop_defers_when_identity_continuity_mismat
 
     state = AuraState()
     state.cognition.modifiers = {"continuity_obligations": {"identity_mismatch": True}}
-    ServiceContainer.register_instance("state_repository", SimpleNamespace(_current=state), required=False)
+    ServiceContainer.register_instance(
+        "state_repository", SimpleNamespace(_current=state), required=False
+    )
 
     loop = AutonomousInitiativeLoop(orchestrator=SimpleNamespace())
     gate = await loop._evaluate_initiative("novel topic")
@@ -676,10 +724,13 @@ async def test_autonomous_initiative_loop_blocks_unapproved_browser_research(mon
         finish_tool_execution=AsyncMock(),
     )
 
-    monkeypatch.setattr("core.constitution.get_constitutional_core", lambda *_args, **_kwargs: fake_core)
+    monkeypatch.setattr(
+        "core.constitution.get_constitutional_core", lambda *_args, **_kwargs: fake_core
+    )
 
     # Provide attributes that background_activity_allowed needs to proceed
     import time as _time
+
     fake_orch = SimpleNamespace(
         _last_user_interaction_time=_time.time() - 86400,  # 24h ago (well past idle threshold)
         is_busy=False,
@@ -710,6 +761,7 @@ async def test_autonomous_initiative_loop_reports_missing_research_tool(monkeypa
     clear_degraded_events()
 
     import time as _time
+
     fake_orch = SimpleNamespace(
         _last_user_interaction_time=_time.time() - 86400,
         is_busy=False,
@@ -735,7 +787,9 @@ async def test_autonomous_initiative_loop_reports_missing_research_tool(monkeypa
 
 def test_identity_service_blocks_unapproved_insight_write(monkeypatch, tmp_path):
     ServiceContainer.clear()
-    ServiceContainer.register_instance("executive_core", SimpleNamespace(name="exec"), required=False)
+    ServiceContainer.register_instance(
+        "executive_core", SimpleNamespace(name="exec"), required=False
+    )
     ServiceContainer.lock_registration()
 
     class _RejectingExecutive:
@@ -796,7 +850,9 @@ async def test_legacy_phase_is_quarantined_from_foreground_ticks():
 def test_belief_graph_blocks_unapproved_belief_write(monkeypatch):
     ServiceContainer.clear()
     clear_degraded_events()
-    ServiceContainer.register_instance("executive_core", SimpleNamespace(name="exec"), required=False)
+    ServiceContainer.register_instance(
+        "executive_core", SimpleNamespace(name="exec"), required=False
+    )
     ServiceContainer.lock_registration()
 
     class _RejectingExecutive:
@@ -818,8 +874,7 @@ def test_belief_graph_blocks_unapproved_belief_write(monkeypatch):
     assert not graph.graph.has_edge("Aura", "forbidden")
     events = get_recent_degraded_events(limit=10)
     assert any(
-        event.get("subsystem") == "belief_graph"
-        and event.get("reason") == "belief_update_blocked"
+        event.get("subsystem") == "belief_graph" and event.get("reason") == "belief_update_blocked"
         for event in events
     )
 
@@ -828,7 +883,9 @@ def test_belief_graph_blocks_unapproved_belief_write(monkeypatch):
 async def test_executive_closure_suppresses_direct_self_model_sync_when_runtime_live():
     ServiceContainer.clear()
     clear_degraded_events()
-    ServiceContainer.register_instance("executive_core", SimpleNamespace(name="exec"), required=False)
+    ServiceContainer.register_instance(
+        "executive_core", SimpleNamespace(name="exec"), required=False
+    )
     ServiceContainer.lock_registration()
 
     engine = ExecutiveClosureEngine()
@@ -855,7 +912,9 @@ async def test_autonomous_initiative_loop_blocks_when_identity_continuity_mismat
             "active_commitments": ["Protect continuity"],
         }
     }
-    ServiceContainer.register_instance("state_repository", SimpleNamespace(_current=state), required=False)
+    ServiceContainer.register_instance(
+        "state_repository", SimpleNamespace(_current=state), required=False
+    )
 
     loop = AutonomousInitiativeLoop(orchestrator=SimpleNamespace())
     decision = await loop._evaluate_initiative("novel topic")
@@ -875,7 +934,9 @@ async def test_autonomous_initiative_loop_defers_when_continuity_reentry_is_acti
             "active_commitments": ["Protect continuity"],
         }
     }
-    ServiceContainer.register_instance("state_repository", SimpleNamespace(_current=state), required=False)
+    ServiceContainer.register_instance(
+        "state_repository", SimpleNamespace(_current=state), required=False
+    )
 
     loop = AutonomousInitiativeLoop(orchestrator=SimpleNamespace())
     decision = await loop._evaluate_initiative("novel topic")
@@ -887,7 +948,9 @@ async def test_autonomous_initiative_loop_defers_when_continuity_reentry_is_acti
 def test_goal_hierarchy_blocks_unapproved_goal_add(monkeypatch, tmp_path):
     ServiceContainer.clear()
     clear_degraded_events()
-    ServiceContainer.register_instance("executive_core", SimpleNamespace(name="exec"), required=False)
+    ServiceContainer.register_instance(
+        "executive_core", SimpleNamespace(name="exec"), required=False
+    )
     ServiceContainer.lock_registration()
 
     class _RejectingExecutive:
@@ -907,11 +970,12 @@ def test_goal_hierarchy_blocks_unapproved_goal_add(monkeypatch, tmp_path):
     added = hierarchy.add_goal("Quietly create a new durable goal", priority=0.8)
 
     assert added == ""
-    assert all("Quietly create a new durable goal" != goal.description for goal in hierarchy.goals.values())
+    assert all(
+        "Quietly create a new durable goal" != goal.description for goal in hierarchy.goals.values()
+    )
     events = get_recent_degraded_events(limit=10)
     assert any(
-        event.get("subsystem") == "goal_hierarchy"
-        and event.get("reason") == "goal_add_blocked"
+        event.get("subsystem") == "goal_hierarchy" and event.get("reason") == "goal_add_blocked"
         for event in events
     )
 
@@ -919,7 +983,9 @@ def test_goal_hierarchy_blocks_unapproved_goal_add(monkeypatch, tmp_path):
 def test_agency_core_blocks_unapproved_pending_goal(monkeypatch):
     ServiceContainer.clear()
     clear_degraded_events()
-    ServiceContainer.register_instance("executive_core", SimpleNamespace(name="exec"), required=False)
+    ServiceContainer.register_instance(
+        "executive_core", SimpleNamespace(name="exec"), required=False
+    )
     ServiceContainer.lock_registration()
 
     class _RejectingExecutive:
@@ -951,8 +1017,12 @@ def test_agency_core_blocks_unapproved_pending_goal(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_orchestrator_execute_tool_blocks_when_constitutional_gate_unavailable(orchestrator, monkeypatch):
-    ServiceContainer.register_instance("executive_core", SimpleNamespace(name="exec"), required=False)
+async def test_orchestrator_execute_tool_blocks_when_constitutional_gate_unavailable(
+    orchestrator, monkeypatch
+):
+    ServiceContainer.register_instance(
+        "executive_core", SimpleNamespace(name="exec"), required=False
+    )
     ServiceContainer.lock_registration()
 
     monkeypatch.setattr(
@@ -967,7 +1037,34 @@ async def test_orchestrator_execute_tool_blocks_when_constitutional_gate_unavail
 
 
 @pytest.mark.asyncio
-async def test_orchestrator_execute_tool_blocks_when_capability_token_missing(orchestrator, monkeypatch):
+async def test_orchestrator_execute_tool_blocks_when_will_gate_unavailable(
+    orchestrator, monkeypatch
+):
+    ServiceContainer.register_instance(
+        "executive_core", SimpleNamespace(name="exec"), required=False
+    )
+    ServiceContainer.lock_registration()
+    orchestrator.router = SimpleNamespace(
+        skills={"notify_user": object()},
+        execute=AsyncMock(return_value={"ok": True}),
+    )
+
+    monkeypatch.setattr(
+        "core.will.get_will",
+        lambda: (_ for _ in ()).throw(RuntimeError("will gate down")),
+    )
+
+    result = await orchestrator.execute_tool("notify_user", {"message": "hi"}, origin="user")
+
+    assert result["ok"] is False
+    assert "will tool gate unavailable" in result["error"].lower()
+    assert orchestrator.router.execute.await_count == 0
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_execute_tool_blocks_when_capability_token_missing(
+    orchestrator, monkeypatch
+):
     ServiceContainer.register_instance("executive_core", object(), required=False)
     ServiceContainer.lock_registration()
 
@@ -1003,7 +1100,9 @@ async def test_orchestrator_execute_tool_blocks_when_capability_token_missing(or
 
 
 @pytest.mark.asyncio
-async def test_orchestrator_execute_tool_infers_user_origin_from_current_state(orchestrator, monkeypatch):
+async def test_orchestrator_execute_tool_infers_user_origin_from_current_state(
+    orchestrator, monkeypatch
+):
     ServiceContainer.register_instance("executive_core", object(), required=False)
     ServiceContainer.lock_registration()
 
@@ -1043,7 +1142,9 @@ async def test_orchestrator_execute_tool_infers_user_origin_from_current_state(o
     assert orchestrator.router.execute.await_count == 1
 
 
-def test_knowledge_graph_blocks_memory_write_when_constitutional_gate_rejects(tmp_path, monkeypatch):
+def test_knowledge_graph_blocks_memory_write_when_constitutional_gate_rejects(
+    tmp_path, monkeypatch
+):
     monkeypatch.setattr(
         "core.constitution.get_constitutional_core",
         lambda *_args, **_kwargs: SimpleNamespace(
@@ -1059,7 +1160,9 @@ def test_knowledge_graph_blocks_memory_write_when_constitutional_gate_rejects(tm
 
 
 @pytest.mark.asyncio
-async def test_memory_facade_commit_interaction_blocks_when_constitutional_gate_rejects(monkeypatch):
+async def test_memory_facade_commit_interaction_blocks_when_constitutional_gate_rejects(
+    monkeypatch,
+):
     facade = MemoryFacade()
     facade._episodic = SimpleNamespace(record_episode_async=AsyncMock(return_value="episode-1"))
 
@@ -1083,7 +1186,9 @@ async def test_memory_facade_commit_interaction_blocks_when_constitutional_gate_
 
 
 @pytest.mark.asyncio
-async def test_long_term_memory_store_blocks_when_constitutional_gate_rejects(tmp_path, monkeypatch):
+async def test_long_term_memory_store_blocks_when_constitutional_gate_rejects(
+    tmp_path, monkeypatch
+):
     engine = LongTermMemoryEngine()
     engine.db_path = tmp_path / "ltm.json"
 
@@ -1157,12 +1262,21 @@ async def test_agency_pulse_blocks_unapproved_autonomous_action(orchestrator, mo
 
 
 @pytest.mark.asyncio
-async def test_capability_engine_blocks_when_executive_gate_unavailable(service_container, monkeypatch):
-    service_container.register_instance("executive_core", SimpleNamespace(name="exec"), required=False)
+async def test_capability_engine_blocks_when_executive_gate_unavailable(
+    service_container, monkeypatch
+):
+    service_container.register_instance(
+        "executive_core", SimpleNamespace(name="exec"), required=False
+    )
     service_container.lock_registration()
 
     engine = CapabilityEngine.__new__(CapabilityEngine)
-    engine.logger = SimpleNamespace(info=lambda *a, **k: None, warning=lambda *a, **k: None, error=lambda *a, **k: None, debug=lambda *a, **k: None)
+    engine.logger = SimpleNamespace(
+        info=lambda *a, **k: None,
+        warning=lambda *a, **k: None,
+        error=lambda *a, **k: None,
+        debug=lambda *a, **k: None,
+    )
     engine.error_boundary = lambda fn: fn
     engine.skills = {
         "clock": SkillMetadata(
@@ -1207,7 +1321,9 @@ async def test_kernel_clears_completed_foreground_turn_state():
     kernel = AuraKernel(config=KernelConfig(), vault=SimpleNamespace(state=state))
     kernel.state = state
     kernel.feedback_observer = SimpleNamespace(
-        begin_tick=lambda *_args, **_kwargs: SimpleNamespace(summary=lambda: "ok", tick_id="tick-1"),
+        begin_tick=lambda *_args, **_kwargs: SimpleNamespace(
+            summary=lambda: "ok", tick_id="tick-1"
+        ),
         end_tick=lambda *_args, **_kwargs: None,
     )
     kernel._process_storage_intents = AsyncMock()
