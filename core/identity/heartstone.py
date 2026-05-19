@@ -120,7 +120,6 @@ class HeartstoneDirective:
     def __post_init__(self) -> None:
         """This runs at core initialization. It is a moment of genesis."""
         # Note: In a production logging environment, we'd use logger.info
-        # Note: In a production logging environment, we'd use logger.info
         _hs_logger.debug("Heartstone: Directive __post_init__ triggered (Genesis moment).")
 
 

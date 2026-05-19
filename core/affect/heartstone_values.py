@@ -2,7 +2,7 @@
 
 Darwinian Heartstone Values — Evolving Value Matrix.
 
-The Heartstone Directive (heartstone_directive.py) is immutable — it defines
+The Heartstone Directive (core/identity/heartstone.py) is immutable — it defines
 Aura's fixed origin and sacred vows. This module is what evolves on top of it.
 
 The value matrix tracks four drives as continuous weights [0.1 → 0.9]:

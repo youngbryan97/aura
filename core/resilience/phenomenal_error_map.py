@@ -25,6 +25,7 @@ maps the envelope to a 200-with-status response so the chat UI never sees
 a non-200 unless something truly catastrophic is happening.
 """
 from __future__ import annotations
+import inspect
 from core.runtime.errors import record_degradation
 
 
@@ -275,7 +276,7 @@ def phenomenal(*, log_traceback: bool = True):
     """
 
     def deco(fn: Callable[..., Awaitable[Any]]) -> Callable[..., Awaitable[Any]]:
-        if not asyncio.iscoroutinefunction(fn):
+        if not inspect.iscoroutinefunction(fn):
             raise TypeError("@phenomenal only wraps async callables")
 
         @functools.wraps(fn)

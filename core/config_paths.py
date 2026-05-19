@@ -1,7 +1,7 @@
 # core/config_paths.py
 from dataclasses import dataclass
 from pathlib import Path
-from core.common.paths import aura_root, aura_data_dir, aura_logs_dir, aura_backups_dir
+from core.utils.paths import aura_root, aura_data_dir, aura_logs_dir, aura_backups_dir
 
 @dataclass(frozen=True)
 class AuraPaths:

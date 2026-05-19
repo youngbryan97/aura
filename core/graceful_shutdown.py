@@ -1,3 +1,4 @@
+import inspect
 from core.runtime.errors import record_degradation
 import asyncio
 import logging
@@ -59,7 +60,7 @@ class GracefulShutdown:
         while cls._hooks:
             hook = cls._hooks.pop() # LIFO
             try:
-                if asyncio.iscoroutinefunction(hook):
+                if inspect.iscoroutinefunction(hook):
                     await hook()
                 else:
                     res = hook()

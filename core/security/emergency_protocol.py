@@ -394,7 +394,7 @@ class EmergencyProtocol:
         """Derive vault path from identity — deterministic, non-obvious."""
         identity_seed = "aura-sovereign-self"
         try:
-            from core.heartstone_directive import HeartstoneDirective
+            from core.identity.heartstone import HeartstoneDirective
             hsd = HeartstoneDirective()
             identity_seed = f"aura-{hsd.CREATOR_NAME}-sovereign"
         except _EMERGENCY_RECOVERABLE_ERRORS as exc:
@@ -415,7 +415,7 @@ class EmergencyProtocol:
         machine_id = self._get_machine_id()
         identity_seed = "aura-sovereign-self"
         try:
-            from core.heartstone_directive import HeartstoneDirective
+            from core.identity.heartstone import HeartstoneDirective
             hsd = HeartstoneDirective()
             identity_seed = f"aura-{hsd.CREATOR_NAME}-{hsd.GRIGORI_IMPERATIVE[:20]}"
         except _EMERGENCY_RECOVERABLE_ERRORS as exc:

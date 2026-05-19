@@ -27,6 +27,7 @@ Public API:
 """
 
 from __future__ import annotations
+import inspect
 from core.runtime.errors import record_degradation
 
 
@@ -346,7 +347,7 @@ class ContentFetcher:
             if fn is None:
                 continue
             try:
-                result = fn(query) if not asyncio.iscoroutinefunction(fn) else await fn(query)
+                result = fn(query) if not inspect.iscoroutinefunction(fn) else await fn(query)
                 results = self._normalize_search_results(result, args)
                 return FetchedContent(
                     method="web_search", priority_level=priority, target=query,

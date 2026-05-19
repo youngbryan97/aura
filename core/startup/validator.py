@@ -3,6 +3,7 @@ Pre-flight startup validation.
 Checks every hard dependency before accepting any user input.
 Fails fast with actionable error messages.
 """
+import inspect
 from core.runtime.errors import record_degradation
 import asyncio
 import importlib
@@ -50,7 +51,7 @@ class StartupValidator:
 
         for check_fn in self._checks:
             try:
-                if asyncio.iscoroutinefunction(check_fn):
+                if inspect.iscoroutinefunction(check_fn):
                     result = await check_fn()
                 else:
                     result = check_fn()

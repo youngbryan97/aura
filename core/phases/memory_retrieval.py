@@ -1,3 +1,4 @@
+import inspect
 from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
@@ -120,7 +121,7 @@ class MemoryRetrievalPhase(BasePhase):
                 kg = self.container.get("knowledge_graph", default=None)
                 if kg:
                     method = kg.search_knowledge
-                    if asyncio.iscoroutinefunction(method):
+                    if inspect.iscoroutinefunction(method):
                         return await method(query, limit=retrieval_limit)
                     else:
                         return await asyncio.to_thread(method, query, limit=retrieval_limit)

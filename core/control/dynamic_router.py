@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from core.container import ServiceContainer
 from core.event_bus import get_event_bus
 from core.utils.task_tracker import task_tracker
-from core.common.paths import aura_data_dir
+from core.utils.paths import aura_data_dir
 
 logger = logging.getLogger("Aura.DynamicRouter")
 

@@ -2,6 +2,7 @@
 ==================================================================
 Standardizes error handling across the entire engine.
 """
+import inspect
 from core.runtime.errors import record_degradation
 import logging
 import functools
@@ -67,7 +68,7 @@ def capture_and_log(error_or_func=None, context=None):
         def wrapper(*args, **kwargs):
             try:
                 import asyncio
-                if asyncio.iscoroutinefunction(func):
+                if inspect.iscoroutinefunction(func):
                     async def async_run():
                         try:
                             return await func(*args, **kwargs)

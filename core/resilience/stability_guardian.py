@@ -1,4 +1,5 @@
 from __future__ import annotations
+import inspect
 from core.runtime.errors import record_degradation
 
 
@@ -399,7 +400,7 @@ class StabilityGuardian:
         ]
         for fn in check_fns + self._extra_checks:
             try:
-                result = await fn() if asyncio.iscoroutinefunction(fn) else fn()
+                result = await fn() if inspect.iscoroutinefunction(fn) else fn()
                 if isinstance(result, HealthCheckResult):
                     checks.append(result)
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:

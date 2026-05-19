@@ -16,7 +16,7 @@ PROTECTED (never modifiable):
   - core/identity/*             (identity core)
   - core/safety/*               (safety gates)
   - core/constitution.py        (constitutional alignment)
-  - core/heartstone_directive.py (sacred vows)
+  - core/identity/heartstone.py (sacred vows)
 
 MODIFIABLE (with Will authorization):
   - Drive weights               (heartstone_values, drive_engine)
@@ -72,7 +72,7 @@ _PROTECTED_PREFIXES = (
     "core/safety/",
     "core/constitution.py",
     "core/constitutional_alignment.py",
-    "core/heartstone_directive.py",
+    "core/identity/heartstone.py",
     "core/container.py",
     "core/prime_directives.py",
 )

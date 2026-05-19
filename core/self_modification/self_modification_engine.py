@@ -359,6 +359,36 @@ class AutonomousSelfModificationEngine:
                     self.session_stats["fixes_successful"] += 1
                     logger.info("✅ [NEURO] Permanent fix applied: %s", message)
                     
+                    # Resolve related incident and mark subsystem as healthy
+                    try:
+                        bug = fix_proposal.get("bug")
+                        if bug and isinstance(bug, dict):
+                            pattern = bug.get("pattern")
+                            if pattern and hasattr(pattern, "events") and pattern.events:
+                                first_event = pattern.events[0]
+                                if hasattr(first_event, "context") and isinstance(first_event.context, dict):
+                                    subsystem = first_event.context.get("subsystem")
+                                    if subsystem:
+                                        # 1. Mark subsystem status as healthy in SubsystemRegistry
+                                        from core.runtime.errors import get_subsystem_registry
+                                        subsystem_reg = get_subsystem_registry()
+                                        health = subsystem_reg.get(subsystem)
+                                        if health:
+                                            health.mark_ok()
+                                            logger.info("🏥 Subsystem %s marked as healthy after successful self-modification repair.", subsystem)
+                                        
+                                        # 2. Resolve the associated incident in IncidentManager
+                                        from core.resilience.incident_manager import get_incident_manager
+                                        category = f"degradation:{subsystem}"
+                                        incident_mgr = get_incident_manager()
+                                        incident_mgr.resolve(
+                                            category=category,
+                                            resolution=f"Successfully applied self-modification repair: {fix.explanation}"
+                                        )
+                    except Exception as resolve_err:
+                        record_degradation("self_modification_engine", resolve_err)
+                        logger.debug("Failed to automatically resolve incident/subsystem status after fix: %s", resolve_err)
+                    
                     # UPGRADE NOTIFICATION
                     try:
                         from ..thought_stream import get_emitter
@@ -366,6 +396,7 @@ class AutonomousSelfModificationEngine:
                     except (ImportError, AttributeError, RuntimeError) as exc:
                         record_degradation('self_modification_engine', exc)
                         logger.debug("Suppressed: %s", exc)            
+
                 else:
                     logger.error("❌ [NEURO] Permanent application FAILED: %s", message)
                     # Record failure in immunity for pattern analysis
@@ -377,13 +408,34 @@ class AutonomousSelfModificationEngine:
                         logger.debug("Failed to audit persistence error to immunity: %s", e)
                 
                 # Record for learning
-                error_type = fix_proposal.get("bug", {}).get("pattern", {}).get("events", [{}])[0].get("error_type", "optimization")
+                error_type = "optimization"
+                try:
+                    bug = fix_proposal.get("bug")
+                    if bug and isinstance(bug, dict):
+                        pattern = bug.get("pattern")
+                        if pattern:
+                            if isinstance(pattern, dict):
+                                events = pattern.get("events")
+                                if events and isinstance(events, list):
+                                    error_type = events[0].get("error_type", "optimization")
+                            else:
+                                events = getattr(pattern, "events", None)
+                                if events and isinstance(events, list):
+                                    first_event = events[0]
+                                    if isinstance(first_event, dict):
+                                        error_type = first_event.get("error_type", "optimization")
+                                    else:
+                                        error_type = getattr(first_event, "error_type", "optimization")
+                except Exception as _e:
+                    logger.debug("Failed to extract error_type for learning: %s", _e)
+
                 self.learning_system.record_fix_attempt(
                     fix,
                     error_type,
                     success=success,
                     context={"persistence_msg": message}
                 )
+
                 
                 self.session_stats["fixes_attempted"] += 1
                 return success

@@ -1,9 +1,11 @@
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from core.mind_tick import MindTick
 
 
-def test_mind_tick_background_reasoning_pauses_on_event_loop_lag():
+@patch("core.runtime.background_policy.background_activity_reason", return_value="")
+def test_mind_tick_background_reasoning_pauses_on_event_loop_lag(mock_bg_policy):
     tick = MindTick.__new__(MindTick)
     tick.orchestrator = SimpleNamespace(
         _flow_controller=SimpleNamespace(
@@ -25,7 +27,8 @@ def test_mind_tick_background_reasoning_pauses_on_event_loop_lag():
     assert reason == "event_loop_lag"
 
 
-def test_mind_tick_background_reasoning_requires_context():
+@patch("core.runtime.background_policy.background_activity_reason", return_value="")
+def test_mind_tick_background_reasoning_requires_context(mock_bg_policy):
     tick = MindTick.__new__(MindTick)
     tick.orchestrator = SimpleNamespace(
         _flow_controller=SimpleNamespace(
@@ -45,3 +48,4 @@ def test_mind_tick_background_reasoning_requires_context():
     )
 
     assert reason == "no_reasoning_context"
+

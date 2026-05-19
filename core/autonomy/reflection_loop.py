@@ -28,6 +28,7 @@ Public API:
 """
 
 from __future__ import annotations
+import inspect
 from core.runtime.errors import record_degradation
 
 
@@ -231,7 +232,7 @@ class ReflectionLoop:
             if fn is None:
                 continue
             try:
-                res = await fn(prompt) if asyncio.iscoroutinefunction(fn) else fn(prompt)
+                res = await fn(prompt) if inspect.iscoroutinefunction(fn) else fn(prompt)
                 if isinstance(res, str):
                     return res
                 for attr in ("content", "text", "answer"):

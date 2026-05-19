@@ -15,6 +15,7 @@ Strict mode (AURA_STRICT_RUNTIME=1) raises on any failed probe; non-strict
 records a degraded event but allows boot to proceed.
 """
 from __future__ import annotations
+import inspect
 from core.runtime.errors import record_degradation
 
 
@@ -59,7 +60,7 @@ Probe = Callable[[], Awaitable[ProbeResult]]
 async def _run_probe(name: str, probe: Callable) -> ProbeResult:
     start = time.monotonic()
     try:
-        if asyncio.iscoroutinefunction(probe):
+        if inspect.iscoroutinefunction(probe):
             result = await probe()
         else:
             result = probe()

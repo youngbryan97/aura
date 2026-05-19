@@ -1,3 +1,4 @@
+import inspect
 from core.runtime.errors import record_degradation
 import logging
 import time
@@ -48,7 +49,7 @@ class AuraBaseModule:
         Returns:
             The wrapped method with error protection.
         """
-        if asyncio.iscoroutinefunction(func):
+        if inspect.iscoroutinefunction(func):
             @wraps(func)
             async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
                 start_time = time.time()

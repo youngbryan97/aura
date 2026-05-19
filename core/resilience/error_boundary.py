@@ -182,7 +182,7 @@ def error_boundary(
                     raise
                 return fallback_value
 
-        return async_wrapper if asyncio.iscoroutinefunction(func) else sync_wrapper
+        return async_wrapper if inspect.iscoroutinefunction(func) else sync_wrapper
 
     return decorator
 
@@ -220,7 +220,7 @@ async def wrap_phase(
 
     try:
         # FIX: pass state (and optional objective + kwargs) into the phase
-        if asyncio.iscoroutinefunction(phase_fn):
+        if inspect.iscoroutinefunction(phase_fn):
             result = await phase_fn(state, objective=objective, **kwargs)
         else:
             result = phase_fn(state, objective=objective, **kwargs)

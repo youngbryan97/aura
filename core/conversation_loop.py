@@ -62,7 +62,7 @@ class AutonomousConversationLoop:
         self.goal_queue = Queue()
         self._main_loop = None  # Captured on start() — the main asyncio event loop
         
-        from core.common.paths import DATA_DIR
+        from core.utils.paths import DATA_DIR
         data_dir = DATA_DIR
         data_dir.mkdir(parents=True, exist_ok=True)
         self.history_path = str(data_dir / "recent_history.json")

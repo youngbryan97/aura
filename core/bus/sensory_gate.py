@@ -1,4 +1,3 @@
-
 from core.runtime.errors import record_degradation
 import asyncio
 import logging
@@ -177,7 +176,7 @@ def start_sensory_gate(connection, *args, **kwargs):
     try:
         signal.signal(signal.SIGINT, signal.SIG_IGN)
     except (RuntimeError, AttributeError, TypeError, ValueError) as _exc:
-        logger.debug("Suppressed %s in core.actors.sensory_gate: %s", type(_exc).__name__, _exc)
+        logger.debug("Suppressed %s in core.bus.sensory_gate: %s", type(_exc).__name__, _exc)
     # Set up logging for the child process
     logging.basicConfig(
         level=logging.INFO,

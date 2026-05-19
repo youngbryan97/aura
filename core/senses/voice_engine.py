@@ -136,7 +136,7 @@ class SovereignVoiceEngine:
     def __init__(self,
                  whisper_model: str = "base",
                  data_dir: Optional[str] = None):
-        from core.common.paths import DATA_DIR
+        from core.utils.paths import DATA_DIR
         self.data_dir = Path(data_dir or (DATA_DIR / "voice_models"))
         self.data_dir.mkdir(parents=True, exist_ok=True)
 

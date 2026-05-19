@@ -31,7 +31,7 @@ class ContinuousState:
     def __init__(self):
         self.last_update = time.time()
         
-        from core.common.paths import DATA_DIR, PROJECT_ROOT
+        from core.utils.paths import DATA_DIR, PROJECT_ROOT
         weights_path = DATA_DIR / "config" / "weights.npz"
         if not weights_path.exists():
             weights_path = PROJECT_ROOT / "data" / "config" / "weights.npz"

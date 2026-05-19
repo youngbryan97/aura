@@ -93,7 +93,7 @@ def will_gated(
         qualname = getattr(func, "__qualname__", func.__name__)
         _GATED_METHODS.add(qualname)
 
-        if asyncio.iscoroutinefunction(func):
+        if inspect.iscoroutinefunction(func):
 
             @functools.wraps(func)
             async def async_wrapper(*args: Any, **kwargs: Any) -> Any:

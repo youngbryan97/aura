@@ -1,6 +1,6 @@
 from __future__ import annotations
 import logging
-logger = logging.getLogger("core.common.paths")
+logger = logging.getLogger("core.utils.paths")
 
 
 import os
@@ -23,7 +23,7 @@ def _ensure_dir(p: Path, *, cause: str) -> Path:
             get_storage_gateway().create_dir(p, cause=cause)  # type: ignore[name-defined]
         )
     except NameError as _exc:
-        logger.debug("Suppressed %s in core.common.paths: %s", type(_exc).__name__, _exc)
+        logger.debug("Suppressed %s in core.utils.paths: %s", type(_exc).__name__, _exc)
     p.mkdir(parents=True, exist_ok=True)
     return p
 

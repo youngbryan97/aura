@@ -146,7 +146,7 @@ def _normalize_memory_snippet(item: Any) -> str:
 async def _call_memory_method(method: Any, *args: Any, **kwargs: Any) -> Any:
     if method is None:
         return None
-    if asyncio.iscoroutinefunction(method):
+    if inspect.iscoroutinefunction(method):
         return await method(*args, **kwargs)
     result = await asyncio.to_thread(method, *args, **kwargs)
     if inspect.isawaitable(result):

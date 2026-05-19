@@ -3,6 +3,7 @@ Memory Coordinator for the RobustOrchestrator.
 Handles RAG retrieval, persistence, and multi-modal memory management.
 """
 
+import inspect
 import asyncio
 import logging
 from typing import Any
@@ -104,7 +105,7 @@ class MemoryCoordinator:
         if self.memory:
             try:
                 # v14.1 Enterprise: Support both async and sync facades
-                if asyncio.iscoroutinefunction(self.memory.get_hot_memory):
+                if inspect.iscoroutinefunction(self.memory.get_hot_memory):
                     return await self.memory.get_hot_memory(limit=limit)
                 else:
                     return await asyncio.to_thread(self.memory.get_hot_memory, limit=limit)
@@ -140,7 +141,7 @@ class MemoryCoordinator:
 
         if self.memory and hasattr(self.memory, "commit_interaction"):
             try:
-                if asyncio.iscoroutinefunction(self.memory.commit_interaction):
+                if inspect.iscoroutinefunction(self.memory.commit_interaction):
                     await self.memory.commit_interaction(
                         context=context,
                         action=action,
@@ -181,7 +182,7 @@ class MemoryCoordinator:
         """Triggers memory decay/pruning."""
         if self.memory and hasattr(self.memory, "prune_low_salience"):
             try:
-                if asyncio.iscoroutinefunction(self.memory.prune_low_salience):
+                if inspect.iscoroutinefunction(self.memory.prune_low_salience):
                     await self.memory.prune_low_salience(threshold_days=threshold_days)
                 else:
                     await asyncio.to_thread(
@@ -212,7 +213,7 @@ class MemoryCoordinator:
 
             # Fallback to legacy context
             if hasattr(self.memory, "get_cold_memory_context"):
-                if asyncio.iscoroutinefunction(self.memory.get_cold_memory_context):
+                if inspect.iscoroutinefunction(self.memory.get_cold_memory_context):
                     res = await self.memory.get_cold_memory_context(query, limit=limit)
                 else:
                     res = await asyncio.to_thread(

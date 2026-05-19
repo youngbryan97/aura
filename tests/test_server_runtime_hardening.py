@@ -3144,7 +3144,7 @@ async def test_state_vault_actor_background_tasks_use_task_tracker(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_sensory_gate_actor_background_tasks_use_task_tracker(monkeypatch):
-    import core.actors.sensory_gate as sensory_gate_module
+    import core.bus.sensory_gate as sensory_gate_module
 
     actor = sensory_gate_module.SensoryGateActor.__new__(sensory_gate_module.SensoryGateActor)
     actor._background_tasks = set()

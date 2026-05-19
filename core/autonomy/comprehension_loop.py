@@ -29,6 +29,7 @@ Public API:
 """
 
 from __future__ import annotations
+import inspect
 from core.runtime.errors import record_degradation
 
 
@@ -316,7 +317,7 @@ class ComprehensionLoop:
             if fn is None:
                 continue
             try:
-                if asyncio.iscoroutinefunction(fn):
+                if inspect.iscoroutinefunction(fn):
                     res = await fn(prompt)
                 else:
                     res = fn(prompt)

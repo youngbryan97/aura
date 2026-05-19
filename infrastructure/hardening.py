@@ -9,6 +9,7 @@ Includes:
 - State management and recovery
 - Resource management
 """
+import inspect
 import asyncio
 import functools
 import json
@@ -98,7 +99,7 @@ class CircuitBreaker:
                 raise Exception(f"Circuit breaker OPEN for {self.name}. Subsystem is cooling down.")
         
         try:
-            if asyncio.iscoroutinefunction(func):
+            if inspect.iscoroutinefunction(func):
                 result = await func(*args, **kwargs)
             else:
                 # If it's a regular function, run it in a thread to keep async loop free
@@ -178,7 +179,7 @@ class RetryPolicy:
         
         for attempt in range(self.max_retries + 1):
             try:
-                if asyncio.iscoroutinefunction(func):
+                if inspect.iscoroutinefunction(func):
                     return await func(*args, **kwargs)
                 else:
                     return await asyncio.to_thread(func, *args, **kwargs)
@@ -621,7 +622,7 @@ class InfrastructureHardeningSystem:
         elif use_retry:
             return await self.retry_policy.execute(func, *args, **kwargs)
         else:
-            if asyncio.iscoroutinefunction(func):
+            if inspect.iscoroutinefunction(func):
                 return await func(*args, **kwargs)
             else:
                 return await asyncio.to_thread(func, *args, **kwargs)
@@ -655,7 +656,7 @@ def resilient(component_name: str, retry: bool = True, circuit_breaker: bool = T
     """Decorator to make any function resilient. Supports both sync and async.
     """
     def decorator(func):
-        if asyncio.iscoroutinefunction(func):
+        if inspect.iscoroutinefunction(func):
             @functools.wraps(func)
             async def async_wrapper(*args, **kwargs):
                 global _hardening_system

@@ -436,7 +436,7 @@ class RobustOrchestrator(
                 pe = ServiceContainer.get("personality_engine", default=None)
 
             if pe and hasattr(pe, "update"):
-                if asyncio.iscoroutinefunction(pe.update):
+                if inspect.iscoroutinefunction(pe.update):
                     # We are in an async method, but the legacy test double might be sync.
                     # We'll try to await if it's a coroutine, otherwise call sync
                     try:
@@ -569,7 +569,7 @@ class RobustOrchestrator(
         )
         # v46: Boot Hard-Gate
         try:
-            from core.bootstrap.validation import BootValidator
+            from core.startup.boot_validator import BootValidator
 
             v_result = BootValidator.validate_boot()
             if not v_result.passed:
@@ -2177,7 +2177,7 @@ class RobustOrchestrator(
     async def _start_sensory_actor(self):
         """Initializes and starts the SensoryGateActor via the Supervision Tree (Phase 2)."""
         try:
-            from core.actors.sensory_gate import start_sensory_gate
+            from core.bus.sensory_gate import start_sensory_gate
 
             # 1. Get or Create Actor Bus (Parent side)
             self._actor_bus = ServiceContainer.get("actor_bus", default=ActorBus())
@@ -2319,7 +2319,7 @@ class RobustOrchestrator(
                     try:
                         from core.utils.task_tracker import get_task_tracker
 
-                        if asyncio.iscoroutinefunction(self.memory.prune_low_salience):
+                        if inspect.iscoroutinefunction(self.memory.prune_low_salience):
                             get_task_tracker().track_task(
                                 self.memory.prune_low_salience(threshold_days=14)
                             )

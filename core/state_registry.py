@@ -5,6 +5,7 @@ Acts as the single source of truth for Affect, Agency, and Substrate states
 to prevent desynchronization and runtime contradictions.
 """
 
+import inspect
 from core.runtime.errors import record_degradation
 import asyncio
 import logging
@@ -98,7 +99,7 @@ class UnifiedStateRegistry:
                 
                 for listener in list(self._listeners):
                     try:
-                        if asyncio.iscoroutinefunction(listener):
+                        if inspect.iscoroutinefunction(listener):
                             await listener(snapshot)
                         else:
                             # Run sync listeners in threads to avoid blocking the dispatcher

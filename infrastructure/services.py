@@ -1,5 +1,6 @@
 """infrastructure/services.py - Core Aura services.
 """
+import inspect
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
@@ -20,7 +21,7 @@ class SimpleInputBus:
         if topic in self._subscribers:
             async def _run_cb(cb):
                 try:
-                    if asyncio.iscoroutinefunction(cb):
+                    if inspect.iscoroutinefunction(cb):
                         await cb(message)
                     else:
                         cb(message)
@@ -49,7 +50,7 @@ class SimpleProcessManager:
 
     async def start_process(self, process_id: str, config: Dict[str, Any]) -> bool:
         target = config.get("target")
-        if not target or not asyncio.iscoroutinefunction(target):
+        if not target or not inspect.iscoroutinefunction(target):
             self._logger.error("Invalid target for process %s", process_id)
             return False
             

@@ -1,3 +1,4 @@
+import inspect
 from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
@@ -103,7 +104,7 @@ class BackgroundReasoningQueue:
                         self._results.pop(oldest)
                     
                     if task.callback:
-                        if asyncio.iscoroutinefunction(task.callback):
+                        if inspect.iscoroutinefunction(task.callback):
                             await task.callback(result)
                         else:
                             task.callback(result)

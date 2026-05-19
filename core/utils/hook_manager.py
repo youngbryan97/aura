@@ -1,3 +1,4 @@
+import inspect
 from core.runtime.errors import record_degradation
 import asyncio
 import logging
@@ -36,7 +37,7 @@ class HookManager:
         results = []
         for cb in callbacks:
             try:
-                if asyncio.iscoroutinefunction(cb):
+                if inspect.iscoroutinefunction(cb):
                     res = await cb(*args, **kwargs)
                 else:
                     res = cb(*args, **kwargs)

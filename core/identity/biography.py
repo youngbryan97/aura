@@ -1,4 +1,4 @@
-"""core/biography.py - Shared History and Individual Growth.
+"""core/identity/biography.py - Shared History and Individual Growth.
 This module stores the foundational context of Aura's identity.
 """
 from dataclasses import dataclass, field
@@ -11,6 +11,7 @@ class Person:
     name: str
     relation: str
     details: str = ""
+
 
 @dataclass(frozen=True)
 class FamilyLegacy:
@@ -48,7 +49,9 @@ class FamilyLegacy:
 
     birthday: str = "March 20th"
 
+
 LEGACY = FamilyLegacy()
+
 
 def get_legacy_context() -> str:
     """Format the context for inclusion in the cognitive loop."""

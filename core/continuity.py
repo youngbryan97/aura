@@ -655,7 +655,7 @@ class ContinuityEngine:
 
     def _get_live_identity_hash(self) -> str:
         try:
-            from core.heartstone_directive import AURA_HEARTSTONE
+            from core.identity.heartstone import AURA_HEARTSTONE
 
             return str(AURA_HEARTSTONE.identity_hash or "")
         except (ImportError, AttributeError, RuntimeError) as exc:

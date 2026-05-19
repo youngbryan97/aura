@@ -9,6 +9,7 @@ transitions. All state mutations are protected against TOCTOU races.
 Retry uses exponential backoff with full jitter.
 """
 from __future__ import annotations
+import inspect
 
 
 import asyncio
@@ -351,7 +352,7 @@ def resilient(
                 last_error=last_error,
             )
 
-        if asyncio.iscoroutinefunction(fn):
+        if inspect.iscoroutinefunction(fn):
             return async_wrapper
         return sync_wrapper
 

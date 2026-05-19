@@ -58,6 +58,7 @@ class MetricsCollector:
         self._db_size_bytes = 0
         self._custom_gauges: Dict[str, float] = {}
         self._custom_counters: Dict[str, int] = {}
+        self._custom_timers: Dict[str, list[float]] = {}
 
     # ── Recording methods ─────────────────────────────────────────
 
@@ -93,6 +94,44 @@ class MetricsCollector:
 
     def increment_counter(self, name: str, amount: int = 1) -> None:
         self._custom_counters[name] = self._custom_counters.get(name, 0) + amount
+
+    def increment(self, name: str, amount: int = 1) -> None:
+        self.increment_counter(name, amount)
+
+    def timer(self, name: str) -> MetricTimer:
+        return MetricTimer(self, name)
+
+    def record_duration(self, name: str, duration: float) -> None:
+        if name not in self._custom_timers:
+            self._custom_timers[name] = []
+        self._custom_timers[name].append(duration)
+
+    def get_snapshot(self, name: str) -> Dict[str, Any]:
+        durations = self._custom_timers.get(name, [])
+        if not durations:
+            return {"count": 0, "sum": 0.0, "avg": 0.0, "max": 0.0, "min": 0.0}
+        return {
+            "count": len(durations),
+            "sum": sum(durations),
+            "avg": sum(durations) / len(durations),
+            "max": max(durations),
+            "min": min(durations),
+        }
+
+
+class MetricTimer:
+    def __init__(self, collector: MetricsCollector, name: str) -> None:
+        self.collector = collector
+        self.name = name
+        self.start_time = 0.0
+
+    def __enter__(self) -> MetricTimer:
+        self.start_time = time.perf_counter()
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        duration = time.perf_counter() - self.start_time
+        self.collector.record_duration(self.name, duration)
 
     # ── Collection ────────────────────────────────────────────────
 

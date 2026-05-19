@@ -415,6 +415,19 @@ class SubsystemRegistry:
                 for h in self._systems.values()
             )
 
+    def auto_recover_subsystems(self, timeout_seconds: float = 300.0) -> list[str]:
+        """Automatically restores degraded/unavailable subsystems back to healthy if no new failures have occurred for a period."""
+        recovered = []
+        now = time.time()
+        with self._lock:
+            for name, health in self._systems.items():
+                if health.status in ("degraded", "unavailable"):
+                    if now - health.last_failed_at >= timeout_seconds:
+                        health.mark_ok()
+                        recovered.append(name)
+        return recovered
+
+
 
 _registry = SubsystemRegistry()
 

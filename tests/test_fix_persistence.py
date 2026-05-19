@@ -62,6 +62,67 @@ class TestFixPersistence(unittest.IsolatedAsyncioTestCase):
         self.assertIn("def new_function()", content)
         self.assertNotIn("def old_function()", content)
 
+    async def test_apply_fix_resolves_subsystem_and_incident(self):
+        from core.runtime.errors import get_subsystem_registry
+        from core.resilience.incident_manager import get_incident_manager, IncidentSeverity, IncidentStatus
+        from core.self_modification.error_intelligence import ErrorPattern, ErrorEvent
+        
+        # Setup subsystem status to degraded
+        subsystem_reg = get_subsystem_registry()
+        health = subsystem_reg.register("test_sme_subsystem")
+        health.mark_degraded("simulated failure")
+        
+        # Setup active incident
+        incident_mgr = get_incident_manager()
+        category = "degradation:test_sme_subsystem"
+        incident = incident_mgr.report(
+            category=category,
+            description="simulated failure",
+            severity=IncidentSeverity.DEGRADED
+        )
+        
+        # Mock fix proposal with full ErrorPattern / ErrorEvent
+        event = ErrorEvent(
+            timestamp=123.45,
+            error_type="ValueError",
+            error_message="Oops",
+            stack_trace="Traceback",
+            context={"subsystem": "test_sme_subsystem"}
+        )
+        pattern = ErrorPattern(
+            fingerprint="test_fingerprint",
+            occurrences=1,
+            first_seen=123.45,
+            last_seen=123.45,
+            events=[event],
+            severity="high"
+        )
+        
+        fix = CodeFix(
+            target_file=str(self.test_file),
+            target_line=1,
+            original_code="def old_function():\n    return 'old'",
+            fixed_code="def new_function():\n    return 'new'",
+            explanation="Test repair",
+            hypothesis="Testing resolution",
+            confidence="high"
+        )
+        
+        proposal = {
+            "bug": {"pattern": pattern},
+            "fix": fix,
+            "test_results": {"success": True}
+        }
+        
+        self.engine._swarm_review = AsyncMock(return_value=True)
+        success = await self.engine.apply_fix(proposal, force=True)
+        self.assertTrue(success)
+        
+        # Subsystem should now be healthy and incident resolved!
+        self.assertEqual(health.status, "healthy")
+        self.assertEqual(incident.status, IncidentStatus.RECOVERED)
+
+
 if __name__ == "__main__":
     # Run test
     async def run():

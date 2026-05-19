@@ -31,6 +31,7 @@ Not:
     pathway C acts
 """
 from __future__ import annotations
+import inspect
 import asyncio
 import hashlib
 import json
@@ -212,7 +213,7 @@ class InitiativeSynthesizer:
                 dominant = motivation_engine.get_dominant_motivation() if hasattr(motivation_engine, "get_dominant_motivation") else "at_rest"
                 if dominant != "at_rest":
                     imperative = f"Autonomous drive: {dominant} level is low — seek satisfaction"
-                    status = await motivation_engine.get_status() if asyncio.iscoroutinefunction(getattr(motivation_engine, 'get_status', None)) else {}
+                    status = await motivation_engine.get_status() if inspect.iscoroutinefunction(getattr(motivation_engine, 'get_status', None)) else {}
             if imperative:
                 budget_items = [
                     (k, v) for k, v in status.items()

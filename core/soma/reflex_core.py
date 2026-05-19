@@ -1,3 +1,4 @@
+import inspect
 from core.runtime.errors import record_degradation
 import asyncio
 import logging
@@ -29,7 +30,7 @@ class HardenedReflexCore:
             # Execute reflex action immediately
             action = self.reflex_actions[signal_type]
             try:
-                if asyncio.iscoroutinefunction(action):
+                if inspect.iscoroutinefunction(action):
                     await action(metadata)
                 else:
                     action(metadata)

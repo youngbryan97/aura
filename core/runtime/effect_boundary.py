@@ -1,4 +1,5 @@
 from __future__ import annotations
+import inspect
 
 import asyncio
 import logging
@@ -81,7 +82,7 @@ def effect_sink(
             )
         )
 
-        if asyncio.iscoroutinefunction(fn):
+        if inspect.iscoroutinefunction(fn):
 
             @wraps(fn)
             async def async_wrapper(*args: Any, **kwargs: Any) -> Any:

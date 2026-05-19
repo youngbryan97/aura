@@ -16,6 +16,7 @@ Install: instantiate in orchestrator_boot.py after the orchestrator is created,
 call guardian.attach(orchestrator). Then call guardian.start() in the run loop.
 """
 from __future__ import annotations
+import inspect
 from core.runtime.errors import record_degradation
 
 
@@ -331,7 +332,7 @@ class SessionGuardian:
         # Strategy 2: Call registered recovery callbacks
         for callback in self._recovery_callbacks:
             try:
-                if asyncio.iscoroutinefunction(callback):
+                if inspect.iscoroutinefunction(callback):
                     await callback()
                 else:
                     callback()

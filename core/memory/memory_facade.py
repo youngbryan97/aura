@@ -504,7 +504,7 @@ class MemoryFacade:
     async def _call_maybe_async(method: Any, *args: Any, **kwargs: Any) -> Any:
         if method is None:
             return None
-        if asyncio.iscoroutinefunction(method):
+        if inspect.iscoroutinefunction(method):
             return await method(*args, **kwargs)
         result = await asyncio.to_thread(method, *args, **kwargs)
         if inspect.isawaitable(result):
@@ -880,7 +880,7 @@ class MemoryFacade:
             if self.semantic:
                 try:
                     if hasattr(self.semantic, "remember"):
-                        if asyncio.iscoroutinefunction(self.semantic.remember):
+                        if inspect.iscoroutinefunction(self.semantic.remember):
                             await self.semantic.remember(text, payload)
                         else:
                             await asyncio.to_thread(self.semantic.remember, text, payload)

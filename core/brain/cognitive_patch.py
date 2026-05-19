@@ -83,7 +83,7 @@ class CognitivePatchStrategy(PatchStrategy):
             # Save the proposal for manual review instead.
             import os
             import time
-            from core.common.paths import DATA_DIR
+            from core.utils.paths import DATA_DIR
             patch_dir = os.path.join(str(DATA_DIR), "cognitive_patches")
             os.makedirs(patch_dir, exist_ok=True)
             patch_file = os.path.join(patch_dir, f"patch_{int(time.time())}.sh")

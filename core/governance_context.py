@@ -33,6 +33,7 @@ Usage:
     require_governance("memory_write")
 """
 from __future__ import annotations
+import inspect
 
 import contextvars
 import functools
@@ -312,7 +313,7 @@ def governed(fn: Callable) -> Callable:
 
 def _is_coroutine_function(fn):
     import asyncio
-    return asyncio.iscoroutinefunction(fn)
+    return inspect.iscoroutinefunction(fn)
 
 
 # ---------------------------------------------------------------------------

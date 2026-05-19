@@ -23,6 +23,7 @@ Design invariants:
   5. Every completed action emits a MotorReceipt for audit + awareness.
 """
 from __future__ import annotations
+import inspect
 from core.runtime.errors import record_degradation
 
 from core.runtime.shutdown_coordinator import is_shutdown_requested
@@ -164,7 +165,7 @@ async def _reflex_screen_capture(payload: Dict[str, Any]) -> Dict[str, Any]:
         if vision and hasattr(vision, "capture_frame"):
             frame = await asyncio.wait_for(
                 asyncio.coroutine(vision.capture_frame)()
-                if not asyncio.iscoroutinefunction(vision.capture_frame)
+                if not inspect.iscoroutinefunction(vision.capture_frame)
                 else vision.capture_frame(),
                 timeout=0.5,
             )
@@ -551,7 +552,7 @@ class MotorCortex:
             return
 
         try:
-            if asyncio.iscoroutinefunction(handler):
+            if inspect.iscoroutinefunction(handler):
                 result = await asyncio.wait_for(handler(action.payload), timeout=2.0)
             else:
                 result = await asyncio.wait_for(

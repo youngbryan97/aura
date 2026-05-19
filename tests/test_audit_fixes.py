@@ -7,12 +7,12 @@ from pathlib import Path
 from collections import OrderedDict
 
 def test_heartstone_import():
-    """Verify heartstone_directive.py no longer has a SyntaxError."""
+    """Verify core/identity/heartstone.py no longer has a SyntaxError."""
     try:
-        from core.heartstone_directive import AURA_HEARTSTONE
+        from core.identity.heartstone import AURA_HEARTSTONE
         assert AURA_HEARTSTONE is not None
     except SyntaxError as e:
-        pytest.fail(f"heartstone_directive.py still has a SyntaxError: {e}")
+        pytest.fail(f"core/identity/heartstone.py still has a SyntaxError: {e}")
     except ImportError as e:
         pytest.skip(f"Skipping due to missing AURA_HEARTSTONE dependency: {e}")
 

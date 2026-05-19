@@ -1,3 +1,4 @@
+import inspect
 from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import logging
@@ -56,7 +57,7 @@ class OmniTool:
             self._cooldowns[action_name] = now
             
             result = None
-            if asyncio.iscoroutinefunction(handler):
+            if inspect.iscoroutinefunction(handler):
                 result = await handler(*args, **kwargs)
             else:
                 result = handler(*args, **kwargs)

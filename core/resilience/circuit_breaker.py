@@ -1,3 +1,4 @@
+import inspect
 import asyncio
 import collections
 import logging
@@ -95,7 +96,7 @@ class CircuitBreaker:
     async def call(self, func: Callable, *args, **kwargs) -> Any:
         """Wrap a function call (legacy and functional support)."""
         async with self:
-            if asyncio.iscoroutinefunction(func):
+            if inspect.iscoroutinefunction(func):
                 return await func(*args, **kwargs)
             return func(*args, **kwargs)
 

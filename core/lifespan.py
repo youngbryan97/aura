@@ -3,6 +3,7 @@ Ensures every service starts and stops in correct order with zero resource leaks
 No more dangling tasks, queues, or VRAM holds.
 """
 
+import inspect
 from core.runtime.errors import record_degradation
 import asyncio
 import logging
@@ -35,7 +36,7 @@ class LifespanManager:
         for name in services:
             try:
                 svc = ServiceContainer.get(name)
-                if svc and hasattr(svc, "start") and asyncio.iscoroutinefunction(svc.start):
+                if svc and hasattr(svc, "start") and inspect.iscoroutinefunction(svc.start):
                     await svc.start()
                     logger.info("✅ %s started", name)
             except (ImportError, AttributeError, RuntimeError) as e:
@@ -57,7 +58,7 @@ class LifespanManager:
         ]):
             try:
                 svc = ServiceContainer.get(name)
-                if svc and hasattr(svc, "stop") and asyncio.iscoroutinefunction(svc.stop):
+                if svc and hasattr(svc, "stop") and inspect.iscoroutinefunction(svc.stop):
                     await asyncio.wait_for(svc.stop(), timeout=8.0)
                     logger.info("✅ %s stopped cleanly", name)
                 elif svc and hasattr(svc, "stop"):

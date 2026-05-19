@@ -52,7 +52,7 @@ CRITICAL_CORE_FILES = [
     "core/agency/identity_guard.py",
     "core/behavior_controller.py",
     "core/affect/heartstone_values.py",
-    "core/heartstone_directive.py",
+    "core/identity/heartstone.py",
     "core/autonomy/genuine_refusal.py",
 ]
 

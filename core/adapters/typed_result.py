@@ -23,6 +23,7 @@ Usage:
                 return WorldResult.fail("adapter_failure", str(e))
 """
 from __future__ import annotations
+import inspect
 
 import time
 from dataclasses import dataclass, field
@@ -186,7 +187,7 @@ def wrap_adapter_call(func):
     import asyncio
     import functools
 
-    if asyncio.iscoroutinefunction(func):
+    if inspect.iscoroutinefunction(func):
         @functools.wraps(func)
         async def async_wrapper(*args, **kwargs):
             t0 = time.time()

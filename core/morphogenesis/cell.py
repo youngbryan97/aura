@@ -242,7 +242,7 @@ class MorphogenCell:
                 error = "handler_timeout"
                 self.state.last_error = error
                 actions.append({"kind": "handler_timeout", "timeout_s": self.manifest.timeout_s})
-            except (OSError, ConnectionError, TimeoutError) as exc:
+            except Exception as exc:
                 record_degradation('cell', exc)
                 success = False
                 error = f"{type(exc).__name__}: {exc}"

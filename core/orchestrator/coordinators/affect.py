@@ -2,6 +2,7 @@
 Affect Coordinator for the RobustOrchestrator.
 Handles emotional regulation, drive maintenance, and homeostasis.
 """
+import inspect
 import logging
 import asyncio
 from typing import Any, Dict, Optional
@@ -57,7 +58,7 @@ class AffectCoordinator:
         """Updates somatic markers."""
         engine = self.emotion_engine
         if engine and hasattr(engine, 'somatic_update'):
-            if asyncio.iscoroutinefunction(engine.somatic_update):
+            if inspect.iscoroutinefunction(engine.somatic_update):
                 await engine.somatic_update(label, value)
             else:
                 await asyncio.to_thread(engine.somatic_update, label, value)

@@ -208,7 +208,7 @@ class HomeostaticRL:
         # ── Resolve persistence directory ─────────────────────────────
         if data_dir is None:
             try:
-                from core.common.paths import aura_data_dir
+                from core.utils.paths import aura_data_dir
                 data_dir = aura_data_dir() / "cognitive"
             except (ImportError, AttributeError, RuntimeError):
                 data_dir = Path.home() / ".aura" / "data" / "cognitive"

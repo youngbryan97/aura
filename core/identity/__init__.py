@@ -12,9 +12,9 @@ from typing import Any, Dict, List, Optional
 # Re-export key components
 from .identity_guard import PersonaEnforcementGate
 
-from core.biography import get_legacy_context
-from core.common.paths import CORE_DIR, DATA_DIR
-from core.heartstone_directive import AURA_HEARTSTONE
+from .biography import get_legacy_context
+from core.utils.paths import CORE_DIR, DATA_DIR
+from .heartstone import AURA_HEARTSTONE
 
 logger = logging.getLogger("Aura.Identity")
 

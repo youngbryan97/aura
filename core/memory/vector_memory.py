@@ -93,7 +93,7 @@ class VectorMemory:
         self._fallback_mode = False
 
         if persist_directory is None:
-            from core.common.paths import DATA_DIR
+            from core.utils.paths import DATA_DIR
             persist_directory = str(DATA_DIR / "vector_store")
         
         self.persist_directory = Path(persist_directory)

@@ -1,4 +1,5 @@
 # core/brain/execution.py
+import inspect
 from core.runtime.errors import record_degradation
 import asyncio
 import time
@@ -42,7 +43,7 @@ class ExecutionManager:
         for attempt in range(1, retries + 1):
             try:
                 # run either async or sync in executor
-                if asyncio.iscoroutinefunction(action_fn):
+                if inspect.iscoroutinefunction(action_fn):
                     coro = action_fn()
                 else:
                     # wrap sync call

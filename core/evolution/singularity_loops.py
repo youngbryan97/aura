@@ -17,6 +17,7 @@ Loops implemented:
 Runs as a background service at 30-second intervals.
 """
 from __future__ import annotations
+import inspect
 from core.runtime.errors import record_degradation
 
 from core.utils.task_tracker import get_task_tracker
@@ -394,7 +395,7 @@ class SingularityLoops:
             if not state_method:
                 return
 
-            state = state_method() if not asyncio.iscoroutinefunction(state_method) else await state_method()
+            state = state_method() if not inspect.iscoroutinefunction(state_method) else await state_method()
             if not state:
                 return
 

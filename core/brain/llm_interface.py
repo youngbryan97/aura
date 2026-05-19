@@ -1,4 +1,5 @@
 # core/brain/llm_interface.py
+import inspect
 from core.runtime.errors import record_degradation
 from typing import Any, Dict, Optional
 import asyncio
@@ -53,7 +54,7 @@ async def call_llm_with_timeout(llm_call_coro, timeout: float = 10.0, fallback_f
     # try fallback
     if fallback_fn:
         try:
-            if asyncio.iscoroutinefunction(fallback_fn):
+            if inspect.iscoroutinefunction(fallback_fn):
                 return await fallback_fn()
             else:
                 loop = asyncio.get_running_loop()

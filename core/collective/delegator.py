@@ -2,6 +2,7 @@
 Agent Swarm / Collective Intelligence Delegator (Swarm 2.0).
 Allows the primary orchestrator to spawn specialized sub-tasks and synthesize consensus.
 """
+import inspect
 from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
@@ -407,7 +408,7 @@ FINAL SYNTHESIS:"""
             self.logger.info("✅ Agentic Agent %s completed: %s", agent.id, agent.status)
 
             if callback:
-                if asyncio.iscoroutinefunction(callback):
+                if inspect.iscoroutinefunction(callback):
                     await callback(agent_id=agent.id, result=agent.result)
                 else:
                     callback(agent_id=agent.id, result=agent.result)
@@ -484,7 +485,7 @@ FINAL SYNTHESIS:"""
                 if h: h.pulse(success=True)
 
             if callback:
-                if asyncio.iscoroutinefunction(callback):
+                if inspect.iscoroutinefunction(callback):
                     await callback(agent_id=agent.id, result=agent.result)
                 else:
                     callback(agent_id=agent.id, result=agent.result)

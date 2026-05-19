@@ -65,6 +65,40 @@ class TestResilienceEngine(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.engine.profile.state, ResilienceState.DEPLETION)
         self.assertEqual(self.engine.get_effort_modifier(), 0.0)
 
+    async def test_subsystem_auto_recovery_via_engine(self):
+        """Test that ResilienceEngine triggers auto-recovery of degraded subsystems."""
+        from core.runtime.errors import get_subsystem_registry
+        from core.resilience.incident_manager import get_incident_manager, IncidentStatus
+        import time
+
+        subsystem_reg = get_subsystem_registry()
+        health = subsystem_reg.register("test_auto_subsystem")
+        health.mark_degraded("simulated failure")
+        self.assertEqual(health.status, "degraded")
+
+        incident_mgr = get_incident_manager()
+        category = "degradation:test_auto_subsystem"
+        from core.resilience.incident_manager import IncidentSeverity
+        incident = incident_mgr.report(
+            category=category,
+            description="simulated failure",
+            severity=IncidentSeverity.DEGRADED
+        )
+
+        self.assertEqual(incident.status, IncidentStatus.ACTIVE)
+
+        # Under 300s, should not recover
+        self.engine._check_subsystem_auto_recovery()
+        self.assertEqual(health.status, "degraded")
+        self.assertEqual(incident.status, IncidentStatus.ACTIVE)
+
+        # Backdate failure time to > 300s ago
+        health.last_failed_at = time.time() - 301.0
+        self.engine._check_subsystem_auto_recovery()
+        self.assertEqual(health.status, "healthy")
+        self.assertEqual(incident.status, IncidentStatus.RECOVERED)
+
+
 
 if __name__ == "__main__":
     unittest.main()

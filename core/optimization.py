@@ -1,3 +1,4 @@
+import inspect
 import asyncio
 import json
 import logging
@@ -105,7 +106,7 @@ TURN:
 ```
 """
         try:
-            if asyncio.iscoroutinefunction(self.brain.generate):
+            if inspect.iscoroutinefunction(self.brain.generate):
                 raw = await self.brain.generate(prompt)
             else:
                 raw = self.brain.generate(prompt)

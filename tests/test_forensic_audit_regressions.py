@@ -447,7 +447,7 @@ def test_file_operation_no_longer_allows_desktop_agency_test_escape(tmp_path):
 
 @pytest.mark.asyncio
 async def test_sensory_gate_run_always_closes_browser_and_bus(monkeypatch):
-    from core.actors import sensory_gate as sensory_gate_module
+    from core.bus import sensory_gate as sensory_gate_module
 
     events = []
     actor = None

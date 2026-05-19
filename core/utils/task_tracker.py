@@ -1,3 +1,4 @@
+import inspect
 from core.runtime.errors import record_degradation
 import asyncio
 import contextvars
@@ -125,7 +126,7 @@ class TaskTracker:
             async with sem:
                 if asyncio.iscoroutine(coro):
                     return await coro
-                if asyncio.iscoroutinefunction(coro):
+                if inspect.iscoroutinefunction(coro):
                     return await coro()
                 return await coro
 

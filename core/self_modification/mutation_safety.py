@@ -133,7 +133,7 @@ _BOOTSTRAP_SOURCE = textwrap.dedent(
         except SyntaxError as e:
             _emit("compile_fail", traceback_text=traceback.format_exc(), extra={"err": str(e)})
             sys.exit(EXIT_COMPILE_FAIL)
-        except (RuntimeError, AttributeError, TypeError, ValueError):
+        except Exception:
             _emit("compile_fail", traceback_text=traceback.format_exc())
             sys.exit(EXIT_COMPILE_FAIL)
 
@@ -147,7 +147,7 @@ _BOOTSTRAP_SOURCE = textwrap.dedent(
         except AssertionError:
             _emit("assertion_fail", traceback_text=traceback.format_exc())
             sys.exit(EXIT_ASSERTION_FAIL)
-        except (RuntimeError, AttributeError, TypeError, ValueError):
+        except Exception:
             _emit("runtime_exception", traceback_text=traceback.format_exc())
             sys.exit(EXIT_RUNTIME_EXCEPTION)
 
@@ -173,7 +173,7 @@ _BOOTSTRAP_SOURCE = textwrap.dedent(
             except AssertionError:
                 _emit("assertion_fail", traceback_text=traceback.format_exc())
                 sys.exit(EXIT_ASSERTION_FAIL)
-            except (RuntimeError, AttributeError, TypeError, ValueError):
+            except Exception:
                 _emit("runtime_exception", traceback_text=traceback.format_exc())
                 sys.exit(EXIT_RUNTIME_EXCEPTION)
 

@@ -25,3 +25,30 @@ def test_action_budget_enforces_repeated_failures_and_irreversible_limits():
 def test_model_tier_router_escalates_high_risk():
     route = CognitionRouter().route(CognitionRequest("choice", urgency=0.5, risk=0.9, uncertainty=0.2, token_budget=1000, context={}))
     assert route.model_tier == "cortex"
+
+
+def test_subsystem_auto_recovery():
+    import time
+    from core.runtime.errors import SubsystemRegistry
+
+    registry = SubsystemRegistry()
+    health = registry.register("test_subsystem")
+    
+    # Check that initial state is healthy
+    assert health.status == "healthy"
+    
+    # Mark it degraded
+    health.mark_degraded("simulated failure")
+    assert health.status == "degraded"
+    
+    # Auto-recovery checking with timeout should not recover if not enough time passed
+    recovered = registry.auto_recover_subsystems(timeout_seconds=300.0)
+    assert len(recovered) == 0
+    assert health.status == "degraded"
+    
+    # Backdate last_failed_at to 10 minutes ago
+    health.last_failed_at = time.time() - 600.0
+    recovered = registry.auto_recover_subsystems(timeout_seconds=300.0)
+    assert "test_subsystem" in recovered
+    assert health.status == "healthy"
+

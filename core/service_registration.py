@@ -220,7 +220,7 @@ def register_all_services(is_proxy: bool = False):
     _finalize_wiring(container)
 
     # 3. Boot Validation Gate (Patch 11/27)
-    from core.bootstrap.validation import BootValidator
+    from core.startup.boot_validator import BootValidator
     v_result = BootValidator.validate_boot(container)
     if not v_result.passed:
         logger.error("🛡️ Boot Validation FAILED: %s", v_result.failures)

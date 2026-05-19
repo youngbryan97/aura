@@ -15,7 +15,7 @@ from uuid import uuid4
 
 logger = logging.getLogger("Aura.SelfModel")
 
-from core.common.paths import DATA_DIR
+from core.utils.paths import DATA_DIR
 from core.runtime.effect_boundary import effect_sink
 from core.runtime.service_access import resolve_canonical_self
 DATA_FILE = DATA_DIR / "self_model.json"

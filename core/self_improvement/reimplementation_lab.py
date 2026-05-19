@@ -212,7 +212,7 @@ class ReimplementationLab:
                 total_time_s=elapsed,
             )
 
-        except (RuntimeError, AttributeError, TypeError, ValueError) as e:
+        except (RuntimeError, AttributeError, TypeError, ValueError, OSError) as e:
             elapsed = time.monotonic() - start
             logger.error("Reimplementation Lab error: %s", e, exc_info=True)
             return LabResult(

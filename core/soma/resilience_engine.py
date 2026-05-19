@@ -344,8 +344,32 @@ class ResilienceEngine:
             while not is_shutdown_requested():
                 await asyncio.sleep(60)
                 self._apply_decay()
+                self._check_subsystem_auto_recovery()
         except asyncio.CancelledError as _e:
             logger.debug("Ignored asyncio.CancelledError in resilience_engine.py: %s", _e)
+
+    def _check_subsystem_auto_recovery(self) -> None:
+        """Restores degraded subsystems to healthy if no failures occurred in 300s."""
+        try:
+            from core.runtime.errors import get_subsystem_registry
+            from core.resilience.incident_manager import get_incident_manager
+            
+            subsystem_reg = get_subsystem_registry()
+            # Recover subsystems that haven't failed in the last 300 seconds
+            recovered = subsystem_reg.auto_recover_subsystems(timeout_seconds=300.0)
+            
+            if recovered:
+                incident_mgr = get_incident_manager()
+                for name in recovered:
+                    category = f"degradation:{name}"
+                    incident_mgr.resolve(
+                        category=category,
+                        resolution="Auto-recovered: No new degradation events recorded for 300 seconds."
+                    )
+                    logger.info("🏥 Subsystem %s auto-recovered back to healthy.", name)
+        except Exception as err:
+            logger.debug("Error checking subsystem auto recovery in decay loop: %s", err)
+
 
     def _apply_decay(self) -> None:
         """Apply one tick of emotional decay."""
