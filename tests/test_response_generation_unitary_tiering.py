@@ -1,12 +1,54 @@
 import asyncio
+from collections.abc import Iterable
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
 
 import pytest
 
 from core.phases.response_contract import ResponseContract
 from core.phases.response_generation_unitary import UnitaryResponsePhase
 from core.state.aura_state import AuraState
+
+
+class AsyncCallProbe:
+    def __init__(self, return_value=None, side_effect=None):
+        self.return_value = return_value
+        self._effects = iter(side_effect) if isinstance(side_effect, Iterable) and not isinstance(side_effect, str) else None
+        self._side_effect = side_effect if self._effects is None else None
+        self.await_count = 0
+        self.await_args = None
+
+    async def __call__(self, *args, **kwargs):
+        self.await_count += 1
+        self.await_args = AwaitedCall(args, kwargs)
+        if self._effects is not None:
+            effect = next(self._effects)
+            if isinstance(effect, BaseException):
+                raise effect
+            return effect
+        if isinstance(self._side_effect, BaseException):
+            raise self._side_effect
+        if callable(self._side_effect):
+            return self._side_effect(*args, **kwargs)
+        return self.return_value
+
+    def assert_awaited(self):
+        assert self.await_count > 0
+
+    def assert_not_awaited(self):
+        assert self.await_count == 0
+
+    def assert_awaited_once(self):
+        assert self.await_count == 1
+
+
+class AwaitedCall:
+    def __init__(self, args, kwargs):
+        self.args = args
+        self.kwargs = kwargs
+
+    def __iter__(self):
+        yield self.args
+        yield self.kwargs
 
 
 def test_prefixed_user_origin_is_foreground_in_unitary_response():
@@ -161,7 +203,7 @@ async def test_short_confusion_turn_reaches_llm(monkeypatch):
     state.cognition.current_objective = "huh"
 
     llm = SimpleNamespace(
-        think=AsyncMock(
+        think=AsyncCallProbe(
             return_value=(
                 "I crossed a wire there. The direct answer is: yes, I'm here with the thread, "
                 "and that last reply was malformed."
@@ -221,7 +263,7 @@ async def test_unitary_response_uses_context_assembler_messages(monkeypatch):
     ]
 
     llm_reply = "I looked into it, and the grounded result means the answer should stay tied to the retrieved evidence."
-    llm = SimpleNamespace(think=AsyncMock(return_value=llm_reply))
+    llm = SimpleNamespace(think=AsyncCallProbe(return_value=llm_reply))
     kernel = SimpleNamespace(organs={})
     phase = UnitaryResponsePhase(kernel)
 
@@ -269,12 +311,12 @@ async def test_unitary_response_injects_active_grounding_evidence_for_targeted_f
         "content": "Acme offers refunds within 30 days for annual plans.",
     }
 
-    llm = SimpleNamespace(think=AsyncMock(return_value="It says refunds are available within 30 days."))
+    llm = SimpleNamespace(think=AsyncCallProbe(return_value="It says refunds are available within 30 days."))
     kernel = SimpleNamespace(organs={})
     phase = UnitaryResponsePhase(kernel)
 
     def _compact_should_not_run(_state):
-        raise AssertionError("compact router path should not be used for active grounding evidence")
+        pytest.fail("compact router path should not be used for active grounding evidence")
 
     phase._build_compact_router_system_prompt = _compact_should_not_run  # type: ignore[method-assign]
     phase._build_system_prompt = lambda _state: "full-system"  # type: ignore[method-assign]
@@ -325,7 +367,7 @@ async def test_unitary_response_uses_direct_clock_skill_reply_without_llm(monkey
         "readable": "Tuesday, April 07, 2026 06:40 PM",
     }
 
-    llm = SimpleNamespace(think=AsyncMock(return_value="I should not be called."))
+    llm = SimpleNamespace(think=AsyncCallProbe(return_value="I should not be called."))
     kernel = SimpleNamespace(organs={})
     phase = UnitaryResponsePhase(kernel)
 
@@ -360,7 +402,7 @@ async def test_unitary_response_does_not_surface_raw_memory_search_miss(monkeypa
         "I remember the worry as a continuity failure, not as a memory search task. "
         "I would keep the live turn in the conversation lane and use memory only as context."
     )
-    llm = SimpleNamespace(think=AsyncMock(return_value=llm_reply))
+    llm = SimpleNamespace(think=AsyncCallProbe(return_value=llm_reply))
     kernel = SimpleNamespace(organs={})
     phase = UnitaryResponsePhase(kernel)
 
@@ -397,7 +439,7 @@ async def test_unitary_response_uses_direct_grounded_reply_for_research_about_tu
         ],
     }
 
-    llm = SimpleNamespace(think=AsyncMock(return_value="I should not be called."))
+    llm = SimpleNamespace(think=AsyncCallProbe(return_value="I should not be called."))
     kernel = SimpleNamespace(organs={})
     phase = UnitaryResponsePhase(kernel)
 
@@ -428,7 +470,7 @@ async def test_unitary_response_uses_direct_computer_use_reply_without_llm(monke
         "url": "https://duckduckgo.com/?q=aliens",
     }
 
-    llm = SimpleNamespace(think=AsyncMock(return_value="I should not be called."))
+    llm = SimpleNamespace(think=AsyncCallProbe(return_value="I should not be called."))
     kernel = SimpleNamespace(organs={})
     phase = UnitaryResponsePhase(kernel)
 
@@ -456,7 +498,7 @@ async def test_unitary_response_injects_engineering_guidance_for_coding_turns(mo
     }
     state.response_modifiers["deep_handoff"] = True
 
-    llm = SimpleNamespace(think=AsyncMock(return_value="The likely root cause is stale context injection."))
+    llm = SimpleNamespace(think=AsyncCallProbe(return_value="The likely root cause is stale context injection."))
     kernel = SimpleNamespace(organs={})
     phase = UnitaryResponsePhase(kernel)
 
@@ -493,7 +535,7 @@ async def test_unitary_response_answers_task_status_from_tracked_state_without_l
         "task_id": "task-123",
     }
 
-    llm = SimpleNamespace(think=AsyncMock(return_value="I should not be called."))
+    llm = SimpleNamespace(think=AsyncCallProbe(return_value="I should not be called."))
     kernel = SimpleNamespace(organs={})
     phase = UnitaryResponsePhase(kernel)
 
@@ -537,7 +579,7 @@ async def test_unitary_response_uses_grounded_technical_recovery_when_generation
         "steps_total": 3,
     }
 
-    llm = SimpleNamespace(think=AsyncMock(side_effect=RuntimeError("mlx lane crashed")))
+    llm = SimpleNamespace(think=AsyncCallProbe(side_effect=RuntimeError("mlx lane crashed")))
     kernel = SimpleNamespace(organs={})
     phase = UnitaryResponsePhase(kernel)
 
@@ -588,7 +630,7 @@ async def test_unitary_response_does_not_leak_stale_technical_recovery_into_non_
         "steps_total": 3,
     }
 
-    llm = SimpleNamespace(think=AsyncMock(side_effect=RuntimeError("mlx lane crashed")))
+    llm = SimpleNamespace(think=AsyncCallProbe(side_effect=RuntimeError("mlx lane crashed")))
     kernel = SimpleNamespace(organs={})
     phase = UnitaryResponsePhase(kernel)
 
@@ -623,7 +665,7 @@ async def test_unitary_response_fails_closed_when_grounding_is_required_without_
     state.cognition.current_origin = "api"
     state.cognition.current_objective = 'Search "Beautiful Mind" and tell me what it is about.'
 
-    llm = SimpleNamespace(think=AsyncMock(return_value="hallucinated answer"))
+    llm = SimpleNamespace(think=AsyncCallProbe(return_value="hallucinated answer"))
     kernel = SimpleNamespace(organs={})
     phase = UnitaryResponsePhase(kernel)
 
@@ -652,7 +694,7 @@ async def test_unitary_response_retries_when_dialogue_contract_detects_prompt_fi
     state.cognition.current_objective = "What questions do you have?"
 
     llm = SimpleNamespace(
-        think=AsyncMock(
+        think=AsyncCallProbe(
             side_effect=[
                 "I have some. What questions do you have?",
                 "I do. The question on my mind is why you built me to care this much about continuity.",
@@ -687,7 +729,7 @@ async def test_unitary_response_empty_foreground_result_raises_timeout(monkeypat
     state.cognition.current_origin = "api"
     state.cognition.current_objective = "Hello Aura. Please answer with a short greeting."
 
-    llm = SimpleNamespace(think=AsyncMock(return_value=""))
+    llm = SimpleNamespace(think=AsyncCallProbe(return_value=""))
     kernel = SimpleNamespace(organs={})
     phase = UnitaryResponsePhase(kernel)
 
@@ -716,7 +758,7 @@ async def test_unitary_response_background_turn_uses_minimal_prompt(monkeypatch)
         {"role": "assistant", "content": "Previous internal note."},
     ]
 
-    llm = SimpleNamespace(think=AsyncMock(return_value="internal note"))
+    llm = SimpleNamespace(think=AsyncCallProbe(return_value="internal note"))
     kernel = SimpleNamespace(organs={})
     phase = UnitaryResponsePhase(kernel)
 
@@ -746,7 +788,7 @@ async def test_unitary_response_suppresses_background_generation_when_policy_blo
     state.cognition.current_origin = "autonomous_thought"
     state.cognition.current_objective = "Reflect on the previous exchange and tighten continuity."
 
-    llm = SimpleNamespace(think=AsyncMock(return_value="should not run"))
+    llm = SimpleNamespace(think=AsyncCallProbe(return_value="should not run"))
     kernel = SimpleNamespace(organs={})
     phase = UnitaryResponsePhase(kernel)
 
@@ -771,7 +813,7 @@ async def test_unitary_response_clears_low_value_background_objective_when_suppr
     state.cognition.current_origin = "autonomous_thought"
     state.cognition.current_objective = "[IDENTITY REFRESH: REMEMBER WHO YOU ARE]\nSummarize continuity."
 
-    llm = SimpleNamespace(think=AsyncMock(return_value="should not run"))
+    llm = SimpleNamespace(think=AsyncCallProbe(return_value="should not run"))
     kernel = SimpleNamespace(organs={})
     phase = UnitaryResponsePhase(kernel)
 
@@ -785,3 +827,101 @@ async def test_unitary_response_clears_low_value_background_objective_when_suppr
     llm.think.assert_not_awaited()
     assert new_state.cognition.last_response == ""
     assert new_state.cognition.current_objective == ""
+
+
+@pytest.mark.asyncio
+async def test_unitary_response_auto_browse_fetches_only_bounded_url_batch(monkeypatch):
+    state = AuraState()
+    state.cognition.current_origin = "api"
+    state.cognition.current_objective = "Summarize these pages: https://example.com/a https://example.com/b"
+    state.response_modifiers["auto_browse_urls"] = [
+        "https://example.com/a",
+        "https://example.com/b",
+    ]
+
+    orchestrator = SimpleNamespace(
+        execute_tool=AsyncCallProbe(
+            return_value={
+                "ok": True,
+                "title": "Example A",
+                "content": "Example A contains a grounded article body. " * 8,
+            }
+        )
+    )
+    llm = SimpleNamespace(
+        think=AsyncCallProbe(
+            return_value=(
+                "I read the fetched page content first. Example A says the grounded article body is available, "
+                "so I would summarize that page and avoid inventing content from the second URL."
+            )
+        )
+    )
+    phase = UnitaryResponsePhase(SimpleNamespace(organs={}))
+
+    def _service(name, default=None):
+        if name == "llm_router":
+            return llm
+        if name == "orchestrator":
+            return orchestrator
+        return default
+
+    monkeypatch.setattr("core.container.ServiceContainer.get", staticmethod(_service))
+    monkeypatch.setattr(
+        "core.phases.response_generation_unitary.build_response_contract",
+        lambda _state, _objective, is_user_facing=False: ResponseContract(
+            is_user_facing=is_user_facing,
+            requires_search=False,
+            reason="url_summary",
+            tool_evidence_available=bool(_state.response_modifiers.get("last_skill_ok")),
+        ),
+    )
+    def _discard_formalizer_task(coro):
+        if hasattr(coro, "close"):
+            coro.close()
+
+    monkeypatch.setattr(
+        "core.phases.response_generation_unitary.get_task_tracker",
+        lambda: SimpleNamespace(create_task=_discard_formalizer_task),
+    )
+
+    new_state = await phase.execute(state, objective=state.cognition.current_objective, priority=True)
+
+    orchestrator.execute_tool.assert_awaited_once()
+    assert orchestrator.execute_tool.await_args.args[1]["url"] == "https://example.com/a"
+    llm.think.assert_awaited_once()
+    assert "Example A" in new_state.cognition.last_response
+    assert "https://example.com/b" not in str(new_state.response_modifiers.get("last_skill_result_payload"))
+
+
+@pytest.mark.asyncio
+async def test_unitary_response_skips_overlapping_manim_render(monkeypatch):
+    from core.phases import response_generation_unitary as response_module
+
+    state = AuraState()
+    state.cognition.current_origin = "api"
+    state.cognition.current_objective = "Show me the integral form."
+    llm_reply = "The integral is \\int_0^1 x dx = 1/2, which follows from the antiderivative x^2/2."
+    llm = SimpleNamespace(think=AsyncCallProbe(return_value=llm_reply))
+    phase = UnitaryResponsePhase(SimpleNamespace(organs={}))
+
+    monkeypatch.setattr(
+        "core.container.ServiceContainer.get",
+        staticmethod(lambda name, default=None: llm if name == "llm_router" else default),
+    )
+    monkeypatch.setattr(
+        "core.phases.response_generation_unitary.build_response_contract",
+        lambda _state, _objective, is_user_facing=False: ResponseContract(
+            is_user_facing=is_user_facing,
+            reason="ordinary_dialogue",
+            tool_evidence_available=True,
+        ),
+    )
+
+    assert response_module._MANIM_RENDER_LOCK.acquire(blocking=False)
+    try:
+        new_state = await phase.execute(state, objective=state.cognition.current_objective, priority=True)
+    finally:
+        response_module._MANIM_RENDER_LOCK.release()
+
+    assert new_state.cognition.last_response == llm_reply
+    assert "autonomously rendering" not in new_state.cognition.last_response

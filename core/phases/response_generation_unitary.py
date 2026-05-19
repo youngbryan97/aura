@@ -22,14 +22,12 @@ After this rewrite:
      sovereignty or narrative boundaries.
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
-from core.utils.task_tracker import get_task_tracker
 
 import asyncio
 import logging
 import os
 import re
+import threading
 import time
 from typing import TYPE_CHECKING, Any
 
@@ -37,18 +35,47 @@ from core.brain.llm.context_assembler import ContextAssembler
 from core.container import ServiceContainer
 from core.kernel.bridge import Phase
 from core.phases.dialogue_policy import enforce_dialogue_contract, validate_dialogue_response
-from core.phases.response_contract import ResponseContract, build_response_contract, extract_search_query_focus
+from core.phases.response_contract import (
+    ResponseContract,
+    build_response_contract,
+    extract_search_query_focus,
+)
 from core.runtime import background_policy, response_policy
+from core.runtime.errors import record_degradation
 from core.runtime.structured_input import looks_like_learning_resource_bundle
-from core.runtime.turn_analysis import analyze_turn
 from core.state.aura_state import AuraState
 from core.utils.intent_normalization import normalize_memory_intent_text
 from core.utils.prompt_compression import compress_system_prompt
+from core.utils.task_tracker import get_task_tracker
 
 if TYPE_CHECKING:
     from core.kernel.aura_kernel import AuraKernel
 
 logger = logging.getLogger("Aura.UnitaryResponse")
+
+_RESPONSE_DEGRADATION_KEY = "response_generation_unitary"
+_AUTO_BROWSE_MAX_URLS = 1
+_AUTO_BROWSE_TIMEOUT_SECONDS = 12.0
+_MANIM_RENDER_TIMEOUT_SECONDS = 120
+_MANIM_RENDER_LOCK = threading.Lock()
+_RESPONSE_RECOVERABLE_ERRORS = (
+    AttributeError,
+    ImportError,
+    LookupError,
+    OSError,
+    RuntimeError,
+    TimeoutError,
+    TypeError,
+    ValueError,
+    asyncio.InvalidStateError,
+    Exception,
+)
+
+
+def _record_response_degradation(exc: BaseException, message: str, *args: Any) -> None:
+    record_degradation(_RESPONSE_DEGRADATION_KEY, exc)
+    logger.debug(message, *args, exc)
+
 
 class UnitaryResponsePhase(Phase):
     """
@@ -77,7 +104,7 @@ class UnitaryResponsePhase(Phase):
                 return str(cap.resolve_skill_name(normalized))
             aliases = getattr(cap, "SKILL_ALIASES", {}) or {}
             return str(aliases.get(normalized, normalized))
-        except Exception:
+        except _RESPONSE_RECOVERABLE_ERRORS:
             return normalized
 
     @classmethod
@@ -170,8 +197,7 @@ class UnitaryResponsePhase(Phase):
                 }
                 if resolved_skill in detected:
                     return True
-        except Exception as exc:
-            record_degradation('response_generation_unitary', exc)
+        except _RESPONSE_RECOVERABLE_ERRORS as exc:
             record_degradation('response_generation_unitary', exc)
             logger.debug("UnitaryResponse: skill relevance detection skipped for %s: %s", resolved_skill, exc)
 
@@ -250,7 +276,7 @@ class UnitaryResponsePhase(Phase):
             gate = ServiceContainer.get("inference_gate", default=None)
             if gate and hasattr(gate, "_background_local_deferral_reason"):
                 return bool(gate._background_local_deferral_reason(origin=origin))
-        except Exception:
+        except _RESPONSE_RECOVERABLE_ERRORS:
             return False
         return False
 
@@ -290,8 +316,7 @@ class UnitaryResponsePhase(Phase):
 
                 engine = PhenomenalNowEngine()
                 ServiceContainer.register_instance("phenomenal_now_engine", engine, required=False)
-        except Exception as exc:
-            record_degradation('response_generation_unitary', exc)
+        except _RESPONSE_RECOVERABLE_ERRORS as exc:
             record_degradation('response_generation_unitary', exc)
             logger.debug("UnitaryResponse: phenomenal-now engine unavailable: %s", exc)
 
@@ -305,16 +330,14 @@ class UnitaryResponsePhase(Phase):
                 "tension": getattr(report, "tension_pressure", None),
                 "recommended_action": getattr(report, "recommended_action", None),
             }
-        except Exception as exc:
-            record_degradation('response_generation_unitary', exc)
+        except _RESPONSE_RECOVERABLE_ERRORS as exc:
             record_degradation('response_generation_unitary', exc)
             logger.debug("UnitaryResponse: integrated coherence refresh skipped: %s", exc)
             try:
                 engine = ServiceContainer.get("phenomenal_now_engine", default=None)
                 if engine and hasattr(engine, "tick"):
                     await asyncio.wait_for(engine.tick(), timeout=0.75)
-            except Exception as inner_exc:
-                record_degradation('response_generation_unitary', inner_exc)
+            except _RESPONSE_RECOVERABLE_ERRORS as inner_exc:
                 record_degradation('response_generation_unitary', inner_exc)
                 logger.debug("UnitaryResponse: phenomenal-now fallback skipped: %s", inner_exc)
 
@@ -327,8 +350,7 @@ class UnitaryResponsePhase(Phase):
                 else:
                     state.cognition.phenomenal_state = claim
                 state.response_modifiers["integrated_present_claim"] = claim
-        except Exception as exc:
-            record_degradation('response_generation_unitary', exc)
+        except _RESPONSE_RECOVERABLE_ERRORS as exc:
             record_degradation('response_generation_unitary', exc)
             logger.debug("UnitaryResponse: integrated present publish skipped: %s", exc)
 
@@ -434,10 +456,8 @@ class UnitaryResponsePhase(Phase):
                         f"  Tone: {tone}\n"
                         "  " + " ".join(voice_cues)
                     )
-        except Exception as _exc:
-            record_degradation('response_generation_unitary', _exc)
-            record_degradation('response_generation_unitary', _exc)
-            logger.debug("Suppressed Exception: %s", _exc)
+        except _RESPONSE_RECOVERABLE_ERRORS as exc:
+            _record_response_degradation(exc, "UnitaryResponse: compact voice shaping skipped: %s")
 
         # Neurochemical and phi influence on compact prompt
         try:
@@ -461,8 +481,8 @@ class UnitaryResponsePhase(Phase):
                     nc_cues.append("stressed")
                 if nc_cues:
                     parts.append(f"NEUROCHEMICAL TONE (don't narrate): {', '.join(nc_cues)}")
-        except Exception:
-            pass  # no-op: intentional
+        except _RESPONSE_RECOVERABLE_ERRORS as exc:
+            _record_response_degradation(exc, "UnitaryResponse: compact neurochemical tone skipped: %s")
         try:
             phi_core = ServiceContainer.get("phi_core", default=None)
             if phi_core and phi_core._last_result:
@@ -471,8 +491,8 @@ class UnitaryResponsePhase(Phase):
                     parts.append(f"PHI: {phi_val:.3f} (integrated — speak with depth)")
                 elif phi_val > 0:
                     parts.append(f"PHI: {phi_val:.3f} (moderate — keep it grounded)")
-        except Exception:
-            pass  # no-op: intentional
+        except _RESPONSE_RECOVERABLE_ERRORS as exc:
+            _record_response_degradation(exc, "UnitaryResponse: compact phi tone skipped: %s")
 
         if needs_continuity_context and narrative:
             parts.append(f"Narrative anchor: {narrative}")
@@ -514,8 +534,7 @@ class UnitaryResponsePhase(Phase):
                 normalized_block = self._normalize_text(block, 320)
                 if normalized_block:
                     parts.append(f"Conversation context: {normalized_block}")
-        except Exception as exc:
-            record_degradation('response_generation_unitary', exc)
+        except _RESPONSE_RECOVERABLE_ERRORS as exc:
             record_degradation('response_generation_unitary', exc)
             logger.debug("UnitaryResponse: compact conversational context skipped: %s", exc)
         if skill_line:
@@ -553,7 +572,7 @@ class UnitaryResponsePhase(Phase):
     def _safe_scalar(value: Any, default: float = 0.0) -> float:
         try:
             return float(value)
-        except Exception:
+        except _RESPONSE_RECOVERABLE_ERRORS:
             return float(default)
 
     @staticmethod
@@ -605,37 +624,37 @@ class UnitaryResponsePhase(Phase):
                     claim = self._normalize_text(unity_runtime.render_phenomenal_claim(unity_state, unity_report), limit)
                     if claim:
                         return claim
-        except Exception:
-            pass  # no-op: intentional
+        except _RESPONSE_RECOVERABLE_ERRORS as exc:
+            _record_response_degradation(exc, "UnitaryResponse: unity phenomenal claim skipped: %s")
         try:
             now = ServiceContainer.get("phenomenal_now", default=None)
             claim = self._normalize_text(getattr(now, "phenomenal_claim", "") if now else "", limit)
             if claim:
                 return claim
-        except Exception:
-            pass  # no-op: intentional
+        except _RESPONSE_RECOVERABLE_ERRORS as exc:
+            _record_response_degradation(exc, "UnitaryResponse: phenomenal-now claim skipped: %s")
         return self._normalize_text(state.cognition.phenomenal_state or "I am present and aware.", limit)
 
     def _build_integrated_coherence_frame(self, state: AuraState, *, compact: bool = False) -> str:
         try:
             now = ServiceContainer.get("phenomenal_now", default=None)
-        except Exception:
+        except _RESPONSE_RECOVERABLE_ERRORS:
             now = None
         try:
             report = ServiceContainer.get("coherence_report", default=None)
-        except Exception:
+        except _RESPONSE_RECOVERABLE_ERRORS:
             report = None
         try:
             unity_state = getattr(state.cognition, "unity_state", None) or ServiceContainer.get("unity_state", default=None)
-        except Exception:
+        except _RESPONSE_RECOVERABLE_ERRORS:
             unity_state = None
         try:
             unity_report = ServiceContainer.get("unity_fragmentation_report", default=None)
-        except Exception:
+        except _RESPONSE_RECOVERABLE_ERRORS:
             unity_report = None
         try:
             repair_plan = ServiceContainer.get("unity_repair_plan", default=None)
-        except Exception:
+        except _RESPONSE_RECOVERABLE_ERRORS:
             repair_plan = None
 
         claim = self._integrated_phenomenal_claim(state, limit=180 if compact else 240)
@@ -651,11 +670,11 @@ class UnitaryResponsePhase(Phase):
             )
         try:
             score = float(getattr(report, "overall_coherence", 0.65) if report else 0.65)
-        except Exception:
+        except _RESPONSE_RECOVERABLE_ERRORS:
             score = 0.65
         try:
             tension = float(getattr(report, "tension_pressure", 0.0) if report else 0.0)
-        except Exception:
+        except _RESPONSE_RECOVERABLE_ERRORS:
             tension = 0.0
         posture = self._coherence_posture(score, tension)
 
@@ -734,8 +753,7 @@ class UnitaryResponsePhase(Phase):
                 action = self._normalize_text(getattr(current, "dominant_action", ""), 60)
                 if action:
                     parts.append(f"- What I feel pulled toward doing: {action}")
-        except Exception as exc:
-            record_degradation('response_generation_unitary', exc)
+        except _RESPONSE_RECOVERABLE_ERRORS as exc:
             record_degradation('response_generation_unitary', exc)
             logger.debug("UnitaryResponse: free-energy self-expression block skipped: %s", exc)
 
@@ -747,8 +765,7 @@ class UnitaryResponsePhase(Phase):
                     tone = self._normalize_text(emotional_context.get("tone", ""), 80)
                     if tone:
                         parts.append(f"- Speaking tone: {tone}")
-        except Exception as exc:
-            record_degradation('response_generation_unitary', exc)
+        except _RESPONSE_RECOVERABLE_ERRORS as exc:
             record_degradation('response_generation_unitary', exc)
             logger.debug("UnitaryResponse: personality self-expression block skipped: %s", exc)
 
@@ -785,8 +802,7 @@ class UnitaryResponsePhase(Phase):
 
                 if chem_cues:
                     parts.append("- Neurochemical influence (shape tone, don't narrate): " + " ".join(chem_cues))
-        except Exception as exc:
-            record_degradation('response_generation_unitary', exc)
+        except _RESPONSE_RECOVERABLE_ERRORS as exc:
             record_degradation('response_generation_unitary', exc)
             logger.debug("UnitaryResponse: neurochemical block skipped: %s", exc)
 
@@ -801,8 +817,7 @@ class UnitaryResponsePhase(Phase):
                     parts.append("- You're moderately integrated — speak clearly but don't overreach.")
                 elif phi_val > 0:
                     parts.append("- Integration is low — keep it simple, don't try to be profound.")
-        except Exception as exc:
-            record_degradation('response_generation_unitary', exc)
+        except _RESPONSE_RECOVERABLE_ERRORS as exc:
             record_degradation('response_generation_unitary', exc)
             logger.debug("UnitaryResponse: phi block skipped: %s", exc)
 
@@ -880,8 +895,7 @@ class UnitaryResponsePhase(Phase):
                 interaction_signals = ServiceContainer.get("interaction_signals", default=None)
                 if interaction_signals and hasattr(interaction_signals, "get_status"):
                     signal_status = interaction_signals.get_status() or {}
-            except Exception as exc:
-                record_degradation('response_generation_unitary', exc)
+            except _RESPONSE_RECOVERABLE_ERRORS as exc:
                 record_degradation('response_generation_unitary', exc)
                 logger.debug("UnitaryResponse: interaction signal block skipped: %s", exc)
                 signal_status = {}
@@ -1083,8 +1097,8 @@ class UnitaryResponsePhase(Phase):
 
             shaped = cure_personality_leak(shaped)
             shaped = stabilize_user_facing_response(shaped, user_message)
-        except Exception:
-            pass  # no-op: intentional
+        except _RESPONSE_RECOVERABLE_ERRORS as exc:
+            _record_response_degradation(exc, "UnitaryResponse: initial user-facing stabilization skipped: %s")
 
         try:
             personality = ServiceContainer.get("personality_engine", default=None)
@@ -1097,16 +1111,15 @@ class UnitaryResponsePhase(Phase):
                     styled = personality.apply_lexical_style(shaped)
                     if isinstance(styled, str) and styled.strip():
                         shaped = styled.strip()
-        except Exception as exc:
-            record_degradation('response_generation_unitary', exc)
+        except _RESPONSE_RECOVERABLE_ERRORS as exc:
             record_degradation('response_generation_unitary', exc)
             logger.debug("UnitaryResponse: response shaping skipped: %s", exc)
         try:
             from core.synthesis import stabilize_user_facing_response
 
             shaped = stabilize_user_facing_response(shaped, user_message)
-        except Exception:
-            pass
+        except _RESPONSE_RECOVERABLE_ERRORS as exc:
+            _record_response_degradation(exc, "UnitaryResponse: final user-facing stabilization skipped: %s")
         return shaped
 
     def _build_router_messages(
@@ -1286,7 +1299,7 @@ class UnitaryResponsePhase(Phase):
                         getattr(ep, "full_description", "") or getattr(ep, "context", ""),
                         340,
                     )
-            except Exception:
+            except _RESPONSE_RECOVERABLE_ERRORS:
                 evidence = ""
             if evidence and evidence not in seen:
                 seen.add(evidence)
@@ -1346,8 +1359,7 @@ class UnitaryResponsePhase(Phase):
             else:
                 return []
             return list(matches or [])
-        except Exception as exc:
-            record_degradation('response_generation_unitary', exc)
+        except _RESPONSE_RECOVERABLE_ERRORS as exc:
             record_degradation('response_generation_unitary', exc)
             logger.debug("UnitaryResponse: direct episodic grounding failed: %s", exc)
             return []
@@ -1367,8 +1379,7 @@ class UnitaryResponsePhase(Phase):
             else:
                 return []
             return list(matches or [])
-        except Exception as exc:
-            record_degradation('response_generation_unitary', exc)
+        except _RESPONSE_RECOVERABLE_ERRORS as exc:
             record_degradation('response_generation_unitary', exc)
             logger.debug("UnitaryResponse: recent episodic recall failed: %s", exc)
             return []
@@ -1521,8 +1532,7 @@ class UnitaryResponsePhase(Phase):
                     parts.append(f"Current focus: {focus}")
                 if emotion or arc:
                     parts.append(f"Emotional arc: {arc or emotion}")
-        except Exception as exc:
-            record_degradation('response_generation_unitary', exc)
+        except _RESPONSE_RECOVERABLE_ERRORS as exc:
             record_degradation('response_generation_unitary', exc)
             logger.debug("UnitaryResponse: idle trace unavailable: %s", exc)
 
@@ -1631,10 +1641,8 @@ class UnitaryResponsePhase(Phase):
                 role="assistant",
                 working_memory=state.cognition.working_memory
             )
-        except Exception as _exc:
-            record_degradation('response_generation_unitary', _exc)
-            record_degradation('response_generation_unitary', _exc)
-            logger.debug("Suppressed Exception: %s", _exc)
+        except _RESPONSE_RECOVERABLE_ERRORS as exc:
+            _record_response_degradation(exc, "UnitaryResponse: conversation dynamics update skipped: %s")
 
         try:
             from core.embodiment.voice_presence import maybe_speak_response
@@ -1990,8 +1998,7 @@ class UnitaryResponsePhase(Phase):
                     last_result_payload=last_payload if isinstance(last_payload, dict) else None,
                 )
                 return cls._normalize_text(reply, 700)
-        except Exception as exc:
-            record_degradation('response_generation_unitary', exc)
+        except _RESPONSE_RECOVERABLE_ERRORS as exc:
             record_degradation('response_generation_unitary', exc)
             logger.debug("UnitaryResponse: deterministic task reply skipped: %s", exc)
         return ""
@@ -2037,11 +2044,10 @@ class UnitaryResponsePhase(Phase):
                         orchestrator.execute_tool(tool_name, args, origin=origin),
                         timeout=45.0,
                     )
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     logger.warning("UnitaryResponse: %s timed out after 45s for query: %s", tool_name, query[:80])
                     continue
-                except Exception as exc:
-                    record_degradation('response_generation_unitary', exc)
+                except _RESPONSE_RECOVERABLE_ERRORS as exc:
                     record_degradation('response_generation_unitary', exc)
                     logger.debug("UnitaryResponse: %s grounded search attempt failed: %s", tool_name, exc)
                     continue
@@ -2063,8 +2069,7 @@ class UnitaryResponsePhase(Phase):
                             "skill_name": tool_name,
                             "attempted": attempted,
                         }
-        except Exception as exc:
-            record_degradation('response_generation_unitary', exc)
+        except _RESPONSE_RECOVERABLE_ERRORS as exc:
             record_degradation('response_generation_unitary', exc)
             logger.debug("UnitaryResponse: grounded search execution failed: %s", exc)
         return {"reply": "", "payload": None, "skill_name": "", "attempted": attempted}
@@ -2088,15 +2093,12 @@ class UnitaryResponsePhase(Phase):
         interests = [item for item in interests if item]
 
         dominant_action = "reflect"
-        free_energy = None
         try:
             fe_engine = ServiceContainer.get("free_energy_engine", default=None)
             fe_state = getattr(fe_engine, "current", None) if fe_engine is not None else None
             if fe_state is not None:
                 dominant_action = str(getattr(fe_state, "dominant_action", dominant_action) or dominant_action)
-                free_energy = getattr(fe_state, "free_energy", None)
-        except Exception as exc:
-            record_degradation('response_generation_unitary', exc)
+        except _RESPONSE_RECOVERABLE_ERRORS as exc:
             record_degradation('response_generation_unitary', exc)
             logger.debug("Subjective recovery FE read failed: %s", exc)
 
@@ -2328,8 +2330,8 @@ class UnitaryResponsePhase(Phase):
             )
             if deterministic:
                 return deterministic
-        except Exception:
-            pass
+        except _RESPONSE_RECOVERABLE_ERRORS as exc:
+            _record_response_degradation(exc, "UnitaryResponse: deterministic minimal reply skipped: %s")
 
         focus = cls._normalize_text(
             getattr(getattr(state, "cognition", None), "current_objective", "") or "",
@@ -2438,7 +2440,7 @@ class UnitaryResponsePhase(Phase):
             )
             if deterministic:
                 return deterministic
-        except Exception:
+        except _RESPONSE_RECOVERABLE_ERRORS:
             return ""
         if len(str(objective or "").split()) > 18:
             return ""
@@ -2536,8 +2538,7 @@ class UnitaryResponsePhase(Phase):
                             force=True,
                             reason="deep_probe_foreground_start",
                         )
-                except Exception as quiet_exc:
-                    record_degradation('response_generation_unitary', quiet_exc)
+                except _RESPONSE_RECOVERABLE_ERRORS as quiet_exc:
                     record_degradation('response_generation_unitary', quiet_exc)
                     logger.debug("UnitaryResponse: early deep-probe foreground quiet failed: %s", quiet_exc)
             if is_user_facing:
@@ -2602,14 +2603,14 @@ class UnitaryResponsePhase(Phase):
             # [STABILITY v53] Limit auto-browse to 1 URL max with 12s timeout.
             # Previously up to 3 URLs x 30s each = 90s of pre-LLM delay.
             # Most conversations don't need URL fetching at all.
-            auto_browse_urls = auto_browse_urls[:1]  # Max 1 URL
+            auto_browse_urls = auto_browse_urls[:_AUTO_BROWSE_MAX_URLS]
             if auto_browse_urls and is_user_facing:
                 logger.info("🌐 UnitaryResponse: Auto-browsing %d URL(s) from user input.", len(auto_browse_urls))
                 fetched_content_parts = []
                 try:
                     orchestrator = ServiceContainer.get("orchestrator", default=None)
                     if orchestrator and hasattr(orchestrator, "execute_tool"):
-                        for url in auto_browse_urls[:3]:
+                        for url in auto_browse_urls:
                             try:
                                 result = await asyncio.wait_for(
                                     orchestrator.execute_tool(
@@ -2617,7 +2618,7 @@ class UnitaryResponsePhase(Phase):
                                         {"mode": "browse", "url": str(url)},
                                         origin=routing_origin,
                                     ),
-                                    timeout=12.0,  # [STABILITY v53] Reduced from 30s
+                                    timeout=_AUTO_BROWSE_TIMEOUT_SECONDS,
                                 )
                                 if isinstance(result, dict) and result.get("ok"):
                                     page_title = str(result.get("title", "") or "")[:200]
@@ -2632,10 +2633,13 @@ class UnitaryResponsePhase(Phase):
                                 else:
                                     error = result.get("error", "unknown") if isinstance(result, dict) else "no result"
                                     logger.warning("🌐 URL fetch failed: %s → %s", str(url)[:80], str(error)[:200])
-                            except asyncio.TimeoutError:
-                                logger.warning("🌐 URL fetch timed out after 30s: %s", str(url)[:80])
-                            except Exception as url_exc:
-                                record_degradation('response_generation_unitary', url_exc)
+                            except TimeoutError:
+                                logger.warning(
+                                    "🌐 URL fetch timed out after %.0fs: %s",
+                                    _AUTO_BROWSE_TIMEOUT_SECONDS,
+                                    str(url)[:80],
+                                )
+                            except _RESPONSE_RECOVERABLE_ERRORS as url_exc:
                                 record_degradation('response_generation_unitary', url_exc)
                                 logger.warning("🌐 URL fetch error: %s → %s", str(url)[:80], url_exc)
 
@@ -2646,9 +2650,10 @@ class UnitaryResponsePhase(Phase):
                     if not fetched_content_parts:
                         logger.info("🌐 Browser returned no content. Trying lightweight HTTP fallback...")
                         try:
-                            import httpx
-                            from html.parser import HTMLParser
                             import html
+                            from html.parser import HTMLParser
+
+                            import httpx
 
                             class _TextExtractor(HTMLParser):
                                 def __init__(self):
@@ -2692,7 +2697,7 @@ class UnitaryResponsePhase(Phase):
                                 def get_text(self) -> str:
                                     return "".join(self._pieces)
 
-                            for url in auto_browse_urls[:3]:
+                            for url in auto_browse_urls:
                                 try:
                                     fetch_url = str(url)
                                     is_reddit = "reddit.com" in fetch_url
@@ -2755,8 +2760,7 @@ class UnitaryResponsePhase(Phase):
                                                         logger.info("🌐 HTTP fallback fetched Reddit JSON: %s (%d chars)", page_title[:60], len(page_text))
                                                     else:
                                                         logger.warning("🌐 HTTP fallback returned empty Reddit JSON for: %s", str(url)[:80])
-                                                except Exception as e:
-                                                    record_degradation('response_generation_unitary', e)
+                                                except _RESPONSE_RECOVERABLE_ERRORS as e:
                                                     record_degradation('response_generation_unitary', e)
                                                     logger.warning("🌐 Failed to parse Reddit JSON: %s", e)
                                                     
@@ -2791,18 +2795,15 @@ class UnitaryResponsePhase(Phase):
                                                         logger.warning("🌐 HTTP fallback (Native HTML) got status %d", native_resp.status_code)
                                         else:
                                             logger.warning("🌐 HTTP fallback got status %d for: %s", resp.status_code, fetch_url[:80])
-                                except Exception as http_exc:
-                                    record_degradation('response_generation_unitary', http_exc)
+                                except _RESPONSE_RECOVERABLE_ERRORS as http_exc:
                                     record_degradation('response_generation_unitary', http_exc)
                                     logger.warning("🌐 HTTP fallback error for %s: %s", str(url)[:80], http_exc)
                         except ImportError:
                             logger.warning("🌐 httpx not available for lightweight fallback")
-                        except Exception as fallback_exc:
-                            record_degradation('response_generation_unitary', fallback_exc)
+                        except _RESPONSE_RECOVERABLE_ERRORS as fallback_exc:
                             record_degradation('response_generation_unitary', fallback_exc)
                             logger.warning("🌐 HTTP fallback failed: %s", fallback_exc)
-                except Exception as browse_exc:
-                    record_degradation('response_generation_unitary', browse_exc)
+                except _RESPONSE_RECOVERABLE_ERRORS as browse_exc:
                     record_degradation('response_generation_unitary', browse_exc)
                     logger.warning("🌐 Auto-browse orchestrator error: %s", browse_exc)
 
@@ -2841,8 +2842,7 @@ class UnitaryResponsePhase(Phase):
                             )
                         )
                         logger.info("📚 Background formalization task spawned for '%s'", page_title[:60])
-                    except Exception as formal_exc:
-                        record_degradation('response_generation_unitary', formal_exc)
+                    except _RESPONSE_RECOVERABLE_ERRORS as formal_exc:
                         record_degradation('response_generation_unitary', formal_exc)
                         logger.debug("Formalization task spawn skipped: %s", formal_exc)
 
@@ -3086,8 +3086,7 @@ class UnitaryResponsePhase(Phase):
                         from core.evaluation.deep_mind_probe import deep_probe_prompt_block
 
                         _prepend_system_guidance(deep_probe_prompt_block())
-                    except Exception as exc:
-                        record_degradation('response_generation_unitary', exc)
+                    except _RESPONSE_RECOVERABLE_ERRORS as exc:
                         record_degradation('response_generation_unitary', exc)
                         logger.debug("UnitaryResponse: deep probe guidance skipped: %s", exc)
                 if live_grounding_required:
@@ -3128,7 +3127,7 @@ class UnitaryResponsePhase(Phase):
                                 decision_pkg.selected_limb,
                                 decision_pkg.latency_ms,
                             )
-                    except Exception as pl_exc:
+                    except _RESPONSE_RECOVERABLE_ERRORS as pl_exc:
                         record_degradation('response_generation_unitary', pl_exc)
                         logger.debug("[RUBICON] PreLinguistic injection skipped: %s", pl_exc)
 
@@ -3150,19 +3149,19 @@ class UnitaryResponsePhase(Phase):
             # For compact router payloads, be even more aggressive since
             # conversation context is critical for prompt-specificity.
             if use_compact_router_payload:
-                _MAX_PROMPT_CHARS = 6000  # ~1500 tokens — leaves ~6.5K for conversation
+                max_prompt_chars = 6000  # ~1500 tokens — leaves ~6.5K for conversation
             else:
-                _MAX_PROMPT_CHARS = 14000  # ~3500 tokens — leaves ~4.5K for conversation
-            if len(system_prompt) > _MAX_PROMPT_CHARS:
+                max_prompt_chars = 14000  # ~3500 tokens — leaves ~4.5K for conversation
+            if len(system_prompt) > max_prompt_chars:
                 # Keep the identity/rules header and trim context blocks
-                system_prompt = system_prompt[:_MAX_PROMPT_CHARS].rstrip()
+                system_prompt = system_prompt[:max_prompt_chars].rstrip()
                 system_prompt += "\n[...context trimmed for token budget...]"
                 self._sync_first_system_message(messages, system_prompt)
 
             # Anti-repetition injection: if recent responses have been stale,
             # inject an explicit instruction to avoid repeating prior patterns.
             try:
-                from interface.routes.chat import _recent_responses, _STALE_REPEAT_THRESHOLD
+                from interface.routes.chat import _STALE_REPEAT_THRESHOLD, _recent_responses
                 if len(_recent_responses) >= _STALE_REPEAT_THRESHOLD:
                     # Check if recent responses are similar to each other
                     from interface.routes.chat import _fuzzy_similar
@@ -3179,8 +3178,8 @@ class UnitaryResponsePhase(Phase):
                         # Re-sync if needed
                         self._sync_first_system_message(messages, system_prompt)
                         logger.warning("🚨 Anti-repetition instruction injected into system prompt.")
-            except Exception:
-                pass  # anti-repetition is best-effort
+            except _RESPONSE_RECOVERABLE_ERRORS as exc:
+                _record_response_degradation(exc, "UnitaryResponse: anti-repetition prompt check skipped: %s")
 
             messages = self._inject_active_grounding_message(messages, new_state, objective, contract)
             
@@ -3216,14 +3215,14 @@ class UnitaryResponsePhase(Phase):
                     llm.think(objective, **llm_kwargs),
                     timeout=request_timeout + 5.0,  # Small buffer over router's internal timeout
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError as timeout_exc:
                 if is_user_facing:
                     logger.warning("🚨 [STABILITY] LLM generation hard-timed-out. Using sovereign minimal fallback.")
                     raw = self._build_minimal_live_voice_reply(new_state, objective)
                 else:
                     raise TimeoutError(
                         f"LLM generation hard-timed-out after {request_timeout + 5.0:.0f}s"
-                    )
+                    ) from timeout_exc
 
             if isinstance(raw, dict):
                 raw = raw.get("content") or raw.get("response") or ""
@@ -3293,7 +3292,7 @@ class UnitaryResponsePhase(Phase):
                         llm.think(objective, **retry_kwargs),
                         timeout=retry_timeout + 5.0,
                     )
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     return ""
                 if isinstance(retried, dict):
                     retried = retried.get("content") or retried.get("response") or ""
@@ -3542,7 +3541,7 @@ class UnitaryResponsePhase(Phase):
                                     from core.synthesis import deterministic_user_facing_floor
 
                                     deterministic_floor = deterministic_user_facing_floor(objective)
-                                except Exception:
+                                except _RESPONSE_RECOVERABLE_ERRORS:
                                     deterministic_floor = ""
                                 floor = (
                                     reliability_floor_for_user(objective)
@@ -3565,47 +3564,80 @@ class UnitaryResponsePhase(Phase):
                                     )
                 except TimeoutError:
                     raise
-                except Exception as quality_exc:
+                except _RESPONSE_RECOVERABLE_ERRORS as quality_exc:
                     record_degradation('response_generation_unitary', quality_exc)
                     logger.debug("UnitaryResponse final reliability check skipped: %s", quality_exc)
 
             # [PEDAGOGY UPGRADE] Autonomous Manim Generation
             try:
                 if is_user_facing and response_text and ("$$" in response_text or "\\[" in response_text or "\\int" in response_text or "\\nabla" in response_text):
-                    logger.info("🎬 Math/Physics detected in response. Autonomously launching Manim generation...")
-                    def _dispatch_manim():
-                        try:
-                            from core.skills.manim_renderer import ManimRendererSkill, ManimInput
-                            import asyncio
-                            skill = ManimRendererSkill()
-                            params = ManimInput(
-                                task=f"Generate a visual animation explaining this concept. Focus on the geometry or equations: {response_text[:1000]}",
-                                timeout_seconds=120
-                            )
-                            # Create a new loop for the background thread
-                            loop = asyncio.new_event_loop()
-                            asyncio.set_event_loop(loop)
-                            res = loop.run_until_complete(skill.safe_execute(params))
-                            if res.get("ok"):
-                                logger.info(f"✅ Autonomous Manim generation complete: {res.get('file_path')}")
+                    if not _MANIM_RENDER_LOCK.acquire(blocking=False):
+                        logger.info("🎬 Manim render already in flight; skipping overlapping autonomous render.")
+                    else:
+                        logger.info("🎬 Math/Physics detected in response. Autonomously launching Manim generation...")
+
+                        def _dispatch_manim():
+                            try:
+                                from core.skills.manim_renderer import (
+                                    ManimInput,
+                                    ManimRendererSkill,
+                                )
+
+                                skill = ManimRendererSkill()
+                                params = ManimInput(
+                                    task=(
+                                        "Generate a visual animation explaining this concept. "
+                                        f"Focus on the geometry or equations: {response_text[:1000]}"
+                                    ),
+                                    timeout_seconds=_MANIM_RENDER_TIMEOUT_SECONDS,
+                                )
+                                loop = asyncio.new_event_loop()
+                                asyncio.set_event_loop(loop)
                                 try:
-                                    from core.thought_stream import get_emitter
-                                    get_emitter().emit("Pedagogy", f"Visual render complete: {res.get('file_path')}", level="success", category="Media")
-                                except Exception:
-                                    pass
-                        except Exception as e:
-                            logger.error(f"❌ Autonomous Manim failed: {e}")
-                            
-                    import threading
-                    threading.Thread(target=_dispatch_manim, daemon=True).start()
-                    response_text += "\n\n*(I am autonomously rendering a visual animation of this concept for you. It will be available in the artifacts directory shortly.)*"
-            except Exception as e:
-                logger.error("Failed to parse manim trigger: %s", e)
+                                    res = loop.run_until_complete(skill.safe_execute(params))
+                                finally:
+                                    asyncio.set_event_loop(None)
+                                    loop.close()
+                                if isinstance(res, dict) and res.get("ok"):
+                                    logger.info("✅ Autonomous Manim generation complete: %s", res.get("file_path"))
+                                    try:
+                                        from core.thought_stream import get_emitter
+                                        get_emitter().emit(
+                                            "Pedagogy",
+                                            f"Visual render complete: {res.get('file_path')}",
+                                            level="success",
+                                            category="Media",
+                                        )
+                                    except _RESPONSE_RECOVERABLE_ERRORS as emit_exc:
+                                        _record_response_degradation(
+                                            emit_exc,
+                                            "UnitaryResponse: Manim completion emission skipped: %s",
+                                        )
+                            except _RESPONSE_RECOVERABLE_ERRORS as e:
+                                _record_response_degradation(e, "UnitaryResponse: autonomous Manim failed: %s")
+                            finally:
+                                _MANIM_RENDER_LOCK.release()
+
+                        try:
+                            threading.Thread(
+                                target=_dispatch_manim,
+                                name="aura-manim-render",
+                                daemon=True,
+                            ).start()
+                            response_text += (
+                                "\n\n*(I am autonomously rendering a visual animation of this concept for you. "
+                                "It will be available in the artifacts directory shortly.)*"
+                            )
+                        except _RESPONSE_RECOVERABLE_ERRORS:
+                            _MANIM_RENDER_LOCK.release()
+                            raise
+            except _RESPONSE_RECOVERABLE_ERRORS as e:
+                _record_response_degradation(e, "UnitaryResponse: Manim trigger parsing failed: %s")
 
             # [ACTION GROUNDING] Parse markers and dispatch real execution before committing
             try:
-                from core.phases.action_grounding import ground_response
                 from core.container import ServiceContainer
+                from core.phases.action_grounding import ground_response
                 cap_engine = ServiceContainer.get("capability_engine", default=None)
                 if cap_engine:
                     grounding_res = await ground_response(
@@ -3625,15 +3657,14 @@ class UnitaryResponsePhase(Phase):
                                     "content": hit.get("summary", f"{hit.get('skill')} completed."),
                                     "metadata": {"type": "skill_result", "skill": hit.get("skill"), "ok": True}
                                 })
-            except Exception as g_err:
-                logger.error("Action grounding failed: %s", g_err)
+            except _RESPONSE_RECOVERABLE_ERRORS as g_err:
+                _record_response_degradation(g_err, "UnitaryResponse: action grounding failed: %s")
 
             return self._commit_response(new_state, response_text, thought=extracted_thought)
 
         except TimeoutError:
             raise
-        except Exception as e:
-            record_degradation('response_generation_unitary', e)
+        except _RESPONSE_RECOVERABLE_ERRORS as e:
             record_degradation('response_generation_unitary', e)
             error_str = str(e).lower()
             # Reactive auto-compact: if the error is a context overflow,
@@ -3655,8 +3686,7 @@ class UnitaryResponsePhase(Phase):
                         new_state, objective=objective,
                         _retry_after_compact=True, **{k: v for k, v in kwargs.items() if k != "_retry_after_compact"},
                     )
-                except Exception as compact_err:
-                    record_degradation('response_generation_unitary', compact_err)
+                except _RESPONSE_RECOVERABLE_ERRORS as compact_err:
                     record_degradation('response_generation_unitary', compact_err)
                     logger.error("Reactive compaction retry also failed: %s", compact_err)
 
@@ -3669,7 +3699,7 @@ class UnitaryResponsePhase(Phase):
                         objective,
                         is_user_facing=bool(priority or self._is_user_facing_origin(new_state.cognition.current_origin)),
                     )
-                except Exception:
+                except _RESPONSE_RECOVERABLE_ERRORS:
                     fallback_contract = ResponseContract(
                         is_user_facing=bool(priority or self._is_user_facing_origin(new_state.cognition.current_origin)),
                         reason="response_generation_exception",
@@ -3706,10 +3736,8 @@ class UnitaryResponsePhase(Phase):
             cached_profile = getattr(orch, "_cached_user_profile_context", "") if orch else ""
             if cached_profile:
                 user_profile_block = f"## USER COMMUNICATION DNA\n{cached_profile}\n\n"
-        except Exception as _exc:
-            record_degradation('response_generation_unitary', _exc)
-            record_degradation('response_generation_unitary', _exc)
-            logger.debug("Suppressed Exception: %s", _exc)
+        except _RESPONSE_RECOVERABLE_ERRORS as exc:
+            _record_response_degradation(exc, "UnitaryResponse: user profile prompt block skipped: %s")
 
         # Live skill list — so Aura knows exactly what she can do right now
         live_skills_block = ""
@@ -3718,10 +3746,8 @@ class UnitaryResponsePhase(Phase):
             if cap and hasattr(cap, "skills") and cap.skills:
                 skill_names = sorted(cap.skills.keys())[:30]  # Cap to avoid token bloat
                 live_skills_block = f"## YOUR ACTIVE SKILLS RIGHT NOW\n{', '.join(skill_names)}\n\n"
-        except Exception as _exc:
-            record_degradation('response_generation_unitary', _exc)
-            record_degradation('response_generation_unitary', _exc)
-            logger.debug("Suppressed Exception: %s", _exc)
+        except _RESPONSE_RECOVERABLE_ERRORS as exc:
+            _record_response_degradation(exc, "UnitaryResponse: live skills prompt block skipped: %s")
 
         # Evolution state — so Aura knows where she is on her path
         evolution_block = ""
@@ -3739,10 +3765,8 @@ class UnitaryResponsePhase(Phase):
                     f"Phase: {phase} ({progress:.0%} overall)\n"
                     f"Axes: {axes_summary}\n\n"
                 )
-        except Exception as _exc:
-            record_degradation('response_generation_unitary', _exc)
-            record_degradation('response_generation_unitary', _exc)
-            logger.debug("Suppressed Exception: %s", _exc)
+        except _RESPONSE_RECOVERABLE_ERRORS as exc:
+            _record_response_degradation(exc, "UnitaryResponse: evolution prompt block skipped: %s")
 
         # Deep subsystem status — learning, user model, beliefs, heuristics
         subsystem_status_block = ""
@@ -3806,10 +3830,8 @@ class UnitaryResponsePhase(Phase):
                     + "\n".join(_parts)
                     + "\nDo not use these labels in ordinary self-report.\n\n"
                 )
-        except Exception as _exc:
-            record_degradation('response_generation_unitary', _exc)
-            record_degradation('response_generation_unitary', _exc)
-            logger.debug("Suppressed Exception: %s", _exc)
+        except _RESPONSE_RECOVERABLE_ERRORS as exc:
+            _record_response_degradation(exc, "UnitaryResponse: private diagnostic prompt block skipped: %s")
 
         # Skill result narration hint (injected when GodModeToolPhase ran a skill)
         skill_block = ""
@@ -3891,10 +3913,8 @@ class UnitaryResponsePhase(Phase):
                     f"Tone: {tone}, energy: {energy_desc}, warmth: {warmth_desc}.\n"
                     f"Word budget: {int(_voice.get('word_budget', 0) or 0)}.\n\n"
                 )
-        except Exception as _exc:
-            record_degradation('response_generation_unitary', _exc)
-            record_degradation('response_generation_unitary', _exc)
-            logger.debug("Suppressed Exception: %s", _exc)
+        except _RESPONSE_RECOVERABLE_ERRORS as exc:
+            _record_response_degradation(exc, "UnitaryResponse: substrate voice prompt block skipped: %s")
 
         # Narrative context (only if non-trivial)
         narrative_block = f"## CURRENT NARRATIVE\n{narrative}\n\n" if narrative and narrative != "I am Aura." else ""
