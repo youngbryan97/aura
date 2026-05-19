@@ -1,6 +1,5 @@
 from pathlib import Path
 
-
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -128,6 +127,20 @@ def test_aura_main_routes_bootstrap_background_tasks_through_task_tracker():
     assert 'tracker.create_task(orchestrator.run(), name="OrchestratorMainLoop")' in main_py
     assert 'tracker.create_task(_gui_reaper_loop(), name="gui_reaper")' in main_py
     assert 'get_task_tracker().create_task(orchestrator.run(), name="OrchestratorMainLoop")' in main_py
+
+
+def test_aura_main_long_running_streams_are_shutdown_bounded():
+    main_py = (PROJECT_ROOT / "aura_main.py").read_text(encoding="utf-8")
+    philosophy_slice = main_py.split("async def run_philosophy_stream", 1)[1].split("async def run_server_async", 1)[0]
+    desktop_slice = main_py.split("async def run_desktop", 1)[1].split("def _watchdog_child_args", 1)[0]
+
+    assert "while not is_shutdown_requested():" in philosophy_slice
+    assert '_env_float("AURA_PHILOSOPHY_STREAM_INTERVAL"' in philosophy_slice
+    assert "while True" not in philosophy_slice
+    assert "while line := await stream.readline():" in desktop_slice
+    assert 'logger.error("[GUI] %s", decoded)' in desktop_slice
+    assert 'logger.debug("[GUI] %s", decoded)' in desktop_slice
+    assert "while True" not in desktop_slice
 
 
 def test_aura_main_uses_shared_runtime_boot_helper_across_cli_server_and_desktop():
