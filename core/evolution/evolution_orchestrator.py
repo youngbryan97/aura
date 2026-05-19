@@ -24,6 +24,17 @@ from core.runtime.errors import record_degradation
 from core.utils.task_tracker import get_task_tracker
 from core.runtime.atomic_writer import atomic_write_text
 
+
+def _record_evolution_degradation(
+    exc: BaseException,
+    *,
+    action: str,
+    severity: str = "warning",
+) -> None:
+    """Record degradation inside evolution orchestration."""
+    record_degradation("evolution_orchestrator", exc, severity=severity, action=action)
+
+
 import asyncio
 import json
 import logging
@@ -162,8 +173,11 @@ class EvolutionOrchestrator:
                         ax.milestones.append(m)
                         logger.info("🏆 [EVOLUTION] %s milestone: %s", axis.value, m)
                 ax.blockers = blockers
-            except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
-                record_degradation('evolution_orchestrator', exc)
+            except Exception as exc:
+                _record_evolution_degradation(
+                    exc,
+                    action=f"skipped evolution evaluation for axis {axis.value}",
+                )
                 logger.debug("Evolution eval %s failed: %s", axis.value, exc)
 
         # Recompute overall progress
@@ -181,8 +195,8 @@ class EvolutionOrchestrator:
             ladder = ServiceContainer.get("growth_ladder", default=None)
             if ladder:
                 await ladder.evaluate_advancement()
-        except (ImportError, AttributeError, RuntimeError) as exc:
-            record_degradation('evolution_orchestrator', exc)
+        except Exception as exc:
+            _record_evolution_degradation(exc, action="skipped growth ladder advancement evaluation")
             logger.debug("Growth ladder eval skipped: %s", exc)
 
         self._save()
@@ -343,8 +357,8 @@ class EvolutionOrchestrator:
             if voice:
                 level += 0.15
                 milestones.append("voice_communication_active")
-        except (ImportError, AttributeError, RuntimeError) as _exc:
-            record_degradation('evolution_orchestrator', _exc)
+        except Exception as _exc:
+            _record_evolution_degradation(_exc, action="continued collaboration evaluation after voice engine check failed")
             logger.debug("Suppressed Exception: %s", _exc)
 
         return min(level, 1.0), milestones, blockers
@@ -382,8 +396,8 @@ class EvolutionOrchestrator:
                 if "sovereign_browser" in cap.skills:
                     level += 0.1
                     milestones.append("web_access_active")
-        except (ImportError, AttributeError, RuntimeError) as _exc:
-            record_degradation('evolution_orchestrator', _exc)
+        except Exception as _exc:
+            _record_evolution_degradation(_exc, action="continued embodiment evaluation after capability engine skill check failed")
             logger.debug("Suppressed Exception: %s", _exc)
 
         # Metal scheduler (hardware resource management)
@@ -532,8 +546,8 @@ class EvolutionOrchestrator:
                         milestones=ax_data.get("milestones", []),
                         blockers=ax_data.get("blockers", []),
                     )
-        except (OSError, ConnectionError, TimeoutError) as exc:
-            record_degradation('evolution_orchestrator', exc)
+        except Exception as exc:
+            _record_evolution_degradation(exc, action="continued with fresh evolution snapshot after state file load failed")
             logger.debug("Evolution state load failed: %s", exc)
 
     def _save(self) -> None:
@@ -555,8 +569,8 @@ class EvolutionOrchestrator:
                 },
             }
             atomic_write_text(self._STATE_FILE, json.dumps(data, indent=2))
-        except (json.JSONDecodeError, TypeError, ValueError) as exc:
-            record_degradation('evolution_orchestrator', exc)
+        except Exception as exc:
+            _record_evolution_degradation(exc, action="continued execution without saving evolution snapshot", severity="error")
             logger.debug("Evolution state save failed: %s", exc)
 
     # ── Background Loop ─────────────────────────────────────────────────
@@ -571,8 +585,8 @@ class EvolutionOrchestrator:
                     self._snapshot.phase_label,
                     self._snapshot.overall_progress * 100,
                 )
-            except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
-                record_degradation('evolution_orchestrator', exc)
+            except Exception as exc:
+                _record_evolution_degradation(exc, action="skipped current evolution loop tick", severity="error")
                 logger.error("Evolution tick failed: %s", exc)
             try:
                 await asyncio.wait_for(self._stop.wait(), timeout=self._TICK_INTERVAL)
@@ -594,7 +608,7 @@ def get_evolution_orchestrator() -> EvolutionOrchestrator:
             ServiceContainer.register_instance(
                 "evolution_orchestrator", _instance, required=False
             )
-        except (RuntimeError, AttributeError, TypeError, ValueError) as _exc:
-            record_degradation('evolution_orchestrator', _exc)
+        except Exception as _exc:
+            _record_evolution_degradation(_exc, action="continued evolution without registering orchestrator instance in container", severity="error")
             logger.debug("Suppressed Exception: %s", _exc)
     return _instance
