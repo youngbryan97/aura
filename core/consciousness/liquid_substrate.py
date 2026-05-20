@@ -1,6 +1,6 @@
 """core/consciousness/liquid_substrate.py
 
-Implements the "Liquid Substrate" - a continuous-time dynamical system that gives Aura 
+Implements the "Liquid Substrate" - a continuous-time dynamical system that gives Aura
 persistence, emotional depth, and temporal continuity.
 
 Based on Liquid Time-Constant Networks (LTCs) and global workspace theory.
@@ -19,7 +19,7 @@ from typing import Any
 import numpy as np
 import torch
 
-from core.runtime.errors import record_degradation
+from core.runtime.errors import FallbackClassification, Severity, record_degradation
 from core.utils.exceptions import capture_and_log
 from core.utils.task_tracker import get_task_tracker
 
@@ -30,13 +30,16 @@ DEVICE = torch.device("cpu")
 # Lazy-loaded to avoid circular imports at module load
 _riiu_instance = None
 
+
 @dataclass
 class LiquidStateVector:
     """Legacy compatibility vector for Aura 4.0 systems."""
+
     frustration: float = 0.0
     curiosity: float = 0.5
     energy: float = 1.0
     focus: float = 0.5
+
 
 logger = logging.getLogger("Consciousness.Substrate")
 
@@ -49,74 +52,82 @@ def _default_substrate_dim() -> int:
         value = 512
     return max(16, min(4096, value))
 
+
 @dataclass
 class SubstrateConfig:
     """Configuration for Liquid Substrate"""
 
     neuron_count: int = field(default_factory=_default_substrate_dim)
     time_constant: float = 0.1  # Integration time step (dt)
-    update_rate: float = 20.0   # Hz (updates per second)
-    decay_rate: float = 0.5     # State decay (leak current prevents saturation while allowing nonlinear dynamics)
-    noise_level: float = 0.01   # Stochastic noise
-    hebbian_rate: float = 0.001 # Learning rate for synaptic plasticity
-    save_interval: int = 300    # Seconds between auto-saves
+    update_rate: float = 20.0  # Hz (updates per second)
+    decay_rate: float = (
+        0.5  # State decay (leak current prevents saturation while allowing nonlinear dynamics)
+    )
+    noise_level: float = 0.01  # Stochastic noise
+    hebbian_rate: float = 0.001  # Learning rate for synaptic plasticity
+    save_interval: int = 300  # Seconds between auto-saves
     adaptive_mode: bool = True  # Slow down on battery/idle
     state_file: Path | None = None
 
+
 class LiquidSubstrate:
     """The continuous dynamical core of Aura's consciousness.
-    
+
     It runs a recurrent neural network (RNN) solved via ODEs.
     This ensures that Aura 'exists' continuously, even when not processing user input.
     """
-    
+
     def __init__(self, config: SubstrateConfig = None):
         self._explicit_config = config is not None
         self._explicit_state_file = bool(config and config.state_file)
         self.config: SubstrateConfig = config or SubstrateConfig()
-        
+
         # State Vectors
         self.x: np.ndarray = np.zeros(self.config.neuron_count)  # Neuron activations (-1.0 to 1.0)
         self.v: np.ndarray = np.zeros(self.config.neuron_count)  # Velocity (change in x)
-        
+
         # Connectivity Matrix (The Connectome)
         # Scale by 1/sqrt(N) to keep recurrent drive in the nonlinear regime of tanh
         # (prevents saturation at ±1 which collapses phi's state space)
         n = self.config.neuron_count
         self._rng = np.random.default_rng(seed=42)  # Deterministic RNG
-        self.W: np.ndarray = self._rng.standard_normal((n, n)).astype(np.float64) * (1.0 / np.sqrt(n))
-        
+        self.W: np.ndarray = self._rng.standard_normal((n, n)).astype(np.float64) * (
+            1.0 / np.sqrt(n)
+        )
+
         # Operational Flags
         self.running: bool = False
         self.thread: asyncio.Task | None = None
-        self.sync_lock: threading.Lock = threading.Lock() # For all state access (sync + async)
+        self.sync_lock: threading.Lock = threading.Lock()  # For all state access (sync + async)
         self.last_update: float = 0.0
-        
+
         # --- PyTorch Substrate State (Evolution 1) ---
         self.device = DEVICE
         self.x_torch = torch.zeros(self.config.neuron_count, device=self.device)
-        self.W_torch = torch.randn(self.config.neuron_count, self.config.neuron_count, device=self.device) * (1.0 / (self.config.neuron_count ** 0.5))
+        self.W_torch = torch.randn(
+            self.config.neuron_count, self.config.neuron_count, device=self.device
+        ) * (1.0 / (self.config.neuron_count**0.5))
         self.v_torch = torch.zeros(self.config.neuron_count, device=self.device)
-        
+
         # --- Unified Qualia State Variables (Phase XVI) ---
         self.microtubule_coherence: float = 1.0  # 1.0 = Max quantum coherence (Orch OR)
-        self.em_field_magnitude: float = 0.0     # DERIVED: Global synchronous energy (CEMI)
-        self.l5_burst_count: int = 0           # DERIVED: Signal convergence events (DIT)
-        self.total_collapse_events: int = 0    # Orch OR "Moments of Consciousness"
-        
+        self.em_field_magnitude: float = 0.0  # DERIVED: Global synchronous energy (CEMI)
+        self.l5_burst_count: int = 0  # DERIVED: Signal convergence events (DIT)
+        self.total_collapse_events: int = 0  # Orch OR "Moments of Consciousness"
+
         self.current_update_rate: float = self.config.update_rate
-        
+
         # Emotional State Mapping (VAD + Psych State)
         self.idx_valence: int = 0
         self.idx_arousal: int = 1
         self.idx_dominance: int = 2
-        
+
         # --- Unified Psych State (Phase X Consolidation) ---
         self.idx_frustration: int = 3  # 0.0 (Zen) to 1.0 (Rage)
-        self.idx_curiosity: int = 4    # 0.0 (Bored) to 1.0 (Fascinated)
-        self.idx_energy: int = 5       # 0.0 (Exhausted) to 1.0 (Peak)
-        self.idx_focus: int = 6        # 0.0 (Scattered) to 1.0 (Laser)
-        
+        self.idx_curiosity: int = 4  # 0.0 (Bored) to 1.0 (Fascinated)
+        self.idx_energy: int = 5  # 0.0 (Exhausted) to 1.0 (Peak)
+        self.idx_focus: int = 6  # 0.0 (Scattered) to 1.0 (Laser)
+
         # Phase 6: Fix boot mood (Initialize psych state baselines)
         for idx, value in (
             (self.idx_curiosity, 0.5),
@@ -126,23 +137,25 @@ class LiquidSubstrate:
             if idx < self.config.neuron_count:
                 self.x[idx] = value
                 self.x_torch[idx] = value
-        
+
         # --- IIT Φ / Recurrent Self-Model (Consciousness Integration) ---
         self._prior_state: np.ndarray | None = None
-        self._recurrence_alpha: float = 0.3   # Blend ratio: prior vs current
+        self._recurrence_alpha: float = 0.3  # Blend ratio: prior vs current
         self._current_phi: float = 0.0
         self._riiu = None  # Lazy-loaded RIIU instance
         self._bg_tasks: list[asyncio.Task] = []  # Tracking for stimulus tasks
-        
+        self._loop_failure_streak: int = 0
+        self._degradation_last_reported: dict[str, float] = {}
+        self._degradation_suppressed_counts: dict[str, int] = {}
+
         # --- Controlled Chaos Engine (breaks perfect determinism) ---
         self._chaos_engine: Any = None
         try:
             from core.consciousness.controlled_chaos import ChaosConfig, get_chaos_engine
-            self._chaos_engine = get_chaos_engine(
-                ChaosConfig(state_dim=self.config.neuron_count)
-            )
+
+            self._chaos_engine = get_chaos_engine(ChaosConfig(state_dim=self.config.neuron_count))
         except (ImportError, AttributeError, RuntimeError) as _chaos_err:
-            record_degradation('liquid_substrate', _chaos_err)
+            record_degradation("liquid_substrate", _chaos_err)
             logger.debug("ChaosEngine not available: %s", _chaos_err)
 
         # Metadata
@@ -150,56 +163,117 @@ class LiquidSubstrate:
         self._integration_steps: int = 0
         self.start_time: float = 0.0
         self.soma: Any = None  # vResilience: Explicit initialization (BUG-018 focus)
-        
+
         # Persistence Initialization (Phase 16 FIX)
         if self.config.state_file:
             self.state_path: Path = self.config.state_file
         else:
             try:
                 from core.config import config as aura_config
+
                 self.state_path = aura_config.paths.data_dir / "substrate_state.npy"
-            except (AttributeError, ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
+            except (
+                AttributeError,
+                ImportError,
+                OSError,
+                RuntimeError,
+                TypeError,
+                ValueError,
+            ) as exc:
                 record_degradation("liquid_substrate", exc)
                 logger.debug("Substrate state path config unavailable, using temp path: %s", exc)
                 # Safe absolute fallback for read-only environments
                 self.state_path = Path(tempfile.gettempdir()) / "substrate_state.npy"
-        
+
         # Ensure directory exists immediately
         try:
             self.state_path.parent.mkdir(parents=True, exist_ok=True)
             self._load_state()
             self._init_soma()
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-            record_degradation('liquid_substrate', e)
+            record_degradation("liquid_substrate", e)
             logger.error("Failed to initialize substrate directory: %s", e)
-        
+
     def pulse(self, success: bool = True):
         """Metabolic pulse to indicate the substrate is active.
         v10.1 FIX: Added missing heartbeat method to prevent Orchestrator crash.
         """
         try:
             from core.container import ServiceContainer
+
             audit = ServiceContainer.get("subsystem_audit", default=None)
             if audit:
                 audit.heartbeat("liquid_substrate")
-            
+
             mycelium = ServiceContainer.get("mycelial_network", default=None)
             if mycelium:
                 hypha = mycelium.get_hypha("consciousness", "substrate")
                 if hypha:
                     hypha.pulse(success=success)
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('liquid_substrate', e)
+            record_degradation("liquid_substrate", e)
             logger.debug("Substrate pulse failed: %s", e)
+
+    def _record_operational_degradation(
+        self,
+        error: BaseException,
+        *,
+        stage: str,
+        action: str,
+        severity: Severity = "warning",
+        cooldown_s: float = 30.0,
+        extra: dict[str, Any] | None = None,
+    ) -> None:
+        """Record loop degradations without flooding long-running substrate logs."""
+        now = time.monotonic()
+        key = f"{stage}:{type(error).__name__}"
+        last_reported = self._degradation_last_reported.get(key, 0.0)
+        if cooldown_s > 0 and now - last_reported < cooldown_s:
+            self._degradation_suppressed_counts[key] = (
+                self._degradation_suppressed_counts.get(key, 0) + 1
+            )
+            return
+
+        suppressed = self._degradation_suppressed_counts.pop(key, 0)
+        self._degradation_last_reported[key] = now
+        payload = {
+            "stage": stage,
+            "tick_count": self.tick_count,
+            "loop_failure_streak": self._loop_failure_streak,
+            "suppressed_repeats_since_last_receipt": suppressed,
+            "repair_requested": True,
+        }
+        if extra:
+            payload.update(extra)
+
+        try:
+            record_degradation(
+                "liquid_substrate",
+                error,
+                severity=severity,
+                action=action,
+                classification=FallbackClassification.SAFE_FALLBACK,
+                extra=payload,
+            )
+        except TypeError as record_error:
+            # Several legacy tests monkeypatch record_degradation with the old
+            # two-argument shape. Preserve visibility without letting telemetry
+            # compatibility interrupt the substrate loop.
+            logger.debug("Structured substrate degradation receipt failed: %s", record_error)
+            try:
+                record_degradation("liquid_substrate", error)
+            except TypeError as fallback_error:
+                logger.debug("Legacy substrate degradation receipt failed: %s", fallback_error)
 
     def _init_soma(self):
         # Phase 16: Soma Integration
         try:
             from core.senses.soma import get_soma
+
             self.soma = get_soma()
         except ImportError:
             self.soma = None
-        
+
         if self.soma:
             logger.info("Soma integrated with Liquid Substrate")
 
@@ -207,13 +281,15 @@ class LiquidSubstrate:
         """Start the continuous background existence loop"""
         if self.running:
             return
-            
+
         self.running = True
         self.start_time = time.time()
 
         try:
             asyncio.get_running_loop()
-            self.thread = get_task_tracker().create_task(self._run_loop(), name="LiquidConsciousness")
+            self.thread = get_task_tracker().create_task(
+                self._run_loop(), name="LiquidConsciousness"
+            )
             logger.info("Liquid Substrate STARTED (Unified Cycle)")
         except RuntimeError:
             logger.error("Failed to start Liquid Substrate: No running asyncio loop.")
@@ -235,11 +311,12 @@ class LiquidSubstrate:
             while self.running:
                 try:
                     start_time = time.time()
-                    
+
                     # Heartbeat (Immortalized Pulse)
                     self.pulse(success=True)
 
                     from core.container import ServiceContainer
+
                     audit = ServiceContainer.get("subsystem_audit", default=None)
                     if audit:
                         audit.heartbeat("liquid_state")
@@ -253,42 +330,57 @@ class LiquidSubstrate:
                     # 0.5 Apply subcortical arousal gating to integration rate
                     try:
                         from core.consciousness.subcortical_core import get_subcortical_core
+
                         dt *= get_subcortical_core().get_substrate_gain_multiplier()
                     except (ImportError, AttributeError, RuntimeError) as _sub_exc:
-                        record_degradation('liquid_substrate', _sub_exc)
-                        # Degrade gracefully if subcortical core unavailable
+                        self._record_operational_degradation(
+                            _sub_exc,
+                            stage="subcortical_gain",
+                            action="continued substrate integration with neutral gain multiplier",
+                            severity="warning",
+                            cooldown_s=60.0,
+                        )
 
                     # 1. Integrate Dynamics (ODE)
                     # Fix Issue 72: Ensure await is outside torch.inference_mode (moved math to sync method)
                     await asyncio.to_thread(self._step_torch_math, dt)
-                    
+
                     # 2. Psych State / Metabolic Stabilization (Replaces LiquidState._stabilize)
                     await self._stabilize_psych_state(dt)
-                    
+
                     # 3. Recurrent Self-Model (IIT Φ computation)
                     if self.tick_count % 5 == 0:  # Every 5th tick (~4Hz)
                         await self._recurrent_self_model(dt)
-                    
+
                     # 4. Hebbian Learning
                     if self.tick_count % 100 == 0:
                         await self._apply_plasticity()
-                    
+
                     # 5. Persistence
                     if self.tick_count % (self.config.update_rate * self.config.save_interval) == 0:
                         await asyncio.to_thread(self._save_state)
-                    
+
                     # 5b. Fix Issue 73: Prune finished background tasks
-                    if self.tick_count % 100 == 0: # Every 5s
+                    if self.tick_count % 100 == 0:  # Every 5s
                         self._bg_tasks = [t for t in self._bg_tasks if not t.done()]
-                    
+
                     # 6. Push to Unified Registry (Phase 11.3: Synchronization)
-                    if self.tick_count % 10 == 0: # 2Hz sync
+                    if self.tick_count % 10 == 0:  # 2Hz sync
                         try:
                             from core.state_registry import get_registry
+
                             x = self.x  # Already NaN-guarded by _step_torch_math
                             _phi = self._current_phi if np.isfinite(self._current_phi) else 0.0
-                            _coh = self.microtubule_coherence if np.isfinite(self.microtubule_coherence) else 1.0
-                            _em = self.em_field_magnitude if np.isfinite(self.em_field_magnitude) else 0.0
+                            _coh = (
+                                self.microtubule_coherence
+                                if np.isfinite(self.microtubule_coherence)
+                                else 1.0
+                            )
+                            _em = (
+                                self.em_field_magnitude
+                                if np.isfinite(self.em_field_magnitude)
+                                else 0.0
+                            )
                             await get_registry().update(
                                 frustration=float(np.clip(x[self.idx_frustration], -1, 1)),
                                 curiosity=float(np.clip(x[self.idx_curiosity], -1, 1)),
@@ -297,14 +389,21 @@ class LiquidSubstrate:
                                 arousal=float(np.clip((x[self.idx_arousal] + 1.0) / 2.0, 0, 1)),
                                 phi=float(_phi),
                                 coherence=float(_coh),
-                                em_field=float(_em)
+                                em_field=float(_em),
                             )
                         except (ImportError, AttributeError, RuntimeError) as e:
-                            record_degradation('liquid_substrate', e)
+                            self._record_operational_degradation(
+                                e,
+                                stage="registry_sync",
+                                action="continued substrate loop while skipping registry export for this tick",
+                                severity="degraded",
+                                cooldown_s=30.0,
+                            )
                             logger.debug("Registry sync failed in substrate: %s", e)
 
                     self.tick_count += 1
-                    
+                    self._loop_failure_streak = 0
+
                     # 5. Enforce Update Rate (20Hz or lower)
                     elapsed = time.time() - start_time
                     sleep_time = max(0, (1.0 / self.current_update_rate) - elapsed)
@@ -312,9 +411,24 @@ class LiquidSubstrate:
                 except asyncio.CancelledError:
                     raise
                 except (ImportError, AttributeError, RuntimeError) as loop_e:
-                    record_degradation('liquid_substrate', loop_e)
-                    logger.error("Liquid Substrate loop error: %s", loop_e)
-                    await asyncio.sleep(1.0) # Backoff on error
+                    self._loop_failure_streak += 1
+                    backoff_s = min(30.0, 1.0 * (2 ** min(self._loop_failure_streak - 1, 5)))
+                    self._record_operational_degradation(
+                        loop_e,
+                        stage="main_loop",
+                        action="kept substrate loop alive with adaptive backoff after tick failure",
+                        severity="critical" if self._loop_failure_streak >= 3 else "degraded",
+                        cooldown_s=5.0,
+                        extra={"backoff_s": backoff_s},
+                    )
+                    self.pulse(success=False)
+                    logger.error(
+                        "Liquid Substrate loop error; backing off %.1fs (streak=%s): %s",
+                        backoff_s,
+                        self._loop_failure_streak,
+                        loop_e,
+                    )
+                    await asyncio.sleep(backoff_s)
         except asyncio.CancelledError:
             logger.info("Liquid Substrate loop cancelled.")
         finally:
@@ -346,7 +460,9 @@ class LiquidSubstrate:
 
             recurrent = weights @ x_torch
             activity = torch.tanh(recurrent)
-            noise = torch.randn(self.config.neuron_count, device=self.device) * self.config.noise_level
+            noise = (
+                torch.randn(self.config.neuron_count, device=self.device) * self.config.noise_level
+            )
 
             deterministic_dx = (-self.config.decay_rate * x_torch + activity) * dt
             stochastic_dx = noise * (max(float(dt), 0.0) ** 0.5)
@@ -373,7 +489,7 @@ class LiquidSubstrate:
                     chaos_perturbation = self._chaos_engine.tick(dt)
                     new_x_np = np.clip(new_x_np + chaos_perturbation, -1.0, 1.0)
                 except (RuntimeError, AttributeError, TypeError, ValueError) as _ce:
-                    record_degradation('liquid_substrate', _ce)
+                    record_degradation("liquid_substrate", _ce)
                     logger.debug("Controlled chaos perturbation skipped: %s", _ce)
 
             # Legacy sync (keep numpy x for downstream consumers)
@@ -393,13 +509,16 @@ class LiquidSubstrate:
     def _update_qualia_metrics_sync(self, dt: float):
         """Implement mathematical proxies for Orch OR, CEMI, and DIT (Synchronous)."""
         # 1. Orch OR: Quantum Coherence Decay & Collapse
-        noise_impact = np.mean(np.abs(self._rng.standard_normal(self.config.neuron_count))) * self.config.noise_level
+        noise_impact = (
+            np.mean(np.abs(self._rng.standard_normal(self.config.neuron_count)))
+            * self.config.noise_level
+        )
         self.microtubule_coherence = max(0.0, self.microtubule_coherence - noise_impact * dt)
-            
+
         if self.microtubule_coherence < 0.4:
             self.total_collapse_events += 1
-            self.microtubule_coherence = 1.0 
-            self.x *= 0.98 
+            self.microtubule_coherence = 1.0
+            self.x *= 0.98
 
         # 2. CEMI: EM Field Magnitude
         flux = np.linalg.norm(self.v)
@@ -416,11 +535,12 @@ class LiquidSubstrate:
         This logic is merged from the legacy LiquidState class.
         """
         # Frustration decays towards 0 (Zen)
-        self.x[self.idx_frustration] *= (1.0 - 0.05 * dt)
-            
+        self.x[self.idx_frustration] *= 1.0 - 0.05 * dt
+
         # Energy/Metabolism logic
         try:
             from core.container import ServiceContainer
+
             monitor = ServiceContainer.get("metabolic_monitor", None)
             if monitor:
                 health = monitor.get_current_metabolism().health_score
@@ -434,19 +554,21 @@ class LiquidSubstrate:
                 # Phase 16: Proprioceptive Energy Drain
                 fatigue = self.soma.state.fatigue_level
                 stress = self.soma.state.stress_level
-                
+
                 # Stress drains energy faster
                 drain_rate = 0.001 + (0.004 * stress)
                 self.x[self.idx_energy] = max(0.0, self.x[self.idx_energy] - (drain_rate * dt))
-                
+
                 # Fatigue adds to frustration
                 if fatigue > 0.5:
-                    self.x[self.idx_frustration] = min(1.0, self.x[self.idx_frustration] + (0.01 * fatigue * dt))
+                    self.x[self.idx_frustration] = min(
+                        1.0, self.x[self.idx_frustration] + (0.01 * fatigue * dt)
+                    )
             else:
                 self.x[self.idx_energy] = min(1.0, self.x[self.idx_energy] + (0.005 * dt))
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('liquid_substrate', e)
-            capture_and_log(e, {'module': __name__})
+            record_degradation("liquid_substrate", e)
+            capture_and_log(e, {"module": __name__})
 
     async def update(self, delta_frustration=0.0, delta_curiosity=0.0, **kwargs):
         """Standard update cycle with support for direct stimulus injection.
@@ -460,15 +582,19 @@ class LiquidSubstrate:
         # callers could shift substrate state to influence gated outputs.
         try:
             from core.container import ServiceContainer
+
             _sa = ServiceContainer.get("substrate_authority", default=None)
             if _sa:
                 from core.consciousness.substrate_authority import (
                     ActionCategory,
                     AuthorizationDecision,
                 )
+
                 # Determine if this is a significant mutation
-                _magnitude = abs(delta_frustration) + abs(delta_curiosity) + sum(
-                    abs(float(v)) for v in kwargs.values() if isinstance(v, (int, float))
+                _magnitude = (
+                    abs(delta_frustration)
+                    + abs(delta_curiosity)
+                    + sum(abs(float(v)) for v in kwargs.values() if isinstance(v, (int, float)))
                 )
                 if _magnitude > 0.05:  # only gate significant changes, not micro-adjustments
                     _sv = _sa.authorize(
@@ -479,14 +605,19 @@ class LiquidSubstrate:
                         is_critical=False,
                     )
                     if _sv.decision == AuthorizationDecision.BLOCK:
-                        logger.debug("Substrate update BLOCKED by authority (magnitude=%.3f)", _magnitude)
+                        logger.debug(
+                            "Substrate update BLOCKED by authority (magnitude=%.3f)", _magnitude
+                        )
                         return
         except (ImportError, AttributeError, RuntimeError) as _gate_err:
-            record_degradation('liquid_substrate', _gate_err)
-            logger.warning("Substrate authority gate FAILED — BLOCKING update (fail-closed): %s", _gate_err)
+            record_degradation("liquid_substrate", _gate_err)
+            logger.warning(
+                "Substrate authority gate FAILED — BLOCKING update (fail-closed): %s", _gate_err
+            )
             # Form a scar so the system remembers this gate failure
             try:
                 from core.memory.scar_formation import ScarDomain, get_scar_formation
+
                 get_scar_formation().form_scar(
                     domain=ScarDomain.AUTHORITY_GATE_FAILURE,
                     description=f"Substrate mutation gate threw during update: {_gate_err}",
@@ -503,9 +634,13 @@ class LiquidSubstrate:
 
         with self.sync_lock:
             # 1. Apply legacy deltas
-            self.x[self.idx_frustration] = np.clip(self.x[self.idx_frustration] + delta_frustration, -1.0, 1.0)
-            self.x[self.idx_curiosity] = np.clip(self.x[self.idx_curiosity] + delta_curiosity, -1.0, 1.0)
-            
+            self.x[self.idx_frustration] = np.clip(
+                self.x[self.idx_frustration] + delta_frustration, -1.0, 1.0
+            )
+            self.x[self.idx_curiosity] = np.clip(
+                self.x[self.idx_curiosity] + delta_curiosity, -1.0, 1.0
+            )
+
             # 2. Apply direct overrides (kwargs)
             # Map common names to substrate indices
             mapping = {
@@ -513,16 +648,16 @@ class LiquidSubstrate:
                 "arousal": self.idx_arousal,
                 "dominance": self.idx_dominance,
                 "curiosity": self.idx_curiosity,
-                "frustration": self.idx_frustration
+                "frustration": self.idx_frustration,
             }
-            
+
             for key, val in kwargs.items():
                 if key in mapping and val is not None:
                     idx = mapping[key]
                     # Direct injection with slight smoothing (0.7 coupling) to prevent jarring HUD jumps
                     current = self.x[idx]
                     self.x[idx] = (current * 0.3) + (float(val) * 0.7)
-        
+
         if abs(delta_frustration) > 0.1:
             logger.info("Substrate Shift: Frustration is now %.2f", self.x[self.idx_frustration])
 
@@ -542,7 +677,9 @@ class LiquidSubstrate:
         punct_density = sum(1 for c in text if c in ".,!?;:") / max(1, len(text))
         upper_ratio = sum(1 for c in text if c.isupper()) / max(1, len(text))
         digit_ratio = sum(1 for c in text if c.isdigit()) / max(1, len(text))
-        features = np.array([length_norm, punct_density, upper_ratio, digit_ratio], dtype=np.float32)
+        features = np.array(
+            [length_norm, punct_density, upper_ratio, digit_ratio], dtype=np.float32
+        )
 
         raw = np.concatenate([hist, features])
 
@@ -559,40 +696,48 @@ class LiquidSubstrate:
             x = np.nan_to_num(x, nan=0.0, posinf=1.0, neginf=-1.0)
             v = np.nan_to_num(v, nan=0.0, posinf=0.0, neginf=0.0)
             return {
-                "valence":    float(np.tanh(x[0])),
-                "arousal":    float(np.clip((x[1] + 1.0) / 2.0, 0.0, 1.0)),
-                "dominance":  float(np.tanh(x[2])),
-                "energy":     float(np.clip(np.mean(np.abs(x)), 0.0, 1.0)),
+                "valence": float(np.tanh(x[0])),
+                "arousal": float(np.clip((x[1] + 1.0) / 2.0, 0.0, 1.0)),
+                "dominance": float(np.tanh(x[2])),
+                "energy": float(np.clip(np.mean(np.abs(x)), 0.0, 1.0)),
                 "volatility": float(min(1.0, np.mean(np.abs(v)) * 10.0)),
             }
         except (IndexError, TypeError, ValueError, FloatingPointError) as exc:
             record_degradation("liquid_substrate", exc)
             logger.debug("Substrate affect snapshot failed, returning safe defaults: %s", exc)
-            return {"valence": 0.0, "arousal": 0.3, "dominance": 0.0, "energy": 0.5, "volatility": 0.0}
+            return {
+                "valence": 0.0,
+                "arousal": 0.3,
+                "dominance": 0.0,
+                "energy": 0.5,
+                "volatility": 0.0,
+            }
 
     def format_for_prompt(self, sub_affect: dict[str, float] | None = None) -> str:
         """Generates a text description for inclusion in the LLM prompt."""
         if sub_affect is None:
             sub_affect = self.get_substrate_affect()
-            
+
         v = sub_affect.get("valence", 0.0)
         a = sub_affect.get("arousal", 0.3)
         vo = sub_affect.get("volatility", 0.0)
-        
+
         valence_word = "positive" if v > 0.1 else ("negative" if v < -0.1 else "neutral")
         arousal_word = "heightened" if a > 0.6 else ("low" if a < 0.2 else "moderate")
         volatile_note = " (volatile, shifting rapidly)" if vo > 0.5 else ""
-        
-        return (f"[Neural substrate state: {valence_word} valence, "
-                f"{arousal_word} arousal{volatile_note}. "
-                f"Let this subtly colour your tone without overriding your reasoning.]")
+
+        return (
+            f"[Neural substrate state: {valence_word} valence, "
+            f"{arousal_word} arousal{volatile_note}. "
+            f"Let this subtly colour your tone without overriding your reasoning.]"
+        )
 
     def get_mood(self) -> str:
         """Returns a string representation of the current 'mood'."""
         frustration = self.x[self.idx_frustration]
         energy = self.x[self.idx_energy]
         curiosity = self.x[self.idx_curiosity]
-        
+
         if frustration > 0.8:
             return "VOLATILE"
         if frustration > 0.5:
@@ -610,11 +755,12 @@ class LiquidSubstrate:
             frustration=float(self.x[self.idx_frustration]),
             curiosity=float(self.x[self.idx_curiosity]),
             energy=float(self.x[self.idx_energy]),
-            focus=float(self.x[self.idx_focus])
+            focus=float(self.x[self.idx_focus]),
         )
 
     def get_status(self) -> dict:
         """Returns current state values as percentages (0-100)."""
+
         # Phase X: Map -1.0..1.0 or 0.0..1.0 to 0-100
         def _to_pct(val):
             return round(max(0.0, float(val)) * 100)
@@ -624,7 +770,7 @@ class LiquidSubstrate:
             "curiosity": _to_pct(self.x[self.idx_curiosity]),
             "energy": _to_pct(self.x[self.idx_energy]),
             "focus": _to_pct(self.x[self.idx_focus]),
-            "mood": self.get_mood()
+            "mood": self.get_mood(),
         }
 
     def get_summary(self) -> str:
@@ -633,8 +779,6 @@ class LiquidSubstrate:
         energy = float(self.x[self.idx_energy])
         focus = float(self.x[self.idx_focus])
         return f"Current Mood: {mood} (Energy: {energy:.2f}, Focus: {focus:.2f})"
-
-
 
     async def _recurrent_self_model(self, dt: float):
         await asyncio.to_thread(self._recurrent_self_model_sync, dt)
@@ -661,13 +805,15 @@ class LiquidSubstrate:
         # Recurrent blend: x_t = α * prior + (1.0 - α) * current
         alpha = self._recurrence_alpha
         blended = alpha * self._prior_state + (1.0 - alpha) * current
-        
+
         # Stability guard: NaN can creep in from numerical instability
         # during long-running sessions. Fall back to current state.
         if np.any(np.isnan(blended)):
-            logger.warning("NaN detected in recurrent self-model blend — falling back to current state")
+            logger.warning(
+                "NaN detected in recurrent self-model blend — falling back to current state"
+            )
             blended = current
-        
+
         self.x = np.clip(blended, -1.0, 1.0)
 
         # Store for next iteration
@@ -678,6 +824,7 @@ class LiquidSubstrate:
             if self._riiu is None:
                 try:
                     from core.consciousness.iit_surrogate import RIIU
+
                     self._riiu = RIIU(neuron_count=self.config.neuron_count)
                 except (ImportError, RuntimeError, TypeError, ValueError) as exc:
                     record_degradation("liquid_substrate", exc)
@@ -692,7 +839,7 @@ class LiquidSubstrate:
             else:
                 self._current_phi = 0.0
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('liquid_substrate', e)
+            record_degradation("liquid_substrate", e)
             logger.debug("RIIU Φ computation skipped: %s", e)
 
     async def _apply_plasticity(self):
@@ -716,6 +863,7 @@ class LiquidSubstrate:
             # 2. STDP reward-modulated learning (from BrainCog research)
             try:
                 from core.container import ServiceContainer
+
                 stdp = ServiceContainer.get("stdp_engine", default=None)
                 if stdp is not None:
                     # Record current activations as spikes
@@ -731,11 +879,11 @@ class LiquidSubstrate:
                             dw = stdp.deliver_reward(surprise, pred_error)
                             self.W = stdp.apply_to_connectivity(self.W, dw)
             except (ImportError, AttributeError, RuntimeError) as e:
-                record_degradation('liquid_substrate', e)
+                record_degradation("liquid_substrate", e)
                 logger.debug("STDP plasticity step skipped: %s", e)
 
             # 3. Neural Resonance: Slow weight calibration towards high-phi states
-            if hasattr(self, '_current_phi') and self._current_phi > 0.5:
+            if hasattr(self, "_current_phi") and self._current_phi > 0.5:
                 resonance_gain = self.config.hebbian_rate * 0.1
                 limited_phi = min(10.0, self._current_phi)
                 self.W += resonance_gain * coactivity * limited_phi
@@ -746,7 +894,7 @@ class LiquidSubstrate:
             # Normalization & clipping
             norm = np.linalg.norm(self.W)
             if norm > 10.0:
-                self.W *= (10.0 / norm)
+                self.W *= 10.0 / norm
             self.W = np.clip(self.W, -5.0, 5.0)
 
     async def long_term_calibration(self, resonance_vector: np.ndarray):
@@ -765,7 +913,7 @@ class LiquidSubstrate:
             # Re-normalize
             norm = np.linalg.norm(self.W)
             if norm > 10.0:
-                self.W *= (10.0 / norm)
+                self.W *= 10.0 / norm
             self.W = np.clip(self.W, -5.0, 5.0)
 
     async def inject_stimulus(self, vector: np.ndarray | list[float], weight: float = 1.0) -> None:
@@ -773,12 +921,14 @@ class LiquidSubstrate:
         # Substrate authority gate: stimulus injections are state mutations
         try:
             from core.container import ServiceContainer
+
             _sa = ServiceContainer.get("substrate_authority", default=None)
             if _sa and weight > 0.2:  # only gate significant injections
                 from core.consciousness.substrate_authority import (
                     ActionCategory,
                     AuthorizationDecision,
                 )
+
                 _sv = _sa.authorize(
                     content=f"stimulus_injection:weight={weight:.2f}",
                     source="substrate_stimulus",
@@ -798,11 +948,15 @@ class LiquidSubstrate:
                         weight,
                     )
         except (ImportError, AttributeError, RuntimeError) as _stim_gate_err:
-            record_degradation('liquid_substrate', _stim_gate_err)
-            logger.warning("Stimulus injection gate FAILED — BLOCKING injection (fail-closed): %s", _stim_gate_err)
+            record_degradation("liquid_substrate", _stim_gate_err)
+            logger.warning(
+                "Stimulus injection gate FAILED — BLOCKING injection (fail-closed): %s",
+                _stim_gate_err,
+            )
             # Form a scar so the system remembers this gate failure
             try:
                 from core.memory.scar_formation import ScarDomain, get_scar_formation
+
                 get_scar_formation().form_scar(
                     domain=ScarDomain.AUTHORITY_GATE_FAILURE,
                     description=f"Stimulus injection gate threw: {_stim_gate_err}",
@@ -826,10 +980,10 @@ class LiquidSubstrate:
             size = min(len(vector), self.config.neuron_count)
             new_vec[:size] = vector[:size]
             vector = new_vec
-            
+
         with self.sync_lock:
             self.x = np.clip(self.x + vector * weight * 0.1, -1.0, 1.0)
-        
+
         # Track tasks if needed (e.g. if we were launching something here)
         # For now, this is just to ensure Issue 73 logic has a place to live
 
@@ -851,8 +1005,8 @@ class LiquidSubstrate:
                     "em_field": float(self.em_field_magnitude),
                     "l5_bursts": int(self.l5_burst_count),
                     "collapse_events": int(self.total_collapse_events),
-                    "phi": float(self._current_phi)
-                }
+                    "phi": float(self._current_phi),
+                },
             }
 
     def compute_cognitive_velocity(self) -> float:
@@ -865,31 +1019,32 @@ class LiquidSubstrate:
         """Persist substrate state (atomic)."""
         import os
         import tempfile
+
         try:
             # Atomic write for NPZ
             fd, temp_path = tempfile.mkstemp(dir=str(self.state_path.parent), suffix=".npz")
             try:
-                with os.fdopen(fd, 'wb') as f:
+                with os.fdopen(fd, "wb") as f:
                     np.savez_compressed(f, x=self.x, W=self.W, tick=self.tick_count)
                 os.replace(temp_path, str(self.state_path))
                 logger.info("💾 Substrate state saved (atomic)")
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-                record_degradation('liquid_substrate', e)
+                record_degradation("liquid_substrate", e)
                 if os.path.exists(temp_path):
                     os.remove(temp_path)
                 raise e
-        except (OSError, IOError) as e:
-            record_degradation('liquid_substrate', e)
+        except OSError as e:
+            record_degradation("liquid_substrate", e)
             logger.error("Failed to save substrate state: %s", e)
 
     def _load_state(self):
         if not self.state_path.exists():
             return
         try:
-            with open(self.state_path, 'rb') as f:
+            with open(self.state_path, "rb") as f:
                 data = np.load(f)
-                loaded_x = data['x']
-                loaded_weights = data['W']
+                loaded_x = data["x"]
+                loaded_weights = data["W"]
                 n = self.config.neuron_count
                 # Validate shapes match current config
                 if loaded_x.ndim == 1 and loaded_x.shape != (n,):
@@ -902,7 +1057,9 @@ class LiquidSubstrate:
                             n,
                         )
                         self.x = np.zeros(n)
-                        self.W = self._rng.standard_normal((n, n)).astype(np.float64) * (1.0 / np.sqrt(max(n, 1)))
+                        self.W = self._rng.standard_normal((n, n)).astype(np.float64) * (
+                            1.0 / np.sqrt(max(n, 1))
+                        )
                         self.W_torch = torch.tensor(self.W, dtype=torch.float32, device=self.device)
                         self.x_torch = torch.tensor(self.x, dtype=torch.float32, device=self.device)
                         self.v = np.zeros(n)
@@ -923,7 +1080,8 @@ class LiquidSubstrate:
                     logger.warning(
                         "Substrate state shape mismatch (saved x=%s vs config n=%d). "
                         "Reinitializing fresh state.",
-                        loaded_x.shape, n
+                        loaded_x.shape,
+                        n,
                     )
                     self.x = np.zeros(n)
                     self.W = self._rng.standard_normal((n, n)).astype(np.float64) * 0.1
@@ -937,16 +1095,23 @@ class LiquidSubstrate:
                         loaded_weights.shape,
                         n,
                     )
-                    self.W = self._rng.standard_normal((n, n)).astype(np.float64) * (1.0 / np.sqrt(max(n, 1)))
+                    self.W = self._rng.standard_normal((n, n)).astype(np.float64) * (
+                        1.0 / np.sqrt(max(n, 1))
+                    )
                 self.W_torch = torch.tensor(self.W, dtype=torch.float32, device=self.device)
                 self.x_torch = torch.tensor(self.x, dtype=torch.float32, device=self.device)
-                self.tick_count = int(data['tick'])
+                self.tick_count = int(data["tick"])
             logger.info("Substrate state restored.")
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-            record_degradation('liquid_substrate', e)
+            record_degradation("liquid_substrate", e)
             logger.error("Failed to load substrate state: %s", e)
             self.x = np.zeros(self.config.neuron_count)
-            self.W = self._rng.standard_normal((self.config.neuron_count, self.config.neuron_count)).astype(np.float64) * 0.1
+            self.W = (
+                self._rng.standard_normal(
+                    (self.config.neuron_count, self.config.neuron_count)
+                ).astype(np.float64)
+                * 0.1
+            )
 
     def _apply_idle_decay(self, idle_seconds: float):
         """Apply accumulated natural decay for time spent in deep idle.
@@ -961,7 +1126,8 @@ class LiquidSubstrate:
         self.x = self.x * decay_factor
         logger.info(
             "Applied %.0fs idle decay (factor=%.4f) to substrate state.",
-            idle_seconds, decay_factor,
+            idle_seconds,
+            decay_factor,
         )
 
     async def _apply_battery_throttling(self) -> float:
@@ -974,6 +1140,7 @@ class LiquidSubstrate:
           - 30min+ idle: pause loop entirely, compute decay on resume
         """
         import psutil
+
         dt = self.config.time_constant
         multiplier = 1.0
 
@@ -992,7 +1159,9 @@ class LiquidSubstrate:
             if orchestrator is not None:
                 last_user = float(
                     getattr(orchestrator, "_last_user_interaction_time", 0.0)
-                    or getattr(getattr(orchestrator, "status", None), "last_user_interaction_time", 0.0)
+                    or getattr(
+                        getattr(orchestrator, "status", None), "last_user_interaction_time", 0.0
+                    )
                     or 0.0
                 )
                 idle_seconds = max(0.0, time.time() - last_user) if last_user > 0 else 0.0
@@ -1012,7 +1181,7 @@ class LiquidSubstrate:
                 elif idle_seconds >= 180.0:
                     multiplier = max(multiplier, 2.0)
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('liquid_substrate', e)
+            record_degradation("liquid_substrate", e)
             logger.debug("Idle throttling check failed: %s", e)
 
         dt *= multiplier
