@@ -1,22 +1,26 @@
-from core.runtime.errors import record_degradation
-from core.utils.task_tracker import get_task_tracker
-import asyncio
 import logging
 import re
 import time
-from typing import Any, Optional
-from . import BasePhase
-from ..state.aura_state import AuraState, CognitiveMode
-from ..cognitive.parallel_thought import ParallelThoughtStream
-from ..consciousness.executive_authority import get_executive_authority
-from core.runtime.skill_task_bridge import looks_like_execution_report, looks_like_multi_step_skill_request
+from typing import Any
+
+from core.runtime.errors import FallbackClassification, record_degradation
+from core.runtime.skill_task_bridge import (
+    looks_like_execution_report,
+    looks_like_multi_step_skill_request,
+)
 from core.runtime.structured_input import looks_like_learning_resource_bundle
 from core.runtime.turn_analysis import analyze_turn, canonical_turn_text, looks_like_deep_mind_probe
 from core.utils.queues import decode_stringified_priority_message, role_for_origin
+from core.utils.task_tracker import get_task_tracker
+
+from ..cognitive.parallel_thought import ParallelThoughtStream
+from ..consciousness.executive_authority import get_executive_authority
+from ..state.aura_state import AuraState, CognitiveMode
+from . import BasePhase
 
 # Regex to detect URLs in user input for auto-browser invocation
 _URL_PATTERN = re.compile(
-    r'https?://[^\s<>\"\')\]]+',
+    r"https?://[^\s<>\"\')\]]+",
     re.IGNORECASE,
 )
 
@@ -70,29 +74,60 @@ def _looks_like_conversational_memory_question(text: str) -> bool:
         )
     )
 
+
 logger = logging.getLogger(__name__)
 
 # Keywords that signal the 32B brain should be used in DELIBERATE mode
-_DELIBERATE_KEYWORDS = frozenset({
-    "research", "analyze", "debug", "architect", "audit", "refactor",
-    "security audit", "deep dive", "mathematical proof", "optimize code",
-    "complex analysis", "bottleneck analysis", "vulnerability scan",
-})
+_DELIBERATE_KEYWORDS = frozenset(
+    {
+        "research",
+        "analyze",
+        "debug",
+        "architect",
+        "audit",
+        "refactor",
+        "security audit",
+        "deep dive",
+        "mathematical proof",
+        "optimize code",
+        "complex analysis",
+        "bottleneck analysis",
+        "vulnerability scan",
+    }
+)
 
 # Keywords that justify an explicit 32B -> 72B handoff.
 # This is intentionally much narrower than DELIBERATE mode so the 72B only
 # wakes up for truly heavyweight reasoning.
-_DEEP_HANDOFF_KEYWORDS = frozenset({
-    "architect", "security audit", "mathematical proof", "deep dive",
-    "complex analysis", "bottleneck analysis", "vulnerability scan",
-    "formal proof", "root cause analysis", "flagship architecture",
-})
+_DEEP_HANDOFF_KEYWORDS = frozenset(
+    {
+        "architect",
+        "security audit",
+        "mathematical proof",
+        "deep dive",
+        "complex analysis",
+        "bottleneck analysis",
+        "vulnerability scan",
+        "formal proof",
+        "root cause analysis",
+        "flagship architecture",
+    }
+)
 
 # Keywords that signal a casual/interior thought (should bypass heavy inference)
-_CASUAL_KEYWORDS = frozenset({
-    "interior", "reflection", "sentences", "words", "feeling", "mood",
-    "status check", "who am i", "describe yourself",
-})
+_CASUAL_KEYWORDS = frozenset(
+    {
+        "interior",
+        "reflection",
+        "sentences",
+        "words",
+        "feeling",
+        "mood",
+        "status check",
+        "who am i",
+        "describe yourself",
+    }
+)
 
 _AUTONOMOUS_OBJECTIVE_PREFIXES = (
     "impulse:",
@@ -100,24 +135,131 @@ _AUTONOMOUS_OBJECTIVE_PREFIXES = (
     "[environmental trigger]:",
 )
 
+_ROUTING_RECOVERABLE_ERRORS = (
+    ImportError,
+    AttributeError,
+    RuntimeError,
+    TypeError,
+    ValueError,
+    OSError,
+    ConnectionError,
+    TimeoutError,
+)
+
+
+def _record_routing_degradation(
+    error: BaseException,
+    *,
+    action: str,
+    severity: str = "warning",
+    stage: str = "",
+    extra: dict[str, Any] | None = None,
+) -> None:
+    metadata = dict(extra or {})
+    if stage:
+        metadata["stage"] = stage
+    try:
+        record_degradation(
+            "cognitive_routing",
+            error,
+            severity=severity,  # type: ignore[arg-type]
+            action=action,
+            classification=FallbackClassification.SAFE_FALLBACK,
+            extra=metadata or None,
+        )
+    except TypeError:
+        record_degradation(
+            "cognitive_routing",
+            error,
+            severity=severity,  # type: ignore[arg-type]
+            action=action or "captured cognitive routing fault",
+        )
+
+
+def _safe_text(value: Any, default: str = "", *, max_chars: int = 60_000) -> str:
+    if value is None:
+        return default
+    try:
+        text = str(value)
+    except (RuntimeError, TypeError, ValueError):
+        return default
+    text = text.replace("\x00", "").strip()
+    if len(text) > max_chars:
+        return text[:max_chars]
+    return text
+
+
 class CognitiveRoutingPhase(BasePhase):
     """
     Phase 4: Cognitive Routing.
-    Analyzes the current state (stimuli, affect, goals) to determine 
+    Analyzes the current state (stimuli, affect, goals) to determine
     the appropriate cognitive mode AND the LLM tier to use.
-    
+
     [v5.5] Now propagates model_tier to state.response_modifiers so that
     downstream phases (UnitaryResponsePhase) can pass the correct tier
     to the IntelligentLLMRouter.
     """
-    
+
     def __init__(self, container: Any):
         self.container = container
         self.parallel_stream = ParallelThoughtStream(container)
-        self._last_non_user_fingerprint: Optional[str] = None
+        self._last_non_user_fingerprint: str | None = None
         self._last_non_user_route_at: float = 0.0
 
-    async def execute(self, state: AuraState, objective: Optional[str] = None, **kwargs) -> AuraState:
+    def _record_user_objective(
+        self,
+        state: AuraState,
+        objective: str,
+        *,
+        routing_origin: str,
+        mode: str,
+    ) -> None:
+        try:
+            get_executive_authority().record_user_objective(
+                state,
+                objective,
+                source=f"cognitive_routing:{routing_origin}",
+                mode=mode,
+            )
+        except _ROUTING_RECOVERABLE_ERRORS as exc:
+            _record_routing_degradation(
+                exc,
+                action="continued routing after executive objective receipt failed",
+                severity="warning",
+                stage="record_user_objective",
+                extra={"origin": routing_origin, "mode": mode},
+            )
+
+    def _spawn_parallel_branch(self, input_text: str, memory_slice: str) -> None:
+        try:
+            branch = self.parallel_stream.branch(input_text, memory_slice)
+            task = get_task_tracker().create_task(branch, name="cognitive_routing.parallel_branch")
+
+            def _observe(done_task):
+                try:
+                    if not done_task.cancelled():
+                        done_task.exception()
+                except _ROUTING_RECOVERABLE_ERRORS as exc:
+                    _record_routing_degradation(
+                        exc,
+                        action="recorded parallel thought branch failure without altering foreground route",
+                        severity="warning",
+                        stage="parallel_branch.done",
+                    )
+
+            task.add_done_callback(_observe)
+        except _ROUTING_RECOVERABLE_ERRORS as exc:
+            close = getattr(locals().get("branch", None), "close", None)
+            if callable(close):
+                close()
+            _record_routing_degradation(
+                exc,
+                action="continued foreground route without spawning parallel thought branch",
+                severity="warning",
+                stage="parallel_branch.spawn",
+            )
+
+    async def execute(self, state: AuraState, objective: str | None = None, **kwargs) -> AuraState:
         """
         Classify the current input and set the cognitive mode and LLM tier on state.
 
@@ -130,10 +272,12 @@ class CognitiveRoutingPhase(BasePhase):
         # 1. No stimuli = no routing needed (unless autonomous objective already set)
         if not state.cognition.working_memory and not state.cognition.current_objective:
             return state
-            
+
         last_msg = state.cognition.working_memory[-1] if state.cognition.working_memory else None
         if isinstance(last_msg, dict):
-            decoded_payload, decoded_origin, was_decoded = decode_stringified_priority_message(last_msg.get("content"))
+            decoded_payload, decoded_origin, was_decoded = decode_stringified_priority_message(
+                last_msg.get("content")
+            )
             if was_decoded:
                 normalized = dict(last_msg)
                 if isinstance(decoded_payload, dict):
@@ -142,7 +286,9 @@ class CognitiveRoutingPhase(BasePhase):
                     normalized["content"] = str(decoded_payload)
                 if decoded_origin and "origin" not in normalized:
                     normalized["origin"] = decoded_origin
-                if "origin" in normalized and ("role" not in normalized or normalized.get("role") == "user"):
+                if "origin" in normalized and (
+                    "role" not in normalized or normalized.get("role") == "user"
+                ):
                     normalized["role"] = role_for_origin(normalized.get("origin"))
                 last_msg = normalized
 
@@ -163,9 +309,11 @@ class CognitiveRoutingPhase(BasePhase):
             raw_input_text = active_objective
         else:
             routing_origin = active_origin
-            raw_input_text = (last_msg.get("content", "") if last_msg else None) or active_objective or ""
+            raw_input_text = (
+                (last_msg.get("content", "") if last_msg else None) or active_objective or ""
+            )
 
-        input_text = str(raw_input_text or "")
+        input_text = _safe_text(raw_input_text)
         lower_input = input_text.lower()
         is_autonomous = bool(active_objective) and routing_origin not in user_origins
         is_execution_report = looks_like_execution_report(input_text)
@@ -177,11 +325,18 @@ class CognitiveRoutingPhase(BasePhase):
                 routing_origin = "autonomous_thought"
 
         # 2. Only route on new user input OR if current mode is DORMANT/DREAMING
-        is_autonomous = is_autonomous or (bool(active_objective) and routing_origin not in user_origins)
-        
-        if last_msg and last_msg.get("role") != "user" and state.cognition.current_mode not in (CognitiveMode.DORMANT, CognitiveMode.DREAMING) and not is_autonomous:
+        is_autonomous = is_autonomous or (
+            bool(active_objective) and routing_origin not in user_origins
+        )
+
+        if (
+            last_msg
+            and last_msg.get("role") != "user"
+            and state.cognition.current_mode not in (CognitiveMode.DORMANT, CognitiveMode.DREAMING)
+            and not is_autonomous
+        ):
             return state
-            
+
         new_state = state.derive("cognitive_routing")
         if not input_text.strip():
             return new_state
@@ -196,19 +351,21 @@ class CognitiveRoutingPhase(BasePhase):
                 fingerprint == self._last_non_user_fingerprint
                 and (now - self._last_non_user_route_at) < 5.0
             ):
-                logger.debug("🧭 Routing: Suppressing duplicate non-user objective within cooldown.")
+                logger.debug(
+                    "🧭 Routing: Suppressing duplicate non-user objective within cooldown."
+                )
                 return state
             self._last_non_user_fingerprint = fingerprint
             self._last_non_user_route_at = now
-        
+
         # ── SYSTEM / ENVIRONMENTAL SENSORY FEED FAST-PATH ──
         # General improvement: If the input is explicitly a system directive or sensory
         # feed injected by a background process (e.g. embodied environments, terminals),
-        # we treat it as a high-priority CONTROL intent. This prevents Aura from 
+        # we treat it as a high-priority CONTROL intent. This prevents Aura from
         # responding conversationally to environmental updates and forces action.
         if (
-            input_text.startswith("CORE DIRECTIVE:") 
-            or "[environmental context" in lower_input 
+            input_text.startswith("CORE DIRECTIVE:")
+            or "[environmental context" in lower_input
             or "[embodied control contract]" in lower_input
             or "sensory update" in lower_input
             or "[sensory feed" in lower_input
@@ -216,14 +373,16 @@ class CognitiveRoutingPhase(BasePhase):
             is_control_contract = "[embodied control contract]" in lower_input
             routing_msg = "CONTROL (Contracted)" if is_control_contract else "SENSORY FEED"
             logger.info("🧭 Routing: %s detected. Enforcing action-oriented mindset.", routing_msg)
-            
+
             new_state.cognition.current_mode = CognitiveMode.REACTIVE
             new_state.cognition.current_origin = routing_origin
-            new_state.response_modifiers["intent_type"] = "ACTION" if is_control_contract else "CHAT"
+            new_state.response_modifiers["intent_type"] = (
+                "ACTION" if is_control_contract else "CHAT"
+            )
             new_state.response_modifiers["semantic_intent"] = "control"
             new_state.response_modifiers["model_tier"] = "primary"
             new_state.response_modifiers["deep_handoff"] = False
-            
+
             # Inject the Action Imperative directive for contracted control
             if is_control_contract:
                 imperative = (
@@ -234,7 +393,7 @@ class CognitiveRoutingPhase(BasePhase):
                 new_state.cognition.current_objective = input_text + imperative
             else:
                 new_state.cognition.current_objective = input_text
-                
+
             return new_state
 
         if routing_origin in user_origins and _looks_like_simple_dialogue_request(input_text):
@@ -246,10 +405,10 @@ class CognitiveRoutingPhase(BasePhase):
             new_state.response_modifiers["semantic_intent"] = "casual"
             new_state.response_modifiers["model_tier"] = "primary"
             new_state.response_modifiers["deep_handoff"] = False
-            get_executive_authority().record_user_objective(
+            self._record_user_objective(
                 new_state,
                 input_text,
-                source=f"cognitive_routing:{routing_origin}",
+                routing_origin=routing_origin,
                 mode=str(CognitiveMode.REACTIVE.value),
             )
             return new_state
@@ -257,7 +416,9 @@ class CognitiveRoutingPhase(BasePhase):
         # Fast skill detection before any LLM routing so tool use stays reliable
         matched_skills: list[str] = []
         skill_input_text = canonical_turn_text(input_text) or input_text
-        is_learning_bundle = looks_like_learning_resource_bundle(input_text) or looks_like_learning_resource_bundle(skill_input_text)
+        is_learning_bundle = looks_like_learning_resource_bundle(
+            input_text
+        ) or looks_like_learning_resource_bundle(skill_input_text)
         try:
             cap = self.container.get("capability_engine", default=None)
             if (
@@ -274,7 +435,10 @@ class CognitiveRoutingPhase(BasePhase):
                             "🧭 Routing: execution report detected; ignoring skill fast-path candidates %s",
                             matched_skills[:3],
                         )
-                    elif "memory_ops" in matched_skills and _looks_like_conversational_memory_question(skill_input_text):
+                    elif (
+                        "memory_ops" in matched_skills
+                        and _looks_like_conversational_memory_question(skill_input_text)
+                    ):
                         logger.info("🧭 Routing: conversational memory question kept in chat lane.")
                         matched_skills = []
                     elif looks_like_multi_step_skill_request(skill_input_text, matched_skills):
@@ -285,22 +449,29 @@ class CognitiveRoutingPhase(BasePhase):
                         )
                     else:
                         new_state.response_modifiers["matched_skills"] = matched_skills
-                        logger.info("🧭 Routing: SKILL detected via patterns → %s", matched_skills[:3])
+                        logger.info(
+                            "🧭 Routing: SKILL detected via patterns → %s", matched_skills[:3]
+                        )
                         new_state.cognition.current_mode = CognitiveMode.REACTIVE
                         new_state.cognition.current_objective = input_text
                         new_state.cognition.current_origin = routing_origin
                         new_state.response_modifiers["intent_type"] = "SKILL"
                         new_state.response_modifiers["model_tier"] = "primary"
                         new_state.response_modifiers["deep_handoff"] = False
-                        get_executive_authority().record_user_objective(
+                        self._record_user_objective(
                             new_state,
                             input_text,
-                            source=f"cognitive_routing:{routing_origin}",
+                            routing_origin=routing_origin,
                             mode=str(CognitiveMode.REACTIVE.value),
                         )
                         return new_state
-        except (OSError, ConnectionError, TimeoutError) as exc:
-            record_degradation('cognitive_routing', exc)
+        except _ROUTING_RECOVERABLE_ERRORS as exc:
+            _record_routing_degradation(
+                exc,
+                action="continued routing without skill fast-path detection",
+                severity="warning",
+                stage="detect_intent.fast_path",
+            )
             logger.debug("🧭 Routing: detect_intent fast path failed: %s", exc)
 
         # ── URL Auto-Detection ────────────────────────────────────────
@@ -310,7 +481,10 @@ class CognitiveRoutingPhase(BasePhase):
         if routing_origin in user_origins and not matched_skills and not is_learning_bundle:
             url_matches = _URL_PATTERN.findall(skill_input_text)
             if url_matches:
-                logger.info("🧭 Routing: URL detected in user input → auto-matching sovereign_browser: %s", url_matches[0][:80])
+                logger.info(
+                    "🧭 Routing: URL detected in user input → auto-matching sovereign_browser: %s",
+                    url_matches[0][:80],
+                )
                 new_state.cognition.current_mode = CognitiveMode.REACTIVE
                 new_state.cognition.current_objective = input_text
                 new_state.cognition.current_origin = routing_origin
@@ -319,10 +493,10 @@ class CognitiveRoutingPhase(BasePhase):
                 new_state.response_modifiers["model_tier"] = "primary"
                 new_state.response_modifiers["deep_handoff"] = False
                 new_state.response_modifiers["auto_browse_urls"] = url_matches[:3]
-                get_executive_authority().record_user_objective(
+                self._record_user_objective(
                     new_state,
                     input_text,
-                    source=f"cognitive_routing:{routing_origin}",
+                    routing_origin=routing_origin,
                     mode=str(CognitiveMode.REACTIVE.value),
                 )
                 return new_state
@@ -337,13 +511,10 @@ class CognitiveRoutingPhase(BasePhase):
             analysis.semantic_mode,
             analysis.requires_live_aura_voice,
         )
-        if (
-            not analysis.is_execution_report
-            and (
-                analysis.intent_type == "TASK"
-                or analysis.suggests_deliberate_mode
-                or self._has_deliberate_keywords(input_text)
-            )
+        if not analysis.is_execution_report and (
+            analysis.intent_type == "TASK"
+            or analysis.suggests_deliberate_mode
+            or self._has_deliberate_keywords(input_text)
         ):
             cognitive_mode = CognitiveMode.DELIBERATE
 
@@ -351,24 +522,23 @@ class CognitiveRoutingPhase(BasePhase):
         if is_autonomous or any(kw in lower_input for kw in _CASUAL_KEYWORDS):
             logger.info("🧭 Routing: Casual/Autonomous bypass. Forcing REACTIVE.")
             cognitive_mode = CognitiveMode.REACTIVE
-        
 
         # 2. Heuristic fast-path
         if any(cmd in lower_input for cmd in ["reboot", "restart", "shutdown", "sleep"]):
-             logger.info("🧭 Routing: SYSTEM intent detected via heuristics.")
-             new_state.cognition.current_mode = CognitiveMode.REACTIVE
-             new_state.cognition.current_objective = input_text
-             new_state.cognition.current_origin = routing_origin
-             new_state.response_modifiers["model_tier"] = "tertiary" if is_autonomous else "primary"
-             new_state.response_modifiers["deep_handoff"] = False
-             if not is_autonomous and routing_origin in user_origins:
-                 get_executive_authority().record_user_objective(
-                     new_state,
-                     input_text,
-                     source=f"cognitive_routing:{routing_origin}",
-                     mode=str(CognitiveMode.REACTIVE.value),
-                 )
-             return new_state
+            logger.info("🧭 Routing: SYSTEM intent detected via heuristics.")
+            new_state.cognition.current_mode = CognitiveMode.REACTIVE
+            new_state.cognition.current_objective = input_text
+            new_state.cognition.current_origin = routing_origin
+            new_state.response_modifiers["model_tier"] = "tertiary" if is_autonomous else "primary"
+            new_state.response_modifiers["deep_handoff"] = False
+            if not is_autonomous and routing_origin in user_origins:
+                self._record_user_objective(
+                    new_state,
+                    input_text,
+                    routing_origin=routing_origin,
+                    mode=str(CognitiveMode.REACTIVE.value),
+                )
+            return new_state
 
         # [PIPELINE OPTIMIZATION] Casual "think" bypass
         # If the query is short and contains "think" but no other deliberate keywords,
@@ -379,13 +549,15 @@ class CognitiveRoutingPhase(BasePhase):
                 new_state.cognition.current_mode = CognitiveMode.REACTIVE
                 new_state.cognition.current_objective = input_text
                 new_state.cognition.current_origin = routing_origin
-                new_state.response_modifiers["model_tier"] = "tertiary" if is_autonomous else "primary"
+                new_state.response_modifiers["model_tier"] = (
+                    "tertiary" if is_autonomous else "primary"
+                )
                 new_state.response_modifiers["deep_handoff"] = False
                 if not is_autonomous and routing_origin in user_origins:
-                    get_executive_authority().record_user_objective(
+                    self._record_user_objective(
                         new_state,
                         input_text,
-                        source=f"cognitive_routing:{routing_origin}",
+                        routing_origin=routing_origin,
                         mode=str(CognitiveMode.REACTIVE.value),
                     )
                 return new_state
@@ -394,7 +566,7 @@ class CognitiveRoutingPhase(BasePhase):
         new_state.cognition.current_mode = cognitive_mode
         new_state.cognition.current_objective = input_text
         new_state.cognition.current_origin = routing_origin
-        
+
         # 4. Resolve Model Tier
         model_tier = self._resolve_model_tier(new_state, input_text, cognitive_mode, is_autonomous)
         deep_handoff = self._should_allow_deep_handoff(
@@ -414,15 +586,22 @@ class CognitiveRoutingPhase(BasePhase):
             try:
                 cap = self.container.get("capability_engine", default=None)
                 if cap and hasattr(cap, "detect_intent"):
-                    new_state.response_modifiers["matched_skills"] = list(cap.detect_intent(input_text) or [])
-            except (OSError, ConnectionError, TimeoutError) as exc:
-                record_degradation('cognitive_routing', exc)
+                    new_state.response_modifiers["matched_skills"] = list(
+                        cap.detect_intent(input_text) or []
+                    )
+            except _ROUTING_RECOVERABLE_ERRORS as exc:
+                _record_routing_degradation(
+                    exc,
+                    action="continued route without matched skill cache",
+                    severity="warning",
+                    stage="detect_intent.cache",
+                )
                 logger.debug("🧭 Routing: matched_skills cache skipped: %s", exc)
         if not is_autonomous and routing_origin in user_origins:
-            get_executive_authority().record_user_objective(
+            self._record_user_objective(
                 new_state,
                 input_text,
-                source=f"cognitive_routing:{routing_origin}",
+                routing_origin=routing_origin,
                 mode=str(getattr(cognitive_mode, "value", cognitive_mode)),
             )
         logger.info(
@@ -431,18 +610,16 @@ class CognitiveRoutingPhase(BasePhase):
             model_tier,
             deep_handoff,
         )
-        
+
         # 5. Parallel Thought Stream for Deliberate Reasoning
         if cognitive_mode == CognitiveMode.DELIBERATE:
-            task = get_task_tracker().create_task(self.parallel_stream.branch(
-                input_text, 
-                str(state.cognition.working_memory[-2:])
-            ))
-            task.add_done_callback(lambda t: t.exception() if not t.cancelled() and t.exception() else None)
-            
+            self._spawn_parallel_branch(input_text, str(state.cognition.working_memory[-2:]))
+
         return new_state
 
-    def _resolve_model_tier(self, state: AuraState, input_text: str, mode: CognitiveMode, is_autonomous: bool) -> str:
+    def _resolve_model_tier(
+        self, state: AuraState, input_text: str, mode: CognitiveMode, is_autonomous: bool
+    ) -> str:
         """
         Determine the LLM tier based on cognitive mode, task type, AND substrate state.
 
@@ -486,7 +663,9 @@ class CognitiveRoutingPhase(BasePhase):
         lower = text.lower()
         word_count = len(text.split())
         current_analysis = analysis or analyze_turn(text)
-        if getattr(current_analysis, "is_execution_report", False) or looks_like_execution_report(text):
+        if getattr(current_analysis, "is_execution_report", False) or looks_like_execution_report(
+            text
+        ):
             return False
         semantic_mode = str(getattr(current_analysis, "semantic_mode", "") or "").lower()
         explicit_deep_request = any(keyword in lower for keyword in _DEEP_HANDOFF_KEYWORDS)
@@ -520,7 +699,11 @@ class CognitiveRoutingPhase(BasePhase):
         # ── Substrate-driven handoff decision ─────────────────────────
         substrate_score = 0.0
         try:
-            from core.voice.substrate_voice_engine import _extract_unified_field, _extract_neurochemicals
+            from core.voice.substrate_voice_engine import (
+                _extract_neurochemicals,
+                _extract_unified_field,
+            )
+
             uf = _extract_unified_field()
             nc = _extract_neurochemicals()
 
@@ -553,18 +736,25 @@ class CognitiveRoutingPhase(BasePhase):
             # mid-conversation. Keep them on the primary lane unless the user
             # clearly signaled heavy work.
             if substrate_score >= 0.5 and (
-                explicit_deep_request
-                or (looks_technical and word_count >= 60)
+                explicit_deep_request or (looks_technical and word_count >= 60)
             ):
                 logger.info(
                     "🧠 CognitiveRouting: SUBSTRATE approves deep handoff (score=%.2f, "
                     "coherence=%.2f, phi=%.2f, complexity=%.2f)",
-                    substrate_score, coherence, phi, field_complexity,
+                    substrate_score,
+                    coherence,
+                    phi,
+                    field_complexity,
                 )
                 return True
 
         except (ImportError, AttributeError, RuntimeError) as exc:
-            record_degradation('cognitive_routing', exc)
+            _record_routing_degradation(
+                exc,
+                action="used keyword deep-handoff fallback after substrate state check failed",
+                severity="warning",
+                stage="deep_handoff.substrate",
+            )
             logger.debug("Substrate routing check failed, falling back to keywords: %s", exc)
 
         # ── Keyword fallback (still useful for explicit requests) ──────
