@@ -22,47 +22,68 @@ Design invariants:
   4. All actions require a valid CapabilityToken from the Will.
   5. Every completed action emits a MotorReceipt for audit + awareness.
 """
-from __future__ import annotations
-import inspect
-from core.runtime.errors import record_degradation
 
-from core.runtime.shutdown_coordinator import is_shutdown_requested
-from core.utils.task_tracker import get_task_tracker
+from __future__ import annotations
 
 import asyncio
 import hashlib
+import inspect
 import logging
 import time
 from collections import deque
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any, Callable, Deque, Dict, List, Optional
+from enum import Enum, StrEnum
+from typing import Any
 
 from core.container import ServiceContainer
+from core.runtime.errors import FallbackClassification, Severity, record_degradation
+from core.runtime.shutdown_coordinator import is_shutdown_requested
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.MotorCortex")
+
+
+def _record_motor_degradation(
+    error: BaseException,
+    *,
+    action: str,
+    severity: Severity = "warning",
+    extra: dict[str, Any] | None = None,
+) -> None:
+    record_degradation(
+        "motor_cortex",
+        error,
+        severity=severity,
+        action=action,
+        classification=FallbackClassification.SAFE_FALLBACK,
+        receipt_required=False,
+        extra=extra,
+    )
 
 
 # ---------------------------------------------------------------------------
 # Enums & Data Structures
 # ---------------------------------------------------------------------------
 
-class ReflexClass(str, Enum):
+
+class ReflexClass(StrEnum):
     """Categories of reflex actions the motor cortex can handle."""
-    SCREEN_CAPTURE = "screen_capture"          # Grab screen on salience
-    FILE_REACTION = "file_reaction"            # New file detected -> log
-    HEALTH_THROTTLE = "health_throttle"        # Thermal spike -> throttle
-    HID_REFLEX = "hid_reflex"                  # Keyboard / mouse reflex
+
+    SCREEN_CAPTURE = "screen_capture"  # Grab screen on salience
+    FILE_REACTION = "file_reaction"  # New file detected -> log
+    HEALTH_THROTTLE = "health_throttle"  # Thermal spike -> throttle
+    HID_REFLEX = "hid_reflex"  # Keyboard / mouse reflex
     PERCEPTION_REFRESH = "perception_refresh"  # Re-sample a sensor
-    METRIC_SAMPLE = "metric_sample"            # Quick telemetry snapshot
-    CUSTOM = "custom"                          # Extension point
+    METRIC_SAMPLE = "metric_sample"  # Quick telemetry snapshot
+    CUSTOM = "custom"  # Extension point
 
 
 class ReflexPriority(int, Enum):
-    CRITICAL = 0   # Health / safety -- always first
-    HIGH = 1       # User-triggered reflexes
-    NORMAL = 2     # Perception refresh, file watch
-    LOW = 3        # Background sampling
+    CRITICAL = 0  # Health / safety -- always first
+    HIGH = 1  # User-triggered reflexes
+    NORMAL = 2  # Perception refresh, file watch
+    LOW = 3  # Background sampling
 
 
 @dataclass
@@ -73,11 +94,12 @@ class CapabilityToken:
     the token before executing any reflex.  Tokens expire after ``ttl``
     seconds and can be revoked.
     """
+
     token_id: str
     reflex_class: ReflexClass
-    max_uses: int = -1            # -1 = unlimited
-    ttl: float = 3600.0           # 1 hour default
-    constraints: List[str] = field(default_factory=list)
+    max_uses: int = -1  # -1 = unlimited
+    ttl: float = 3600.0  # 1 hour default
+    constraints: list[str] = field(default_factory=list)
     issued_at: float = field(default_factory=time.time)
     uses: int = 0
     revoked: bool = False
@@ -105,10 +127,11 @@ class CapabilityToken:
 @dataclass
 class ReflexAction:
     """A pending reflex to be executed by the motor cortex."""
+
     reflex_class: ReflexClass
     handler_name: str
     priority: ReflexPriority = ReflexPriority.NORMAL
-    payload: Dict[str, Any] = field(default_factory=dict)
+    payload: dict[str, Any] = field(default_factory=dict)
     source: str = "system"
     created_at: float = field(default_factory=time.time)
 
@@ -116,6 +139,7 @@ class ReflexAction:
 @dataclass
 class MotorReceipt:
     """Lightweight proof of action -- reported back to the cognitive loop."""
+
     receipt_id: str
     reflex_class: ReflexClass
     handler_name: str
@@ -124,12 +148,13 @@ class MotorReceipt:
     result_summary: str = ""
     error: str = ""
     timestamp: float = field(default_factory=time.time)
-    payload: Dict[str, Any] = field(default_factory=dict)
+    payload: dict[str, Any] = field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
 # Reflex Handlers
 # ---------------------------------------------------------------------------
+
 
 class ReflexRegistry:
     """Registry of named reflex handler functions.
@@ -139,16 +164,16 @@ class ReflexRegistry:
     """
 
     def __init__(self) -> None:
-        self._handlers: Dict[str, Callable] = {}
+        self._handlers: dict[str, Callable] = {}
 
     def register(self, name: str, handler: Callable) -> None:
         self._handlers[name] = handler
 
-    def get(self, name: str) -> Optional[Callable]:
+    def get(self, name: str) -> Callable | None:
         return self._handlers.get(name)
 
     @property
-    def names(self) -> List[str]:
+    def names(self) -> list[str]:
         return list(self._handlers.keys())
 
 
@@ -156,30 +181,39 @@ class ReflexRegistry:
 # Built-in Reflex Handlers
 # ---------------------------------------------------------------------------
 
-async def _reflex_screen_capture(payload: Dict[str, Any]) -> Dict[str, Any]:
+
+async def _reflex_screen_capture(payload: dict[str, Any]) -> dict[str, Any]:
     """Capture a screenshot when a salience trigger fires."""
     try:
         vision = ServiceContainer.get("continuous_vision", default=None)
         if vision is None:
             vision = ServiceContainer.get("screen_vision", default=None)
         if vision and hasattr(vision, "capture_frame"):
-            frame = await asyncio.wait_for(
-                asyncio.coroutine(vision.capture_frame)()
-                if not inspect.iscoroutinefunction(vision.capture_frame)
-                else vision.capture_frame(),
-                timeout=0.5,
-            )
-            return {"success": True, "summary": "screen_captured", "frame_size": len(frame) if frame else 0}
+            capture = vision.capture_frame
+            if inspect.iscoroutinefunction(capture):
+                frame = await asyncio.wait_for(capture(), timeout=0.5)
+            else:
+                frame = await asyncio.wait_for(asyncio.to_thread(capture), timeout=0.5)
+            return {
+                "success": True,
+                "summary": "screen_captured",
+                "frame_size": len(frame) if frame else 0,
+            }
         return {"success": False, "summary": "no_vision_service"}
-    except (ImportError, AttributeError, RuntimeError) as exc:
-        record_degradation('motor_cortex', exc)
+    except (ImportError, AttributeError, RuntimeError, OSError, TimeoutError) as exc:
+        _record_motor_degradation(
+            exc,
+            action="Returned a failed screen-capture receipt and left reflex loop alive",
+            extra={"handler": "screen_capture"},
+        )
         return {"success": False, "summary": f"capture_failed: {exc}"}
 
 
-async def _reflex_health_check(payload: Dict[str, Any]) -> Dict[str, Any]:
+async def _reflex_health_check(payload: dict[str, Any]) -> dict[str, Any]:
     """Quick health telemetry sample and throttle if needed."""
     try:
         import psutil
+
         cpu = psutil.cpu_percent(interval=0)
         mem = psutil.virtual_memory()
         thermal_pressure = 0.0
@@ -199,6 +233,7 @@ async def _reflex_health_check(payload: Dict[str, Any]) -> Dict[str, Any]:
             # Request throttle via world state
             try:
                 from core.world_state import get_world_state
+
                 ws = get_world_state()
                 ws.thermal_pressure = thermal_pressure
                 ws.push_event(
@@ -208,8 +243,20 @@ async def _reflex_health_check(payload: Dict[str, Any]) -> Dict[str, Any]:
                     metadata={"cpu": cpu, "thermal": thermal_pressure},
                 )
                 throttle_action = "thermal_throttle_requested"
-            except (ImportError, AttributeError, RuntimeError):
-                pass  # no-op: intentional
+            except (ImportError, AttributeError, RuntimeError) as exc:
+                _record_motor_degradation(
+                    exc,
+                    action="Reported health sample but could not publish thermal throttle event",
+                    extra={"handler": "health_check", "cpu": cpu, "thermal": thermal_pressure},
+                )
+                return {
+                    "success": False,
+                    "summary": "thermal_throttle_publish_failed",
+                    "cpu": cpu,
+                    "mem_pct": mem.percent,
+                    "thermal": round(thermal_pressure, 3),
+                    "error": str(exc),
+                }
 
         return {
             "success": True,
@@ -220,17 +267,22 @@ async def _reflex_health_check(payload: Dict[str, Any]) -> Dict[str, Any]:
         }
     except ImportError:
         return {"success": False, "summary": "psutil_not_available"}
-    except (ImportError, AttributeError, RuntimeError) as exc:
-        record_degradation('motor_cortex', exc)
+    except (AttributeError, RuntimeError, OSError) as exc:
+        _record_motor_degradation(
+            exc,
+            action="Returned a failed health-check receipt and preserved reflex loop cadence",
+            extra={"handler": "health_check"},
+        )
         return {"success": False, "summary": f"health_check_failed: {exc}"}
 
 
-async def _reflex_file_reaction(payload: Dict[str, Any]) -> Dict[str, Any]:
+async def _reflex_file_reaction(payload: dict[str, Any]) -> dict[str, Any]:
     """React to a detected file system change."""
     path = payload.get("path", "")
     event_type = payload.get("event_type", "unknown")
     try:
         from core.world_state import get_world_state
+
         ws = get_world_state()
         ws.push_event(
             f"file_{event_type}: {path}",
@@ -240,14 +292,19 @@ async def _reflex_file_reaction(payload: Dict[str, Any]) -> Dict[str, Any]:
         )
         return {"success": True, "summary": f"file_{event_type}_logged", "path": path}
     except (ImportError, AttributeError, RuntimeError) as exc:
-        record_degradation('motor_cortex', exc)
+        _record_motor_degradation(
+            exc,
+            action="Returned a failed file-reaction receipt without dropping the motor loop",
+            extra={"handler": "file_reaction", "path": str(path), "event_type": str(event_type)},
+        )
         return {"success": False, "summary": f"file_reaction_failed: {exc}"}
 
 
-async def _reflex_metric_sample(payload: Dict[str, Any]) -> Dict[str, Any]:
+async def _reflex_metric_sample(payload: dict[str, Any]) -> dict[str, Any]:
     """Quick telemetry snapshot for the proprioceptive loop."""
     try:
         import psutil
+
         return {
             "success": True,
             "summary": "metric_sampled",
@@ -256,13 +313,18 @@ async def _reflex_metric_sample(payload: Dict[str, Any]) -> Dict[str, Any]:
             "timestamp": time.time(),
         }
     except (ImportError, AttributeError, RuntimeError) as exc:
-        record_degradation('motor_cortex', exc)
+        _record_motor_degradation(
+            exc,
+            action="Returned a failed metric-sample receipt without dropping the motor loop",
+            extra={"handler": "metric_sample"},
+        )
         return {"success": False, "summary": f"metric_sample_failed: {exc}"}
 
 
 # ---------------------------------------------------------------------------
 # The Motor Cortex
 # ---------------------------------------------------------------------------
+
 
 class MotorCortex:
     """Fast reflex loop -- the somatic action engine.
@@ -280,23 +342,21 @@ class MotorCortex:
 
     _MAX_QUEUE_SIZE = 256
     _MAX_RECEIPT_TRAIL = 500
-    _CYCLE_TARGET_S = 0.050   # 50ms target cycle time
+    _CYCLE_TARGET_S = 0.050  # 50ms target cycle time
     _HEALTH_INTERVAL_S = 5.0  # Health check every 5s
 
     def __init__(self) -> None:
         self._running = False
-        self._task: Optional[asyncio.Task] = None
-        self._queue: asyncio.PriorityQueue = asyncio.PriorityQueue(
-            maxsize=self._MAX_QUEUE_SIZE
-        )
+        self._task: asyncio.Task | None = None
+        self._queue: asyncio.PriorityQueue = asyncio.PriorityQueue(maxsize=self._MAX_QUEUE_SIZE)
         self._seq = 0  # Sequence counter for stable priority ordering
 
         # Capability tokens (issued by the Will)
-        self._tokens: Dict[ReflexClass, CapabilityToken] = {}
+        self._tokens: dict[ReflexClass, CapabilityToken] = {}
 
         # Action receipts (reported back to cognitive loop)
-        self._receipts: Deque[MotorReceipt] = deque(maxlen=self._MAX_RECEIPT_TRAIL)
-        self._pending_cognitive_reports: Deque[MotorReceipt] = deque(maxlen=64)
+        self._receipts: deque[MotorReceipt] = deque(maxlen=self._MAX_RECEIPT_TRAIL)
+        self._pending_cognitive_reports: deque[MotorReceipt] = deque(maxlen=64)
 
         # Reflex handler registry
         self._registry = ReflexRegistry()
@@ -306,6 +366,8 @@ class MotorCortex:
         self._cycle_count = 0
         self._total_actions = 0
         self._total_latency_ms = 0.0
+        self._loop_failure_count = 0
+        self._last_loop_error: dict[str, Any] | None = None
         self._last_health_check = 0.0
         self._boot_time = time.monotonic()
 
@@ -328,15 +390,16 @@ class MotorCortex:
         *,
         max_uses: int = -1,
         ttl: float = 3600.0,
-        constraints: Optional[List[str]] = None,
+        constraints: list[str] | None = None,
     ) -> CapabilityToken:
         """Issue a new capability token for a reflex class.
 
         Typically called by the Will or during boot to pre-authorize reflexes.
         """
-        token_id = "mct_" + hashlib.sha256(
-            f"{time.time():.6f}:{reflex_class.value}".encode()
-        ).hexdigest()[:12]
+        token_id = (
+            "mct_"
+            + hashlib.sha256(f"{time.time():.6f}:{reflex_class.value}".encode()).hexdigest()[:12]
+        )
 
         token = CapabilityToken(
             token_id=token_id,
@@ -408,7 +471,7 @@ class MotorCortex:
     # Cognitive Loop Interface
     # ------------------------------------------------------------------
 
-    def drain_pending_reports(self) -> List[MotorReceipt]:
+    def drain_pending_reports(self) -> list[MotorReceipt]:
         """Drain pending receipts for the cognitive loop to consume.
 
         Called by the proprioceptive loop or affect phase to become
@@ -452,10 +515,10 @@ class MotorCortex:
     def _issue_default_tokens(self) -> None:
         """Issue default tokens for standard reflexes at boot."""
         defaults = [
-            (ReflexClass.HEALTH_THROTTLE, -1, 86400.0),   # Unlimited, 24h
-            (ReflexClass.METRIC_SAMPLE, -1, 86400.0),     # Unlimited, 24h
-            (ReflexClass.SCREEN_CAPTURE, 1000, 3600.0),   # Max 1000/hour
-            (ReflexClass.FILE_REACTION, 500, 3600.0),     # Max 500/hour
+            (ReflexClass.HEALTH_THROTTLE, -1, 86400.0),  # Unlimited, 24h
+            (ReflexClass.METRIC_SAMPLE, -1, 86400.0),  # Unlimited, 24h
+            (ReflexClass.SCREEN_CAPTURE, 1000, 3600.0),  # Max 1000/hour
+            (ReflexClass.FILE_REACTION, 500, 3600.0),  # Max 500/hour
             (ReflexClass.PERCEPTION_REFRESH, -1, 86400.0),
             (ReflexClass.CUSTOM, 100, 3600.0),
         ]
@@ -489,16 +552,33 @@ class MotorCortex:
                     now = time.time()
                     if now - self._last_health_check > self._HEALTH_INTERVAL_S:
                         self._last_health_check = now
-                        self.submit_reflex(ReflexAction(
-                            reflex_class=ReflexClass.HEALTH_THROTTLE,
-                            handler_name="health_check",
-                            priority=ReflexPriority.LOW,
-                            source="motor_cortex_periodic",
-                        ))
+                        self.submit_reflex(
+                            ReflexAction(
+                                reflex_class=ReflexClass.HEALTH_THROTTLE,
+                                handler_name="health_check",
+                                priority=ReflexPriority.LOW,
+                                source="motor_cortex_periodic",
+                            )
+                        )
+
+                    self._loop_failure_count = 0
 
                 except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
-                    record_degradation('motor_cortex', exc)
+                    self._loop_failure_count += 1
+                    self._last_loop_error = {
+                        "error_type": type(exc).__qualname__,
+                        "error": str(exc)[:250],
+                        "at": time.time(),
+                        "count": self._loop_failure_count,
+                    }
+                    _record_motor_degradation(
+                        exc,
+                        action="Backed off inner motor loop after recoverable reflex-loop failure",
+                        severity="degraded",
+                        extra=self._last_loop_error,
+                    )
                     logger.error("MotorCortex: loop error: %s", exc, exc_info=True)
+                    await asyncio.sleep(min(1.0, self._CYCLE_TARGET_S * self._loop_failure_count))
 
                 # Sleep to maintain target cycle time
                 elapsed = time.monotonic() - cycle_start
@@ -508,18 +588,36 @@ class MotorCortex:
             except asyncio.CancelledError:
                 if not self._running or is_shutdown_requested():
                     break
-                
+
                 # Somatic-H52: Suppress spurious warnings during boot or transition
                 uptime = time.monotonic() - self._boot_time
                 if uptime > 15.0:
-                    logger.warning("Somatic Loop (MotorCortex) spuriously cancelled (uptime %.1fs). Ignoring.", uptime)
+                    logger.warning(
+                        "Somatic Loop (MotorCortex) spuriously cancelled (uptime %.1fs). Ignoring.",
+                        uptime,
+                    )
                 else:
-                    logger.debug("Somatic Loop (MotorCortex) reset during system initialization (uptime %.1fs).", uptime)
+                    logger.debug(
+                        "Somatic Loop (MotorCortex) reset during system initialization (uptime %.1fs).",
+                        uptime,
+                    )
                 continue
             except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
-                record_degradation('motor_cortex', exc)
+                self._loop_failure_count += 1
+                self._last_loop_error = {
+                    "error_type": type(exc).__qualname__,
+                    "error": str(exc)[:250],
+                    "at": time.time(),
+                    "count": self._loop_failure_count,
+                }
+                _record_motor_degradation(
+                    exc,
+                    action="Backed off outer motor loop after recoverable loop failure",
+                    severity="degraded",
+                    extra=self._last_loop_error,
+                )
                 logger.error("MotorCortex: fatal loop error: %s", exc, exc_info=True)
-                await asyncio.sleep(1.0)
+                await asyncio.sleep(min(5.0, max(1.0, self._loop_failure_count * 0.25)))
 
     async def _execute_reflex(self, action: ReflexAction) -> None:
         """Execute a single reflex action and record the receipt."""
@@ -559,11 +657,25 @@ class MotorCortex:
                     asyncio.get_event_loop().run_in_executor(None, handler, action.payload),
                     timeout=2.0,
                 )
-        except asyncio.TimeoutError:
-            result = {"success": False, "summary": "handler_timeout"}
-        except (RuntimeError, asyncio.CancelledError, TimeoutError, AttributeError) as exc:
-            record_degradation('motor_cortex', exc)
-            result = {"success": False, "summary": f"handler_error: {exc}"}
+        except TimeoutError:
+            result = {
+                "success": False,
+                "summary": "handler_timeout",
+                "error": f"{action.handler_name} exceeded 2.0s motor budget",
+            }
+        except asyncio.CancelledError:
+            raise
+        except (RuntimeError, AttributeError, TypeError, ValueError, OSError) as exc:
+            _record_motor_degradation(
+                exc,
+                action="Converted reflex handler exception into a failed receipt and affect feedback",
+                severity="degraded",
+                extra={
+                    "handler": action.handler_name,
+                    "reflex_class": action.reflex_class.value,
+                },
+            )
+            result = {"success": False, "summary": "handler_error", "error": str(exc)}
 
         latency_ms = (time.monotonic() - t0) * 1000
 
@@ -594,17 +706,25 @@ class MotorCortex:
         # Publish to event bus for system-wide observability
         try:
             from core.event_bus import get_event_bus
-            get_event_bus().publish_threadsafe("motor_cortex.action", {
-                "receipt_id": receipt.receipt_id,
-                "reflex_class": receipt.reflex_class.value,
-                "handler": receipt.handler_name,
-                "success": receipt.success,
-                "latency_ms": receipt.latency_ms,
-                "summary": receipt.result_summary,
-                "timestamp": receipt.timestamp,
-            })
-        except (ImportError, AttributeError, RuntimeError):
-            pass  # no-op: intentional
+
+            get_event_bus().publish_threadsafe(
+                "motor_cortex.action",
+                {
+                    "receipt_id": receipt.receipt_id,
+                    "reflex_class": receipt.reflex_class.value,
+                    "handler": receipt.handler_name,
+                    "success": receipt.success,
+                    "latency_ms": receipt.latency_ms,
+                    "summary": receipt.result_summary,
+                    "timestamp": receipt.timestamp,
+                },
+            )
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            _record_motor_degradation(
+                exc,
+                action="Kept motor receipt in local audit trail after event-bus publish failed",
+                extra={"receipt_id": receipt.receipt_id, "handler": receipt.handler_name},
+            )
 
     def _emit_affect_feedback(self, receipt: MotorReceipt) -> None:
         """Push failure feedback into the affect system (cortisol bump)."""
@@ -613,15 +733,21 @@ class MotorCortex:
             if affect is None:
                 affect = ServiceContainer.get("affect_facade", default=None)
             if affect and hasattr(affect, "inject_percept"):
-                affect.inject_percept({
-                    "type": "motor_failure",
-                    "source": "motor_cortex",
-                    "handler": receipt.handler_name,
-                    "error": receipt.error,
-                    "salience": 0.4,
-                })
-        except (ImportError, AttributeError, RuntimeError):
-            pass  # no-op: intentional
+                affect.inject_percept(
+                    {
+                        "type": "motor_failure",
+                        "source": "motor_cortex",
+                        "handler": receipt.handler_name,
+                        "error": receipt.error,
+                        "salience": 0.4,
+                    }
+                )
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            _record_motor_degradation(
+                exc,
+                action="Kept failed motor receipt after affect feedback publish failed",
+                extra={"receipt_id": receipt.receipt_id, "handler": receipt.handler_name},
+            )
 
     @staticmethod
     def _make_receipt_id(ts: float, action: ReflexAction) -> str:
@@ -632,7 +758,7 @@ class MotorCortex:
     # Status & Health
     # ------------------------------------------------------------------
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Return current motor cortex status."""
         avg_latency = (
             round(self._total_latency_ms / max(1, self._total_actions), 2)
@@ -642,19 +768,18 @@ class MotorCortex:
         return {
             "running": self._running,
             "cycle_count": self._cycle_count,
+            "loop_failures": self._loop_failure_count,
+            "last_loop_error": self._last_loop_error,
             "total_actions": self._total_actions,
             "avg_latency_ms": avg_latency,
             "queue_size": self._queue.qsize(),
             "pending_reports": len(self._pending_cognitive_reports),
-            "active_tokens": {
-                cls.value: token.valid
-                for cls, token in self._tokens.items()
-            },
+            "active_tokens": {cls.value: token.valid for cls, token in self._tokens.items()},
             "registered_handlers": self._registry.names,
             "uptime_s": round(time.time() - self._boot_time, 1),
         }
 
-    def get_recent_receipts(self, n: int = 20) -> List[Dict[str, Any]]:
+    def get_recent_receipts(self, n: int = 20) -> list[dict[str, Any]]:
         """Return recent motor receipts for audit."""
         recent = list(self._receipts)[-n:]
         return [
@@ -675,7 +800,7 @@ class MotorCortex:
 # Singleton
 # ---------------------------------------------------------------------------
 
-_motor_cortex_instance: Optional[MotorCortex] = None
+_motor_cortex_instance: MotorCortex | None = None
 
 
 def get_motor_cortex() -> MotorCortex:

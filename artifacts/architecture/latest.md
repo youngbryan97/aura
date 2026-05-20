@@ -2,13 +2,13 @@
 
 Schema: `aura.architecture.dependency_map.v1`
 Root: `/Users/bryan/.aura/live-source`
-Generated: `1779252882.8852348`
+Generated: `1779253072.090226`
 
 ## Summary
 
 - Subsystems: 120
 - Python files: 1539
-- Python lines: 417829
+- Python lines: 417954
 - Dependency edges: 649
 - ServiceContainer `.get()` calls: 1443
 - ServiceContainer registrations: 337
@@ -70,7 +70,7 @@ graph TD
     pneuma["pneuma<br/>7 files, 1198 lines"]
     resource["resource<br/>2 files, 403 lines"]
     skills["skills<br/>71 files, 12458 lines"]
-    somatic["somatic<br/>5 files, 2250 lines"]
+    somatic["somatic<br/>5 files, 2375 lines"]
     verification["verification<br/>4 files, 350 lines"]
     advanced_cognition["advanced_cognition<br/>13 files, 2905 lines"]
     architect["architect<br/>25 files, 5706 lines"]
@@ -824,9 +824,9 @@ graph TD
 | goals | 6 | 2730 | 115789 | 5 | 3 |
 | morphogenesis | 12 | 2686 | 104251 | 8 | 2 |
 | unity | 11 | 2409 | 100598 | 3 | 5 |
+| somatic | 5 | 2375 | 89958 | 7 | 3 |
 | executive | 4 | 2306 | 97369 | 13 | 7 |
 | self_improvement | 12 | 2285 | 86875 | 3 | 2 |
-| somatic | 5 | 2250 | 85583 | 7 | 3 |
 | world_model | 8 | 2242 | 91351 | 7 | 8 |
 | conversational | 4 | 2237 | 95525 | 4 | 3 |
 | embodiment | 14 | 2088 | 81864 | 12 | 3 |
@@ -1216,9 +1216,9 @@ Review candidates:
 
 ## Degradation Handling
 
-- Total `record_degradation()` calls: 3132
-- Log-and-limp candidates: 2881
-- Nearby fail-closed candidates: 251
+- Total `record_degradation()` calls: 3126
+- Log-and-limp candidates: 2879
+- Nearby fail-closed candidates: 247
 
 Top limp-on files:
 
