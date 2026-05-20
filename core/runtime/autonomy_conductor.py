@@ -1,4 +1,3 @@
-
 """Active scheduler for Aura's self-maintenance loops.
 
 This is the difference between machinery existing and Aura actually using it.
@@ -6,21 +5,72 @@ The conductor owns recurring jobs, records receipts, and marks missed or failed
 runs as degraded events.  It is lightweight enough for desktop runtime and
 safe enough to start automatically.
 """
+
 from __future__ import annotations
 
-import logging
-logger = logging.getLogger("core.runtime.autonomy_conductor")
 import asyncio
 import json
+import logging
 import time
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Awaitable, Callable
+from typing import Any
 
 from core.runtime.atomic_writer import atomic_write_text
-from core.runtime.errors import record_degradation
+from core.runtime.errors import FallbackClassification, record_degradation
+from core.utils.task_tracker import get_task_tracker
 
 JobFn = Callable[[], Awaitable[dict[str, Any]] | dict[str, Any]]
+logger = logging.getLogger("core.runtime.autonomy_conductor")
+
+_AUTONOMY_RECOVERABLE_ERRORS = (
+    ImportError,
+    AttributeError,
+    RuntimeError,
+    TypeError,
+    ValueError,
+    OSError,
+    ConnectionError,
+    TimeoutError,
+)
+
+
+def _record_autonomy_degradation(
+    error: BaseException,
+    *,
+    action: str,
+    stage: str,
+    job_name: str = "",
+    severity: str = "warning",
+) -> None:
+    extra = {"stage": stage}
+    if job_name:
+        extra["job_name"] = job_name
+    try:
+        record_degradation(
+            "autonomy_conductor",
+            error,
+            severity=severity,  # type: ignore[arg-type]
+            action=action,
+            classification=FallbackClassification.SAFE_FALLBACK,
+            extra=extra,
+        )
+    except TypeError:
+        record_degradation(
+            "autonomy_conductor",
+            error,
+            severity=severity,  # type: ignore[arg-type]
+            action=action,
+        )
+
+
+def _normalize_job_result(result: Any) -> dict[str, Any]:
+    if result is None:
+        return {}
+    if isinstance(result, dict):
+        return dict(result)
+    return {"value": result}
 
 
 @dataclass
@@ -56,24 +106,55 @@ class AutonomyConductor:
     """Runs self-maintenance jobs consistently with observable receipts."""
 
     def __init__(self, ledger_path: str | Path | None = None) -> None:
-        self.ledger_path = Path(ledger_path or Path.home() / ".aura" / "data" / "runtime" / "autonomy_conductor.jsonl")
+        self.ledger_path = Path(
+            ledger_path or Path.home() / ".aura" / "data" / "runtime" / "autonomy_conductor.jsonl"
+        )
         self.ledger_path.parent.mkdir(parents=True, exist_ok=True)
         self.jobs: dict[str, ConductedJob] = {}
         self._task: asyncio.Task | None = None
         self._stop = asyncio.Event()
 
-    def register(self, name: str, interval_s: float, fn: JobFn, *, run_immediately: bool = False) -> None:
-        self.jobs[name] = ConductedJob(name=name, interval_s=float(interval_s), fn=fn, run_immediately=run_immediately)
+    def register(
+        self, name: str, interval_s: float, fn: JobFn, *, run_immediately: bool = False
+    ) -> None:
+        if not name or not isinstance(name, str):
+            raise ValueError("autonomy job name must be a non-empty string")
+        if not callable(fn):
+            raise TypeError("autonomy job must be callable")
+        interval = float(interval_s)
+        if interval <= 0:
+            raise ValueError("autonomy job interval must be positive")
+        self.jobs[name] = ConductedJob(
+            name=name,
+            interval_s=interval,
+            fn=fn,
+            run_immediately=run_immediately,
+        )
 
     def register_defaults(self) -> None:
         self.register("metabolic_budget", 300.0, self._job_metabolic_budget, run_immediately=True)
-        self.register("stdp_external_validation", 6 * 3600.0, self._job_stdp_external_validation, run_immediately=True)
-        self.register("caa_32b_validation", 6 * 3600.0, self._job_caa_32b_validation, run_immediately=True)
+        self.register(
+            "stdp_external_validation",
+            6 * 3600.0,
+            self._job_stdp_external_validation,
+            run_immediately=True,
+        )
+        self.register(
+            "caa_32b_validation", 6 * 3600.0, self._job_caa_32b_validation, run_immediately=True
+        )
         self.register("proof_bundle", 12 * 3600.0, self._job_proof_bundle, run_immediately=False)
-        self.register("self_test_synthesis", 24 * 3600.0, self._job_self_test_synthesis, run_immediately=False)
-        self.register("architecture_auto_cycle", 600.0, self._job_architecture_auto, run_immediately=False)
-        self.register("overt_action_cycle", 120.0, self._job_overt_action_cycle, run_immediately=True)
-        self.register("online_lora_status", 900.0, self._job_online_lora_status, run_immediately=True)
+        self.register(
+            "self_test_synthesis", 24 * 3600.0, self._job_self_test_synthesis, run_immediately=False
+        )
+        self.register(
+            "architecture_auto_cycle", 600.0, self._job_architecture_auto, run_immediately=False
+        )
+        self.register(
+            "overt_action_cycle", 120.0, self._job_overt_action_cycle, run_immediately=True
+        )
+        self.register(
+            "online_lora_status", 900.0, self._job_online_lora_status, run_immediately=True
+        )
 
     async def start(self) -> None:
         if self._task and not self._task.done():
@@ -81,17 +162,42 @@ class AutonomyConductor:
         if not self.jobs:
             self.register_defaults()
         self._stop = asyncio.Event()
-        self._task = asyncio.create_task(self._run(), name="Aura.AutonomyConductor")
+        runner = self._run()
+        try:
+            self._task = get_task_tracker().create_task(runner, name="Aura.AutonomyConductor")
+        except _AUTONOMY_RECOVERABLE_ERRORS as exc:
+            runner.close()
+            _record_autonomy_degradation(
+                exc,
+                action="started conductor with asyncio task after task tracker scheduling failed",
+                stage="start.task_tracker",
+            )
+            self._task = asyncio.create_task(self._run(), name="Aura.AutonomyConductor")
 
     async def stop(self) -> None:
         self._stop.set()
         if self._task:
-            await asyncio.wait([self._task], timeout=3)
+            done, pending = await asyncio.wait([self._task], timeout=3)
+            for task in pending:
+                task.cancel()
+            if pending:
+                await asyncio.gather(*pending, return_exceptions=True)
+            for task in done:
+                try:
+                    task.result()
+                except asyncio.CancelledError:
+                    logger.debug("Autonomy conductor task cancelled during stop.")
+                except _AUTONOMY_RECOVERABLE_ERRORS as exc:
+                    _record_autonomy_degradation(
+                        exc,
+                        action="completed conductor stop after background task surfaced failure",
+                        stage="stop.task_result",
+                    )
 
     async def run_due_once(self) -> dict[str, Any]:
         now = time.time()
         results: dict[str, Any] = {}
-        for job in self.jobs.values():
+        for job in list(self.jobs.values()):
             if job.due(now):
                 results[job.name] = await self._run_job(job)
         return results
@@ -100,12 +206,21 @@ class AutonomyConductor:
         while not self._stop.is_set():
             try:
                 await self.run_due_once()
-            except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
-                record_degradation("autonomy_conductor", exc)
+            except _AUTONOMY_RECOVERABLE_ERRORS as exc:
+                _record_autonomy_degradation(
+                    exc,
+                    action="continued autonomy loop after due-job sweep failed",
+                    stage="run.loop",
+                    severity="degraded",
+                )
             try:
                 await asyncio.wait_for(self._stop.wait(), timeout=30.0)
-            except asyncio.TimeoutError as _exc:
-                logger.debug("Suppressed %s in core.runtime.autonomy_conductor: %s", type(_exc).__name__, _exc)
+            except TimeoutError as _exc:
+                logger.debug(
+                    "Suppressed %s in core.runtime.autonomy_conductor: %s",
+                    type(_exc).__name__,
+                    _exc,
+                )
 
     async def _run_job(self, job: ConductedJob) -> dict[str, Any]:
         job.last_started_at = time.time()
@@ -113,11 +228,17 @@ class AutonomyConductor:
             result = job.fn()
             if asyncio.iscoroutine(result):
                 result = await result
-            job.last_result = dict(result or {})
+            job.last_result = _normalize_job_result(result)
             job.last_status = "ok"
             job.failures = 0
-        except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
-            record_degradation("autonomy_conductor", exc)
+        except _AUTONOMY_RECOVERABLE_ERRORS as exc:
+            _record_autonomy_degradation(
+                exc,
+                action="marked autonomy job failed and kept conductor alive",
+                stage="run_job",
+                job_name=job.name,
+                severity="degraded",
+            )
             job.last_result = {"error": repr(exc)}
             job.last_status = "failed"
             job.failures += 1
@@ -127,8 +248,16 @@ class AutonomyConductor:
 
     def _record(self, job: ConductedJob) -> None:
         entry = {"when": time.time(), "job": job.to_dict()}
-        with open(self.ledger_path, "a", encoding="utf-8") as fh:
-            fh.write(json.dumps(entry, sort_keys=True, default=str) + "\n")
+        try:
+            with open(self.ledger_path, "a", encoding="utf-8") as fh:
+                fh.write(json.dumps(entry, sort_keys=True, default=str) + "\n")
+        except _AUTONOMY_RECOVERABLE_ERRORS as exc:
+            _record_autonomy_degradation(
+                exc,
+                action="kept in-memory autonomy job status after ledger append failed",
+                stage="record.ledger",
+                job_name=job.name,
+            )
 
     def status(self) -> dict[str, Any]:
         return {
@@ -139,14 +268,30 @@ class AutonomyConductor:
 
     def write_status(self, path: str | Path) -> dict[str, Any]:
         status = self.status()
-        atomic_write_text(Path(path), json.dumps(status, indent=2, sort_keys=True), encoding="utf-8")
+        try:
+            atomic_write_text(
+                Path(path), json.dumps(status, indent=2, sort_keys=True), encoding="utf-8"
+            )
+        except _AUTONOMY_RECOVERABLE_ERRORS as exc:
+            _record_autonomy_degradation(
+                exc,
+                action="returned conductor status after status file write failed",
+                stage="write_status",
+            )
+            raise
         return status
 
     async def _job_metabolic_budget(self) -> dict[str, Any]:
         from core.autonomy.metabolic_budget import MetabolicState, get_metabolic_budget_scheduler
 
         allocation = get_metabolic_budget_scheduler().allocate(
-            MetabolicState(stability=0.9, resource_headroom=0.8, novelty_budget=0.6, benchmark_gap=0.25, external_usefulness=0.6)
+            MetabolicState(
+                stability=0.9,
+                resource_headroom=0.8,
+                novelty_budget=0.6,
+                benchmark_gap=0.25,
+                external_usefulness=0.6,
+            )
         )
         return allocation.to_dict()
 
@@ -179,7 +324,11 @@ class AutonomyConductor:
 
         config = ASAConfig.from_env()
         if not config.enabled or not config.autopromote:
-            return {"status": "disabled", "enabled": config.enabled, "autopromote": config.autopromote}
+            return {
+                "status": "disabled",
+                "enabled": config.enabled,
+                "autopromote": config.autopromote,
+            }
         governor = AutonomousArchitectureGovernor(config)
         return await asyncio.to_thread(governor.auto, tier_max=config.max_tier)
 
@@ -216,4 +365,9 @@ async def start_default_conductor() -> AutonomyConductor:
     return conductor
 
 
-__all__ = ["ConductedJob", "AutonomyConductor", "get_autonomy_conductor", "start_default_conductor"]
+__all__ = [
+    "ConductedJob",
+    "AutonomyConductor",
+    "get_autonomy_conductor",
+    "start_default_conductor",
+]
