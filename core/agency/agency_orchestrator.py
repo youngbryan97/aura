@@ -19,23 +19,53 @@ chain — it consumes them. Will is the policy engine; AgencyOrchestrator is
 the runtime that drives the policy engine through the full life-loop and
 produces forensic receipts for every decision.
 """
+
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
-
 
 import asyncio
 import inspect
 import json
 import logging
+import math
 import subprocess
 import time
 import uuid
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field, fields, is_dataclass
 from pathlib import Path
-from typing import Any, Awaitable, Callable, Dict, List, Optional
+from typing import Any
+
+from core.runtime.errors import FallbackClassification, Severity, record_degradation
 
 logger = logging.getLogger("Aura.AgencyOrchestrator")
+
+AGENCY_RECOVERABLE_ERRORS = (
+    ImportError,
+    AttributeError,
+    RuntimeError,
+    TypeError,
+    ValueError,
+    OSError,
+    subprocess.SubprocessError,
+)
+
+
+def _record_agency_degradation(
+    error: BaseException,
+    *,
+    action: str,
+    severity: Severity = "warning",
+    extra: dict[str, Any] | None = None,
+) -> None:
+    record_degradation(
+        "agency_orchestrator",
+        error,
+        severity=severity,
+        action=action,
+        classification=FallbackClassification.SAFE_FALLBACK,
+        receipt_required=False,
+        extra=extra,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -54,21 +84,21 @@ class ActionReceipt:
 
     proposal_id: str
     drive: str
-    state_snapshot: Dict[str, Any]
+    state_snapshot: dict[str, Any]
     expected_outcome: str
-    simulation_result: Dict[str, Any]
+    simulation_result: dict[str, Any]
     will_decision: str
-    will_receipt_id: Optional[str]
-    authority_receipt: Optional[str]
-    capability_token: Optional[str]
-    execution_receipt: Optional[str]
-    outcome_assessment: Dict[str, Any]
+    will_receipt_id: str | None
+    authority_receipt: str | None
+    capability_token: str | None
+    execution_receipt: str | None
+    outcome_assessment: dict[str, Any]
     started_at: float = field(default_factory=time.time)
-    completed_at: Optional[float] = None
-    blocked_at: Optional[str] = None
-    blocked_reason: Optional[str] = None
-    lesson: Optional[str] = None
-    regret: Optional[float] = None  # 0.0 = no regret, 1.0 = high regret
+    completed_at: float | None = None
+    blocked_at: str | None = None
+    blocked_reason: str | None = None
+    lesson: str | None = None
+    regret: float | None = None  # 0.0 = no regret, 1.0 = high regret
 
     def is_complete(self) -> bool:
         return all(
@@ -80,7 +110,7 @@ class ActionReceipt:
             )
         )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return _receipt_json_safe(self)
 
 
@@ -97,7 +127,9 @@ def _receipt_json_safe(value: Any, *, _depth: int = 0) -> Any:
         try:
             value.close()
         except (RuntimeError, AttributeError, TypeError, ValueError) as _exc:
-            logger.debug("Suppressed %s in core.agency.agency_orchestrator: %s", type(_exc).__name__, _exc)
+            logger.debug(
+                "Suppressed %s in core.agency.agency_orchestrator: %s", type(_exc).__name__, _exc
+            )
         return {
             "error": "coroutine_in_receipt",
             "repr": repr(value),
@@ -114,7 +146,9 @@ def _receipt_json_safe(value: Any, *, _depth: int = 0) -> Any:
         }
     if isinstance(value, dict):
         return {
-            str(_receipt_json_safe(key, _depth=_depth + 1)): _receipt_json_safe(item, _depth=_depth + 1)
+            str(_receipt_json_safe(key, _depth=_depth + 1)): _receipt_json_safe(
+                item, _depth=_depth + 1
+            )
             for key, item in value.items()
         }
     if isinstance(value, (list, tuple, set)):
@@ -139,8 +173,10 @@ class _ReceiptLog:
     deque so the dashboard can serve recent receipts without disk I/O.
     """
 
-    def __init__(self, path: Optional[Path] = None) -> None:
-        self.path = path or (Path.home() / ".aura" / "data" / "agency_receipts" / "agency_receipts.jsonl")
+    def __init__(self, path: Path | None = None) -> None:
+        self.path = path or (
+            Path.home() / ".aura" / "data" / "agency_receipts" / "agency_receipts.jsonl"
+        )
         self.path.parent.mkdir(parents=True, exist_ok=True)
         from collections import deque
 
@@ -151,13 +187,21 @@ class _ReceiptLog:
         async with self._lock:
             self._recent.append(receipt)
             try:
-                with open(self.path, "a", encoding="utf-8") as fh:
-                    fh.write(json.dumps(receipt.to_dict(), default=str) + "\n")
-            except (json.JSONDecodeError, TypeError, ValueError) as exc:
-                record_degradation('agency_orchestrator', exc)
+                await asyncio.to_thread(self._append_sync, receipt)
+            except (json.JSONDecodeError, TypeError, ValueError, OSError) as exc:
+                _record_agency_degradation(
+                    exc,
+                    action="Kept agency receipt in memory after durable receipt append failed",
+                    severity="degraded",
+                    extra={"path": str(self.path), "proposal_id": receipt.proposal_id},
+                )
                 logger.warning("Receipt log append failed: %s", exc)
 
-    def recent(self, limit: int = 50) -> List[Dict[str, Any]]:
+    def _append_sync(self, receipt: ActionReceipt) -> None:
+        with open(self.path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(receipt.to_dict(), default=str) + "\n")
+
+    def recent(self, limit: int = 50) -> list[dict[str, Any]]:
         return [r.to_dict() for r in list(self._recent)[-limit:]]
 
 
@@ -202,7 +246,7 @@ class Proposal:
     intent: str
     expected_outcome: str
     primitive: str
-    payload: Dict[str, Any] = field(default_factory=dict)
+    payload: dict[str, Any] = field(default_factory=dict)
     priority: float = 0.5
 
 
@@ -218,11 +262,12 @@ class AgencyOrchestrator:
         self,
         proposal: Proposal,
         *,
-        perceive: Optional[Callable[[], Awaitable[Dict[str, Any]]]] = None,
-        score: Optional[Callable[[Proposal, Dict[str, Any]], Awaitable[float]]] = None,
-        simulate: Optional[Callable[[Proposal, Dict[str, Any]], Awaitable[Dict[str, Any]]]] = None,
-        execute: Optional[Callable[[Proposal, Dict[str, Any], str], Awaitable[Dict[str, Any]]]] = None,
-        assess: Optional[Callable[[Proposal, Dict[str, Any], Dict[str, Any]], Awaitable[Dict[str, Any]]]] = None,
+        perceive: Callable[[], Awaitable[dict[str, Any]]] | None = None,
+        score: Callable[[Proposal, dict[str, Any]], Awaitable[float]] | None = None,
+        simulate: Callable[[Proposal, dict[str, Any]], Awaitable[dict[str, Any]]] | None = None,
+        execute: Callable[[Proposal, dict[str, Any], str], Awaitable[dict[str, Any]]] | None = None,
+        assess: Callable[[Proposal, dict[str, Any], dict[str, Any]], Awaitable[dict[str, Any]]]
+        | None = None,
     ) -> ActionReceipt:
         """Run the full life-loop for one proposal.
 
@@ -250,23 +295,53 @@ class AgencyOrchestrator:
         try:
             perceived = perceive() if perceive else self._default_perceive()
             state_snapshot = await perceived if inspect.isawaitable(perceived) else perceived
-        except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
-            record_degradation('agency_orchestrator', exc)
+        except AGENCY_RECOVERABLE_ERRORS as exc:
+            _record_agency_degradation(
+                exc,
+                action="Blocked agency life-loop at perception stage",
+                severity="degraded",
+                extra={"proposal_id": proposal_id, "stage": "perceive"},
+            )
             return await self._block(receipt, "perceive", str(exc))
+        if not isinstance(state_snapshot, dict):
+            return await self._block(
+                receipt,
+                "perceive",
+                f"perception returned {type(state_snapshot).__qualname__}, expected dict",
+            )
         receipt.state_snapshot = state_snapshot
 
         # 3. proposal already given; 4. score
         try:
             score_value = await score(proposal, state_snapshot) if score else proposal.priority
-        except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
-            record_degradation('agency_orchestrator', exc)
+            if not isinstance(score_value, (int, float)) or not math.isfinite(float(score_value)):
+                raise ValueError(f"invalid score: {score_value!r}")
+            score_value = max(0.0, min(1.0, float(score_value)))
+        except AGENCY_RECOVERABLE_ERRORS as exc:
+            _record_agency_degradation(
+                exc,
+                action="Blocked agency life-loop at scoring stage",
+                severity="degraded",
+                extra={"proposal_id": proposal_id, "stage": "score"},
+            )
             return await self._block(receipt, "score", str(exc))
 
         # 5. simulate (counterfactual; must NOT mutate live state)
         try:
-            simulation = await simulate(proposal, state_snapshot) if simulate else {"score": score_value}
-        except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
-            record_degradation('agency_orchestrator', exc)
+            simulation = (
+                await simulate(proposal, state_snapshot) if simulate else {"score": score_value}
+            )
+            if not isinstance(simulation, dict):
+                raise ValueError(
+                    f"simulation returned {type(simulation).__qualname__}, expected dict"
+                )
+        except AGENCY_RECOVERABLE_ERRORS as exc:
+            _record_agency_degradation(
+                exc,
+                action="Blocked agency life-loop at simulation stage",
+                severity="degraded",
+                extra={"proposal_id": proposal_id, "stage": "simulate"},
+            )
             return await self._block(receipt, "simulate", str(exc))
         receipt.simulation_result = simulation
 
@@ -286,16 +361,38 @@ class AgencyOrchestrator:
                 if execute
                 else await self._default_execute(proposal)
             )
-        except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
-            record_degradation('agency_orchestrator', exc)
+        except AGENCY_RECOVERABLE_ERRORS as exc:
+            _record_agency_degradation(
+                exc,
+                action="Blocked agency life-loop at execution stage",
+                severity="degraded",
+                extra={"proposal_id": proposal_id, "stage": "execute"},
+            )
             return await self._block(receipt, "execute", str(exc))
+        if not isinstance(exec_result, dict):
+            return await self._block(
+                receipt,
+                "execute",
+                f"execute returned {type(exec_result).__qualname__}, expected dict",
+            )
         receipt.execution_receipt = str(exec_result.get("receipt") or exec_result)
 
         # 8. observe outcome / 9. assess regret / lesson
         try:
-            outcome = await assess(proposal, state_snapshot, exec_result) if assess else {"observed": exec_result}
-        except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
-            record_degradation('agency_orchestrator', exc)
+            outcome = (
+                await assess(proposal, state_snapshot, exec_result)
+                if assess
+                else {"observed": exec_result}
+            )
+            if not isinstance(outcome, dict):
+                raise ValueError(f"assess returned {type(outcome).__qualname__}, expected dict")
+        except AGENCY_RECOVERABLE_ERRORS as exc:
+            _record_agency_degradation(
+                exc,
+                action="Blocked agency life-loop at assessment stage",
+                severity="degraded",
+                extra={"proposal_id": proposal_id, "stage": "assess"},
+            )
             return await self._block(receipt, "assess", str(exc))
         receipt.outcome_assessment = outcome
         receipt.regret = float(outcome.get("regret", 0.0) or 0.0)
@@ -308,23 +405,32 @@ class AgencyOrchestrator:
 
     # --- helpers ------------------------------------------------------------
 
-    async def _default_perceive(self) -> Dict[str, Any]:
+    async def _default_perceive(self) -> dict[str, Any]:
         try:
             from core.container import ServiceContainer
+
             registry = ServiceContainer.get("unified_state_registry", default=None)
             if registry and hasattr(registry, "snapshot"):
                 snap = registry.snapshot()
                 return snap if isinstance(snap, dict) else {"raw": str(snap)[:1024]}
         except (ImportError, AttributeError, RuntimeError) as exc:
-            record_degradation('agency_orchestrator', exc)
+            _record_agency_degradation(
+                exc,
+                action="Returned empty perception snapshot after state registry snapshot failed",
+                extra={"stage": "default_perceive"},
+            )
             logger.debug("default perceive snapshot failed: %s", exc)
         return {}
 
-    async def _default_execute(self, proposal: Proposal) -> Dict[str, Any]:
+    async def _default_execute(self, proposal: Proposal) -> dict[str, Any]:
         if proposal.primitive == "shell_execution":
             argv = proposal.payload.get("argv")
             if not isinstance(argv, list) or not all(isinstance(part, str) for part in argv):
-                return {"executed": False, "receipt": "shell_execution:invalid_argv", "error": "argv must be list[str]"}
+                return {
+                    "executed": False,
+                    "receipt": "shell_execution:invalid_argv",
+                    "error": "argv must be list[str]",
+                }
             timeout = float(proposal.payload.get("timeout") or 30.0)
             cwd = proposal.payload.get("cwd")
             proc = await asyncio.to_thread(
@@ -348,11 +454,12 @@ class AgencyOrchestrator:
     async def _authorize(
         self,
         proposal: Proposal,
-        state: Dict[str, Any],
-        simulation: Dict[str, Any],
-    ) -> Dict[str, Any]:
+        state: dict[str, Any],
+        simulation: dict[str, Any],
+    ) -> dict[str, Any]:
         try:
             from core.governance.will_client import WillClient, WillRequest
+
             domain = self._primitive_to_domain(proposal.primitive)
             decision = await WillClient().decide_async(
                 WillRequest(
@@ -378,7 +485,12 @@ class AgencyOrchestrator:
                 "capability_token": getattr(decision, "capability_token", None),
             }
         except (ImportError, AttributeError, RuntimeError) as exc:
-            record_degradation('agency_orchestrator', exc)
+            _record_agency_degradation(
+                exc,
+                action="Blocked agency life-loop because Will authorization was unavailable",
+                severity="degraded",
+                extra={"primitive": proposal.primitive, "drive": proposal.drive},
+            )
             return {"decision": "blocked", "reason": f"authorize_exception:{exc}"}
 
     @staticmethod
@@ -411,7 +523,7 @@ class AgencyOrchestrator:
         return receipt
 
 
-_ORCHESTRATOR: Optional[AgencyOrchestrator] = None
+_ORCHESTRATOR: AgencyOrchestrator | None = None
 
 
 def get_orchestrator() -> AgencyOrchestrator:

@@ -2,13 +2,13 @@
 
 Schema: `aura.architecture.dependency_map.v1`
 Root: `/Users/bryan/.aura/live-source`
-Generated: `1779253400.2510452`
+Generated: `1779253600.410623`
 
 ## Summary
 
 - Subsystems: 120
 - Python files: 1539
-- Python lines: 418195
+- Python lines: 418307
 - Dependency edges: 649
 - ServiceContainer `.get()` calls: 1443
 - ServiceContainer registrations: 337
@@ -24,7 +24,7 @@ graph TD
     resilience["resilience<br/>53 files, 10728 lines"]
     health["health<br/>3 files, 561 lines"]
     memory["memory<br/>64 files, 13437 lines"]
-    agency["agency<br/>26 files, 10529 lines"]
+    agency["agency<br/>26 files, 10641 lines"]
     adaptation["adaptation<br/>24 files, 10409 lines"]
     constitution["constitution<br/>1 files, 25 lines"]
     self_modification["self_modification<br/>29 files, 10187 lines"]
@@ -801,7 +801,7 @@ graph TD
 | memory | 64 | 13437 | 545611 | 15 | 20 |
 | skills | 71 | 12458 | 524162 | 24 | 3 |
 | resilience | 53 | 10728 | 434600 | 16 | 24 |
-| agency | 26 | 10529 | 423359 | 17 | 17 |
+| agency | 26 | 10641 | 426853 | 17 | 17 |
 | adaptation | 24 | 10409 | 419370 | 15 | 14 |
 | self_modification | 29 | 10187 | 403177 | 11 | 13 |
 | environment | 80 | 8018 | 311751 | 10 | 2 |
@@ -1107,7 +1107,7 @@ Review candidates:
 Calls that can execute tools, skills, shells, browsers, or external actions.
 
 Review candidates:
-- `core/agency/agency_orchestrator.py:285` [agency] `execute` - await execute(proposal, state_snapshot, receipt.capability_token or "")
+- `core/agency/agency_orchestrator.py:360` [agency] `execute` - await execute(proposal, state_snapshot, receipt.capability_token or "")
 - `core/agency/autonomous_task_engine.py:515` [agency] `orchestrator.execute_tool` - return await orchestrator.execute_tool(tool_name, args, **kwargs)
 - `core/agency/autonomous_task_engine.py:2607` [agency] `orch.execute_tool` - return await orch.execute_tool(
 - `core/agency/autonomous_task_engine.py:2610` [agency] `orch.execute_tool` - return await orch.execute_tool("web_search", {"query": query})
@@ -1216,9 +1216,9 @@ Review candidates:
 
 ## Degradation Handling
 
-- Total `record_degradation()` calls: 3119
-- Log-and-limp candidates: 2872
-- Nearby fail-closed candidates: 247
+- Total `record_degradation()` calls: 3112
+- Log-and-limp candidates: 2871
+- Nearby fail-closed candidates: 241
 
 Top limp-on files:
 

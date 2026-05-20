@@ -2,7 +2,8 @@ from dataclasses import dataclass
 
 import pytest
 
-from core.agency.agency_orchestrator import AgencyOrchestrator, Proposal
+from core.agency import agency_orchestrator as agency_mod
+from core.agency.agency_orchestrator import ActionReceipt, AgencyOrchestrator, Proposal
 from core.governance.will_client import WillClient, WillRequest
 from core.will import ActionDomain
 
@@ -68,6 +69,62 @@ async def test_action_receipt_serializes_runtime_mistakes_without_crashing(monke
     broken.state_snapshot = {"bad": accidental_coroutine()}
     payload = broken.to_dict()
     assert payload["state_snapshot"]["bad"]["error"] == "coroutine_in_receipt"
+
+
+@pytest.mark.asyncio
+async def test_agency_orchestrator_blocks_recoverable_execute_oserror(monkeypatch):
+    import core.governance.will_client as wc
+
+    recorded = []
+    monkeypatch.setattr(wc.WillClient, "_resolve_will", lambda self: FakeWill())
+    monkeypatch.setattr(
+        agency_mod,
+        "_record_agency_degradation",
+        lambda error, **kwargs: recorded.append((error, kwargs)),
+    )
+
+    async def failing_execute(_proposal, _state, _token):
+        raise OSError("tool transport down")
+
+    receipt = await AgencyOrchestrator().run(
+        Proposal("drive", "run diagnostic", "diagnostic result", "tool_execution"),
+        execute=failing_execute,
+    )
+
+    assert receipt.blocked_at == "execute"
+    assert "tool transport down" in receipt.blocked_reason
+    assert recorded[0][1]["action"] == "Blocked agency life-loop at execution stage"
+
+
+@pytest.mark.asyncio
+async def test_receipt_log_keeps_memory_copy_when_durable_append_fails(tmp_path, monkeypatch):
+    recorded = []
+    monkeypatch.setattr(
+        agency_mod,
+        "_record_agency_degradation",
+        lambda error, **kwargs: recorded.append((error, kwargs)),
+    )
+    log = agency_mod._ReceiptLog(path=tmp_path)
+    receipt = ActionReceipt(
+        proposal_id="AO-test",
+        drive="drive",
+        state_snapshot={},
+        expected_outcome="ok",
+        simulation_result={},
+        will_decision="blocked",
+        will_receipt_id=None,
+        authority_receipt=None,
+        capability_token=None,
+        execution_receipt=None,
+        outcome_assessment={},
+    )
+
+    await log.append(receipt)
+
+    assert log.recent(1)[0]["proposal_id"] == "AO-test"
+    assert recorded[0][1]["action"] == (
+        "Kept agency receipt in memory after durable receipt append failed"
+    )
 
 
 async def _async_dict(value):
