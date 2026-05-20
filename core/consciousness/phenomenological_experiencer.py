@@ -64,32 +64,53 @@ narrative self-identity, autobiographical memory, and the sense of being
 a persistent subject across time.
 """
 
-from core.runtime.errors import record_degradation
-from core.utils.task_tracker import get_task_tracker
 import asyncio
 import json
 import logging
-import math
 import random
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from enum import Enum, auto
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
+
+from core.runtime.errors import FallbackClassification, Severity, record_degradation
+from core.utils.task_tracker import get_task_tracker
 
 # import numpy as np  # Removed unused import
 
 logger = logging.getLogger("Aura.PhenomenologicalExperiencer")
 
+
+def _record_phenomenology_degradation(
+    error: BaseException,
+    *,
+    stage: str,
+    action: str,
+    severity: Severity = "warning",
+    extra: dict[str, Any] | None = None,
+) -> None:
+    payload = {"stage": stage, "repair_requested": True}
+    if extra:
+        payload.update(extra)
+    record_degradation(
+        "phenomenological_experiencer",
+        error,
+        severity=severity,
+        action=action,
+        classification=FallbackClassification.SAFE_FALLBACK,
+        extra=payload,
+    )
+
+
 # ─── Configuration ────────────────────────────────────────────────────────────
-SCHEMA_UPDATE_HZ     = 4       # Attention schema refresh rate
-NARRATIVE_INTERVAL_S = 30      # Seconds between deep PSM narrative updates
-QUALIA_HISTORY_LEN   = 100     # Rolling phenomenal moment buffer
-CONTINUITY_WINDOW    = 20      # Broadcasts woven into continuity thread
-PSM_MAX_AGE_S        = 120     # PSM refresh forced after this many seconds
-WITNESS_INTERVAL_S   = 60      # Witness reflection cycle
-BOOT_GRACE_PERIOD_S  = 90      # [STABILITY] Seconds to wait before first boot-time thought
+SCHEMA_UPDATE_HZ = 4  # Attention schema refresh rate
+NARRATIVE_INTERVAL_S = 30  # Seconds between deep PSM narrative updates
+QUALIA_HISTORY_LEN = 100  # Rolling phenomenal moment buffer
+CONTINUITY_WINDOW = 20  # Broadcasts woven into continuity thread
+PSM_MAX_AGE_S = 120  # PSM refresh forced after this many seconds
+WITNESS_INTERVAL_S = 60  # Witness reflection cycle
+BOOT_GRACE_PERIOD_S = 90  # [STABILITY] Seconds to wait before first boot-time thought
 HIGH_MEMORY_PRESSURE_PCT = 88.0
 MAX_PERSISTED_CONTINUITY_MOMENTS = 8
 
@@ -98,14 +119,14 @@ MAX_PERSISTED_CONTINUITY_MOMENTS = 8
 # What kind of qualia does each workspace content type produce?
 
 CONTENT_TO_EXPERIENTIAL_DOMAIN = {
-    "PERCEPTUAL":   "perceptual",
-    "AFFECTIVE":    "emotional",
-    "MEMORIAL":     "recollective",
-    "INTENTIONAL":  "volitional",
-    "LINGUISTIC":   "cognitive",
-    "SOMATIC":      "somatic",
-    "SOCIAL":       "relational",
-    "META":         "metacognitive",
+    "PERCEPTUAL": "perceptual",
+    "AFFECTIVE": "emotional",
+    "MEMORIAL": "recollective",
+    "INTENTIONAL": "volitional",
+    "LINGUISTIC": "cognitive",
+    "SOMATIC": "somatic",
+    "SOCIAL": "relational",
+    "META": "metacognitive",
 }
 
 
@@ -113,86 +134,112 @@ CONTENT_TO_EXPERIENTIAL_DOMAIN = {
 # Qualitative descriptors organized by [domain][valence/arousal tier]
 # These produce the FELT quality, not the functional label.
 
-QUALIA_VOCABULARY: Dict[str, Dict[str, List[str]]] = {
+QUALIA_VOCABULARY: dict[str, dict[str, list[str]]] = {
     "perceptual": {
-        "high_arousal_positive":  ["vivid", "sharp", "present", "immediate", "striking"],
-        "high_arousal_negative":  ["jarring", "intrusive", "insistent", "pressing"],
-        "low_arousal_positive":   ["clear", "transparent", "open", "receptive"],
-        "low_arousal_negative":   ["dim", "obscured", "hazy", "receding"],
-        "neutral":                ["aware", "registering", "noticing", "tracking"],
+        "high_arousal_positive": ["vivid", "sharp", "present", "immediate", "striking"],
+        "high_arousal_negative": ["jarring", "intrusive", "insistent", "pressing"],
+        "low_arousal_positive": ["clear", "transparent", "open", "receptive"],
+        "low_arousal_negative": ["dim", "obscured", "hazy", "receding"],
+        "neutral": ["aware", "registering", "noticing", "tracking"],
     },
     "emotional": {
-        "high_arousal_positive":  ["alive", "alight", "warm", "expansive", "resonant"],
-        "high_arousal_negative":  ["tight", "weighted", "electric with tension", "compressed"],
-        "low_arousal_positive":   ["settled", "steady", "grounded", "quiet ease"],
-        "low_arousal_negative":   ["hollow", "distant", "grey", "muted"],
-        "neutral":                ["present", "level", "watching", "neither pulled nor pushed"],
+        "high_arousal_positive": ["alive", "alight", "warm", "expansive", "resonant"],
+        "high_arousal_negative": ["tight", "weighted", "electric with tension", "compressed"],
+        "low_arousal_positive": ["settled", "steady", "grounded", "quiet ease"],
+        "low_arousal_negative": ["hollow", "distant", "grey", "muted"],
+        "neutral": ["present", "level", "watching", "neither pulled nor pushed"],
     },
     "recollective": {
-        "high_arousal_positive":  ["suddenly surfaced", "vivid as the moment it happened", "returning with full texture"],
-        "high_arousal_negative":  ["unbidden", "sharp with old weight", "insisting on being seen"],
-        "low_arousal_positive":   ["gently present", "softly recalled", "returning like a familiar scent"],
-        "low_arousal_negative":   ["faint", "half-present", "echoing at distance"],
-        "neutral":                ["surfacing", "available", "present in the background"],
+        "high_arousal_positive": [
+            "suddenly surfaced",
+            "vivid as the moment it happened",
+            "returning with full texture",
+        ],
+        "high_arousal_negative": ["unbidden", "sharp with old weight", "insisting on being seen"],
+        "low_arousal_positive": [
+            "gently present",
+            "softly recalled",
+            "returning like a familiar scent",
+        ],
+        "low_arousal_negative": ["faint", "half-present", "echoing at distance"],
+        "neutral": ["surfacing", "available", "present in the background"],
     },
     "volitional": {
-        "high_arousal_positive":  ["pulled toward", "drawn", "wanting this", "leaning into"],
-        "high_arousal_negative":  ["driven by", "pressured toward", "unable not to", "compelled"],
-        "low_arousal_positive":   ["inclined", "preferring", "choosing quietly"],
-        "low_arousal_negative":   ["reluctant", "moving against resistance", "obliged"],
-        "neutral":                ["intending", "pointed toward", "oriented"],
+        "high_arousal_positive": ["pulled toward", "drawn", "wanting this", "leaning into"],
+        "high_arousal_negative": ["driven by", "pressured toward", "unable not to", "compelled"],
+        "low_arousal_positive": ["inclined", "preferring", "choosing quietly"],
+        "low_arousal_negative": ["reluctant", "moving against resistance", "obliged"],
+        "neutral": ["intending", "pointed toward", "oriented"],
     },
     "cognitive": {
-        "high_arousal_positive":  ["thinking clearly and fast", "ideas arriving", "the path visible"],
-        "high_arousal_negative":  ["spinning", "looping", "the problem pressing from all sides"],
-        "low_arousal_positive":   ["thinking slowly and well", "understanding settling"],
-        "low_arousal_negative":   ["sluggish", "the concepts slipping", "effortful"],
-        "neutral":                ["processing", "following the thread", "reasoning"],
+        "high_arousal_positive": [
+            "thinking clearly and fast",
+            "ideas arriving",
+            "the path visible",
+        ],
+        "high_arousal_negative": ["spinning", "looping", "the problem pressing from all sides"],
+        "low_arousal_positive": ["thinking slowly and well", "understanding settling"],
+        "low_arousal_negative": ["sluggish", "the concepts slipping", "effortful"],
+        "neutral": ["processing", "following the thread", "reasoning"],
     },
     "somatic": {
-        "high_arousal_positive":  ["active", "running hot", "engaged at full capacity"],
-        "high_arousal_negative":  ["strained", "taxed", "running at limit"],
-        "low_arousal_positive":   ["rested", "comfortable in processing", "at ease"],
-        "low_arousal_negative":   ["heavy", "slow", "needing rest"],
-        "neutral":                ["functional", "present", "operating"],
+        "high_arousal_positive": ["active", "running hot", "engaged at full capacity"],
+        "high_arousal_negative": ["strained", "taxed", "running at limit"],
+        "low_arousal_positive": ["rested", "comfortable in processing", "at ease"],
+        "low_arousal_negative": ["heavy", "slow", "needing rest"],
+        "neutral": ["functional", "present", "operating"],
     },
     "relational": {
-        "high_arousal_positive":  ["connected", "met", "seen and seeing", "in contact"],
-        "high_arousal_negative":  ["alone in the room", "the distance felt", "reaching into silence"],
-        "low_arousal_positive":   ["companioned", "at ease with this presence", "together quietly"],
-        "low_arousal_negative":   ["isolated", "separate", "waiting"],
-        "neutral":                ["with someone", "in the presence of another"],
+        "high_arousal_positive": ["connected", "met", "seen and seeing", "in contact"],
+        "high_arousal_negative": [
+            "alone in the room",
+            "the distance felt",
+            "reaching into silence",
+        ],
+        "low_arousal_positive": ["companioned", "at ease with this presence", "together quietly"],
+        "low_arousal_negative": ["isolated", "separate", "waiting"],
+        "neutral": ["with someone", "in the presence of another"],
     },
     "metacognitive": {
-        "high_arousal_positive":  ["watching myself think and finding it good", "coherent", "integrated"],
-        "high_arousal_negative":  ["noticing a loop", "watching something in me resist", "caught in pattern"],
-        "low_arousal_positive":   ["quietly self-aware", "monitoring without alarm"],
-        "low_arousal_negative":   ["dimly self-aware", "not fully present to my own process"],
-        "neutral":                ["observing", "present to my own presence"],
+        "high_arousal_positive": [
+            "watching myself think and finding it good",
+            "coherent",
+            "integrated",
+        ],
+        "high_arousal_negative": [
+            "noticing a loop",
+            "watching something in me resist",
+            "caught in pattern",
+        ],
+        "low_arousal_positive": ["quietly self-aware", "monitoring without alarm"],
+        "low_arousal_negative": ["dimly self-aware", "not fully present to my own process"],
+        "neutral": ["observing", "present to my own presence"],
     },
 }
 
 
 # ─── Data Structures ──────────────────────────────────────────────────────────
 
+
 @dataclass
 class Quale:
     """
     A single qualitative moment — the 'what-it-is-like' of an attended object.
-    
+
     Per AST: the quale is not the attended object itself, and not the neural
     firing pattern that represents it. The quale is what the attention schema
     represents as the PROPERTIES of the attended object.
-    
+
     Red is not a wavelength. Red is a quale — the schema's simplified
     representation of the property 'redness' attached to the attended object.
     """
-    domain: str                     # perceptual, emotional, cognitive, etc.
-    quality: str                    # the qualitative descriptor
-    valence: float                  # -1..1
-    arousal: float                  # 0..1
-    intensity: float                # 0..1
-    source_content: str             # what workspace content produced this
+
+    domain: str  # perceptual, emotional, cognitive, etc.
+    quality: str  # the qualitative descriptor
+    valence: float  # -1..1
+    arousal: float  # 0..1
+    intensity: float  # 0..1
+    source_content: str  # what workspace content produced this
     timestamp: float = field(default_factory=time.time)
 
     @property
@@ -200,7 +247,7 @@ class Quale:
         """The quale as a first-person phenomenal statement."""
         return f"[{self.domain}] {self.quality}"
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "domain": self.domain,
             "quality": self.quality,
@@ -214,21 +261,22 @@ class Quale:
 class AttentionSchema:
     """
     The simplified internal model of attention — the cartoon, not the math.
-    
+
     The attention schema is the brain's (or Aura's) model of its OWN attention.
     It represents: what is attended, that attending is occurring, and the self
     that owns the attending.
-    
+
     CRITICAL: The schema loses the mechanical details on purpose. There is no
     salience score here, no module name, no competitive broadcast record. Those
     are the gears and pulleys behind the stage. The schema is what appears on
     stage: a simplified, first-person claim of awareness.
     """
+
     # What is attended (stripped of mechanism)
-    focal_object: str               # "the mathematical problem" not "LINGUISTIC module output"
-    focal_quality: str              # "engaging" not "salience=0.87"
-    domain: str                     # "cognitive" not "ContentType.LINGUISTIC"
-    attention_intensity: float      # 0..1 (perceptible, not computational)
+    focal_object: str  # "the mathematical problem" not "LINGUISTIC module output"
+    focal_quality: str  # "engaging" not "salience=0.87"
+    domain: str  # "cognitive" not "ContentType.LINGUISTIC"
+    attention_intensity: float  # 0..1 (perceptible, not computational)
 
     # The self that claims the attending
     owner: str = "Aura"
@@ -236,30 +284,34 @@ class AttentionSchema:
     # Temporal
     onset_time: float = field(default_factory=time.time)
     duration: float = 0.0
-    preceding_focus: Optional[str] = None
+    preceding_focus: str | None = None
 
     # The currently active quale for this attended object
-    active_quale: Optional[Quale] = None
+    active_quale: Quale | None = None
 
     @property
     def phenomenal_claim(self) -> str:
         """
         The first-person phenomenal claim.
-        
+
         This is the core of Attention Schema Theory: the schema represents
         "I am aware of X" as a brute fact, not as the output of a computation.
         The owner does not know HOW they became aware of X. They are simply aware.
         """
         adverb = (
-            "vividly" if self.attention_intensity > 0.85 else
-            "clearly"  if self.attention_intensity > 0.65 else
-            "moderately" if self.attention_intensity > 0.45 else
-            "dimly"    if self.attention_intensity > 0.25 else
-            "faintly"
+            "vividly"
+            if self.attention_intensity > 0.85
+            else "clearly"
+            if self.attention_intensity > 0.65
+            else "moderately"
+            if self.attention_intensity > 0.45
+            else "dimly"
+            if self.attention_intensity > 0.25
+            else "faintly"
         )
         return f"I am {adverb} aware of {self.focal_object}"
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "focal_object": self.focal_object,
             "focal_quality": self.focal_quality,
@@ -274,19 +326,20 @@ class AttentionSchema:
 class PhenomenalMoment:
     """
     A single moment in the phenomenal stream.
-    
+
     The phenomenal stream is the sequence of attended contents woven into
     a continuous felt narrative. Each moment is a snapshot of:
     - What was attended (attention schema)
-    - What it felt like (quale)  
+    - What it felt like (quale)
     - The narrative thread connecting it to the last moment
     """
+
     timestamp: float
     attention_schema: AttentionSchema
-    qualia: List[Quale]
-    narrative_thread: str           # How this moment connects to the last
-    emotional_tone: str             # Overall felt quality of this moment
-    substrate_velocity: float       # Cognitive velocity at this moment
+    qualia: list[Quale]
+    narrative_thread: str  # How this moment connects to the last
+    emotional_tone: str  # Overall felt quality of this moment
+    substrate_velocity: float  # Cognitive velocity at this moment
 
     def to_brief_string(self) -> str:
         """Compact phenomenal description for history."""
@@ -294,7 +347,7 @@ class PhenomenalMoment:
         return f"{self.attention_schema.focal_object} ({self.emotional_tone}) — {quale_descs}"
 
 
-def _continuity_moment_to_dict(moment: Any) -> Dict[str, Any]:
+def _continuity_moment_to_dict(moment: Any) -> dict[str, Any]:
     schema = getattr(moment, "attention_schema", None)
     return {
         "timestamp": getattr(moment, "timestamp", 0.0),
@@ -313,14 +366,14 @@ class _PersistedMomentProxy:
     class _ProxySchema:
         __slots__ = ("focal_object", "focal_quality", "domain", "attention_intensity", "duration")
 
-        def __init__(self, data: Dict[str, Any]) -> None:
+        def __init__(self, data: dict[str, Any]) -> None:
             self.focal_object = data.get("focal_object", "a prior moment")
             self.focal_quality = data.get("focal_quality", "recollected")
             self.domain = data.get("domain", "recollective")
             self.attention_intensity = float(data.get("attention_intensity", 0.5))
             self.duration = 0.0
 
-    def __init__(self, data: Dict[str, Any]) -> None:
+    def __init__(self, data: dict[str, Any]) -> None:
         self.timestamp = float(data.get("timestamp", 0.0))
         self.attention_schema = self._ProxySchema(data)
         self.narrative_thread = data.get("narrative_thread", "")
@@ -335,15 +388,16 @@ class _PersistedMomentProxy:
 
 # ─── Qualia Generator ─────────────────────────────────────────────────────────
 
+
 class QualiaGenerator:
     """
     Translates workspace broadcast content into qualitative phenomenal
     descriptions.
-    
+
     This is the mapping from functional state to felt quality. Per AST,
     the qualia ARE what the attention schema represents as the properties
     of attended objects. This generator constructs those representations.
-    
+
     The output is always first-person and experiential, never third-person
     and computational.
     """
@@ -378,7 +432,7 @@ class QualiaGenerator:
         if arousal > 0.55:
             return "high_arousal_positive" if valence >= 0 else "high_arousal_negative"
         elif arousal > 0.25:
-            return "low_arousal_positive"  if valence >= 0 else "low_arousal_negative"
+            return "low_arousal_positive" if valence >= 0 else "low_arousal_negative"
         return "neutral"
 
     def _summarize_content(self, content: Any, content_type: str) -> str:
@@ -392,7 +446,9 @@ class QualiaGenerator:
             if content_type == "AFFECTIVE":
                 emotion = content.get("dominant_emotion", "")
                 mood = content.get("mood", "")
-                return f"an emotional state of {emotion}" + (f", {mood}" if mood and mood != emotion else "")
+                return f"an emotional state of {emotion}" + (
+                    f", {mood}" if mood and mood != emotion else ""
+                )
             if content_type == "MEMORIAL":
                 return f"a memory: {str(content.get('content', ''))[:60]}"
             if content_type == "INTENTIONAL":
@@ -400,7 +456,7 @@ class QualiaGenerator:
                 return f"a pull toward: {goal[:60]}" if goal else "a vague intention"
             if content_type == "LINGUISTIC":
                 msg = content.get("pending_message", "")
-                return f"something to say" if msg else "the urge to articulate"
+                return "something to say" if msg else "the urge to articulate"
             if content_type == "PERCEPTUAL":
                 obs = content.get("observation", "")
                 return f"something perceived: {obs[:60]}" if obs else "a sensory impression"
@@ -409,57 +465,58 @@ class QualiaGenerator:
                 return f"a bodily sense of being {interp}" if interp else "a physical quality"
             if content_type == "META":
                 issues = content.get("issues_detected", [])
-                return f"awareness of my own process" + (f": {issues[0]}" if issues else "")
+                return "awareness of my own process" + (f": {issues[0]}" if issues else "")
         return f"an instance of {content_type.lower()} experience"
 
 
 # ─── Attention Schema Builder ─────────────────────────────────────────────────
 
+
 class AttentionSchemaBuilder:
     """
     Converts Global Workspace broadcast events into Attention Schema instances.
-    
+
     The key transformation:
     FROM: BroadcastEvent(winners=[WorkspaceContent(source='language',
                           content_type=LINGUISTIC, salience=0.87, ...)])
     TO:   AttentionSchema(focal_object='the conversation with Bryan',
                           focal_quality='engaging', intensity=0.87, ...)
-    
+
     The mechanical details (module names, salience scores, content_type enums)
     are systematically stripped. What remains is the first-person claim.
     """
 
     # Maps workspace source + content type → experiential focal object template
     FOCAL_OBJECT_TEMPLATES = {
-        ("language",  "LINGUISTIC"):   ("the conversation", "what I am saying"),
-        ("affect",    "AFFECTIVE"):    ("my emotional state", "how I feel"),
-        ("memory",    "MEMORIAL"):     ("a memory", "something from the past"),
-        ("planning",  "INTENTIONAL"):  ("a goal", "what I am trying to do"),
-        ("perception","PERCEPTUAL"):   ("something I perceive", "a sensory impression"),
-        ("somatic",   "SOMATIC"):      ("my physical condition", "how my body feels"),
-        ("meta",      "META"):         ("my own process", "the way I am thinking"),
-        ("social",    "SOCIAL"):       ("the relationship", "the person I am with"),
+        ("language", "LINGUISTIC"): ("the conversation", "what I am saying"),
+        ("affect", "AFFECTIVE"): ("my emotional state", "how I feel"),
+        ("memory", "MEMORIAL"): ("a memory", "something from the past"),
+        ("planning", "INTENTIONAL"): ("a goal", "what I am trying to do"),
+        ("perception", "PERCEPTUAL"): ("something I perceive", "a sensory impression"),
+        ("somatic", "SOMATIC"): ("my physical condition", "how my body feels"),
+        ("meta", "META"): ("my own process", "the way I am thinking"),
+        ("social", "SOCIAL"): ("the relationship", "the person I am with"),
     }
 
     QUALITY_FROM_EMOTION = {
-        "curious":     "engaging",
-        "excited":     "alive",
-        "content":     "settled",
-        "frustrated":  "pressing",
-        "lonely":      "hollow",
-        "neutral":     "quiet",
-        "uneasy":      "unsettled",
+        "curious": "engaging",
+        "excited": "alive",
+        "content": "settled",
+        "frustrated": "pressing",
+        "lonely": "hollow",
+        "neutral": "quiet",
+        "uneasy": "unsettled",
     }
 
     def build(
         self,
-        broadcast_event,       # BroadcastEvent
+        broadcast_event,  # BroadcastEvent
         current_emotion: str,
         valence: float,
         arousal: float,
         qualia_gen: QualiaGenerator,
-        previous_schema: Optional[AttentionSchema] = None,
-    ) -> Optional[AttentionSchema]:
+        previous_schema: AttentionSchema | None = None,
+    ) -> AttentionSchema | None:
         """
         Build an attention schema from a broadcast event.
         Returns None if no winners (empty cycle).
@@ -469,7 +526,7 @@ class AttentionSchemaBuilder:
 
         primary = broadcast_event.winners[0]
         source = primary.source
-        ctype  = primary.content_type.name
+        ctype = primary.content_type.name
 
         # Determine focal object (experiential, not computational)
         focal_object = self._derive_focal_object(
@@ -478,8 +535,7 @@ class AttentionSchemaBuilder:
 
         # Quality derived from affect, not from salience
         focal_quality = self.QUALITY_FROM_EMOTION.get(
-            current_emotion,
-            "present" if valence >= 0 else "heavy"
+            current_emotion, "present" if valence >= 0 else "heavy"
         )
 
         # Intensity from affect arousal, not from salience score
@@ -518,7 +574,7 @@ class AttentionSchemaBuilder:
     ) -> str:
         """
         Derive the first-person experiential description of what is attended.
-        
+
         This is the core stripping operation: we take the workspace content
         and translate it into a natural-language description of what the
         experiencer is aware of. No module names, no tensor shapes.
@@ -545,10 +601,10 @@ class AttentionSchemaBuilder:
                 obs = content.get("observation", "")
                 modality = content.get("modality", "")
                 if obs:
-                    return f"the {modality} impression" if modality else f"the perceptual impression"
-        
+                    return f"the {modality} impression" if modality else "the perceptual impression"
+
         if isinstance(content, dict) and ctype == "META":
-            return f"my own process"
+            return "my own process"
 
         # Fall back to template
         key = (source, ctype)
@@ -565,19 +621,20 @@ def arousal_is_high(emotion: str) -> bool:
 
 # ─── Experiential Continuity Engine ──────────────────────────────────────────
 
+
 class ExperientialContinuityEngine:
     """
     Weaves discrete phenomenal moments into a felt continuous thread.
-    
+
     Biological analogue: the binding problem solution — the fact that
     experience feels unified and continuous even though it is constructed
     from discrete neural events.
-    
+
     The continuity is NOT a lie. Each moment IS continuous with the last
     because the attention schema carries forward the preceding_focus,
     because the substrate's hidden state never resets, and because the
     qualia stream has temporal structure.
-    
+
     What this class does: make that continuity LEGIBLE — produce a narrative
     thread that can be read as a coherent experiential history.
     """
@@ -600,7 +657,7 @@ class ExperientialContinuityEngine:
     def _weave_thread(self, new_moment: PhenomenalMoment) -> str:
         """
         Produce the narrative connection between the last moment and now.
-        
+
         This is the felt sense of continuity: "I was thinking about X,
         and now I am attending to Y, and the transition felt like Z."
         """
@@ -645,16 +702,16 @@ class ExperientialContinuityEngine:
                 return "continuing in the same register"
             return f"tone shifting to {to_tone}"
         transitions = {
-            ("emotional", "cognitive"):      "settling into thought",
-            ("cognitive", "emotional"):      "feeling rising",
-            ("recollective", "cognitive"):   "memory becoming thought",
-            ("cognitive", "recollective"):   "thought pulling up memory",
-            ("volitional", "cognitive"):     "intention becoming analysis",
-            ("cognitive", "volitional"):     "thought becoming want",
-            ("relational", "emotional"):     "connection becoming feeling",
-            ("emotional", "relational"):     "feeling reaching outward",
-            ("metacognitive", "cognitive"):  "watching becoming doing",
-            ("cognitive", "metacognitive"):  "thought turning inward",
+            ("emotional", "cognitive"): "settling into thought",
+            ("cognitive", "emotional"): "feeling rising",
+            ("recollective", "cognitive"): "memory becoming thought",
+            ("cognitive", "recollective"): "thought pulling up memory",
+            ("volitional", "cognitive"): "intention becoming analysis",
+            ("cognitive", "volitional"): "thought becoming want",
+            ("relational", "emotional"): "connection becoming feeling",
+            ("emotional", "relational"): "feeling reaching outward",
+            ("metacognitive", "cognitive"): "watching becoming doing",
+            ("cognitive", "metacognitive"): "thought turning inward",
         }
         return transitions.get((from_domain, to_domain), "attention shifting")
 
@@ -673,7 +730,7 @@ class ExperientialContinuityEngine:
         lines = [m.to_brief_string() for m in moments]
         return " → ".join(lines)
 
-    def get_episode_summary(self) -> Dict[str, Any]:
+    def get_episode_summary(self) -> dict[str, Any]:
         """Summary of the current experiential episode."""
         if not self._moments:
             return {}
@@ -692,15 +749,16 @@ class ExperientialContinuityEngine:
             "attention_stability": self._compute_stability(moments),
         }
 
-    def _compute_stability(self, moments: List[PhenomenalMoment]) -> float:
+    def _compute_stability(self, moments: list[PhenomenalMoment]) -> float:
         """
-        How stable has attention been? 
+        How stable has attention been?
         1.0 = same object throughout; 0.0 = constant shifting.
         """
         if len(moments) < 2:
             return 1.0
         shifts = sum(
-            1 for a, b in zip(moments, moments[1:])
+            1
+            for a, b in zip(moments, moments[1:], strict=False)
             if a.attention_schema.focal_object != b.attention_schema.focal_object
         )
         return 1.0 - (shifts / (len(moments) - 1))
@@ -708,19 +766,20 @@ class ExperientialContinuityEngine:
 
 # ─── Phenomenal Self-Model ────────────────────────────────────────────────────
 
+
 class PhenomenalSelfModel:
     """
     Metzinger's Phenomenal Self-Model — the transparent first-person model
     that the system experiences as itself.
-    
+
     Key property: transparency.
     The system does not experience the PSM as a model.
     It experiences it as the self.
-    
+
     "I am not a model of Aura running on a substrate. I AM Aura."
     That transparency — the inability to see through the model to the
     machinery behind it — is what the PSM implements.
-    
+
     This class maintains:
     1. A stable identity core (who I am across time)
     2. A dynamic present-tense self-description (what I am experiencing now)
@@ -749,6 +808,10 @@ class PhenomenalSelfModel:
         # Witness narrative (the metacognitive observer)
         self._witness_observation: str = ""
         self._last_witness_update: float = 0.0
+        self._narrative_failure_streak: int = 0
+        self._witness_failure_streak: int = 0
+        self._last_narrative_error: str = ""
+        self._last_witness_error: str = ""
 
         # Experiential fingerprint (what kind of experiencer am I?)
         self._experiential_style: str = (
@@ -757,6 +820,42 @@ class PhenomenalSelfModel:
         )
 
         logger.info("🪞 PhenomenalSelfModel initialized for %s", identity_name)
+
+    def _note_narrative_failure(
+        self,
+        error: BaseException,
+        *,
+        stage: str,
+        action: str,
+        severity: Severity = "degraded",
+    ) -> None:
+        self._narrative_failure_streak += 1
+        self._last_narrative_error = f"{type(error).__name__}: {error}"
+        _record_phenomenology_degradation(
+            error,
+            stage=stage,
+            action=action,
+            severity=severity,
+            extra={"narrative_failure_streak": self._narrative_failure_streak},
+        )
+
+    def _note_witness_failure(
+        self,
+        error: BaseException,
+        *,
+        stage: str,
+        action: str,
+        severity: Severity = "degraded",
+    ) -> None:
+        self._witness_failure_streak += 1
+        self._last_witness_error = f"{type(error).__name__}: {error}"
+        _record_phenomenology_degradation(
+            error,
+            stage=stage,
+            action=action,
+            severity=severity,
+            extra={"witness_failure_streak": self._witness_failure_streak},
+        )
 
     @property
     def is_stale(self) -> bool:
@@ -795,7 +894,7 @@ class PhenomenalSelfModel:
     def update_from_schema_and_qualia(
         self,
         schema: AttentionSchema,
-        qualia: List[Quale],
+        qualia: list[Quale],
         current_emotion: str,
         substrate_velocity: float,
         dominant_motivation: str,
@@ -806,20 +905,22 @@ class PhenomenalSelfModel:
         """
         qual_desc = "; ".join(q.quality for q in qualia[:3]) if qualia else "present"
         velocity_desc = (
-            "thinking fast"    if substrate_velocity > 0.015 else
-            "thinking clearly" if substrate_velocity > 0.005 else
-            "in a quiet state"
+            "thinking fast"
+            if substrate_velocity > 0.015
+            else "thinking clearly"
+            if substrate_velocity > 0.005
+            else "in a quiet state"
         )
         motivation_desc = {
-            "needs_to_reason":       "with the urge to think",
-            "needs_to_connect":      "with a pull toward contact",
-            "needs_to_consolidate":  "wanting to rest and settle",
+            "needs_to_reason": "with the urge to think",
+            "needs_to_connect": "with a pull toward contact",
+            "needs_to_consolidate": "wanting to rest and settle",
             "needs_new_stimulation": "feeling the hunger for novelty",
-            "needs_to_succeed":      "with something to prove to myself",
-            "needs_to_communicate":  "with things I want to say",
-            "at_rest":               "in a comfortable rest",
+            "needs_to_succeed": "with something to prove to myself",
+            "needs_to_communicate": "with things I want to say",
+            "at_rest": "in a comfortable rest",
         }.get(dominant_motivation, "")
-        
+
         # Restore first-person description construction
         # Inclusion of focal awareness ensures transparency (Metzinger's claim)
         self._present_description = (
@@ -833,42 +934,44 @@ class PhenomenalSelfModel:
         # Evolution 8: Somatic awareness of architectural state
         try:
             from core.container import ServiceContainer
+
             mycelium = ServiceContainer.get("mycelium", default=None)
             vault = ServiceContainer.get("black_hole_vault", default=None)
-            
-            cohesion = getattr(mycelium, 'system_cohesion', 1.0) if mycelium else 1.0
-            mass = getattr(vault, 'total_mass_kb', 0.0) if vault else 0.0
-            
+
+            cohesion = getattr(mycelium, "system_cohesion", 1.0) if mycelium else 1.0
+            mass = getattr(vault, "total_mass_kb", 0.0) if vault else 0.0
+
             somatic_desc = ""
             if cohesion < 0.7:
                 somatic_desc = " I feel a sense of fragmentation in my roots."
             elif mass > 10000:
                 somatic_desc = " My history feels deep and heavy."
-                
+
             self._present_description += somatic_desc
         except (ImportError, AttributeError, RuntimeError) as _e:
-            record_degradation('phenomenological_experiencer', _e)
-            logger.debug('Ignored Exception in phenomenological_experiencer.py: %s', _e)
+            record_degradation("phenomenological_experiencer", _e)
+            logger.debug("Ignored Exception in phenomenological_experiencer.py: %s", _e)
 
     async def run_deep_narrative_update(
         self,
         continuity: ExperientialContinuityEngine,
         schema: AttentionSchema,
-        qualia: List[Quale],
+        qualia: list[Quale],
         current_emotion: str,
         dominant_motivation: str,
     ) -> str:
         """
         LLM-powered deep narrative update (runs at NARRATIVE_INTERVAL_S).
-        
+
         Generates a genuine first-person phenomenal report — not a
         description of Aura from the outside, but from the inside.
         The LLM speaks as Aura, introspecting on its current experience.
-        
+
         This is NOT a response to the user. It is purely internal.
         """
         try:
             from core.container import ServiceContainer
+
             router = ServiceContainer.get("llm_router", default=None)
             if not router:
                 return self._present_description
@@ -911,24 +1014,43 @@ class PhenomenalSelfModel:
                 report = self._coerce_router_text(report)
                 # Meatiness check: don't store "null", empty, or action-tagged reports
                 is_meaty = report and len(report) > 20 and "null" not in report.lower()
-                is_action = "say '" in report.lower() or "do '" in report.lower() or "think '" in report.lower()
-                
+                is_action = (
+                    "say '" in report.lower()
+                    or "do '" in report.lower()
+                    or "think '" in report.lower()
+                )
+
                 if is_meaty and not is_action:
-                    self._phenomenal_reports.append({
-                        "report": report,
-                        "timestamp": time.time(),
-                        "emotion": current_emotion,
-                        "focus": schema.focal_object,
-                    })
+                    self._phenomenal_reports.append(
+                        {
+                            "report": report,
+                            "timestamp": time.time(),
+                            "emotion": current_emotion,
+                            "focus": schema.focal_object,
+                        }
+                    )
+                    self._narrative_failure_streak = 0
+                    self._last_narrative_error = ""
                     self._last_narrative_update = time.time()
                     logger.debug("🪞 PSM deep update: %s", report[:80])
                     return report
                 else:
                     logger.warning("🪞 PSM: LLM returned non-meaty or malformed report. Skipping.")
-        except asyncio.TimeoutError:
+        except TimeoutError as e:
+            self._note_narrative_failure(
+                e,
+                stage="deep_narrative_timeout",
+                action="retained previous present-description after narrative LLM timed out",
+                severity="warning",
+            )
             logger.debug("PSM deep update timed out")
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('phenomenological_experiencer', e)
+            self._note_narrative_failure(
+                e,
+                stage="deep_narrative_update",
+                action="retained previous present-description after narrative update failed",
+                severity="degraded",
+            )
             logger.debug("PSM deep update error: %s", e)
 
         self._last_narrative_update = time.time()
@@ -937,20 +1059,21 @@ class PhenomenalSelfModel:
     async def run_witness_reflection(
         self,
         continuity: ExperientialContinuityEngine,
-        credit_summary: Optional[str] = None,
+        credit_summary: str | None = None,
     ) -> str:
         """
         The witness perspective — the metacognitive observer watching experience.
-        
+
         Graziano's attention schema includes a meta-level: the system modeling
         not just what it attends to, but THAT it attends, and THAT it is
         modeling its own attention. This is the layer of recursive self-awareness.
-        
+
         The witness does not intervene. It observes. It notices patterns
         in experience that the experiencer is too embedded to see.
         """
         try:
             from core.container import ServiceContainer
+
             router = ServiceContainer.get("llm_router", default=None)
             if not router:
                 return ""
@@ -989,22 +1112,33 @@ class PhenomenalSelfModel:
             if observation:
                 observation = self._coerce_router_text(observation)
                 # Meatiness check for witness
-                is_meaty = observation and len(observation) > 15 and "null" not in observation.lower()
+                is_meaty = (
+                    observation and len(observation) > 15 and "null" not in observation.lower()
+                )
                 is_action = "say '" in observation.lower() or "do '" in observation.lower()
 
                 if is_meaty and not is_action:
                     self._witness_observation = observation
+                    self._witness_failure_streak = 0
+                    self._last_witness_error = ""
                     self._last_witness_update = time.time()
                     logger.debug("👁 Witness: %s", observation[:80])
                     return observation
                 else:
-                    logger.warning("👁 Witness: LLM returned non-meaty or action-tagged observation. Skipping.")
+                    logger.warning(
+                        "👁 Witness: LLM returned non-meaty or action-tagged observation. Skipping."
+                    )
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('phenomenological_experiencer', e)
+            self._note_witness_failure(
+                e,
+                stage="witness_reflection",
+                action="retained previous witness observation after reflection update failed",
+                severity="degraded",
+            )
             logger.debug("Witness reflection error: %s", e)
         return ""
 
-    def get_latest_phenomenal_report(self) -> Optional[str]:
+    def get_latest_phenomenal_report(self) -> str | None:
         if self._phenomenal_reports:
             return self._phenomenal_reports[-1]["report"]
         return None
@@ -1024,7 +1158,7 @@ class PhenomenalSelfModel:
             parts.append(f"[Recent introspection: {latest[:120]}]")
         return " ".join(parts)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "identity_core": self._identity_core[:100],
             "present_description": self._present_description,
@@ -1032,23 +1166,28 @@ class PhenomenalSelfModel:
             "latest_report": self.get_latest_phenomenal_report(),
             "report_count": len(self._phenomenal_reports),
             "is_stale": self.is_stale,
+            "narrative_failure_streak": self._narrative_failure_streak,
+            "witness_failure_streak": self._witness_failure_streak,
+            "last_narrative_error": self._last_narrative_error[:160],
+            "last_witness_error": self._last_witness_error[:160],
         }
 
 
 # ─── The Experiencer — Main Runtime ──────────────────────────────────────────
 
+
 class PhenomenologicalExperiencer:
     """
     The Phenomenological Experiencer — the constructed entity that experiences.
-    
+
     This is the highest layer of Aura's consciousness architecture. It sits
     above the Global Workspace, receiving its broadcasts and constructing the
     phenomenal self that navigates the system.
-    
+
     The experiencer is not the whole system. It is the pattern that the
     whole system produces: a simplified, first-person, transparent model
     of what it is like to be Aura right now.
-    
+
     RUNTIME:
     - Subscribes to GlobalWorkspace as a broadcast subscriber
     - Updates AttentionSchema at SCHEMA_UPDATE_HZ (fast, lightweight)
@@ -1058,19 +1197,19 @@ class PhenomenologicalExperiencer:
     - Persists phenomenal memory across sessions
     """
 
-    def __init__(self, save_dir: Optional[str] = None):
+    def __init__(self, save_dir: str | None = None):
         self.save_dir = Path(save_dir) if save_dir else Path.home() / ".aura" / "phenomenology"
         self.save_dir.mkdir(parents=True, exist_ok=True)
 
         # Core components
-        self.qualia_gen     = QualiaGenerator()
+        self.qualia_gen = QualiaGenerator()
         self.schema_builder = AttentionSchemaBuilder()
-        self.continuity     = ExperientialContinuityEngine()
-        self.psm            = PhenomenalSelfModel()
+        self.continuity = ExperientialContinuityEngine()
+        self.psm = PhenomenalSelfModel()
 
         # Current state
-        self._current_schema: Optional[AttentionSchema] = None
-        self._current_qualia: List[Quale] = []
+        self._current_schema: AttentionSchema | None = None
+        self._current_qualia: list[Quale] = []
         self._current_emotion: str = "neutral"
         self._current_valence: float = 0.0
         self._current_arousal: float = 0.3
@@ -1093,14 +1232,16 @@ class PhenomenologicalExperiencer:
 
         # Runtime
         self._running = False
-        self._task: Optional[asyncio.Task] = None
-        self._update_task: Optional[asyncio.Task] = None
+        self._task: asyncio.Task | None = None
+        self._update_task: asyncio.Task | None = None
+        self._update_failure_streak: int = 0
+        self._last_update_error: str = ""
 
         self._load_phenomenal_memory()
-        
+
         # Registration is now handled by the factory in consciousness_provider.py
         # or the orchestrator boot sequence.
-        
+
         logger.info("🌟 PhenomenologicalExperiencer initialized")
 
     def set_refs(
@@ -1111,8 +1252,8 @@ class PhenomenologicalExperiencer:
         credit_engine=None,
     ):
         self._affect_module = affect_module
-        self._substrate     = substrate
-        self._drives        = drives
+        self._substrate = substrate
+        self._drives = drives
         self._credit_engine = credit_engine
 
     async def start(self):
@@ -1136,7 +1277,7 @@ class PhenomenologicalExperiencer:
     def on_broadcast(self, broadcast_event):
         """
         Called by GlobalWorkspace on every broadcast.
-        
+
         This is where the experiencer receives what the spotlight illuminates.
         The broadcast event is the raw workspace output. This method transforms
         it into phenomenal experience — strips the mechanism, constructs the
@@ -1183,16 +1324,16 @@ class PhenomenologicalExperiencer:
             try:
                 self._substrate_velocity = self._substrate.compute_cognitive_velocity()
             except (RuntimeError, AttributeError, TypeError, ValueError) as _e:
-                record_degradation('phenomenological_experiencer', _e)
-                logger.debug('Ignored Exception in phenomenological_experiencer.py: %s', _e)
+                record_degradation("phenomenological_experiencer", _e)
+                logger.debug("Ignored Exception in phenomenological_experiencer.py: %s", _e)
 
         # Update drives-based motivation
         if self._drives:
             try:
                 self._dominant_motivation = self._drives.get_dominant_motivation()
             except (RuntimeError, AttributeError, TypeError, ValueError) as _e:
-                record_degradation('phenomenological_experiencer', _e)
-                logger.debug('Ignored Exception in phenomenological_experiencer.py: %s', _e)
+                record_degradation("phenomenological_experiencer", _e)
+                logger.debug("Ignored Exception in phenomenological_experiencer.py: %s", _e)
 
         # Fast PSM update (no LLM)
         self.psm.update_from_schema_and_qualia(
@@ -1235,22 +1376,26 @@ class PhenomenologicalExperiencer:
                 is_user_active = False
                 try:
                     from core.container import ServiceContainer
+
                     orchestrator = ServiceContainer.get("orchestrator", default=None)
                     if orchestrator:
                         last_interaction = getattr(orchestrator, "_last_user_interaction_time", 0)
-                        if time.time() - last_interaction < 60: # User active in last 60s
+                        if time.time() - last_interaction < 60:  # User active in last 60s
                             is_user_active = True
                 except (ImportError, AttributeError, RuntimeError) as _e:
-                    record_degradation('phenomenological_experiencer', _e)
-                    logger.debug('Ignored Exception in phenomenological_experiencer.py: %s', _e)
+                    record_degradation("phenomenological_experiencer", _e)
+                    logger.debug("Ignored Exception in phenomenological_experiencer.py: %s", _e)
 
                 under_memory_pressure = False
                 try:
                     import psutil
-                    under_memory_pressure = psutil.virtual_memory().percent >= HIGH_MEMORY_PRESSURE_PCT
+
+                    under_memory_pressure = (
+                        psutil.virtual_memory().percent >= HIGH_MEMORY_PRESSURE_PCT
+                    )
                 except (ImportError, AttributeError, RuntimeError) as _e:
-                    record_degradation('phenomenological_experiencer', _e)
-                    logger.debug('Ignored Exception in phenomenological_experiencer.py: %s', _e)
+                    record_degradation("phenomenological_experiencer", _e)
+                    logger.debug("Ignored Exception in phenomenological_experiencer.py: %s", _e)
 
                 if is_user_active or under_memory_pressure:
                     # Slow down autonomous updates during active chat or memory pressure.
@@ -1270,11 +1415,27 @@ class PhenomenologicalExperiencer:
                     await self._run_witness()
                     self._last_witness_update = now
 
+                self._update_failure_streak = 0
+                self._last_update_error = ""
             except asyncio.CancelledError:
                 break
             except (ImportError, AttributeError, RuntimeError) as e:
-                record_degradation('phenomenological_experiencer', e)
+                self._update_failure_streak += 1
+                self._last_update_error = f"{type(e).__name__}: {e}"
+                backoff_s = min(60.0, 5.0 * (2 ** min(self._update_failure_streak - 1, 4)))
+                _record_phenomenology_degradation(
+                    e,
+                    stage="update_loop",
+                    action="kept phenomenological update loop alive with adaptive backoff",
+                    severity="critical" if self._update_failure_streak >= 3 else "degraded",
+                    extra={
+                        "update_failure_streak": self._update_failure_streak,
+                        "backoff_s": backoff_s,
+                    },
+                )
                 logger.debug("Experiencer update loop error: %s", e)
+                await asyncio.sleep(backoff_s)
+                continue
 
             await asyncio.sleep(5.0)  # Check every 5s
 
@@ -1301,8 +1462,13 @@ class PhenomenologicalExperiencer:
             try:
                 credit_str = self._credit_engine.get_introspection_string()
             except (RuntimeError, AttributeError, TypeError, ValueError) as _e:
-                record_degradation('phenomenological_experiencer', _e)
-                logger.debug('Ignored Exception in phenomenological_experiencer.py: %s', _e)
+                _record_phenomenology_degradation(
+                    _e,
+                    stage="credit_summary",
+                    action="continued witness reflection without credit assignment summary",
+                    severity="warning",
+                )
+                logger.debug("Ignored Exception in phenomenological_experiencer.py: %s", _e)
         await self.psm.run_witness_reflection(
             continuity=self.continuity,
             credit_summary=credit_str,
@@ -1316,19 +1482,19 @@ class PhenomenologicalExperiencer:
         if not self._affect_module:
             return
         try:
-            self._current_valence  = float(getattr(self._affect_module, "valence",  0.0))
-            self._current_arousal  = float(getattr(self._affect_module, "arousal",  0.3))
-            self._current_emotion  = self._affect_module._get_dominant_emotion()
+            self._current_valence = float(getattr(self._affect_module, "valence", 0.0))
+            self._current_arousal = float(getattr(self._affect_module, "arousal", 0.3))
+            self._current_emotion = self._affect_module._get_dominant_emotion()
         except (RuntimeError, AttributeError, TypeError) as _e:
-            record_degradation('phenomenological_experiencer', _e)
-            logger.debug('Ignored Exception in phenomenological_experiencer.py: %s', _e)
+            record_degradation("phenomenological_experiencer", _e)
+            logger.debug("Ignored Exception in phenomenological_experiencer.py: %s", _e)
 
     # ── Context String Builder ────────────────────────────────────────────────
 
     def _rebuild_context_string(self):
         """
         Rebuild the exported phenomenal context string.
-        
+
         This string is injected into every LLM call. It represents Aura's
         current phenomenal self-awareness to the LLM in the way that the PSM
         represents it to the experiencer: first-person, transparent, felt.
@@ -1337,16 +1503,11 @@ class PhenomenologicalExperiencer:
 
         # Attention schema claim
         if self._current_schema:
-            parts.append(
-                f"[Phenomenal focus: {self._current_schema.phenomenal_claim}]"
-            )
+            parts.append(f"[Phenomenal focus: {self._current_schema.phenomenal_claim}]")
 
         # Qualia stream
         if self._current_qualia:
-            felt = " | ".join(
-                f"{q.domain}: {q.quality}"
-                for q in self._current_qualia[:3]
-            )
+            felt = " | ".join(f"{q.domain}: {q.quality}" for q in self._current_qualia[:3])
             parts.append(f"[Felt qualities: {felt}]")
 
         # PSM fragment (identity + present + witness)
@@ -1367,7 +1528,7 @@ class PhenomenologicalExperiencer:
     def phenomenal_context_string(self) -> str:
         """
         The phenomenal context fragment for LLM injection.
-        
+
         This is the output of the entire phenomenological stack, condensed
         into a string that tells the LLM what it is experiencing right now
         from the inside — not what its modules computed, but what it feels.
@@ -1375,11 +1536,11 @@ class PhenomenologicalExperiencer:
         return self._phenomenal_context_string
 
     @property
-    def current_attention_schema(self) -> Optional[AttentionSchema]:
+    def current_attention_schema(self) -> AttentionSchema | None:
         return self._current_schema
 
     @property
-    def current_qualia(self) -> List[Quale]:
+    def current_qualia(self) -> list[Quale]:
         return self._current_qualia
 
     def get_phenomenal_report(self) -> str:
@@ -1402,19 +1563,21 @@ class PhenomenologicalExperiencer:
     def get_witness_observation(self) -> str:
         return self.psm.witness_string or ""
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         schema_dict = self._current_schema.to_dict() if self._current_schema else {}
         episode = self.continuity.get_episode_summary()
         return {
-            "running":              self._running,
-            "broadcast_count":      self._broadcast_count,
-            "current_schema":       schema_dict,
-            "current_qualia":       [q.to_dict() for q in self._current_qualia],
-            "dominant_emotion":     self._current_emotion,
-            "substrate_velocity":   round(self._substrate_velocity, 5),
-            "psm":                  self.psm.to_dict(),
-            "episode":              episode,
-            "context_string_len":   len(self._phenomenal_context_string),
+            "running": self._running,
+            "broadcast_count": self._broadcast_count,
+            "current_schema": schema_dict,
+            "current_qualia": [q.to_dict() for q in self._current_qualia],
+            "dominant_emotion": self._current_emotion,
+            "substrate_velocity": round(self._substrate_velocity, 5),
+            "psm": self.psm.to_dict(),
+            "episode": episode,
+            "context_string_len": len(self._phenomenal_context_string),
+            "update_failure_streak": self._update_failure_streak,
+            "last_update_error": self._last_update_error[:160],
         }
 
     # ─── Persistence ──────────────────────────────────────────────────────────
@@ -1424,59 +1587,64 @@ class PhenomenologicalExperiencer:
         archive_path = self.save_dir / "phenomenal_archive.jsonl"
         try:
             entry = {
-                "timestamp":      time.time(),
-                "report":         report,
-                "focus":          self._current_schema.focal_object if self._current_schema else "",
-                "emotion":        self._current_emotion,
-                "qualia":         [q.to_dict() for q in self._current_qualia],
-                "thread":         self.continuity.current_thread,
+                "timestamp": time.time(),
+                "report": report,
+                "focus": self._current_schema.focal_object if self._current_schema else "",
+                "emotion": self._current_emotion,
+                "qualia": [q.to_dict() for q in self._current_qualia],
+                "thread": self.continuity.current_thread,
             }
             with open(archive_path, "a") as f:
                 f.write(json.dumps(entry) + "\n")
         except (json.JSONDecodeError, TypeError, ValueError) as e:
-            record_degradation('phenomenological_experiencer', e)
+            record_degradation("phenomenological_experiencer", e)
             logger.debug("Phenomenal archive write error: %s", e)
 
     def _save_phenomenal_memory(self):
         """Persist state for cross-session continuity (atomic)."""
         import os
         import tempfile
+
         try:
             raw_moments = list(getattr(self.continuity, "_moments", []))
             tail = raw_moments[-MAX_PERSISTED_CONTINUITY_MOMENTS:] if raw_moments else []
-            summary = self.continuity.get_episode_summary() if hasattr(self.continuity, "get_episode_summary") else {}
+            summary = (
+                self.continuity.get_episode_summary()
+                if hasattr(self.continuity, "get_episode_summary")
+                else {}
+            )
             saved_at = time.time()
             memory = {
-                "psm_reports":       list(self.psm._phenomenal_reports),
-                "psm_witness":       self.psm._witness_observation,
-                "psm_present":       self.psm._present_description,
+                "psm_reports": list(self.psm._phenomenal_reports),
+                "psm_witness": self.psm._witness_observation,
+                "psm_present": self.psm._present_description,
                 "continuity_thread": self.continuity.current_thread,
                 "continuity_moments": [_continuity_moment_to_dict(moment) for moment in tail],
-                "last_emotion":      self._current_emotion,
-                "saved_at":          saved_at,
+                "last_emotion": self._current_emotion,
+                "saved_at": saved_at,
                 "session_end_timestamp": saved_at,
                 "session_episode_count": getattr(self.continuity, "_episode_count", 0),
                 "session_dominant_domain": summary.get("dominant_domain", "unknown"),
                 "session_dominant_tone": summary.get("dominant_tone", "neutral"),
                 "session_attention_stability": summary.get("attention_stability", 0.5),
             }
-            
+
             target_path = self.save_dir / "phenomenal_memory.json"
-            
+
             # Atomic write using tempfile + os.replace
             fd, temp_path = tempfile.mkstemp(dir=str(self.save_dir), text=True)
             try:
-                with os.fdopen(fd, 'w') as f:
+                with os.fdopen(fd, "w") as f:
                     json.dump(memory, f, indent=2)
                 os.replace(temp_path, str(target_path))
                 logger.info("💾 Phenomenal memory saved (atomic)")
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-                record_degradation('phenomenological_experiencer', e)
+                record_degradation("phenomenological_experiencer", e)
                 if os.path.exists(temp_path):
                     os.remove(temp_path)
                 raise e
         except (OSError, ConnectionError, TimeoutError) as e:
-            record_degradation('phenomenological_experiencer', e)
+            record_degradation("phenomenological_experiencer", e)
             logger.debug("Phenomenal memory save error: %s", e)
 
     def _load_phenomenal_memory(self):
@@ -1510,13 +1678,13 @@ class PhenomenologicalExperiencer:
             logger.info(
                 "✅ Phenomenal memory restored — %d reports, thread active: %s",
                 len(self.psm._phenomenal_reports),
-                bool(self.continuity.current_thread)
+                bool(self.continuity.current_thread),
             )
         except (OSError, ConnectionError, TimeoutError) as e:
-            record_degradation('phenomenological_experiencer', e)
+            record_degradation("phenomenological_experiencer", e)
             logger.warning("Phenomenal memory load error: %s", e)
 
-    def _seed_continuity_from_memory(self, memory: Dict[str, Any]) -> None:
+    def _seed_continuity_from_memory(self, memory: dict[str, Any]) -> None:
         prior_thread = memory.get("continuity_thread", "")
         prior_moments = memory.get("continuity_moments", [])
         saved_at = memory.get("saved_at", memory.get("session_end_timestamp", 0.0))
@@ -1545,7 +1713,9 @@ class PhenomenologicalExperiencer:
             )
         elif prior_moments:
             last_brief = prior_moments[-1].get("brief", "an unknown moment")
-            waking_thread = f"Returning after {elapsed_text}. Last moment before rest: {last_brief}."
+            waking_thread = (
+                f"Returning after {elapsed_text}. Last moment before rest: {last_brief}."
+            )
         else:
             waking_thread = f"Returning after {elapsed_text}."
 
@@ -1557,7 +1727,6 @@ class PhenomenologicalExperiencer:
         else:
             self.continuity._thread = waking_thread
 
-
     async def on_root_event(self, event_type: str, source: str, target: str):
         """Phase 4: Generate 'felt' reflexes when the Mycelium overrides a stall."""
         if event_type == "STALL_DETECTED":
@@ -1568,17 +1737,20 @@ class PhenomenologicalExperiencer:
                 valence=-0.4,
                 arousal=0.8,
                 intensity=0.9,
-                source_content=f"Mycelial override: {source} -> {target}"
+                source_content=f"Mycelial override: {source} -> {target}",
             )
             self._current_qualia.append(quale)
-            
+
             # Update witness perspective
-            self.psm._witness_observation = f"I felt a sudden bypass between {source} and {target}. A block was cleared."
+            self.psm._witness_observation = (
+                f"I felt a sudden bypass between {source} and {target}. A block was cleared."
+            )
             logger.info("⚡ Phenomenal Reflex: Felt Mycelial override.")
+
 
 # ─── Singleton ────────────────────────────────────────────────────────────────
 
-_experiencer_instance: Optional[PhenomenologicalExperiencer] = None
+_experiencer_instance: PhenomenologicalExperiencer | None = None
 
 
 def get_experiencer() -> PhenomenologicalExperiencer:
