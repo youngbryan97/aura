@@ -1,14 +1,54 @@
-from core.runtime.errors import record_degradation
 import asyncio
+import concurrent.futures
 import logging
 import threading
 import time
 from collections import deque
-from typing import Any, Dict, Optional
+from typing import Any
 
 import numpy as np
 
+from core.runtime.errors import FallbackClassification, record_degradation
+
 logger = logging.getLogger("Aura.NeuralBridge")
+
+_NEURAL_RECOVERABLE_ERRORS = (
+    ImportError,
+    AttributeError,
+    RuntimeError,
+    TypeError,
+    ValueError,
+    OSError,
+    np.linalg.LinAlgError,
+)
+
+
+def _record_neural_degradation(
+    error: BaseException,
+    *,
+    action: str,
+    stage: str,
+    severity: str = "warning",
+    extra: dict[str, Any] | None = None,
+) -> None:
+    metadata = dict(extra or {})
+    metadata["stage"] = stage
+    try:
+        record_degradation(
+            "neural_bridge",
+            error,
+            severity=severity,  # type: ignore[arg-type]
+            action=action,
+            classification=FallbackClassification.SAFE_FALLBACK,
+            extra=metadata,
+        )
+    except TypeError:
+        record_degradation(
+            "neural_bridge",
+            error,
+            severity=severity,  # type: ignore[arg-type]
+            action=action,
+        )
 
 
 def _logging_streams_available() -> bool:
@@ -56,12 +96,12 @@ class BCIClassifier:
     """
 
     def __init__(self):
-        self._templates: Dict[int, np.ndarray] = {}
-        self._template_norms: Dict[int, float] = {}
+        self._templates: dict[int, np.ndarray] = {}
+        self._template_norms: dict[int, float] = {}
 
     def calibrate(self, sample_builder) -> None:
-        templates: Dict[int, np.ndarray] = {}
-        norms: Dict[int, float] = {}
+        templates: dict[int, np.ndarray] = {}
+        norms: dict[int, float] = {}
         for class_idx in range(NUM_CLASSES):
             samples = [sample_builder(class_idx) for _ in range(6)]
             template = np.mean(samples, axis=0)
@@ -82,7 +122,9 @@ class BCIClassifier:
         scores = []
         for class_idx in range(NUM_CLASSES):
             template = self._templates[class_idx].ravel()
-            score = float(np.dot(flattened, template) / (sample_norm * self._template_norms[class_idx]))
+            score = float(
+                np.dot(flattened, template) / (sample_norm * self._template_norms[class_idx])
+            )
             scores.append(score)
 
         probabilities = _softmax(np.asarray(scores, dtype=np.float64) * 6.0)
@@ -97,20 +139,24 @@ class NeuralBridge:
         self.model = BCIClassifier()
         self.is_trained = False
         self._is_running = False
-        self._worker_thread: Optional[threading.Thread] = None
+        self._worker_thread: threading.Thread | None = None
         self._stop_event = threading.Event()
         self._event_bus = None
         self._rng = np.random.default_rng()
         self._lightweight_mode = lightweight_mode
         self._poll_interval_range = (8.0, 18.0) if lightweight_mode else (5.0, 15.0)
+        self._consecutive_failures = 0
+        self._max_consecutive_failures = 3
+        self._broadcast_failures = 0
+        self._max_broadcast_failures = 3
 
-        self._last_pattern: Optional[str] = None
+        self._last_pattern: str | None = None
         self._confidence: float = 0.0
         self._entropy: float = 0.0
         self._novelty: float = 0.0
         self._confidence_history: deque[float] = deque(maxlen=128)
         self._pattern_history: deque[str] = deque(maxlen=128)
-        self._last_band_profile: Dict[str, float] = {}
+        self._last_band_profile: dict[str, float] = {}
 
     async def load(self):
         logger.info("🧠 [NEURAL] Initializing BCI Neural Bridge...")
@@ -167,6 +213,8 @@ class NeuralBridge:
         if self._is_running:
             return
         self._stop_event.clear()
+        self._consecutive_failures = 0
+        self._broadcast_failures = 0
         self._is_running = True
         self._worker_thread = threading.Thread(
             target=self._run_inference_loop,
@@ -187,13 +235,33 @@ class NeuralBridge:
             from core.event_bus import get_event_bus
 
             self._event_bus = get_event_bus()
-        except ImportError:
+        except _NEURAL_RECOVERABLE_ERRORS as event_bus_error:
+            _record_neural_degradation(
+                event_bus_error,
+                action="started neural telemetry without event broadcast dependency",
+                stage="event_broadcast.startup",
+                severity="warning",
+            )
             self._event_bus = None
 
-        self.model.eval()
+        try:
+            self.model.eval()
+        except _NEURAL_RECOVERABLE_ERRORS as readiness_error:
+            _record_neural_degradation(
+                readiness_error,
+                action="stopped neural telemetry loop because classifier readiness failed",
+                stage="classifier_readiness",
+                severity="degraded",
+            )
+            self._is_running = False
+            self._stop_event.set()
+            return
+
         while self._is_running:
             try:
-                if self._stop_event.wait(timeout=float(self._rng.uniform(*self._poll_interval_range))):
+                if self._stop_event.wait(
+                    timeout=float(self._rng.uniform(*self._poll_interval_range))
+                ):
                     break
 
                 target_cls = int(self._rng.integers(0, NUM_CLASSES))
@@ -207,6 +275,7 @@ class NeuralBridge:
                 self._pattern_history.append(self._last_pattern)
                 self._novelty = self._estimate_novelty(eeg_data)
                 self._last_band_profile = self._band_profile(eeg_data)
+                self._consecutive_failures = 0
                 if not self._is_running or self._stop_event.is_set():
                     break
 
@@ -224,36 +293,100 @@ class NeuralBridge:
                     try:
                         loop = getattr(self, "_main_loop", None)
                         if loop and not loop.is_closed():
-                            asyncio.run_coroutine_threadsafe(
+                            future = asyncio.run_coroutine_threadsafe(
                                 self._event_bus.publish(
                                     "core/senses/bci_event",
-                                    {
-                                        "pattern": self._last_pattern,
-                                        "command": self._last_pattern,
-                                        "confidence": self._confidence,
-                                        "entropy": self._entropy,
-                                        "novelty": self._novelty,
-                                        "band_profile": self._last_band_profile,
-                                        "simulated": True,
-                                        "not_thought_decode": True,
-                                        "confidence_variance": self._confidence_variance(),
-                                        "pattern_vocabulary_size": len(set(self._pattern_history)),
-                                        "timestamp": time.time(),
-                                        "type": "SIMULATED_NEURAL_TELEMETRY",
-                                    },
+                                    self._build_event_payload(),
                                 ),
                                 loop,
                             )
+                            future.add_done_callback(self._handle_broadcast_result)
                         else:
                             logger.debug("⚠️ [NEURAL] Main loop unavailable. Skipping broadcast.")
-                    except (ImportError, AttributeError, RuntimeError) as loop_error:
-                        record_degradation('neural_bridge', loop_error)
+                    except _NEURAL_RECOVERABLE_ERRORS as loop_error:
+                        _record_neural_degradation(
+                            loop_error,
+                            action="kept neural telemetry running while disabling failed event broadcast scheduling",
+                            stage="event_broadcast.schedule",
+                            extra={
+                                "last_pattern": self._last_pattern,
+                                "broadcast_failures": self._broadcast_failures,
+                            },
+                        )
+                        self._event_bus = None
                         logger.debug("Neural loop broadcast failure: %s", loop_error)
-            except (ImportError, AttributeError, RuntimeError) as exc:
-                record_degradation('neural_bridge', exc)
+            except _NEURAL_RECOVERABLE_ERRORS as exc:
+                self._consecutive_failures += 1
+                terminal = self._consecutive_failures >= self._max_consecutive_failures
+                _record_neural_degradation(
+                    exc,
+                    action=(
+                        "stopped neural telemetry after repeated recoverable inference failures"
+                        if terminal
+                        else "paused neural telemetry briefly after recoverable inference failure"
+                    ),
+                    stage="inference_loop",
+                    severity="degraded" if terminal else "warning",
+                    extra={
+                        "consecutive_failures": self._consecutive_failures,
+                        "max_consecutive_failures": self._max_consecutive_failures,
+                    },
+                )
                 logger.error("Neural loop error: %s", exc)
-                if self._stop_event.wait(timeout=1.0):
+                if terminal:
+                    self._is_running = False
+                    self._stop_event.set()
                     break
+                if self._stop_event.wait(timeout=min(8.0, 0.5 * (2**self._consecutive_failures))):
+                    break
+
+    def _build_event_payload(self) -> dict[str, Any]:
+        return {
+            "pattern": self._last_pattern,
+            "command": self._last_pattern,
+            "confidence": self._confidence,
+            "entropy": self._entropy,
+            "novelty": self._novelty,
+            "band_profile": self._last_band_profile,
+            "simulated": True,
+            "not_thought_decode": True,
+            "confidence_variance": self._confidence_variance(),
+            "pattern_vocabulary_size": len(set(self._pattern_history)),
+            "timestamp": time.time(),
+            "type": "SIMULATED_NEURAL_TELEMETRY",
+        }
+
+    def _handle_broadcast_result(self, future: concurrent.futures.Future[Any]) -> None:
+        try:
+            future.result()
+            self._broadcast_failures = 0
+        except (
+            concurrent.futures.CancelledError,
+            asyncio.CancelledError,
+            ImportError,
+            AttributeError,
+            RuntimeError,
+            TypeError,
+            ValueError,
+        ) as broadcast_error:
+            self._broadcast_failures += 1
+            terminal = self._broadcast_failures >= self._max_broadcast_failures
+            _record_neural_degradation(
+                broadcast_error,
+                action=(
+                    "disabled neural telemetry event broadcast after repeated publish failures"
+                    if terminal
+                    else "kept neural telemetry running after publish failure"
+                ),
+                stage="event_broadcast.result",
+                severity="degraded" if terminal else "warning",
+                extra={
+                    "broadcast_failures": self._broadcast_failures,
+                    "max_broadcast_failures": self._max_broadcast_failures,
+                },
+            )
+            if terminal:
+                self._event_bus = None
 
     @staticmethod
     def _distribution_entropy(probabilities: np.ndarray) -> float:
@@ -268,7 +401,7 @@ class NeuralBridge:
         return max(0.0, min(1.0, spread / 3.0))
 
     @staticmethod
-    def _band_profile(eeg_data: np.ndarray) -> Dict[str, float]:
+    def _band_profile(eeg_data: np.ndarray) -> dict[str, float]:
         freqs = np.fft.rfftfreq(NUM_SAMPLES, d=1.0 / SAMPLING_RATE)
         power = np.mean(np.abs(np.fft.rfft(eeg_data, axis=1)) ** 2, axis=0)
         bands = {
@@ -278,7 +411,7 @@ class NeuralBridge:
             "beta": (13.0, 30.0),
             "gamma": (30.0, 80.0),
         }
-        raw: Dict[str, float] = {}
+        raw: dict[str, float] = {}
         for name, (lo, hi) in bands.items():
             mask = (freqs >= lo) & (freqs < hi)
             raw[name] = float(np.mean(power[mask])) if np.any(mask) else 0.0
@@ -286,7 +419,7 @@ class NeuralBridge:
         return {name: round(value / total, 4) for name, value in raw.items()}
 
     @staticmethod
-    def _format_band_profile(profile: Dict[str, float]) -> str:
+    def _format_band_profile(profile: dict[str, float]) -> str:
         if not profile:
             return "unavailable"
         names = ("delta", "theta", "alpha", "beta", "gamma")
@@ -297,7 +430,7 @@ class NeuralBridge:
             return 0.0
         return float(np.var(np.asarray(self._confidence_history, dtype=np.float64)))
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         return {
             "is_running": self._is_running,
             "last_thought": None,
