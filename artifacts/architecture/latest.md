@@ -2,13 +2,13 @@
 
 Schema: `aura.architecture.dependency_map.v1`
 Root: `/Users/bryan/.aura/live-source`
-Generated: `1779250792.5972009`
+Generated: `1779250986.54147`
 
 ## Summary
 
 - Subsystems: 120
 - Python files: 1539
-- Python lines: 417334
+- Python lines: 417383
 - Dependency edges: 649
 - ServiceContainer `.get()` calls: 1443
 - ServiceContainer registrations: 337
@@ -27,7 +27,7 @@ graph TD
     agency["agency<br/>26 files, 10529 lines"]
     adaptation["adaptation<br/>24 files, 10168 lines"]
     constitution["constitution<br/>1 files, 25 lines"]
-    self_modification["self_modification<br/>29 files, 9818 lines"]
+    self_modification["self_modification<br/>29 files, 9867 lines"]
     senses["senses<br/>23 files, 4778 lines"]
     state["state<br/>6 files, 3035 lines"]
     affect["affect<br/>5 files, 1840 lines"]
@@ -803,7 +803,7 @@ graph TD
 | resilience | 53 | 10728 | 434600 | 16 | 24 |
 | agency | 26 | 10529 | 423359 | 17 | 17 |
 | adaptation | 24 | 10168 | 413043 | 15 | 14 |
-| self_modification | 29 | 9818 | 391398 | 11 | 13 |
+| self_modification | 29 | 9867 | 393154 | 11 | 13 |
 | environment | 80 | 8018 | 311751 | 10 | 2 |
 | cognitive | 11 | 7980 | 325215 | 9 | 4 |
 | autonomy | 22 | 7052 | 293577 | 16 | 7 |
@@ -1216,8 +1216,8 @@ Review candidates:
 
 ## Degradation Handling
 
-- Total `record_degradation()` calls: 3155
-- Log-and-limp candidates: 2901
+- Total `record_degradation()` calls: 3152
+- Log-and-limp candidates: 2898
 - Nearby fail-closed candidates: 254
 
 Top limp-on files:

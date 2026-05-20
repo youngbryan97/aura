@@ -13,11 +13,32 @@ from pathlib import Path
 from typing import Any
 
 from core.runtime.atomic_writer import atomic_write_text
-from core.runtime.errors import record_degradation
+from core.runtime.errors import FallbackClassification, Severity, record_degradation
 
 from .ast_analyzer import ASTAnalyzer
 
 logger = logging.getLogger("SelfModification.CodeRepair")
+
+
+def _record_code_repair_degradation(
+    error: BaseException,
+    *,
+    stage: str,
+    action: str,
+    severity: Severity = "warning",
+    extra: dict[str, Any] | None = None,
+) -> None:
+    payload = {"stage": stage, "repair_requested": True}
+    if extra:
+        payload.update(extra)
+    record_degradation(
+        "code_repair",
+        error,
+        severity=severity,
+        action=action,
+        classification=FallbackClassification.SAFE_FALLBACK,
+        extra=payload,
+    )
 
 
 @dataclass
@@ -532,7 +553,13 @@ class SandboxTester:
             results["errors"].append(f"Static compile failed: {e}")
             return results
         except (ValueError, OSError) as e:
-            record_degradation('code_repair', e)
+            _record_code_repair_degradation(
+                e,
+                stage="static_compile_guard",
+                action="failed closed sandbox validation after static compile guard error",
+                severity="degraded",
+                extra={"target_file": fix.target_file},
+            )
             results["errors"].append(f"Static check error: {e}")
             return results
 
@@ -552,8 +579,15 @@ class SandboxTester:
             if not integrity_ok:
                 return results
         except (OSError, ValueError) as e:
-            record_degradation('code_repair', e)
+            _record_code_repair_degradation(
+                e,
+                stage="sandbox_integrity_check",
+                action="failed closed core repair validation after sandbox integrity check error",
+                severity="degraded",
+                extra={"target_file": fix.target_file},
+            )
             logger.warning("Integrity check exception: %s", e)
+            results["errors"].append(f"Integrity check error: {e}")
             if "core/" in fix.target_file:
                 return results
             results["integrity_check"] = True
@@ -578,7 +612,16 @@ class SandboxTester:
             results["integrity_check"] = True
             logger.info("✅ [NEURO] Pyright validation passed.")
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('code_repair', e)
+            _record_code_repair_degradation(
+                e,
+                stage="pyright_guard",
+                action="failed closed core repair validation after type guard became unavailable",
+                severity="degraded",
+                extra={"target_file": fix.target_file},
+            )
+            if "core/" in fix.target_file:
+                results["errors"].append(f"Pyright guard unavailable: {e}")
+                return results
             logger.warning("Pyright guard bypassed due to error: %s", e)
 
         # Test 5: Run Unit Tests (pytest) if available
@@ -611,10 +654,16 @@ class SandboxTester:
                 results["unit_tests"] = True # "N/A"
                 
         except (subprocess.SubprocessError, OSError) as e:
-            record_degradation('code_repair', e)
+            _record_code_repair_degradation(
+                e,
+                stage="unit_test_execution",
+                action="failed closed sandbox validation after unit test runner failed",
+                severity="degraded",
+                extra={"target_file": fix.target_file},
+            )
             logger.warning("Test execution failed: %s", e)
-            # Don't fail the fix just because test runner failed, unless we want strict TDD
-            results["unit_tests"] = True
+            results["errors"].append(f"Test execution failed: {e}")
+            return results
 
         # All critical tests passed
         results["success"] = True
