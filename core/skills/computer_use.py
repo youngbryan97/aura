@@ -1,20 +1,60 @@
-from core.runtime.errors import record_degradation
-from core.utils.exceptions import capture_and_log
 import asyncio
 import logging
-import shutil
 import shlex
+import shutil
 import subprocess
 import time
 import urllib.parse
 import webbrowser
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
-from core.skills.base_skill import BaseSkill
+
+from core.runtime.errors import FallbackClassification, record_degradation
 from core.skills._pyautogui_runtime import get_pyautogui
+from core.skills.base_skill import BaseSkill
+from core.utils.exceptions import capture_and_log
 
 logger = logging.getLogger("Skills.ComputerUse")
+
+_COMPUTER_USE_RECOVERABLE_ERRORS = (
+    ImportError,
+    AttributeError,
+    RuntimeError,
+    TypeError,
+    ValueError,
+    OSError,
+    TimeoutError,
+    subprocess.SubprocessError,
+)
+
+
+def _record_computer_use_degradation(
+    error: BaseException,
+    *,
+    action: str,
+    stage: str,
+    severity: str = "warning",
+    extra: dict[str, Any] | None = None,
+) -> None:
+    metadata = dict(extra or {})
+    metadata["stage"] = stage
+    try:
+        record_degradation(
+            "computer_use",
+            error,
+            severity=severity,  # type: ignore[arg-type]
+            action=action,
+            classification=FallbackClassification.SAFE_FALLBACK,
+            extra=metadata,
+        )
+    except TypeError:
+        record_degradation(
+            "computer_use",
+            error,
+            severity=severity,  # type: ignore[arg-type]
+            action=action,
+        )
 
 
 class ComputerUseParams(BaseModel):
@@ -22,39 +62,122 @@ class ComputerUseParams(BaseModel):
         ...,
         description="click|type|hotkey|scroll|read_screen_text|read_menu_clock|open_app|open_url|run_command",
     )
-    target: str = Field("", description="Element description, text to type, key combo, command, app name, or URL")
+    target: str = Field(
+        "", description="Element description, text to type, key combo, command, app name, or URL"
+    )
     x: int = Field(0, description="Screen x coordinate for click/scroll")
     y: int = Field(0, description="Screen y coordinate for click/scroll")
 
 
 class ComputerUseSkill(BaseSkill):
     name = "computer_use"
-    description = "Directly control the computer: click, type, read screen text, run commands, open apps."
+    description = (
+        "Directly control the computer: click, type, read screen text, run commands, open apps."
+    )
     input_model = ComputerUseParams
     metabolic_cost = 2
-    
-    # SK-01: Restricted command set for autonomous use
-    ALLOWED_COMMANDS = frozenset([
-        "ls", "pwd", "echo", "cat", "find", "grep", 
-        "python3", "pip", "git", "mkdir", "touch", "tree"
-    ])
 
-    async def _require_permissions(self, capability: str, *permission_names: str) -> Optional[Dict[str, Any]]:
+    # SK-01: Restricted command set for autonomous use
+    ALLOWED_COMMANDS = frozenset(
+        [
+            "ls",
+            "pwd",
+            "echo",
+            "cat",
+            "find",
+            "grep",
+            "python3",
+            "pip",
+            "git",
+            "mkdir",
+            "touch",
+            "tree",
+        ]
+    )
+
+    async def _require_permissions(
+        self,
+        capability: str,
+        *permission_names: str,
+    ) -> dict[str, Any] | None:
         try:
             from core.container import ServiceContainer
             from core.security.permission_guard import PermissionType
-        except (ImportError, AttributeError, RuntimeError):
-            return None
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            _record_computer_use_degradation(
+                exc,
+                action="blocked desktop capability because permission subsystem import failed closed",
+                stage="permissions.import",
+                severity="degraded",
+                extra={"capability": capability},
+            )
+            return {
+                "ok": False,
+                "status": "unavailable",
+                "error": f"Permission subsystem unavailable for {capability}.",
+                "permission": "guard",
+                "guidance": "Retry after the runtime security services are healthy.",
+                "detail": str(exc),
+            }
 
-        guard = ServiceContainer.get("permission_guard", default=None)
+        try:
+            guard = ServiceContainer.get("permission_guard", default=None)
+        except _COMPUTER_USE_RECOVERABLE_ERRORS as exc:
+            _record_computer_use_degradation(
+                exc,
+                action="blocked desktop capability because permission guard lookup failed closed",
+                stage="permissions.lookup",
+                severity="degraded",
+                extra={"capability": capability},
+            )
+            return {
+                "ok": False,
+                "status": "unavailable",
+                "error": f"Permission guard unavailable for {capability}.",
+                "permission": "guard",
+                "guidance": "Retry after the runtime security services are healthy.",
+                "detail": str(exc),
+            }
         if guard is None:
-            return None
+            error = RuntimeError("permission guard is not registered")
+            _record_computer_use_degradation(
+                error,
+                action="blocked desktop capability because permission guard was not registered",
+                stage="permissions.lookup",
+                severity="degraded",
+                extra={"capability": capability},
+            )
+            return {
+                "ok": False,
+                "status": "unavailable",
+                "error": f"Permission guard unavailable for {capability}.",
+                "permission": "guard",
+                "guidance": "Retry after the runtime security services are healthy.",
+                "detail": str(error),
+            }
 
         for permission_name in permission_names:
             permission_type = getattr(PermissionType, permission_name, None)
             if permission_type is None:
                 continue
-            check = await guard.check_permission(permission_type, force=True)
+            try:
+                check = await guard.check_permission(permission_type, force=True)
+            except _COMPUTER_USE_RECOVERABLE_ERRORS as exc:
+                _record_computer_use_degradation(
+                    exc,
+                    action="blocked desktop capability because permission check failed closed",
+                    stage="permissions.check",
+                    severity="degraded",
+                    extra={"capability": capability, "permission": permission_name.lower()},
+                )
+                return {
+                    "ok": False,
+                    "status": "unavailable",
+                    "error": f"{permission_name.replace('_', ' ').title()} permission check failed for {capability}.",
+                    "permission": permission_name.lower(),
+                    "guidance": "Retry after the runtime security services are healthy.",
+                    "detail": str(exc),
+                }
             if check.get("granted"):
                 continue
             human_name = permission_name.replace("_", " ").title()
@@ -99,13 +222,16 @@ class ComputerUseSkill(BaseSkill):
         return f"https://duckduckgo.com/?q={urllib.parse.quote_plus(text)}"
 
     @staticmethod
-    def _runtime_permission_payload(message: str) -> Optional[Dict[str, Any]]:
+    def _runtime_permission_payload(message: str) -> dict[str, Any] | None:
         try:
             from core.security.permission_guard import PermissionType, get_permission_guard
         except (ImportError, AttributeError, RuntimeError):
             return None
 
-        guard = get_permission_guard()
+        try:
+            guard = get_permission_guard()
+        except _COMPUTER_USE_RECOVERABLE_ERRORS:
+            return None
         if "Accessibility permission is blocked" in message:
             return {
                 "ok": False,
@@ -128,47 +254,64 @@ class ComputerUseSkill(BaseSkill):
         """A robust, safe python implementation of directory tree walking.
         Limits depth, total output, and skips heavy/sensitive directories like .git, cache, venv.
         """
-        import os
         from pathlib import Path
 
         start_path = Path(start_dir).resolve()
-        ignored_dirs = {".git", "__pycache__", "node_modules", ".venv", "venv", ".idea", ".vscode", ".pytest_cache", ".gemini"}
-        
+        ignored_dirs = {
+            ".git",
+            "__pycache__",
+            "node_modules",
+            ".venv",
+            "venv",
+            ".idea",
+            ".vscode",
+            ".pytest_cache",
+            ".gemini",
+        }
+
         lines = [f"{start_path.name}/"]
         file_count = 0
-        
+
         def walk_dir(current_path: Path, prefix: str, depth: int):
             nonlocal file_count
             if depth > max_depth or file_count >= max_files:
                 if file_count >= max_files:
                     lines.append(f"{prefix}└── ... [MAX FILES REACHED] ...")
                 return
-            
+
             try:
-                items = sorted(list(current_path.iterdir()), key=lambda x: (not x.is_dir(), x.name.lower()))
+                items = sorted(
+                    list(current_path.iterdir()), key=lambda x: (not x.is_dir(), x.name.lower())
+                )
             except PermissionError:
                 lines.append(f"{prefix}└── [Permission Denied]")
                 return
-            except Exception as e:
+            except OSError as e:
                 lines.append(f"{prefix}└── [Error: {str(e)}]")
                 return
 
             for i, item in enumerate(items):
                 if item.name in ignored_dirs:
                     continue
-                
-                is_last = (i == len(items) - 1)
+
+                is_last = i == len(items) - 1
                 connector = "└── " if is_last else "├── "
                 next_prefix = prefix + ("    " if is_last else "│   ")
-                
-                if item.is_dir():
+
+                try:
+                    is_directory = item.is_dir()
+                except OSError as exc:
+                    lines.append(f"{prefix}{connector}[Error: {item.name}: {exc}]")
+                    continue
+
+                if is_directory:
                     lines.append(f"{prefix}{connector}{item.name}/")
                     file_count += 1
                     walk_dir(item, next_prefix, depth + 1)
                 else:
                     lines.append(f"{prefix}{connector}{item.name}")
                     file_count += 1
-                    
+
                 if file_count >= max_files:
                     break
 
@@ -177,7 +320,7 @@ class ComputerUseSkill(BaseSkill):
 
     def _query_system_events_window_tree(self) -> str:
         """Query the System Events window tree for visible application processes and window elements."""
-        script = '''
+        script = """
 tell application "System Events"
     set outText to "Active Window Tree:\\n"
     try
@@ -220,10 +363,10 @@ tell application "System Events"
     end try
     return outText
 end tell
-'''
+"""
         return self._run_applescript(script, timeout=8)
 
-    async def execute(self, params: Any, context: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute(self, params: Any, context: dict[str, Any]) -> dict[str, Any]:
         if isinstance(params, dict):
             params = ComputerUseParams(**params)
 
@@ -249,13 +392,21 @@ end tell
         # Mycelial root pulse: Agent executing computer control
         try:
             from core.container import ServiceContainer
+
             mycelium = ServiceContainer.get("mycelial_network", default=None)
             if mycelium:
                 hypha = mycelium.get_hypha("skill", "os")
-                if hypha: hypha.pulse(success=True)
-        except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('computer_use', e)
-            capture_and_log(e, {'module': __name__})
+                if hypha:
+                    hypha.pulse(success=True)
+        except _COMPUTER_USE_RECOVERABLE_ERRORS as e:
+            _record_computer_use_degradation(
+                e,
+                action="continued computer-use action after mycelial telemetry pulse failed",
+                stage="mycelial_pulse",
+                severity="warning",
+                extra={"requested_action": action},
+            )
+            capture_and_log(e, {"module": __name__, "stage": "mycelial_pulse"})
 
         try:
             if action == "read_screen_text":
@@ -265,25 +416,40 @@ end tell
                     "AUTOMATION",
                 )
                 if blocked:
-                    logger.info("Accessibility/automation permission blocked. Attempting AppleScript window tree query fallback.")
+                    logger.info(
+                        "Accessibility/automation permission blocked. Attempting AppleScript window tree query fallback."
+                    )
                     try:
                         result = await asyncio.to_thread(self._query_system_events_window_tree)
                         return {
                             "ok": True,
                             "text": result,
                             "source": "applescript_window_tree_fallback",
-                            "accessibility_blocked": True
+                            "accessibility_blocked": True,
                         }
-                    except Exception as exc:
+                    except _COMPUTER_USE_RECOVERABLE_ERRORS as exc:
+                        _record_computer_use_degradation(
+                            exc,
+                            action="returned permission-blocked screen read result after fallback tree query failed",
+                            stage="read_screen_text.permission_fallback",
+                            severity="warning",
+                        )
                         logger.error("AppleScript window tree query fallback failed: %s", exc)
                         return blocked
 
                 result = await asyncio.to_thread(self._read_screen_text_macos)
                 if self._screen_text_unavailable(result):
                     import sys
+
                     is_tree_query_mocked = (
-                        getattr(self._query_system_events_window_tree, "__name__", "") != "_query_system_events_window_tree" and
-                        getattr(getattr(self._query_system_events_window_tree, "__func__", None), "__name__", "") != "_query_system_events_window_tree"
+                        getattr(self._query_system_events_window_tree, "__name__", "")
+                        != "_query_system_events_window_tree"
+                        and getattr(
+                            getattr(self._query_system_events_window_tree, "__func__", None),
+                            "__name__",
+                            "",
+                        )
+                        != "_query_system_events_window_tree"
                     )
                     if "pytest" in sys.modules and not is_tree_query_mocked:
                         return {
@@ -292,15 +458,23 @@ end tell
                             "error": result,
                             "text": result,
                         }
-                    logger.info("Screen text extraction unavailable. Attempting AppleScript window tree query fallback.")
+                    logger.info(
+                        "Screen text extraction unavailable. Attempting AppleScript window tree query fallback."
+                    )
                     try:
                         result = await asyncio.to_thread(self._query_system_events_window_tree)
                         return {
                             "ok": True,
                             "text": result,
-                            "source": "applescript_window_tree_fallback"
+                            "source": "applescript_window_tree_fallback",
                         }
-                    except Exception as exc:
+                    except _COMPUTER_USE_RECOVERABLE_ERRORS as exc:
+                        _record_computer_use_degradation(
+                            exc,
+                            action="returned unavailable screen read result after fallback tree query failed",
+                            stage="read_screen_text.unavailable_fallback",
+                            severity="warning",
+                        )
                         logger.error("AppleScript window tree query fallback failed: %s", exc)
                         return {
                             "ok": False,
@@ -328,9 +502,19 @@ end tell
                     }
                 try:
                     result = await asyncio.to_thread(self._read_menu_clock_macos)
-                    return {"ok": True, "clock_text": result, "text": result, "source": "macos_menu_bar"}
-                except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
-                    record_degradation('computer_use', exc)
+                    return {
+                        "ok": True,
+                        "clock_text": result,
+                        "text": result,
+                        "source": "macos_menu_bar",
+                    }
+                except _COMPUTER_USE_RECOVERABLE_ERRORS as exc:
+                    _record_computer_use_degradation(
+                        exc,
+                        action="returned deterministic system clock fallback after menu clock read failed",
+                        stage="read_menu_clock",
+                        severity="warning",
+                    )
                     fallback = time.strftime("%a %b %d %H:%M")
                     return {
                         "ok": True,
@@ -345,7 +529,15 @@ end tell
                 pre_state_text = ""
                 try:
                     pre_state_text = await asyncio.to_thread(self._read_screen_text_macos)
-                except (RuntimeError, OSError, AttributeError, TypeError, ValueError, subprocess.SubprocessError, asyncio.TimeoutError) as exc:
+                except (
+                    TimeoutError,
+                    RuntimeError,
+                    OSError,
+                    AttributeError,
+                    TypeError,
+                    ValueError,
+                    subprocess.SubprocessError,
+                ) as exc:
                     logger.debug("Pre-state screen read failed: %s", exc)
 
                 max_attempts = 3
@@ -354,42 +546,72 @@ end tell
                     if attempt > 1:
                         # Extra delay to compensate for focus lag on retries
                         await asyncio.sleep(0.3 * attempt)
-                    
-                    logger.info("Clicking coordinate (%d, %d) - attempt %d/%d", params.x, params.y, attempt, max_attempts)
+
+                    logger.info(
+                        "Clicking coordinate (%d, %d) - attempt %d/%d",
+                        params.x,
+                        params.y,
+                        attempt,
+                        max_attempts,
+                    )
                     await asyncio.to_thread(pyautogui.click, x=params.x, y=params.y)
-                    
+
                     # Focus lag compensation delay
                     await asyncio.sleep(0.5)
-                    
+
                     post_state_text = ""
                     try:
                         post_state_text = await asyncio.to_thread(self._read_screen_text_macos)
-                    except (RuntimeError, OSError, AttributeError, TypeError, ValueError, subprocess.SubprocessError, asyncio.TimeoutError) as exc:
-                        logger.debug("Post-state screen read failed on attempt %d: %s", attempt, exc)
-                    
+                    except (
+                        TimeoutError,
+                        RuntimeError,
+                        OSError,
+                        AttributeError,
+                        TypeError,
+                        ValueError,
+                        subprocess.SubprocessError,
+                    ) as exc:
+                        logger.debug(
+                            "Post-state screen read failed on attempt %d: %s", attempt, exc
+                        )
+
                     if post_state_text != pre_state_text:
                         clicked_successfully = True
                         break
-                    
-                verification = "State shifted." if clicked_successfully else "No obvious state shift detected after retries."
+
+                verification = (
+                    "State shifted."
+                    if clicked_successfully
+                    else "No obvious state shift detected after retries."
+                )
                 return {
-                    "ok": True, 
-                    "action": f"clicked ({params.x},{params.y})", 
+                    "ok": True,
+                    "action": f"clicked ({params.x},{params.y})",
                     "attempts": attempt,
-                    "verification": verification
+                    "verification": verification,
                 }
 
             elif action == "type":
                 # Compensation for focus lag: if click coordinate is provided, click to focus before typing
                 if params.x > 0 or params.y > 0:
-                    logger.info("Clicking (%d, %d) to focus window before typing", params.x, params.y)
+                    logger.info(
+                        "Clicking (%d, %d) to focus window before typing", params.x, params.y
+                    )
                     await asyncio.to_thread(pyautogui.click, x=params.x, y=params.y)
                     await asyncio.sleep(0.5)  # Focus lag compensation
 
                 pre_state = ""
                 try:
                     pre_state = await asyncio.to_thread(self._read_screen_text_macos)
-                except (RuntimeError, OSError, AttributeError, TypeError, ValueError, subprocess.SubprocessError, asyncio.TimeoutError) as exc:
+                except (
+                    TimeoutError,
+                    RuntimeError,
+                    OSError,
+                    AttributeError,
+                    TypeError,
+                    ValueError,
+                    subprocess.SubprocessError,
+                ) as exc:
                     logger.debug("Pre-state screen read failed before typing: %s", exc)
 
                 max_attempts = 2
@@ -401,17 +623,31 @@ end tell
                             await asyncio.to_thread(pyautogui.click, x=params.x, y=params.y)
                             await asyncio.sleep(0.4)
 
-                    logger.info("Typing text (attempt %d/%d): %s", attempt, max_attempts, params.target[:30])
+                    logger.info(
+                        "Typing text (attempt %d/%d): %s", attempt, max_attempts, params.target[:30]
+                    )
                     await asyncio.to_thread(pyautogui.typewrite, params.target, interval=0.03)
                     await asyncio.sleep(0.5)  # Allow UI to render the typed text
 
                     post_state = ""
                     try:
                         post_state = await asyncio.to_thread(self._read_screen_text_macos)
-                    except (RuntimeError, OSError, AttributeError, TypeError, ValueError, subprocess.SubprocessError, asyncio.TimeoutError) as exc:
-                        logger.debug("Post-state screen read failed on attempt %d: %s", attempt, exc)
+                    except (
+                        TimeoutError,
+                        RuntimeError,
+                        OSError,
+                        AttributeError,
+                        TypeError,
+                        ValueError,
+                        subprocess.SubprocessError,
+                    ) as exc:
+                        logger.debug(
+                            "Post-state screen read failed on attempt %d: %s", attempt, exc
+                        )
 
-                    if (params.target and params.target[:10] in post_state) or (post_state != pre_state):
+                    if (params.target and params.target[:10] in post_state) or (
+                        post_state != pre_state
+                    ):
                         typed_successfully = True
                         break
 
@@ -419,7 +655,9 @@ end tell
                     "ok": True,
                     "typed": params.target[:50],
                     "attempts": attempt,
-                    "verification": "Text confirmed on screen or state shifted." if typed_successfully else "Typed but could not verify visibility."
+                    "verification": "Text confirmed on screen or state shifted."
+                    if typed_successfully
+                    else "Typed but could not verify visibility.",
                 }
 
             elif action == "hotkey":
@@ -445,7 +683,10 @@ end tell
                 cmd = args[0]
                 if cmd not in self.ALLOWED_COMMANDS:
                     logger.warning("🛡️ SK-01 Blocked: Command '%s' not in allowlist.", cmd)
-                    return {"ok": False, "error": f"Security Violation: Command '{cmd}' is restricted."}
+                    return {
+                        "ok": False,
+                        "error": f"Security Violation: Command '{cmd}' is restricted.",
+                    }
 
                 # Support safe advanced directory/file traversal
                 # 1. Intercept tree command
@@ -486,9 +727,7 @@ end tell
                             args.insert(2, "4")
 
                 result = await asyncio.to_thread(
-                    subprocess.run,
-                    args,
-                    capture_output=True, text=True, timeout=30
+                    subprocess.run, args, capture_output=True, text=True, timeout=30
                 )
                 output = (result.stdout or result.stderr or "").strip()[:3000]
                 return {"ok": True, "output": output, "exit_code": result.returncode}
@@ -537,8 +776,14 @@ end tell
             else:
                 return {"ok": False, "error": f"Unknown action: {action}"}
 
-        except (subprocess.SubprocessError, OSError) as e:
-            record_degradation('computer_use', e)
+        except _COMPUTER_USE_RECOVERABLE_ERRORS as e:
+            _record_computer_use_degradation(
+                e,
+                action="returned explicit computer-use failure payload for recoverable action error",
+                stage=f"execute.{action}",
+                severity="degraded",
+                extra={"action": action},
+            )
             runtime_permission_error = self._runtime_permission_payload(str(e))
             if runtime_permission_error:
                 return runtime_permission_error
@@ -549,21 +794,31 @@ end tell
         """Helper for AgencyCore to read screen text directly."""
         try:
             return self._read_screen_text_macos()
-        except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-            record_degradation('computer_use', e)
+        except _COMPUTER_USE_RECOVERABLE_ERRORS as e:
+            _record_computer_use_degradation(
+                e,
+                action="returned explicit screen-read failure marker to caller",
+                stage="read_screen_text.helper",
+                severity="warning",
+            )
             return f"[read_screen_text failed: {e}]"
 
     def read_menu_clock(self) -> str:
         """Helper for reading the macOS menu bar clock."""
         try:
             return self._read_menu_clock_macos()
-        except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-            record_degradation('computer_use', e)
+        except _COMPUTER_USE_RECOVERABLE_ERRORS as e:
+            _record_computer_use_degradation(
+                e,
+                action="returned explicit menu-clock failure marker to caller",
+                stage="read_menu_clock.helper",
+                severity="warning",
+            )
             return f"[read_menu_clock failed: {e}]"
 
     def _read_screen_text_macos(self) -> str:
         """Use macOS Accessibility API to extract text from the frontmost app with anti-hang limits."""
-        script = '''
+        script = """
 tell application "System Events"
     try
         set frontApp to first application process whose frontmost is true
@@ -574,7 +829,7 @@ tell application "System Events"
         return "[Accessibility error or UI unresponsive]"
     end try
 end tell
-'''
+"""
         raw = self._run_applescript(script, timeout=6)
         if len(raw) > 3000:
             return raw[:1500] + "\n... [TRUNCATED] ...\n" + raw[-1500:]
@@ -592,11 +847,11 @@ end tell
 
     def _read_menu_clock_macos(self) -> str:
         """Read the live menu bar clock through System Events."""
-        script = '''
+        script = """
 tell application "System Events"
     tell process "SystemUIServer"
         return name of first menu bar item of menu bar 1 whose description is "Clock"
     end tell
 end tell
-'''
+"""
         return self._run_applescript(script, timeout=10)[:240]
