@@ -2,16 +2,16 @@
 
 Schema: `aura.architecture.dependency_map.v1`
 Root: `/Users/bryan/.aura/live-source`
-Generated: `1779262963.9488618`
+Generated: `1779263266.161908`
 
 ## Summary
 
 - Subsystems: 120
 - Python files: 1539
-- Python lines: 419207
+- Python lines: 419261
 - Dependency edges: 649
 - ServiceContainer `.get()` calls: 1443
-- ServiceContainer registrations: 337
+- ServiceContainer registrations: 336
 
 ## Subsystem Dependency Graph
 
@@ -19,7 +19,7 @@ Generated: `1779262963.9488618`
 graph TD
     runtime["runtime<br/>87 files, 18706 lines"]
     utils["utils<br/>41 files, 4843 lines"]
-    brain["brain<br/>111 files, 37878 lines"]
+    brain["brain<br/>111 files, 37932 lines"]
     consciousness["consciousness<br/>120 files, 52114 lines"]
     resilience["resilience<br/>53 files, 10728 lines"]
     health["health<br/>3 files, 561 lines"]
@@ -794,7 +794,7 @@ graph TD
 | --- | ---: | ---: | ---: | ---: | ---: |
 | core_root | 182 | 56037 | 2328651 | 102 | 0 |
 | consciousness | 120 | 52114 | 2208434 | 34 | 28 |
-| brain | 111 | 37878 | 1643412 | 40 | 38 |
+| brain | 111 | 37932 | 1643533 | 40 | 38 |
 | orchestrator | 42 | 18775 | 827354 | 121 | 8 |
 | runtime | 87 | 18706 | 658230 | 37 | 102 |
 | phases | 29 | 14100 | 644007 | 31 | 6 |
@@ -925,7 +925,7 @@ graph TD
 | --- | ---: | ---: |
 | orchestrator | 67 | 3 |
 | cognitive_engine | 54 | 3 |
-| llm_router | 40 | 3 |
+| llm_router | 40 | 2 |
 | affect_engine | 39 | 1 |
 | inference_gate | 34 | 4 |
 | capability_engine | 31 | 2 |
@@ -1006,7 +1006,7 @@ graph TD
 | State mutation | 347 | 135 | 4 | 343 |
 | Tool execution | 129 | 70 | 3 | 126 |
 | Self-modification and patching | 15 | 12 | 2 | 13 |
-| LLM inference | 246 | 151 | 57 | 189 |
+| LLM inference | 245 | 151 | 56 | 189 |
 | External I/O | 161 | 80 | 15 | 146 |
 
 ### UnifiedWill decisions
@@ -1216,8 +1216,8 @@ Review candidates:
 
 ## Degradation Handling
 
-- Total `record_degradation()` calls: 3067
-- Log-and-limp candidates: 2829
+- Total `record_degradation()` calls: 3065
+- Log-and-limp candidates: 2827
 - Nearby fail-closed candidates: 238
 
 Top limp-on files:

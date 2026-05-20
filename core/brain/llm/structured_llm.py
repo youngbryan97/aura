@@ -1,205 +1,275 @@
-from core.runtime.errors import record_degradation
+"""Schema-bound LLM generation with retry, escalation, and honest deferral."""
+
+from __future__ import annotations
+
 import json
 import logging
-from typing import Type, TypeVar, Optional, Any, Dict, List, get_origin
+import re
+from typing import TypeVar, get_origin
+
 from pydantic import BaseModel, ValidationError
+
 from core.container import ServiceContainer
+from core.health.degraded_events import record_degraded_event
+from core.runtime.errors import FallbackClassification, Severity, record_degradation
 
 T = TypeVar("T", bound=BaseModel)
 logger = logging.getLogger("Aura.StructuredLLM")
 
+STRUCTURED_RECOVERABLE_ERRORS = (
+    AttributeError,
+    ImportError,
+    OSError,
+    RuntimeError,
+    TimeoutError,
+    TypeError,
+    ValueError,
+)
+
+_JSON_FENCE_RE = re.compile(r"```(?:json)?\s*(.*?)```", re.IGNORECASE | re.DOTALL)
+
+
+def _record_structured_degradation(
+    error: BaseException,
+    *,
+    action: str,
+    severity: Severity = "warning",
+    extra: dict[str, object] | None = None,
+) -> None:
+    record_degradation(
+        "structured_llm",
+        error,
+        severity=severity,
+        action=action,
+        classification=FallbackClassification.SAFE_FALLBACK,
+        receipt_required=False,
+        extra=extra,
+    )
+
+
 class StructuredLLM:
+    """Generate Pydantic objects through Aura's LLM router.
+
+    The class is intentionally conservative: background policy failures defer
+    generation, telemetry failures are recorded but never block schema retries,
+    and technical/model failures escalate lanes before giving up.
     """
-    Aura's Self-Correction Loop.
-    Wraps LLM calls to ensure output matches a Pydantic schema.
-    If validation fails, it prompts the LLM to fix its own mistake.
-    """
-    
-    def __init__(self, model_class: Type[T], max_retries: int = 3):
+
+    def __init__(self, model_class: type[T], max_retries: int = 3, llm_router: object | None = None):
         self.model_class = model_class
-        self.max_retries = max_retries
-        self._llm_router = ServiceContainer.get("llm_router")
+        self.max_retries = max(1, int(max_retries or 1))
+        self._llm_router = llm_router if llm_router is not None else ServiceContainer.get("llm_router")
         self.last_defer_reason = ""
 
-    async def generate(self, prompt: str, context: Optional[str] = None) -> Optional[T]:
-        """
-        Generates structured data from the LLM with autonomous retries on validation failure.
-        [HARDENING] Injects Ghost Examples and propagates Pydantic schema to Router.
-        """
-        schema = self.model_class.model_json_schema()
-        ghost_example = self._generate_ghost_example()
+    async def generate(self, prompt: str, context: str | None = None) -> T | None:
+        """Generate structured data with autonomous validation repair."""
         self.last_defer_reason = ""
-        
-        base_prompt = prompt
-        
-        # Inject JSON enforcement and Ghost Example into the prompt
-        if "GHOST EXAMPLE (Follow this structure exactly):" not in base_prompt:
-            base_prompt += (
-                f"\n\nCRITICAL: You MUST respond with a valid JSON object matching the requested schema.\n"
-                f"GHOST EXAMPLE (Follow this structure exactly):\n{ghost_example}"
+        prompt = str(prompt or "").strip()
+        if not prompt:
+            self._record_event(
+                "empty_prompt",
+                detail="structured generation blocked empty prompt before router call",
+                severity="warning",
+                context={"model_class": self.model_class.__name__},
             )
+            return None
+
+        schema = self.model_class.model_json_schema()
+        base_prompt = self._with_json_contract(prompt)
         current_prompt = base_prompt
+        escalated_tier: str | None = None
 
-        escalated_tier = None
         for attempt in range(self.max_retries):
-            logger.info("🤖 StructuredLLM: Attempt %d/%d for %s", 
-                        attempt + 1, self.max_retries, self.model_class.__name__)
-            
+            logger.info(
+                "🤖 StructuredLLM: Attempt %d/%d for %s",
+                attempt + 1,
+                self.max_retries,
+                self.model_class.__name__,
+            )
+
+            defer_reason = self._background_defer_reason(escalated=bool(escalated_tier))
+            if defer_reason:
+                self.last_defer_reason = defer_reason
+                logger.info("⏸️ StructuredLLM: Deferred %s (%s).", self.model_class.__name__, defer_reason)
+                return None
+
+            force_tier = escalated_tier or ("tertiary" if attempt >= 1 else None)
             try:
-                defer_reason = self._background_defer_reason(escalated=bool(escalated_tier))
-                if defer_reason:
-                    self.last_defer_reason = defer_reason
-                    logger.info(
-                        "⏸️ StructuredLLM: Deferred %s (%s).",
-                        self.model_class.__name__,
-                        defer_reason,
-                    )
-                    return None
-
-                # [STABILITY v54.1] Multi-stage escalation:
-                # Attempt 0: TERTIARY (Local fast)
-                # Attempt 1 (Failure 1): PRIMARY (Local 32B)
-                # Attempt 2 (Failure 2): SECONDARY (Cloud/Deep)
-                if escalated_tier:
-                    force_tier = escalated_tier
-                else:
-                    force_tier = "tertiary" if attempt >= 1 else None
-
-                metadata = None
-                if hasattr(self._llm_router, "generate_with_metadata"):
-                    metadata = await self._llm_router.generate_with_metadata(
-                        current_prompt,
-                        context=context,
-                        prefer_tier=force_tier,
-                        schema=schema,
-                        origin="structured_llm",
-                        is_background=not escalated_tier, # Allow cloud usage if escalated
-                    )
-                    response_text = str((metadata or {}).get("text") or "")
-                else:
-                    response_text = await self._llm_router.generate(
-                        current_prompt, 
-                        context=context, 
-                        prefer_tier=force_tier,
-                        schema=schema,
-                        origin="structured_llm",
-                        is_background=not escalated_tier,
-                    )
-
-                error_code = str((metadata or {}).get("error") or "")
-                deferred_error = error_code == "foreground_busy" or error_code == "foreground_quiet_window"
-                deferred_error = deferred_error or error_code.startswith(
-                    (
-                        "background_deferred:",
-                        "failure_lockdown_",
-                        "conversation_lane_",
-                    )
+                response_text, error_code = await self._call_router(
+                    current_prompt,
+                    context=context,
+                    prefer_tier=force_tier,
+                    schema=schema,
+                    is_background=not escalated_tier,
                 )
-                if deferred_error:
-                    self.last_defer_reason = error_code
-                    logger.info(
-                        "⏸️ StructuredLLM: Deferred %s (%s).",
-                        self.model_class.__name__,
-                        error_code,
-                    )
-                    return None
+            except STRUCTURED_RECOVERABLE_ERRORS as exc:
+                self._record_event(
+                    "technical_failure",
+                    detail=str(exc)[:200],
+                    severity="warning",
+                    context={"model_class": self.model_class.__name__, "attempt": attempt + 1},
+                    exc=exc,
+                )
+                escalated_tier = self._next_escalation_tier(attempt)
+                continue
 
-                if not response_text or "ROUTER_ERROR" in response_text:
-                    try:
-                        from core.health.degraded_events import record_degraded_event
+            if self._is_deferred_error(error_code):
+                self.last_defer_reason = error_code
+                logger.info("⏸️ StructuredLLM: Deferred %s (%s).", self.model_class.__name__, error_code)
+                return None
 
-                        record_degraded_event(
-                            "structured_llm",
-                            "technical_failure",
-                            detail=(error_code or response_text or "empty")[:200],
-                            severity="warning",
-                            classification="background_degraded",
-                            context={"model_class": self.model_class.__name__, "attempt": attempt + 1},
-                        )
-                    except (ImportError, AttributeError, RuntimeError) as _exc:
-                        record_degradation('structured_llm', _exc)
-                        logger.debug("Suppressed Exception: %s", _exc)
-                    # [STABILITY v54.1] Escalation Strategy:
-                    # 1. First Technical Failure -> Try PRIMARY (32B Local)
-                    # 2. Second Technical Failure -> Try SECONDARY (Cloud)
-                    if attempt == 0:
-                        logger.info("⚡ StructuredLLM: Technical failure on TERTIARY — escalating to PRIMARY (Local 32B) for next attempt.")
-                        escalated_tier = "primary"
-                    elif attempt == 1:
-                        logger.info("⚡ StructuredLLM: Technical failure on PRIMARY — escalating to SECONDARY (Cloud/Deep) for next attempt.")
-                        escalated_tier = "secondary"
-                    else:
-                        escalated_tier = "secondary"
-                    
-                    escalated = True
-                    force_tier = escalated_tier
-                    continue
+            if not response_text or "ROUTER_ERROR" in response_text:
+                detail = (error_code or response_text or "empty")[:200]
+                self._record_event(
+                    "technical_failure",
+                    detail=detail,
+                    severity="warning",
+                    context={"model_class": self.model_class.__name__, "attempt": attempt + 1},
+                )
+                escalated_tier = self._next_escalation_tier(attempt)
+                continue
 
-                # 2. Extract JSON (handle markers like ```json)
+            try:
                 cleaned_text = self._extract_json(response_text)
-                
-                # 3. Parse and Validate
                 data = json.loads(cleaned_text)
                 validated_obj = self.model_class(**data)
-                
-                logger.info("✅ StructuredLLM: Successfully validated %s", self.model_class.__name__)
-                return validated_obj
-
-            except (json.JSONDecodeError, ValidationError) as e:
-                logger.warning("❌ StructuredLLM: Validation failed on attempt %d: %s", attempt + 1, e)
-                try:
-                    from core.health.degraded_events import record_degraded_event
-
-                    record_degraded_event(
-                        "structured_llm",
-                        "validation_failed",
-                        detail=str(e)[:200],
-                        severity="warning",
-                        classification="background_degraded",
-                        context={"model_class": self.model_class.__name__, "attempt": attempt + 1},
-                    )
-                except (ImportError, AttributeError, RuntimeError) as _exc:
-                    record_degradation('structured_llm', _exc)
-                    logger.debug("Suppressed Exception: %s", _exc)
-                
-                # 4. Autonomous Correction: Feed the error back
-                error_msg = str(e)
-                current_prompt = (
-                    f"{base_prompt}\n\n"
-                    f"⚠️ PREVIOUS ATTEMPT FAILED VALIDATION:\n{error_msg}\n\n"
-                    f"Please correct the formatting and try again. Ensure all types match the schema."
+            except (json.JSONDecodeError, ValidationError) as exc:
+                logger.warning("❌ StructuredLLM: Validation failed on attempt %d: %s", attempt + 1, exc)
+                self._record_event(
+                    "validation_failed",
+                    detail=str(exc)[:200],
+                    severity="warning",
+                    context={"model_class": self.model_class.__name__, "attempt": attempt + 1},
+                    exc=exc,
                 )
-                
-                # If we're on the last attempt, we failed
                 if attempt == self.max_retries - 1:
-                    logger.error("💀 StructuredLLM: Max retries reached for %s. Giving up.", 
-                                 self.model_class.__name__)
+                    logger.error("💀 StructuredLLM: Max retries reached for %s. Giving up.", self.model_class.__name__)
                     return None
+                current_prompt = self._correction_prompt(base_prompt, exc)
+                escalated_tier = self._next_escalation_tier(attempt)
+                continue
+
+            logger.info("✅ StructuredLLM: Successfully validated %s", self.model_class.__name__)
+            return validated_obj
 
         return None
 
+    def _with_json_contract(self, prompt: str) -> str:
+        if "GHOST EXAMPLE (Follow this structure exactly):" in prompt:
+            return prompt
+        return (
+            f"{prompt}\n\n"
+            "CRITICAL: You MUST respond with a valid JSON object matching the requested schema.\n"
+            f"GHOST EXAMPLE (Follow this structure exactly):\n{self._generate_ghost_example()}"
+        )
+
+    async def _call_router(
+        self,
+        prompt: str,
+        *,
+        context: str | None,
+        prefer_tier: str | None,
+        schema: dict[str, object],
+        is_background: bool,
+    ) -> tuple[str, str]:
+        if hasattr(self._llm_router, "generate_with_metadata"):
+            metadata = await self._llm_router.generate_with_metadata(
+                prompt,
+                context=context,
+                prefer_tier=prefer_tier,
+                schema=schema,
+                origin="structured_llm",
+                is_background=is_background,
+            )
+            if isinstance(metadata, dict):
+                return str(metadata.get("text") or ""), str(metadata.get("error") or "")
+            return str(metadata or ""), ""
+
+        response_text = await self._llm_router.generate(
+            prompt,
+            context=context,
+            prefer_tier=prefer_tier,
+            schema=schema,
+            origin="structured_llm",
+            is_background=is_background,
+        )
+        return str(response_text or ""), ""
+
+    @staticmethod
+    def _is_deferred_error(error_code: str) -> bool:
+        if error_code in {"foreground_busy", "foreground_quiet_window"}:
+            return True
+        return error_code.startswith(
+            (
+                "background_deferred:",
+                "failure_lockdown_",
+                "conversation_lane_",
+            )
+        )
+
+    @staticmethod
+    def _next_escalation_tier(attempt: int) -> str:
+        return "primary" if attempt == 0 else "secondary"
+
+    @staticmethod
+    def _correction_prompt(base_prompt: str, error: BaseException) -> str:
+        return (
+            f"{base_prompt}\n\n"
+            f"PREVIOUS ATTEMPT FAILED VALIDATION:\n{error}\n\n"
+            "Correct the JSON only. Match the schema exactly, keep all required keys, "
+            "and use the correct primitive types."
+        )
+
+    def _record_event(
+        self,
+        reason: str,
+        *,
+        detail: str,
+        severity: str,
+        context: dict[str, object],
+        exc: BaseException | None = None,
+    ) -> None:
+        try:
+            record_degraded_event(
+                "structured_llm",
+                reason,
+                detail=detail,
+                severity=severity,
+                classification="background_degraded",
+                context=context,
+                exc=exc,
+            )
+        except STRUCTURED_RECOVERABLE_ERRORS as event_exc:
+            _record_structured_degradation(
+                event_exc,
+                action="continued structured generation after degraded-event telemetry failed",
+                severity="warning",
+                extra={"reason": reason, "model_class": self.model_class.__name__},
+            )
+
     def _extract_json(self, text: str) -> str:
-        """Helper to extract JSON from markdown blocks if present."""
-        if "```json" in text:
-            return text.split("```json")[1].split("```")[0].strip()
-        if "```" in text:
-            # Fallback for generic code blocks
-            return text.split("```")[1].strip()
-        
-        # Fallback to finding the first { and last }
+        """Extract a JSON object from raw or fenced model output."""
+        text = str(text or "").strip()
+        fenced = _JSON_FENCE_RE.search(text)
+        if fenced:
+            return fenced.group(1).strip()
+
         if "{" in text and "}" in text:
             start = text.find("{")
             end = text.rfind("}")
             if end > start:
-                return text[start:end+1]
-                
-        return text.strip()
+                return text[start : end + 1]
+
+        return text
 
     def _background_defer_reason(self, *, escalated: bool = False) -> str:
         if escalated:
             return ""
         try:
-            from core.runtime.background_policy import THOUGHT_BACKGROUND_POLICY, background_activity_reason
+            from core.runtime.background_policy import (
+                THOUGHT_BACKGROUND_POLICY,
+                background_activity_reason,
+            )
 
             orch = ServiceContainer.get("orchestrator", default=None)
             return background_activity_reason(
@@ -207,50 +277,34 @@ class StructuredLLM:
                 profile=THOUGHT_BACKGROUND_POLICY,
                 require_conversation_ready=True,
             )
-        except (ImportError, AttributeError, RuntimeError) as exc:
-            record_degradation("structured_llm", exc)
+        except STRUCTURED_RECOVERABLE_ERRORS as exc:
+            _record_structured_degradation(
+                exc,
+                action="deferred structured background generation because background policy check failed",
+                severity="degraded",
+            )
             logger.debug("StructuredLLM background defer check failed: %s", exc)
-            return ""
+            return "background_policy_unavailable"
 
     def _generate_ghost_example(self) -> str:
-        """Generates a minimal 1-line JSON example based on the model's fields."""
+        """Generate a minimal one-line JSON example from the Pydantic fields."""
         try:
-            example = {}
+            example: dict[str, object] = {}
             for name, field in self.model_class.model_fields.items():
                 annotation = field.annotation
                 origin = get_origin(annotation)
-                if annotation == str: example[name] = "..."
-                elif annotation == int: example[name] = 0
-                elif annotation == bool: example[name] = False
-                elif annotation == list or origin is list: example[name] = []
-                elif annotation == dict or origin is dict: example[name] = {}
-                else: example[name] = None
+                if annotation is str:
+                    example[name] = "..."
+                elif annotation is int:
+                    example[name] = 0
+                elif annotation is bool:
+                    example[name] = False
+                elif annotation is list or origin is list:
+                    example[name] = []
+                elif annotation is dict or origin is dict:
+                    example[name] = {}
+                else:
+                    example[name] = None
             return json.dumps(example)
-        except (json.JSONDecodeError, TypeError, ValueError):
+        except STRUCTURED_RECOVERABLE_ERRORS:
             return "{}"
-
-async def test_structured_llm():
-    """Simple test with a mock LLM router."""
-    from unittest.mock import AsyncMock
-    
-    class TestTask(BaseModel):
-        action: str
-        priority: int
-
-    # Mock router
-    mock_router = AsyncMock()
-    # Attempt 1: bad JSON. Attempt 2: good JSON.
-    mock_router.generate.side_effect = [
-        '{"action": "test", "priority": "high"}', # TypeError: priority should be int
-        '{"action": "test", "priority": 10}'
-    ]
-    ServiceContainer.register_instance("llm_router", mock_router)
-    
-    s_llm = StructuredLLM(TestTask)
-    result = await s_llm.generate("Do a test task")
-    print(f"Final Result: {result}")
-
-if __name__ == "__main__":
-    import asyncio
-    logging.basicConfig(level=logging.INFO)
-    asyncio.run(test_structured_llm())
