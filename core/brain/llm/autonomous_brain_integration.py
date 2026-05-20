@@ -6,7 +6,8 @@ Tier 3: OpenAI (Relegated to fallback/research)
 
 Drives the Mind/Body connection.
 """
-from core.runtime.errors import record_degradation
+from __future__ import annotations
+
 import asyncio
 import logging
 import os
@@ -16,6 +17,7 @@ from typing import Any
 from core.config import config
 from core.container import get_container
 from core.runtime import service_access
+from core.runtime.errors import FallbackClassification, Severity, record_degradation
 from core.utils.exceptions import capture_and_log
 
 from .function_calling_adapter import FunctionCallingAdapter
@@ -23,6 +25,35 @@ from .llm_router import IntelligentLLMRouter, LLMEndpoint, LLMTier
 from .runtime_wiring import build_agentic_tool_map
 
 logger = logging.getLogger("Aura.AutonomousBrain")
+
+BRAIN_RECOVERABLE_ERRORS = (
+    AttributeError,
+    ImportError,
+    OSError,
+    RuntimeError,
+    TimeoutError,
+    TypeError,
+    ValueError,
+)
+
+
+def _record_brain_degradation(
+    error: BaseException,
+    *,
+    action: str,
+    severity: Severity = "warning",
+    extra: dict[str, Any] | None = None,
+) -> None:
+    record_degradation(
+        "autonomous_brain_integration",
+        error,
+        severity=severity,
+        action=action,
+        classification=FallbackClassification.SAFE_FALLBACK,
+        receipt_required=False,
+        extra=extra,
+    )
+
 
 class ReflexClient:
     """A minimal rule-based client that provides emergency cognitive output."""
@@ -79,7 +110,7 @@ class AutonomousCognitiveEngine:
             repo = service_access.resolve_state_repository(default=None)
             if repo and hasattr(repo, "get_current"):
                 return await repo.get_current()
-        except (AttributeError, RuntimeError, TypeError):
+        except BRAIN_RECOVERABLE_ERRORS:
             return None
         return None
         
@@ -96,8 +127,12 @@ class AutonomousCognitiveEngine:
                 summary = guardian.get_health_summary()
                 # If system is not healthy, we are in safe mode
                 return not summary.get("healthy", True)
-        except (ImportError, AttributeError, RuntimeError, TypeError) as _e:
-            record_degradation('autonomous_brain_integration', _e)
+        except BRAIN_RECOVERABLE_ERRORS as _e:
+            _record_brain_degradation(
+                _e,
+                action="assumed safe mode inactive after stability guardian lookup failed",
+                severity="debug",
+            )
             logger.debug('Ignored Exception in autonomous_brain_integration.py: %s', _e)
         return False
 
@@ -158,8 +193,12 @@ class AutonomousCognitiveEngine:
                     client=cortex_client,
                 ))
                 logger.info("🧠 PRIMARY Tier registered: %s (%s) — Daily Brain", PRIMARY_ENDPOINT, ACTIVE_MODEL)
-            except (ImportError, AttributeError, RuntimeError) as e:
-                record_degradation('autonomous_brain_integration', e)
+            except BRAIN_RECOVERABLE_ERRORS as e:
+                _record_brain_degradation(
+                    e,
+                    action="continued tier initialization without primary Cortex endpoint",
+                    extra={"endpoint": PRIMARY_ENDPOINT, "model": ACTIVE_MODEL},
+                )
                 logger.error("Failed to register %s pathway: %s", PRIMARY_ENDPOINT, e)
 
         # ── LOCAL SECONDARY: Solver (72B) — Hot-swap deep thinker ──
@@ -178,8 +217,12 @@ class AutonomousCognitiveEngine:
                     timeout=300.0,  # 72B needs more time to load/generate
                 ))
                 logger.info("🧠 SECONDARY Tier registered: %s (%s) — Deep Thinker (Hot-Swap)", DEEP_ENDPOINT, DEEP_MODEL)
-            except (ImportError, AttributeError, RuntimeError) as e:
-                record_degradation('autonomous_brain_integration', e)
+            except BRAIN_RECOVERABLE_ERRORS as e:
+                _record_brain_degradation(
+                    e,
+                    action="continued tier initialization without secondary Solver endpoint",
+                    extra={"endpoint": DEEP_ENDPOINT, "model": DEEP_MODEL},
+                )
                 logger.error("Failed to register %s pathway: %s", DEEP_ENDPOINT, e)
 
         # ── CLOUD SECONDARY: Gemini (Teacher/Oracle for distillation) ──
@@ -193,8 +236,12 @@ class AutonomousCognitiveEngine:
                         if line.startswith("GEMINI_API_KEY="):
                             gemini_key = line.split("=", 1)[1].strip()
                             break
-            except (ImportError, AttributeError, RuntimeError) as e:
-                record_degradation('autonomous_brain_integration', e)
+            except BRAIN_RECOVERABLE_ERRORS as e:
+                _record_brain_degradation(
+                    e,
+                    action="continued local-first initialization without Gemini key from dotenv file",
+                    severity="debug",
+                )
                 capture_and_log(e, {'module': __name__})
         
         if gemini_key and "Gemini-Fast" not in getattr(self.llm_router, "endpoints", {}):
@@ -249,8 +296,11 @@ class AutonomousCognitiveEngine:
                 ))
                 logger.info("☁️ SECONDARY Tier registered: Gemini Pro (Teacher/Oracle)")
                 
-            except (ImportError, AttributeError, RuntimeError) as e:
-                record_degradation('autonomous_brain_integration', e)
+            except BRAIN_RECOVERABLE_ERRORS as e:
+                _record_brain_degradation(
+                    e,
+                    action="continued local-first operation without Gemini teacher adapters",
+                )
                 logger.warning("Failed to initialize Gemini adapters: %s", e)
         else:
             logger.info("No GEMINI_API_KEY found — running fully local (teacher disabled)")
@@ -270,8 +320,12 @@ class AutonomousCognitiveEngine:
                     client=brainstem_client,
                 ))
                 logger.info("⚡ TERTIARY Tier registered: %s (7B) — Background/Reflex", BRAINSTEM_ENDPOINT)
-            except (ImportError, AttributeError, RuntimeError) as e:
-                record_degradation('autonomous_brain_integration', e)
+            except BRAIN_RECOVERABLE_ERRORS as e:
+                _record_brain_degradation(
+                    e,
+                    action="continued tier initialization without tertiary Brainstem endpoint",
+                    extra={"endpoint": BRAINSTEM_ENDPOINT, "model": BRAINSTEM_MODEL},
+                )
                 logger.error("Failed to register %s pathway: %s", BRAINSTEM_ENDPOINT, e)
         elif cortex_model_path:
             # If no explicit brainstem path, use the cortex model as brainstem too
@@ -299,8 +353,12 @@ class AutonomousCognitiveEngine:
                     timeout=120.0  # CPU is slow, allow more time
                 ))
                 logger.info("🚨 EMERGENCY Tier registered: %s (1.5B CPU emergency)", FALLBACK_ENDPOINT)
-            except (ImportError, AttributeError, RuntimeError) as e:
-                record_degradation('autonomous_brain_integration', e)
+            except BRAIN_RECOVERABLE_ERRORS as e:
+                _record_brain_degradation(
+                    e,
+                    action="continued tier initialization without CPU emergency LLM endpoint",
+                    extra={"endpoint": FALLBACK_ENDPOINT, "model": FALLBACK_MODEL},
+                )
                 logger.error("Failed to register %s pathway: %s", FALLBACK_ENDPOINT, e)
         
         # ── Sanity check: ensure at least one endpoint exists ──
@@ -464,9 +522,14 @@ class AutonomousCognitiveEngine:
                                 objective=objective,
                                 max_tools=8,
                             )
-                        except (RuntimeError, AttributeError, TypeError, ValueError) as _exc:
-                            record_degradation('autonomous_brain_integration', _exc)
-                            logger.debug("Suppressed Exception: %s", _exc)
+                        except BRAIN_RECOVERABLE_ERRORS as _exc:
+                            _record_brain_degradation(
+                                _exc,
+                                action="continued agentic reasoning without dynamically built tool map",
+                                extra={"objective": objective[:160]},
+                            )
+                            logger.debug("Agentic tool-map construction failed: %s", _exc)
+                            _tools = {}
                     result = await agentic_endpoint.client.think_and_act(
                         objective,
                         system_prompt,
@@ -489,8 +552,12 @@ class AutonomousCognitiveEngine:
                 )
                 return {"content": text, "confidence": 0.5}
                 
-        except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('autonomous_brain_integration', e)
+        except BRAIN_RECOVERABLE_ERRORS as e:
+            _record_brain_degradation(
+                e,
+                action="entered standard router fallback after autonomous thinking path failed",
+                extra={"objective": objective[:160]},
+            )
             now = time.time()
             if now - self._last_think_error_time > self._THINK_ERROR_COOLDOWN:
                 logger.error("Independence Mode thinking failed: %s. Falling back to standard generation.", e)
@@ -508,6 +575,17 @@ class AutonomousCognitiveEngine:
                     **{k: v for k, v in kwargs.items() if k != 'bypass_race'}
                 )
                 return {"content": text, "confidence": 0.5}
-            except (OSError, ConnectionError, TimeoutError) as e2:
-                record_degradation('autonomous_brain_integration', e2)
-                return {"content": f"Absolute failure: {e2}", "confidence": 0.0}
+            except BRAIN_RECOVERABLE_ERRORS as e2:
+                _record_brain_degradation(
+                    e2,
+                    action="served emergency reflex response after router fallback failed",
+                    severity="degraded",
+                    extra={"objective": objective[:160]},
+                )
+                reflex_text = await ReflexClient().think(objective)
+                return {
+                    "content": reflex_text,
+                    "confidence": 0.1,
+                    "fallback": "reflex",
+                    "error": f"{type(e2).__name__}: {e2}",
+                }
