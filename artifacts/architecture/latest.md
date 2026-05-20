@@ -2,13 +2,13 @@
 
 Schema: `aura.architecture.dependency_map.v1`
 Root: `/Users/bryan/.aura/live-source`
-Generated: `1779236651.194603`
+Generated: `1779237344.071625`
 
 ## Summary
 
 - Subsystems: 120
 - Python files: 1534
-- Python lines: 413448
+- Python lines: 413743
 - Dependency edges: 647
 - ServiceContainer `.get()` calls: 1442
 - ServiceContainer registrations: 339
@@ -24,7 +24,7 @@ graph TD
     resilience["resilience<br/>53 files, 10639 lines"]
     health["health<br/>3 files, 561 lines"]
     memory["memory<br/>64 files, 13409 lines"]
-    agency["agency<br/>26 files, 10499 lines"]
+    agency["agency<br/>26 files, 10529 lines"]
     adaptation["adaptation<br/>24 files, 10168 lines"]
     constitution["constitution<br/>1 files, 25 lines"]
     self_modification["self_modification<br/>29 files, 9818 lines"]
@@ -38,13 +38,13 @@ graph TD
     security["security<br/>17 files, 4564 lines"]
     tasks["tasks<br/>3 files, 333 lines"]
     world_model["world_model<br/>8 files, 2242 lines"]
-    autonomy["autonomy<br/>22 files, 6915 lines"]
+    autonomy["autonomy<br/>22 files, 7052 lines"]
     conversation["conversation<br/>8 files, 3034 lines"]
     executive["executive<br/>4 files, 2306 lines"]
     learning["learning<br/>19 files, 6142 lines"]
     phases["phases<br/>29 files, 13888 lines"]
     autonomic["autonomic<br/>4 files, 882 lines"]
-    coordinators["coordinators<br/>9 files, 3694 lines"]
+    coordinators["coordinators<br/>9 files, 3767 lines"]
     managers["managers<br/>6 files, 932 lines"]
     meta["meta<br/>7 files, 1256 lines"]
     ops["ops<br/>10 files, 1566 lines"]
@@ -116,7 +116,7 @@ graph TD
     adapters["adapters<br/>3 files, 392 lines"]
     audits["audits<br/>2 files, 222 lines"]
     control["control<br/>2 files, 215 lines"]
-    core_root["core_root<br/>182 files, 55173 lines"]
+    core_root["core_root<br/>182 files, 55228 lines"]
     distributed["distributed<br/>3 files, 140 lines"]
     grounding["grounding<br/>5 files, 804 lines"]
     initializers["initializers<br/>2 files, 140 lines"]
@@ -790,7 +790,7 @@ graph TD
 
 | Subsystem | Files | Lines | Bytes | Deps Out | Deps In |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| core_root | 182 | 55173 | 2294482 | 102 | 0 |
+| core_root | 182 | 55228 | 2296609 | 102 | 0 |
 | consciousness | 120 | 51685 | 2197658 | 34 | 28 |
 | brain | 110 | 36481 | 1593585 | 40 | 38 |
 | runtime | 87 | 18659 | 656299 | 37 | 102 |
@@ -799,19 +799,19 @@ graph TD
 | memory | 64 | 13409 | 544319 | 15 | 20 |
 | skills | 71 | 12101 | 512575 | 24 | 3 |
 | resilience | 53 | 10639 | 431096 | 16 | 24 |
-| agency | 26 | 10499 | 421897 | 17 | 17 |
+| agency | 26 | 10529 | 423359 | 17 | 17 |
 | adaptation | 24 | 10168 | 413043 | 15 | 14 |
 | self_modification | 29 | 9818 | 391398 | 11 | 13 |
 | environment | 80 | 8018 | 311751 | 10 | 2 |
 | cognitive | 11 | 7980 | 325215 | 9 | 4 |
-| autonomy | 22 | 6915 | 288328 | 16 | 7 |
+| autonomy | 22 | 7052 | 293577 | 16 | 7 |
 | learning | 19 | 6142 | 249088 | 13 | 6 |
 | architect | 25 | 5706 | 238326 | 9 | 2 |
 | utils | 41 | 4787 | 188075 | 17 | 48 |
 | senses | 23 | 4778 | 201313 | 16 | 13 |
 | kernel | 12 | 4627 | 192783 | 20 | 4 |
 | security | 17 | 4564 | 180362 | 11 | 8 |
-| coordinators | 9 | 3694 | 179304 | 36 | 5 |
+| coordinators | 9 | 3767 | 182164 | 36 | 5 |
 | social | 10 | 3688 | 158124 | 8 | 1 |
 | cognition | 9 | 3456 | 139831 | 7 | 3 |
 | perception | 14 | 3206 | 128062 | 3 | 2 |
@@ -1050,7 +1050,7 @@ Review candidates:
 - `core/advanced_cognition/continual_learning_stability.py:98` [advanced_cognition] `self.store_memory` - return self.store_memory(
 - `core/advanced_cognition/continual_learning_stability.py:208` [advanced_cognition] `scored.append` - scored.append((score, memory))
 - `core/advanced_cognition/continual_learning_stability.py:313` [advanced_cognition] `self._append_jsonl` - self._append_jsonl(self.state_dir / "memory.jsonl", rec.to_dict())
-- `core/agency/autonomous_task_engine.py:980` [agency] `self._mycelial.add_edge` - await self._mycelial.add_edge(context["source_memory"], goal[:40])
+- `core/agency/autonomous_task_engine.py:1000` [agency] `self._mycelial.add_edge` - await self._mycelial.add_edge(context["source_memory"], goal[:40])
 - `core/agency/latent_distiller.py:63` [agency] `self.memory.store_memory` - await self.memory.store_memory(
 - `core/architect/code_graph.py:679` [architect] `effects.add` - effects.add("memory_write")
 - `core/architect/safe_boot_harness.py:79` [architect] `probe_memory_write_read` - memory = await probe_memory_write_read(tmp_root=root / "memory")
@@ -1058,7 +1058,7 @@ Review candidates:
 - `core/architect/smell_detector.py:177` [architect] `smells.append` - smells.append(self._effect_smell("memory_write_bypass", node.path, node.id, "memory write outside memory owner surface", SmellSeverity.HIGH, MutationTier.T4_GOVERNANCE_SENSITIVE, F
 - `core/autonomous_initiative_loop.py:722` [core_root] `memory.store` - await memory.store(text[:1800], importance=importance, tags=tags or ["autonomy", "social"])
 - `core/autonomous_initiative_loop.py:725` [core_root] `logger.debug` - logger.debug("Social observation memory write failed: %s", exc)
-- `core/autonomy/autonomous_research_orchestrator.py:123` [autonomy] `MemoryPersister` - self._persister = persister or MemoryPersister()
+- `core/autonomy/autonomous_research_orchestrator.py:143` [autonomy] `MemoryPersister` - self._persister = persister or MemoryPersister()
 - `core/autonomy/initiative_overflow.py:156` [autonomy] `logger.debug` - logger.debug("Skill gap memory write failed: %s", exc)
 - `core/autonomy/initiative_overflow.py:166` [autonomy] `memory.store_sync` - memory.store_sync(
 - `core/autonomy/personhood_engine.py:199` [autonomy] `state.cognition.working_memory.append` - state.cognition.working_memory.append(
@@ -1094,7 +1094,7 @@ Review candidates:
 - `core/agency/autonomous_task_engine.py:425` [agency] `self._update_state_goals` - self._update_state_goals(plan)
 - `core/agency/autonomous_task_engine.py:661` [agency] `self._update_state_goals` - self._update_state_goals(plan)
 - `core/agency/autonomous_task_engine.py:681` [agency] `self._update_state_goals` - self._update_state_goals(plan)
-- `core/agency/autonomous_task_engine.py:761` [agency] `self._update_state_goals` - self._update_state_goals(plan)
+- `core/agency/autonomous_task_engine.py:767` [agency] `self._update_state_goals` - self._update_state_goals(plan)
 - `core/agency_core.py:132` [core_root] `get_registry.update` - get_registry().update(active_shards=len(self.active_shards)),
 - `core/agency_core.py:728` [core_root] `virtual_body.__dict__.update` - virtual_body.__dict__.update(snapshot)
 - `core/agency_core.py:909` [core_root] `get_registry.update` - get_registry().update(
@@ -1107,10 +1107,10 @@ Calls that can execute tools, skills, shells, browsers, or external actions.
 Review candidates:
 - `core/agency/agency_orchestrator.py:285` [agency] `execute` - await execute(proposal, state_snapshot, receipt.capability_token or "")
 - `core/agency/autonomous_task_engine.py:515` [agency] `orchestrator.execute_tool` - return await orchestrator.execute_tool(tool_name, args, **kwargs)
-- `core/agency/autonomous_task_engine.py:2577` [agency] `orch.execute_tool` - return await orch.execute_tool(
-- `core/agency/autonomous_task_engine.py:2580` [agency] `orch.execute_tool` - return await orch.execute_tool("web_search", {"query": query})
-- `core/agency/autonomous_task_engine.py:2595` [agency] `orch.execute_tool` - result = await orch.execute_tool(
-- `core/agency/autonomous_task_engine.py:2599` [agency] `orch.execute_tool` - result = await orch.execute_tool("run_python", {"code": code})
+- `core/agency/autonomous_task_engine.py:2607` [agency] `orch.execute_tool` - return await orch.execute_tool(
+- `core/agency/autonomous_task_engine.py:2610` [agency] `orch.execute_tool` - return await orch.execute_tool("web_search", {"query": query})
+- `core/agency/autonomous_task_engine.py:2625` [agency] `orch.execute_tool` - result = await orch.execute_tool(
+- `core/agency/autonomous_task_engine.py:2629` [agency] `orch.execute_tool` - result = await orch.execute_tool("run_python", {"code": code})
 - `core/agency/skill_library.py:126` [agency] `tool_orchestrator.execute_tool` - result = await tool_orchestrator.execute_tool(step.tool_name, resolved_args)
 - `core/agency_core.py:410` [core_root] `self._execute_shard_tool` - tasks.append(self._execute_shard_tool(name, payload))
 - `core/agi/curiosity_explorer.py:240` [agi] `orchestrator.execute_tool` - orchestrator.execute_tool(
@@ -1161,11 +1161,11 @@ Review candidates:
 - `core/adaptation/epistemic_humility.py:145` [adaptation] `llm.chat` - response = await llm.chat(
 - `core/adaptation/heuristic_synthesizer.py:126` [adaptation] `brain.think` - thought = await brain.think(
 - `core/adaptation/star_reasoner.py:364` [adaptation] `llm.think` - result = await asyncio.wait_for(llm.think(prompt), timeout=self.RATIONALIZATION_TIMEOUT)
-- `core/agency/autonomous_task_engine.py:935` [agency] `llm.think` - llm.think(
-- `core/agency/autonomous_task_engine.py:2335` [agency] `llm.think` - llm.think(
-- `core/agency/autonomous_task_engine.py:2367` [agency] `llm.think` - llm.think(
-- `core/agency/autonomous_task_engine.py:2451` [agency] `llm.think` - llm.think(
-- `core/agency/autonomous_task_engine.py:2560` [agency] `llm.think` - return await llm.think(
+- `core/agency/autonomous_task_engine.py:955` [agency] `llm.think` - llm.think(
+- `core/agency/autonomous_task_engine.py:2365` [agency] `llm.think` - llm.think(
+- `core/agency/autonomous_task_engine.py:2397` [agency] `llm.think` - llm.think(
+- `core/agency/autonomous_task_engine.py:2481` [agency] `llm.think` - llm.think(
+- `core/agency/autonomous_task_engine.py:2590` [agency] `llm.think` - return await llm.think(
 - `core/agency/latent_distiller.py:49` [agency] `brain.think` - summary = await brain.think(
 - `core/agency_core.py:290` [core_root] `structured_brain.generate` - shard_res = await structured_brain.generate(prompt, context=context)
 - `core/agi/curiosity_explorer.py:310` [agi] `router.think` - router.think(prompt, priority=0.3, is_background=True,
@@ -1187,8 +1187,8 @@ Calls that can touch network, subprocesses, sockets, browsers, or APIs.
 
 Review candidates:
 - `core/agency/tool_orchestrator.py:212` [agency] `aiohttp.ClientSession` - async with aiohttp.ClientSession() as session:
-- `core/api_adapter.py:87` [core_root] `aiohttp.ClientSession` - self._http_session = aiohttp.ClientSession(
-- `core/api_adapter.py:88` [core_root] `aiohttp.TCPConnector` - connector=aiohttp.TCPConnector(limit=100, keepalive_timeout=60)
+- `core/api_adapter.py:104` [core_root] `aiohttp.ClientSession` - self._http_session = aiohttp.ClientSession(
+- `core/api_adapter.py:105` [core_root] `aiohttp.TCPConnector` - connector=aiohttp.TCPConnector(limit=100, keepalive_timeout=60)
 - `core/architect/safety_gate.py:304` [architect] `subprocess.run` - result = subprocess.run(
 - `core/architect/safety_gate.py:359` [architect] `subprocess.run` - subprocess.run(
 - `core/architect/safety_gate.py:365` [architect] `subprocess.run` - result = subprocess.run(
@@ -1214,8 +1214,8 @@ Review candidates:
 
 ## Degradation Handling
 
-- Total `record_degradation()` calls: 3257
-- Log-and-limp candidates: 3003
+- Total `record_degradation()` calls: 3234
+- Log-and-limp candidates: 2980
 - Nearby fail-closed candidates: 254
 
 Top limp-on files:

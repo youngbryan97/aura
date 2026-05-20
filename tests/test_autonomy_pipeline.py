@@ -66,12 +66,13 @@ from core.autonomy.content_progress_tracker import (
     ProgressLog,
     load as load_progress,
 )
-from core.autonomy.depth_gate import DepthGate, CONTENT_TYPE_PROFILES
+from core.autonomy.depth_gate import DepthGate, DepthReport, CONTENT_TYPE_PROFILES
 from core.autonomy.content_method_router import (
     MethodRouter,
     FetchAttempt,
     FetchPlan,
 )
+from core.autonomy.content_fetcher import FetchExecution, FetchedContent
 from core.autonomy.curiosity_scheduler import (
     CuriosityScheduler,
     SchedulingDecision,
@@ -83,6 +84,7 @@ from core.autonomy.memory_persister import (
     EpisodicEvent,
     FactRecord,
     BeliefUpdate,
+    CommitReceipt,
 )
 from core.autonomy.reasoning_trace import parse_reasoning_response
 from core.autonomy.comprehension_loop import (
@@ -90,7 +92,7 @@ from core.autonomy.comprehension_loop import (
     CheckpointSummary,
     _safe_json_object,
 )
-from core.autonomy.reflection_loop import ReflectionLoop
+from core.autonomy.reflection_loop import ReflectionLoop, ReflectionRecord
 from core.autonomy.autonomous_research_orchestrator import (
     AutonomousResearchOrchestrator,
 )
@@ -756,6 +758,167 @@ class TestOrchestrator(_AsyncTestCase):
             self.assertEqual(payload["phase"], "abandoned")
             self.assertEqual(payload["result"]["error"], "no fetch attempt succeeded")
             self.assertIsNotNone(payload["result"]["completed_at"])
+
+    def test_runtime_fetch_error_is_checkpointed_and_scheduler_marked_error(self):
+        item = ContentItem(category="Fiction", title="Y", creator=None, url=None, description="")
+        decision = SchedulingDecision(item=item, top_priority_level=6, score=0.9)
+        outcomes: List[str] = []
+        case = self
+
+        class _Sched:
+            def pick_next(self):
+                return decision
+
+            def record_attempt(self, decision_arg, outcome: str):
+                case.assertIs(decision_arg, decision)
+                outcomes.append(outcome)
+
+        class _Router:
+            def plan(self, item_arg, priority):
+                return FetchPlan(
+                    item_title=item_arg.title,
+                    top_priority_level=priority,
+                    attempts=[FetchAttempt(method="mock", priority_level=priority, target="mock://source")],
+                )
+
+        class _FailFetcher:
+            async def execute(self, plan, stop_after_n_successes: int = 4):
+                raise RuntimeError("fetch engine down")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            orch = AutonomousResearchOrchestrator(
+                scheduler=_Sched(),
+                router=_Router(),
+                fetcher=_FailFetcher(),
+                sessions_dir=Path(tmpdir),
+            )
+            result = self.run_async(orch.run_once())
+            self.assertIsNotNone(result)
+            self.assertIn("RuntimeError: fetch engine down", result.error)
+            self.assertEqual(outcomes, ["error"])
+
+            sessions = list(Path(tmpdir).glob("*.json"))
+            self.assertEqual(len(sessions), 1)
+            payload = json.loads(sessions[0].read_text(encoding="utf-8"))
+            self.assertEqual(payload["phase"], "error")
+            self.assertIn("RuntimeError: fetch engine down", payload["result"]["error"])
+            self.assertIsNotNone(payload["result"]["completed_at"])
+
+    def test_successful_progress_entry_gets_completed_timestamp(self):
+        item = ContentItem(category="Fiction", title="Z", creator=None, url=None, description="")
+        decision = SchedulingDecision(item=item, top_priority_level=6, score=0.9)
+        outcomes: List[str] = []
+        case = self
+
+        class _Sched:
+            def pick_next(self):
+                return decision
+
+            def record_attempt(self, decision_arg, outcome: str):
+                case.assertIs(decision_arg, decision)
+                outcomes.append(outcome)
+
+        class _Router:
+            def plan(self, item_arg, priority):
+                return FetchPlan(
+                    item_title=item_arg.title,
+                    top_priority_level=priority,
+                    attempts=[FetchAttempt(method="mock", priority_level=priority, target="mock://source")],
+                )
+
+        class _Fetcher:
+            async def execute(self, plan, stop_after_n_successes: int = 4):
+                fetched = FetchedContent(
+                    method="mock",
+                    priority_level=6,
+                    target="mock://source",
+                    success=True,
+                    text="specific engaged content",
+                    sources=["mock://source"],
+                )
+                return FetchExecution(plan_title=plan.item_title, successful=[fetched], failed=[])
+
+        class _Comprehension:
+            async def comprehend(self, item_arg, execution):
+                class _Record:
+                    checkpoints = [
+                        CheckpointSummary(
+                            chunk_index=0,
+                            method_source="mock",
+                            priority_level=6,
+                            summary="specific checkpoint",
+                            extracted_facts=[],
+                        )
+                    ]
+                    open_threads = []
+                    shallow_read_flag = False
+                    inference_failures = 0
+
+                return _Record()
+
+        class _Reflection:
+            async def reflect(self, item_arg, comprehension):
+                return ReflectionRecord(
+                    item_title=item_arg.title,
+                    verification_answers={
+                        "what_its_actually_about": "A specific answer about Z",
+                        "what_stayed_with_you": "A specific memory from Z",
+                        "what_it_says_about_humans": "A specific human-facing observation",
+                        "what_it_made_you_think_about_yourself": "A specific self-model update",
+                    },
+                    own_opinion="A specific defended opinion.",
+                    critical_view_engaged="A specific critical view.",
+                    opinion_disagrees=True,
+                )
+
+        class _Gate:
+            def evaluate(self, **kwargs):
+                return DepthReport(
+                    passed=True,
+                    score=0.92,
+                    criteria={"verification_substance": 1.0},
+                    notes=["strong engagement"],
+                    threshold=0.70,
+                )
+
+        class _Persister:
+            def commit_engagement(self, item_title, episodic, facts=(), belief_updates=()):
+                return CommitReceipt(
+                    accepted=True,
+                    item_title=item_title,
+                    episodic_committed=True,
+                )
+
+        class _MemoryProgressLog(ProgressLog):
+            saved = False
+
+            def save(self, path=None) -> None:
+                self.saved = True
+
+        progress = _MemoryProgressLog()
+
+        with tempfile.TemporaryDirectory() as tmpdir, mock.patch(
+            "core.autonomy.autonomous_research_orchestrator.load_progress",
+            return_value=progress,
+        ):
+            orch = AutonomousResearchOrchestrator(
+                scheduler=_Sched(),
+                router=_Router(),
+                fetcher=_Fetcher(),
+                comprehension=_Comprehension(),
+                reflection=_Reflection(),
+                gate=_Gate(),
+                persister=_Persister(),
+                sessions_dir=Path(tmpdir),
+            )
+            result = self.run_async(orch.run_once())
+
+        self.assertIsNotNone(result.completed_at)
+        self.assertEqual(outcomes, ["completed"])
+        entry = progress.find("Z")
+        self.assertIsNotNone(entry)
+        self.assertTrue(entry.completed_at)
+        self.assertTrue(progress.saved)
 
 
 # ── executive Rule 7 fix ─────────────────────────────────────────────────

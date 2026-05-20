@@ -22,46 +22,66 @@ orchestrators can run in parallel if Bryan wants pipelined throughput.
 """
 
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
 
 import asyncio
 import json
 import logging
-import os
+import sqlite3
 import time
 import traceback
 import uuid
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from core.autonomy.curiosity_scheduler import CuriosityScheduler, SchedulingDecision
 from core.autonomy.content_method_router import MethodRouter
-from core.autonomy.content_fetcher import ContentFetcher, FetchExecution
+from core.autonomy.content_fetcher import ContentFetcher
 from core.autonomy.comprehension_loop import ComprehensionLoop, ComprehensionRecord
 from core.autonomy.reflection_loop import ReflectionLoop, ReflectionRecord
 from core.autonomy.depth_gate import DepthGate, DepthReport
 from core.autonomy.memory_persister import (
     MemoryPersister,
     EpisodicEvent,
-    FactRecord,
-    BeliefUpdate,
     CommitReceipt,
 )
 from core.autonomy.content_progress_tracker import (
     ProgressLog,
     ProgressEntry,
     load as load_progress,
-    DEFAULT_PROGRESS_PATH,
 )
 from core.runtime.atomic_writer import atomic_write_text
+from core.runtime.errors import Severity, record_degradation
 
 logger = logging.getLogger("Aura.AutonomousResearchOrchestrator")
 
 SESSIONS_DIR = Path.home() / ".aura/live-source/aura/knowledge/research-sessions"
 DEFAULT_LOOP_INTERVAL = 600.0   # 10 minutes between engagements
 DEFAULT_MAX_CONSECUTIVE_FAILURES = 3
+_ENGAGEMENT_RECOVERABLE_ERRORS = (
+    sqlite3.Error,
+    OSError,
+    RuntimeError,
+    AttributeError,
+    TypeError,
+    ValueError,
+)
+
+
+def _record_research_degradation(
+    error: BaseException,
+    *,
+    action: str,
+    severity: Severity = "degraded",
+    extra: Optional[Dict[str, Any]] = None,
+) -> None:
+    record_degradation(
+        "autonomous_research_orchestrator",
+        error,
+        severity=severity,
+        action=action,
+        extra=extra,
+    )
 
 
 @dataclass
@@ -176,10 +196,29 @@ class AutonomousResearchOrchestrator:
                         return
                 except asyncio.CancelledError:
                     raise
-                except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-                    record_degradation('autonomous_research_orchestrator', e)
+                except _ENGAGEMENT_RECOVERABLE_ERRORS as e:
+                    _record_research_degradation(
+                        e,
+                        action=(
+                            "counted the crashed research-loop iteration as a failed "
+                            "engagement, preserved the loop failure budget, and will "
+                            "back off or stop at the configured threshold"
+                        ),
+                        extra={
+                            "consecutive_failures_after": self._consecutive_failures + 1,
+                            "max_consecutive_failures": self._max_failures,
+                            "phase": "loop_iteration",
+                        },
+                    )
                     logger.error("research loop iteration crashed: %s\n%s", e, traceback.format_exc())
                     self._consecutive_failures += 1
+                    if self._consecutive_failures >= self._max_failures:
+                        logger.warning(
+                            "halting research loop after %d consecutive failures",
+                            self._consecutive_failures,
+                        )
+                        self._running = False
+                        return
 
                 await asyncio.sleep(self._loop_interval)
         except asyncio.CancelledError:
@@ -196,7 +235,6 @@ class AutonomousResearchOrchestrator:
             session_id=session_id,
         )
         session_path = self._sessions_dir / f"{session_id}.json"
-        self._sessions_dir.mkdir(parents=True, exist_ok=True)
 
         try:
             # 1. Plan fetches
@@ -217,7 +255,7 @@ class AutonomousResearchOrchestrator:
             if not execution.successful:
                 result.error = "no fetch attempt succeeded"
                 result.completed_at = time.time()
-                self._scheduler.record_attempt(decision, outcome="abandoned")
+                self._record_scheduler_attempt(decision, outcome="abandoned", session_id=session_id)
                 self._save_session(session_path, {
                     "phase": "abandoned",
                     "result": result.to_dict(),
@@ -243,7 +281,7 @@ class AutonomousResearchOrchestrator:
             if not comprehension.checkpoints:
                 result.error = "comprehension produced no checkpoints"
                 result.completed_at = time.time()
-                self._scheduler.record_attempt(decision, outcome="abandoned")
+                self._record_scheduler_attempt(decision, outcome="abandoned", session_id=session_id)
                 self._save_session(session_path, {"phase": "abandoned", "result": result.to_dict(),
                                                   "comprehension": {
                                                       "checkpoints": len(comprehension.checkpoints),
@@ -304,29 +342,54 @@ class AutonomousResearchOrchestrator:
             self._save_session(session_path, {"phase": "persisted", "result": result.to_dict()})
 
             # 7. Update progress tracker with the verification answers + content-type metadata
+            result.completed_at = time.time()
             self._update_progress(decision, reflection, depth, result)
 
             outcome = "completed" if depth.passed else "shallow_engagement"
-            self._scheduler.record_attempt(decision, outcome=outcome)
+            self._record_scheduler_attempt(decision, outcome=outcome, session_id=session_id)
 
-            result.completed_at = time.time()
             self._save_session(session_path, {"phase": "complete", "result": result.to_dict()})
         except asyncio.CancelledError:
             result.error = "cancelled"
             raise
-        except (sqlite3.Error, OSError) as e:
-            record_degradation('autonomous_research_orchestrator', e)
+        except _ENGAGEMENT_RECOVERABLE_ERRORS as e:
+            _record_research_degradation(
+                e,
+                action=(
+                    "marked the engagement as errored, preserved a recoverable session "
+                    "checkpoint, and recorded a scheduler error outcome to prevent "
+                    "immediate blind reselection"
+                ),
+                extra={
+                    "item_title": decision.item.title,
+                    "session_id": session_id,
+                    "phase": "engagement",
+                },
+            )
             result.error = f"{type(e).__name__}: {e}"
             result.completed_at = time.time()
             logger.error("engagement crashed for %r: %s\n%s",
                          decision.item.title, e, traceback.format_exc())
+            self._record_scheduler_attempt(decision, outcome="error", session_id=session_id)
             self._save_session(session_path, {"phase": "error", "result": result.to_dict()})
         finally:
             if self._on_complete:
                 try:
                     self._on_complete(result)
-                except (RuntimeError, AttributeError, TypeError, ValueError):
-                    pass  # no-op: intentional
+                except (RuntimeError, AttributeError, TypeError, ValueError) as e:
+                    _record_research_degradation(
+                        e,
+                        severity="warning",
+                        action=(
+                            "isolated the completion callback failure after preserving "
+                            "the engagement result"
+                        ),
+                        extra={
+                            "item_title": decision.item.title,
+                            "session_id": session_id,
+                            "phase": "completion_callback",
+                        },
+                    )
 
         return result
 
@@ -341,7 +404,20 @@ class AutonomousResearchOrchestrator:
     ) -> None:
         try:
             log = load_progress()
-        except (RuntimeError, AttributeError, TypeError, ValueError):
+        except (OSError, RuntimeError, AttributeError, TypeError, ValueError) as e:
+            _record_research_degradation(
+                e,
+                severity="warning",
+                action=(
+                    "used a fresh in-memory progress log so the engagement could "
+                    "finish; the subsequent save will attempt to rebuild the durable index"
+                ),
+                extra={
+                    "item_title": decision.item.title,
+                    "session_id": result.session_id,
+                    "phase": "progress_load",
+                },
+            )
             log = ProgressLog()
 
         existing = log.find(decision.item.title)
@@ -375,7 +451,19 @@ class AutonomousResearchOrchestrator:
             try:
                 log.add_entry(entry)
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-                record_degradation('autonomous_research_orchestrator', e)
+                _record_research_degradation(
+                    e,
+                    severity="warning",
+                    action=(
+                        "kept the engagement result and session checkpoint intact while "
+                        "skipping the malformed progress entry"
+                    ),
+                    extra={
+                        "item_title": decision.item.title,
+                        "session_id": result.session_id,
+                        "phase": "progress_add",
+                    },
+                )
                 logger.warning("progress add_entry failed: %s", e)
         else:
             # Update existing — merge what was already there with new findings
@@ -396,8 +484,20 @@ class AutonomousResearchOrchestrator:
 
         try:
             log.save()
-        except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-            record_degradation('autonomous_research_orchestrator', e)
+        except (OSError, RuntimeError, AttributeError, TypeError, ValueError) as e:
+            _record_research_degradation(
+                e,
+                severity="warning",
+                action=(
+                    "preserved the session checkpoint and in-memory progress update; "
+                    "durable progress index will be retried on a later engagement"
+                ),
+                extra={
+                    "item_title": decision.item.title,
+                    "session_id": result.session_id,
+                    "phase": "progress_save",
+                },
+            )
             logger.warning("progress save failed: %s", e)
 
     # ── Helpers ──────────────────────────────────────────────────────────
@@ -416,13 +516,50 @@ class AutonomousResearchOrchestrator:
             "intent_ids": list(receipt.intent_ids),
         }
 
-    def _save_session(self, path: Path, payload: Dict[str, Any]) -> None:
+    def _record_scheduler_attempt(
+        self,
+        decision: SchedulingDecision,
+        *,
+        outcome: str,
+        session_id: str,
+    ) -> None:
         try:
-            tmp = path.with_suffix(".tmp")
-            atomic_write_text(tmp, json.dumps(payload, indent=2, default=str), encoding="utf-8")
-            os.replace(tmp, path)
-        except (json.JSONDecodeError, TypeError, ValueError):
-            pass  # no-op: intentional
+            self._scheduler.record_attempt(decision, outcome=outcome)
+        except (RuntimeError, AttributeError, TypeError, ValueError) as e:
+            _record_research_degradation(
+                e,
+                severity="warning",
+                action=(
+                    "preserved the engagement result while isolating scheduler attempt "
+                    "bookkeeping failure"
+                ),
+                extra={
+                    "item_title": decision.item.title,
+                    "session_id": session_id,
+                    "outcome": outcome,
+                    "triggered_by": decision.triggered_by,
+                    "phase": "scheduler_attempt",
+                },
+            )
+
+    def _save_session(self, path: Path, payload: Dict[str, Any]) -> None:
+        phase = str(payload.get("phase", "unknown"))
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            atomic_write_text(path, json.dumps(payload, indent=2, default=str), encoding="utf-8")
+        except (OSError, RuntimeError, TypeError, ValueError) as e:
+            _record_research_degradation(
+                e,
+                severity="warning",
+                action=(
+                    "kept the engagement state in memory and will retry session "
+                    "persistence on the next checkpoint"
+                ),
+                extra={
+                    "session_path": str(path),
+                    "phase": phase,
+                },
+            )
 
 
 def _iso(ts: Optional[float]) -> str:
