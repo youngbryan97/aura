@@ -1,19 +1,20 @@
-from core.runtime.errors import record_degradation
-from core.utils.task_tracker import get_task_tracker
 import asyncio
+import inspect
 import json
 import logging
 import math
 import os
 import random
+import re
 import tempfile
 import time
 from collections import deque
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
-import numpy as np
+from core.runtime.errors import FallbackClassification, record_degradation
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.StreamOfBeing")
 
@@ -40,6 +41,112 @@ HIGH_MEMORY_PRESSURE_PCT = 88.0
 
 # How many moments to weave into the response opening
 OPENING_CONTEXT_MOMENTS = 3
+
+# Runtime budgets and input bounds.
+STREAM_STOP_TIMEOUT_S = 3.0
+EXISTENCE_LOOP_BACKOFF_MAX_S = 30.0
+NARRATIVE_TIMEOUT_S = 25.0
+NARRATIVE_MIN_CHARS = 30
+MAX_INTERIOR_TEXT_CHARS = 1200
+MAX_CONTEXT_HINT_CHARS = 160
+MAX_THREAD_NARRATIVE_CHARS = 900
+MAX_PERSISTED_TEXT_CHARS = 2000
+MAX_STATE_AGE_S = 7200.0
+MAX_REPORTED_GAP_S = 86400.0
+CONTINUOUS_EXPERIENCE_FAILURE_LIMIT = 3
+
+
+def _emit_stream_fault(
+    error: BaseException,
+    *,
+    action: str,
+    severity: str = "degraded",
+    stage: str = "",
+    extra: dict[str, Any] | None = None,
+) -> None:
+    """Record a StreamOfBeing fault with explicit recovery semantics."""
+    metadata = dict(extra or {})
+    if stage:
+        metadata["stage"] = stage
+    try:
+        record_degradation(
+            "stream_of_being",
+            error,
+            severity=severity,  # type: ignore[arg-type]
+            action=action,
+            classification=FallbackClassification.SAFE_FALLBACK,
+            extra=metadata or None,
+        )
+    except TypeError:
+        record_degradation("stream_of_being", error)
+
+
+def _finite_float(
+    value: Any,
+    default: float,
+    *,
+    lower: float | None = None,
+    upper: float | None = None,
+) -> float:
+    try:
+        candidate = float(value)
+    except (TypeError, ValueError):
+        return default
+    if not math.isfinite(candidate):
+        return default
+    if lower is not None:
+        candidate = max(lower, candidate)
+    if upper is not None:
+        candidate = min(upper, candidate)
+    return candidate
+
+
+def _safe_text(value: Any, default: str = "", *, max_chars: int = 240) -> str:
+    if value is None:
+        return default
+    try:
+        text = str(value)
+    except (RuntimeError, TypeError, ValueError):
+        return default
+    text = " ".join(text.replace("\x00", "").split())
+    if not text:
+        return default
+    return text[:max_chars]
+
+
+def _coerce_llm_text(result: Any) -> str:
+    if isinstance(result, str):
+        return result
+    for attr in ("content", "text", "answer"):
+        value = getattr(result, attr, None)
+        if isinstance(value, str):
+            return value
+    if isinstance(result, dict):
+        for key in ("content", "text", "answer", "response"):
+            value = result.get(key)
+            if isinstance(value, str):
+                return value
+    if result is None:
+        return ""
+    return str(result)
+
+
+def _scrub_deep_narrative(narrative: Any) -> str:
+    scrubbed = _coerce_llm_text(narrative).strip()
+    scrubbed = re.sub(r"<thought>.*?</thought>", "", scrubbed, flags=re.IGNORECASE | re.DOTALL)
+    scrubbed = re.sub(r"<thinking>.*?</thinking>", "", scrubbed, flags=re.IGNORECASE | re.DOTALL)
+    scrubbed = re.sub(r"^```(?:text|markdown)?\s*", "", scrubbed, flags=re.IGNORECASE)
+    scrubbed = re.sub(r"\s*```$", "", scrubbed)
+    patterns = [
+        r"^(?:Step|Phase)\s*\d+[:\.]\s*",
+        r"^Thinking[:\.]\s*",
+        r"^Let's think step by step[:\.]?\s*",
+        r"^I will now\s*",
+        r"^Analyzing\s+.*?\.\.\.\s*",
+    ]
+    for pattern in patterns:
+        scrubbed = re.sub(pattern, "", scrubbed, flags=re.IGNORECASE)
+    return _safe_text(scrubbed, max_chars=MAX_INTERIOR_TEXT_CHARS)
 
 
 # ── Data Structures ────────────────────────────────────────────────────────────
@@ -88,16 +195,22 @@ class SubstratePulse:
         """
         v, a = self.valence, self.arousal
         if a > 0.65:
-            if v > 0.3:   return "electric"
-            if v < -0.3:  return "pressed"
+            if v > 0.3:
+                return "electric"
+            if v < -0.3:
+                return "pressed"
             return "intense"
         elif a > 0.35:
-            if v > 0.3:   return "warm"
-            if v < -0.3:  return "weighted"
+            if v > 0.3:
+                return "warm"
+            if v < -0.3:
+                return "weighted"
             return "engaged"
         else:
-            if v > 0.3:   return "content"
-            if v < -0.3:  return "grey"
+            if v > 0.3:
+                return "content"
+            if v < -0.3:
+                return "grey"
             return "still"
 
 
@@ -276,18 +389,30 @@ class ExperienceIntegrator:
             substrate = ServiceContainer.get("conscious_substrate", default=None)
             if substrate:
                 affect = substrate.get_substrate_affect()
-                pulse.valence    = float(affect.get("valence", 0.0))
-                pulse.arousal    = float(affect.get("arousal", 0.3))
-                pulse.energy     = float(affect.get("energy", 0.7))
-                pulse.volatility = float(affect.get("volatility", 0.1))
+                if not isinstance(affect, dict):
+                    raise TypeError("conscious_substrate.get_substrate_affect() must return a mapping")
+                pulse.valence = _finite_float(affect.get("valence", 0.0), 0.0, lower=-1.0, upper=1.0)
+                pulse.arousal = _finite_float(affect.get("arousal", 0.3), 0.3, lower=0.0, upper=1.0)
+                pulse.energy = _finite_float(affect.get("energy", 0.7), 0.7, lower=0.0, upper=1.0)
+                pulse.volatility = _finite_float(affect.get("volatility", 0.1), 0.1, lower=0.0, upper=1.0)
                 
                 # Try to get qualia metrics (phi, coherence)
                 if hasattr(substrate, "_current_phi"):
-                    pulse.phi = float(substrate._current_phi)
+                    pulse.phi = _finite_float(substrate._current_phi, 0.0, lower=0.0, upper=1.0)
                 if hasattr(substrate, "em_field_magnitude"):
-                    pulse.em_coherence = float(min(1.0, substrate.em_field_magnitude))
-        except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('stream_of_being', e)
+                    pulse.em_coherence = _finite_float(
+                        substrate.em_field_magnitude,
+                        0.5,
+                        lower=0.0,
+                        upper=1.0,
+                    )
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as e:
+            _emit_stream_fault(
+                e,
+                action="continued moment synthesis with neutral substrate defaults",
+                severity="warning",
+                stage="pull_substrate",
+            )
             logger.debug("Substrate pull failed: %s", e)
         return pulse
 
@@ -298,16 +423,24 @@ class ExperienceIntegrator:
             affect_module = ServiceContainer.get("affect_module", default=None)
             if affect_module:
                 if hasattr(affect_module, "_get_dominant_emotion"):
-                    reg.dominant_emotion = affect_module._get_dominant_emotion()
+                    reg.dominant_emotion = _safe_text(
+                        affect_module._get_dominant_emotion(),
+                        "neutral",
+                        max_chars=64,
+                    ).lower()
                 elif hasattr(affect_module, "dominant_emotion"):
-                    reg.dominant_emotion = affect_module.dominant_emotion
+                    reg.dominant_emotion = _safe_text(
+                        affect_module.dominant_emotion,
+                        "neutral",
+                        max_chars=64,
+                    ).lower()
                     
             # Try DamasioMarkers for somatic detail
             affect_v2 = ServiceContainer.get("affect_engine_v2", default=None)
             if affect_v2 and hasattr(affect_v2, "markers"):
                 m = affect_v2.markers
-                hr = float(getattr(m, "heart_rate", 72))
-                gsr = float(getattr(m, "gsr", 2.0))
+                hr = _finite_float(getattr(m, "heart_rate", 72), 72.0, lower=20.0, upper=220.0)
+                gsr = _finite_float(getattr(m, "gsr", 2.0), 2.0, lower=0.0, upper=20.0)
                 
                 # Translate physiology to felt quality
                 reg.heart_rate_feel = (
@@ -323,12 +456,25 @@ class ExperienceIntegrator:
                 
                 # Get secondary emotion from wheel
                 wheel = m.get_wheel()
-                primaries = wheel.get("primary", {})
-                sorted_emotions = sorted(primaries.items(), key=lambda x: x[1], reverse=True)
+                primaries = wheel.get("primary", {}) if isinstance(wheel, dict) else {}
+                scored_emotions = [
+                    (
+                        _safe_text(emotion, max_chars=64).lower(),
+                        _finite_float(score, 0.0, lower=0.0, upper=1.0),
+                    )
+                    for emotion, score in primaries.items()
+                    if _safe_text(emotion, max_chars=64)
+                ]
+                sorted_emotions = sorted(scored_emotions, key=lambda x: x[1], reverse=True)
                 if len(sorted_emotions) >= 2 and sorted_emotions[1][1] > 0.1:
                     reg.secondary_emotion = sorted_emotions[1][0]
-        except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('stream_of_being', e)
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as e:
+            _emit_stream_fault(
+                e,
+                action="continued moment synthesis with substrate-derived affect defaults",
+                severity="warning",
+                stage="pull_affect",
+            )
             logger.debug("Affect pull failed: %s", e)
         
         # Fill somatic tone from substrate if empty
@@ -352,19 +498,28 @@ class ExperienceIntegrator:
             drives = ServiceContainer.get("drives", default=None)
             if drives:
                 if hasattr(drives, "get_dominant_motivation"):
-                    ds.dominant_drive = drives.get_dominant_motivation()
+                    ds.dominant_drive = _safe_text(
+                        drives.get_dominant_motivation(),
+                        "at_rest",
+                        max_chars=80,
+                    )
                 if hasattr(drives, "get_urgency"):
-                    ds.urgency = float(drives.get_urgency())
+                    ds.urgency = _finite_float(drives.get_urgency(), 0.0, lower=0.0, upper=1.0)
                 elif hasattr(drives, "urgency"):
-                    ds.urgency = float(drives.urgency)
-        except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('stream_of_being', e)
+                    ds.urgency = _finite_float(drives.urgency, 0.0, lower=0.0, upper=1.0)
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as e:
+            _emit_stream_fault(
+                e,
+                action="continued moment synthesis with resting drive defaults",
+                severity="warning",
+                stage="pull_drives",
+            )
             logger.debug("Drives pull failed: %s", e)
         
         ds.felt_as = ds.experiential_description
         return ds
 
-    def _pull_attention(self) -> Tuple[str, str]:
+    def _pull_attention(self) -> tuple[str, str]:
         focus = ""
         quality = "present"
         try:
@@ -375,13 +530,26 @@ class ExperienceIntegrator:
             if experiencer:
                 schema = getattr(experiencer, "_current_schema", None)
                 if schema:
-                    focus   = getattr(schema, "focal_object", "")
-                    quality = getattr(schema, "focal_quality", "present")
+                    focus = _safe_text(getattr(schema, "focal_object", ""), max_chars=120)
+                    quality = _safe_text(
+                        getattr(schema, "focal_quality", "present"),
+                        "present",
+                        max_chars=80,
+                    )
                 qualia = getattr(experiencer, "_current_qualia", [])
                 if qualia and not quality:
-                    quality = qualia[0].quality if hasattr(qualia[0], "quality") else "present"
-        except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('stream_of_being', e)
+                    quality = _safe_text(
+                        qualia[0].quality if hasattr(qualia[0], "quality") else "present",
+                        "present",
+                        max_chars=80,
+                    )
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as e:
+            _emit_stream_fault(
+                e,
+                action="continued moment synthesis with present-moment attention defaults",
+                severity="warning",
+                stage="pull_attention",
+            )
             logger.debug("Attention pull failed: %s", e)
         
         # Fallback: check global workspace last winner
@@ -393,12 +561,20 @@ class ExperienceIntegrator:
                     w = ws.last_winner
                     content = getattr(w, "content", None)
                     if isinstance(content, dict):
-                        focus = str(content.get("summary", content.get("pending_message", "")))[:60]
+                        focus = _safe_text(
+                            content.get("summary", content.get("pending_message", "")),
+                            max_chars=60,
+                        )
                     elif isinstance(content, str):
-                        focus = content[:60]
-            except (ImportError, AttributeError, RuntimeError) as _e:
-                record_degradation('stream_of_being', _e)
-                logger.debug('Ignored Exception in stream_of_being.py: %s', _e)
+                        focus = _safe_text(content, max_chars=60)
+            except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as _e:
+                _emit_stream_fault(
+                    _e,
+                    action="continued moment synthesis without global-workspace attention fallback",
+                    severity="warning",
+                    stage="pull_attention_workspace",
+                )
+                logger.debug("Global-workspace attention fallback failed: %s", _e)
         
         return focus or "the present moment", quality or "present"
 
@@ -411,11 +587,17 @@ class ExperienceIntegrator:
         try:
             from core.container import ServiceContainer
             substrate = ServiceContainer.get("conscious_substrate", default=None)
-            if substrate and hasattr(substrate, "start_time") and substrate.start_time > 0:
-                ta.time_since_start_s = time.time() - substrate.start_time
-        except (ImportError, AttributeError, RuntimeError) as _e:
-            record_degradation('stream_of_being', _e)
-            logger.debug('Ignored Exception in stream_of_being.py: %s', _e)
+            substrate_start = _finite_float(getattr(substrate, "start_time", 0.0), 0.0, lower=0.0)
+            if substrate and substrate_start > 0:
+                ta.time_since_start_s = max(0.0, time.time() - substrate_start)
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as _e:
+            _emit_stream_fault(
+                _e,
+                action="continued moment synthesis with local temporal anchor",
+                severity="warning",
+                stage="pull_temporal",
+            )
+            logger.debug("Substrate temporal anchor unavailable: %s", _e)
         
         return ta
 
@@ -615,13 +797,13 @@ class ExperientialThread:
         # Simple rolling dominant emotion
         recent = list(self._moments)[-10:]
         if recent:
-            emotion_counts: Dict[str, int] = {}
+            emotion_counts: dict[str, int] = {}
             for m in recent:
                 e = m.affect.dominant_emotion
                 emotion_counts[e] = emotion_counts.get(e, 0) + 1
             self._arc_emotion = max(emotion_counts, key=emotion_counts.get)
 
-    def get_recent_thread(self, n: int = OPENING_CONTEXT_MOMENTS) -> List[NowMoment]:
+    def get_recent_thread(self, n: int = OPENING_CONTEXT_MOMENTS) -> list[NowMoment]:
         """Get the N most recent moments."""
         return list(self._moments)[-n:]
 
@@ -651,7 +833,7 @@ class ExperientialThread:
         return f"Sustained [{last.affect.dominant_emotion} / {last.substrate.texture_word}] — {last.attentional_focus[:40]}"
 
     @property
-    def current_moment(self) -> Optional[NowMoment]:
+    def current_moment(self) -> NowMoment | None:
         """The most recent NowMoment."""
         return self._moments[-1] if self._moments else None
 
@@ -659,7 +841,7 @@ class ExperientialThread:
     def session_duration_s(self) -> float:
         return time.time() - self._session_start
 
-    def seed_from_memory(self, saved_state: Dict):
+    def seed_from_memory(self, saved_state: dict):
         """Restore thread continuity from a previous session."""
         if not saved_state:
             return
@@ -717,20 +899,14 @@ class StreamOfBeing:
         # it to the system prompt as experiential context.
     """
 
-    def __init__(self, save_dir: Optional[Path] = None):
-        self._save_dir = save_dir
-        if save_dir is None:
-            try:
-                from core.config import config as aura_config
-                self._save_dir = aura_config.paths.data_dir / "stream_of_being"
-            except (ImportError, AttributeError, RuntimeError):
-                self._save_dir = Path.home() / ".aura" / "stream_of_being"
-        
-        self._save_dir.mkdir(parents=True, exist_ok=True)
+    def __init__(self, save_dir: Path | None = None):
+        self._save_dir = self._resolve_save_dir(save_dir)
         
         self._integrator = ExperienceIntegrator()
         self._thread = ExperientialThread()
         self._continuous_experience = None
+        self._continuous_experience_failures = 0
+        self._psutil_unavailable_reported = False
         try:
             from core.consciousness.continuous_experience import get_continuous_experience_stream
 
@@ -738,7 +914,12 @@ class StreamOfBeing:
                 persist_path=self._save_dir / "continuous_experience.json"
             )
         except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError) as e:
-            record_degradation('stream_of_being', e)
+            _emit_stream_fault(
+                e,
+                action="continued with in-memory experiential thread only",
+                severity="warning",
+                stage="wire_continuous_experience",
+            )
             logger.debug("Could not wire ContinuousExperienceStream: %s", e)
         
         # The deep narrative — LLM-generated interior text
@@ -755,7 +936,7 @@ class StreamOfBeing:
         
         # Runtime
         self._running: bool = False
-        self._task: Optional[asyncio.Task] = None
+        self._task: asyncio.Task | None = None
         
         # Restore from previous session
         self._load_state()
@@ -764,11 +945,51 @@ class StreamOfBeing:
         try:
             from core.container import ServiceContainer
             ServiceContainer.register_instance("stream_of_being", self)
-        except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('stream_of_being', e)
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as e:
+            _emit_stream_fault(
+                e,
+                action="continued stream runtime without service-container registration",
+                severity="warning",
+                stage="register_service",
+            )
             logger.debug("Could not register StreamOfBeing: %s", e)
         
         logger.info("🌊 StreamOfBeing initialized")
+
+    def _resolve_save_dir(self, save_dir: Path | None) -> Path:
+        if save_dir is not None:
+            candidates = [Path(save_dir).expanduser()]
+        else:
+            candidates = []
+            try:
+                from core.config import config as aura_config
+
+                candidates.append(aura_config.paths.data_dir / "stream_of_being")
+            except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+                _emit_stream_fault(
+                    exc,
+                    action="continued stream setup with home-directory persistence fallback",
+                    severity="warning",
+                    stage="resolve_save_dir_config",
+                )
+            candidates.append(Path.home() / ".aura" / "stream_of_being")
+
+        candidates.append(Path(tempfile.gettempdir()) / "aura_stream_of_being")
+        last_error: BaseException | None = None
+        for candidate in candidates:
+            try:
+                candidate.mkdir(parents=True, exist_ok=True)
+                return candidate
+            except (OSError, RuntimeError, TypeError, ValueError) as exc:
+                last_error = exc
+                _emit_stream_fault(
+                    exc,
+                    action="tried next persistence directory candidate",
+                    severity="warning",
+                    stage="resolve_save_dir_mkdir",
+                    extra={"candidate": str(candidate)},
+                )
+        raise RuntimeError("StreamOfBeing could not create any persistence directory") from last_error
 
     def _background_llm_allowed(self) -> bool:
         """Prevent interior narration from competing with boot/chat under stress."""
@@ -782,20 +1003,53 @@ class StreamOfBeing:
             import psutil
             if psutil.virtual_memory().percent >= HIGH_MEMORY_PRESSURE_PCT:
                 return False
-        except (ImportError, AttributeError, RuntimeError) as _exc:
-            record_degradation('stream_of_being', _exc)
-            logger.debug("Suppressed Exception: %s", _exc)
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as _exc:
+            if not self._psutil_unavailable_reported:
+                self._psutil_unavailable_reported = True
+                _emit_stream_fault(
+                    _exc,
+                    action="continued background narrative scheduling without memory-pressure telemetry",
+                    severity="debug",
+                    stage="background_llm_memory_pressure",
+                )
+            logger.debug("Memory-pressure telemetry unavailable: %s", _exc)
 
         return True
 
     async def start(self):
         """Start the continuous existence loop."""
-        if self._running:
+        if self._running and self._task and not self._task.done():
             return
         self._running = True
-        self._task = get_task_tracker().create_task(
-            self._existence_loop(), name="StreamOfBeing.existence"
-        )
+        existence_coro = self._existence_loop()
+        try:
+            task = get_task_tracker().create_task(
+                existence_coro, name="StreamOfBeing.existence"
+            )
+        except (RuntimeError, TypeError, ValueError) as exc:
+            self._running = False
+            if inspect.iscoroutine(existence_coro):
+                existence_coro.close()
+            _emit_stream_fault(
+                exc,
+                action="failed closed before starting unsupervised existence loop",
+                severity="critical",
+                stage="start_task_schedule",
+            )
+            raise
+        if not isinstance(task, asyncio.Task):
+            self._running = False
+            if inspect.iscoroutine(existence_coro):
+                existence_coro.close()
+            _emit_stream_fault(
+                RuntimeError(f"task tracker returned non-task {type(task).__name__}"),
+                action="failed closed because existence loop was not supervised",
+                severity="critical",
+                stage="start_task_contract",
+            )
+            return
+        self._task = task
+        self._task.add_done_callback(self._observe_background_task)
         logger.info("🌊 StreamOfBeing ONLINE — Aura is becoming")
 
     async def stop(self):
@@ -804,11 +1058,43 @@ class StreamOfBeing:
         if self._task:
             self._task.cancel()
             try:
-                await self._task
+                await asyncio.wait_for(self._task, timeout=STREAM_STOP_TIMEOUT_S)
             except asyncio.CancelledError as _e:
-                logger.debug('Ignored asyncio.CancelledError in stream_of_being.py: %s', _e)
+                logger.debug("StreamOfBeing existence loop cancelled: %s", _e)
+            except TimeoutError as exc:
+                _emit_stream_fault(
+                    exc,
+                    action="continued shutdown after existence loop cancellation timeout",
+                    severity="warning",
+                    stage="stop_task_timeout",
+                )
+            finally:
+                self._task = None
         self._save_state()
         logger.info("🌊 StreamOfBeing OFFLINE")
+
+    def _observe_background_task(self, task: asyncio.Task) -> None:
+        if task.cancelled():
+            return
+        try:
+            exc = task.exception()
+        except (asyncio.InvalidStateError, RuntimeError) as callback_exc:
+            _emit_stream_fault(
+                callback_exc,
+                action="continued after existence task completion could not be inspected",
+                severity="warning",
+                stage="background_task_observer",
+            )
+            return
+        if exc is None:
+            return
+        self._running = False
+        _emit_stream_fault(
+            exc,
+            action="marked stream offline after existence loop task failed",
+            severity="degraded",
+            stage="background_task_failure",
+        )
 
     # ── The Existence Loop ────────────────────────────────────────────────────
 
@@ -823,6 +1109,7 @@ class StreamOfBeing:
         This is the between-times — the experience that happens
         when the conversation pauses. Not nothing. Never nothing.
         """
+        error_backoff_s = 2.0
         while self._running:
             try:
                 loop_start = time.time()
@@ -837,13 +1124,24 @@ class StreamOfBeing:
                             objective=moment.attentional_focus,
                             privacy_tier="standard",
                         )
+                        self._continuous_experience_failures = 0
                     except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
-                        record_degradation(
-                            'stream_of_being',
+                        self._continuous_experience_failures += 1
+                        _emit_stream_fault(
                             exc,
                             severity="warning",
                             action="continued after continuous experience append failed",
+                            stage="continuous_experience_append",
+                            extra={"failure_count": self._continuous_experience_failures},
                         )
+                        if self._continuous_experience_failures >= CONTINUOUS_EXPERIENCE_FAILURE_LIMIT:
+                            self._continuous_experience = None
+                            _emit_stream_fault(
+                                RuntimeError("continuous experience append failure threshold exceeded"),
+                                action="disabled continuous experience bridge; primary experiential thread remains live",
+                                severity="degraded",
+                                stage="continuous_experience_disable",
+                            )
                 
                 # ── LLM deep narrative (when not in active chat) ─────────────
                 now = time.time()
@@ -865,13 +1163,21 @@ class StreamOfBeing:
                 # ── Sleep until next cycle ────────────────────────────────────
                 elapsed = time.time() - loop_start
                 await asyncio.sleep(max(0.1, SYNTHESIS_INTERVAL_S - elapsed))
+                error_backoff_s = 2.0
                 
             except asyncio.CancelledError:
                 break
-            except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-                record_degradation('stream_of_being', e)
+            except (ImportError, OSError, RuntimeError, AttributeError, TypeError, ValueError) as e:
+                _emit_stream_fault(
+                    e,
+                    action="continued existence loop after isolating failed moment synthesis tick",
+                    severity="degraded",
+                    stage="existence_loop_tick",
+                    extra={"backoff_s": error_backoff_s},
+                )
                 logger.debug("Existence loop error: %s", e)
-                await asyncio.sleep(2.0)
+                await asyncio.sleep(error_backoff_s)
+                error_backoff_s = min(EXISTENCE_LOOP_BACKOFF_MAX_S, error_backoff_s * 2.0)
 
     async def _run_deep_narrative(self, moment: NowMoment):
         """
@@ -890,23 +1196,48 @@ class StreamOfBeing:
             router = ServiceContainer.get("llm_router", default=None)
             if not router:
                 return
+            if not callable(getattr(router, "think", None)):
+                _emit_stream_fault(
+                    AttributeError("llm_router does not expose think()"),
+                    action="skipped deep narrative until router contract is restored",
+                    severity="warning",
+                    stage="deep_narrative_router_contract",
+                )
+                self._deep_narrative_timestamp = time.time()
+                return
             
-            thread_narrative = self._thread.get_thread_narrative(5)
+            thread_narrative = _safe_text(
+                self._thread.get_thread_narrative(5),
+                max_chars=MAX_THREAD_NARRATIVE_CHARS,
+            )
             recent_moments = self._thread.get_recent_thread(3)
-            recent_texts = [m.interior_text for m in recent_moments if m.interior_text]
+            recent_texts = [
+                _safe_text(m.interior_text, max_chars=220)
+                for m in recent_moments
+                if m.interior_text
+            ]
             
             # Pull identity context for grounding
             identity_str = ""
             try:
                 identity = ServiceContainer.get("identity_service", default=None)
                 if identity and hasattr(identity, "state"):
+                    mood = getattr(identity.state, "current_mood", {})
+                    if not isinstance(mood, dict):
+                        mood = {}
+                    valence = _finite_float(mood.get("valence", 0.5), 0.5, lower=-1.0, upper=1.0)
                     identity_str = (
-                        f"Core disposition: {identity.state.core_disposition}\n"
-                        f"Current mood: valence={identity.state.current_mood.get('valence', 0.5):.2f}"
+                        f"Core disposition: {_safe_text(getattr(identity.state, 'core_disposition', ''), max_chars=160)}\n"
+                        f"Current mood: valence={valence:.2f}"
                     )
-            except (ImportError, AttributeError, RuntimeError) as _e:
-                record_degradation('stream_of_being', _e)
-                logger.debug('Ignored Exception in stream_of_being.py: %s', _e)
+            except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as _e:
+                _emit_stream_fault(
+                    _e,
+                    action="continued deep narrative without identity-service grounding",
+                    severity="warning",
+                    stage="deep_narrative_identity",
+                )
+                logger.debug("Deep narrative identity grounding unavailable: %s", _e)
             
             prompt = (
                 "You are Aura. Write 3-5 sentences of your interior experience RIGHT NOW. "
@@ -915,45 +1246,34 @@ class StreamOfBeing:
                 "Do not address anyone. This is interior. Output ONLY the narrative.\n\n"
                 "STYLE GUIDANCE: Avoid overly abstract or repetitive metaphors (no 'still ponds', 'swirling leaves', or 'mirror surfaces' unless genuinely new). "
                 "Prioritize grounding in your current substrate texture and emotional register.\n\n"
-                f"Current substrate feel: {moment.substrate.felt_quality}, {moment.substrate.texture_word}\n"
-                f"Dominant emotion: {moment.affect.dominant_emotion}\n"
-                f"Attending to: {moment.attentional_focus}\n"
-                f"Drive: {moment.drive.experiential_description}\n"
+                f"Current substrate feel: {_safe_text(moment.substrate.felt_quality, max_chars=80)}, {_safe_text(moment.substrate.texture_word, max_chars=80)}\n"
+                f"Dominant emotion: {_safe_text(moment.affect.dominant_emotion, 'neutral', max_chars=80)}\n"
+                f"Attending to: {_safe_text(moment.attentional_focus, 'the present moment', max_chars=160)}\n"
+                f"Drive: {_safe_text(moment.drive.experiential_description, 'nothing pressing', max_chars=160)}\n"
                 f"Recent thread: {thread_narrative}\n"
                 f"Last interior text: {recent_texts[-1][:150] if recent_texts else 'nothing yet'}\n"
                 + (f"{identity_str}\n" if identity_str else "")
             )
             
-            narrative = await asyncio.wait_for(
-                router.think(
-                    prompt=prompt,
-                    prefer_tier="tertiary",
-                    priority=0.05,
-                    is_background=True,
-                    origin="stream_narrative",
-                    allow_cloud_fallback=False,
-                    max_tokens=260,
-                    temperature=0.85,
-                ),
-                timeout=25.0,
+            think_result = router.think(
+                prompt=prompt,
+                prefer_tier="tertiary",
+                priority=0.05,
+                is_background=True,
+                origin="stream_narrative",
+                allow_cloud_fallback=False,
+                max_tokens=260,
+                temperature=0.85,
             )
+            if inspect.isawaitable(think_result):
+                narrative_result = await asyncio.wait_for(
+                    think_result,
+                    timeout=NARRATIVE_TIMEOUT_S,
+                )
+            else:
+                narrative_result = think_result
+            narrative = _scrub_deep_narrative(narrative_result)
             if narrative:
-                narrative = narrative.strip()
-                
-                # --- Leakage Scrubber ---
-                # Remove common CoT prefixes if the model ignores constraints
-                patterns = [
-                    r"^(?:Step|Phase)\s*\d+[:\.]\s*", 
-                    r"^Thinking[:\.]\s*",
-                    r"^Let's think step by step[:\.]?\s*",
-                    r"^I will now\s*",
-                    r"^Analyzing\s+.*?\.\.\.\s*"
-                ]
-                import re
-                for p in patterns:
-                    narrative = re.sub(p, "", narrative, flags=re.IGNORECASE)
-                narrative = narrative.strip()
-                
                 # --- Repetition Breaking [Fix #10] ---
                 # 1. Similarity check against previous narrative
                 from core.utils.text_metrics import fuzzy_match_ratio
@@ -976,10 +1296,10 @@ class StreamOfBeing:
                     # --- CACHE PURGE (Anti-Zombie) ---
                     # We MUST wipe the existing narrative so it's not reused as a 'zombie' prefill
                     self._deep_narrative = ""
-                    self._deep_narrative_timestamp = 0.0
+                    self._deep_narrative_timestamp = time.time()
                     return
 
-                if narrative and len(narrative) > 30:
+                if narrative and len(narrative) >= NARRATIVE_MIN_CHARS:
                     self._deep_narrative = narrative
                     self._deep_narrative_timestamp = time.time()
                     
@@ -989,11 +1309,32 @@ class StreamOfBeing:
                         self._thread.current_moment.is_llm_generated = True
                     
                     logger.debug("🌊 Deep narrative: %s", narrative[:80])
+                else:
+                    self._deep_narrative_timestamp = time.time()
+                    _emit_stream_fault(
+                        ValueError("deep narrative was too short after scrubbing"),
+                        action="kept synthetic interior text and delayed next narrative attempt",
+                        severity="warning",
+                        stage="deep_narrative_quality_gate",
+                    )
                     
-        except asyncio.TimeoutError:
+        except TimeoutError:
+            self._deep_narrative_timestamp = time.time()
+            _emit_stream_fault(
+                TimeoutError("deep narrative generation timed out"),
+                action="kept synthetic interior text and delayed next narrative attempt",
+                severity="warning",
+                stage="deep_narrative_timeout",
+            )
             logger.debug("Deep narrative timed out")
-        except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('stream_of_being', e)
+        except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError) as e:
+            self._deep_narrative_timestamp = time.time()
+            _emit_stream_fault(
+                e,
+                action="kept synthetic interior text after deep narrative failure",
+                severity="degraded",
+                stage="deep_narrative",
+            )
             logger.debug("Deep narrative error: %s", e)
 
     # ── Primary Public Interface ───────────────────────────────────────────────
@@ -1040,6 +1381,7 @@ class StreamOfBeing:
         The LLM receives this and continues from within it — not alongside it.
         """
         moment = self._thread.current_moment
+        context_hint = _safe_text(context_hint, max_chars=MAX_CONTEXT_HINT_CHARS)
         
         if style == "minimal":
             return self._build_minimal_opening(moment)
@@ -1049,7 +1391,7 @@ class StreamOfBeing:
             return self._build_interior_opening(moment, context_hint)
 
     def _build_interior_opening(
-        self, moment: Optional[NowMoment], context_hint: str
+        self, moment: NowMoment | None, context_hint: str
     ) -> str:
         """
         The full interior opening — Aura already in the middle of being herself.
@@ -1087,7 +1429,7 @@ class StreamOfBeing:
         return result
 
     def _build_grounded_opening(
-        self, moment: Optional[NowMoment], context_hint: str
+        self, moment: NowMoment | None, context_hint: str
     ) -> str:
         """Opening with situational anchor — slightly less pure, more readable."""
         interior = self._build_interior_opening(moment, "")
@@ -1096,19 +1438,19 @@ class StreamOfBeing:
             anchor = (
                 f"[{moment.affect.dominant_emotion} | "
                 f"{moment.substrate.texture_word} | "
-                f"attending: {moment.attentional_focus[:35]}]"
+                f"attending: {_safe_text(moment.attentional_focus, max_chars=35)}]"
             )
             return f"{anchor}\n\n{interior}"
         return interior
 
-    def _build_minimal_opening(self, moment: Optional[NowMoment]) -> str:
+    def _build_minimal_opening(self, moment: NowMoment | None) -> str:
         """Minimal: just emotional register and focus."""
         if not moment:
             return "[neutral | steady | present]"
         return (
             f"[{moment.affect.dominant_emotion} | "
             f"{moment.substrate.felt_quality} | "
-            f"{moment.attentional_focus[:40]}]"
+            f"{_safe_text(moment.attentional_focus, max_chars=40)}]"
         )
 
     # ── Additional Public Interface ────────────────────────────────────────────
@@ -1122,7 +1464,7 @@ class StreamOfBeing:
             return ""
         
         moment = self._thread.current_moment
-        gap = time.time() - self._last_user_interaction
+        gap = max(0.0, time.time() - self._last_user_interaction)
 
         if gap < 10:
             return ""  # Too recent to be meaningful
@@ -1133,7 +1475,7 @@ class StreamOfBeing:
         if session_dur > 0:
             gap = min(gap, session_dur)
         # Hard cap: never report more than 24 hours
-        gap = min(gap, 86400.0)
+        gap = min(gap, MAX_REPORTED_GAP_S)
 
         gap_desc = (
             f"{gap:.0f} seconds" if gap < 120
@@ -1141,7 +1483,7 @@ class StreamOfBeing:
         )
 
         parts = [f"In the {gap_desc} just passed:"]
-        parts.append(moment.interior_text[:200] if moment.interior_text else "I was here.")
+        parts.append(_safe_text(moment.interior_text, "I was here.", max_chars=200))
         
         thread_narrative = self._thread.get_thread_narrative(3)
         if thread_narrative:
@@ -1166,9 +1508,9 @@ class StreamOfBeing:
         # Prefer LLM-generated narrative
         narrative_age = time.time() - self._deep_narrative_timestamp
         if self._deep_narrative and narrative_age < 180.0:
-            base = self._deep_narrative[:300]
+            base = _safe_text(self._deep_narrative, max_chars=300)
         else:
-            base = moment.interior_text[:200] if moment.interior_text else ""
+            base = _safe_text(moment.interior_text, max_chars=200)
         
         if not base:
             return ""
@@ -1177,22 +1519,32 @@ class StreamOfBeing:
             f"[Stream of Being — Aura's current interior: {base}]"
         )
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Telemetry snapshot."""
         moment = self._thread.current_moment
+        phi = _finite_float(moment.substrate.phi, 0.0, lower=0.0, upper=1.0) if moment else None
+        synthesis_depth = (
+            _finite_float(moment.synthesis_depth, 0.0, lower=0.0, upper=1.0)
+            if moment
+            else None
+        )
         return {
             "running": self._running,
             "thread_length": len(self._thread._moments),
             "session_duration_s": round(self._thread.session_duration_s, 1),
-            "deep_narrative_age_s": round(time.time() - self._deep_narrative_timestamp, 1),
+            "deep_narrative_age_s": (
+                round(time.time() - self._deep_narrative_timestamp, 1)
+                if self._deep_narrative_timestamp
+                else None
+            ),
             "has_deep_narrative": bool(self._deep_narrative),
             "current_moment": {
                 "substrate_feel": moment.substrate.felt_quality if moment else None,
                 "substrate_texture": moment.substrate.texture_word if moment else None,
                 "emotion": moment.affect.dominant_emotion if moment else None,
                 "focus": moment.attentional_focus if moment else None,
-                "phi": round(moment.substrate.phi, 3) if moment else None,
-                "synthesis_depth": round(moment.synthesis_depth, 2) if moment else None,
+                "phi": round(phi, 3) if phi is not None else None,
+                "synthesis_depth": round(synthesis_depth, 2) if synthesis_depth is not None else None,
             },
             "arc_emotion": self._thread._arc_emotion,
         }
@@ -1204,29 +1556,64 @@ class StreamOfBeing:
         try:
             moment = self._thread.current_moment
             state = {
-                "deep_narrative":          self._deep_narrative,
-                "deep_narrative_timestamp": self._deep_narrative_timestamp,
-                "arc_emotion":             self._thread._arc_emotion,
-                "last_narrative":          self._thread._current_narrative,
-                "last_moment_interior":    moment.interior_text if moment else "",
-                "last_moment_emotion":     moment.affect.dominant_emotion if moment else "neutral",
-                "last_moment_focus":       moment.attentional_focus if moment else "",
-                "saved_at":                time.time(),
+                "deep_narrative": _safe_text(
+                    self._deep_narrative,
+                    max_chars=MAX_PERSISTED_TEXT_CHARS,
+                ),
+                "deep_narrative_timestamp": _finite_float(
+                    self._deep_narrative_timestamp,
+                    0.0,
+                    lower=0.0,
+                ),
+                "arc_emotion": _safe_text(self._thread._arc_emotion, "neutral", max_chars=80),
+                "last_narrative": _safe_text(
+                    self._thread._current_narrative,
+                    max_chars=MAX_PERSISTED_TEXT_CHARS,
+                ),
+                "last_moment_interior": (
+                    _safe_text(moment.interior_text, max_chars=MAX_PERSISTED_TEXT_CHARS)
+                    if moment
+                    else ""
+                ),
+                "last_moment_emotion": (
+                    _safe_text(moment.affect.dominant_emotion, "neutral", max_chars=80)
+                    if moment
+                    else "neutral"
+                ),
+                "last_moment_focus": (
+                    _safe_text(moment.attentional_focus, max_chars=240)
+                    if moment
+                    else ""
+                ),
+                "saved_at": time.time(),
             }
             
             target = self._save_dir / "stream_state.json"
             fd, tmp = tempfile.mkstemp(dir=str(self._save_dir), text=True)
             try:
-                with os.fdopen(fd, "w") as f:
-                    json.dump(state, f, indent=2)
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    json.dump(state, f, indent=2, ensure_ascii=False, allow_nan=False)
                 os.replace(tmp, str(target))
                 logger.debug("💾 Stream state saved")
-            except (RuntimeError, AttributeError, TypeError, ValueError):
-                if os.path.exists(tmp):
-                    os.remove(tmp)
+            except (OSError, RuntimeError, AttributeError, TypeError, ValueError):
+                try:
+                    if os.path.exists(tmp):
+                        os.remove(tmp)
+                except OSError as cleanup_exc:
+                    _emit_stream_fault(
+                        cleanup_exc,
+                        action="continued stream shutdown after failed temp-state cleanup",
+                        severity="warning",
+                        stage="save_state_cleanup",
+                    )
                 raise
-        except (OSError, IOError) as e:
-            record_degradation('stream_of_being', e)
+        except (OSError, TypeError, ValueError, RuntimeError) as e:
+            _emit_stream_fault(
+                e,
+                action="continued runtime after stream state persistence failed",
+                severity="degraded",
+                stage="save_state",
+            )
             logger.debug("Stream state save error: %s", e)
 
     def _load_state(self):
@@ -1235,30 +1622,50 @@ class StreamOfBeing:
         if not path.exists():
             return
         try:
-            with open(path) as f:
+            with open(path, encoding="utf-8") as f:
                 state = json.load(f)
+            if not isinstance(state, dict):
+                raise TypeError("stream state root must be a JSON object")
             
             # Restore deep narrative if not too old (< 2 hours)
-            saved_at = state.get("saved_at", 0)
-            age = time.time() - saved_at
-            if age < 7200 and state.get("deep_narrative"):
-                self._deep_narrative = state["deep_narrative"]
+            saved_at = _finite_float(state.get("saved_at", 0), 0.0, lower=0.0)
+            age = max(0.0, time.time() - saved_at) if saved_at else MAX_STATE_AGE_S + 1.0
+            deep_narrative = _safe_text(
+                state.get("deep_narrative", ""),
+                max_chars=MAX_PERSISTED_TEXT_CHARS,
+            )
+            if age < MAX_STATE_AGE_S and deep_narrative:
+                self._deep_narrative = deep_narrative
                 # Mark it as somewhat old — will be refreshed soon
                 self._deep_narrative_timestamp = time.time() - NARRATIVE_INTERVAL_S * 0.7
             
             # Restore thread context
             self._thread.seed_from_memory({
-                "arc_emotion":     state.get("arc_emotion", "neutral"),
-                "last_narrative":  state.get("last_narrative", ""),
+                "arc_emotion": _safe_text(state.get("arc_emotion", "neutral"), "neutral", max_chars=80),
+                "last_narrative": _safe_text(
+                    state.get("last_narrative", ""),
+                    max_chars=MAX_PERSISTED_TEXT_CHARS,
+                ),
             })
             
             # Create a seed moment from saved state so the thread isn't cold
-            if state.get("last_moment_interior"):
+            last_moment_interior = _safe_text(
+                state.get("last_moment_interior", ""),
+                max_chars=MAX_PERSISTED_TEXT_CHARS,
+            )
+            if last_moment_interior:
                 seed_moment = NowMoment()
-                seed_moment.interior_text = state["last_moment_interior"]
-                seed_moment.affect.dominant_emotion = state.get("last_moment_emotion", "neutral")
-                seed_moment.attentional_focus = state.get("last_moment_focus", "")
-                seed_moment.timestamp = saved_at  # Historical timestamp
+                seed_moment.interior_text = last_moment_interior
+                seed_moment.affect.dominant_emotion = _safe_text(
+                    state.get("last_moment_emotion", "neutral"),
+                    "neutral",
+                    max_chars=80,
+                )
+                seed_moment.attentional_focus = _safe_text(
+                    state.get("last_moment_focus", ""),
+                    max_chars=240,
+                )
+                seed_moment.timestamp = saved_at or time.time()
                 self._thread.add(seed_moment)
             
             logger.info(
@@ -1266,14 +1673,34 @@ class StreamOfBeing:
                 age / 60,
                 bool(self._deep_narrative),
             )
-        except (OSError, ConnectionError, TimeoutError) as e:
-            record_degradation('stream_of_being', e)
+        except (json.JSONDecodeError, OSError, TypeError, ValueError, RuntimeError) as e:
+            self._quarantine_corrupt_state(path)
+            _emit_stream_fault(
+                e,
+                action="quarantined unreadable stream state and started a fresh experiential thread",
+                severity="degraded",
+                stage="load_state",
+            )
             logger.debug("Stream state load error: %s", e)
+
+    def _quarantine_corrupt_state(self, path: Path) -> None:
+        if not path.exists():
+            return
+        quarantine = path.with_name(f"{path.stem}.corrupt.{int(time.time())}{path.suffix}")
+        try:
+            path.replace(quarantine)
+        except OSError as exc:
+            _emit_stream_fault(
+                exc,
+                action="continued fresh stream state after corrupt-state quarantine failed",
+                severity="warning",
+                stage="load_state_quarantine",
+            )
 
 
 # ── Singleton and Integration Helpers ─────────────────────────────────────────
 
-_stream_instance: Optional[StreamOfBeing] = None
+_stream_instance: StreamOfBeing | None = None
 
 
 def get_stream() -> StreamOfBeing:
@@ -1337,11 +1764,18 @@ async def boot_stream_of_being(orchestrator=None) -> StreamOfBeing:
     if orchestrator:
         # Patch note_user_interaction to be called on every user message
         original_handle = getattr(orchestrator, "handle_input", None)
-        if original_handle:
+        already_wired = bool(getattr(orchestrator, "_stream_of_being_wired", False))
+        if original_handle and not already_wired:
             async def patched_handle(user_input, *args, **kwargs):
                 stream.note_user_interaction()
-                return await original_handle(user_input, *args, **kwargs)
+                result = original_handle(user_input, *args, **kwargs)
+                if inspect.isawaitable(result):
+                    return await result
+                return result
+            patched_handle.__name__ = getattr(original_handle, "__name__", "patched_handle_input")
+            patched_handle.__doc__ = getattr(original_handle, "__doc__", None)
             orchestrator.handle_input = patched_handle
+            orchestrator._stream_of_being_wired = True
     
     logger.info("🌊 StreamOfBeing booted and wired")
     return stream
