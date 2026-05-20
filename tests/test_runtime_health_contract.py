@@ -115,3 +115,15 @@ def test_runtime_health_endpoint_uses_contract_status_code():
     assert response.status_code == 503
     assert payload["contract_version"] == HEALTH_CONTRACT_VERSION
     assert payload["failures"]["critical"][0]["container_key"] == "inference_gate"
+
+
+def test_compute_orchestrator_is_liveness_checked_by_runtime_health_contract():
+    required = {
+        requirement.container_key: requirement
+        for requirement in RUNTIME_CONTRACT
+        if requirement.container_key == "compute_orchestrator"
+    }
+
+    assert set(required) == {"compute_orchestrator"}
+    assert required["compute_orchestrator"].tier == ServiceTier.IMPORTANT
+    assert required["compute_orchestrator"].liveness_check == "is_alive"

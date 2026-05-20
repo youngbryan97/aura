@@ -109,6 +109,13 @@ RUNTIME_CONTRACT: list[ServiceRequirement] = [
         "Skill routing and tool dispatch. Without it, Aura cannot use tools.",
     ),
     ServiceRequirement(
+        "Compute Orchestrator",
+        "compute_orchestrator",
+        ServiceTier.IMPORTANT,
+        "Resource allocation and thermal pressure control. Without it, long-run survival degrades.",
+        liveness_check="is_alive",
+    ),
+    ServiceRequirement(
         "Database Coordinator",
         "database_coordinator",
         ServiceTier.IMPORTANT,
