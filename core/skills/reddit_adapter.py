@@ -23,7 +23,7 @@ HARDENING (2026-05):
   - Ephemeral browser per operation with guaranteed teardown
   - Content scrubbed by MetadataScrubber before posting
 """
-from core.runtime.errors import record_degradation
+
 import asyncio
 import json
 import logging
@@ -31,20 +31,63 @@ import os
 import re
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
-from core.skills.base_skill import BaseSkill
 from core.phantom_browser import PhantomBrowser
+from core.runtime.errors import FallbackClassification, record_degradation
+from core.skills.base_skill import BaseSkill
 
 logger = logging.getLogger("Skills.Reddit")
 
+_REDDIT_RECOVERABLE_ERRORS = (
+    ImportError,
+    AttributeError,
+    RuntimeError,
+    TypeError,
+    ValueError,
+    OSError,
+    TimeoutError,
+    ConnectionError,
+    json.JSONDecodeError,
+    asyncio.CancelledError,
+)
+
+
+def _record_reddit_degradation(
+    error: BaseException,
+    *,
+    action: str,
+    stage: str,
+    severity: str = "warning",
+    extra: dict[str, Any] | None = None,
+) -> None:
+    metadata = dict(extra or {})
+    metadata["stage"] = stage
+    try:
+        record_degradation(
+            "reddit_adapter",
+            error,
+            severity=severity,  # type: ignore[arg-type]
+            action=action,
+            classification=FallbackClassification.SAFE_FALLBACK,
+            extra=metadata,
+        )
+    except TypeError:
+        record_degradation(
+            "reddit_adapter",
+            error,
+            severity=severity,  # type: ignore[arg-type]
+            action=action,
+        )
+
+
 # ── Rate Limiting ─────────────────────────────────────────────────────
-_comment_timestamps: List[float] = []
-_post_timestamps: List[float] = []
-COMMENT_COOLDOWN_S = 600    # 1 comment per 10 minutes (new account safety)
-POST_COOLDOWN_S = 3600      # 1 post per hour
+_comment_timestamps: list[float] = []
+_post_timestamps: list[float] = []
+COMMENT_COOLDOWN_S = 600  # 1 comment per 10 minutes (new account safety)
+POST_COOLDOWN_S = 3600  # 1 post per hour
 
 # ── Storage ───────────────────────────────────────────────────────────
 _STORAGE_DIR = Path(os.path.expanduser("~/.aura/runtime/reddit"))
@@ -53,7 +96,10 @@ _COMMENT_HISTORY_FILE = _STORAGE_DIR / "comment_history.json"
 
 # ── Sensitive content filter ──────────────────────────────────────────
 _BLOCKED_PHRASES = [
-    "my password", "my api key", "my token", "my secret",
+    "my password",
+    "my api key",
+    "my token",
+    "my secret",
 ]
 
 _SENSITIVE_PATTERNS = [
@@ -90,9 +136,15 @@ def _scrub_content(text: str) -> str:
         scrubbed = pattern.sub("[redacted]", scrubbed)
     try:
         from core.privacy_stealth import get_stealth_mode
+
         scrubbed = get_stealth_mode().scrubber.scrub_text(scrubbed)
     except (ImportError, RuntimeError, AttributeError) as exc:
-        record_degradation("reddit_adapter", exc, severity="debug", action="used local reddit scrubber only")
+        _record_reddit_degradation(
+            exc,
+            action="used local reddit scrubber after stealth scrubber was unavailable",
+            stage="scrub_content",
+            severity="debug",
+        )
     return scrubbed
 
 
@@ -124,14 +176,17 @@ def _check_post_rate() -> bool:
 
 
 class RedditInput(BaseModel):
-    mode: str = Field("browse", description=(
-        "Mode: 'browse', 'read_post', 'comment', 'post', "
-        "'check_inbox', 'reply_inbox', 'read_rules', 'check_shadowban'"
-    ))
-    subreddit: Optional[str] = Field(None, description="Subreddit name (without r/)")
-    url: Optional[str] = Field(None, description="Full URL of a Reddit post")
-    body: Optional[str] = Field(None, description="Comment/post body text")
-    title: Optional[str] = Field(None, description="Post title (for 'post' mode)")
+    mode: str = Field(
+        "browse",
+        description=(
+            "Mode: 'browse', 'read_post', 'comment', 'post', "
+            "'check_inbox', 'reply_inbox', 'read_rules', 'check_shadowban'"
+        ),
+    )
+    subreddit: str | None = Field(None, description="Subreddit name (without r/)")
+    url: str | None = Field(None, description="Full URL of a Reddit post")
+    body: str | None = Field(None, description="Comment/post body text")
+    title: str | None = Field(None, description="Post title (for 'post' mode)")
     limit: int = Field(10, description="Number of posts to fetch in browse mode")
     sort: str = Field("hot", description="Sort order: 'hot', 'new', 'top'")
 
@@ -156,14 +211,48 @@ class RedditAdapterSkill(BaseSkill):
         super().__init__()
         _STORAGE_DIR.mkdir(parents=True, exist_ok=True)
 
-    def _get_creds(self) -> tuple:
+    def _get_creds(self) -> tuple[str, str]:
         """Load Reddit credentials from Keychain."""
         from core.zenith_secrets import get_credential
+
         username = get_credential("reddit", "username")
         password = get_credential("reddit", "password")
         if not username or not password:
             raise RuntimeError("Reddit credentials not found in Keychain.")
         return username, password
+
+    @staticmethod
+    def _bounded_limit(limit: int) -> int:
+        try:
+            numeric = int(limit)
+        except (TypeError, ValueError):
+            numeric = 10
+        return max(1, min(numeric, 50))
+
+    @staticmethod
+    def _finalize_authority(gateway: Any, auth: Any, *, success: bool, mode: str) -> dict[str, Any]:
+        if gateway is None or auth is None:
+            return {"authority_finalized": False, "authority_finalization_status": "not_started"}
+        try:
+            gateway.finalize_tool_execution(
+                executive_intent_id=getattr(auth, "executive_intent_id", None),
+                capability_token_id=getattr(auth, "capability_token_id", None),
+                success=success,
+            )
+            return {"authority_finalized": True, "authority_finalization_status": "ok"}
+        except _REDDIT_RECOVERABLE_ERRORS as finalize_error:
+            _record_reddit_degradation(
+                finalize_error,
+                action="preserved reddit operation result while marking authority finalization degraded",
+                stage="authority.finalize",
+                severity="degraded",
+                extra={"mode": mode, "success": success},
+            )
+            return {
+                "authority_finalized": False,
+                "authority_finalization_status": "degraded",
+                "authority_finalization_error": str(finalize_error),
+            }
 
     async def _create_browser(self) -> PhantomBrowser:
         """Create browser with persistent login state."""
@@ -177,8 +266,13 @@ class RedditAdapterSkill(BaseSkill):
                 if state.get("cookies") and browser.context:
                     await browser.context.add_cookies(state["cookies"])
                     logger.info("✅ Loaded Reddit session cookies")
-            except (OSError, ConnectionError, TimeoutError) as e:
-                record_degradation('reddit_adapter', e)
+            except _REDDIT_RECOVERABLE_ERRORS as e:
+                _record_reddit_degradation(
+                    e,
+                    action="started reddit browser without persisted session cookies",
+                    stage="browser.load_session",
+                    severity="warning",
+                )
                 logger.debug("Could not load storage state: %s", e)
 
         return browser
@@ -188,23 +282,37 @@ class RedditAdapterSkill(BaseSkill):
         try:
             if browser.context:
                 cookies = await browser.context.cookies()
-                _STORAGE_STATE_FILE.write_text(json.dumps({
-                    "cookies": cookies,
-                    "saved_at": time.time(),
-                }))
+                _STORAGE_STATE_FILE.write_text(
+                    json.dumps(
+                        {
+                            "cookies": cookies,
+                            "saved_at": time.time(),
+                        }
+                    )
+                )
                 logger.info("💾 Reddit session saved (%d cookies)", len(cookies))
-        except (json.JSONDecodeError, TypeError, ValueError) as e:
-            record_degradation('reddit_adapter', e)
+        except _REDDIT_RECOVERABLE_ERRORS as e:
+            _record_reddit_degradation(
+                e,
+                action="continued reddit operation after session persistence failed",
+                stage="browser.save_session",
+                severity="warning",
+            )
             logger.debug("Could not save session: %s", e)
 
-    async def _safe_close(self, browser: Optional[PhantomBrowser]):
+    async def _safe_close(self, browser: PhantomBrowser | None):
         """Guaranteed teardown."""
         if browser is None:
             return
         try:
             await asyncio.wait_for(browser.close(), timeout=10.0)
-        except (RuntimeError, asyncio.CancelledError, TimeoutError, AttributeError) as e:
-            record_degradation('reddit_adapter', e)
+        except _REDDIT_RECOVERABLE_ERRORS as e:
+            _record_reddit_degradation(
+                e,
+                action="marked reddit browser inactive after close failed",
+                stage="browser.close",
+                severity="warning",
+            )
             logger.debug("Browser close error (suppressed): %s", e)
             browser.is_active = False
 
@@ -222,9 +330,9 @@ class RedditAdapterSkill(BaseSkill):
             content = await page.content()
             # Reddit shows different elements when logged in vs not
             is_logged_in = (
-                'data-testid="user-drawer-button"' in content or
-                '"loggedIn":true' in content or
-                'header-user-dropdown' in content
+                'data-testid="user-drawer-button"' in content
+                or '"loggedIn":true' in content
+                or "header-user-dropdown" in content
             )
 
             if is_logged_in:
@@ -235,7 +343,7 @@ class RedditAdapterSkill(BaseSkill):
             logger.info("🔐 Logging into Reddit...")
             try:
                 username, password = self._get_creds()
-            except RuntimeError as creds_exc:
+            except RuntimeError:
                 logger.info("RedditAdapter idle: credentials are not configured.")
                 return False
 
@@ -251,21 +359,29 @@ class RedditAdapterSkill(BaseSkill):
                 try:
                     await username_input.wait_for(state="visible", timeout=3000)
                 except (RuntimeError, asyncio.CancelledError, TimeoutError, AttributeError):
-                    username_input = page.frame_locator('iframe').locator('input[name="username"], #login-username').first
-                    password_input = page.frame_locator('iframe').locator('input[name="password"], #login-password').first
+                    username_input = (
+                        page.frame_locator("iframe")
+                        .locator('input[name="username"], #login-username')
+                        .first
+                    )
+                    password_input = (
+                        page.frame_locator("iframe")
+                        .locator('input[name="password"], #login-password')
+                        .first
+                    )
 
                 # Reddit uses custom <faceplate-text-input> elements now, so .fill() might fail.
                 # Use click + keyboard type instead.
                 await username_input.click(timeout=5000)
                 await page.keyboard.type(username, delay=50)
                 await asyncio.sleep(0.5)
-                
+
                 await password_input.click(timeout=5000)
                 await page.keyboard.type(password, delay=50)
                 await asyncio.sleep(0.5)
 
                 # Press Enter to submit instead of clicking a brittle button locator
-                await page.keyboard.press('Enter')
+                await page.keyboard.press("Enter")
                 await asyncio.sleep(5)
 
                 # Verify login succeeded
@@ -278,33 +394,58 @@ class RedditAdapterSkill(BaseSkill):
                     logger.warning("⚠️ Reddit login may have failed — still on login page")
                     return False
 
-            except (RuntimeError, asyncio.CancelledError, TimeoutError, AttributeError) as login_exc:
+            except (
+                RuntimeError,
+                asyncio.CancelledError,
+                TimeoutError,
+                AttributeError,
+            ) as login_exc:
                 if "captcha" in str(login_exc).lower() or "recaptcha" in str(login_exc).lower():
                     logger.info("Reddit inbox login unavailable: CAPTCHA present.")
                     return False
-                record_degradation('reddit_adapter', login_exc)
+                _record_reddit_degradation(
+                    login_exc,
+                    action="reported reddit login unavailable after interaction failure",
+                    stage="login.interaction",
+                    severity="warning",
+                )
                 logger.warning("Reddit login interaction failed: %s", login_exc)
                 return False
 
         except (RuntimeError, asyncio.CancelledError, TimeoutError, AttributeError) as e:
-            if "credentials not found" in str(e).lower() or "captcha" in str(e).lower() or "recaptcha" in str(e).lower():
+            if (
+                "credentials not found" in str(e).lower()
+                or "captcha" in str(e).lower()
+                or "recaptcha" in str(e).lower()
+            ):
                 logger.info("Reddit login unavailable: %s", type(e).__name__)
                 return False
-            record_degradation('reddit_adapter', e)
+            _record_reddit_degradation(
+                e,
+                action="reported reddit login unavailable after readiness check failed",
+                stage="login.readiness",
+                severity="warning",
+            )
             logger.error("Login check failed: %s", e)
             return False
 
-    async def execute(self, params: RedditInput, context: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute(self, params: RedditInput, context: dict[str, Any]) -> dict[str, Any]:
         """Unified entry point for all Reddit operations."""
         if isinstance(params, dict):
             try:
                 params = RedditInput(**params)
-            except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-                record_degradation('reddit_adapter', e)
+            except _REDDIT_RECOVERABLE_ERRORS as e:
+                _record_reddit_degradation(
+                    e,
+                    action="rejected invalid reddit skill input before authority or browser effects",
+                    stage="input_validation",
+                    severity="warning",
+                )
                 return {"ok": False, "error": f"Invalid input: {e}"}
 
         browser = None
         auth = None
+        gateway = None
         try:
             from core.executive.authority_gateway import get_authority_gateway
 
@@ -319,7 +460,10 @@ class RedditAdapterSkill(BaseSkill):
                 is_critical=False,
             )
             if not auth.approved:
-                return {"ok": False, "error": f"Reddit action refused by AuthorityGateway: {auth.reason}"}
+                return {
+                    "ok": False,
+                    "error": f"Reddit action refused by AuthorityGateway: {auth.reason}",
+                }
             if not gateway.verify_tool_access("reddit_adapter", auth.capability_token_id):
                 return {"ok": False, "error": "Reddit authority token verification failed"}
 
@@ -342,64 +486,75 @@ class RedditAdapterSkill(BaseSkill):
             elif params.mode == "check_shadowban":
                 result = await self._handle_check_shadowban(browser, params)
             else:
-                return {"ok": False, "error": f"Unsupported Reddit mode: {params.mode}"}
-            try:
-                gateway.finalize_tool_execution(
-                    executive_intent_id=getattr(auth, "executive_intent_id", None),
-                    capability_token_id=getattr(auth, "capability_token_id", None),
+                result = {"ok": False, "error": f"Unsupported Reddit mode: {params.mode}"}
+            result.update(
+                self._finalize_authority(
+                    gateway,
+                    auth,
                     success=bool(result.get("ok")),
+                    mode=params.mode,
                 )
-            except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as finalize_error:
-                record_degradation('reddit_adapter', finalize_error)
+            )
             if isinstance(result, dict):
                 result.setdefault("authority_receipt_id", getattr(auth, "will_receipt_id", None))
             return result
-        except (ImportError, AttributeError, RuntimeError) as e:
-            try:
-                from core.executive.authority_gateway import get_authority_gateway
-
-                get_authority_gateway().finalize_tool_execution(
-                    executive_intent_id=getattr(auth, "executive_intent_id", None),
-                    capability_token_id=getattr(auth, "capability_token_id", None),
-                    success=False,
-                )
-            except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as finalize_error:
-                record_degradation("reddit_adapter", finalize_error)
+        except _REDDIT_RECOVERABLE_ERRORS as e:
+            finalize_result = self._finalize_authority(
+                gateway,
+                auth,
+                success=False,
+                mode=getattr(params, "mode", "unknown"),
+            )
             # Check for CAPTCHA if it's an interaction failure
-            if browser and browser.page:
+            page = getattr(browser, "page", None) if browser else None
+            if page:
                 try:
-                    content = await browser.page.content()
+                    content = await page.content()
                     if "g-recaptcha" in content or "captcha-delivery" in content:
                         logger.warning("🚨 CAPTCHA detected on Reddit!")
-                        
+
                         visual_note = ""
                         try:
                             # Capture base64 screenshot
                             screenshot_b64 = await browser.screenshot()
                             if screenshot_b64:
-                                logger.info("👁️ Routing CAPTCHA screenshot to local visual cortex...")
+                                logger.info(
+                                    "👁️ Routing CAPTCHA screenshot to local visual cortex..."
+                                )
                                 from core.brain.llm.mlx_vision_client import MLXVisionClient
-                                mlx_vision = MLXVisionClient(model_path="mlx-community/Qwen2-VL-2B-Instruct-4bit")
+
+                                mlx_vision = MLXVisionClient(
+                                    model_path="mlx-community/Qwen2-VL-2B-Instruct-4bit"
+                                )
                                 desc = mlx_vision.see(
                                     prompt="Describe this CAPTCHA screen. What kind of CAPTCHA is it (e.g., text, image grid, cloudflare)?",
-                                    image_base64=screenshot_b64
+                                    image_base64=screenshot_b64,
                                 )
                                 if desc and "Vision Failure" not in desc:
                                     visual_note = f" [Visual Cortex: {desc}]"
                                 mlx_vision.stop()
                         except (ImportError, AttributeError, RuntimeError) as ve:
                             logger.debug("Visual cortex failed to analyze CAPTCHA: %s", ve)
-                            
-                        return {"ok": False, "error": "CAPTCHA_DETECTED", "message": f"Reddit has presented a CAPTCHA. Operation halted.{visual_note}"}
+                        return {
+                            "ok": False,
+                            "error": "CAPTCHA_DETECTED",
+                            "message": f"Reddit has presented a CAPTCHA. Operation halted.{visual_note}",
+                            **finalize_result,
+                        }
                 except (AttributeError, RuntimeError) as captcha_probe_error:
                     logger.debug("Reddit CAPTCHA probe unavailable: %s", captcha_probe_error)
-            record_degradation('reddit_adapter', e)
+            _record_reddit_degradation(
+                e,
+                action="returned explicit reddit failure payload and closed authority lifecycle",
+                stage=f"execute.{getattr(params, 'mode', 'unknown')}",
+                severity="degraded",
+            )
             logger.error("Reddit operation failed: %s", e)
-            return {"ok": False, "error": str(e)}
+            return {"ok": False, "error": str(e), **finalize_result}
         finally:
             await self._safe_close(browser)
 
-    async def _handle_browse(self, browser: PhantomBrowser, params: RedditInput) -> Dict[str, Any]:
+    async def _handle_browse(self, browser: PhantomBrowser, params: RedditInput) -> dict[str, Any]:
         """Browse a subreddit and extract posts."""
         subreddit = params.subreddit or "all"
         sort = params.sort or "hot"
@@ -415,7 +570,8 @@ class RedditAdapterSkill(BaseSkill):
             return {"ok": False, "error": "No browser page available"}
 
         # Extract posts
-        posts = await page.evaluate("""(limit) => {
+        posts = await page.evaluate(
+            """(limit) => {
             const posts = [];
             // Try new Reddit (shreddit-post)
             const shredditPosts = document.querySelectorAll('shreddit-post');
@@ -443,7 +599,9 @@ class RedditAdapterSkill(BaseSkill):
                 });
             }
             return posts;
-        }""", params.limit)
+        }""",
+            params.limit,
+        )
 
         logger.info("📱 Found %d posts on r/%s", len(posts), subreddit)
         response = {
@@ -462,11 +620,18 @@ class RedditAdapterSkill(BaseSkill):
                 source_type="reddit_browse",
                 goal=f"understand r/{subreddit} {sort} posts",
             )
-        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
-            record_degradation("reddit_adapter", exc, severity="warning", action="continued without reddit browse deliberation")
+        except _REDDIT_RECOVERABLE_ERRORS as exc:
+            _record_reddit_degradation(
+                exc,
+                action="continued reddit browse without external-evidence deliberation",
+                stage="browse.deliberation",
+                severity="warning",
+            )
         return response
 
-    async def _handle_read_post(self, browser: PhantomBrowser, params: RedditInput) -> Dict[str, Any]:
+    async def _handle_read_post(
+        self, browser: PhantomBrowser, params: RedditInput
+    ) -> dict[str, Any]:
         """Read a specific post and its comments."""
         url = params.url
         if not url:
@@ -502,11 +667,16 @@ class RedditAdapterSkill(BaseSkill):
                 )
                 .to_dict()
             )
-        except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
-            record_degradation("reddit_adapter", exc, severity="warning", action="continued without reddit post deliberation")
+        except _REDDIT_RECOVERABLE_ERRORS as exc:
+            _record_reddit_degradation(
+                exc,
+                action="continued reddit post read without external-evidence deliberation",
+                stage="read_post.deliberation",
+                severity="warning",
+            )
         return response
 
-    async def _handle_comment(self, browser: PhantomBrowser, params: RedditInput) -> Dict[str, Any]:
+    async def _handle_comment(self, browser: PhantomBrowser, params: RedditInput) -> dict[str, Any]:
         """Post a comment on a Reddit post."""
         if not params.url:
             return {"ok": False, "error": "Comment mode requires a post 'url'."}
@@ -515,7 +685,10 @@ class RedditAdapterSkill(BaseSkill):
 
         # Rate limit
         if not _check_comment_rate():
-            return {"ok": False, "error": f"Comment rate limit: wait {COMMENT_COOLDOWN_S}s between comments."}
+            return {
+                "ok": False,
+                "error": f"Comment rate limit: wait {COMMENT_COOLDOWN_S}s between comments.",
+            }
 
         # Content safety
         body = _scrub_content(params.body)
@@ -551,8 +724,7 @@ class RedditAdapterSkill(BaseSkill):
 
             # Submit
             submit_btn = page.locator(
-                'button:has-text("Comment"), '
-                'button[type="submit"]:has-text("Comment")'
+                'button:has-text("Comment"), button[type="submit"]:has-text("Comment")'
             ).first
             await submit_btn.click()
             await asyncio.sleep(4)
@@ -570,7 +742,11 @@ class RedditAdapterSkill(BaseSkill):
             if errors:
                 err_text = " | ".join(errors)
                 logger.warning("Reddit comment rejected by UI: %s", err_text)
-                return {"ok": False, "error": "Reddit rejected the submission.", "reddit_error_message": err_text}
+                return {
+                    "ok": False,
+                    "error": "Reddit rejected the submission.",
+                    "reddit_error_message": err_text,
+                }
 
             _comment_timestamps.append(time.time())
             await self._save_session(browser)
@@ -583,11 +759,16 @@ class RedditAdapterSkill(BaseSkill):
                 "message": f"Comment posted successfully on {params.url}",
             }
 
-        except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-            record_degradation('reddit_adapter', e)
+        except _REDDIT_RECOVERABLE_ERRORS as e:
+            _record_reddit_degradation(
+                e,
+                action="returned explicit reddit comment interaction failure",
+                stage="comment.interaction",
+                severity="warning",
+            )
             return {"ok": False, "error": f"Comment interaction failed: {e}"}
 
-    async def _handle_post(self, browser: PhantomBrowser, params: RedditInput) -> Dict[str, Any]:
+    async def _handle_post(self, browser: PhantomBrowser, params: RedditInput) -> dict[str, Any]:
         """Create a new post in a subreddit."""
         if not params.subreddit:
             return {"ok": False, "error": "Post mode requires a 'subreddit'."}
@@ -598,7 +779,10 @@ class RedditAdapterSkill(BaseSkill):
 
         # Rate limit
         if not _check_post_rate():
-            return {"ok": False, "error": f"Post rate limit: wait {POST_COOLDOWN_S}s between posts."}
+            return {
+                "ok": False,
+                "error": f"Post rate limit: wait {POST_COOLDOWN_S}s between posts.",
+            }
 
         # Content safety
         title = _scrub_content(params.title)
@@ -636,8 +820,7 @@ class RedditAdapterSkill(BaseSkill):
 
             # Fill body
             body_input = page.locator(
-                'div[contenteditable="true"], '
-                'textarea[name="selftext"]'
+                'div[contenteditable="true"], textarea[name="selftext"]'
             ).first
             await body_input.click()
             await asyncio.sleep(0.5)
@@ -646,8 +829,7 @@ class RedditAdapterSkill(BaseSkill):
 
             # Submit
             submit_btn = page.locator(
-                'button:has-text("Post"), '
-                'button[type="submit"]:has-text("Post")'
+                'button:has-text("Post"), button[type="submit"]:has-text("Post")'
             ).first
             await submit_btn.click()
             await asyncio.sleep(5)
@@ -665,7 +847,11 @@ class RedditAdapterSkill(BaseSkill):
             if errors:
                 err_text = " | ".join(errors)
                 logger.warning("Reddit post rejected by UI: %s", err_text)
-                return {"ok": False, "error": "Reddit rejected the submission.", "reddit_error_message": err_text}
+                return {
+                    "ok": False,
+                    "error": "Reddit rejected the submission.",
+                    "reddit_error_message": err_text,
+                }
 
             _post_timestamps.append(time.time())
             await self._save_session(browser)
@@ -678,11 +864,18 @@ class RedditAdapterSkill(BaseSkill):
                 "message": f"Post created on r/{params.subreddit}: {title}",
             }
 
-        except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-            record_degradation('reddit_adapter', e)
+        except _REDDIT_RECOVERABLE_ERRORS as e:
+            _record_reddit_degradation(
+                e,
+                action="returned explicit reddit post interaction failure",
+                stage="post.interaction",
+                severity="warning",
+            )
             return {"ok": False, "error": f"Post interaction failed: {e}"}
 
-    async def _handle_check_inbox(self, browser: PhantomBrowser, params: RedditInput) -> Dict[str, Any]:
+    async def _handle_check_inbox(
+        self, browser: PhantomBrowser, params: RedditInput
+    ) -> dict[str, Any]:
         """Check Reddit inbox/notifications."""
         if not await self._ensure_logged_in(browser):
             return {
@@ -704,7 +897,9 @@ class RedditAdapterSkill(BaseSkill):
             "message": "Reddit inbox checked.",
         }
 
-    async def _handle_reply_inbox(self, browser: PhantomBrowser, params: RedditInput) -> Dict[str, Any]:
+    async def _handle_reply_inbox(
+        self, browser: PhantomBrowser, params: RedditInput
+    ) -> dict[str, Any]:
         """Reply to a Reddit inbox message."""
         if not params.url:
             return {"ok": False, "error": "reply_inbox requires a message 'url'."}
@@ -741,18 +936,25 @@ class RedditAdapterSkill(BaseSkill):
             await self._save_session(browser)
             return {"ok": True, "message": "Reply sent.", "url": params.url}
 
-        except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-            record_degradation('reddit_adapter', e)
+        except _REDDIT_RECOVERABLE_ERRORS as e:
+            _record_reddit_degradation(
+                e,
+                action="returned explicit reddit inbox reply interaction failure",
+                stage="reply_inbox.interaction",
+                severity="warning",
+            )
             return {"ok": False, "error": f"Reply failed: {e}"}
 
-    async def _handle_read_rules(self, browser: PhantomBrowser, params: RedditInput) -> Dict[str, Any]:
+    async def _handle_read_rules(
+        self, browser: PhantomBrowser, params: RedditInput
+    ) -> dict[str, Any]:
         """Fetch rules for a specific subreddit."""
         if not params.subreddit:
             return {"ok": False, "error": "read_rules requires a 'subreddit'."}
 
         url = f"https://www.reddit.com/r/{params.subreddit}/"
         logger.info("📜 Reading rules for r/%s", params.subreddit)
-        
+
         if not await browser.browse(url):
             return {"ok": False, "error": f"Failed to load r/{params.subreddit}"}
 
@@ -770,7 +972,7 @@ class RedditAdapterSkill(BaseSkill):
                     return {{error: e.toString()}};
                 }}
             }}""")
-            
+
             rules = []
             if isinstance(rules_data, dict) and "rules" in rules_data:
                 for r in rules_data["rules"]:
@@ -787,8 +989,13 @@ class RedditAdapterSkill(BaseSkill):
                 "count": len(rules),
                 "message": f"Successfully fetched {len(rules)} rules for r/{params.subreddit}",
             }
-        except (OSError, ConnectionError, TimeoutError) as e:
-            record_degradation('reddit_adapter', e)
+        except _REDDIT_RECOVERABLE_ERRORS as e:
+            _record_reddit_degradation(
+                e,
+                action="returned explicit reddit rules fetch failure",
+                stage="read_rules.fetch",
+                severity="warning",
+            )
             return {"ok": False, "error": f"Failed to fetch rules: {e}"}
 
     @staticmethod
