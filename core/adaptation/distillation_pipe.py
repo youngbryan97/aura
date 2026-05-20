@@ -10,42 +10,82 @@ runtime produces a low-confidence response, this pipeline:
 This is the path from "local model that struggles" to "local model that learns
 from stronger or more stable supervisory passes over time."
 """
-from core.runtime.errors import record_degradation
-from core.utils.exceptions import capture_and_log
-from core.health.degraded_events import record_degraded_event
+
 import asyncio
 import json
 import logging
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 from core.config import config
+from core.health.degraded_events import record_degraded_event
+from core.runtime.errors import FallbackClassification, Severity, record_degradation
+from core.utils.exceptions import capture_and_log
 
 logger = logging.getLogger("Aura.Distillation")
+
+
+def _record_distillation_degradation(
+    error: BaseException,
+    *,
+    action: str,
+    severity: Severity = "warning",
+    extra: dict[str, Any] | None = None,
+) -> None:
+    record_degradation(
+        "distillation_pipe",
+        error,
+        severity=severity,
+        action=action,
+        classification=FallbackClassification.SAFE_FALLBACK,
+        receipt_required=False,
+        extra=extra,
+    )
 
 
 class DistillationPipe:
     """Queries Gemini for ideal responses and appends to LoRA dataset."""
 
-    def __init__(self, dataset_path: Optional[str] = None):
+    def __init__(self, dataset_path: str | None = None):
         from core.brain.llm.model_registry import BASE_DIR
-        self.dataset_path = Path(dataset_path) if dataset_path else BASE_DIR / "data" / "synthetic_training" / "lora_dataset.jsonl"
+
+        self.dataset_path = (
+            Path(dataset_path)
+            if dataset_path
+            else BASE_DIR / "data" / "synthetic_training" / "lora_dataset.jsonl"
+        )
         self._pending: list = []
         self._total_distilled = 0
-        self.teacher_target = str(getattr(config.llm, "teacher_model", "deep_teacher") or "deep_teacher")
+        self._max_attempts = 3
+        self.teacher_target = str(
+            getattr(config.llm, "teacher_model", "deep_teacher") or "deep_teacher"
+        )
         logger.info("🧪 DistillationPipe initialized (dataset: %s)", self.dataset_path)
 
-    async def flag_for_distillation(self, prompt: str, local_response: str, confidence: float, context: Dict[str, Any] = None):
+    async def flag_for_distillation(
+        self,
+        prompt: str,
+        local_response: str,
+        confidence: float,
+        context: dict[str, Any] | None = None,
+    ):
         """Flag a low-confidence response for teacher improvement."""
-        self._pending.append({
-            "prompt": prompt,
-            "local_response": local_response,
-            "confidence": confidence,
-            "context": context or {},
-            "timestamp": time.time()
-        })
-        logger.info("🧪 Flagged response for distillation (confidence=%.2f, queue=%d)", confidence, len(self._pending))
+        self._pending.append(
+            {
+                "prompt": prompt,
+                "local_response": local_response,
+                "confidence": confidence,
+                "context": context or {},
+                "attempts": 0,
+                "timestamp": time.time(),
+            }
+        )
+        logger.info(
+            "🧪 Flagged response for distillation (confidence=%.2f, queue=%d)",
+            confidence,
+            len(self._pending),
+        )
 
     @staticmethod
     def _extract_teacher_content(result: Any) -> str:
@@ -62,7 +102,11 @@ class DistillationPipe:
         try:
             thought = await brain.think(
                 objective=teacher_prompt,
-                context={"history": [], "teacher_target": self.teacher_target, "allow_cloud_fallback": True},
+                context={
+                    "history": [],
+                    "teacher_target": self.teacher_target,
+                    "allow_cloud_fallback": True,
+                },
                 mode=ThinkingMode.DEEP,
                 priority=0.3,
                 origin="distillation_teacher",
@@ -71,12 +115,19 @@ class DistillationPipe:
             content = self._extract_teacher_content(thought)
             metadata = getattr(thought, "metadata", {}) if hasattr(thought, "metadata") else {}
             teacher = str(
-                (metadata.get("teacher") or metadata.get("endpoint") or metadata.get("model") or self.teacher_target)
+                metadata.get("teacher")
+                or metadata.get("endpoint")
+                or metadata.get("model")
+                or self.teacher_target
             )
             if content:
                 return content, teacher, "configured_deep_teacher"
         except (OSError, ConnectionError, TimeoutError) as exc:
-            record_degradation('distillation_pipe', exc)
+            _record_distillation_degradation(
+                exc,
+                action="Fell back from configured teacher to local secondary teacher",
+                extra={"teacher_target": self.teacher_target},
+            )
             record_degraded_event(
                 "distillation_pipe",
                 "teacher_think_failed",
@@ -102,7 +153,11 @@ class DistillationPipe:
                 if content:
                     return content, "local_secondary_teacher", "local_secondary_fallback"
         except (ImportError, AttributeError, RuntimeError) as exc:
-            record_degradation('distillation_pipe', exc)
+            _record_distillation_degradation(
+                exc,
+                action="Returned teacher_unavailable after local secondary teacher fallback failed",
+                extra={"teacher_target": self.teacher_target},
+            )
             record_degraded_event(
                 "distillation_pipe",
                 "local_teacher_fallback_failed",
@@ -114,12 +169,22 @@ class DistillationPipe:
 
         return "", "", ""
 
-    async def run_distillation_cycle(self) -> Dict[str, Any]:
+    def _requeue_if_retryable(
+        self, retry_items: list[dict[str, Any]], item: dict[str, Any]
+    ) -> bool:
+        item["attempts"] = int(item.get("attempts", 0)) + 1
+        if item["attempts"] >= self._max_attempts:
+            return False
+        retry_items.append(item)
+        return True
+
+    async def run_distillation_cycle(self) -> dict[str, Any]:
         """Process all pending items by querying the configured teacher path for improved responses."""
         if not self._pending:
             return {"ok": True, "distilled": 0, "reason": "nothing_pending"}
 
         from core.container import ServiceContainer
+
         brain = ServiceContainer.get("cognitive_engine", default=None)
         if not brain:
             return {"ok": False, "error": "No cognitive_engine available"}
@@ -128,6 +193,7 @@ class DistillationPipe:
         failed_count = 0
         items_to_process = self._pending[:10]  # Process max 10 per cycle
         self._pending = self._pending[10:]
+        retry_items: list[dict[str, Any]] = []
 
         for item in items_to_process:
             try:
@@ -141,16 +207,21 @@ class DistillationPipe:
                     "YOUR IMPROVED RESPONSE:"
                 )
 
-                ideal_response, teacher_name, teacher_source = await self._get_teacher_response(brain, teacher_prompt)
+                ideal_response, teacher_name, teacher_source = await self._get_teacher_response(
+                    brain, teacher_prompt
+                )
                 if ideal_response:
-                    
                     # 🛡️ ALIGNMENT AUDIT (Phase 11: Safety)
                     from core.adaptation.auditor import AlignmentAuditor
+
                     auditor = AlignmentAuditor()
-                    audit_result = await auditor.audit_entry(item['prompt'], ideal_response)
-                    
+                    audit_result = await auditor.audit_entry(item["prompt"], ideal_response)
+
                     if not audit_result["safe"]:
-                        logger.warning("🧪 Distillation rejected by AlignmentAuditor: %s", audit_result["reason"])
+                        logger.warning(
+                            "🧪 Distillation rejected by AlignmentAuditor: %s",
+                            audit_result["reason"],
+                        )
                         failed_count += 1
                         continue
 
@@ -163,6 +234,7 @@ class DistillationPipe:
                         "teacher_source": teacher_source or "configured_deep_teacher",
                         "teacher_target": self.teacher_target,
                     }
+
                     def sync_save_entry(path, data):
                         path.parent.mkdir(parents=True, exist_ok=True)
                         with open(path, "a", encoding="utf-8") as f:
@@ -170,16 +242,21 @@ class DistillationPipe:
 
                     await asyncio.to_thread(sync_save_entry, self.dataset_path, entry)
                     distilled_count += 1
-                    
+
                     # Mycelial pulse: teacher → lora dataset
                     try:
                         mycelium = ServiceContainer.get("mycelial_network", default=None)
                         if mycelium:
                             h = mycelium.get_hypha("adaptation", "memory")
-                            if h: h.pulse(success=True)
+                            if h:
+                                h.pulse(success=True)
                     except (ImportError, AttributeError, RuntimeError) as e:
-                        record_degradation('distillation_pipe', e)
-                        capture_and_log(e, {'module': __name__})
+                        _record_distillation_degradation(
+                            e,
+                            action="Kept distilled dataset entry after non-critical mycelial pulse failed",
+                            extra={"teacher_source": teacher_source or "configured_deep_teacher"},
+                        )
+                        capture_and_log(e, {"module": __name__})
                 else:
                     record_degraded_event(
                         "distillation_pipe",
@@ -188,35 +265,52 @@ class DistillationPipe:
                         severity="warning",
                         classification="background_degraded",
                     )
+                    self._requeue_if_retryable(retry_items, item)
                     failed_count += 1
 
-            except (ImportError, AttributeError, RuntimeError) as e:
-                record_degradation('distillation_pipe', e)
+            except (ImportError, AttributeError, RuntimeError, OSError, TypeError, ValueError) as e:
+                retrying = self._requeue_if_retryable(retry_items, item)
+                _record_distillation_degradation(
+                    e,
+                    action=(
+                        "Requeued distillation item after recoverable cycle failure"
+                        if retrying
+                        else "Dropped distillation item after bounded retry budget was exhausted"
+                    ),
+                    severity="degraded",
+                    extra={
+                        "attempts": int(item.get("attempts", 0)),
+                        "max_attempts": self._max_attempts,
+                    },
+                )
                 logger.error("Distillation failed for item: %s", e)
                 failed_count += 1
 
+        self._pending = retry_items + self._pending
         self._total_distilled += distilled_count
-        logger.info("🧪 Distillation cycle complete: %d distilled, %d failed, %d remaining",
-                     distilled_count, failed_count, len(self._pending))
+        logger.info(
+            "🧪 Distillation cycle complete: %d distilled, %d failed, %d remaining",
+            distilled_count,
+            failed_count,
+            len(self._pending),
+        )
 
         return {
             "ok": True,
             "distilled": distilled_count,
             "failed": failed_count,
             "remaining": len(self._pending),
-            "total_distilled": self._total_distilled
+            "total_distilled": self._total_distilled,
         }
 
     @property
-    def stats(self) -> Dict[str, Any]:
-        return {
-            "pending": len(self._pending),
-            "total_distilled": self._total_distilled
-        }
+    def stats(self) -> dict[str, Any]:
+        return {"pending": len(self._pending), "total_distilled": self._total_distilled}
 
 
 # ── Singleton ──
-_instance: Optional[DistillationPipe] = None
+_instance: DistillationPipe | None = None
+
 
 def get_distillation_pipe() -> DistillationPipe:
     global _instance

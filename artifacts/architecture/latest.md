@@ -2,13 +2,13 @@
 
 Schema: `aura.architecture.dependency_map.v1`
 Root: `/Users/bryan/.aura/live-source`
-Generated: `1779253259.72487`
+Generated: `1779253400.2510452`
 
 ## Summary
 
 - Subsystems: 120
 - Python files: 1539
-- Python lines: 418101
+- Python lines: 418195
 - Dependency edges: 649
 - ServiceContainer `.get()` calls: 1443
 - ServiceContainer registrations: 337
@@ -25,7 +25,7 @@ graph TD
     health["health<br/>3 files, 561 lines"]
     memory["memory<br/>64 files, 13437 lines"]
     agency["agency<br/>26 files, 10529 lines"]
-    adaptation["adaptation<br/>24 files, 10315 lines"]
+    adaptation["adaptation<br/>24 files, 10409 lines"]
     constitution["constitution<br/>1 files, 25 lines"]
     self_modification["self_modification<br/>29 files, 10187 lines"]
     senses["senses<br/>23 files, 4778 lines"]
@@ -802,7 +802,7 @@ graph TD
 | skills | 71 | 12458 | 524162 | 24 | 3 |
 | resilience | 53 | 10728 | 434600 | 16 | 24 |
 | agency | 26 | 10529 | 423359 | 17 | 17 |
-| adaptation | 24 | 10315 | 416720 | 15 | 14 |
+| adaptation | 24 | 10409 | 419370 | 15 | 14 |
 | self_modification | 29 | 10187 | 403177 | 11 | 13 |
 | environment | 80 | 8018 | 311751 | 10 | 2 |
 | cognitive | 11 | 7980 | 325215 | 9 | 4 |
@@ -1157,8 +1157,8 @@ Review candidates:
 Calls that can spend model context or produce model-authored text/code.
 
 Review candidates:
-- `core/adaptation/distillation_pipe.py:63` [adaptation] `brain.think` - thought = await brain.think(
-- `core/adaptation/distillation_pipe.py:94` [adaptation] `router.think` - response = await router.think(
+- `core/adaptation/distillation_pipe.py:103` [adaptation] `brain.think` - thought = await brain.think(
+- `core/adaptation/distillation_pipe.py:145` [adaptation] `router.think` - response = await router.think(
 - `core/adaptation/dream_journal.py:161` [adaptation] `self.brain.think` - res = await self.brain.think(
 - `core/adaptation/epistemic_humility.py:145` [adaptation] `llm.chat` - response = await llm.chat(
 - `core/adaptation/heuristic_synthesizer.py:126` [adaptation] `brain.think` - thought = await brain.think(
@@ -1216,8 +1216,8 @@ Review candidates:
 
 ## Degradation Handling
 
-- Total `record_degradation()` calls: 3122
-- Log-and-limp candidates: 2875
+- Total `record_degradation()` calls: 3119
+- Log-and-limp candidates: 2872
 - Nearby fail-closed candidates: 247
 
 Top limp-on files:
