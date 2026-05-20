@@ -20,19 +20,36 @@ This module is named "shadow" because it operates in the background
 during error recovery, not because it hides from governance.
 """
 
-from core.runtime.errors import record_degradation
 import ast
 import asyncio
 import hashlib
 import inspect
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Any
 
 from core.runtime.atomic_writer import atomic_write_text
+from core.runtime.errors import FallbackClassification, record_degradation
 from core.self_modification.mutation_tiers import MutationTier, classify_mutation_path
 
 logger = logging.getLogger("Aura.ShadowHealer")
+
+
+def _record_shadow_healer_degradation(
+    error: BaseException,
+    *,
+    action: str,
+    extra: dict[str, Any] | None = None,
+) -> None:
+    record_degradation(
+        "shadow_ast_healer",
+        error,
+        severity="warning",
+        action=action,
+        classification=FallbackClassification.SAFE_FALLBACK,
+        receipt_required=False,
+        extra=extra,
+    )
 
 
 class ShadowASTHealer:
@@ -61,7 +78,7 @@ class ShadowASTHealer:
         "Optional": "from typing import Optional",
     }
 
-    def __init__(self, codebase_root: Optional[Path] = None):
+    def __init__(self, codebase_root: Path | None = None):
         self.root = (codebase_root or Path.cwd()).resolve()
 
     def _check_governance(self, file_path: Path, action: str) -> bool:
@@ -81,6 +98,7 @@ class ShadowASTHealer:
         try:
             from core.governance.will_client import WillClient, WillRequest
             from core.will import ActionDomain
+
             decision = await WillClient().decide_async(
                 WillRequest(
                     content=action,
@@ -99,7 +117,11 @@ class ShadowASTHealer:
                 )
             return approved
         except (ImportError, AttributeError, RuntimeError) as exc:
-            record_degradation('shadow_ast_healer', exc)
+            _record_shadow_healer_degradation(
+                exc,
+                action="Denied AST repair because governance decision was unavailable",
+                extra={"file": str(file_path), "action": action},
+            )
             # Governance check failed — fail closed
             logger.warning("ShadowHealer: Governance check failed (denying): %s", exc)
             return False
@@ -108,16 +130,13 @@ class ShadowASTHealer:
         """Verify the target file is within the codebase root."""
         try:
             resolved = file_path.resolve()
-            return str(resolved).startswith(str(self.root))
-        except (RuntimeError, AttributeError, TypeError, ValueError):
+            resolved.relative_to(self.root)
+            return True
+        except (RuntimeError, AttributeError, TypeError, ValueError, OSError):
             return False
 
-    async def attempt_repair(self, file_path: Path, error_msg: str) -> bool:
-        """Attempts to repair a specific error in a target file.
-
-        GOVERNANCE: Will not modify any file without explicit governance
-        approval. Will not modify files outside the codebase root.
-        """
+    async def propose_repair(self, file_path: Path, error_msg: str) -> dict[str, Any] | None:
+        """Build an AST repair proposal without mutating source files."""
         logger.info("ShadowHealer: Analyzing %s: %s", file_path.name, error_msg)
 
         try:
@@ -129,9 +148,10 @@ class ShadowASTHealer:
             if not self._is_within_root(file_path):
                 logger.warning(
                     "ShadowHealer: REFUSED — %s is outside codebase root %s",
-                    file_path, self.root,
+                    file_path,
+                    self.root,
                 )
-                return False
+                return None
             try:
                 rel_path = file_path.resolve().relative_to(self.root).as_posix()
             except ValueError:
@@ -144,9 +164,9 @@ class ShadowASTHealer:
                     tier.tier.label,
                     tier.reason,
                 )
-                return False
+                return None
 
-            content = await asyncio.to_thread(file_path.read_text)
+            content = await asyncio.to_thread(file_path.read_text, encoding="utf-8")
             content_hash_before = hashlib.sha256(content.encode()).hexdigest()[:16]
             tree = ast.parse(content)
 
@@ -160,31 +180,61 @@ class ShadowASTHealer:
                 repaired = self._inject_missing_import(tree, missing_name)
 
             if repaired:
-                # GOVERNANCE GATE: check before writing
-                governance_result = self._check_governance(
-                    file_path,
-                    f"ast_repair:{file_path.name}",
-                )
-                if inspect.isawaitable(governance_result):
-                    governance_result = await governance_result
-                if not governance_result:
-                    logger.info("ShadowHealer: Repair blocked by governance for %s", file_path.name)
-                    return False
-
                 new_content = ast.unparse(tree)
                 content_hash_after = hashlib.sha256(new_content.encode()).hexdigest()[:16]
-                await asyncio.to_thread(atomic_write_text, file_path, new_content, encoding="utf-8")
-                logger.info(
-                    "ShadowHealer: Repaired %s (before=%s after=%s)",
-                    file_path.name, content_hash_before, content_hash_after,
-                )
-                return True
+                return {
+                    "target_file": rel_path,
+                    "original_content": content,
+                    "repaired_content": new_content,
+                    "content_hash_before": content_hash_before,
+                    "content_hash_after": content_hash_after,
+                    "explanation": f"Zero-token AST repair for {error_msg}",
+                }
 
-            return False
-        except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-            record_degradation('shadow_ast_healer', e)
+            return None
+        except (RuntimeError, AttributeError, TypeError, ValueError, OSError) as e:
+            _record_shadow_healer_degradation(
+                e,
+                action="Rejected AST repair proposal and left source file unchanged",
+                extra={"file": str(file_path), "error": error_msg[:250]},
+            )
             logger.error("ShadowHealer: AST repair failed: %s", e)
+            return None
+
+    async def attempt_repair(self, file_path: Path, error_msg: str) -> bool:
+        """Attempts to repair a specific error in a target file.
+
+        GOVERNANCE: Will not modify any file without explicit governance
+        approval. Will not modify files outside the codebase root.
+        """
+        proposal = await self.propose_repair(file_path, error_msg)
+        if not proposal:
             return False
+
+        target_path = self.root / proposal["target_file"]
+        governance_result = self._check_governance(
+            target_path,
+            f"ast_repair:{target_path.name}",
+        )
+        if inspect.isawaitable(governance_result):
+            governance_result = await governance_result
+        if not governance_result:
+            logger.info("ShadowHealer: Repair blocked by governance for %s", target_path.name)
+            return False
+
+        await asyncio.to_thread(
+            atomic_write_text,
+            target_path,
+            proposal["repaired_content"],
+            encoding="utf-8",
+        )
+        logger.info(
+            "ShadowHealer: Repaired %s (before=%s after=%s)",
+            target_path.name,
+            proposal["content_hash_before"],
+            proposal["content_hash_after"],
+        )
+        return True
 
     def _inject_missing_import(self, tree: ast.AST, name: str) -> bool:
         """Injects a common missing import into the AST.
@@ -203,7 +253,7 @@ class ShadowASTHealer:
     def validate_syntax(self, file_path: Path) -> bool:
         """Validates that a file has valid Python syntax."""
         try:
-            ast.parse(file_path.read_text())
+            ast.parse(file_path.read_text(encoding="utf-8"))
             return True
         except SyntaxError:
             return False
