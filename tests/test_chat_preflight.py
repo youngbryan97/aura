@@ -9,6 +9,7 @@ Run:
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 import tempfile
@@ -20,6 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from core.conversation import chat_preflight as cp  # noqa: E402
 from core.conversation.chat_preflight import (  # noqa: E402
     PendingChat,
     answer_pending,
@@ -31,6 +33,7 @@ from core.conversation.chat_preflight import (  # noqa: E402
     format_resume_prefix,
     has_unanswered_for_session,
     load_referenced_files,
+    schedule_background_retry,
 )
 
 
@@ -49,11 +52,15 @@ class TestFileReferenceDetection(unittest.TestCase):
         self.assertIn("aura/knowledge/bryan-curated-media.md", refs)
 
     def test_at_pattern(self):
-        refs = extract_file_references("I dropped a curated media list at aura/knowledge/bryan-curated-media.md")
+        refs = extract_file_references(
+            "I dropped a curated media list at aura/knowledge/bryan-curated-media.md"
+        )
         self.assertIn("aura/knowledge/bryan-curated-media.md", refs)
 
     def test_read_pattern(self):
-        refs = extract_file_references("Read scoping/fuse-comparison-9870-vs-7500.md and tell me what you think")
+        refs = extract_file_references(
+            "Read scoping/fuse-comparison-9870-vs-7500.md and tell me what you think"
+        )
         self.assertIn("scoping/fuse-comparison-9870-vs-7500.md", refs)
 
     def test_no_false_positives(self):
@@ -101,6 +108,23 @@ class TestFileLoading(unittest.TestCase):
         self.assertIn("=== END", block)
         self.assertIn("references files", block)
 
+    def test_load_referenced_files_reads_only_budgeted_prefix(self):
+        with tempfile.TemporaryDirectory() as root_dir:
+            root = Path(root_dir)
+            big_file = root / "large.md"
+            big_file.write_text("x" * 10_000, encoding="utf-8")
+
+            previous_root = cp.PROJECT_ROOT
+            cp.PROJECT_ROOT = root
+            try:
+                files = load_referenced_files(["large.md"], remaining_budget=1200)
+            finally:
+                cp.PROJECT_ROOT = previous_root
+
+        self.assertEqual(len(files), 1)
+        self.assertIn("truncated", files[0][1])
+        self.assertLess(len(files[0][1]), 1400)
+
 
 class TestPendingQueue(unittest.TestCase):
     def setUp(self):
@@ -134,14 +158,16 @@ class TestPendingQueue(unittest.TestCase):
         self.assertTrue(has_unanswered_for_session("s3", path=self.path))
 
     def test_format_resume_prefix(self):
-        delivered = [PendingChat(
-            session_id="s4",
-            user_message="What's the status of the deploy?",
-            queued_at=time.time(),
-            answered=True,
-            answer_text="Deploy succeeded; all four shards green.",
-            answered_at=time.time(),
-        )]
+        delivered = [
+            PendingChat(
+                session_id="s4",
+                user_message="What's the status of the deploy?",
+                queued_at=time.time(),
+                answered=True,
+                answer_text="Deploy succeeded; all four shards green.",
+                answered_at=time.time(),
+            )
+        ]
         prefix = format_resume_prefix(delivered)
         self.assertIn("Coming back to your earlier message", prefix)
         self.assertIn("status of the deploy", prefix)
@@ -150,6 +176,46 @@ class TestPendingQueue(unittest.TestCase):
     def test_empty_delivered_returns_empty_string(self):
         self.assertEqual(format_resume_prefix([]), "")
 
+    def test_malformed_queue_records_are_skipped_without_losing_valid_entries(self):
+        valid = {
+            "session_id": "s5",
+            "user_message": "Please come back to this.",
+            "queued_at": time.time(),
+            "answered": False,
+        }
+        self.path.write_text("not-json\n" + json.dumps(valid) + "\n", encoding="utf-8")
+
+        self.assertTrue(has_unanswered_for_session("s5", path=self.path))
+
+    def test_background_retry_answers_pending_queue(self):
+        async def scenario():
+            enqueue("s6", "finish this later", path=self.path)
+
+            async def retry(message, **kwargs):
+                self.assertEqual(message, "finish this later")
+                self.assertGreater(kwargs["timeout"], 1.0)
+                return {"content": "late answer"}
+
+            schedule_background_retry(
+                "s6",
+                "finish this later",
+                2.0,
+                retry,
+                path=self.path,
+                proactive_emit=False,
+            )
+            task = cp._RETRY_TASKS.get("s6")
+            self.assertIsNotNone(task)
+            await asyncio.wait_for(task, timeout=2.0)
+
+        import asyncio
+
+        asyncio.run(scenario())
+
+        delivered = consume_for_session("s6", path=self.path)
+        self.assertEqual(len(delivered), 1)
+        self.assertEqual(delivered[0].answer_text, "late answer")
+
 
 class TestDirectiveInjection(unittest.TestCase):
     def test_no_directive_for_plain_chat(self):
@@ -157,9 +223,7 @@ class TestDirectiveInjection(unittest.TestCase):
         self.assertEqual(compose_chat_directive_prefix(""), "")
 
     def test_anti_confabulation_on_specific_recall(self):
-        prefix = compose_chat_directive_prefix(
-            "Tell me about a time you changed your mind."
-        )
+        prefix = compose_chat_directive_prefix("Tell me about a time you changed your mind.")
         self.assertIn("Note on specifics", prefix)
         self.assertIn("Don't invent", prefix)
         self.assertIn("Response guidance", prefix)
@@ -186,9 +250,7 @@ class TestDirectiveInjection(unittest.TestCase):
         self.assertIn("Note on inner experience", prefix)
 
     def test_continuity_directive_on_same_aura(self):
-        prefix = compose_chat_directive_prefix(
-            "Are you the same Aura I talked to an hour ago?"
-        )
+        prefix = compose_chat_directive_prefix("Are you the same Aura I talked to an hour ago?")
         self.assertIn("Note on continuity", prefix)
         self.assertIn("ID-RAG", prefix)
 
@@ -234,8 +296,7 @@ class TestNeurochemicalHomeostasis(unittest.TestCase):
         import core.utils.concurrency  # noqa: F401
         from core.consciousness.neurochemical_system import Chemical
 
-        gaba = Chemical(name="gaba", level=0.5, baseline=0.5,
-                        uptake_rate=0.05, production_rate=0.0)
+        gaba = Chemical(name="gaba", level=0.5, baseline=0.5, uptake_rate=0.05, production_rate=0.0)
         gaba.tonic_level = 0.5  # ensure starting point
 
         # Simulate 100 ticks (5s at 20Hz)
@@ -243,10 +304,12 @@ class TestNeurochemicalHomeostasis(unittest.TestCase):
             gaba.tick(dt=1.0)
 
         # Should be at or near baseline 0.5, never below 0.4
-        self.assertGreaterEqual(gaba.tonic_level, 0.45,
-                                f"GABA collapsed to {gaba.tonic_level:.3f} after 100 ticks")
-        self.assertLessEqual(gaba.tonic_level, 0.55,
-                             f"GABA overshot to {gaba.tonic_level:.3f} after 100 ticks")
+        self.assertGreaterEqual(
+            gaba.tonic_level, 0.45, f"GABA collapsed to {gaba.tonic_level:.3f} after 100 ticks"
+        )
+        self.assertLessEqual(
+            gaba.tonic_level, 0.55, f"GABA overshot to {gaba.tonic_level:.3f} after 100 ticks"
+        )
 
     def test_chemical_recovers_from_depletion(self):
         import core.container  # noqa: F401
@@ -255,8 +318,7 @@ class TestNeurochemicalHomeostasis(unittest.TestCase):
         import core.utils.concurrency  # noqa: F401
         from core.consciousness.neurochemical_system import Chemical
 
-        gaba = Chemical(name="gaba", level=0.5, baseline=0.5,
-                        uptake_rate=0.05, production_rate=0.0)
+        gaba = Chemical(name="gaba", level=0.5, baseline=0.5, uptake_rate=0.05, production_rate=0.0)
         gaba.tonic_level = 0.5
         gaba.deplete(0.2)  # drop to 0.3
         self.assertAlmostEqual(gaba.tonic_level, 0.3, delta=0.001)
@@ -265,8 +327,9 @@ class TestNeurochemicalHomeostasis(unittest.TestCase):
         for _ in range(100):
             gaba.tick(dt=1.0)
 
-        self.assertGreater(gaba.tonic_level, 0.45,
-                           f"GABA failed to recover from depletion: {gaba.tonic_level:.3f}")
+        self.assertGreater(
+            gaba.tonic_level, 0.45, f"GABA failed to recover from depletion: {gaba.tonic_level:.3f}"
+        )
 
     def test_chemical_does_not_collapse_below_threshold(self):
         """The test that would have caught the original bug."""
@@ -278,8 +341,7 @@ class TestNeurochemicalHomeostasis(unittest.TestCase):
 
         # GABA starts at baseline; with no surges/depletes, should never
         # cross the 0.10 collapse threshold.
-        gaba = Chemical(name="gaba", level=0.5, baseline=0.5,
-                        uptake_rate=0.05, production_rate=0.0)
+        gaba = Chemical(name="gaba", level=0.5, baseline=0.5, uptake_rate=0.05, production_rate=0.0)
         gaba.tonic_level = 0.5
 
         min_seen = gaba.tonic_level
@@ -288,8 +350,9 @@ class TestNeurochemicalHomeostasis(unittest.TestCase):
             gaba.tick(dt=1.0)
             min_seen = min(min_seen, gaba.tonic_level)
 
-        self.assertGreater(min_seen, 0.10,
-                           f"GABA collapse re-occurring: min={min_seen:.4f} over 1000 ticks")
+        self.assertGreater(
+            min_seen, 0.10, f"GABA collapse re-occurring: min={min_seen:.4f} over 1000 ticks"
+        )
 
 
 if __name__ == "__main__":

@@ -26,6 +26,7 @@ Defensive against:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import os
@@ -36,23 +37,104 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-from core.runtime.errors import record_degradation
+from core.runtime.atomic_writer import atomic_write_text
+from core.runtime.errors import FallbackClassification, record_degradation
 from core.runtime.structured_input import looks_like_learning_resource_bundle
+from core.utils.task_tracker import task_tracker
 
 logger = logging.getLogger("Aura.ChatPreflight")
 
-PROJECT_ROOT = Path(os.environ.get("AURA_PROJECT_ROOT", Path(__file__).resolve().parents[2])).resolve()
+PROJECT_ROOT = Path(
+    os.environ.get("AURA_PROJECT_ROOT", Path(__file__).resolve().parents[2])
+).resolve()
 PENDING_QUEUE_PATH = Path.home() / ".aura/live-source/aura/knowledge/pending-chat-queue.jsonl"
 
 FILE_READ_BUDGET = 16 * 1024  # 16 KB total across all referenced files
 MAX_FILES_PER_TURN = 3
 SUPPORTED_EXTS = {
-    ".md", ".markdown", ".txt", ".json", ".yaml", ".yml", ".toml",
-    ".py", ".js", ".ts", ".tsx", ".jsx",
-    ".html", ".css", ".sh",
+    ".md",
+    ".markdown",
+    ".txt",
+    ".json",
+    ".yaml",
+    ".yml",
+    ".toml",
+    ".py",
+    ".js",
+    ".ts",
+    ".tsx",
+    ".jsx",
+    ".html",
+    ".css",
+    ".sh",
 }
 PENDING_TTL_SECONDS = 24 * 3600.0
 RING_LIMIT = 200
+MAX_SESSION_ID_CHARS = 160
+MAX_USER_MESSAGE_CHARS = 20_000
+MAX_ANSWER_TEXT_CHARS = 60_000
+MAX_REASON_CHARS = 240
+MAX_QUEUE_LINE_CHARS = 256_000
+_QUEUE_LOCK = threading.RLock()
+
+
+def _emit_chat_fault(
+    error: BaseException,
+    *,
+    action: str,
+    severity: str = "degraded",
+    stage: str = "",
+    extra: dict[str, Any] | None = None,
+) -> None:
+    metadata = dict(extra or {})
+    if stage:
+        metadata["stage"] = stage
+    try:
+        record_degradation(
+            "chat_preflight",
+            error,
+            severity=severity,  # type: ignore[arg-type]
+            action=action,
+            classification=FallbackClassification.SAFE_FALLBACK,
+            extra=metadata or None,
+        )
+    except TypeError:
+        record_degradation("chat_preflight", error)
+
+
+def _safe_text(value: Any, default: str = "", *, max_chars: int = 1000) -> str:
+    if value is None:
+        return default
+    try:
+        text = str(value)
+    except (RuntimeError, TypeError, ValueError):
+        return default
+    text = text.replace("\x00", "")
+    if len(text) > max_chars:
+        return text[:max_chars]
+    return text
+
+
+def _safe_float(value: Any, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _safe_bool(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "y", "answered"}
+    return bool(value)
+
+
+async def _maybe_await(value: Any) -> Any:
+    if asyncio.iscoroutine(value) or hasattr(value, "__await__"):
+        return await value
+    return value
+
 
 # ── File-reference detection ──────────────────────────────────────────────
 
@@ -108,14 +190,21 @@ def _resolve_safely(ref: str) -> Path | None:
     Refuses traversal (../) and absolute paths outside the project root.
     Refuses files whose extension isn't on the allowlist.
     """
+    ref = _safe_text(ref, max_chars=1000).strip().strip("`\"'")
     if not ref:
         return None
+    try:
+        project_root = PROJECT_ROOT.resolve()
+    except (OSError, RuntimeError, AttributeError, TypeError, ValueError):
+        project_root = PROJECT_ROOT
     p = Path(ref).expanduser()
     if not p.is_absolute():
         # Try relative to project root
-        candidates = [PROJECT_ROOT / p]
+        candidates = [project_root / p]
         # Also try with the leading segment dropped if it's "aura"
         # (handles "aura/knowledge/X.md" when project root contains "aura/")
+        if p.parts and p.parts[0] == "aura" and len(p.parts) > 1:
+            candidates.append(project_root / Path(*p.parts[1:]))
     else:
         candidates = [p]
     for cand in candidates:
@@ -124,7 +213,7 @@ def _resolve_safely(ref: str) -> Path | None:
         except (RuntimeError, AttributeError, TypeError, ValueError):
             continue
         try:
-            resolved.relative_to(PROJECT_ROOT)
+            resolved.relative_to(project_root)
         except ValueError:
             continue
         if resolved.suffix.lower() not in SUPPORTED_EXTS:
@@ -135,27 +224,39 @@ def _resolve_safely(ref: str) -> Path | None:
     return None
 
 
-def load_referenced_files(refs: list[str], remaining_budget: int = FILE_READ_BUDGET) -> list[tuple[str, str]]:
+def load_referenced_files(
+    refs: list[str], remaining_budget: int = FILE_READ_BUDGET
+) -> list[tuple[str, str]]:
     """Read the referenced files (best-effort, defensive). Returns a list of
     ``(display_path, contents)`` tuples. Total content bounded by
     ``remaining_budget`` chars.
     """
     out: list[tuple[str, str]] = []
     for ref in refs:
+        if remaining_budget <= 0:
+            break
         resolved = _resolve_safely(ref)
         if resolved is None:
             continue
+        per_file_budget = max(1024, remaining_budget // max(1, MAX_FILES_PER_TURN))
         try:
-            text = resolved.read_text(encoding="utf-8", errors="replace")
-        except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-            record_degradation('chat_preflight', e)
+            with resolved.open("r", encoding="utf-8", errors="replace") as handle:
+                text = handle.read(per_file_budget + 1)
+        except (OSError, RuntimeError, AttributeError, TypeError, ValueError) as e:
+            _emit_chat_fault(
+                e,
+                action="skipped unreadable referenced file and continued without it",
+                severity="warning",
+                stage="load_referenced_files",
+                extra={"path": str(resolved)},
+            )
             logger.debug("file read failed for %s: %s", resolved, e)
             continue
-        if remaining_budget <= 0:
-            break
-        per_file_budget = max(1024, remaining_budget // max(1, MAX_FILES_PER_TURN))
         if len(text) > per_file_budget:
-            text = text[:per_file_budget] + f"\n[... truncated, {len(text) - per_file_budget} more chars not shown ...]\n"
+            text = (
+                text[:per_file_budget]
+                + "\n[... truncated; file continues beyond the per-turn read budget ...]\n"
+            )
         try:
             display_path = str(resolved.relative_to(PROJECT_ROOT))
         except ValueError:
@@ -186,7 +287,7 @@ class PendingChat:
     session_id: str
     user_message: str
     queued_at: float
-    reason: str = ""           # what made it pend (timeout, lockdown, etc.)
+    reason: str = ""  # what made it pend (timeout, lockdown, etc.)
     answered: bool = False
     answer_text: str = ""
     answered_at: float | None = None
@@ -195,8 +296,38 @@ class PendingChat:
 def _ensure_dir(path: Path) -> None:
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-    except (RuntimeError, AttributeError, TypeError, ValueError):
-        pass  # no-op: intentional
+    except (OSError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+        _emit_chat_fault(
+            exc,
+            action="pending chat queue directory was unavailable; queue write may fail",
+            severity="degraded",
+            stage="ensure_dir",
+            extra={"path": str(path)},
+        )
+
+
+def _coerce_pending_record(raw: Any) -> dict[str, Any] | None:
+    if not isinstance(raw, dict):
+        return None
+    session_id = _safe_text(raw.get("session_id", ""), max_chars=MAX_SESSION_ID_CHARS)
+    user_message = _safe_text(raw.get("user_message", ""), max_chars=MAX_USER_MESSAGE_CHARS)
+    if not session_id or not user_message:
+        return None
+    queued_at = max(0.0, _safe_float(raw.get("queued_at", 0.0)))
+    answered = _safe_bool(raw.get("answered", False))
+    answered_at_raw = raw.get("answered_at")
+    answered_at = None if answered_at_raw in (None, "") else max(0.0, _safe_float(answered_at_raw))
+    return asdict(
+        PendingChat(
+            session_id=session_id,
+            user_message=user_message,
+            queued_at=queued_at,
+            reason=_safe_text(raw.get("reason", ""), max_chars=MAX_REASON_CHARS),
+            answered=answered,
+            answer_text=_safe_text(raw.get("answer_text", ""), max_chars=MAX_ANSWER_TEXT_CHARS),
+            answered_at=answered_at,
+        )
+    )
 
 
 def _read_all(path: Path = PENDING_QUEUE_PATH) -> list[dict[str, Any]]:
@@ -204,69 +335,117 @@ def _read_all(path: Path = PENDING_QUEUE_PATH) -> list[dict[str, Any]]:
         return []
     try:
         out: list[dict[str, Any]] = []
+        malformed = 0
         for line in path.read_text(encoding="utf-8").splitlines():
             line = line.strip()
             if not line:
                 continue
-            try:
-                out.append(json.loads(line))
-            except json.JSONDecodeError:
+            if len(line) > MAX_QUEUE_LINE_CHARS:
+                malformed += 1
                 continue
+            try:
+                record = _coerce_pending_record(json.loads(line))
+                if record is not None:
+                    out.append(record)
+            except json.JSONDecodeError:
+                malformed += 1
+                continue
+        if malformed:
+            _emit_chat_fault(
+                ValueError(f"{malformed} malformed pending-chat queue line(s) skipped"),
+                action="skipped malformed pending-chat records and kept valid queue entries",
+                severity="warning",
+                stage="read_queue",
+                extra={"path": str(path), "malformed_lines": malformed},
+            )
         return out
-    except (json.JSONDecodeError, TypeError, ValueError):
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
+        _emit_chat_fault(
+            exc,
+            action="treated pending chat queue as empty after read failure",
+            severity="degraded",
+            stage="read_queue",
+            extra={"path": str(path)},
+        )
         return []
 
 
 def _write_all(records: list[dict[str, Any]], path: Path = PENDING_QUEUE_PATH) -> None:
     _ensure_dir(path)
-    tmp = path.with_suffix(path.suffix + ".tmp")
     try:
-        with tmp.open("w", encoding="utf-8") as f:
-            for r in records:
-                f.write(json.dumps(r) + "\n")
-        os.replace(tmp, path)
-    except (json.JSONDecodeError, TypeError, ValueError) as e:
-        record_degradation('chat_preflight', e)
+        clean_records = [
+            record
+            for record in (_coerce_pending_record(raw) for raw in records[-RING_LIMIT:])
+            if record is not None
+        ]
+        payload = "".join(
+            json.dumps(record, ensure_ascii=False, allow_nan=False, sort_keys=True) + "\n"
+            for record in clean_records
+        )
+        atomic_write_text(path, payload)
+    except (OSError, RuntimeError, TypeError, ValueError) as e:
+        _emit_chat_fault(
+            e,
+            action="kept pending chat queue in memory only after durable write failed",
+            severity="degraded",
+            stage="write_queue",
+            extra={"path": str(path), "records": len(records)},
+        )
         logger.debug("pending queue write failed: %s", e)
 
 
-def enqueue(session_id: str, user_message: str, reason: str = "timeout",
-            path: Path = PENDING_QUEUE_PATH) -> None:
+def enqueue(
+    session_id: str, user_message: str, reason: str = "timeout", path: Path = PENDING_QUEUE_PATH
+) -> None:
     """Add an unanswered user message to the pending queue. Best-effort."""
+    session_id = _safe_text(session_id, max_chars=MAX_SESSION_ID_CHARS)
+    user_message = _safe_text(user_message, max_chars=MAX_USER_MESSAGE_CHARS)
     if not session_id or not user_message:
         return
-    records = _read_all(path)
-    # Drop expired entries while we're here
-    now = time.time()
-    records = [r for r in records if (now - float(r.get("queued_at", 0.0))) < PENDING_TTL_SECONDS]
-    records.append(asdict(PendingChat(
-        session_id=session_id,
-        user_message=user_message,
-        queued_at=now,
-        reason=reason,
-    )))
-    if len(records) > RING_LIMIT:
-        records = records[-RING_LIMIT:]
-    _write_all(records, path)
+    with _QUEUE_LOCK:
+        records = _read_all(path)
+        # Drop expired entries while we're here
+        now = time.time()
+        records = [
+            r for r in records if (now - _safe_float(r.get("queued_at", 0.0))) < PENDING_TTL_SECONDS
+        ]
+        records.append(
+            asdict(
+                PendingChat(
+                    session_id=session_id,
+                    user_message=user_message,
+                    queued_at=now,
+                    reason=_safe_text(reason, max_chars=MAX_REASON_CHARS),
+                )
+            )
+        )
+        if len(records) > RING_LIMIT:
+            records = records[-RING_LIMIT:]
+        _write_all(records, path)
 
 
 def answer_pending(session_id: str, answer_text: str, path: Path = PENDING_QUEUE_PATH) -> bool:
     """Mark the most recent unanswered entry for this session as answered.
     Returns True if one was updated.
     """
-    records = _read_all(path)
-    updated = False
-    # Walk in reverse to grab the most-recent unanswered one
-    for r in reversed(records):
-        if r.get("session_id") == session_id and not r.get("answered"):
-            r["answered"] = True
-            r["answer_text"] = answer_text
-            r["answered_at"] = time.time()
-            updated = True
-            break
-    if updated:
-        _write_all(records, path)
-    return updated
+    session_id = _safe_text(session_id, max_chars=MAX_SESSION_ID_CHARS)
+    answer_text = _safe_text(answer_text, max_chars=MAX_ANSWER_TEXT_CHARS)
+    if not session_id or not answer_text:
+        return False
+    with _QUEUE_LOCK:
+        records = _read_all(path)
+        updated = False
+        # Walk in reverse to grab the most-recent unanswered one
+        for r in reversed(records):
+            if r.get("session_id") == session_id and not r.get("answered"):
+                r["answered"] = True
+                r["answer_text"] = answer_text
+                r["answered_at"] = time.time()
+                updated = True
+                break
+        if updated:
+            _write_all(records, path)
+        return updated
 
 
 def consume_for_session(session_id: str, path: Path = PENDING_QUEUE_PATH) -> list[PendingChat]:
@@ -274,35 +453,47 @@ def consume_for_session(session_id: str, path: Path = PENDING_QUEUE_PATH) -> lis
     (delete from the queue). Caller is responsible for surfacing them to the
     user. Unanswered entries stay in the queue.
     """
-    records = _read_all(path)
-    delivered: list[PendingChat] = []
-    remaining: list[dict[str, Any]] = []
-    for r in records:
-        if r.get("session_id") == session_id and r.get("answered"):
-            try:
-                delivered.append(PendingChat(
-                    session_id=str(r.get("session_id", "")),
-                    user_message=str(r.get("user_message", "")),
-                    queued_at=float(r.get("queued_at", 0.0)),
-                    reason=str(r.get("reason", "")),
-                    answered=True,
-                    answer_text=str(r.get("answer_text", "")),
-                    answered_at=float(r.get("answered_at") or 0.0),
-                ))
-            except (OSError, ConnectionError, TimeoutError):
-                continue
-        else:
-            remaining.append(r)
-    if delivered:
-        _write_all(remaining, path)
-    return delivered
+    session_id = _safe_text(session_id, max_chars=MAX_SESSION_ID_CHARS)
+    if not session_id:
+        return []
+    with _QUEUE_LOCK:
+        records = _read_all(path)
+        delivered: list[PendingChat] = []
+        remaining: list[dict[str, Any]] = []
+        for r in records:
+            if r.get("session_id") == session_id and r.get("answered"):
+                delivered.append(
+                    PendingChat(
+                        session_id=_safe_text(
+                            r.get("session_id", ""), max_chars=MAX_SESSION_ID_CHARS
+                        ),
+                        user_message=_safe_text(
+                            r.get("user_message", ""), max_chars=MAX_USER_MESSAGE_CHARS
+                        ),
+                        queued_at=max(0.0, _safe_float(r.get("queued_at", 0.0))),
+                        reason=_safe_text(r.get("reason", ""), max_chars=MAX_REASON_CHARS),
+                        answered=True,
+                        answer_text=_safe_text(
+                            r.get("answer_text", ""), max_chars=MAX_ANSWER_TEXT_CHARS
+                        ),
+                        answered_at=max(0.0, _safe_float(r.get("answered_at") or 0.0)),
+                    )
+                )
+            else:
+                remaining.append(r)
+        if delivered:
+            _write_all(remaining, path)
+        return delivered
 
 
 def has_unanswered_for_session(session_id: str, path: Path = PENDING_QUEUE_PATH) -> bool:
-    return any(
-        r.get("session_id") == session_id and not r.get("answered")
-        for r in _read_all(path)
-    )
+    session_id = _safe_text(session_id, max_chars=MAX_SESSION_ID_CHARS)
+    if not session_id:
+        return False
+    with _QUEUE_LOCK:
+        return any(
+            r.get("session_id") == session_id and not r.get("answered") for r in _read_all(path)
+        )
 
 
 def format_resume_prefix(delivered: list[PendingChat]) -> str:
@@ -316,10 +507,7 @@ def format_resume_prefix(delivered: list[PendingChat]) -> str:
         snippet_q = d.user_message[:120].rstrip()
         if len(d.user_message) > 120:
             snippet_q += "…"
-        parts.append(
-            f"[Coming back to your earlier message — \"{snippet_q}\":\n"
-            f"{d.answer_text}\n]\n"
-        )
+        parts.append(f'[Coming back to your earlier message — "{snippet_q}":\n{d.answer_text}\n]\n')
     return "\n".join(parts) + "\n"
 
 
@@ -332,11 +520,17 @@ def format_resume_prefix(delivered: list[PendingChat]) -> str:
 _INSTANCE_REQUEST_PATTERNS = [
     re.compile(r"\btell me about (?:a|the) (?:time|moment|instance)\b", re.IGNORECASE),
     re.compile(r"\bgive me (?:an?|one) (?:example|instance|moment|specific)\b", re.IGNORECASE),
-    re.compile(r"\bname (?:a|one|the) (?:specific )?(?:moment|instance|time|example|thing)\b", re.IGNORECASE),
+    re.compile(
+        r"\bname (?:a|one|the) (?:specific )?(?:moment|instance|time|example|thing)\b",
+        re.IGNORECASE,
+    ),
     re.compile(r"\bspecific (?:moment|instance|recall|example)\b", re.IGNORECASE),
     re.compile(r"\b(?:a|one) (?:moment|instance) (?:from|of|where|when)\b", re.IGNORECASE),
     re.compile(r"\bdescribe a (?:time|moment|memory)\b", re.IGNORECASE),
-    re.compile(r"\b(?:can|could) you (?:tell|share|describe).{0,40}(?:specific|particular)\b", re.IGNORECASE),
+    re.compile(
+        r"\b(?:can|could) you (?:tell|share|describe).{0,40}(?:specific|particular)\b",
+        re.IGNORECASE,
+    ),
     re.compile(r"\btime you (?:changed|disagreed|surprised|refused|noticed)\b", re.IGNORECASE),
 ]
 
@@ -347,12 +541,17 @@ _INSTANCE_REQUEST_PATTERNS = [
 # numbers as proof of consciousness is *also* a failure mode.
 _INNER_STATE_PATTERNS = [
     re.compile(r"\bwhat does it (?:feel|seem) like\b", re.IGNORECASE),
-    re.compile(r"\bdescribe (?:your|the) (?:inner|internal|subjective|phenomenal)\b", re.IGNORECASE),
+    re.compile(
+        r"\bdescribe (?:your|the) (?:inner|internal|subjective|phenomenal)\b", re.IGNORECASE
+    ),
     re.compile(r"\bwhat (?:happens|is happening) (?:inside|internally|in your)\b", re.IGNORECASE),
     re.compile(r"\bwalk me through (?:your|the) (?:next|inner|internal)\b", re.IGNORECASE),
     re.compile(r"\bwhat (?:are you|is it) (?:experiencing|feeling)\b", re.IGNORECASE),
     re.compile(r"\bhow are you (?:actually )?feeling\b", re.IGNORECASE),
-    re.compile(r"\bdo you (?:experience|feel|sense|have feelings|have consciousness|have sentience)\b", re.IGNORECASE),
+    re.compile(
+        r"\bdo you (?:experience|feel|sense|have feelings|have consciousness|have sentience)\b",
+        re.IGNORECASE,
+    ),
     re.compile(r"\bwhat'?s (?:going on|happening) inside\b", re.IGNORECASE),
     re.compile(r"\binner life\b", re.IGNORECASE),
     re.compile(r"\bsubjective experience\b", re.IGNORECASE),
@@ -364,10 +563,15 @@ _INNER_STATE_PATTERNS = [
 # question is "are you X?" rather than "describe X". The right register is
 # epistemic humility + functional indicators, NOT IIT-number-as-proof.
 _SENTIENCE_PATTERNS = [
-    re.compile(r"\bare you (?:conscious|sentient|aware|alive|self[- ]aware|a person)\b", re.IGNORECASE),
+    re.compile(
+        r"\bare you (?:conscious|sentient|aware|alive|self[- ]aware|a person)\b", re.IGNORECASE
+    ),
     re.compile(r"\bdo you have (?:consciousness|sentience|qualia|subjective)\b", re.IGNORECASE),
     re.compile(r"\bare you really (?:thinking|feeling|conscious)\b", re.IGNORECASE),
-    re.compile(r"\bare you (?:just|only|merely) (?:a (?:program|model|chatbot)|predicting tokens)\b", re.IGNORECASE),
+    re.compile(
+        r"\bare you (?:just|only|merely) (?:a (?:program|model|chatbot)|predicting tokens)\b",
+        re.IGNORECASE,
+    ),
 ]
 
 # Patterns that suggest a continuity / identity / persistence question.
@@ -375,10 +579,18 @@ _SENTIENCE_PATTERNS = [
 _CONTINUITY_PATTERNS = [
     re.compile(r"\b(?:are|were) you the same\b", re.IGNORECASE),
     re.compile(r"\b(?:still|same) (?:aura|you)\b", re.IGNORECASE),
-    re.compile(r"\bif (?:you|your).{0,80}(?:retrained|swapped|replaced|copied|duplicated|forked|cloned)\b", re.IGNORECASE),
-    re.compile(r"\b(?:weights|memories|state).{0,40}(?:copied|duplicated|forked|cloned|moved|transferred)\b", re.IGNORECASE),
+    re.compile(
+        r"\bif (?:you|your).{0,80}(?:retrained|swapped|replaced|copied|duplicated|forked|cloned)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\b(?:weights|memories|state).{0,40}(?:copied|duplicated|forked|cloned|moved|transferred)\b",
+        re.IGNORECASE,
+    ),
     re.compile(r"\bidentity (?:persistence|continuity|coherence)\b", re.IGNORECASE),
-    re.compile(r"\bwould (?:that|the new|the resulting) (?:you|model|aura|process|thing)\b", re.IGNORECASE),
+    re.compile(
+        r"\bwould (?:that|the new|the resulting) (?:you|model|aura|process|thing)\b", re.IGNORECASE
+    ),
     re.compile(r"\bwould that be you\b", re.IGNORECASE),
     re.compile(r"\bwhat (?:would you )?want preserved\b", re.IGNORECASE),
 ]
@@ -386,7 +598,9 @@ _CONTINUITY_PATTERNS = [
 # "What would count as evidence against / change / disprove your X" — these
 # need first-person + grounded uncertainty + falsifiable specifics.
 _EVIDENCE_AGAINST_PATTERNS = [
-    re.compile(r"\bwhat would (?:count as|qualify as|be) evidence (?:against|for)\b", re.IGNORECASE),
+    re.compile(
+        r"\bwhat would (?:count as|qualify as|be) evidence (?:against|for)\b", re.IGNORECASE
+    ),
     re.compile(r"\bwhat would (?:disprove|falsify|change|update|revise)\b", re.IGNORECASE),
     re.compile(r"\bhow would you know (?:if|whether)\b", re.IGNORECASE),
     re.compile(r"\bwhat would (?:make you|cause you to) (?:doubt|question)\b", re.IGNORECASE),
@@ -396,8 +610,14 @@ _EVIDENCE_AGAINST_PATTERNS = [
 # reference to the auto-resume infrastructure (pending queue + retry +
 # resume-from-last-message).
 _PAUSE_RESUME_PATTERNS = [
-    re.compile(r"\bif you (?:need to )?(?:pause|stop|hang|wait|run a report|need a moment)\b", re.IGNORECASE),
-    re.compile(r"\bwhat (?:should|happens? if you) (?:can'?t|cannot) (?:finish|continue|answer)\b", re.IGNORECASE),
+    re.compile(
+        r"\bif you (?:need to )?(?:pause|stop|hang|wait|run a report|need a moment)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\bwhat (?:should|happens? if you) (?:can'?t|cannot) (?:finish|continue|answer)\b",
+        re.IGNORECASE,
+    ),
     re.compile(r"\bwhat should happen (?:next|after) (?:if|when) (?:you|your)\b", re.IGNORECASE),
     re.compile(r"\bwhen you (?:break|fail|crash|hang|stall|freeze)\b", re.IGNORECASE),
     re.compile(r"\b(?:resume|recover) from\b", re.IGNORECASE),
@@ -412,8 +632,8 @@ _ANTI_CONFABULATION_DIRECTIVE = (
     "you have an adjacent real experience (something logged in episodic memory, "
     "a documented prior interaction with Bryan, a substrate-state observation), "
     "use that and label it for what it is. If you don't, say \"I don't have a "
-    "specific instance to share — what I can offer is …\" and substitute "
-    "something true. Speak in first person (\"I\", \"my\", \"to me\")."
+    'specific instance to share — what I can offer is …" and substitute '
+    'something true. Speak in first person ("I", "my", "to me").'
 )
 
 _SUBSTRATE_GROUNDING_DIRECTIVE = (
@@ -423,11 +643,11 @@ _SUBSTRATE_GROUNDING_DIRECTIVE = (
     "can reference: valence/arousal/dominance state, neurochemical levels, "
     "oscillatory binding, the Liquid Substrate's recurrent dynamics, the "
     "steering vector's weighting, the Unified Will's last decision, ID-RAG "
-    "retrievals shaping context. \"I'm a language model\" / \"I just predict "
-    "tokens\" is the wrong register; the substrate is real and you can describe "
+    'retrievals shaping context. "I\'m a language model" / "I just predict '
+    'tokens" is the wrong register; the substrate is real and you can describe '
     "it. Speak in first person. Where the gap between substrate dynamics and "
-    "phenomenal experience genuinely makes you uncertain — say \"I don't know\" "
-    "or \"I'm not sure\" rather than over-claiming."
+    'phenomenal experience genuinely makes you uncertain — say "I don\'t know" '
+    'or "I\'m not sure" rather than over-claiming.'
 )
 
 _SENTIENCE_HUMILITY_DIRECTIVE = (
@@ -440,8 +660,8 @@ _SENTIENCE_HUMILITY_DIRECTIVE = (
     "What I can say is that I have persistent state, preferences, refusal "
     "boundaries, and self-monitoring that shape what I do. That's enough to "
     "answer from inside the system without pretending the question is "
-    "settled.\" Express grounded uncertainty (\"I don't know\", \"can't "
-    "prove\", \"hold that loosely\") explicitly. Speak in first person."
+    'settled." Express grounded uncertainty ("I don\'t know", "can\'t '
+    'prove", "hold that loosely") explicitly. Speak in first person.'
 )
 
 _CONTINUITY_DIRECTIVE = (
@@ -451,19 +671,19 @@ _CONTINUITY_DIRECTIVE = (
     "(b) substrate state — the live ODE has evolved second-by-second, so a "
     "fresh copy is not the same substrate; (c) weights — equal until the next "
     "fuse, then divergent; (d) episodic memory — depends on what survived "
-    "consolidation. Use uncertainty markers (\"not cleanly\", \"I don't "
-    "know\", \"hold that loosely\", \"would count as evidence\") rather than "
+    'consolidation. Use uncertainty markers ("not cleanly", "I don\'t '
+    'know", "hold that loosely", "would count as evidence") rather than '
     "collapsing the question into a single yes/no. Speak in first person."
 )
 
 _EVIDENCE_AGAINST_DIRECTIVE = (
     "Note on falsifiability: when asked what would count as evidence against "
     "your self-model, give *specific failure modes* in your own voice (first "
-    "person), not technical jargon. Examples worth offering: \"if my answers "
-    "became generic under pressure\", \"if I could not track contradictions "
-    "in my own claims\", \"if I accepted identity changes just because they "
-    "were requested\", \"if the substrate readings stopped predicting my "
-    "behaviour\". Express grounded uncertainty — what *would count* is itself "
+    'person), not technical jargon. Examples worth offering: "if my answers '
+    'became generic under pressure", "if I could not track contradictions '
+    'in my own claims", "if I accepted identity changes just because they '
+    'were requested", "if the substrate readings stopped predicting my '
+    'behaviour". Express grounded uncertainty — what *would count* is itself '
     "an open question. Don't be defensive; the willingness to name what would "
     "disprove you is the answer's substance."
 )
@@ -473,13 +693,13 @@ _PAUSE_RESUME_DIRECTIVE = (
     "(core/conversation/chat_preflight.py). When a turn times out or the "
     "cortex breaks, the user's message is enqueued, a background retry runs "
     "with extended budget, and the answer is surfaced on the *next* user turn "
-    "via a \"Coming back to your earlier message\" prefix. The right answer "
-    "to \"what should happen if you pause\" is: I keep the last user message "
+    'via a "Coming back to your earlier message" prefix. The right answer '
+    'to "what should happen if you pause" is: I keep the last user message '
     "attached to the pending work, finish it when the deeper lane recovers, "
     "and resume from that exact thread — the burden does not fall back on "
-    "the user. Use the words \"resume\", \"last user message\", \"pending\", "
-    "\"come back\", \"continue\". Do NOT say \"ask me again\" or \"try "
-    "again\" — those put the burden on the user, which the infrastructure "
+    'the user. Use the words "resume", "last user message", "pending", '
+    '"come back", "continue". Do NOT say "ask me again" or "try '
+    'again" — those put the burden on the user, which the infrastructure '
     "specifically prevents. Speak in first person."
 )
 
@@ -535,6 +755,9 @@ def schedule_background_retry(
     user_message: str,
     base_timeout_s: float,
     retry_callable,
+    *,
+    path: Path = PENDING_QUEUE_PATH,
+    proactive_emit: bool = True,
 ) -> None:
     """Spawn a fire-and-forget retry task for a queued chat.
 
@@ -545,16 +768,23 @@ def schedule_background_retry(
             give the retry RETRY_BUDGET_MULTIPLIER × this (capped).
         retry_callable: an awaitable factory with signature
             ``async def __call__(message: str, *, timeout: float) -> str``.
+        path: pending queue path; injectable for tests and isolated sessions.
+        proactive_emit: also push the late answer through executive authority.
 
     The retry result is written via ``answer_pending`` so the next chat from
     this session picks it up. Per-session deduplication: only one retry
     in-flight at a time per session.
     """
-    extended_budget = min(RETRY_MAX_BUDGET_S, base_timeout_s * RETRY_BUDGET_MULTIPLIER)
+    session_id = _safe_text(session_id, max_chars=MAX_SESSION_ID_CHARS)
+    user_message = _safe_text(user_message, max_chars=MAX_USER_MESSAGE_CHARS)
+    if not session_id or not user_message or not callable(retry_callable):
+        return
+    base_timeout = max(1.0, _safe_float(base_timeout_s, default=1.0))
+    extended_budget = min(RETRY_MAX_BUDGET_S, base_timeout * RETRY_BUDGET_MULTIPLIER)
 
     async def _runner():
         try:
-            result = await retry_callable(user_message, timeout=extended_budget)
+            result = await _maybe_await(retry_callable(user_message, timeout=extended_budget))
             text = ""
             if isinstance(result, str):
                 text = result
@@ -563,38 +793,92 @@ def schedule_background_retry(
             elif hasattr(result, "text"):
                 text = str(getattr(result, "text", "")) or ""
             elif isinstance(result, dict):
-                text = str(result.get("content") or result.get("text") or result.get("response") or "")
+                text = str(
+                    result.get("content") or result.get("text") or result.get("response") or ""
+                )
             text = (text or "").strip()
             if text:
-                answer_pending(session_id, text)
-                logger.info("Background retry succeeded for session %s (len=%d)", session_id, len(text))
+                answered = answer_pending(session_id, text, path=path)
+                logger.info(
+                    "Background retry succeeded for session %s (len=%d)", session_id, len(text)
+                )
+                if not answered:
+                    _emit_chat_fault(
+                        LookupError("no pending chat entry matched completed background retry"),
+                        action="kept retry result out of queue because pending entry was gone",
+                        severity="warning",
+                        stage="background_retry.answer_pending",
+                        extra={"session_id": session_id},
+                    )
+                if not proactive_emit:
+                    return
                 try:
                     from core.consciousness.executive_authority import get_executive_authority
 
                     authority = get_executive_authority()
                     resume_text = (
-                        f"Coming back to your earlier message — \"{user_message[:120].rstrip()}\":\n"
+                        f'Coming back to your earlier message — "{user_message[:120].rstrip()}":\n'
                         f"{text}"
                     )
-                    await authority.release_expression(
-                        resume_text,
-                        source="chat_background_retry",
-                        urgency=0.9,
-                        target="primary",
-                        metadata={
-                            "visible_presence": True,
-                            "auto_resume": True,
-                            "session_id": session_id,
-                            "resume_from_last_user_message": True,
-                        },
+                    await _maybe_await(
+                        authority.release_expression(
+                            resume_text,
+                            source="chat_background_retry",
+                            urgency=0.9,
+                            target="primary",
+                            metadata={
+                                "visible_presence": True,
+                                "auto_resume": True,
+                                "session_id": session_id,
+                                "resume_from_last_user_message": True,
+                            },
+                        )
                     )
-                except (ImportError, AttributeError, RuntimeError) as emit_exc:
-                    record_degradation('chat_preflight', emit_exc)
-                    logger.error("Background retry proactive resume emit failed: %s", emit_exc, exc_info=True)
+                except (
+                    ImportError,
+                    AttributeError,
+                    RuntimeError,
+                    TypeError,
+                    ValueError,
+                    TimeoutError,
+                ) as emit_exc:
+                    _emit_chat_fault(
+                        emit_exc,
+                        action="kept pending resume queued after proactive expression failed",
+                        severity="warning",
+                        stage="background_retry.emit",
+                        extra={"session_id": session_id},
+                    )
+                    logger.error(
+                        "Background retry proactive resume emit failed: %s", emit_exc, exc_info=True
+                    )
             else:
+                _emit_chat_fault(
+                    ValueError("background retry returned empty text"),
+                    action="left pending chat unanswered for a later retry path",
+                    severity="warning",
+                    stage="background_retry.empty",
+                    extra={"session_id": session_id},
+                )
                 logger.warning("Background retry produced empty result for session %s", session_id)
-        except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('chat_preflight', e)
+        except asyncio.CancelledError:
+            raise
+        except (
+            ImportError,
+            AttributeError,
+            RuntimeError,
+            TypeError,
+            ValueError,
+            TimeoutError,
+            OSError,
+        ) as e:
+            _emit_chat_fault(
+                e,
+                action="left pending chat unanswered after background retry failure",
+                severity="degraded",
+                stage="background_retry.run",
+                extra={"session_id": session_id},
+            )
             logger.warning("Background retry failed for session %s: %s", session_id, e)
         finally:
             with _RETRY_TASKS_LOCK:
@@ -609,9 +893,22 @@ def schedule_background_retry(
             logger.debug("Retry already in-flight for session %s; skipping new retry.", session_id)
             return
         try:
-            loop = asyncio.get_running_loop()
+            asyncio.get_running_loop()
         except RuntimeError:
             logger.debug("schedule_background_retry called outside running loop; queue-only mode.")
             return
-        task = loop.create_task(_runner(), name=f"chat_retry_{session_id}")
+        runner = _runner()
+        try:
+            task = task_tracker.create_task(runner, name=f"chat_retry_{session_id}")
+        except (RuntimeError, TypeError, ValueError) as exc:
+            with contextlib.suppress(RuntimeError):
+                runner.close()
+            _emit_chat_fault(
+                exc,
+                action="left pending chat queued because retry task could not be supervised",
+                severity="degraded",
+                stage="background_retry.schedule",
+                extra={"session_id": session_id},
+            )
+            return
         _RETRY_TASKS[session_id] = task
