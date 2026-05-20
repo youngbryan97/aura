@@ -2,13 +2,13 @@
 
 Schema: `aura.architecture.dependency_map.v1`
 Root: `/Users/bryan/.aura/live-source`
-Generated: `1779248013.163293`
+Generated: `1779248245.743434`
 
 ## Summary
 
 - Subsystems: 120
 - Python files: 1539
-- Python lines: 415538
+- Python lines: 415691
 - Dependency edges: 649
 - ServiceContainer `.get()` calls: 1442
 - ServiceContainer registrations: 337
@@ -42,7 +42,7 @@ graph TD
     executive["executive<br/>4 files, 2306 lines"]
     conversation["conversation<br/>8 files, 3034 lines"]
     learning["learning<br/>19 files, 6142 lines"]
-    phases["phases<br/>29 files, 13947 lines"]
+    phases["phases<br/>29 files, 14100 lines"]
     autonomic["autonomic<br/>4 files, 882 lines"]
     coordinators["coordinators<br/>9 files, 3767 lines"]
     managers["managers<br/>6 files, 932 lines"]
@@ -797,7 +797,7 @@ graph TD
 | brain | 111 | 36979 | 1611855 | 40 | 38 |
 | orchestrator | 42 | 18775 | 827354 | 121 | 8 |
 | runtime | 87 | 18699 | 657968 | 37 | 102 |
-| phases | 29 | 13947 | 639224 | 31 | 6 |
+| phases | 29 | 14100 | 644007 | 31 | 6 |
 | memory | 64 | 13437 | 545611 | 15 | 20 |
 | skills | 71 | 12101 | 512575 | 24 | 3 |
 | resilience | 53 | 10639 | 431096 | 16 | 24 |
@@ -1216,8 +1216,8 @@ Review candidates:
 
 ## Degradation Handling
 
-- Total `record_degradation()` calls: 3210
-- Log-and-limp candidates: 2956
+- Total `record_degradation()` calls: 3202
+- Log-and-limp candidates: 2948
 - Nearby fail-closed candidates: 254
 
 Top limp-on files:

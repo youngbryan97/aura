@@ -1,22 +1,92 @@
 from __future__ import annotations
-from core.runtime.errors import record_degradation
 
-
-import asyncio
 import logging
 import time
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from core.kernel.bridge import Phase
 from core.phases.dialogue_policy import validate_dialogue_response
 from core.phases.response_contract import ResponseContract
-from core.state.aura_state import AuraState
 from core.runtime.background_policy import background_activity_allowed
+from core.runtime.errors import FallbackClassification, Severity, record_degradation
+from core.state.aura_state import AuraState
 
 if TYPE_CHECKING:
     from core.kernel.aura_kernel import AuraKernel
 
 logger = logging.getLogger("Aura.LearningPhase")
+
+_LEARNING_RECOVERABLE_ERRORS = (ImportError, AttributeError, RuntimeError, TypeError, ValueError)
+
+
+def _ensure_response_modifiers(state: AuraState) -> dict[str, Any]:
+    modifiers = getattr(state, "response_modifiers", None)
+    if modifiers is None:
+        state.response_modifiers = {}
+        modifiers = state.response_modifiers
+    return modifiers
+
+
+def _mark_learning_degraded(
+    state: AuraState,
+    *,
+    stage: str,
+    error: BaseException,
+    action: str,
+) -> None:
+    modifiers = _ensure_response_modifiers(state)
+    marker = modifiers.setdefault(
+        "learning_phase",
+        {
+            "status": "degraded",
+            "failures": [],
+        },
+    )
+    marker["status"] = "degraded"
+    failures = marker.setdefault("failures", [])
+    failures.append(
+        {
+            "stage": stage,
+            "error_type": type(error).__name__,
+            "action": action,
+            "at": time.time(),
+        }
+    )
+    del failures[:-8]
+    modifiers["learning_phase_degraded"] = True
+
+    health = getattr(state, "health", None)
+    if isinstance(health, dict):
+        health["learning_phase"] = {
+            "status": "degraded",
+            "stage": stage,
+            "last_error_type": type(error).__name__,
+            "action": action,
+            "at": time.time(),
+        }
+
+
+def _record_learning_degradation(
+    error: BaseException,
+    *,
+    stage: str,
+    action: str,
+    state: AuraState | None = None,
+    severity: Severity = "warning",
+) -> None:
+    record_degradation(
+        "learning_phase",
+        error,
+        severity=severity,
+        action=action,
+        classification=FallbackClassification.SAFE_FALLBACK,
+        extra={
+            "stage": stage,
+            "repair_requested": True,
+        },
+    )
+    if state is not None:
+        _mark_learning_degraded(state, stage=stage, error=error, action=action)
 
 
 class LearningPhase(Phase):
@@ -27,27 +97,34 @@ class LearningPhase(Phase):
     then records the interaction into LiveLearner for quality scoring.
     """
 
-    def __init__(self, kernel: "AuraKernel"):
+    def __init__(self, kernel: AuraKernel):
         super().__init__(kernel)
-        self._learner = None   # Lazy-loaded
+        self._learner = None  # Lazy-loaded
 
     def _get_learner(self):
         if self._learner is None:
             try:
                 from core.learning.live_learner import get_live_learner
+
                 self._learner = get_live_learner()
             except (ImportError, AttributeError, RuntimeError) as e:
-                record_degradation('learning_phase', e)
+                _record_learning_degradation(
+                    e,
+                    stage="learner_load",
+                    action="disabled live learner for this tick; lazy load will retry on next learning phase",
+                )
                 logger.debug("LearningPhase: could not load learner: %s", e)
         return self._learner
 
-    async def execute(self, state: AuraState, objective: Optional[str] = None, **kwargs) -> AuraState:
+    async def execute(self, state: AuraState, objective: str | None = None, **kwargs) -> AuraState:
         # ISSUE-88: Self-Modification Awareness
         has_mod = False
         if hasattr(state.cognition, "modifiers") and state.cognition.modifiers:
             if "self_modification" in state.cognition.modifiers:
                 has_mod = True
-                logger.info("🧠 SelfModification: Awareness triggered. Preserving modification context.")
+                logger.info(
+                    "🧠 SelfModification: Awareness triggered. Preserving modification context."
+                )
 
         # Memory Consolidation Logic
         # Skip if response is too short and no modification occurred
@@ -61,64 +138,83 @@ class LearningPhase(Phase):
         confusion = self._detect_confusion(state)
         try:
             from core.container import ServiceContainer
+
             calibrator = ServiceContainer.get("metacognitive_calibrator", default=None)
             if calibrator:
                 prev_confidence = state.response_modifiers.get("learning_score", 0.7)
                 if confusion:
-                    calibrator.record_prediction(
-                        confidence=prev_confidence, actual_correctness=0.0
-                    )
+                    calibrator.record_prediction(confidence=prev_confidence, actual_correctness=0.0)
                     logger.debug("MetaCal: correction signal → recording low correctness")
                 elif follow_up:
-                    calibrator.record_prediction(
-                        confidence=prev_confidence, actual_correctness=1.0
-                    )
+                    calibrator.record_prediction(confidence=prev_confidence, actual_correctness=1.0)
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('learning_phase', e)
+            _record_learning_degradation(
+                e,
+                stage="metacognitive_calibration",
+                action="skipped calibration write; response learning continues without confidence update",
+                state=state,
+            )
             logger.debug("LearningPhase: metacognitive feedback failed: %s", e)
 
         # Run standard learning + cross-domain synthesis
         try:
             state = await self._perform_standard_learning(state, objective or "")
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-            record_degradation('learning_phase', e)
+            _record_learning_degradation(
+                e,
+                stage="standard_learning",
+                action="preserved response state and continued to cross-domain/follow-up learning",
+                state=state,
+            )
             logger.debug("LearningPhase: standard learning failed: %s", e)
 
         try:
             state = await self._map_cross_domain(state, objective or "")
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-            record_degradation('learning_phase', e)
+            _record_learning_degradation(
+                e,
+                stage="cross_domain_mapping",
+                action="skipped cross-domain synthesis for this tick; foreground response state preserved",
+                state=state,
+            )
             logger.debug("LearningPhase: cross-domain mapping failed: %s", e)
 
         try:
             await self._wire_conversation_learning(state, objective or "")
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-            record_degradation('learning_phase', e)
+            _record_learning_degradation(
+                e,
+                stage="conversation_learning",
+                action="skipped conversation enrichment/distillation for this tick after response delivery",
+                state=state,
+            )
             logger.debug("LearningPhase: follow-up wiring failed: %s", e)
 
         return state
 
     async def _perform_standard_learning(self, state: AuraState, objective: str) -> AuraState:
         learner = self._get_learner()
-        if learner is None: return state
+        if learner is None:
+            return state
         response = state.cognition.last_response
-        if not response: return state
-        
+        if not response:
+            return state
+
         follow_up = self._detect_follow_up(state)
         confusion = self._detect_confusion(state)
-        
+
         try:
             # ISSUE-94: Affective Memory synchronization
             affect_data = {
                 "valence": state.affect.valence,
                 "arousal": state.affect.arousal,
-                "dominant": state.affect.dominant_emotion
+                "dominant": state.affect.dominant_emotion,
             }
             score = learner.record_tick(
-                state=state, 
-                user_input=objective, 
-                response=response, 
-                follow_up=follow_up, 
+                state=state,
+                user_input=objective,
+                response=response,
+                follow_up=follow_up,
                 confusion=confusion,
                 affect=affect_data,  # Sync emotional context
             )
@@ -128,43 +224,69 @@ class LearningPhase(Phase):
                 state.response_modifiers["learning_score"] = round(score.raw_score, 3)
                 state.response_modifiers["affective_sync"] = True
         except (RuntimeError, AttributeError, TypeError) as e:
-            record_degradation('learning_phase', e)
+            _record_learning_degradation(
+                e,
+                stage="learner_record_tick",
+                action="kept response state and left learning_score unchanged for this tick",
+                state=state,
+            )
             logger.debug("LearningPhase: record failed: %s", e)
         return state
 
     async def _map_cross_domain(self, state: AuraState, objective: str) -> AuraState:
         """[AGI Seed] Relates current objective to distant knowledge domains."""
-        curiosity = getattr(state.affect, 'curiosity', 0.5)
+        curiosity = getattr(state.affect, "curiosity", 0.5)
         if curiosity > 0.8:
             try:
                 from core.container import ServiceContainer
+
                 orch = ServiceContainer.get("orchestrator", default=None)
-            except (ImportError, AttributeError, RuntimeError):
+            except (ImportError, AttributeError, RuntimeError) as exc:
+                _record_learning_degradation(
+                    exc,
+                    stage="cross_domain_orchestrator_lookup",
+                    action="evaluated curiosity without orchestrator context; background synthesis remains disabled",
+                    state=state,
+                )
                 orch = None
-            if not background_activity_allowed(
-                orch,
-                min_idle_seconds=1200.0,
-                max_memory_percent=78.0,
-                max_failure_pressure=0.08,
-                require_conversation_ready=False,
-            ):
+            try:
+                allowed = background_activity_allowed(
+                    orch,
+                    min_idle_seconds=1200.0,
+                    max_memory_percent=78.0,
+                    max_failure_pressure=0.08,
+                    require_conversation_ready=False,
+                )
+            except _LEARNING_RECOVERABLE_ERRORS as exc:
+                _record_learning_degradation(
+                    exc,
+                    stage="cross_domain_background_gate",
+                    action="blocked cross-domain synthesis because background safety gate failed closed",
+                    state=state,
+                )
+                return state
+            if not allowed:
                 return state
             logger.info("🔭 [AGI] High curiosity: Generating cross-domain synthesis...")
-            state.cognition.pending_intents.append({
-                "type": "cross_domain_synthesis",
-                "trigger": objective,
-                "curiosity_level": curiosity
-            })
+            state.cognition.pending_intents.append(
+                {
+                    "type": "cross_domain_synthesis",
+                    "trigger": objective,
+                    "curiosity_level": curiosity,
+                }
+            )
         return state
 
     async def _trigger_autotelic_curiosity(self, state: AuraState) -> AuraState:
         """[AGI Seed] Generates a new internal objective based on idle curiosity."""
         logger.info("🧩 [AGI] Idle detected. Triggering autotelic exploration.")
-        state.cognition.pending_intents.append({
-            "type": "autotelic_objective",
-            "domain": "UNKNOWN", # To be filled by ResearchCycle
-            "curiosity_vector": state.affect.curiosity
-        })
+        state.cognition.pending_intents.append(
+            {
+                "type": "autotelic_objective",
+                "domain": "UNKNOWN",  # To be filled by ResearchCycle
+                "curiosity_vector": state.affect.curiosity,
+            }
+        )
         return state
 
     @staticmethod
@@ -207,8 +329,13 @@ class LearningPhase(Phase):
 
         from core.container import ServiceContainer
 
-        contract = dict(getattr(state, "response_modifiers", {}) or {}).get("response_contract", {}) or {}
-        dialogue_validation = dict(getattr(state, "response_modifiers", {}) or {}).get("dialogue_validation", {}) or {}
+        contract = (
+            dict(getattr(state, "response_modifiers", {}) or {}).get("response_contract", {}) or {}
+        )
+        dialogue_validation = (
+            dict(getattr(state, "response_modifiers", {}) or {}).get("dialogue_validation", {})
+            or {}
+        )
         learning_score = float((state.response_modifiers or {}).get("learning_score", 0.0) or 0.0)
         confusion = self._detect_confusion(state)
         recent_messages = self._recent_learning_messages(state)
@@ -228,14 +355,21 @@ class LearningPhase(Phase):
                     brain=ServiceContainer.get("cognitive_engine", default=None),
                     belief_engine=ServiceContainer.get("belief_engine", default=None),
                 )
-                force = bool(contract.get("requires_search") or contract.get("tool_evidence_available"))
+                force = bool(
+                    contract.get("requires_search") or contract.get("tool_evidence_available")
+                )
                 task = get_task_tracker().create_task(
                     enricher.enrich_from_conversation(recent_messages, force=force),
                     name="learning_phase.knowledge_enrichment",
                 )
                 get_task_tracker().track_task(task)
             except (ImportError, AttributeError, RuntimeError) as e:
-                record_degradation('learning_phase', e)
+                _record_learning_degradation(
+                    e,
+                    stage="knowledge_enrichment_schedule",
+                    action="skipped async knowledge enrichment scheduling; foreground learning continues",
+                    state=state,
+                )
                 logger.debug("LearningPhase: knowledge enrichment scheduling failed: %s", e)
 
         should_distill = bool(
@@ -249,7 +383,12 @@ class LearningPhase(Phase):
                 dialogue_contract = ResponseContract(**contract)
                 should_distill = not validate_dialogue_response(response, dialogue_contract).ok
             except (RuntimeError, AttributeError, TypeError, ValueError) as _exc:
-                record_degradation('learning_phase', _exc)
+                _record_learning_degradation(
+                    _exc,
+                    stage="dialogue_contract_validation",
+                    action="fell back to heuristic distillation decision after contract validation failed",
+                    state=state,
+                )
                 logger.debug("Suppressed Exception: %s", _exc)
         if should_distill:
             try:
@@ -270,7 +409,12 @@ class LearningPhase(Phase):
                     },
                 )
             except (ImportError, AttributeError, RuntimeError) as e:
-                record_degradation('learning_phase', e)
+                _record_learning_degradation(
+                    e,
+                    stage="distillation_flagging",
+                    action="left failed sample unqueued for this tick; future failures remain visible in state",
+                    state=state,
+                )
                 logger.debug("LearningPhase: distillation flagging failed: %s", e)
 
     def _detect_follow_up(self, state: AuraState) -> bool:
@@ -296,9 +440,18 @@ class LearningPhase(Phase):
             return False
         last_user = user_msgs[-1].get("content", "").lower()
         confusion_signals = [
-            "what?", "??", "that's wrong", "that's not right",
-            "i don't understand", "what do you mean", "huh?",
-            "you're wrong", "that makes no sense", "incorrect",
-            "not what i asked", "stop", "nevermind",
+            "what?",
+            "??",
+            "that's wrong",
+            "that's not right",
+            "i don't understand",
+            "what do you mean",
+            "huh?",
+            "you're wrong",
+            "that makes no sense",
+            "incorrect",
+            "not what i asked",
+            "stop",
+            "nevermind",
         ]
         return any(sig in last_user for sig in confusion_signals)
