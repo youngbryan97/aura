@@ -2,13 +2,13 @@
 
 Schema: `aura.architecture.dependency_map.v1`
 Root: `/Users/bryan/.aura/live-source`
-Generated: `1779249788.798749`
+Generated: `1779249997.9226859`
 
 ## Summary
 
 - Subsystems: 120
 - Python files: 1539
-- Python lines: 416666
+- Python lines: 416806
 - Dependency edges: 649
 - ServiceContainer `.get()` calls: 1443
 - ServiceContainer registrations: 337
@@ -40,7 +40,7 @@ graph TD
     world_model["world_model<br/>8 files, 2242 lines"]
     autonomy["autonomy<br/>22 files, 7052 lines"]
     executive["executive<br/>4 files, 2306 lines"]
-    conversation["conversation<br/>8 files, 3034 lines"]
+    conversation["conversation<br/>8 files, 3174 lines"]
     learning["learning<br/>19 files, 6142 lines"]
     phases["phases<br/>29 files, 14100 lines"]
     autonomic["autonomic<br/>4 files, 882 lines"]
@@ -817,8 +817,8 @@ graph TD
 | social | 10 | 3688 | 158124 | 8 | 1 |
 | cognition | 9 | 3456 | 139831 | 7 | 3 |
 | perception | 15 | 3254 | 129773 | 3 | 2 |
+| conversation | 8 | 3174 | 121077 | 10 | 6 |
 | state | 6 | 3035 | 127541 | 8 | 13 |
-| conversation | 8 | 3034 | 115947 | 10 | 6 |
 | advanced_cognition | 13 | 2905 | 118305 | 3 | 2 |
 | voice | 7 | 2773 | 126987 | 9 | 4 |
 | goals | 6 | 2730 | 115789 | 5 | 3 |
@@ -1216,8 +1216,8 @@ Review candidates:
 
 ## Degradation Handling
 
-- Total `record_degradation()` calls: 3182
-- Log-and-limp candidates: 2928
+- Total `record_degradation()` calls: 3179
+- Log-and-limp candidates: 2925
 - Nearby fail-closed candidates: 254
 
 Top limp-on files:
