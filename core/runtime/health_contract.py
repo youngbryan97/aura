@@ -120,6 +120,27 @@ RUNTIME_CONTRACT: list[ServiceRequirement] = [
         ServiceTier.IMPORTANT,
         "Motivation and goal management. Without it, autonomous behavior stops.",
     ),
+    ServiceRequirement(
+        "Lymphatic Reaper",
+        "reaper",
+        ServiceTier.IMPORTANT,
+        "Long-run maintenance supervisor. Without it, stale processes and files accumulate.",
+        liveness_check="is_alive",
+    ),
+    ServiceRequirement(
+        "Hypervisor",
+        "hypervisor",
+        ServiceTier.IMPORTANT,
+        "Event-loop and memory watchdog. Without it, severe stalls can go undetected.",
+        liveness_check="is_alive",
+    ),
+    ServiceRequirement(
+        "Event Loop Monitor",
+        "event_loop_monitor",
+        ServiceTier.IMPORTANT,
+        "Fine-grained event-loop lag monitor. Without it, blocking regressions are harder to catch.",
+        liveness_check="is_alive",
+    ),
     # ── OPTIONAL: Background enrichments ──
     ServiceRequirement(
         "Mycelial Network",

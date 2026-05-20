@@ -3,28 +3,29 @@ core/ops/lymphatic_reaper.py
 Enterprise Maintenance: Cleans uporphaned processes, stale file handles, and fragments.
 Inspired by the biological lymphatic system.
 """
-from core.runtime.errors import record_degradation
-from core.utils.task_tracker import get_task_tracker
+
 import asyncio
 import logging
 import os
-import psutil
 import shutil
 import time
 from pathlib import Path
-from typing import Dict, List, Optional
 
-from core.container import ServiceContainer
+import psutil
+
 from core.observability.metrics import get_metrics
+from core.runtime.errors import record_degradation
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.Reaper")
 metrics = get_metrics()
+
 
 class LymphaticReaper:
     def __init__(self, interval_s: float = 300.0):
         self._interval = interval_s
         self._running = False
-        self._task: Optional[asyncio.Task] = None
+        self._task: asyncio.Task | None = None
         self._data_dir = Path(os.environ.get("AURA_DATA_DIR", "~/.aura/data")).expanduser()
 
     async def start(self):
@@ -41,15 +42,19 @@ class LymphaticReaper:
             try:
                 await self._task
             except asyncio.CancelledError as _e:
-                logger.debug('Ignored asyncio.CancelledError in lymphatic_reaper.py: %s', _e)
+                logger.debug("Ignored asyncio.CancelledError in lymphatic_reaper.py: %s", _e)
         logger.info("🛡️ Lymphatic Reaper shutdown.")
+
+    def is_alive(self) -> bool:
+        """Return True only when the reaper loop is actively supervised."""
+        return bool(self._running and self._task is not None and not self._task.done())
 
     async def _run_loop(self):
         while self._running:
             try:
                 await self.sweep()
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-                record_degradation('lymphatic_reaper', e)
+                record_degradation("lymphatic_reaper", e)
                 logger.error("Reaper sweep failed: %s", e)
             await asyncio.sleep(self._interval)
 
@@ -57,18 +62,21 @@ class LymphaticReaper:
         """Execute all maintenance tasks."""
         start_time = time.time()
         logger.debug("🧼 Starting lymphatic sweep...")
-        
+
         proc_cleaned = self._hunt_orphans()
         fs_cleaned = self._filesystem_sweep()
-        mem_freed = self._defragment_memory()
-        
+        memory_defragmented = self._defragment_memory()
+
         duration = time.time() - start_time
         logger.info(
             "🧼 Sweep complete: %d procs reaped, %.1fMB storage reclaimed. (Duration: %.2fs)",
-            proc_cleaned, fs_cleaned / (1024*1024), duration
+            proc_cleaned,
+            fs_cleaned / (1024 * 1024),
+            duration,
         )
-        
+
         metrics.gauge("reaper.sweep_duration_s", duration)
+        metrics.gauge("reaper.memory_defragmented", 1.0 if memory_defragmented else 0.0)
         metrics.increment("reaper.sweeps_total")
 
     def _hunt_orphans(self) -> int:
@@ -81,11 +89,13 @@ class LymphaticReaper:
                 if child.status() == psutil.STATUS_ZOMBIE:
                     child.wait()
                     count += 1
-                elif time.time() - child.create_time() > 3600: # 1 hour limit for anonymous children
+                elif (
+                    time.time() - child.create_time() > 3600
+                ):  # 1 hour limit for anonymous children
                     child.terminate()
                     count += 1
             except (psutil.NoSuchProcess, psutil.AccessDenied):
-                logger.debug('Ignored Exception in lymphatic_reaper.py: %s', "unknown_error")
+                logger.debug("Ignored Exception in lymphatic_reaper.py: %s", "unknown_error")
         return count
 
     def _filesystem_sweep(self) -> int:
@@ -102,21 +112,24 @@ class LymphaticReaper:
                             f.unlink()
                         elif f.is_dir():
                             shutil.rmtree(f)
-                except (OSError, IOError) as e:
-                    record_degradation('lymphatic_reaper', e)
+                except OSError as e:
+                    record_degradation("lymphatic_reaper", e)
                     logger.debug("Reaper: failed to clean %s: %s", f, e)
         return reclaimed
 
     def _defragment_memory(self) -> bool:
         """Clear internal caches and trigger GC."""
         import gc
+
         gc.collect()
-        
+
         # If we have a vector store or MLX model, trigger their specific clears if possible
         # For now, just a generic log
         return True
 
-_reaper: Optional[LymphaticReaper] = None
+
+_reaper: LymphaticReaper | None = None
+
 
 def get_reaper() -> LymphaticReaper:
     global _reaper

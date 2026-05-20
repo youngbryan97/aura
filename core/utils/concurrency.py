@@ -1,12 +1,14 @@
-from core.runtime.errors import record_degradation
-from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 import os
 import random
+import threading
 import time
-from typing import List, Optional, Any, Set, Dict
 from dataclasses import dataclass
+from typing import Any
+
+from core.runtime.errors import record_degradation
+from core.utils.task_tracker import get_task_tracker
 
 # Use the centralized enhanced logger
 try:
@@ -17,11 +19,13 @@ except ImportError:
 # Sentinels
 LOCK_SENTINEL = "LOCK_ACQUIRED"
 
+
 async def run_io_bound(func, *args, **kwargs):
     """
     Runs a blocking I/O bound function in a separate thread to avoid blocking the event loop.
     """
     import functools
+
     if hasattr(asyncio, "to_thread"):
         # Python 3.9+
         return await asyncio.to_thread(func, *args, **kwargs)
@@ -30,7 +34,6 @@ async def run_io_bound(func, *args, **kwargs):
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, functools.partial(func, *args, **kwargs))
 
-import threading
 
 class RobustLock:
     """
@@ -38,8 +41,10 @@ class RobustLock:
     Uses an internal threading.Lock to allow sharing across multiple asyncio event loops.
     ZENITH LOCKDOWN: Adaptive timeouts and GPU load scaling.
     """
+
     def __init__(self, name: str = "UnnamedLock"):
         import uuid
+
         self.name = name
         full_id = str(uuid.uuid4())
         self.id = full_id[:8]
@@ -49,34 +54,47 @@ class RobustLock:
         self.last_acquire_start = 0.0
 
     @staticmethod
-    def _watchdog_report_acquire_start(watchdog: Any, lock_id: str, name: str, callback: Any) -> None:
+    def _watchdog_report_acquire_start(
+        watchdog: Any, lock_id: str, name: str, callback: Any
+    ) -> None:
         try:
             watchdog.report_acquire_start(lock_id, name, on_stall=callback)
         except TypeError:
             watchdog.report_acquire_start(lock_id, name)
 
-    async def acquire_robust(self, timeout: Optional[float] = None, max_retries: int = 3) -> bool:
+    async def acquire_robust(  # noqa: ASYNC109
+        self,
+        timeout: float | None = None,  # noqa: ASYNC109
+        max_retries: int = 3,
+    ) -> bool:
         """
         Attempts to acquire the lock with a timeout and retries.
         """
         wait_time = timeout or self.timeout
-        
+
         # 0. Register with Watchdog
         from core.resilience.lock_watchdog import get_lock_watchdog
+
         watchdog = get_lock_watchdog()
         self._watchdog_report_acquire_start(watchdog, self.id, self.name, self.force_release)
-        
+
         # Adaptive Scaling: if GPU is saturated, extend timeout
         if self.adaptive:
             # We check the metrics collector for GPU load if possible
             try:
                 from core.observability.metrics import get_metrics
+
                 m = get_metrics()._custom_gauges.get("gpu_utilization", 0)
                 if m > 0.8:
                     wait_time = max(wait_time, 180.0)
-                    logger.debug("🛡️ [ADAPTIVE] GPU Saturated (%s). Extending '%s' timeout to %ss", f"{m:.2f}", self.name, wait_time)
+                    logger.debug(
+                        "🛡️ [ADAPTIVE] GPU Saturated (%s). Extending '%s' timeout to %ss",
+                        f"{m:.2f}",
+                        self.name,
+                        wait_time,
+                    )
             except (ImportError, AttributeError, RuntimeError) as _exc:
-                record_degradation('concurrency', _exc)
+                record_degradation("concurrency", _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
 
         async def _await_threaded_acquire(acquire_timeout: float) -> bool:
@@ -90,7 +108,9 @@ class RobustLock:
                 while not acquire_task.done():
                     elapsed = time.monotonic() - start_wait
                     if elapsed > 0:
-                        watchdog.report_wait_progress(self.id) # Notify watchdog we are actively waiting
+                        watchdog.report_wait_progress(
+                            self.id
+                        )  # Notify watchdog we are actively waiting
                     done, pending = await asyncio.wait([acquire_task], timeout=1.0)
                     if done:
                         break
@@ -107,7 +127,7 @@ class RobustLock:
                     try:
                         self._lock.release()
                     except (RuntimeError, AttributeError, TypeError, ValueError) as _exc:
-                        record_degradation('concurrency', _exc)
+                        record_degradation("concurrency", _exc)
                         logger.debug("Suppressed Exception: %s", _exc)
                 watchdog.report_release(self.id)
                 raise
@@ -120,7 +140,7 @@ class RobustLock:
             except asyncio.CancelledError:
                 raise
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-                record_degradation('concurrency', e)
+                record_degradation("concurrency", e)
                 watchdog.report_release(self.id)
                 logger.error("Unexpected error acquiring lock '%s': %s", self.name, e)
                 break
@@ -131,7 +151,9 @@ class RobustLock:
                 return True
 
             watchdog.report_release(self.id)
-            logger.warning("Attempt %s/%s: Timeout waiting for '%s'.", attempt + 1, max_retries, self.name)
+            logger.warning(
+                "Attempt %s/%s: Timeout waiting for '%s'.", attempt + 1, max_retries, self.name
+            )
             await asyncio.sleep(random.uniform(0.1, 0.5))
 
         # Safety valve: force-release the EXISTING lock (don't reinitialize)
@@ -162,10 +184,11 @@ class RobustLock:
             if self._lock.locked():
                 self._lock.release()
                 from core.resilience.lock_watchdog import get_lock_watchdog
+
                 get_lock_watchdog().report_release(self.id)
                 logger.debug("Released lock: '%s'", self.name)
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('concurrency', e)
+            record_degradation("concurrency", e)
             logger.debug("RobustLock.release() error for '%s': %s", self.name, e)
 
     def force_release(self):
@@ -180,8 +203,8 @@ class RobustLock:
         except RuntimeError:
             # release() on an unlocked lock — harmless
             pass  # no-op: intentional
-        except (RuntimeError, AttributeError, TypeError, ValueError) as _exc:
-            record_degradation('concurrency', _exc)
+        except (AttributeError, TypeError, ValueError) as _exc:
+            record_degradation("concurrency", _exc)
             logger.debug("Suppressed Exception: %s", _exc)
 
     def locked(self) -> bool:
@@ -194,7 +217,8 @@ class RobustLock:
 
     @property
     def held_duration(self) -> float:
-        if not self.locked(): return 0.0
+        if not self.locked():
+            return 0.0
         return time.monotonic() - self.last_acquire_start
 
     async def __aenter__(self):
@@ -204,18 +228,26 @@ class RobustLock:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         self.release()
 
+
 @dataclass(frozen=True, order=True)
 class LockableResource:
     """A resource identifier for strict ordering."""
+
     name: str
     lock: RobustLock
+
 
 class DeadlockPrevention:
     """
     Implements the 'Strict Lock Ordering + Timeout Fallback' protocol.
     """
+
     @staticmethod
-    async def acquire_multiple(resources: List[LockableResource], timeout: float = 2.0, max_retries: int = 5) -> bool:
+    async def acquire_multiple(  # noqa: ASYNC109
+        resources: list[LockableResource],
+        timeout: float = 2.0,  # noqa: ASYNC109
+        max_retries: int = 5,
+    ) -> bool:
         """
         Acquires multiple locks in a strict alphabetical order with timeout/retry logic.
         """
@@ -223,11 +255,11 @@ class DeadlockPrevention:
         sorted_resources = sorted(resources, key=lambda r: r.name)
         resource_names = [r.name for r in sorted_resources]
         logger.debug("Starting multi-lock acquisition for: %s", resource_names)
-        
+
         for attempt in range(max_retries):
-            acquired_locks: List[LockableResource] = []
+            acquired_locks: list[LockableResource] = []
             success = True
-            
+
             for res in sorted_resources:
                 # Inner acquisition uses no retries here because the outer loop handles it
                 # But we use the robust method for the timeout logic
@@ -236,7 +268,7 @@ class DeadlockPrevention:
                 else:
                     success = False
                     break
-            
+
             if success:
                 logger.info("All locks acquired for: %s", resource_names)
                 return True
@@ -244,11 +276,13 @@ class DeadlockPrevention:
                 # Phase 4a: Release what we managed to grab
                 for res in reversed(acquired_locks):
                     res.lock.release()
-                
-                logger.debug("Backing off after failed attempt %s for %s", attempt + 1, resource_names)
+
+                logger.debug(
+                    "Backing off after failed attempt %s for %s", attempt + 1, resource_names
+                )
                 # Phase 4b: Randomized backoff before next attempt
                 await asyncio.sleep(random.uniform(0.1, 0.5))
-        
+
         # CRITICAL: Failed to resolve contention
         logger.error(
             f"MULTI-LOCK TRANSACTION FAILED: Max retries ({max_retries}) reached "
@@ -257,7 +291,7 @@ class DeadlockPrevention:
         return False
 
     @staticmethod
-    def release_multiple(resources: List[LockableResource]):
+    def release_multiple(resources: list[LockableResource]):
         """Releases multiple locks in reverse order."""
         # Sorting is not strictly necessary for release but good for consistency
         sorted_resources = sorted(resources, key=lambda r: r.name, reverse=True)
@@ -265,8 +299,10 @@ class DeadlockPrevention:
             if res.lock.locked():
                 res.lock.release()
 
+
 # Global Lock Registry to enforce unique names
-_LOCK_REGISTRY: Dict[str, RobustLock] = {}
+_LOCK_REGISTRY: dict[str, RobustLock] = {}
+
 
 def get_robust_lock(name: str) -> RobustLock:
     """Returns a named RobustLock instance, creating it if necessary."""
@@ -274,28 +310,33 @@ def get_robust_lock(name: str) -> RobustLock:
         _LOCK_REGISTRY[name] = RobustLock(name)
     return _LOCK_REGISTRY[name]
 
+
 class EventLoopMonitor:
     """
     Monitors the asyncio event loop for blocking operations.
     If the loop is delayed by more than 'threshold' seconds beyond its
     intended sleep interval, it logs a warning.
     """
-    def __init__(self, threshold: float = 0.75, interval: float = 1.0, startup_grace: float = 300.0):
+
+    def __init__(
+        self, threshold: float = 0.75, interval: float = 1.0, startup_grace: float = 300.0
+    ):
         try:
             self.threshold = float(os.getenv("AURA_EVENT_LOOP_MONITOR_THRESHOLD_S", str(threshold)))
         except (TypeError, ValueError):
             self.threshold = float(threshold)
         self.interval = interval
         try:
-            self.startup_grace = float(os.getenv("AURA_EVENT_LOOP_MONITOR_STARTUP_GRACE_S", str(startup_grace)))
+            self.startup_grace = float(
+                os.getenv("AURA_EVENT_LOOP_MONITOR_STARTUP_GRACE_S", str(startup_grace))
+            )
         except (TypeError, ValueError):
             self.startup_grace = float(startup_grace)
-        self.log_transient_lag = (
-            os.getenv("AURA_EVENT_LOOP_LOG_TRANSIENTS", "").strip().lower()
-            in {"1", "true", "yes"}
-        )
+        self.log_transient_lag = os.getenv(
+            "AURA_EVENT_LOOP_LOG_TRANSIENTS", ""
+        ).strip().lower() in {"1", "true", "yes"}
         self._stop_event = asyncio.Event()
-        self._task: Optional[asyncio.Task] = None
+        self._task: asyncio.Task | None = None
         self._last_lag: float = 0.0
         self._consecutive_breaches: int = 0
         self._started_at: float = 0.0
@@ -307,8 +348,11 @@ class EventLoopMonitor:
         self._stop_event.clear()
         self._started_at = time.perf_counter()
         self._task = get_task_tracker().create_task(self._run())
-        logger.info("🕒 EventLoopMonitor started (threshold=%.2fs, interval=%.1fs)", 
-                    self.threshold, self.interval)
+        logger.info(
+            "🕒 EventLoopMonitor started (threshold=%.2fs, interval=%.1fs)",
+            self.threshold,
+            self.interval,
+        )
 
     async def stop(self):
         """Stops the monitor gracefully."""
@@ -321,6 +365,12 @@ class EventLoopMonitor:
                 logger.debug("Suppressed asyncio.CancelledError: %s", _exc)
         logger.info("🕒 EventLoopMonitor stopped.")
 
+    def is_alive(self) -> bool:
+        """Return True when the monitor task is running and accepting ticks."""
+        return bool(
+            self._task is not None and not self._task.done() and not self._stop_event.is_set()
+        )
+
     async def _run(self):
         while not self._stop_event.is_set():
             start_time = time.perf_counter()
@@ -328,7 +378,7 @@ class EventLoopMonitor:
                 await asyncio.sleep(self.interval)
             except asyncio.CancelledError:
                 break
-            
+
             end_time = time.perf_counter()
             actual_elapsed = end_time - start_time
             lag = actual_elapsed - self.interval
@@ -362,7 +412,9 @@ class EventLoopMonitor:
                             ),
                         )
                     except (ImportError, AttributeError, RuntimeError) as _exc:
-                        logger.debug("Suppressed %s in core.utils.concurrency: %s", type(_exc).__name__, _exc)
+                        logger.debug(
+                            "Suppressed %s in core.utils.concurrency: %s", type(_exc).__name__, _exc
+                        )
                 elif self.log_transient_lag:
                     logger.debug(
                         "EventLoopMonitor: transient lag %.4fs observed (threshold=%.2fs).",
@@ -372,16 +424,18 @@ class EventLoopMonitor:
             else:
                 self._consecutive_breaches = 0
 
+
 class RobustSemaphore:
     """
-    A loop-agnostic version of a semaphore that uses threading.Semaphore 
+    A loop-agnostic version of a semaphore that uses threading.Semaphore
     to bridge across multiple event loops.
     """
+
     def __init__(self, value: int = 1, name: str = "UnnamedSemaphore"):
         self.name = name
         self._sem = threading.BoundedSemaphore(value)
 
-    async def acquire(self, timeout: Optional[float] = None) -> bool:
+    async def acquire(self, timeout: float | None = None) -> bool:  # noqa: ASYNC109
         """Acquire the semaphore asynchronously using to_thread.
 
         When a timeout is provided, the timeout is enforced inside the backing
@@ -411,7 +465,9 @@ class RobustSemaphore:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         self.release()
 
-_SEM_REGISTRY: Dict[str, RobustSemaphore] = {}
+
+_SEM_REGISTRY: dict[str, RobustSemaphore] = {}
+
 
 def get_robust_semaphore(name: str, value: int = 1) -> RobustSemaphore:
     """Returns a named RobustSemaphore instance, creating it if necessary."""
