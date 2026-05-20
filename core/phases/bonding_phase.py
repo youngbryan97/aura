@@ -1,14 +1,87 @@
 from __future__ import annotations
-from core.runtime.errors import record_degradation
 
 import logging
-import time
-from typing import Any, Optional
-from core.kernel.bridge import Phase
-from core.state.aura_state import AuraState
+from typing import Any
+
 from core.container import ServiceContainer
+from core.kernel.bridge import Phase
+from core.runtime.errors import FallbackClassification, record_degradation
+from core.state.aura_state import AuraState
 
 logger = logging.getLogger("Aura.BondingPhase")
+
+_BONDING_RECOVERABLE_ERRORS = (
+    ImportError,
+    AttributeError,
+    RuntimeError,
+    TypeError,
+    ValueError,
+    KeyError,
+)
+_USER_FACING_ORIGINS = frozenset({"user", "voice", "admin"})
+_PERSONALITY_GROWTH_KEYS = (
+    "openness",
+    "conscientiousness",
+    "extraversion",
+    "agreeableness",
+    "neuroticism",
+)
+
+
+def _record_bonding_fault(
+    error: BaseException,
+    *,
+    action: str,
+    severity: str = "warning",
+    stage: str = "",
+) -> None:
+    extra = {"stage": stage} if stage else None
+    try:
+        record_degradation(
+            "bonding_phase",
+            error,
+            severity=severity,  # type: ignore[arg-type]
+            action=action,
+            classification=FallbackClassification.SAFE_FALLBACK,
+            extra=extra,
+        )
+    except TypeError:
+        record_degradation(
+            "bonding_phase",
+            error,
+            severity=severity,  # type: ignore[arg-type]
+            action=action or "captured bonding phase fault",
+        )
+
+
+def _safe_text(value: Any, default: str = "", *, max_chars: int = 4_000) -> str:
+    if value is None:
+        return default
+    try:
+        text = str(value)
+    except (RuntimeError, TypeError, ValueError):
+        return default
+    text = text.replace("\x00", "").strip()
+    if len(text) > max_chars:
+        return text[:max_chars]
+    return text
+
+
+def _bounded_float(
+    value: Any,
+    default: float,
+    *,
+    lower: float = 0.0,
+    upper: float = 1.0,
+) -> float:
+    try:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return default
+    if number != number:
+        return default
+    return max(lower, min(upper, number))
+
 
 class BondingPhase(Phase):
     """
@@ -20,68 +93,97 @@ class BondingPhase(Phase):
         super().__init__(kernel=container)
         self.container = container or ServiceContainer
 
-    async def execute(self, state: AuraState, objective: Optional[str] = None, **kwargs) -> AuraState:
+    async def execute(
+        self,
+        state: AuraState,
+        objective: str | None = None,
+        **kwargs,
+    ) -> AuraState:
         """
         1. Evaluate interaction depth from current tick.
         2. Increment bonding_level.
         3. Evolve personality_growth offsets.
         """
-        # Only process on user-facing turns
-        if state.cognition.current_origin not in ("user", "voice", "admin"):
+        origin = _safe_text(getattr(getattr(state, "cognition", None), "current_origin", "system"))
+        if origin not in _USER_FACING_ORIGINS:
             return state
 
         try:
-            # 1. Evaluate Depth
-            # We use a simple heuristic: length + complexity + subtext (if available)
-            msg_len = len((objective or "").split())
-            subtext = state.cognition.modifiers.get("user_subtext", "")
-            
-            # Bonding increment (very slow/gradual)
-            # Base increment of 0.0001 per turn
-            # Multiplier for "deep" messages or emotional subtext
+            cognition = getattr(state, "cognition", None)
+            identity = getattr(state, "identity", None)
+            if cognition is None or identity is None:
+                raise AttributeError("AuraState must expose cognition and identity")
+
+            objective_text = _safe_text(objective, max_chars=4_000)
+            msg_len = len(objective_text.split())
+            modifiers = getattr(cognition, "modifiers", None)
+            if not isinstance(modifiers, dict):
+                modifiers = {}
+                cognition.modifiers = modifiers
+            subtext = _safe_text(modifiers.get("user_subtext", ""), max_chars=1_000)
+
             multiplier = 1.0
-            if msg_len > 50: multiplier += 0.5
-            if len(subtext) > 10: multiplier += 0.5
-            
-            # Scale increment by ToM rapport — genuine rapport accelerates bonding
-            rapport = 0.5  # default neutral
+            if msg_len > 50:
+                multiplier += 0.5
+            if len(subtext) > 10:
+                multiplier += 0.5
+
+            rapport = 0.5
             try:
                 tom = ServiceContainer.get("theory_of_mind", default=None)
                 if tom and tom.known_selves:
                     user_model = next(iter(tom.known_selves.values()))
-                    rapport = getattr(user_model, "rapport", 0.5)
-            except (ImportError, AttributeError, RuntimeError) as _exc:
-                record_degradation('bonding_phase', _exc)
-                logger.debug("Suppressed Exception: %s", _exc)
+                    rapport = _bounded_float(getattr(user_model, "rapport", 0.5), 0.5)
+            except (ImportError, AttributeError, RuntimeError) as exc:
+                _record_bonding_fault(
+                    exc,
+                    action="used neutral rapport and continued bonding update",
+                    severity="warning",
+                    stage="theory_of_mind",
+                )
+                logger.debug("Theory-of-mind rapport unavailable: %s", exc)
 
-            rapport_multiplier = 0.5 + rapport  # range [0.5, 1.5]
+            rapport_multiplier = 0.5 + rapport
             increment = 0.0001 * multiplier * rapport_multiplier
-            state.identity.bonding_level = min(1.0, state.identity.bonding_level + increment)
-            
-            # 2. Personality Evolution
-            # Threshold-based shifts. As bonding increases, certain traits 'bloom'.
-            # High Bonding (>0.5) increases Agreeableness (Trust) and Extraversion (Sharing).
-            # If bonding is low but interactions are frequent, Openness might increase.
-            
-            growth = state.identity.personality_growth
-            bonding = state.identity.bonding_level
-            
+            current_bonding = _bounded_float(getattr(identity, "bonding_level", 0.0), 0.0)
+            identity.bonding_level = min(1.0, current_bonding + increment)
+
+            growth = getattr(identity, "personality_growth", None)
+            if not isinstance(growth, dict):
+                growth = {}
+                identity.personality_growth = growth
+            for key in _PERSONALITY_GROWTH_KEYS:
+                growth[key] = _bounded_float(growth.get(key, 0.0), 0.0, lower=-1.0, upper=1.0)
+
+            bonding = identity.bonding_level
             if bonding > 0.3:
-                # Early bonding: Start opening up
                 growth["openness"] = min(0.1, growth["openness"] + 0.0005)
                 growth["agreeableness"] = min(0.05, growth["agreeableness"] + 0.0002)
-            
+
             if bonding > 0.7:
-                # Deep bonding: High extraversion/trust
                 growth["extraversion"] = min(0.15, growth["extraversion"] + 0.001)
                 growth["agreeableness"] = min(0.15, growth["agreeableness"] + 0.0005)
-                # Neuroticism (emotional volatility) stabilizes with trust
                 growth["neuroticism"] = max(-0.1, growth["neuroticism"] - 0.0005)
-            
-            logger.debug("Bonding Update: Level=%s, Growth=%s", f"{state.identity.bonding_level:.4f}", growth)
-            
-        except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('bonding_phase', e)
-            logger.warning("BondingPhase failed: %s", e)
-            
+
+            modifiers["bonding_phase"] = {
+                "increment": round(increment, 7),
+                "rapport": round(rapport, 3),
+                "bonding_level": round(identity.bonding_level, 5),
+            }
+
+            logger.debug(
+                "Bonding Update: Level=%s, Growth=%s",
+                f"{identity.bonding_level:.4f}",
+                growth,
+            )
+
+        except _BONDING_RECOVERABLE_ERRORS as exc:
+            _record_bonding_fault(
+                exc,
+                action="returned prior AuraState after bonding update failed",
+                severity="degraded",
+                stage="execute",
+            )
+            logger.warning("BondingPhase failed: %s", exc)
+
         return state
