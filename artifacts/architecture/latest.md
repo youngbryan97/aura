@@ -2,13 +2,13 @@
 
 Schema: `aura.architecture.dependency_map.v1`
 Root: `/Users/bryan/.aura/live-source`
-Generated: `1779253072.090226`
+Generated: `1779253259.72487`
 
 ## Summary
 
 - Subsystems: 120
 - Python files: 1539
-- Python lines: 417954
+- Python lines: 418101
 - Dependency edges: 649
 - ServiceContainer `.get()` calls: 1443
 - ServiceContainer registrations: 337
@@ -25,7 +25,7 @@ graph TD
     health["health<br/>3 files, 561 lines"]
     memory["memory<br/>64 files, 13437 lines"]
     agency["agency<br/>26 files, 10529 lines"]
-    adaptation["adaptation<br/>24 files, 10168 lines"]
+    adaptation["adaptation<br/>24 files, 10315 lines"]
     constitution["constitution<br/>1 files, 25 lines"]
     self_modification["self_modification<br/>29 files, 10187 lines"]
     senses["senses<br/>23 files, 4778 lines"]
@@ -802,8 +802,8 @@ graph TD
 | skills | 71 | 12458 | 524162 | 24 | 3 |
 | resilience | 53 | 10728 | 434600 | 16 | 24 |
 | agency | 26 | 10529 | 423359 | 17 | 17 |
+| adaptation | 24 | 10315 | 416720 | 15 | 14 |
 | self_modification | 29 | 10187 | 403177 | 11 | 13 |
-| adaptation | 24 | 10168 | 413043 | 15 | 14 |
 | environment | 80 | 8018 | 311751 | 10 | 2 |
 | cognitive | 11 | 7980 | 325215 | 9 | 4 |
 | autonomy | 22 | 7052 | 293577 | 16 | 7 |
@@ -1014,8 +1014,8 @@ graph TD
 Calls that can ask the single will authority to approve action.
 
 Review candidates:
-- `core/adaptation/adaptive_immunity.py:1607` [adaptation] `get_will` - decision = get_will().decide(
-- `core/adaptation/adaptive_immunity.py:1607` [adaptation] `get_will.decide` - decision = get_will().decide(
+- `core/adaptation/adaptive_immunity.py:1705` [adaptation] `get_will` - decision = get_will().decide(
+- `core/adaptation/adaptive_immunity.py:1705` [adaptation] `get_will.decide` - decision = get_will().decide(
 - `core/adaptation/online_lora_governor.py:168` [adaptation] `get_will` - decision = get_will().decide(
 - `core/adaptation/online_lora_governor.py:168` [adaptation] `get_will.decide` - decision = get_will().decide(
 - `core/agency_bus.py:86` [core_root] `get_will` - _auto_decision = get_will().decide(
@@ -1047,7 +1047,7 @@ Calls that can create durable or semantically promoted memory.
 Review candidates:
 - `core/adaptation/abstraction_engine.py:121` [adaptation] `MemoryWriteReceipt` - MemoryWriteReceipt(
 - `core/adaptation/abstraction_engine.py:140` [adaptation] `memory_facade.store` - await memory_facade.store(
-- `core/adaptation/adaptive_immunity.py:948` [adaptation] `self._cells.append` - self._cells.append(memory)
+- `core/adaptation/adaptive_immunity.py:1013` [adaptation] `self._cells.append` - self._cells.append(memory)
 - `core/advanced_cognition/continual_learning_stability.py:94` [advanced_cognition] `self._persist_memory` - self._persist_memory(rec)
 - `core/advanced_cognition/continual_learning_stability.py:98` [advanced_cognition] `self.store_memory` - return self.store_memory(
 - `core/advanced_cognition/continual_learning_stability.py:208` [advanced_cognition] `scored.append` - scored.append((score, memory))
@@ -1076,12 +1076,12 @@ Review candidates:
 Calls that can mutate runtime, identity, repository, or persistent state.
 
 Review candidates:
-- `core/adaptation/adaptive_immunity.py:672` [adaptation] `self._save_state` - self._save_state()
-- `core/adaptation/adaptive_immunity.py:973` [adaptation] `self._save_state` - self._save_state()
-- `core/adaptation/adaptive_immunity.py:1135` [adaptation] `self._save_state` - self._save_state()
-- `core/adaptation/adaptive_immunity.py:1208` [adaptation] `self._save_state` - self._save_state()
-- `core/adaptation/adaptive_immunity.py:1828` [adaptation] `self._save_state` - self._save_state()
-- `core/adaptation/adaptive_immunity.py:2134` [adaptation] `atomic_write_text` - atomic_write_text(self._state_path, json.dumps(payload, indent=2), encoding="utf-8")
+- `core/adaptation/adaptive_immunity.py:712` [adaptation] `self._save_state` - self._save_state()
+- `core/adaptation/adaptive_immunity.py:1040` [adaptation] `self._save_state` - self._save_state()
+- `core/adaptation/adaptive_immunity.py:1198` [adaptation] `self._save_state` - self._save_state()
+- `core/adaptation/adaptive_immunity.py:1277` [adaptation] `self._save_state` - self._save_state()
+- `core/adaptation/adaptive_immunity.py:1949` [adaptation] `self._save_state` - self._save_state()
+- `core/adaptation/adaptive_immunity.py:2266` [adaptation] `atomic_write_text` - atomic_write_text(self._state_path, json.dumps(payload, indent=2), encoding="utf-8")
 - `core/adaptation/autonomous_resilience.py:326` [adaptation] `set` - registered_names = set(registry.keys())
 - `core/adaptation/meta_learner.py:296` [adaptation] `np.savez_compressed` - np.savez_compressed(str(_STATE_PATH), **save_dict)
 - `core/adaptation/value_autopoiesis.py:140` [adaptation] `self._save_state` - self._save_state()
@@ -1216,8 +1216,8 @@ Review candidates:
 
 ## Degradation Handling
 
-- Total `record_degradation()` calls: 3126
-- Log-and-limp candidates: 2879
+- Total `record_degradation()` calls: 3122
+- Log-and-limp candidates: 2875
 - Nearby fail-closed candidates: 247
 
 Top limp-on files:

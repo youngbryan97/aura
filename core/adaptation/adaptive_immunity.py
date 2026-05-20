@@ -15,11 +15,8 @@ The design here deliberately keeps the adaptive layer *advisory and bounded*.
 It can execute only a narrow subset of repair actions through the existing
 autopoiesis engine. Everything sensitive remains governance-gated.
 """
+
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
-
-from core.runtime.atomic_writer import atomic_write_text
 
 import asyncio
 import copy
@@ -30,14 +27,17 @@ import math
 import threading
 import time
 from collections import Counter, defaultdict, deque
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
-from typing import Any, Deque, Dict, Iterable, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 
 from core.cognitive.anomaly_detector import FeatureExtractor
+from core.runtime.atomic_writer import atomic_write_text
+from core.runtime.errors import FallbackClassification, Severity, record_degradation
 
 logger = logging.getLogger("Aura.AdaptiveImmunity")
 
@@ -59,6 +59,24 @@ _ANTIGEN_DIM = 16
 _EPSILON = 1e-8
 
 
+def _record_adaptive_immunity_degradation(
+    error: BaseException,
+    *,
+    action: str,
+    severity: Severity = "warning",
+    extra: dict[str, Any] | None = None,
+) -> None:
+    record_degradation(
+        "adaptive_immunity",
+        error,
+        severity=severity,
+        action=action,
+        classification=FallbackClassification.SAFE_FALLBACK,
+        receipt_required=False,
+        extra=extra,
+    )
+
+
 def _json_safe(value: Any) -> Any:
     if value is None or isinstance(value, (str, int, float, bool)):
         return value
@@ -69,7 +87,7 @@ def _json_safe(value: Any) -> Any:
     return repr(value)
 
 
-class CellKind(str, Enum):
+class CellKind(StrEnum):
     DENDRITIC = "dendritic"
     B = "b_cell"
     CYTOTOXIC = "cytotoxic_t"
@@ -77,7 +95,7 @@ class CellKind(str, Enum):
     MEMORY = "memory"
 
 
-class EffectorKind(str, Enum):
+class EffectorKind(StrEnum):
     CLEAR_CACHE = "clear_cache"
     REDUCE_LOAD = "reduce_load"
     RESTART_COMPONENT = "restart_component"
@@ -135,14 +153,14 @@ class Antigen:
     temporal_pressure: float
     recurrence_pressure: float
     protected: bool = False
-    source_domain: str = "substrate" # "substrate" or "environment"
+    source_domain: str = "substrate"  # "substrate" or "environment"
     source: str = "unknown"
     error_signature: str = ""
     stack_trace: str = ""
     timestamp: float = field(default_factory=time.time)
-    context: Dict[str, Any] = field(default_factory=dict)
+    context: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "antigen_id": self.antigen_id,
             "subsystem": self.subsystem,
@@ -165,7 +183,7 @@ class Antigen:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "Antigen":
+    def from_dict(cls, data: dict[str, Any]) -> Antigen:
         vector = np.asarray(data.get("vector", [0.0] * _ANTIGEN_DIM), dtype=np.float32)
         if vector.shape[0] != _ANTIGEN_DIM:
             vector = np.resize(vector, (_ANTIGEN_DIM,)).astype(np.float32)
@@ -198,7 +216,7 @@ class EffectorArtifact:
     confidence: float
     source_cell_id: str
     lineage_id: str
-    bounded_payload: Dict[str, Any]
+    bounded_payload: dict[str, Any]
     governance_required: bool = True
     suppressed: bool = False
     governance_denied: bool = False
@@ -206,7 +224,7 @@ class EffectorArtifact:
     success: bool = False
     notes: str = ""
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "artifact_id": self.artifact_id,
             "kind": self.kind.value,
@@ -240,7 +258,7 @@ class ImmuneCell:
     species_id: int = 0
     clone_generation: int = 0
     regulatory_strength: float = 1.0
-    best_effector: Optional[EffectorKind] = None
+    best_effector: EffectorKind | None = None
     last_antigen_id: str = ""
     born_at: float = field(default_factory=time.time)
 
@@ -250,7 +268,7 @@ class ImmuneCell:
         rng: np.random.Generator,
         cell_id: str,
         mutation_sigma: float,
-    ) -> "ImmuneCell":
+    ) -> ImmuneCell:
         child = copy.deepcopy(self)
         child.cell_id = cell_id
         child.receptor = np.clip(
@@ -268,7 +286,7 @@ class ImmuneCell:
         child.born_at = time.time()
         return child
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "cell_id": self.cell_id,
             "lineage_id": self.lineage_id,
@@ -290,7 +308,7 @@ class ImmuneCell:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "ImmuneCell":
+    def from_dict(cls, data: dict[str, Any]) -> ImmuneCell:
         return cls(
             cell_id=str(data["cell_id"]),
             lineage_id=str(data["lineage_id"]),
@@ -307,9 +325,7 @@ class ImmuneCell:
             clone_generation=int(data.get("clone_generation", 0)),
             regulatory_strength=float(data.get("regulatory_strength", 1.0)),
             best_effector=(
-                EffectorKind(data["best_effector"])
-                if data.get("best_effector")
-                else None
+                EffectorKind(data["best_effector"]) if data.get("best_effector") else None
             ),
             last_antigen_id=str(data.get("last_antigen_id", "")),
             born_at=float(data.get("born_at", time.time())),
@@ -319,21 +335,21 @@ class ImmuneCell:
 @dataclass
 class ImmuneResponse:
     antigen: Antigen
-    activated_cells: List[Dict[str, Any]]
-    artifacts: List[EffectorArtifact]
-    selected_artifact: Optional[EffectorArtifact]
+    activated_cells: list[dict[str, Any]]
+    artifacts: list[EffectorArtifact]
+    selected_artifact: EffectorArtifact | None
     suppression_applied: float
     metabolic_scale: float
     entropy_pressure: float
     proliferation_count: int
     species_count: int
-    tissue_snapshot: Dict[str, Any]
+    tissue_snapshot: dict[str, Any]
     dream_consolidated: bool = False
-    coverage_report: Dict[str, Any] = field(default_factory=dict)
-    verification_report: Dict[str, Any] = field(default_factory=dict)
-    diagnostic_verdict: Dict[str, Any] = field(default_factory=dict)
+    coverage_report: dict[str, Any] = field(default_factory=dict)
+    verification_report: dict[str, Any] = field(default_factory=dict)
+    diagnostic_verdict: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "antigen": self.antigen.to_dict(),
             "activated_cells": self.activated_cells,
@@ -370,11 +386,11 @@ class TissueField:
     def __init__(self, *, diffusion: float = 0.16, decay: float = 0.06):
         self._diffusion = diffusion
         self._decay = decay
-        self._edges: Dict[str, Dict[str, float]] = defaultdict(dict)
-        self._danger: Dict[str, float] = defaultdict(float)
-        self._inflammation: Dict[str, float] = defaultdict(float)
-        self._damage: Dict[str, float] = defaultdict(float)
-        self._repair: Dict[str, float] = defaultdict(float)
+        self._edges: dict[str, dict[str, float]] = defaultdict(dict)
+        self._danger: dict[str, float] = defaultdict(float)
+        self._inflammation: dict[str, float] = defaultdict(float)
+        self._damage: dict[str, float] = defaultdict(float)
+        self._repair: dict[str, float] = defaultdict(float)
 
     def ensure_node(self, name: str) -> str:
         node = str(name or "unknown")
@@ -398,7 +414,8 @@ class TissueField:
             self._inflammation[node] + 0.35 * antigen.danger + 0.20 * antigen.subsystem_need
         )
         self._damage[node] = self._clip(
-            self._damage[node] + 0.25 * max(antigen.resource_pressure, antigen.error_load, antigen.health_pressure)
+            self._damage[node]
+            + 0.25 * max(antigen.resource_pressure, antigen.error_load, antigen.health_pressure)
         )
         self._repair[node] = self._clip(max(0.0, self._repair[node] - 0.08))
         self.diffuse()
@@ -436,7 +453,7 @@ class TissueField:
             - 0.35 * self._repair[node]
         )
 
-    def snapshot(self, top_k: int = 8) -> Dict[str, Any]:
+    def snapshot(self, top_k: int = 8) -> dict[str, Any]:
         nodes = list(self._edges.keys())
         hot = sorted(
             nodes,
@@ -449,12 +466,11 @@ class TissueField:
             "damage": {node: round(self._damage[node], 4) for node in hot},
             "repair": {node: round(self._repair[node], 4) for node in hot},
             "hotspots": [
-                {"subsystem": node, "need": round(self.get_need(node), 4)}
-                for node in hot
+                {"subsystem": node, "need": round(self.get_need(node), 4)} for node in hot
             ],
         }
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "edges": {node: dict(neighbors) for node, neighbors in self._edges.items()},
             "danger": dict(self._danger),
@@ -466,38 +482,44 @@ class TissueField:
     @classmethod
     def from_dict(
         cls,
-        data: Dict[str, Any],
+        data: dict[str, Any],
         *,
         diffusion: float,
         decay: float,
-    ) -> "TissueField":
+    ) -> TissueField:
         field_obj = cls(diffusion=diffusion, decay=decay)
-        field_obj._edges = defaultdict(dict, {
-            str(node): {str(neighbor): float(weight) for neighbor, weight in neighbors.items()}
-            for node, neighbors in data.get("edges", {}).items()
-        })
-        field_obj._danger = defaultdict(float, {
-            str(node): float(value) for node, value in data.get("danger", {}).items()
-        })
-        field_obj._inflammation = defaultdict(float, {
-            str(node): float(value) for node, value in data.get("inflammation", {}).items()
-        })
-        field_obj._damage = defaultdict(float, {
-            str(node): float(value) for node, value in data.get("damage", {}).items()
-        })
-        field_obj._repair = defaultdict(float, {
-            str(node): float(value) for node, value in data.get("repair", {}).items()
-        })
+        field_obj._edges = defaultdict(
+            dict,
+            {
+                str(node): {str(neighbor): float(weight) for neighbor, weight in neighbors.items()}
+                for node, neighbors in data.get("edges", {}).items()
+            },
+        )
+        field_obj._danger = defaultdict(
+            float, {str(node): float(value) for node, value in data.get("danger", {}).items()}
+        )
+        field_obj._inflammation = defaultdict(
+            float, {str(node): float(value) for node, value in data.get("inflammation", {}).items()}
+        )
+        field_obj._damage = defaultdict(
+            float, {str(node): float(value) for node, value in data.get("damage", {}).items()}
+        )
+        field_obj._repair = defaultdict(
+            float, {str(node): float(value) for node, value in data.get("repair", {}).items()}
+        )
         return field_obj
 
-    def _diffuse_scalar(self, values: Dict[str, float]) -> defaultdict[str, float]:
+    def _diffuse_scalar(self, values: dict[str, float]) -> defaultdict[str, float]:
         new_vals: defaultdict[str, float] = defaultdict(float)
         for node in self._edges:
             current = float(values[node])
             neighbors = self._edges.get(node, {})
             if neighbors:
                 total_w = sum(max(weight, 0.0) for weight in neighbors.values()) + _EPSILON
-                neighbor_mean = sum(values[neighbor] * weight for neighbor, weight in neighbors.items()) / total_w
+                neighbor_mean = (
+                    sum(values[neighbor] * weight for neighbor, weight in neighbors.items())
+                    / total_w
+                )
                 diffused = current + self._diffusion * (neighbor_mean - current)
             else:
                 diffused = current
@@ -524,8 +546,12 @@ class OfflineCoevolutionLab:
         population_size: int = 12,
         tau: float = 0.22,
         mutation_sigma: float = 0.05,
-    ) -> List[ImmuneCell]:
-        seeds = [copy.deepcopy(cell) for cell in cells if cell.kind in {CellKind.B, CellKind.CYTOTOXIC, CellKind.REGULATORY, CellKind.MEMORY}]
+    ) -> list[ImmuneCell]:
+        seeds = [
+            copy.deepcopy(cell)
+            for cell in cells
+            if cell.kind in {CellKind.B, CellKind.CYTOTOXIC, CellKind.REGULATORY, CellKind.MEMORY}
+        ]
         if not seeds:
             return []
         antigens = list(antigens)
@@ -545,7 +571,7 @@ class OfflineCoevolutionLab:
             population.append(clone)
 
         for _ in range(max(1, generations)):
-            scored: List[Tuple[float, ImmuneCell]] = []
+            scored: list[tuple[float, ImmuneCell]] = []
             for cell in population:
                 score = 0.0
                 for antigen in antigens:
@@ -561,7 +587,9 @@ class OfflineCoevolutionLab:
                             score -= 0.7 * affinity
                     else:
                         if cell.kind in {CellKind.B, CellKind.CYTOTOXIC, CellKind.MEMORY}:
-                            score += affinity * antigen.danger * (0.5 + 0.5 * antigen.subsystem_need)
+                            score += (
+                                affinity * antigen.danger * (0.5 + 0.5 * antigen.subsystem_need)
+                            )
                         elif cell.kind == CellKind.REGULATORY:
                             score -= 0.2 * affinity * antigen.danger
                 scored.append((score, cell))
@@ -608,10 +636,22 @@ class AdaptiveImmuneSystem:
 
     _FEATURE_WEIGHTS = np.asarray(
         [
-            0.70, 0.35, 0.35, 0.30,
-            0.80, 0.80, 0.25, 0.60,
-            1.00, 0.90, 0.85, 1.15,
-            0.70, 0.65, 0.65, 0.45,
+            0.70,
+            0.35,
+            0.35,
+            0.30,
+            0.80,
+            0.80,
+            0.25,
+            0.60,
+            1.00,
+            0.90,
+            0.85,
+            1.15,
+            0.70,
+            0.65,
+            0.65,
+            0.45,
         ],
         dtype=np.float32,
     )
@@ -620,24 +660,24 @@ class AdaptiveImmuneSystem:
         self,
         *,
         config: AdaptiveImmuneConfig | None = None,
-        state_dir: Optional[Path] = None,
-        rng_seed: Optional[int] = None,
+        state_dir: Path | None = None,
+        rng_seed: int | None = None,
     ):
         self.cfg = config or AdaptiveImmuneConfig()
         self._rng = np.random.default_rng(rng_seed)
         self._extractor = FeatureExtractor()
         self._lock = threading.RLock()
-        self._cells: List[ImmuneCell] = []
+        self._cells: list[ImmuneCell] = []
         self._tissue = TissueField(
             diffusion=self.cfg.tissue_diffusion,
             decay=self.cfg.tissue_decay,
         )
-        self._recent_antigens: Deque[Antigen] = deque(maxlen=self.cfg.replay_buffer_size)
-        self._recent_responses: Deque[Dict[str, Any]] = deque(
+        self._recent_antigens: deque[Antigen] = deque(maxlen=self.cfg.replay_buffer_size)
+        self._recent_responses: deque[dict[str, Any]] = deque(
             maxlen=self.cfg.recent_response_buffer
         )
         self._recent_subsystem_counts: Counter[str] = Counter()
-        self._recurrence_tracker: Dict[str, Dict[str, Any]] = defaultdict(
+        self._recurrence_tracker: dict[str, dict[str, Any]] = defaultdict(
             lambda: {
                 "occurrences": 0,
                 "last_seen": 0.0,
@@ -650,7 +690,7 @@ class AdaptiveImmuneSystem:
                 "last_verified_at": 0.0,
             }
         )
-        self._lineage_stats: Dict[str, Dict[str, Any]] = defaultdict(
+        self._lineage_stats: dict[str, dict[str, Any]] = defaultdict(
             lambda: {
                 "successes": 0,
                 "failures": 0,
@@ -683,10 +723,10 @@ class AdaptiveImmuneSystem:
 
     async def observe_event(
         self,
-        event: Dict[str, Any],
+        event: dict[str, Any],
         *,
         anomaly_score: Any | None = None,
-        state_snapshot: Optional[Dict[str, Any]] = None,
+        state_snapshot: dict[str, Any] | None = None,
     ) -> ImmuneResponse:
         antigen = self.present_antigen(
             event,
@@ -755,7 +795,7 @@ class AdaptiveImmuneSystem:
     def observe_error(
         self,
         error: Exception,
-        context: Optional[Dict[str, Any]] = None,
+        context: dict[str, Any] | None = None,
     ) -> ImmuneResponse:
         context = context or {}
         event = {
@@ -771,7 +811,9 @@ class AdaptiveImmuneSystem:
         }
         antigen = self.present_antigen(event, anomaly_score=None, state_snapshot=context)
         response, _top_cell = self._observe_core(antigen)
-        response.coverage_report = self._assess_coverage(event, antigen, anomaly_score=None, state_snapshot=context)
+        response.coverage_report = self._assess_coverage(
+            event, antigen, anomaly_score=None, state_snapshot=context
+        )
         response.verification_report = self._default_verification_report(
             status="not_executed",
             coverage_ratio=response.coverage_report["coverage_ratio"],
@@ -792,7 +834,7 @@ class AdaptiveImmuneSystem:
         exception_type: str,
         *,
         error_count: int = 1,
-        context: Optional[Dict[str, Any]] = None,
+        context: dict[str, Any] | None = None,
     ) -> ImmuneResponse:
         context = context or {}
         event = {
@@ -807,7 +849,9 @@ class AdaptiveImmuneSystem:
         }
         antigen = self.present_antigen(event, anomaly_score=None, state_snapshot=context)
         response, _top_cell = self._observe_core(antigen)
-        response.coverage_report = self._assess_coverage(event, antigen, anomaly_score=None, state_snapshot=context)
+        response.coverage_report = self._assess_coverage(
+            event, antigen, anomaly_score=None, state_snapshot=context
+        )
         response.verification_report = self._default_verification_report(
             status="not_executed",
             coverage_ratio=response.coverage_report["coverage_ratio"],
@@ -824,10 +868,10 @@ class AdaptiveImmuneSystem:
 
     def present_antigen(
         self,
-        event: Dict[str, Any],
+        event: dict[str, Any],
         *,
         anomaly_score: Any | None = None,
-        state_snapshot: Optional[Dict[str, Any]] = None,
+        state_snapshot: dict[str, Any] | None = None,
     ) -> Antigen:
         with self._lock:
             subsystem = self._canonical_subsystem(
@@ -848,7 +892,11 @@ class AdaptiveImmuneSystem:
                     min(1.0, float(event.get("ram", 0.0)) / 100.0),
                 )
             )
-            error_load = min(1.0, float(event.get("error_rate", 0.0)) + float(event.get("error_count", 0) or 0) / 10.0)
+            error_load = min(
+                1.0,
+                float(event.get("error_rate", 0.0))
+                + float(event.get("error_count", 0) or 0) / 10.0,
+            )
             error_signature = str(
                 event.get("exception_type")
                 or event.get("error_signature")
@@ -863,7 +911,9 @@ class AdaptiveImmuneSystem:
             )
             stack_trace = str(event.get("stack_trace", "") or "")
             stack_complexity = min(1.0, len(stack_trace) / 1200.0)
-            protected = bool(event.get("protected", False) or self._is_protected_subsystem(subsystem))
+            protected = bool(
+                event.get("protected", False) or self._is_protected_subsystem(subsystem)
+            )
             health_pressure = self._component_health_pressure(subsystem, state_snapshot)
             temporal_pressure = min(
                 1.0,
@@ -885,7 +935,9 @@ class AdaptiveImmuneSystem:
             )
             subsystem_need = max(
                 tissue_need_prior,
-                0.48 * danger + 0.32 * max(health_pressure, resource_pressure, error_load) + 0.20 * recurrence_pressure,
+                0.48 * danger
+                + 0.32 * max(health_pressure, resource_pressure, error_load)
+                + 0.20 * recurrence_pressure,
             )
 
             vector = np.zeros(self.cfg.receptor_dim, dtype=np.float32)
@@ -899,7 +951,9 @@ class AdaptiveImmuneSystem:
             vector[14] = max(temporal_pressure, recurrence_pressure)
             vector[15] = stack_complexity
 
-            antigen_id = f"ag_{hashlib.sha1(f'{subsystem}:{time.time()}'.encode()).hexdigest()[:12]}"
+            antigen_id = (
+                f"ag_{hashlib.sha1(f'{subsystem}:{time.time()}'.encode()).hexdigest()[:12]}"
+            )
 
             antigen = Antigen(
                 antigen_id=antigen_id,
@@ -921,14 +975,16 @@ class AdaptiveImmuneSystem:
             )
             return antigen
 
-    def dream_consolidate(self) -> Dict[str, Any]:
+    def dream_consolidate(self) -> dict[str, Any]:
         with self._lock:
             promotions = 0
             removed = 0
 
             for cell in self._cells:
                 cell.age += 1
-                decay = self.cfg.memory_decay if cell.kind == CellKind.MEMORY else self.cfg.basal_decay
+                decay = (
+                    self.cfg.memory_decay if cell.kind == CellKind.MEMORY else self.cfg.basal_decay
+                )
                 cell.persistence = max(0.0, cell.persistence - decay * (1.0 + 0.15 * cell.failures))
                 cell.fitness *= 0.98
 
@@ -936,14 +992,23 @@ class AdaptiveImmuneSystem:
                 lineage = self._lineage_stats[cell.lineage_id]
                 if (
                     cell.kind != CellKind.MEMORY
-                    and (cell.successes >= self.cfg.lineage_memory_successes or lineage["successes"] >= self.cfg.lineage_memory_successes)
-                    and max(cell.fitness, float(lineage["best_fitness"])) >= self.cfg.lineage_memory_fitness
+                    and (
+                        cell.successes >= self.cfg.lineage_memory_successes
+                        or lineage["successes"] >= self.cfg.lineage_memory_successes
+                    )
+                    and max(cell.fitness, float(lineage["best_fitness"]))
+                    >= self.cfg.lineage_memory_fitness
                 ):
-                    if not any(existing.lineage_id == cell.lineage_id and existing.kind == CellKind.MEMORY for existing in self._cells):
+                    if not any(
+                        existing.lineage_id == cell.lineage_id and existing.kind == CellKind.MEMORY
+                        for existing in self._cells
+                    ):
                         memory = copy.deepcopy(cell)
                         memory.cell_id = f"mem_{hashlib.sha1((cell.cell_id + str(time.time())).encode()).hexdigest()[:10]}"
                         memory.kind = CellKind.MEMORY
-                        memory.persistence = min(1.0, memory.persistence + self.cfg.persistence_boost + 0.15)
+                        memory.persistence = min(
+                            1.0, memory.persistence + self.cfg.persistence_boost + 0.15
+                        )
                         memory.regulatory_strength = max(memory.regulatory_strength, 1.0)
                         self._cells.append(memory)
                         promotions += 1
@@ -966,7 +1031,9 @@ class AdaptiveImmuneSystem:
             self._prune_population()
 
             for cell in list(self._cells):
-                if cell.persistence <= 0.03 or (cell.fitness < -0.55 and cell.kind != CellKind.REGULATORY):
+                if cell.persistence <= 0.03 or (
+                    cell.fitness < -0.55 and cell.kind != CellKind.REGULATORY
+                ):
                     self._cells.remove(cell)
                     removed += 1
 
@@ -979,7 +1046,7 @@ class AdaptiveImmuneSystem:
                 "species_count": self._species_count,
             }
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         with self._lock:
             by_kind = Counter(cell.kind.value for cell in self._cells)
             hot_tissue = self._tissue.snapshot()
@@ -1029,7 +1096,7 @@ class AdaptiveImmuneSystem:
     # Core observation and evolution
     # ------------------------------------------------------------------
 
-    def _observe_core(self, antigen: Antigen) -> Tuple[ImmuneResponse, Optional[ImmuneCell]]:
+    def _observe_core(self, antigen: Antigen) -> tuple[ImmuneResponse, ImmuneCell | None]:
         with self._lock:
             self._observation_count += 1
             self._recent_subsystem_counts[antigen.subsystem] += 1
@@ -1038,9 +1105,9 @@ class AdaptiveImmuneSystem:
             self._tissue.ingest_antigen(antigen)
 
             metabolic_scale, entropy_pressure = self._metabolic_context()
-            activated: List[Tuple[ImmuneCell, float, float]] = []
+            activated: list[tuple[ImmuneCell, float, float]] = []
             regulatory_suppression = 0.0
-            dominant_regulatory: Optional[ImmuneCell] = None
+            dominant_regulatory: ImmuneCell | None = None
 
             for cell in self._cells:
                 affinity = self._affinity(cell, antigen)
@@ -1058,8 +1125,8 @@ class AdaptiveImmuneSystem:
                     activated.append((cell, affinity, activation))
 
             activated.sort(key=lambda item: item[2], reverse=True)
-            artifacts: List[EffectorArtifact] = []
-            top_cell: Optional[ImmuneCell] = None
+            artifacts: list[EffectorArtifact] = []
+            top_cell: ImmuneCell | None = None
 
             for cell, affinity, activation in activated[: self.cfg.max_artifacts_per_antigen]:
                 if top_cell is None:
@@ -1080,11 +1147,7 @@ class AdaptiveImmuneSystem:
                 )
 
             selected_artifact = max(
-                (
-                    artifact
-                    for artifact in artifacts
-                    if not artifact.suppressed
-                ),
+                (artifact for artifact in artifacts if not artifact.suppressed),
                 key=lambda artifact: artifact.confidence,
                 default=None,
             )
@@ -1139,7 +1202,9 @@ class AdaptiveImmuneSystem:
         with self._lock:
             false_positive_cost = 0.25 if antigen.danger < 0.22 else 0.0
             entropy_cost = 0.12 * response.entropy_pressure
-            regulatory_reward = 0.25 if antigen.protected and response.suppression_applied > 0.18 else 0.0
+            regulatory_reward = (
+                0.25 if antigen.protected and response.suppression_applied > 0.18 else 0.0
+            )
             for cell_summary in response.activated_cells[:3]:
                 cell = self._find_cell(cell_summary["cell_id"])
                 if cell is None:
@@ -1155,8 +1220,8 @@ class AdaptiveImmuneSystem:
         *,
         antigen: Antigen,
         response: ImmuneResponse,
-        acting_cell: Optional[ImmuneCell],
-        verification_report: Optional[Dict[str, Any]] = None,
+        acting_cell: ImmuneCell | None,
+        verification_report: dict[str, Any] | None = None,
     ) -> int:
         if not response.selected_artifact or acting_cell is None:
             return 0
@@ -1168,7 +1233,11 @@ class AdaptiveImmuneSystem:
         health_delta = max(0.0, float(verification_report.get("health_delta", 0.0) or 0.0))
         repair_gain = 1.0 if verified_success else 0.22 if raw_success else 0.0
         recurrence_reduction = min(0.45, 0.15 + 0.45 * health_delta) if verified_success else 0.0
-        recovery_speed = min(1.0, artifact.confidence * (0.35 + 0.90 * health_delta)) if artifact.executed else 0.0
+        recovery_speed = (
+            min(1.0, artifact.confidence * (0.35 + 0.90 * health_delta))
+            if artifact.executed
+            else 0.0
+        )
         false_positive_cost = 0.35 if antigen.danger < 0.25 else 0.0
         entropy_cost = 0.18 * response.entropy_pressure + 0.05
         governance_penalty = 0.70 if artifact.governance_denied else 0.0
@@ -1249,7 +1318,7 @@ class AdaptiveImmuneSystem:
         antigen: Antigen,
         affinity: float,
         activation: float,
-    ) -> Optional[EffectorArtifact]:
+    ) -> EffectorArtifact | None:
         kind = None
         notes = ""
         if cell.kind == CellKind.DENDRITIC:
@@ -1258,21 +1327,24 @@ class AdaptiveImmuneSystem:
         if cell.kind in {CellKind.B, CellKind.MEMORY}:
             sig = antigen.error_signature.lower()
             text = f"{antigen.source} {sig}".lower()
-            if any(
-                token in text
-                for token in (
-                    "zerodivision",
-                    "typeerror",
-                    "attributeerror",
-                    "nameerror",
-                    "importerror",
-                    "keyerror",
-                    "indexerror",
-                    "schema drift",
-                    "null",
-                    "none",
+            if (
+                any(
+                    token in text
+                    for token in (
+                        "zerodivision",
+                        "typeerror",
+                        "attributeerror",
+                        "nameerror",
+                        "importerror",
+                        "keyerror",
+                        "indexerror",
+                        "schema drift",
+                        "null",
+                        "none",
+                    )
                 )
-            ) and antigen.stack_trace:
+                and antigen.stack_trace
+            ):
                 kind = EffectorKind.PATCH_PROPOSAL
             elif "lock" in text or "cache" in text:
                 kind = EffectorKind.CLEAR_CACHE
@@ -1317,10 +1389,7 @@ class AdaptiveImmuneSystem:
             0.0,
             min(
                 0.99,
-                0.25
-                + 0.45 * activation
-                + 0.20 * affinity
-                + 0.10 * max(cell.fitness, 0.0),
+                0.25 + 0.45 * activation + 0.20 * affinity + 0.10 * max(cell.fitness, 0.0),
             ),
         )
         artifact_id = f"eff_{hashlib.sha1(f'{cell.cell_id}:{antigen.antigen_id}:{kind.value}'.encode()).hexdigest()[:12]}"
@@ -1347,8 +1416,8 @@ class AdaptiveImmuneSystem:
         artifact: EffectorArtifact,
         antigen: Antigen,
         *,
-        coverage_report: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        coverage_report: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         coverage_report = coverage_report or {"coverage_ratio": 0.0}
         coverage_ratio = float(coverage_report.get("coverage_ratio", 0.0) or 0.0)
         if artifact.suppressed:
@@ -1426,13 +1495,25 @@ class AdaptiveImmuneSystem:
                     "health_samples": [],
                     "coverage_ratio": round(coverage_ratio, 4),
                     "recurrence_risk": round(
-                        max(0.0, min(1.0, antigen.recurrence_pressure * (0.45 if applied else 1.0))),
+                        max(
+                            0.0, min(1.0, antigen.recurrence_pressure * (0.45 if applied else 1.0))
+                        ),
                         4,
                     ),
                     "notes": artifact.notes or "",
                 }
             except (OSError, ConnectionError, TimeoutError) as exc:
-                record_degradation('adaptive_immunity', exc)
+                _record_adaptive_immunity_degradation(
+                    exc,
+                    action="Marked patch artifact execution failed and returned an execution_error verification report",
+                    severity="degraded",
+                    extra={
+                        "artifact_id": artifact.artifact_id,
+                        "artifact_kind": artifact.kind.value,
+                        "component": artifact.component,
+                        "antigen_id": antigen.antigen_id,
+                    },
+                )
                 artifact.executed = True
                 artifact.success = False
                 artifact.notes = artifact.notes or f"patch execution failed: {exc}"
@@ -1478,7 +1559,11 @@ class AdaptiveImmuneSystem:
             artifact.success = verified_success
             if verified_success:
                 self._tissue.mark_repair(artifact.component, 0.40)
-            elif artifact.kind in {EffectorKind.QUARANTINE, EffectorKind.HALT_RUNAWAY, EffectorKind.REVOKE_TOOL}:
+            elif artifact.kind in {
+                EffectorKind.QUARANTINE,
+                EffectorKind.HALT_RUNAWAY,
+                EffectorKind.REVOKE_TOOL,
+            }:
                 self._tissue.mark_quarantine(artifact.component, 0.28)
             verification_report = {
                 "status": (
@@ -1501,7 +1586,10 @@ class AdaptiveImmuneSystem:
                 "health_samples": [round(float(sample), 4) for sample in health_samples],
                 "coverage_ratio": round(coverage_ratio, 4),
                 "recurrence_risk": round(
-                    max(0.0, min(1.0, antigen.recurrence_pressure * (0.55 if verified_success else 1.0))),
+                    max(
+                        0.0,
+                        min(1.0, antigen.recurrence_pressure * (0.55 if verified_success else 1.0)),
+                    ),
                     4,
                 ),
                 "notes": artifact.notes or "",
@@ -1511,7 +1599,17 @@ class AdaptiveImmuneSystem:
                 verification_report["notes"] = artifact.notes
             return verification_report
         except (ImportError, AttributeError, RuntimeError) as exc:
-            record_degradation('adaptive_immunity', exc)
+            _record_adaptive_immunity_degradation(
+                exc,
+                action="Marked autopoiesis artifact execution failed and returned an execution_error verification report",
+                severity="degraded",
+                extra={
+                    "artifact_id": artifact.artifact_id,
+                    "artifact_kind": artifact.kind.value,
+                    "component": artifact.component,
+                    "antigen_id": antigen.antigen_id,
+                },
+            )
             artifact.executed = True
             artifact.success = False
             artifact.notes = artifact.notes or f"execution failed: {exc}"
@@ -1521,8 +1619,8 @@ class AdaptiveImmuneSystem:
                 notes=artifact.notes,
             )
 
-    async def _sample_component_health(self, component: str) -> List[float]:
-        samples: List[float] = []
+    async def _sample_component_health(self, component: str) -> list[float]:
+        samples: list[float] = []
         checks = max(0, int(self.cfg.verification_checks))
         for idx in range(checks):
             if idx > 0 and self.cfg.verification_interval_s > 0.0:
@@ -1536,9 +1634,9 @@ class AdaptiveImmuneSystem:
         self,
         *,
         raw_success: bool,
-        health_before: Optional[float],
-        health_after: Optional[float],
-        health_samples: List[float],
+        health_before: float | None,
+        health_after: float | None,
+        health_samples: list[float],
     ) -> bool:
         if not raw_success:
             return False
@@ -1582,7 +1680,7 @@ class AdaptiveImmuneSystem:
         status: str,
         coverage_ratio: float,
         notes: str = "",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         return {
             "status": status,
             "raw_success": False,
@@ -1619,32 +1717,49 @@ class AdaptiveImmuneSystem:
             )
             return bool(decision.is_approved())
         except (ImportError, AttributeError, RuntimeError) as exc:
-            record_degradation('adaptive_immunity', exc)
+            _record_adaptive_immunity_degradation(
+                exc,
+                action="Denied protected adaptive immune action because authorization was unavailable",
+                severity="degraded",
+                extra={
+                    "artifact_id": artifact.artifact_id,
+                    "artifact_kind": artifact.kind.value,
+                    "component": artifact.component,
+                    "antigen_id": antigen.antigen_id,
+                },
+            )
             logger.debug("Protected-action authorization unavailable: %s", exc)
             return False
 
     def _assess_coverage(
         self,
-        event: Dict[str, Any],
+        event: dict[str, Any],
         antigen: Antigen,
         *,
         anomaly_score: Any | None,
-        state_snapshot: Optional[Dict[str, Any]],
-    ) -> Dict[str, Any]:
+        state_snapshot: dict[str, Any] | None,
+    ) -> dict[str, Any]:
         component_matches = self._component_monitor_matches(antigen.subsystem)
         channels = {
             "anomaly_model": anomaly_score is not None,
             "subsystem_identity": antigen.subsystem not in {"", "unknown"},
-            "error_telemetry": antigen.error_load > 0.0 or bool(event.get("error_count")) or bool(antigen.error_signature),
+            "error_telemetry": antigen.error_load > 0.0
+            or bool(event.get("error_count"))
+            or bool(antigen.error_signature),
             "resource_telemetry": any(key in event for key in ("resource_pressure", "cpu", "ram")),
             "health_probe": bool(component_matches),
-            "causal_trace": bool(event.get("stack_trace") or event.get("causal_trace") or antigen.stack_trace),
+            "causal_trace": bool(
+                event.get("stack_trace") or event.get("causal_trace") or antigen.stack_trace
+            ),
             "state_snapshot": bool(state_snapshot),
-            "temporal_history": antigen.recurrence_pressure > 0.0 or self._recent_subsystem_counts.get(antigen.subsystem, 0) > 0,
+            "temporal_history": antigen.recurrence_pressure > 0.0
+            or self._recent_subsystem_counts.get(antigen.subsystem, 0) > 0,
         }
-        coverage_ratio = sum(1.0 for present in channels.values() if present) / max(len(channels), 1)
+        coverage_ratio = sum(1.0 for present in channels.values() if present) / max(
+            len(channels), 1
+        )
         missing_channels = [name for name, present in channels.items() if not present]
-        blind_spots: List[str] = []
+        blind_spots: list[str] = []
         if "health_probe" in missing_channels:
             blind_spots.append("no direct health probe for this subsystem")
         if "causal_trace" in missing_channels:
@@ -1677,7 +1792,7 @@ class AdaptiveImmuneSystem:
         self,
         response: ImmuneResponse,
         antigen: Antigen,
-        coverage_report: Dict[str, Any],
+        coverage_report: dict[str, Any],
     ) -> None:
         coverage_ratio = float(coverage_report.get("coverage_ratio", 0.0) or 0.0)
         risky_kinds = {
@@ -1687,7 +1802,9 @@ class AdaptiveImmuneSystem:
             EffectorKind.SCHEMA_MIGRATION,
         }
         for artifact in response.artifacts:
-            artifact.confidence = max(0.0, min(0.99, artifact.confidence * (0.55 + 0.45 * coverage_ratio)))
+            artifact.confidence = max(
+                0.0, min(0.99, artifact.confidence * (0.55 + 0.45 * coverage_ratio))
+            )
             if (
                 coverage_ratio < self.cfg.low_coverage_floor
                 and artifact.kind in risky_kinds
@@ -1696,7 +1813,7 @@ class AdaptiveImmuneSystem:
                 artifact.suppressed = True
                 artifact.notes = artifact.notes or "suppressed under low observability"
 
-    def _execution_candidates(self, response: ImmuneResponse) -> List[EffectorArtifact]:
+    def _execution_candidates(self, response: ImmuneResponse) -> list[EffectorArtifact]:
         candidates = [
             artifact
             for artifact in response.artifacts
@@ -1705,7 +1822,7 @@ class AdaptiveImmuneSystem:
         candidates.sort(key=lambda artifact: artifact.confidence, reverse=True)
         return candidates
 
-    def _best_visible_artifact(self, response: ImmuneResponse) -> Optional[EffectorArtifact]:
+    def _best_visible_artifact(self, response: ImmuneResponse) -> EffectorArtifact | None:
         visible = [artifact for artifact in response.artifacts if not artifact.suppressed]
         if not visible:
             return None
@@ -1716,9 +1833,9 @@ class AdaptiveImmuneSystem:
         antigen: Antigen,
         response: ImmuneResponse,
         *,
-        coverage_report: Dict[str, Any],
-        verification_report: Dict[str, Any],
-    ) -> Dict[str, Any]:
+        coverage_report: dict[str, Any],
+        verification_report: dict[str, Any],
+    ) -> dict[str, Any]:
         coverage_ratio = float(coverage_report.get("coverage_ratio", 0.0) or 0.0)
         verification_status = str(verification_report.get("status", "not_executed"))
         verified_success = bool(verification_report.get("verified_success", False))
@@ -1796,8 +1913,8 @@ class AdaptiveImmuneSystem:
         *,
         status: str,
         antigen: Antigen,
-        coverage_report: Dict[str, Any],
-        verification_report: Dict[str, Any],
+        coverage_report: dict[str, Any],
+        verification_report: dict[str, Any],
     ) -> str:
         coverage_label = coverage_report.get("coverage_label", "thin")
         if status == "verified_recovery":
@@ -1809,9 +1926,13 @@ class AdaptiveImmuneSystem:
         if status == "confirmed_issue":
             return f"multiple signals confirm an active issue in {antigen.subsystem}"
         if status == "suspected_issue":
-            return f"signals suggest risk in {antigen.subsystem}, but confirmation remains incomplete"
+            return (
+                f"signals suggest risk in {antigen.subsystem}, but confirmation remains incomplete"
+            )
         if status == "no_confirmed_issue_under_current_visibility":
-            return f"no confirmed issue was observed in {antigen.subsystem} under current visibility"
+            return (
+                f"no confirmed issue was observed in {antigen.subsystem} under current visibility"
+            )
         return f"no confirmed issue was observed in {antigen.subsystem}, but visibility is limited and blind spots remain"
 
     def _record_response_summary(self, response: ImmuneResponse) -> None:
@@ -1827,13 +1948,13 @@ class AdaptiveImmuneSystem:
                 )
             self._save_state()
 
-    def _component_monitor_matches(self, subsystem: str) -> List[str]:
+    def _component_monitor_matches(self, subsystem: str) -> list[str]:
         if not subsystem:
             return []
         autopoiesis = self._get_service("autopoiesis")
         health_fns = getattr(autopoiesis, "_health_fns", {}) if autopoiesis is not None else {}
         lowered = subsystem.lower()
-        matches: List[str] = []
+        matches: list[str] = []
         for component in health_fns:
             candidate = str(component).lower()
             if candidate == lowered or candidate in lowered or lowered in candidate:
@@ -1843,7 +1964,7 @@ class AdaptiveImmuneSystem:
                 matches.append(str(component))
         return sorted(set(matches))
 
-    def _system_coverage_summary(self) -> Dict[str, Any]:
+    def _system_coverage_summary(self) -> dict[str, Any]:
         active_subsystems = {
             subsystem
             for subsystem in set(self._recent_subsystem_counts) | set(self._tissue._edges)
@@ -1868,8 +1989,8 @@ class AdaptiveImmuneSystem:
             "uncovered_hotspots": uncovered,
         }
 
-    def _recurrence_hotspots(self, limit: int = 6) -> List[Dict[str, Any]]:
-        hotspots: List[Tuple[float, str, Dict[str, Any]]] = []
+    def _recurrence_hotspots(self, limit: int = 6) -> list[dict[str, Any]]:
+        hotspots: list[tuple[float, str, dict[str, Any]]] = []
         for key, stats in self._recurrence_tracker.items():
             if not key.startswith("subsystem::"):
                 continue
@@ -1891,7 +2012,7 @@ class AdaptiveImmuneSystem:
             for pressure, subsystem, stats in hotspots[:limit]
         ]
 
-    def _read_component_health(self, subsystem: str) -> Optional[float]:
+    def _read_component_health(self, subsystem: str) -> float | None:
         autopoiesis = self._get_service("autopoiesis")
         if autopoiesis is None or not hasattr(autopoiesis, "get_component_health"):
             return None
@@ -1907,7 +2028,7 @@ class AdaptiveImmuneSystem:
         keys = self._recurrence_keys(subsystem, error_signature)
         if not keys:
             return 0.0
-        pressures: List[float] = []
+        pressures: list[float] = []
         for key in keys:
             stats = self._recurrence_tracker.get(key)
             if not stats:
@@ -1921,9 +2042,13 @@ class AdaptiveImmuneSystem:
             streak_term = min(1.0, streak / 4.0)
             interval_term = 0.0
             if interval_ewma > 0.0:
-                interval_term = 1.0 - min(1.0, interval_ewma / max(self.cfg.recurrence_window_s, 1.0))
+                interval_term = 1.0 - min(
+                    1.0, interval_ewma / max(self.cfg.recurrence_window_s, 1.0)
+                )
             repair_term = failed / max(verified + failed + 1.0, 1.0)
-            pressures.append(0.35 * count_term + 0.25 * streak_term + 0.20 * interval_term + 0.20 * repair_term)
+            pressures.append(
+                0.35 * count_term + 0.25 * streak_term + 0.20 * interval_term + 0.20 * repair_term
+            )
         return float(max(pressures, default=0.0))
 
     def _record_recurrence_observation(self, antigen: Antigen) -> None:
@@ -1944,14 +2069,18 @@ class AdaptiveImmuneSystem:
             if interval is not None and interval >= 0.0:
                 prev_ewma = float(stats.get("interval_ewma", 0.0) or 0.0)
                 stats["last_interval"] = interval
-                stats["interval_ewma"] = interval if prev_ewma <= 0.0 else 0.7 * prev_ewma + 0.3 * interval
+                stats["interval_ewma"] = (
+                    interval if prev_ewma <= 0.0 else 0.7 * prev_ewma + 0.3 * interval
+                )
                 if interval <= self.cfg.recurrence_window_s:
                     stats["streak"] = int(stats.get("streak", 0)) + 1
                 else:
                     stats["streak"] = 1
             else:
                 stats["streak"] = max(1, int(stats.get("streak", 0)))
-            stats["peak_streak"] = max(int(stats.get("peak_streak", 0)), int(stats.get("streak", 0)))
+            stats["peak_streak"] = max(
+                int(stats.get("peak_streak", 0)), int(stats.get("streak", 0))
+            )
 
     def _record_repair_outcome(
         self,
@@ -1971,14 +2100,14 @@ class AdaptiveImmuneSystem:
                 stats["failed_repairs"] = int(stats.get("failed_repairs", 0)) + 1
 
     @staticmethod
-    def _recurrence_keys(subsystem: str, error_signature: str) -> List[str]:
+    def _recurrence_keys(subsystem: str, error_signature: str) -> list[str]:
         keys = [f"subsystem::{subsystem}"]
         if error_signature:
             keys.append(f"signature::{subsystem}::{error_signature.lower()}")
         return keys
 
     @staticmethod
-    def _coerce_optional_float(value: Any) -> Optional[float]:
+    def _coerce_optional_float(value: Any) -> float | None:
         if value is None:
             return None
         try:
@@ -1987,7 +2116,7 @@ class AdaptiveImmuneSystem:
             return None
 
     @staticmethod
-    def _round_optional(value: Optional[float]) -> Optional[float]:
+    def _round_optional(value: float | None) -> float | None:
         if value is None:
             return None
         return round(float(value), 4)
@@ -2029,8 +2158,8 @@ class AdaptiveImmuneSystem:
         if len(self._cells) <= self.cfg.max_population:
             return
 
-        keep: List[ImmuneCell] = []
-        by_species: Dict[int, List[ImmuneCell]] = defaultdict(list)
+        keep: list[ImmuneCell] = []
+        by_species: dict[int, list[ImmuneCell]] = defaultdict(list)
         for cell in self._cells:
             by_species[cell.species_id].append(cell)
 
@@ -2055,7 +2184,7 @@ class AdaptiveImmuneSystem:
         slots = max(0, self.cfg.max_population - len(keep))
         self._cells = keep + remaining[:slots]
 
-    def _metabolic_context(self) -> Tuple[float, float]:
+    def _metabolic_context(self) -> tuple[float, float]:
         vitality = 0.72
         metabolism = 0.65
         entropy_pressure = 0.0
@@ -2072,7 +2201,9 @@ class AdaptiveImmuneSystem:
         alife_dynamics = self._get_service("alife_dynamics")
         if alife_dynamics is not None:
             try:
-                status = alife_dynamics.get_status() if hasattr(alife_dynamics, "get_status") else {}
+                status = (
+                    alife_dynamics.get_status() if hasattr(alife_dynamics, "get_status") else {}
+                )
                 entropy_pressure = float(
                     status.get("entropy_pressure")
                     or status.get("pressure")
@@ -2085,7 +2216,8 @@ class AdaptiveImmuneSystem:
             0.10,
             min(
                 1.20,
-                0.25 + 0.75 * vitality * (0.55 + 0.45 * metabolism) * (1.0 - 0.45 * entropy_pressure),
+                0.25
+                + 0.75 * vitality * (0.55 + 0.45 * metabolism) * (1.0 - 0.45 * entropy_pressure),
             ),
         )
         return float(scale), float(max(0.0, min(1.0, entropy_pressure)))
@@ -2133,7 +2265,11 @@ class AdaptiveImmuneSystem:
         try:
             atomic_write_text(self._state_path, json.dumps(payload, indent=2), encoding="utf-8")
         except (json.JSONDecodeError, TypeError, ValueError) as exc:
-            record_degradation('adaptive_immunity', exc)
+            _record_adaptive_immunity_degradation(
+                exc,
+                action="Skipped adaptive immune persistence write and kept in-memory immune state active",
+                extra={"state_path": str(self._state_path), "cells": len(self._cells)},
+            )
             logger.debug("Adaptive immune state save skipped: %s", exc)
 
     def _load_state(self) -> bool:
@@ -2160,19 +2296,14 @@ class AdaptiveImmuneSystem:
                     "successes": int(stats.get("successes", 0)),
                     "failures": int(stats.get("failures", 0)),
                     "best_effector": (
-                        EffectorKind(stats["best_effector"])
-                        if stats.get("best_effector")
-                        else None
+                        EffectorKind(stats["best_effector"]) if stats.get("best_effector") else None
                     ),
                     "best_fitness": float(stats.get("best_fitness", 0.0)),
                 }
             self._observation_count = int(payload.get("observation_count", 0))
             self._last_dream_at = int(payload.get("last_dream_at", 0))
             self._recent_antigens = deque(
-                [
-                    Antigen.from_dict(item)
-                    for item in payload.get("recent_antigens", [])
-                ],
+                [Antigen.from_dict(item) for item in payload.get("recent_antigens", [])],
                 maxlen=self.cfg.replay_buffer_size,
             )
             self._recent_responses = deque(
@@ -2207,7 +2338,12 @@ class AdaptiveImmuneSystem:
             self._assign_species()
             return bool(self._cells)
         except (OSError, ConnectionError, TimeoutError) as exc:
-            record_degradation('adaptive_immunity', exc)
+            _record_adaptive_immunity_degradation(
+                exc,
+                action="Rejected persisted adaptive immune state and reseeded immune population",
+                severity="degraded",
+                extra={"state_path": str(self._state_path)},
+            )
             logger.warning("Adaptive immune state load failed; reseeding: %s", exc)
             return False
 
@@ -2215,8 +2351,8 @@ class AdaptiveImmuneSystem:
     # Utilities
     # ------------------------------------------------------------------
 
-    def _seed_population(self) -> List[ImmuneCell]:
-        seeds: List[ImmuneCell] = []
+    def _seed_population(self) -> list[ImmuneCell]:
+        seeds: list[ImmuneCell] = []
         scopes = [
             "llm_router",
             "state_repository",
@@ -2308,7 +2444,7 @@ class AdaptiveImmuneSystem:
     def _component_health_pressure(
         self,
         subsystem: str,
-        state_snapshot: Optional[Dict[str, Any]],
+        state_snapshot: dict[str, Any] | None,
     ) -> float:
         if state_snapshot and "health_pressure" in state_snapshot:
             return float(max(0.0, min(1.0, state_snapshot["health_pressure"])))
@@ -2330,10 +2466,17 @@ class AdaptiveImmuneSystem:
                 continue
             if other.split("_", 1)[0] == node.split("_", 1)[0]:
                 self._tissue.register_edge(node, other, 0.45)
-            elif other in {"llm_router", "inference_gate", "state_repository", "continuity", "identity", "memory_guard"}:
+            elif other in {
+                "llm_router",
+                "inference_gate",
+                "state_repository",
+                "continuity",
+                "identity",
+                "memory_guard",
+            }:
                 self._tissue.register_edge(node, other, 0.18)
 
-    def _find_cell(self, cell_id: str) -> Optional[ImmuneCell]:
+    def _find_cell(self, cell_id: str) -> ImmuneCell | None:
         for cell in self._cells:
             if cell.cell_id == cell_id:
                 return cell
@@ -2347,10 +2490,12 @@ class AdaptiveImmuneSystem:
         return any(hint in lowered for hint in self._PROTECTED_SUBSYSTEM_HINTS)
 
     def _new_cell_id(self, kind: CellKind) -> str:
-        digest = hashlib.sha1(f"{kind.value}:{time.time()}:{self._rng.random()}".encode()).hexdigest()
+        digest = hashlib.sha1(
+            f"{kind.value}:{time.time()}:{self._rng.random()}".encode()
+        ).hexdigest()
         return f"{kind.value[:3]}_{digest[:10]}"
 
-    def _resolve_state_dir(self, state_dir: Optional[Path]) -> Path:
+    def _resolve_state_dir(self, state_dir: Path | None) -> Path:
         if state_dir is not None:
             return Path(state_dir)
         try:
@@ -2369,26 +2514,28 @@ class AdaptiveImmuneSystem:
             return None
 
     @staticmethod
-    def _kmeans(X: np.ndarray, k: int, max_iter: int = 32) -> np.ndarray:
+    def _kmeans(x: np.ndarray, k: int, max_iter: int = 32) -> np.ndarray:
         rng = np.random.default_rng(0)
-        n = X.shape[0]
+        n = x.shape[0]
         if n <= k:
             return np.arange(n, dtype=np.int32)
-        centroids = np.empty((k, X.shape[1]), dtype=np.float32)
-        centroids[0] = X[rng.integers(0, n)]
+        centroids = np.empty((k, x.shape[1]), dtype=np.float32)
+        centroids[0] = x[rng.integers(0, n)]
         for idx in range(1, k):
-            dist_sq = np.min(np.sum((X[:, None, :] - centroids[None, :idx, :]) ** 2, axis=2), axis=1)
+            dist_sq = np.min(
+                np.sum((x[:, None, :] - centroids[None, :idx, :]) ** 2, axis=2), axis=1
+            )
             total = float(dist_sq.sum())
             if total <= _EPSILON:
-                centroids[idx] = X[rng.integers(0, n)]
+                centroids[idx] = x[rng.integers(0, n)]
             else:
                 probs = dist_sq / total
                 probs = probs / max(float(probs.sum()), _EPSILON)
-                centroids[idx] = X[rng.choice(n, p=probs)]
+                centroids[idx] = x[rng.choice(n, p=probs)]
 
         labels = np.zeros(n, dtype=np.int32)
         for _ in range(max_iter):
-            dists = np.sum((X[:, None, :] - centroids[None, :, :]) ** 2, axis=2)
+            dists = np.sum((x[:, None, :] - centroids[None, :, :]) ** 2, axis=2)
             new_labels = np.argmin(dists, axis=1).astype(np.int32)
             if np.array_equal(labels, new_labels):
                 break
@@ -2396,19 +2543,19 @@ class AdaptiveImmuneSystem:
             for idx in range(k):
                 mask = labels == idx
                 if np.any(mask):
-                    centroids[idx] = X[mask].mean(axis=0)
+                    centroids[idx] = x[mask].mean(axis=0)
         return labels
 
     @staticmethod
-    def _silhouette_score(X: np.ndarray, labels: np.ndarray) -> float:
+    def _silhouette_score(x: np.ndarray, labels: np.ndarray) -> float:
         unique = np.unique(labels)
-        if len(unique) < 2 or len(X) < 3:
+        if len(unique) < 2 or len(x) < 3:
             return 0.0
-        norms = np.sum(X ** 2, axis=1)
-        dist_sq = norms[:, None] + norms[None, :] - 2.0 * (X @ X.T)
+        norms = np.sum(x**2, axis=1)
+        dist_sq = norms[:, None] + norms[None, :] - 2.0 * (x @ x.T)
         dist = np.sqrt(np.maximum(dist_sq, 0.0))
-        sil = np.zeros(len(X), dtype=np.float32)
-        for idx in range(len(X)):
+        sil = np.zeros(len(x), dtype=np.float32)
+        for idx in range(len(x)):
             own = labels[idx]
             own_mask = labels == own
             own_count = int(np.sum(own_mask)) - 1
@@ -2429,7 +2576,7 @@ class AdaptiveImmuneSystem:
         return float(np.mean(sil))
 
 
-_adaptive_immune_singleton: Optional[AdaptiveImmuneSystem] = None
+_adaptive_immune_singleton: AdaptiveImmuneSystem | None = None
 
 
 def get_adaptive_immune_system() -> AdaptiveImmuneSystem:

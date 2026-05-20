@@ -10,6 +10,8 @@ from core.adaptation.adaptive_immunity import (
     AdaptiveImmuneSystem,
     Antigen,
     CellKind,
+    EffectorArtifact,
+    EffectorKind,
     ImmuneCell,
     TissueField,
 )
@@ -34,8 +36,7 @@ class _AutopoiesisStub:
         self.health_delta = health_delta
         self.success = success
         self._health_fns = {
-            name: (lambda name=name: self.health.get(name, 0.0))
-            for name in self.health
+            name: (lambda name=name: self.health.get(name, 0.0)) for name in self.health
         }
 
     def get_component_health(self, component):
@@ -68,6 +69,35 @@ class _PatchMeshStub:
             "status": "applied" if self.applied else "validated_unapplied",
             "notes": "sandbox + verification pipeline completed",
         }
+
+
+def _test_antigen(subsystem="runtime_engine"):
+    return Antigen(
+        antigen_id="ag_test",
+        subsystem=subsystem,
+        vector=np.zeros(16, dtype=np.float32),
+        danger=0.8,
+        subsystem_need=0.7,
+        threat_probability=0.8,
+        resource_pressure=0.2,
+        error_load=0.5,
+        health_pressure=0.3,
+        temporal_pressure=0.1,
+        recurrence_pressure=0.2,
+        error_signature="RuntimeError",
+    )
+
+
+def _test_artifact(kind=EffectorKind.PATCH_PROPOSAL, component="runtime_engine"):
+    return EffectorArtifact(
+        artifact_id="eff_test",
+        kind=kind,
+        component=component,
+        confidence=0.95,
+        source_cell_id="cell",
+        lineage_id="lineage",
+        bounded_payload={},
+    )
 
 
 def test_tissue_field_diffuses_local_damage():
@@ -316,3 +346,69 @@ def test_patch_proposal_artifacts_route_into_patch_pipeline(tmp_path):
     assert artifact.executed is True
     assert artifact.success is True
     assert verification["status"] == "applied"
+
+
+def test_patch_artifact_failure_returns_execution_report(tmp_path, monkeypatch):
+    recorded = []
+    monkeypatch.setattr(
+        "core.adaptation.adaptive_immunity._record_adaptive_immunity_degradation",
+        lambda error, **kwargs: recorded.append((error, kwargs)),
+    )
+
+    class FailingPatchMesh:
+        async def attempt_patch_for_antigen(self, _artifact, _antigen):
+            raise TimeoutError("patch mesh timeout")
+
+    immune = AdaptiveImmuneSystem(state_dir=tmp_path, rng_seed=7)
+    immune._get_service = lambda name: (
+        FailingPatchMesh() if name == "autonomous_resilience_mesh" else None
+    )
+    artifact = _test_artifact()
+
+    report = run(
+        immune._maybe_execute_artifact(
+            artifact,
+            _test_antigen(),
+            coverage_report={"coverage_ratio": 0.9},
+        )
+    )
+
+    assert report["status"] == "execution_error"
+    assert artifact.executed is True
+    assert artifact.success is False
+    assert "patch execution failed" in artifact.notes
+    assert recorded[0][1]["action"] == (
+        "Marked patch artifact execution failed and returned an execution_error verification report"
+    )
+
+
+def test_autopoiesis_failure_returns_execution_report(tmp_path, monkeypatch):
+    recorded = []
+    monkeypatch.setattr(
+        "core.adaptation.adaptive_immunity._record_adaptive_immunity_degradation",
+        lambda error, **kwargs: recorded.append((error, kwargs)),
+    )
+
+    class FailingAutopoiesis:
+        async def request_repair(self, _component, _strategy):
+            raise RuntimeError("repair loop unavailable")
+
+    immune = AdaptiveImmuneSystem(state_dir=tmp_path, rng_seed=8)
+    immune._get_service = lambda name: FailingAutopoiesis() if name == "autopoiesis" else None
+    artifact = _test_artifact(kind=EffectorKind.RESTART_COMPONENT)
+
+    report = run(
+        immune._maybe_execute_artifact(
+            artifact,
+            _test_antigen(),
+            coverage_report={"coverage_ratio": 0.9},
+        )
+    )
+
+    assert report["status"] == "execution_error"
+    assert artifact.executed is True
+    assert artifact.success is False
+    assert "execution failed" in artifact.notes
+    assert recorded[0][1]["action"] == (
+        "Marked autopoiesis artifact execution failed and returned an execution_error verification report"
+    )
