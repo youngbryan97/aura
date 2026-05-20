@@ -12,6 +12,7 @@ theory (Laukkonen, Friston & Chandaria 2025), and the Free Energy Principle:
 """
 
 import asyncio
+import inspect
 import logging
 import math
 import threading
@@ -23,10 +24,35 @@ from typing import Any
 
 import numpy as np
 
-from core.runtime.errors import record_degradation
+from core.runtime.errors import FallbackClassification, record_degradation
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.ClosedLoop")
+
+
+def _emit_closed_loop_fault(
+    error: BaseException,
+    *,
+    action: str,
+    severity: str = "degraded",
+    stage: str = "",
+    extra: dict[str, Any] | None = None,
+) -> None:
+    """Record a closed-loop fault with explicit recovery semantics."""
+    metadata = dict(extra or {})
+    if stage:
+        metadata["stage"] = stage
+    try:
+        record_degradation(
+            "closed_loop",
+            error,
+            severity=severity,  # type: ignore[arg-type]
+            action=action,
+            classification=FallbackClassification.SAFE_FALLBACK,
+            extra=metadata or None,
+        )
+    except TypeError:
+        record_degradation("closed_loop", error)
 
 # ── Configuration ──────────────────────────────────────────────────────────────
 
@@ -140,7 +166,12 @@ class OutputReceptor:
             if substrate is not None and hasattr(substrate, "x"):
                 self.ensure_dimension(len(substrate.x))
         except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
-            record_degradation("closed_loop", exc)
+            _emit_closed_loop_fault(
+                exc,
+                action="skipped output-to-substrate feedback because substrate lookup failed",
+                severity="warning",
+                stage="output_receptor_substrate_lookup",
+            )
             logger.debug("OutputReceptor substrate lookup failed: %s", exc)
             substrate = None
 
@@ -153,9 +184,14 @@ class OutputReceptor:
         # Inject into substrate
         try:
             if substrate:
-                get_task_tracker().create_task(
-                    substrate.inject_stimulus(delta, weight=OUTPUT_FEEDBACK_WEIGHT)
-                )
+                injection = substrate.inject_stimulus(delta, weight=OUTPUT_FEEDBACK_WEIGHT)
+                if inspect.isawaitable(injection):
+                    task = get_task_tracker().create_task(
+                        injection,
+                        name="ClosedCausalLoop.output_feedback",
+                    )
+                    if isinstance(task, asyncio.Task):
+                        task.add_done_callback(self._observe_injection_task)
                 with self._lock:
                     self._receive_count += 1
                     self._total_injected_energy += magnitude
@@ -167,10 +203,34 @@ class OutputReceptor:
                 )
                 return delta, magnitude
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-            record_degradation('closed_loop', e)
+            _emit_closed_loop_fault(
+                e,
+                action="dropped output-to-substrate feedback after injection scheduling failed",
+                severity="degraded",
+                stage="output_receptor_injection",
+            )
             logger.debug("OutputReceptor injection failed: %s", e)
 
         return None
+
+    @staticmethod
+    def _observe_injection_task(task: asyncio.Task) -> None:
+        try:
+            task.result()
+        except asyncio.CancelledError:
+            _emit_closed_loop_fault(
+                RuntimeError("output feedback injection task was cancelled"),
+                action="recorded cancelled output feedback injection task",
+                severity="warning",
+                stage="output_receptor_injection_task",
+            )
+        except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            _emit_closed_loop_fault(
+                exc,
+                action="recorded failed output feedback injection task for repair visibility",
+                severity="degraded",
+                stage="output_receptor_injection_task",
+            )
 
     def ensure_dimension(self, neuron_count: int) -> None:
         """Resize future affect deltas to the active substrate dimension."""

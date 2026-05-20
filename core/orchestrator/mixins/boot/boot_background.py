@@ -70,6 +70,23 @@ class BootBackgroundMixin:
             logger.error("Subconscious Loop init failed: %s", e)
             ServiceContainer.register_instance("subconscious_loop", None)
 
+    async def _init_abstract_thought_subsystem(self, tracker):
+        """Initialize the Abstract Thought Layer / Pondering Engine."""
+        try:
+            from core.brain.abstract_thought_layer import register_abstract_thought_layer
+
+            atl = register_abstract_thought_layer(self)
+            tracker.create_task(atl.start(), name="abstract_thought_layer")
+            logger.info("🧠 [BOOT] Abstract Thought Layer (pondering engine) initialized and started.")
+        except (ImportError, AttributeError, RuntimeError) as e:
+            _record_boot_background_degradation(
+                e,
+                action="registered missing abstract_thought_layer service after subsystem initialization failed",
+                severity="error",
+            )
+            logger.error("Abstract Thought Layer init failed: %s", e)
+            ServiceContainer.register_instance("abstract_thought_layer", None)
+
     async def _start_meta_evolution(self):
         """Initializes the Meta-Evolution Engine for recursive self-optimization."""
         try:

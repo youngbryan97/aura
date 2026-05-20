@@ -843,6 +843,7 @@ class BootAutonomyMixin:
         await self._init_curiosity_engine_subsystem()
         await self._init_sensory_motor_integration_subsystem(tracker)
         await self._init_subconscious_loop_subsystem(tracker)
+        await self._init_abstract_thought_subsystem(tracker)
         await self._start_belief_sync_at_boot(tracker)
 
         # 🚀 Phase 30: Unfettered Presence & Spontaneous Agency
