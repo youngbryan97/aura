@@ -9,14 +9,28 @@ them into physical actions via the ActuatorRegistry.
 
 from __future__ import annotations
 
+import ast
 import logging
+import math
+import operator
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any
 
+from core.actuators.actuator_registry import ActuatorResult, get_actuator_registry
 from core.sensors.sensor_registry import get_sensor_registry
-from core.actuators.actuator_registry import get_actuator_registry, ActuatorResult
 
 logger = logging.getLogger("Aura.ImmuneHeuristicExecutor")
+
+_ALLOWED_BINOPS = {
+    ast.Add: operator.add,
+    ast.Sub: operator.sub,
+    ast.Mult: operator.mul,
+    ast.Div: operator.truediv,
+}
+_ALLOWED_UNARYOPS = {
+    ast.UAdd: operator.pos,
+    ast.USub: operator.neg,
+}
 
 
 class ImmuneHeuristicExecutor:
@@ -25,7 +39,7 @@ class ImmuneHeuristicExecutor:
     def __init__(self) -> None:
         pass
 
-    def evaluate_condition(self, condition: Dict[str, Any], sensors_data: Dict[str, float]) -> bool:
+    def evaluate_condition(self, condition: dict[str, Any], sensors_data: dict[str, float]) -> bool:
         """Evaluates a single condition against current sensor values safely."""
         sensor_id = condition.get("sensor")
         operator = condition.get("operator")
@@ -44,6 +58,8 @@ class ImmuneHeuristicExecutor:
         try:
             target_val = float(target_value)
             sensor_val = float(sensor_val)
+            if not math.isfinite(target_val) or not math.isfinite(sensor_val):
+                return False
 
             if operator == ">":
                 return sensor_val > target_val
@@ -64,7 +80,9 @@ class ImmuneHeuristicExecutor:
             logger.error("Failed evaluating condition %s: %s", condition, exc)
             return False
 
-    def resolve_params(self, params: Dict[str, Any], sensors_data: Dict[str, float]) -> Dict[str, Any]:
+    def resolve_params(
+        self, params: dict[str, Any], sensors_data: dict[str, float]
+    ) -> dict[str, Any]:
         """Resolves dynamic sensor reference variables in parameters (e.g. '$port_east_load * 0.5')."""
         resolved = {}
         for key, val in params.items():
@@ -81,24 +99,50 @@ class ImmuneHeuristicExecutor:
                 substituted = expr
                 for s_id, s_val in sensors_data.items():
                     if s_id in substituted:
-                        substituted = re.sub(r"\b" + re.escape(s_id) + r"\b", str(s_val), substituted)
+                        substituted = re.sub(
+                            r"\b" + re.escape(s_id) + r"\b", str(s_val), substituted
+                        )
 
-                # Safe evaluation block
                 try:
-                    # Enforce strict character sets and builtins block
-                    if any(bad in substituted for bad in ["__", "import", "eval", "exec", "getattr"]):
-                        raise ValueError("Forbidden tokens detected")
-                    # Evaluate simple mathematical expression
-                    res_val = eval(substituted, {"__builtins__": None}, {})
+                    res_val = self._safe_eval_numeric(substituted)
                     resolved[key] = float(res_val)
                 except Exception as exc:
-                    logger.warning("Failed resolving expression '%s' (substituted as '%s'): %s", val, substituted, exc)
+                    logger.warning(
+                        "Failed resolving expression '%s' (substituted as '%s'): %s",
+                        val,
+                        substituted,
+                        exc,
+                    )
                     resolved[key] = val
             else:
                 resolved[key] = val
         return resolved
 
-    def execute_rule(self, rule: Dict[str, Any]) -> Dict[str, Any]:
+    def _safe_eval_numeric(self, expression: str) -> float:
+        """Evaluate a sanitized arithmetic expression without Python eval."""
+        parsed = ast.parse(expression, mode="eval")
+        result = self._eval_ast_node(parsed.body)
+        if not math.isfinite(result):
+            raise ValueError("non-finite expression result")
+        return result
+
+    def _eval_ast_node(self, node: ast.AST) -> float:
+        if isinstance(node, ast.Constant) and isinstance(node.value, int | float):
+            value = float(node.value)
+            if not math.isfinite(value):
+                raise ValueError("non-finite literal")
+            return value
+        if isinstance(node, ast.BinOp) and type(node.op) in _ALLOWED_BINOPS:
+            left = self._eval_ast_node(node.left)
+            right = self._eval_ast_node(node.right)
+            if isinstance(node.op, ast.Div) and abs(right) < 1e-12:
+                raise ZeroDivisionError("division by zero")
+            return float(_ALLOWED_BINOPS[type(node.op)](left, right))
+        if isinstance(node, ast.UnaryOp) and type(node.op) in _ALLOWED_UNARYOPS:
+            return float(_ALLOWED_UNARYOPS[type(node.op)](self._eval_ast_node(node.operand)))
+        raise ValueError(f"unsupported expression node: {type(node).__name__}")
+
+    def execute_rule(self, rule: dict[str, Any]) -> dict[str, Any]:
         """Parses and executes a behavioral rule graph.
 
         Example Rule Format:
@@ -131,7 +175,7 @@ class ImmuneHeuristicExecutor:
                 "conditions_met": False,
                 "actions_executed": [],
                 "success": True,
-                "message": "No actions to execute."
+                "message": "No actions to execute.",
             }
 
         # 1. Evaluate conditions
@@ -146,7 +190,7 @@ class ImmuneHeuristicExecutor:
                 "conditions_met": False,
                 "actions_executed": [],
                 "success": True,
-                "message": "Conditions not satisfied, skipped execution."
+                "message": "Conditions not satisfied, skipped execution.",
             }
 
         # 2. Execute actions
@@ -165,15 +209,19 @@ class ImmuneHeuristicExecutor:
                 continue
 
             resolved_params = self.resolve_params(raw_params, sensors_data)
-            logger.info("Executing immune action '%s' with params: %s", actuator_name, resolved_params)
+            logger.info(
+                "Executing immune action '%s' with params: %s", actuator_name, resolved_params
+            )
 
             res: ActuatorResult = actuator_registry.execute_action(actuator_name, resolved_params)
-            executed_actions.append({
-                "actuator": actuator_name,
-                "params": resolved_params,
-                "success": res.success,
-                "message": res.message
-            })
+            executed_actions.append(
+                {
+                    "actuator": actuator_name,
+                    "params": resolved_params,
+                    "success": res.success,
+                    "message": res.message,
+                }
+            )
 
             if not res.success:
                 overall_success = False
@@ -186,12 +234,12 @@ class ImmuneHeuristicExecutor:
             "conditions_met": True,
             "actions_executed": executed_actions,
             "success": overall_success,
-            "message": "; ".join(messages)
+            "message": "; ".join(messages),
         }
 
 
 # Singleton pattern
-_instance: Optional[ImmuneHeuristicExecutor] = None
+_instance: ImmuneHeuristicExecutor | None = None
 
 
 def get_immune_executor() -> ImmuneHeuristicExecutor:

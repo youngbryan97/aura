@@ -9,9 +9,10 @@ in the PhysicsWorldModel. All operations are sandboxed and validated.
 from __future__ import annotations
 
 import logging
+import math
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger("Aura.Actuators")
 
@@ -19,9 +20,26 @@ logger = logging.getLogger("Aura.Actuators")
 @dataclass
 class ActuatorResult:
     """The result of executing an action primitive."""
+
     success: bool
     message: str
-    updates: Dict[str, Any]
+    updates: dict[str, Any]
+
+
+def _finite_float(
+    value: Any, *, minimum: float | None = None, maximum: float | None = None
+) -> float | None:
+    try:
+        candidate = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(candidate):
+        return None
+    if minimum is not None and candidate < minimum:
+        return None
+    if maximum is not None and candidate > maximum:
+        return None
+    return candidate
 
 
 class BaseActuator(ABC):
@@ -40,12 +58,12 @@ class BaseActuator(ABC):
         pass
 
     @abstractmethod
-    def validate_params(self, params: Dict[str, Any]) -> bool:
+    def validate_params(self, params: dict[str, Any]) -> bool:
         """Validates that parameters satisfy all safety and physical constraints."""
         pass
 
     @abstractmethod
-    def execute(self, params: Dict[str, Any]) -> ActuatorResult:
+    def execute(self, params: dict[str, Any]) -> ActuatorResult:
         """Executes the action on the PhysicsWorldModel."""
         pass
 
@@ -61,7 +79,7 @@ class RerouteVesselActuator(BaseActuator):
     def description(self) -> str:
         return "Adjusts heading (degrees) and speed (knots) of a target maritime vessel edge."
 
-    def validate_params(self, params: Dict[str, Any]) -> bool:
+    def validate_params(self, params: dict[str, Any]) -> bool:
         vessel_id = params.get("vessel_id")
         heading = params.get("heading")
         speed = params.get("speed")
@@ -69,45 +87,53 @@ class RerouteVesselActuator(BaseActuator):
         if not vessel_id or heading is None or speed is None:
             return False
 
-        try:
-            heading_f = float(heading)
-            speed_f = float(speed)
-            if not (0.0 <= heading_f <= 360.0):
-                return False
-            if speed_f < 0.0 or speed_f > 40.0:  # Enforce maximum safe maritime speed
-                return False
-            return True
-        except (ValueError, TypeError):
+        heading_f = _finite_float(heading, minimum=0.0, maximum=360.0)
+        speed_f = _finite_float(speed, minimum=0.0, maximum=40.0)
+        if heading_f is None or speed_f is None:
             return False
+        return True
 
-    def execute(self, params: Dict[str, Any]) -> ActuatorResult:
+    def execute(self, params: dict[str, Any]) -> ActuatorResult:
         if not self.validate_params(params):
             return ActuatorResult(False, "Parameter validation failed", {})
 
         try:
             from core.world.world_model import get_physics_world_model
+
             model = get_physics_world_model()
             vessel_id = str(params["vessel_id"])
-            heading = float(params["heading"])
-            speed = float(params["speed"])
+            heading = _finite_float(params["heading"], minimum=0.0, maximum=360.0)
+            speed = _finite_float(params["speed"], minimum=0.0, maximum=40.0)
+            if heading is None or speed is None:
+                return ActuatorResult(False, "Parameter validation failed", {})
 
             vessel = model.get_entity(vessel_id)
             if not vessel:
                 return ActuatorResult(False, f"Vessel '{vessel_id}' not found", {})
 
             # Apply step update
-            model.simulate(1.0, actions=[{
-                "type": "reroute",
-                "entity_id": vessel_id,
-                "heading": heading,
-                "speed": speed,
-            }])
+            model.simulate(
+                1.0,
+                actions=[
+                    {
+                        "type": "reroute",
+                        "entity_id": vessel_id,
+                        "heading": heading,
+                        "speed": speed,
+                    }
+                ],
+            )
 
-            logger.info("Executed Actuator: reroute_vessel %s to heading=%s, speed=%s", vessel_id, heading, speed)
+            logger.info(
+                "Executed Actuator: reroute_vessel %s to heading=%s, speed=%s",
+                vessel_id,
+                heading,
+                speed,
+            )
             return ActuatorResult(
                 success=True,
                 message=f"Vessel '{vessel_id}' successfully rerouted.",
-                updates={vessel_id: {"heading": heading, "speed": speed}}
+                updates={vessel_id: {"heading": heading, "speed": speed}},
             )
 
         except Exception as exc:
@@ -123,9 +149,11 @@ class ReallocateFlowActuator(BaseActuator):
 
     @property
     def description(self) -> str:
-        return "Transfers inventory quantity (units) between two nodes to relieve bottleneck pressure."
+        return (
+            "Transfers inventory quantity (units) between two nodes to relieve bottleneck pressure."
+        )
 
-    def validate_params(self, params: Dict[str, Any]) -> bool:
+    def validate_params(self, params: dict[str, Any]) -> bool:
         source_id = params.get("source_id")
         target_id = params.get("target_id")
         amount = params.get("amount")
@@ -133,24 +161,24 @@ class ReallocateFlowActuator(BaseActuator):
         if not source_id or not target_id or amount is None:
             return False
 
-        try:
-            amount_f = float(amount)
-            if amount_f <= 0.0:
-                return False
-            return True
-        except (ValueError, TypeError):
+        amount_f = _finite_float(amount, minimum=1e-9)
+        if amount_f is None:
             return False
+        return True
 
-    def execute(self, params: Dict[str, Any]) -> ActuatorResult:
+    def execute(self, params: dict[str, Any]) -> ActuatorResult:
         if not self.validate_params(params):
             return ActuatorResult(False, "Parameter validation failed", {})
 
         try:
             from core.world.world_model import get_physics_world_model
+
             model = get_physics_world_model()
             source_id = str(params["source_id"])
             target_id = str(params["target_id"])
-            amount = float(params["amount"])
+            amount = _finite_float(params["amount"], minimum=1e-9)
+            if amount is None:
+                return ActuatorResult(False, "Parameter validation failed", {})
 
             source = model.get_entity(source_id)
             target = model.get_entity(target_id)
@@ -159,30 +187,43 @@ class ReallocateFlowActuator(BaseActuator):
                 return ActuatorResult(False, "Source or target node not found", {})
 
             if source.load < amount:
-                return ActuatorResult(False, f"Source '{source_id}' load {source.load} insufficient for transfer of {amount}", {})
+                return ActuatorResult(
+                    False,
+                    f"Source '{source_id}' load {source.load} insufficient for transfer of {amount}",
+                    {},
+                )
 
             if target.load + amount > target.capacity:
                 # Capacity constraint check
                 transferable = target.capacity - target.load
                 if transferable <= 0.0:
-                    return ActuatorResult(False, f"Target '{target_id}' at maximum capacity {target.capacity}", {})
+                    return ActuatorResult(
+                        False, f"Target '{target_id}' at maximum capacity {target.capacity}", {}
+                    )
                 amount = transferable  # Clip transfer
 
-            model.simulate(1.0, actions=[{
-                "type": "transfer",
-                "entity_id": source_id,
-                "target_id": target_id,
-                "amount": amount
-            }])
+            model.simulate(
+                1.0,
+                actions=[
+                    {
+                        "type": "transfer",
+                        "entity_id": source_id,
+                        "target_id": target_id,
+                        "amount": amount,
+                    }
+                ],
+            )
 
-            logger.info("Executed Actuator: reallocate_flow transferred %s from %s to %s", amount, source_id, target_id)
+            logger.info(
+                "Executed Actuator: reallocate_flow transferred %s from %s to %s",
+                amount,
+                source_id,
+                target_id,
+            )
             return ActuatorResult(
                 success=True,
                 message=f"Flow of {amount} successfully reallocated from '{source_id}' to '{target_id}'.",
-                updates={
-                    source_id: {"load": source.load},
-                    target_id: {"load": target.load}
-                }
+                updates={source_id: {"load": source.load}, target_id: {"load": target.load}},
             )
 
         except Exception as exc:
@@ -193,7 +234,7 @@ class ActuatorRegistry:
     """Registry of executable physical open-ended actuators."""
 
     def __init__(self) -> None:
-        self.actuators: Dict[str, BaseActuator] = {}
+        self.actuators: dict[str, BaseActuator] = {}
         self._register_default_actuators()
 
     def _register_default_actuators(self) -> None:
@@ -204,10 +245,10 @@ class ActuatorRegistry:
         self.actuators[actuator.name] = actuator
         logger.info("Registered actuator: %s (%s)", actuator.name, actuator.description)
 
-    def get_actuator(self, name: str) -> Optional[BaseActuator]:
+    def get_actuator(self, name: str) -> BaseActuator | None:
         return self.actuators.get(name)
 
-    def execute_action(self, name: str, params: Dict[str, Any]) -> ActuatorResult:
+    def execute_action(self, name: str, params: dict[str, Any]) -> ActuatorResult:
         """Safely retrieves and executes a physical action primitive."""
         actuator = self.get_actuator(name)
         if not actuator:
@@ -216,7 +257,7 @@ class ActuatorRegistry:
 
 
 # Singleton Pattern
-_instance: Optional[ActuatorRegistry] = None
+_instance: ActuatorRegistry | None = None
 
 
 def get_actuator_registry() -> ActuatorRegistry:

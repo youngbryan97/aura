@@ -285,11 +285,11 @@ class ImmuneCell:
         child.failures = 0
         child.last_antigen_id = ""
         child.born_at = time.time()
-        
+
         # Mutate behavioral rule
         if child.kind in {CellKind.B, CellKind.MEMORY}:
             child.behavioral_rule = _mutate_behavioral_rule(child.behavioral_rule, rng)
-            
+
         return child
 
     def to_dict(self) -> dict[str, Any]:
@@ -539,13 +539,20 @@ class TissueField:
         return float(max(0.0, min(1.0, value)))
 
 
-def _mutate_behavioral_rule(rule: dict[str, Any] | None, rng: np.random.Generator) -> dict[str, Any]:
+def _mutate_behavioral_rule(
+    rule: dict[str, Any] | None, rng: np.random.Generator
+) -> dict[str, Any]:
     import re
+
     if rule is None:
         # Generate a default condition-action rule targeting the maritime network
         return {
             "conditions": [
-                {"sensor": "port_east_load", "operator": ">", "value": float(rng.uniform(600.0, 900.0))}
+                {
+                    "sensor": "port_east_load",
+                    "operator": ">",
+                    "value": float(rng.uniform(600.0, 900.0)),
+                }
             ],
             "actions": [
                 {
@@ -553,10 +560,10 @@ def _mutate_behavioral_rule(rule: dict[str, Any] | None, rng: np.random.Generato
                     "params": {
                         "source_id": "Port_East",
                         "target_id": "Port_West",
-                        "amount": f"$port_east_load * {rng.uniform(0.1, 0.4):.2f}"
-                    }
+                        "amount": f"$port_east_load * {rng.uniform(0.1, 0.4):.2f}",
+                    },
                 }
-            ]
+            ],
         }
 
     new_rule = copy.deepcopy(rule)
@@ -577,19 +584,27 @@ def _mutate_behavioral_rule(rule: dict[str, Any] | None, rng: np.random.Generato
         params = act.setdefault("params", {})
         for k, v in params.items():
             if isinstance(v, str) and v.startswith("$"):
+
                 def repl(match):
                     val = float(match.group(0))
                     new_val = max(0.01, val + rng.normal(0.0, 0.05))
                     return f"{new_val:.2f}"
+
                 params[k] = re.sub(r"\d+\.\d+", repl, v)
             elif isinstance(v, (int, float)):
                 params[k] = float(v + rng.normal(0.0, 5.0))
     elif choice == "sensor" and conditions:
         cond = rng.choice(conditions)
-        cond["sensor"] = rng.choice([
-            "port_east_load", "port_west_load", "port_east_latency",
-            "port_west_latency", "vessel_alpha_speed", "warehouse_load"
-        ])
+        cond["sensor"] = rng.choice(
+            [
+                "port_east_load",
+                "port_west_load",
+                "port_east_latency",
+                "port_west_latency",
+                "vessel_alpha_speed",
+                "warehouse_load",
+            ]
+        )
 
     return new_rule
 
@@ -599,26 +614,28 @@ def _evaluate_causal_fitness(rule: dict[str, Any] | None) -> float:
         return 0.0
 
     try:
-        from core.world.world_model import get_physics_world_model, PhysicsWorldModel, WorldEntity
-        import core.world.world_model as wm
         import core.sensors.sensor_registry as sr
+        import core.world.world_model as wm
         from core.adaptation.immune_executor import ImmuneHeuristicExecutor
+        from core.world.world_model import PhysicsWorldModel, WorldEntity, get_physics_world_model
 
         main_model = get_physics_world_model()
         sim_model = PhysicsWorldModel()
         sim_model.entities = {}
-        for eid, ent in main_model.entities.items():
-            sim_model.add_entity(WorldEntity(
-                entity_id=ent.entity_id,
-                kind=ent.kind,
-                capacity=ent.capacity,
-                load=ent.load,
-                flow_rate=ent.flow_rate,
-                max_flow_rate=ent.max_flow_rate,
-                latency=ent.latency,
-                coordinates=ent.coordinates,
-                attributes=ent.attributes.copy()
-            ))
+        for ent in main_model.entities.values():
+            sim_model.add_entity(
+                WorldEntity(
+                    entity_id=ent.entity_id,
+                    kind=ent.kind,
+                    capacity=ent.capacity,
+                    load=ent.load,
+                    flow_rate=ent.flow_rate,
+                    max_flow_rate=ent.max_flow_rate,
+                    latency=ent.latency,
+                    coordinates=ent.coordinates,
+                    attributes=ent.attributes.copy(),
+                )
+            )
 
         original_model = wm._instance
         original_registry = sr._instance
@@ -630,7 +647,9 @@ def _evaluate_causal_fitness(rule: dict[str, Any] | None) -> float:
             sr._instance = sim_registry
 
             initial_latency = sum(ent.latency for ent in sim_model.entities.values())
-            initial_load_imbalance = abs(sim_model.entities["Port_East"].load - sim_model.entities["Port_West"].load)
+            initial_load_imbalance = abs(
+                sim_model.entities["Port_East"].load - sim_model.entities["Port_West"].load
+            )
 
             executor = ImmuneHeuristicExecutor()
             exec_res = executor.execute_rule(rule)
@@ -640,7 +659,9 @@ def _evaluate_causal_fitness(rule: dict[str, Any] | None) -> float:
                 sim_registry.sync_from_world_model()
 
                 final_latency = sum(ent.latency for ent in sim_model.entities.values())
-                final_load_imbalance = abs(sim_model.entities["Port_East"].load - sim_model.entities["Port_West"].load)
+                final_load_imbalance = abs(
+                    sim_model.entities["Port_East"].load - sim_model.entities["Port_West"].load
+                )
 
                 latency_improvement = initial_latency - final_latency
                 load_improvement = initial_load_imbalance - final_load_imbalance
@@ -717,7 +738,7 @@ class OfflineCoevolutionLab:
                             )
                         elif cell.kind == CellKind.REGULATORY:
                             score -= 0.2 * affinity * antigen.danger
-                
+
                 # Incorporate causal health fitness for B and MEMORY cells
                 if cell.kind in {CellKind.B, CellKind.MEMORY}:
                     causal_fit = _evaluate_causal_fitness(cell.behavioral_rule)
@@ -1600,16 +1621,17 @@ class AdaptiveImmuneSystem:
         acting_cell = self._find_cell(artifact.source_cell_id)
         if acting_cell and getattr(acting_cell, "behavioral_rule", None) is not None:
             from core.adaptation.immune_executor import get_immune_executor
+
             executor = get_immune_executor()
             exec_res = executor.execute_rule(acting_cell.behavioral_rule)
-            
+
             artifact.executed = True
             artifact.success = bool(exec_res.get("success", False))
             artifact.notes = str(exec_res.get("message", ""))
-            
+
             if artifact.success:
                 self._tissue.mark_repair(artifact.component, 0.40)
-                
+
             return {
                 "status": "verified_success" if artifact.success else "failed",
                 "raw_success": artifact.success,

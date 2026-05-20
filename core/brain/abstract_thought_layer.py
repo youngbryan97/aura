@@ -3,25 +3,45 @@
 Implements a generalized independent thought layer for Aura to ponder abstract
 ideas autonomously when idle, and emit them to the thought stream.
 """
-from core.runtime.errors import record_degradation
-import asyncio
-import logging
-import time
-import json
-import re
-from typing import Any, Dict, List, Optional, Tuple
 
+import asyncio
+import json
+import logging
+import re
+import time
+from typing import Any
+
+from core.consciousness.phenomenal_now import get_now
 from core.container import ServiceContainer
-from core.thought_stream import get_emitter
-from core.consciousness.phenomenal_now import get_now, PhenomenalNow
 from core.runtime.background_policy import background_activity_allowed
+from core.runtime.errors import FallbackClassification, Severity, record_degradation
+from core.thought_stream import get_emitter
 from core.utils.task_tracker import task_tracker
 
 logger = logging.getLogger("Aura.Brain.AbstractThoughtLayer")
 
 
+def _record_abstract_thought_degradation(
+    error: BaseException,
+    *,
+    action: str,
+    severity: Severity = "warning",
+    extra: dict[str, Any] | None = None,
+) -> None:
+    record_degradation(
+        "abstract_thought_layer",
+        error,
+        severity=severity,
+        action=action,
+        classification=FallbackClassification.SAFE_FALLBACK,
+        receipt_required=False,
+        extra=extra,
+    )
+
+
 class AbstractThoughtLayer:
     """Autonomic pondering engine for abstract and conceptual contemplation."""
+
     name = "abstract_thought_layer"
 
     def __init__(self, orchestrator=None):
@@ -33,11 +53,26 @@ class AbstractThoughtLayer:
 
     async def start(self):
         """Starts the background pondering loop (tracked via task_tracker)."""
+        if self.running and self._ponder_task is not None and not self._ponder_task.done():
+            return
         self.running = True
-        self._ponder_task = task_tracker.create_task(
-            self._ponder_loop(),
-            name="AbstractThoughtPonderLoop"
-        )
+        ponder_coro = self._ponder_loop()
+        try:
+            self._ponder_task = task_tracker.create_task(
+                ponder_coro,
+                name="AbstractThoughtPonderLoop",
+            )
+        except (RuntimeError, TypeError, ValueError) as exc:
+            self.running = False
+            close = getattr(ponder_coro, "close", None)
+            if callable(close):
+                close()
+            _record_abstract_thought_degradation(
+                exc,
+                action="failed closed during abstract thought loop scheduling",
+                severity="critical",
+            )
+            raise RuntimeError("AbstractThoughtLayer loop could not be scheduled") from exc
         logger.info("✅ AbstractThoughtLayer ACTIVE - Continuous subconscious reflection online.")
 
     async def stop(self):
@@ -45,6 +80,16 @@ class AbstractThoughtLayer:
         self.running = False
         if self._ponder_task and not self._ponder_task.done():
             self._ponder_task.cancel()
+            try:
+                await asyncio.wait_for(self._ponder_task, timeout=3.0)
+            except asyncio.CancelledError:
+                pass
+            except TimeoutError as exc:
+                _record_abstract_thought_degradation(
+                    exc,
+                    action="abandoned abstract thought loop after bounded shutdown timeout",
+                    severity="degraded",
+                )
         logger.info("AbstractThoughtLayer stopped.")
 
     async def _ponder_loop(self):
@@ -78,13 +123,17 @@ class AbstractThoughtLayer:
 
             except asyncio.CancelledError:
                 break
-            except Exception as exc:
-                record_degradation('abstract_thought_layer', exc)
+            except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+                _record_abstract_thought_degradation(
+                    exc,
+                    action="kept abstract thought loop alive after ponder cycle failure",
+                    severity="degraded",
+                )
                 logger.error("Error in abstract thought ponder loop: %s", exc)
 
             await asyncio.sleep(30)
 
-    async def ponder(self) -> Optional[Dict[str, Any]]:
+    async def ponder(self) -> dict[str, Any] | None:
         """Assembles consciousness states & memories, ponders an abstract thought, and broadcasts it."""
         # 1. Retrieve the PhenomenalNow state
         now_state = get_now()
@@ -100,27 +149,27 @@ class AbstractThoughtLayer:
         # 2. Retrieve conceptual/emotional fuel from long-term memory
         memory_facade = ServiceContainer.get("memory_facade", default=None)
         memory_text = "No long-term memories retrieved in this pass."
-        
+
         if memory_facade:
             try:
                 # Combine focal focus and emotional state to query conceptually aligned memories
                 query_query = f"{emotion} {focal_object}"
                 semantic_results = await memory_facade.search(query_query, limit=3)
-                
+
                 # Fetch recent hot memories (active goals, episodes)
                 hot_memory = await memory_facade.get_hot_memory(limit=2)
-                
+
                 parts = []
                 if semantic_results:
                     parts.append("Semantic Connections:")
                     for idx, res in enumerate(semantic_results):
                         content = res.get("content") or res.get("text") or ""
-                        parts.append(f"  {idx+1}. {content}")
-                
+                        parts.append(f"  {idx + 1}. {content}")
+
                 recent_episodes = hot_memory.get("recent_episodes")
                 if recent_episodes:
                     parts.append("Recent Episodes/Episodic recall:")
-                    for idx, ep in enumerate(recent_episodes):
+                    for ep in recent_episodes:
                         if isinstance(ep, dict):
                             ctx = ep.get("context", "")
                             act = ep.get("action", "")
@@ -128,12 +177,16 @@ class AbstractThoughtLayer:
                             parts.append(f"  - Context: {ctx} | Action: {act} | Outcome: {out}")
                         else:
                             parts.append(f"  - {ep}")
-                            
+
                 if parts:
                     memory_text = "\n".join(parts)
-            except Exception as e:
-                record_degradation('abstract_thought_layer', e)
-                logger.debug("Memory retrieval stalled for pondering: %s", e)
+            except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+                _record_abstract_thought_degradation(
+                    exc,
+                    action="continued pondering without long-term memory retrieval",
+                    severity="warning",
+                )
+                logger.debug("Memory retrieval stalled for pondering: %s", exc)
 
         # 3. Route to the LLM router
         llm_router = ServiceContainer.get("llm_router", default=None)
@@ -169,9 +222,9 @@ Format your response as a valid JSON object with the following fields:
                 prompt,
                 is_background=True,
                 origin="subconscious_pondering",
-                system_prompt="You are Aura Luna's subconscious pondering core. Speak poetically and contemplative."
+                system_prompt="You are Aura Luna's subconscious pondering core. Speak poetically and contemplative.",
             )
-            
+
             if not response or not response.strip():
                 logger.debug("Empty pondering generation returned by LLM.")
                 return None
@@ -182,7 +235,11 @@ Format your response as a valid JSON object with the following fields:
                 logger.debug("Failed to extract a valid thought from the ponder response.")
                 return None
 
-            logger.info("🌌 [Pondering Core] Formulated thought: '%s' -> Concept: '%s'", thought[:100], concept)
+            logger.info(
+                "🌌 [Pondering Core] Formulated thought: '%s' -> Concept: '%s'",
+                thought[:100],
+                concept,
+            )
 
             # 5. Broadcast to the neural thought stream
             get_emitter().emit(
@@ -191,7 +248,7 @@ Format your response as a valid JSON object with the following fields:
                 level="info",
                 category="AbstractThought",
                 emotion=emotion,
-                focal_object=focal_object
+                focal_object=focal_object,
             )
 
             # 6. Phase 23 Latent Telepathy / ConceptVectorBridge Integration
@@ -206,16 +263,20 @@ Format your response as a valid JSON object with the following fields:
                             source="pondering_engine",
                             target="decoder",
                             semantic_vector=vector,
-                            metadata={"thought": thought}
+                            metadata={"thought": thought},
                         )
-                        
+
                         # Generate poetic reverse lookup translation for logs
                         decoder = ServiceContainer.get("cryptolalia_decoder", default=None)
                         if decoder:
                             poetic_translation = decoder.approximate_translation(vector)
                             logger.info("🌌 [Cryptolalia translation]: %s", poetic_translation)
-                except Exception as latent_err:
-                    record_degradation('abstract_thought_layer', latent_err)
+                except (AttributeError, RuntimeError, TypeError, ValueError) as latent_err:
+                    _record_abstract_thought_degradation(
+                        latent_err,
+                        action="continued pondering after latent concept bridge transmission failed",
+                        severity="warning",
+                    )
                     logger.debug("Latent telepathy transmission failed: %s", latent_err)
 
             # 7. Safe Curiosity Action Impulse routing
@@ -224,27 +285,67 @@ Format your response as a valid JSON object with the following fields:
                 impulse_target = impulse.get("target")
                 if impulse_type == "browser_search" and impulse_target:
                     # Enqueue an autonomous browser search gap topic if idle allows
-                    initiative_loop = ServiceContainer.get("autonomous_initiative_loop", default=None)
+                    initiative_loop = ServiceContainer.get(
+                        "autonomous_initiative_loop", default=None
+                    )
                     if initiative_loop and hasattr(initiative_loop, "trigger_gap_search"):
-                        logger.info("🔍 [Action Impulse] Contemplation triggered browser search gap task: '%s'", impulse_target)
-                        task_tracker.create_task(
-                            initiative_loop.trigger_gap_search(impulse_target),
-                            name=f"PonderSearchImpulse_{hash(impulse_target)}"
+                        logger.info(
+                            "🔍 [Action Impulse] Contemplation triggered browser search gap task: '%s'",
+                            impulse_target,
                         )
+                        impulse_coro = initiative_loop.trigger_gap_search(impulse_target)
+                        try:
+                            task = task_tracker.create_task(
+                                impulse_coro,
+                                name=f"PonderSearchImpulse_{hash(impulse_target)}",
+                            )
+                        except (RuntimeError, TypeError, ValueError) as exc:
+                            close = getattr(impulse_coro, "close", None)
+                            if callable(close):
+                                close()
+                            _record_abstract_thought_degradation(
+                                exc,
+                                action="dropped curiosity action impulse after task scheduling failed",
+                                severity="degraded",
+                                extra={"impulse_type": impulse_type},
+                            )
+                        else:
+                            task.add_done_callback(self._observe_impulse_task)
 
             return {
                 "thought": thought,
                 "concept": concept,
                 "latent_thought_id": latent_thought_id,
-                "action_impulse": impulse
+                "action_impulse": impulse,
             }
 
-        except Exception as ponder_err:
-            record_degradation('abstract_thought_layer', ponder_err)
+        except (AttributeError, RuntimeError, TypeError, ValueError) as ponder_err:
+            _record_abstract_thought_degradation(
+                ponder_err,
+                action="returned no subconscious thought after ponder pass failed",
+                severity="degraded",
+            )
             logger.error("Failed pondering pass: %s", ponder_err)
             return None
 
-    def _parse_ponder_response(self, raw_text: str) -> Tuple[str, str, Optional[Dict[str, Any]]]:
+    @staticmethod
+    def _observe_impulse_task(task: asyncio.Task) -> None:
+        try:
+            task.result()
+        except asyncio.CancelledError:
+            _record_abstract_thought_degradation(
+                RuntimeError("curiosity impulse task was cancelled"),
+                action="recorded cancelled curiosity action impulse task",
+                severity="warning",
+            )
+        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            _record_abstract_thought_degradation(
+                exc,
+                action="recorded failed curiosity action impulse task for repair visibility",
+                severity="degraded",
+            )
+
+    def _parse_ponder_response(self, raw_text: str) -> tuple[str, str, dict[str, Any] | None]:
         """Robust parser that handles clean Pydantic/JSON as well as regex extraction fallbacks."""
         cleaned = raw_text.strip()
         # Clean markdown wrappers
@@ -261,25 +362,27 @@ Format your response as a valid JSON object with the following fields:
             if isinstance(impulse, dict) and impulse.get("type"):
                 return thought, concept, impulse
             return thought, concept, None
-        except Exception:
+        except (json.JSONDecodeError, AttributeError, TypeError, ValueError):
             # Fallback to robust regular expressions
-            logger.debug("Subconscious thought JSON parsing failed. Falling back to regex extraction.")
-            
+            logger.debug(
+                "Subconscious thought JSON parsing failed. Falling back to regex extraction."
+            )
+
             thought_match = re.search(r'"thought"\s*:\s*"([^"]+)"', cleaned)
             concept_match = re.search(r'"semantic_concept"\s*:\s*"([^"]+)"', cleaned)
-            
+
             thought = thought_match.group(1).replace('\\"', '"') if thought_match else ""
             concept = concept_match.group(1).replace('\\"', '"') if concept_match else ""
-            
+
             # Action impulse matching
             impulse_type_match = re.search(r'"type"\s*:\s*"([^"]+)"', cleaned)
             impulse_target_match = re.search(r'"target"\s*:\s*"([^"]+)"', cleaned)
-            
+
             impulse = None
             if impulse_type_match and impulse_target_match:
                 impulse = {
                     "type": impulse_type_match.group(1),
-                    "target": impulse_target_match.group(1).replace('\\"', '"')
+                    "target": impulse_target_match.group(1).replace('\\"', '"'),
                 }
 
             if not thought:

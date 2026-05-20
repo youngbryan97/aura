@@ -12,14 +12,17 @@ from __future__ import annotations
 import logging
 import math
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 logger = logging.getLogger("Aura.PhysicsWorldModel")
+
+MAX_SIMULATION_DURATION_S = 24.0 * 3600.0
 
 
 @dataclass
 class WorldEntity:
     """Represents a physical entity in the world network with hard constraints."""
+
     entity_id: str
     kind: str  # "node" (port, warehouse) or "edge" (vessel, route)
     capacity: float
@@ -27,11 +30,16 @@ class WorldEntity:
     flow_rate: float  # Current processing/travel speed
     max_flow_rate: float
     latency: float  # Current wait time or queue delay
-    coordinates: Tuple[float, float] = (0.0, 0.0)
-    attributes: Dict[str, Any] = field(default_factory=dict)
+    coordinates: tuple[float, float] = (0.0, 0.0)
+    attributes: dict[str, Any] = field(default_factory=dict)
 
     def enforce_constraints(self) -> None:
         """Enforces physical boundaries: non-negative inventory and capacity limits."""
+        self.capacity = self._finite_or_default(self.capacity, 0.0)
+        self.max_flow_rate = self._finite_or_default(self.max_flow_rate, 0.0)
+        self.load = self._finite_or_default(self.load, 0.0)
+        self.flow_rate = self._finite_or_default(self.flow_rate, 0.0)
+        self.latency = self._finite_or_default(self.latency, 0.0)
         self.load = max(0.0, min(self.load, self.capacity))
         self.flow_rate = max(0.0, min(self.flow_rate, self.max_flow_rate))
 
@@ -43,43 +51,132 @@ class WorldEntity:
         else:
             self.latency = 0.0
 
+        try:
+            lat, lon = self.coordinates
+        except (TypeError, ValueError):
+            lat, lon = 0.0, 0.0
+        self.coordinates = (
+            self._finite_or_default(lat, 0.0),
+            self._finite_or_default(lon, 0.0),
+        )
+
+    @staticmethod
+    def _finite_or_default(value: Any, default: float) -> float:
+        try:
+            candidate = float(value)
+        except (TypeError, ValueError):
+            return default
+        if not math.isfinite(candidate):
+            return default
+        return candidate
+
 
 class PhysicsWorldModel:
     """Grounded resource and constraints solver simulation."""
 
     def __init__(self, seed: int = 42) -> None:
         self.seed = seed
-        self.entities: Dict[str, WorldEntity] = {}
+        self.entities: dict[str, WorldEntity] = {}
         self.sim_time: float = 0.0
         self._initialize_default_world()
 
     def _initialize_default_world(self) -> None:
         """Sets up a canonical supply chain resource network."""
         # Nodes
-        self.add_entity(WorldEntity("Port_East", "node", capacity=1000.0, load=800.0, flow_rate=50.0, max_flow_rate=100.0, latency=0.0, coordinates=(35.6, 139.7)))
-        self.add_entity(WorldEntity("Port_West", "node", capacity=1200.0, load=300.0, flow_rate=80.0, max_flow_rate=150.0, latency=0.0, coordinates=(37.7, -122.4)))
-        self.add_entity(WorldEntity("Warehouse_Central", "node", capacity=5000.0, load=2000.0, flow_rate=200.0, max_flow_rate=400.0, latency=0.0, coordinates=(39.8, -98.5)))
+        self.add_entity(
+            WorldEntity(
+                "Port_East",
+                "node",
+                capacity=1000.0,
+                load=800.0,
+                flow_rate=50.0,
+                max_flow_rate=100.0,
+                latency=0.0,
+                coordinates=(35.6, 139.7),
+            )
+        )
+        self.add_entity(
+            WorldEntity(
+                "Port_West",
+                "node",
+                capacity=1200.0,
+                load=300.0,
+                flow_rate=80.0,
+                max_flow_rate=150.0,
+                latency=0.0,
+                coordinates=(37.7, -122.4),
+            )
+        )
+        self.add_entity(
+            WorldEntity(
+                "Warehouse_Central",
+                "node",
+                capacity=5000.0,
+                load=2000.0,
+                flow_rate=200.0,
+                max_flow_rate=400.0,
+                latency=0.0,
+                coordinates=(39.8, -98.5),
+            )
+        )
 
         # Edges / Routes (flow corridors)
-        self.add_entity(WorldEntity("Route_Pacific", "edge", capacity=500.0, load=0.0, flow_rate=20.0, max_flow_rate=30.0, latency=0.0, attributes={"source": "Port_East", "target": "Port_West", "distance_miles": 5000.0}))
-        self.add_entity(WorldEntity("Vessel_Alpha", "edge", capacity=200.0, load=150.0, flow_rate=15.0, max_flow_rate=25.0, latency=0.0, coordinates=(36.0, 160.0), attributes={"route": "Route_Pacific", "heading": 90.0}))
+        self.add_entity(
+            WorldEntity(
+                "Route_Pacific",
+                "edge",
+                capacity=500.0,
+                load=0.0,
+                flow_rate=20.0,
+                max_flow_rate=30.0,
+                latency=0.0,
+                attributes={"source": "Port_East", "target": "Port_West", "distance_miles": 5000.0},
+            )
+        )
+        self.add_entity(
+            WorldEntity(
+                "Vessel_Alpha",
+                "edge",
+                capacity=200.0,
+                load=150.0,
+                flow_rate=15.0,
+                max_flow_rate=25.0,
+                latency=0.0,
+                coordinates=(36.0, 160.0),
+                attributes={"route": "Route_Pacific", "heading": 90.0},
+            )
+        )
 
     def add_entity(self, entity: WorldEntity) -> None:
         self.entities[entity.entity_id] = entity
         entity.enforce_constraints()
 
-    def get_entity(self, entity_id: str) -> Optional[WorldEntity]:
+    def get_entity(self, entity_id: str) -> WorldEntity | None:
         return self.entities.get(entity_id)
 
-    def simulate(self, duration_s: float, actions: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+    def simulate(
+        self,
+        duration_s: float,
+        actions: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
         """Integrates physical states forward in time.
 
         Actions specify flow changes, routing changes, etc. E.g.
         actions = [{"type": "reroute", "entity_id": "Vessel_Alpha", "heading": 95.0, "speed": 18.0}]
         """
+        try:
+            duration_s = float(duration_s)
+        except (TypeError, ValueError):
+            duration_s = 0.0
+        if not math.isfinite(duration_s) or duration_s < 0.0:
+            duration_s = 0.0
+        duration_s = min(duration_s, MAX_SIMULATION_DURATION_S)
+
         actions = actions or []
         # 1. Apply Actions
         for action in actions:
+            if not isinstance(action, dict):
+                continue
             action_type = action.get("type")
             entity_id = action.get("entity_id")
             entity = self.get_entity(entity_id) if entity_id else None
@@ -90,12 +187,27 @@ class PhysicsWorldModel:
                 heading = action.get("heading")
                 speed = action.get("speed")
                 if heading is not None:
-                    entity.attributes["heading"] = float(heading)
+                    try:
+                        heading_f = float(heading)
+                    except (TypeError, ValueError):
+                        heading_f = None
+                    if heading_f is not None and math.isfinite(heading_f):
+                        entity.attributes["heading"] = heading_f % 360.0
                 if speed is not None:
-                    entity.flow_rate = float(speed)
-                    entity.enforce_constraints()
+                    try:
+                        speed_f = float(speed)
+                    except (TypeError, ValueError):
+                        speed_f = None
+                    if speed_f is not None and math.isfinite(speed_f):
+                        entity.flow_rate = speed_f
+                entity.enforce_constraints()
             elif action_type == "transfer" and entity.kind == "node":
-                amount = float(action.get("amount", 0.0))
+                try:
+                    amount = float(action.get("amount", 0.0))
+                except (TypeError, ValueError):
+                    amount = 0.0
+                if not math.isfinite(amount) or amount <= 0.0:
+                    continue
                 target_id = action.get("target_id")
                 target = self.get_entity(target_id) if target_id else None
                 if target and entity.load >= amount:
@@ -146,7 +258,7 @@ class PhysicsWorldModel:
                 intake = min(port_west.load, port_west.flow_rate * (dt / 3600.0))
                 port_west.load -= intake
                 warehouse.load += intake
-                
+
                 # Warehouse processes deliveries
                 outflow = min(warehouse.load, warehouse.flow_rate * (dt / 3600.0))
                 warehouse.load -= outflow
@@ -154,7 +266,7 @@ class PhysicsWorldModel:
                 port_west.enforce_constraints()
                 warehouse.enforce_constraints()
 
-    def get_state_snapshot(self) -> Dict[str, Any]:
+    def get_state_snapshot(self) -> dict[str, Any]:
         """Returns the current state vectors for all entities."""
         return {
             "sim_time": self.sim_time,
@@ -169,12 +281,12 @@ class PhysicsWorldModel:
                     "attributes": ent.attributes.copy(),
                 }
                 for eid, ent in self.entities.items()
-            }
+            },
         }
 
 
 # Singleton Pattern
-_instance: Optional[PhysicsWorldModel] = None
+_instance: PhysicsWorldModel | None = None
 
 
 def get_physics_world_model() -> PhysicsWorldModel:

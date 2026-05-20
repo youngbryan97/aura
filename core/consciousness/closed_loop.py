@@ -30,6 +30,16 @@ from core.utils.task_tracker import get_task_tracker
 logger = logging.getLogger("Aura.ClosedLoop")
 
 
+def _finite_float_or_none(value: Any) -> float | None:
+    try:
+        candidate = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(candidate):
+        return None
+    return candidate
+
+
 def _emit_closed_loop_fault(
     error: BaseException,
     *,
@@ -54,6 +64,7 @@ def _emit_closed_loop_fault(
     except TypeError:
         record_degradation("closed_loop", error)
 
+
 # ── Configuration ──────────────────────────────────────────────────────────────
 
 # How often the substrate predicts its own next state (seconds)
@@ -72,15 +83,17 @@ PREDICTION_LEARNING_RATE = 0.06
 FREE_ENERGY_WINDOW = 40
 
 HIERARCHICAL_PHI_REFRESH_INTERVAL_S = 12.0
-
-
+CLOSED_LOOP_TASK_STOP_TIMEOUT_S = 3.0
+PREDICTION_ERROR_BACKOFF_MAX_S = 30.0
 
 
 # ── Data Structures ────────────────────────────────────────────────────────────
 
+
 @dataclass
 class PredictionCycle:
     """One cycle of the self-prediction loop."""
+
     timestamp: float
     predicted_state: np.ndarray
     actual_state: np.ndarray
@@ -105,6 +118,7 @@ class PredictionCycle:
 @dataclass
 class LoopState:
     """The current state of the closed loop."""
+
     is_running: bool = False
     cycle_count: int = 0
     total_inject_count: int = 0
@@ -119,6 +133,7 @@ class LoopState:
 
 
 # ── Output Receptor ────────────────────────────────────────────────────────────
+
 
 class OutputReceptor:
     """
@@ -141,10 +156,13 @@ class OutputReceptor:
         if not generated_text or len(generated_text.strip()) < 5:
             return None
 
+        service_container: Any | None = None
+        substrate = None
         try:
-            from core.container import ServiceContainer
+            from core.container import ServiceContainer as _ServiceContainer
 
-            substrate = ServiceContainer.get("conscious_substrate", default=None)
+            service_container = _ServiceContainer
+            substrate = service_container.get("conscious_substrate", default=None)
             if substrate is not None and hasattr(substrate, "x"):
                 self.ensure_dimension(len(substrate.x))
         except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
@@ -155,14 +173,26 @@ class OutputReceptor:
                 stage="output_receptor_substrate_lookup",
             )
             logger.debug("OutputReceptor substrate lookup failed: %s", exc)
-            substrate = None
-
         # Parse action impulses from text
-        import re
-        import json
-        from core.actuators.actuator_registry import get_actuator_registry
-        from core.world.world_model import get_physics_world_model, PhysicsWorldModel, WorldEntity
-        from core.sensors.sensor_registry import get_sensor_registry
+        try:
+            import json
+            import re
+
+            from core.actuators.actuator_registry import get_actuator_registry
+            from core.sensors.sensor_registry import get_sensor_registry
+            from core.world.world_model import (
+                PhysicsWorldModel,
+                WorldEntity,
+                get_physics_world_model,
+            )
+        except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
+            _emit_closed_loop_fault(
+                exc,
+                action="skipped action-grounded output feedback because sensorimotor dependencies were unavailable",
+                severity="degraded",
+                stage="output_receptor_dependency_import",
+            )
+            return None
 
         actions_found = []
         # 1. Parse JSON blocks
@@ -177,57 +207,111 @@ class OutputReceptor:
 
         # 2. Parse functional format (e.g. reroute_vessel(Vessel_Alpha, 90, 15))
         if not actions_found:
-            match = re.search(r"reroute_vessel\s*\(\s*['\"]?(\w+)['\"]?,\s*([\d\.]+),\s*([\d\.]+)\s*\)", generated_text)
+            match = re.search(
+                r"reroute_vessel\s*\(\s*['\"]?(\w+)['\"]?,\s*([\d\.]+),\s*([\d\.]+)\s*\)",
+                generated_text,
+            )
             if match:
                 v_id, heading, speed = match.groups()
-                actions_found.append(("reroute_vessel", {"vessel_id": v_id, "heading": float(heading), "speed": float(speed)}))
-                
-            match = re.search(r"reallocate_flow\s*\(\s*['\"]?(\w+)['\"]?,\s*['\"]?(\w+)['\"]?,\s*([\d\.]+)\s*\)", generated_text)
+                heading_f = _finite_float_or_none(heading)
+                speed_f = _finite_float_or_none(speed)
+                if heading_f is not None and speed_f is not None:
+                    actions_found.append(
+                        (
+                            "reroute_vessel",
+                            {"vessel_id": v_id, "heading": heading_f, "speed": speed_f},
+                        )
+                    )
+
+            match = re.search(
+                r"reallocate_flow\s*\(\s*['\"]?(\w+)['\"]?,\s*['\"]?(\w+)['\"]?,\s*([\d\.]+)\s*\)",
+                generated_text,
+            )
             if match:
                 src, tgt, amt = match.groups()
-                actions_found.append(("reallocate_flow", {"source_id": src, "target_id": tgt, "amount": float(amt)}))
+                amount_f = _finite_float_or_none(amt)
+                if amount_f is not None:
+                    actions_found.append(
+                        (
+                            "reallocate_flow",
+                            {"source_id": src, "target_id": tgt, "amount": amount_f},
+                        )
+                    )
 
         if not actions_found:
             return None
 
-        # Simulate expectations on PhysicsWorldModel
-        world_model = get_physics_world_model()
-        sim_model = PhysicsWorldModel()
-        sim_model.entities = {}
-        for eid, ent in world_model.entities.items():
-            sim_model.add_entity(WorldEntity(
-                entity_id=ent.entity_id,
-                kind=ent.kind,
-                capacity=ent.capacity,
-                load=ent.load,
-                flow_rate=ent.flow_rate,
-                max_flow_rate=ent.max_flow_rate,
-                latency=ent.latency,
-                coordinates=ent.coordinates,
-                attributes=ent.attributes.copy()
-            ))
-
         sim_actions = []
         for name, params in actions_found:
+            if not isinstance(params, dict):
+                _emit_closed_loop_fault(
+                    ValueError(f"action params for {name!r} were not a mapping"),
+                    action="skipped malformed action impulse parameters",
+                    severity="warning",
+                    stage="output_receptor_action_params",
+                    extra={"action": str(name)},
+                )
+                continue
             if name == "reroute_vessel":
-                sim_actions.append({
-                    "type": "reroute",
-                    "entity_id": params.get("vessel_id"),
-                    "heading": params.get("heading"),
-                    "speed": params.get("speed")
-                })
+                sim_actions.append(
+                    {
+                        "type": "reroute",
+                        "entity_id": params.get("vessel_id"),
+                        "heading": params.get("heading"),
+                        "speed": params.get("speed"),
+                    }
+                )
             elif name == "reallocate_flow":
-                sim_actions.append({
-                    "type": "transfer",
-                    "entity_id": params.get("source_id"),
-                    "target_id": params.get("target_id"),
-                    "amount": params.get("amount")
-                })
+                sim_actions.append(
+                    {
+                        "type": "transfer",
+                        "entity_id": params.get("source_id"),
+                        "target_id": params.get("target_id"),
+                        "amount": params.get("amount"),
+                    }
+                )
 
-        sim_state = sim_model.simulate(10.0, actions=sim_actions)
+        sim_state: dict[str, Any] = {"entities": {}}
+        try:
+            world_model = get_physics_world_model()
+            sim_model = PhysicsWorldModel()
+            sim_model.entities = {}
+            for ent in world_model.entities.values():
+                sim_model.add_entity(
+                    WorldEntity(
+                        entity_id=ent.entity_id,
+                        kind=ent.kind,
+                        capacity=ent.capacity,
+                        load=ent.load,
+                        flow_rate=ent.flow_rate,
+                        max_flow_rate=ent.max_flow_rate,
+                        latency=ent.latency,
+                        coordinates=ent.coordinates,
+                        attributes=ent.attributes.copy(),
+                    )
+                )
+            sim_state = sim_model.simulate(10.0, actions=sim_actions)
+        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            _emit_closed_loop_fault(
+                exc,
+                action="executed actuator path without simulated expectation update",
+                severity="warning",
+                stage="output_receptor_expectation_simulation",
+                extra={"actions": [name for name, _ in actions_found]},
+            )
 
         # Store the simulated expectations in ClosedCausalLoop
-        loop = ServiceContainer.get("closed_causal_loop", default=None)
+        loop = None
+        if service_container is not None:
+            try:
+                loop = service_container.get("closed_causal_loop", default=None)
+            except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+                _emit_closed_loop_fault(
+                    exc,
+                    action="executed actuator path without closed-loop expectation sink",
+                    severity="warning",
+                    stage="output_receptor_loop_lookup",
+                )
         if loop is not None and hasattr(loop, "_simulated_expectations"):
             loop._simulated_expectations = {}
             entities = sim_state.get("entities", {})
@@ -243,14 +327,47 @@ class OutputReceptor:
                 elif eid == "Warehouse_Central":
                     loop._simulated_expectations["warehouse_load"] = ent.get("load", 0.0)
                     loop._simulated_expectations["warehouse_latency"] = ent.get("latency", 0.0)
-            loop._simulated_expectations["system_cpu_usage"] = get_sensor_registry().read_all().get("system_cpu_usage", 0.0)
+            try:
+                loop._simulated_expectations["system_cpu_usage"] = (
+                    get_sensor_registry().read_all().get("system_cpu_usage", 0.0)
+                )
+            except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+                _emit_closed_loop_fault(
+                    exc,
+                    action="stored simulated expectations without system CPU reading",
+                    severity="warning",
+                    stage="output_receptor_expectation_sensor_read",
+                )
 
         # Coordinate/execute actions
-        actuator_registry = get_actuator_registry()
+        try:
+            actuator_registry = get_actuator_registry()
+        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            _emit_closed_loop_fault(
+                exc,
+                action="failed closed before actuator execution because actuator registry was unavailable",
+                severity="critical",
+                stage="output_receptor_actuator_registry",
+                extra={"actions": [name for name, _ in actions_found]},
+            )
+            return None
+
         all_success = True
         execution_messages = []
         for name, params in actions_found:
-            res = actuator_registry.execute_action(name, params)
+            try:
+                res = actuator_registry.execute_action(name, params)
+            except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+                _emit_closed_loop_fault(
+                    exc,
+                    action="converted actuator execution exception into failed action result",
+                    severity="degraded",
+                    stage="output_receptor_actuator_execution",
+                    extra={"action": name},
+                )
+                all_success = False
+                execution_messages.append(f"{name} raised {type(exc).__name__}")
+                continue
             if not res.success:
                 all_success = False
             execution_messages.append(res.message)
@@ -258,15 +375,15 @@ class OutputReceptor:
         # Construct physical action-grounded delta vector
         delta = np.zeros(self._neuron_count, dtype=np.float32)
         if all_success:
-            delta[0] = 0.35   # Valence (joy/success)
-            delta[1] = 0.20   # Arousal (active execution)
+            delta[0] = 0.35  # Valence (joy/success)
+            delta[1] = 0.20  # Arousal (active execution)
             delta[3] = -0.30  # Frustration (reduced)
-            delta[4] = 0.25   # Curiosity (explore)
+            delta[4] = 0.25  # Curiosity (explore)
         else:
             delta[0] = -0.35  # Valence (fail)
-            delta[1] = 0.15   # Arousal
-            delta[3] = 0.40   # Frustration (increased)
-            delta[4] = 0.10   # Curiosity
+            delta[1] = 0.15  # Arousal
+            delta[3] = 0.40  # Frustration (increased)
+            delta[4] = 0.10  # Curiosity
 
         magnitude = float(np.linalg.norm(delta))
 
@@ -275,10 +392,16 @@ class OutputReceptor:
             if substrate:
                 injection = substrate.inject_stimulus(delta, weight=OUTPUT_FEEDBACK_WEIGHT)
                 if inspect.isawaitable(injection):
-                    task = get_task_tracker().create_task(
-                        injection,
-                        name="ClosedCausalLoop.output_feedback",
-                    )
+                    try:
+                        task = get_task_tracker().create_task(
+                            injection,
+                            name="ClosedCausalLoop.output_feedback",
+                        )
+                    except (RuntimeError, TypeError, ValueError) as exc:
+                        close = getattr(injection, "close", None)
+                        if callable(close):
+                            close()
+                        raise RuntimeError("failed to schedule output feedback injection") from exc
                     if isinstance(task, asyncio.Task):
                         task.add_done_callback(self._observe_injection_task)
                 with self._lock:
@@ -288,9 +411,18 @@ class OutputReceptor:
 
                 logger.info(
                     "OutputReceptor: executed action %s, injected delta (mag=%.3f) from output",
-                    actions_found, magnitude
+                    actions_found,
+                    magnitude,
                 )
                 return delta, magnitude
+            _emit_closed_loop_fault(
+                RuntimeError("no conscious substrate available for output feedback"),
+                action="recorded action affect without substrate injection",
+                severity="warning",
+                stage="output_receptor_no_substrate",
+                extra={"actions": [name for name, _ in actions_found]},
+            )
+            return delta, magnitude
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
             _emit_closed_loop_fault(
                 e,
@@ -313,7 +445,7 @@ class OutputReceptor:
                 severity="warning",
                 stage="output_receptor_injection_task",
             )
-        except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+        except Exception as exc:
             _emit_closed_loop_fault(
                 exc,
                 action="recorded failed output feedback injection task for repair visibility",
@@ -333,11 +465,13 @@ class OutputReceptor:
                 "receive_count": self._receive_count,
                 "total_injected_energy": round(self._total_injected_energy, 3),
                 "last_receive_ago_s": round(time.time() - self._last_receive_time, 1)
-                if self._last_receive_time > 0 else None,
+                if self._last_receive_time > 0
+                else None,
             }
 
 
 # ── Self Predictive Core ───────────────────────────────────────────────────────
+
 
 class SelfPredictiveCore:
     """
@@ -385,16 +519,22 @@ class SelfPredictiveCore:
 
             # Compute substrate state prediction error
             substrate_error = actual_x - self._last_prediction
-            substrate_free_energy = float(np.mean(substrate_error ** 2))
+            substrate_free_energy = float(np.mean(substrate_error**2))
 
-            # Compute physical telemetry prediction error
-            from core.sensors.sensor_registry import get_sensor_registry
             try:
+                from core.sensors.sensor_registry import get_sensor_registry
+
                 registry = get_sensor_registry()
                 registry.sync_from_world_model()
                 actual_sensors = registry.read_all()
                 reliability = registry.get_reliability_vector()
-            except Exception:
+            except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
+                _emit_closed_loop_fault(
+                    exc,
+                    action="continued substrate prediction with physical telemetry unavailable",
+                    severity="warning",
+                    stage="predictor_sensor_sync",
+                )
                 actual_sensors = {}
                 reliability = {}
 
@@ -409,7 +549,7 @@ class SelfPredictiveCore:
                 "vessel_alpha_speed": 40.0,
                 "warehouse_load": 5000.0,
                 "warehouse_latency": 10.0,
-                "system_cpu_usage": 100.0
+                "system_cpu_usage": 100.0,
             }
 
             physical_errors = []
@@ -418,7 +558,7 @@ class SelfPredictiveCore:
                 rel = reliability.get(sid, 1.0)
                 norm = norm_factors.get(sid, 1.0)
                 err = (actual_val - expected_val) / norm
-                physical_errors.append((err ** 2) * rel)
+                physical_errors.append((err**2) * rel)
 
             physical_free_energy = float(np.mean(physical_errors)) if physical_errors else 0.0
 
@@ -486,8 +626,8 @@ class SelfPredictiveCore:
         h = list(self._free_energy_history)
         if len(h) < 6:
             return "stabilizing"
-        first_half = np.mean(h[:len(h)//2])
-        second_half = np.mean(h[len(h)//2:])
+        first_half = np.mean(h[: len(h) // 2])
+        second_half = np.mean(h[len(h) // 2 :])
         if second_half > first_half * 1.15:
             return "increasing_surprise"
         elif second_half < first_half * 0.85:
@@ -505,6 +645,7 @@ class SelfPredictiveCore:
 
 
 # ── Phi Witness ────────────────────────────────────────────────────────────────
+
 
 class PhiWitness:
     """
@@ -525,11 +666,18 @@ class PhiWitness:
 
     def record_substrate_state(self, x: np.ndarray):
         """Record current substrate state for TE computation."""
-        summary = np.array([
-            float(np.tanh(x[0])),   # valence
-            float((x[1]+1)/2),      # arousal
-            float(x[4]),            # curiosity
-        ], dtype=np.float32)
+        if len(x) < 5:
+            padded = np.zeros(5, dtype=np.float32)
+            padded[: len(x)] = x
+            x = padded
+        summary = np.array(
+            [
+                float(np.tanh(x[0])),  # valence
+                float((x[1] + 1) / 2),  # arousal
+                float(x[4]),  # curiosity
+            ],
+            dtype=np.float32,
+        )
         self._substrate_history.append(summary)
 
     def record_output_affect(self, valence_delta: float):
@@ -538,8 +686,7 @@ class PhiWitness:
 
     def compute_phi_estimate(self) -> float:
         """Compute Φ estimate using transfer entropy."""
-        if (len(self._substrate_history) < 6 or
-                len(self._output_affect_history) < 6):
+        if len(self._substrate_history) < 6 or len(self._output_affect_history) < 6:
             return 0.0
 
         now = time.time()
@@ -565,15 +712,17 @@ class PhiWitness:
             phi_norm = min(1.0, phi_est / 2.0)
 
             self._phi_history.append(phi_norm)
-            logger.debug(
-                "Φ_est=%.4f (TE→=%.4f, ←TE=%.4f)",
-                phi_norm, te_sub_to_out, te_out_to_sub
-            )
+            logger.debug("Φ_est=%.4f (TE→=%.4f, ←TE=%.4f)", phi_norm, te_sub_to_out, te_out_to_sub)
             return phi_norm
 
-        except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-            record_degradation('closed_loop', e)
-            logger.debug("Phi computation error: %s", e)
+        except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            _emit_closed_loop_fault(
+                exc,
+                action="returned zero phi estimate after transfer-entropy computation failed",
+                severity="warning",
+                stage="phi_witness_compute",
+            )
+            logger.debug("Phi computation error: %s", exc)
             return 0.0
 
     def _transfer_entropy(self, source: np.ndarray, target: np.ndarray) -> float:
@@ -594,7 +743,7 @@ class PhiWitness:
 
         n = min(len(src_d), len(tgt_d)) - 1
         joint_past = tgt_d[:n] * n_bins + src_d[:n]
-        h_y_given_both = self._conditional_entropy(tgt_d[1:n+1], joint_past, n_bins**2)
+        h_y_given_both = self._conditional_entropy(tgt_d[1 : n + 1], joint_past, n_bins**2)
 
         te = h_y_given_past - h_y_given_both
         return max(0.0, float(te))
@@ -641,6 +790,7 @@ class PhiWitness:
 
 # ── The Closed Loop ────────────────────────────────────────────────────────────
 
+
 class ClosedCausalLoop:
     """
     The closed causal loop that gives the system genuine Φ > 0.
@@ -662,10 +812,17 @@ class ClosedCausalLoop:
         # Initialize simulated expectations with current sensor telemetry
         try:
             from core.sensors.sensor_registry import get_sensor_registry
+
             registry = get_sensor_registry()
             registry.sync_from_world_model()
             self._simulated_expectations = registry.read_all()
-        except Exception:
+        except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
+            _emit_closed_loop_fault(
+                exc,
+                action="initialized closed loop with empty simulated expectations after sensor sync failed",
+                severity="warning",
+                stage="closed_loop_initial_expectations",
+            )
             self._simulated_expectations = {}
 
         self._task: asyncio.Task | None = None
@@ -673,6 +830,7 @@ class ClosedCausalLoop:
         self._hphi_task: asyncio.Task | None = None
         self._last_phi_core_schedule_at: float = 0.0
         self._last_hphi_schedule_at: float = 0.0
+        self._consecutive_prediction_failures: int = 0
         self._save_dir: Path | None = None
 
         self._setup_save_dir()
@@ -696,53 +854,102 @@ class ClosedCausalLoop:
     def _setup_save_dir(self):
         try:
             from core.config import config as aura_config
+
             self._save_dir = aura_config.paths.data_dir / "closed_loop"
         except (AttributeError, ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
-            record_degradation("closed_loop", exc)
+            _emit_closed_loop_fault(
+                exc,
+                action="fell back to user-local closed-loop save directory after config path failed",
+                severity="warning",
+                stage="closed_loop_save_dir_config",
+            )
             logger.debug("Closed loop save directory config unavailable: %s", exc)
             self._save_dir = Path.home() / ".aura" / "closed_loop"
-        self._save_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            self._save_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            fallback_dir = Path("/tmp/aura/closed_loop")
+            _emit_closed_loop_fault(
+                exc,
+                action="fell back to temporary closed-loop save directory after mkdir failed",
+                severity="degraded",
+                stage="closed_loop_save_dir_create",
+                extra={"fallback_dir": str(fallback_dir)},
+            )
+            self._save_dir = fallback_dir
+            self._save_dir.mkdir(parents=True, exist_ok=True)
 
     async def start(self):
         """Start the background prediction loop."""
         if self._loop_state.is_running:
             return
         self._loop_state.is_running = True
-        self._task = get_task_tracker().create_task(
-            self._prediction_loop(), name="ClosedCausalLoop.prediction"
-        )
+        prediction_coro = self._prediction_loop()
+        try:
+            self._task = get_task_tracker().create_task(
+                prediction_coro, name="ClosedCausalLoop.prediction"
+            )
+        except (RuntimeError, TypeError, ValueError) as exc:
+            self._loop_state.is_running = False
+            close = getattr(prediction_coro, "close", None)
+            if callable(close):
+                close()
+            _emit_closed_loop_fault(
+                exc,
+                action="failed closed during closed-loop boot because prediction task could not be scheduled",
+                severity="critical",
+                stage="closed_loop_start_task",
+            )
+            raise RuntimeError("ClosedCausalLoop prediction task could not be scheduled") from exc
 
         try:
             from core.container import ServiceContainer
+
             ServiceContainer.register_instance("closed_causal_loop", self)
-        except (ImportError, AttributeError, RuntimeError) as _e:
-            record_degradation('closed_loop', _e)
-            logger.debug('Ignored Exception in closed_loop.py: %s', _e)
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            _emit_closed_loop_fault(
+                exc,
+                action="continued closed-loop boot with singleton lookup only after container registration failed",
+                severity="warning",
+                stage="closed_loop_start_registration",
+            )
+            logger.debug("Closed loop container registration failed: %s", exc)
 
         logger.info("🔄 ClosedCausalLoop ONLINE — the loop is closed")
 
     async def stop(self):
         """Stop the loop."""
         self._loop_state.is_running = False
-        if self._task:
-            self._task.cancel()
-            try:
-                await self._task
-            except asyncio.CancelledError as _e:
-                logger.debug('Ignored asyncio.CancelledError in closed_loop.py: %s', _e)
-        if self._phi_core_task:
-            self._phi_core_task.cancel()
-            try:
-                await self._phi_core_task
-            except asyncio.CancelledError as _e:
-                logger.debug('Ignored asyncio.CancelledError in closed_loop.py: %s', _e)
-        if self._hphi_task:
-            self._hphi_task.cancel()
-            try:
-                await self._hphi_task
-            except asyncio.CancelledError as _e:
-                logger.debug('Ignored asyncio.CancelledError in closed_loop.py: %s', _e)
+        await self._cancel_task(self._task, "prediction")
+        await self._cancel_task(self._phi_core_task, "phi_core_refresh")
+        await self._cancel_task(self._hphi_task, "hierarchical_phi_refresh")
+        self._task = None
+        self._phi_core_task = None
+        self._hphi_task = None
         logger.info("🔄 ClosedCausalLoop OFFLINE")
+
+    async def _cancel_task(self, task: asyncio.Task | None, label: str) -> None:
+        if task is None or task.done():
+            return
+        task.cancel()
+        try:
+            await asyncio.wait_for(task, timeout=CLOSED_LOOP_TASK_STOP_TIMEOUT_S)
+        except asyncio.CancelledError:
+            return
+        except TimeoutError as exc:
+            _emit_closed_loop_fault(
+                exc,
+                action=f"abandoned closed-loop {label} task after bounded shutdown timeout",
+                severity="degraded",
+                stage="closed_loop_stop_timeout",
+            )
+        except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            _emit_closed_loop_fault(
+                exc,
+                action=f"recorded closed-loop {label} task shutdown failure",
+                severity="warning",
+                stage="closed_loop_stop_task",
+            )
 
     def _maybe_schedule_phi_core_refresh(self, phi_core: Any) -> None:
         should_refresh_phi = (
@@ -751,9 +958,7 @@ class ClosedCausalLoop:
             and not self._foreground_request_active()
             and (time.time() - self._last_phi_core_schedule_at) >= 45.0
         )
-        if should_refresh_phi and (
-            self._phi_core_task is None or self._phi_core_task.done()
-        ):
+        if should_refresh_phi and (self._phi_core_task is None or self._phi_core_task.done()):
             self._last_phi_core_schedule_at = time.time()
             self._phi_core_task = get_task_tracker().create_task(
                 asyncio.to_thread(phi_core.compute_phi),
@@ -767,9 +972,7 @@ class ClosedCausalLoop:
             and not self._foreground_request_active()
             and (time.time() - self._last_hphi_schedule_at) >= HIERARCHICAL_PHI_REFRESH_INTERVAL_S
         )
-        if should_refresh_hphi and (
-            self._hphi_task is None or self._hphi_task.done()
-        ):
+        if should_refresh_hphi and (self._hphi_task is None or self._hphi_task.done()):
             self._last_hphi_schedule_at = time.time()
             self._hphi_task = get_task_tracker().create_task(
                 asyncio.to_thread(hphi.compute),
@@ -781,7 +984,7 @@ class ClosedCausalLoop:
         values = np.zeros(8, dtype=np.float64)
         if len(current_x) > 8:
             upper = min(len(current_x), 16)
-            values[:upper - 8] = current_x[8:upper]
+            values[: upper - 8] = current_x[8:upper]
         return {
             "phi": float(values[0]),
             "social_hunger": float(values[1]),
@@ -812,7 +1015,12 @@ class ClosedCausalLoop:
             completed_at = float(lane.get("last_generation_completed_at", 0.0) or 0.0)
             return started_at > 0.0 and started_at > completed_at
         except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
-            record_degradation("closed_loop", exc)
+            _emit_closed_loop_fault(
+                exc,
+                action="treated foreground request lane as inactive after status lookup failed",
+                severity="warning",
+                stage="closed_loop_foreground_status",
+            )
             logger.debug("Foreground request status unavailable: %s", exc)
             return False
 
@@ -836,7 +1044,9 @@ class ClosedCausalLoop:
                 self._phi_witness.record_substrate_state(current_x)
 
                 # STEP 2: Evaluate previous prediction
-                cycle = self._predictor.observe_and_update(current_x, simulated_expectations=getattr(self, "_simulated_expectations", None))
+                cycle = self._predictor.observe_and_update(
+                    current_x, simulated_expectations=getattr(self, "_simulated_expectations", None)
+                )
 
                 if cycle is not None:
                     self._loop_state.current_free_energy = cycle.free_energy
@@ -854,8 +1064,19 @@ class ClosedCausalLoop:
                                 confidence=max(0.0, 1.0 - cycle.free_energy),
                                 accuracy=max(0.0, 1.0 - cycle.prediction_error_magnitude),
                             )
-                    except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
-                        record_degradation("closed_loop", exc)
+                    except (
+                        AttributeError,
+                        ImportError,
+                        RuntimeError,
+                        TypeError,
+                        ValueError,
+                    ) as exc:
+                        _emit_closed_loop_fault(
+                            exc,
+                            action="continued prediction loop after metacognitive observation failed",
+                            severity="warning",
+                            stage="closed_loop_metacognitive_observation",
+                        )
                         logger.debug("Closed loop metacognitive observation skipped: %s", exc)
 
                     # STEP 3: Inject prediction error as stimulus
@@ -867,7 +1088,8 @@ class ClosedCausalLoop:
                     if cycle.free_energy > 0.3:
                         logger.debug(
                             "🌊 Self-surprise: F=%.4f — %s",
-                            cycle.free_energy, cycle.surprise_narrative
+                            cycle.free_energy,
+                            cycle.surprise_narrative,
                         )
 
                 # STEP 4: Make the next prediction
@@ -885,6 +1107,7 @@ class ClosedCausalLoop:
                 # STEP 7: Record state for PhiCore (IIT 4.0) if available
                 try:
                     from core.container import ServiceContainer
+
                     phi_core = ServiceContainer.get("phi_core", default=None)
                     if phi_core is not None:
                         cognitive_vals = self._build_phi_core_cognitive_values(current_x)
@@ -903,35 +1126,66 @@ class ClosedCausalLoop:
                             try:
                                 mesh_field = mesh.get_field_state()
                             except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
-                                record_degradation("closed_loop", exc)
+                                _emit_closed_loop_fault(
+                                    exc,
+                                    action="continued hierarchical phi pass without mesh field snapshot",
+                                    severity="warning",
+                                    stage="closed_loop_hphi_mesh_field",
+                                )
                                 logger.debug("Hierarchical phi mesh field read failed: %s", exc)
                                 mesh_field = None
                         if mesh_field is not None and len(mesh_field) >= 4096:
                             cog_aff = np.zeros(16, dtype=np.float64)
-                            cog_aff[:min(len(current_x), 16)] = current_x[:16]
+                            cog_aff[: min(len(current_x), 16)] = current_x[:16]
                             hphi.record_snapshot(cog_aff, mesh_field)
                             self._maybe_schedule_hierarchical_phi_refresh(hphi)
-                except (ImportError, AttributeError, RuntimeError) as _e:
-                    record_degradation('closed_loop', _e)
-                    logger.debug('Ignored Exception in closed_loop.py: %s', _e)
+                except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+                    _emit_closed_loop_fault(
+                        exc,
+                        action="continued prediction loop after phi registry integration failed",
+                        severity="warning",
+                        stage="closed_loop_phi_registry",
+                    )
+                    logger.debug("Closed loop phi registry integration failed: %s", exc)
 
                 elapsed = time.time() - loop_start
+                self._consecutive_prediction_failures = 0
                 await asyncio.sleep(max(0.1, PREDICTION_INTERVAL_S - elapsed))
 
             except asyncio.CancelledError:
                 break
-            except (ImportError, AttributeError, RuntimeError) as e:
-                record_degradation('closed_loop', e)
-                logger.debug("Prediction loop error: %s", e)
-                await asyncio.sleep(2.0)
+            except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+                self._consecutive_prediction_failures += 1
+                backoff_s = min(
+                    PREDICTION_ERROR_BACKOFF_MAX_S,
+                    2.0 * self._consecutive_prediction_failures,
+                )
+                _emit_closed_loop_fault(
+                    exc,
+                    action="kept closed-loop prediction task alive with adaptive backoff after cycle failure",
+                    severity="degraded",
+                    stage="closed_loop_prediction_loop",
+                    extra={
+                        "consecutive_failures": self._consecutive_prediction_failures,
+                        "backoff_s": backoff_s,
+                    },
+                )
+                logger.debug("Prediction loop error: %s", exc)
+                await asyncio.sleep(backoff_s)
 
     async def _get_substrate(self):
         """Get the LiquidSubstrate from ServiceContainer."""
         try:
             from core.container import ServiceContainer
+
             return ServiceContainer.get("conscious_substrate", default=None)
         except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
-            record_degradation("closed_loop", exc)
+            _emit_closed_loop_fault(
+                exc,
+                action="skipped prediction cycle because conscious substrate lookup failed",
+                severity="warning",
+                stage="closed_loop_substrate_lookup",
+            )
             logger.debug("Closed loop substrate lookup failed: %s", exc)
             return None
 
@@ -939,14 +1193,20 @@ class ClosedCausalLoop:
         """Sync loop state to the state registry."""
         try:
             from core.state_registry import get_registry
+
             await get_registry().update(
                 free_energy=self._loop_state.current_free_energy,
                 phi_estimate=self._loop_state.phi_estimate,
                 loop_cycle=self._loop_state.cycle_count,
             )
-        except (ImportError, AttributeError, RuntimeError) as _e:
-            record_degradation('closed_loop', _e)
-            logger.debug('Ignored Exception in closed_loop.py: %s', _e)
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            _emit_closed_loop_fault(
+                exc,
+                action="continued prediction loop after state registry sync failed",
+                severity="warning",
+                stage="closed_loop_state_registry_sync",
+            )
+            logger.debug("Closed loop state registry sync failed: %s", exc)
 
     # ── Public Interface ───────────────────────────────────────────────────────
 
@@ -974,7 +1234,12 @@ class ClosedCausalLoop:
             if substrate is not None and hasattr(substrate, "x"):
                 self._ensure_vector_dimensions(len(substrate.x))
         except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
-            record_degradation("closed_loop", exc)
+            _emit_closed_loop_fault(
+                exc,
+                action="continued output feedback path after substrate dimension lookup failed",
+                severity="warning",
+                stage="closed_loop_output_substrate_lookup",
+            )
             logger.debug("Closed loop output substrate lookup failed: %s", exc)
 
         result = self._output_receptor.receive_output(generated_text)
@@ -1042,11 +1307,18 @@ class ClosedCausalLoop:
 
     def _get_research_metacog(self):
         """Lazy-load the metacognitive monitor singleton."""
-        if not hasattr(self, '_research_metacog'):
+        if not hasattr(self, "_research_metacog"):
             try:
                 from core.meta.metacognitive_monitor import MetaCognitiveMonitor
+
                 self._research_metacog = MetaCognitiveMonitor()
-            except ImportError:
+            except ImportError as exc:
+                _emit_closed_loop_fault(
+                    exc,
+                    action="continued closed-loop prediction without optional metacognitive monitor",
+                    severity="warning",
+                    stage="closed_loop_metacog_import",
+                )
                 self._research_metacog = None
         return self._research_metacog
 
@@ -1095,9 +1367,7 @@ class ClosedCausalLoop:
                 f"are coupled — the system exists as one."
             )
         else:
-            lines.append(
-                f"Causal integration building (Φ={phi:.4f} — loop establishing)"
-            )
+            lines.append(f"Causal integration building (Φ={phi:.4f} — loop establishing)")
 
         return "\n".join(lines)
 
@@ -1120,7 +1390,12 @@ def get_running_closed_loop() -> ClosedCausalLoop | None:
 
         loop = ServiceContainer.get("closed_causal_loop", default=None)
     except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
-        record_degradation("closed_loop", exc)
+        _emit_closed_loop_fault(
+            exc,
+            action="fell back to closed-loop singleton after container lookup failed",
+            severity="warning",
+            stage="closed_loop_running_lookup",
+        )
         logger.debug("Running closed loop lookup failed: %s", exc)
         loop = None
 
@@ -1136,7 +1411,15 @@ def notify_closed_loop_output(generated_text: str) -> None:
     loop = get_running_closed_loop()
     if loop is None:
         return
-    loop.on_inference_output(generated_text)
+    try:
+        loop.on_inference_output(generated_text)
+    except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        _emit_closed_loop_fault(
+            exc,
+            action="protected inference response path from closed-loop output callback failure",
+            severity="degraded",
+            stage="closed_loop_notify_output",
+        )
 
 
 async def boot_closed_loop() -> ClosedCausalLoop:
@@ -1164,7 +1447,15 @@ def register_inference_callback(mlx_client):
         result = await original_generate(*args, **kwargs)
         if result:
             text = result if isinstance(result, str) else getattr(result, "content", str(result))
-            loop.on_inference_output(text)
+            try:
+                loop.on_inference_output(text)
+            except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+                _emit_closed_loop_fault(
+                    exc,
+                    action="protected MLX generation result from closed-loop callback failure",
+                    severity="degraded",
+                    stage="closed_loop_inference_callback",
+                )
         return result
 
     mlx_client.generate = patched_generate

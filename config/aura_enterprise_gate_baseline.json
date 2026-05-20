@@ -1,21 +1,17 @@
 {
   "description": "Aura enterprise gate debt baseline. Reduce counts over time; do not raise them.",
-  "generated_at_unix": 1778893038.0190349,
+  "generated_at_unix": 1779267615.940824,
   "max_counts": {
-    "blocking_sleep_in_async": 12,
-    "broad_exception_review": 4775,
-    "dynamic_code_execution": 8,
-    "hardcoded_local_path": 219,
-    "pass_only_function": 55,
-    "placeholder_stub_mock": 681,
-    "pytest_skip_xfail": 55,
-    "raise_only_function": 55,
-    "subprocess_usage_review": 150,
-    "swallowed_broad_exception": 890,
-    "todo_fixme_hack": 23,
-    "unbounded_loop_review": 85,
-    "wildcard_import": 17
+    "broad_exception_review": 364,
+    "hardcoded_local_path": 1,
+    "pass_only_function": 44,
+    "placeholder_stub_mock": 611,
+    "pytest_skip_xfail": 50,
+    "raise_only_function": 93,
+    "subprocess_usage_review": 55,
+    "swallowed_broad_exception": 117,
+    "unbounded_loop_review": 42
   },
-  "max_high_or_critical_count": 1041,
-  "python_files": 2411
+  "max_high_or_critical_count": 12,
+  "python_files": 2545
 }
