@@ -5,42 +5,75 @@ Runs endlessly when Aura is idle, generating insights, reviewing logs,
 and experimenting in the sandbox.
 """
 
-from core.runtime.errors import record_degradation
+from __future__ import annotations
+
 import asyncio
 import logging
 import time
-from typing import Optional, Any
+from typing import Any
+
 from core.container import ServiceContainer
 from core.runtime.background_policy import background_activity_allowed
+from core.runtime.errors import Severity, record_degradation
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.Subconscious")
 
+_SUBCONSCIOUS_RECOVERABLE_ERRORS = (
+    ImportError,
+    AttributeError,
+    RuntimeError,
+    TimeoutError,
+    TypeError,
+    ValueError,
+)
+DEFAULT_SANDBOX_TIMEOUT_SECONDS = 30.0
+
+
+def _record_subconscious_degradation(
+    error: BaseException,
+    *,
+    action: str,
+    severity: Severity = "degraded",
+    extra: dict[str, Any] | None = None,
+) -> None:
+    record_degradation(
+        "subconscious_loop",
+        error,
+        severity=severity,
+        action=action,
+        extra=extra,
+    )
+
+
 class SubconsciousLoop:
     """The deeply autonomous background process for Aura."""
-    
-    def __init__(self, orchestrator, idle_threshold: float = 60.0):
+
+    def __init__(
+        self,
+        orchestrator,
+        idle_threshold: float = 60.0,
+        sandbox_timeout: float = DEFAULT_SANDBOX_TIMEOUT_SECONDS,
+    ):
         self.orchestrator = orchestrator
         self.idle_threshold = idle_threshold  # Seconds of silence before activating
+        self.sandbox_timeout = max(0.05, float(sandbox_timeout))
         self._running = False
-        self._task: Optional[asyncio.Task] = None
-        
+        self._task: asyncio.Task | None = None
+
         self.last_dream_cycle = 0.0
         self.last_sandbox_experiment = 0.0
+        self._loop_failures = 0
 
     async def start(self):
         """Ignite the subconscious daemon."""
         if self._running:
             return
         self._running = True
-        try:
-            from core.utils.task_tracker import get_task_tracker
-
-            self._task = get_task_tracker().create_task(
-                self._run_loop(),
-                name="aura.subconscious_loop",
-            )
-        except (ImportError, AttributeError, RuntimeError):
-            self._task = get_task_tracker().create_task(self._run_loop(), name="aura.subconscious_loop")
+        self._task = get_task_tracker().create_task(
+            self._run_loop(),
+            name="aura.subconscious_loop",
+        )
         logger.info("🧠 Subconscious Loop activated")
 
     async def stop(self):
@@ -52,6 +85,8 @@ class SubconsciousLoop:
                 await self._task
             except asyncio.CancelledError as _e:
                 logger.debug('Ignored asyncio.CancelledError in subconscious_loop.py: %s', _e)
+            finally:
+                self._task = None
         logger.info("🛑 Subconscious Loop halted")
 
     async def _run_loop(self):
@@ -77,12 +112,22 @@ class SubconsciousLoop:
                     require_conversation_ready=False,
                 ):
                     await self._perform_subconscious_beat()
-                    
+                    self._loop_failures = 0
+
             except asyncio.CancelledError:
                 break
-            except (RuntimeError, AttributeError, TypeError) as e:
-                record_degradation('subconscious_loop', e)
+            except _SUBCONSCIOUS_RECOVERABLE_ERRORS as e:
+                self._loop_failures += 1
+                _record_subconscious_degradation(
+                    e,
+                    action=(
+                        "kept the subconscious daemon alive, counted the failed beat, "
+                        "and applied bounded backoff before retry"
+                    ),
+                    extra={"loop_failures": self._loop_failures},
+                )
                 logger.error("Subconscious loop fault: %s", e)
+                await asyncio.sleep(min(60.0, 5.0 * self._loop_failures))
 
     async def _perform_subconscious_beat(self):
         """Execute one cycle of background processing."""
@@ -96,8 +141,12 @@ class SubconsciousLoop:
                 logger.info("💭 Subconscious triggering Dream Cycle (DreamerV2)...")
                 await coord.run_dreamer_v2()
                 self.last_dream_cycle = now
-            except (ImportError, AttributeError, RuntimeError) as e:
-                record_degradation('subconscious_loop', e)
+            except _SUBCONSCIOUS_RECOVERABLE_ERRORS as e:
+                _record_subconscious_degradation(
+                    e,
+                    action="backed off the dream cycle and preserved the idle loop",
+                    extra={"phase": "dream_cycle", "retry_after_s": 60.0},
+                )
                 logger.debug("Subconscious dreaming failed: %s", e)
                 self.last_dream_cycle = now + 60.0  # Back off a bit
 
@@ -108,8 +157,15 @@ class SubconsciousLoop:
                 logger.info("🧪 Subconscious running proactive sandbox experiment...")
                 await self._run_proactive_sandbox()
                 self.last_sandbox_experiment = now
-            except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-                record_degradation('subconscious_loop', e)
+            except _SUBCONSCIOUS_RECOVERABLE_ERRORS as e:
+                _record_subconscious_degradation(
+                    e,
+                    action=(
+                        "backed off proactive sandboxing and left the idle loop "
+                        "available for future beats"
+                    ),
+                    extra={"phase": "sandbox_beat", "retry_after_s": 120.0},
+                )
                 logger.debug("Subconscious sandbox beat failed: %s", e)
                 self.last_sandbox_experiment = now + 120.0
 
@@ -117,6 +173,12 @@ class SubconsciousLoop:
         """Use the ToolOrchestrator to verify an assumption or explore."""
         tool_orch = ServiceContainer.get("tool_orchestrator", default=None)
         if not tool_orch:
+            _record_subconscious_degradation(
+                RuntimeError("tool_orchestrator unavailable"),
+                severity="warning",
+                action="skipped proactive sandbox probe because no tool orchestrator was registered",
+                extra={"phase": "sandbox_lookup"},
+            )
             return
             
         script = """
@@ -154,12 +216,23 @@ except (ImportError, AttributeError, RuntimeError) as e:
                     context={"reason": handle.decision.reason},
                 )
                 return
-        except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('subconscious_loop', e)
-            logger.debug("Subconscious constitutional gate failed: %s", e)
+        except _SUBCONSCIOUS_RECOVERABLE_ERRORS as e:
+            _record_subconscious_degradation(
+                e,
+                action=(
+                    "failed closed and skipped the proactive sandbox because "
+                    "constitutional tool approval was unavailable"
+                ),
+                extra={"phase": "constitutional_gate"},
+            )
+            logger.debug("Subconscious constitutional gate failed closed: %s", e)
+            return
 
         try:
-            success, result = await tool_orch.execute_python(script)
+            success, result = await asyncio.wait_for(
+                tool_orch.execute_python(script),
+                timeout=self.sandbox_timeout,
+            )
             if not success:
                 error_text = str(result or "sandbox_failed")
             if success:
@@ -184,8 +257,15 @@ except (ImportError, AttributeError, RuntimeError) as e:
                     logger.info("🌌 [Latent Transmission %s] %s", thought_id, translation)
                 else:
                     logger.debug("Subconscious Sandbox Result: %s", result)
-        except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('subconscious_loop', e)
+        except _SUBCONSCIOUS_RECOVERABLE_ERRORS as e:
+            _record_subconscious_degradation(
+                e,
+                action=(
+                    "captured sandbox execution failure, preserved the constitutional "
+                    "receipt path, and reported the probe as unsuccessful"
+                ),
+                extra={"phase": "sandbox_execute"},
+            )
             logger.debug("Subconscious sandbox run failed: %s", e)
             error_text = f"{type(e).__name__}: {e}"
         finally:
@@ -199,8 +279,16 @@ except (ImportError, AttributeError, RuntimeError) as e:
                         duration_ms=duration_ms,
                         error=error_text,
                     )
-                except (RuntimeError, AttributeError, TypeError, ValueError) as finish_exc:
-                    record_degradation('subconscious_loop', finish_exc)
+                except _SUBCONSCIOUS_RECOVERABLE_ERRORS as finish_exc:
+                    _record_subconscious_degradation(
+                        finish_exc,
+                        severity="warning",
+                        action=(
+                            "kept sandbox result state local after constitutional "
+                            "tool-finish receipt failed"
+                        ),
+                        extra={"phase": "constitutional_finish"},
+                    )
                     logger.debug("Subconscious sandbox finish skipped: %s", finish_exc)
 
 def register_subconscious_loop(orchestrator):

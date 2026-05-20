@@ -1,3 +1,4 @@
+import asyncio
 import time
 from pathlib import Path
 from types import SimpleNamespace
@@ -6,14 +7,15 @@ from unittest.mock import AsyncMock
 import pytest
 
 from core.agency.initiative_arbiter import InitiativeArbiter
+from core.agi.curiosity_explorer import CuriosityExplorer
 from core.autonomy.genuine_refusal import RefusalEngine
 from core.autonomy.research_cycle import ResearchCycle
 from core.capability_engine import CapabilityEngine, SkillMetadata
 from core.consciousness.subconscious_loop import SubconsciousLoop
-from core.agi.curiosity_explorer import CuriosityExplorer
 from core.health.degraded_events import clear_degraded_events, get_recent_degraded_events
 from core.phases.cognitive_routing_unitary import CognitiveRoutingPhase
 from core.phases.response_contract import build_response_contract
+from core.runtime.errors import get_degradation_tracker
 from core.state.aura_state import AuraState, CognitiveMode
 
 
@@ -228,6 +230,54 @@ async def test_subconscious_loop_performs_idle_dream_and_constitutional_sandbox(
     dreamer.dream.assert_awaited_once()
     tool_orch.execute_python.assert_awaited_once()
     fake_core.finish_tool_execution.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_subconscious_loop_fails_closed_when_constitutional_gate_unavailable(service_container, monkeypatch):
+    tracker = get_degradation_tracker()
+    tracker.reset()
+    tool_orch = SimpleNamespace(execute_python=AsyncMock(return_value=(True, "should not run")))
+    service_container.register_instance("tool_orchestrator", tool_orch, required=False)
+
+    def _raise_gate_error(*_args, **_kwargs):
+        raise RuntimeError("constitutional core unavailable")
+
+    monkeypatch.setattr("core.constitution.get_constitutional_core", _raise_gate_error)
+
+    loop = SubconsciousLoop(orchestrator=SimpleNamespace())
+    await loop._run_proactive_sandbox()
+
+    tool_orch.execute_python.assert_not_awaited()
+    assert tracker.count("subconscious_loop", "degraded") >= 1
+
+
+@pytest.mark.asyncio
+async def test_subconscious_loop_times_out_sandbox_and_finishes_receipt(service_container, monkeypatch):
+    async def _slow_probe(_script):
+        await asyncio.sleep(1.0)
+        return True, "late"
+
+    tool_orch = SimpleNamespace(execute_python=AsyncMock(side_effect=_slow_probe))
+    service_container.register_instance("tool_orchestrator", tool_orch, required=False)
+
+    fake_core = SimpleNamespace(
+        begin_tool_execution=AsyncMock(
+            return_value=SimpleNamespace(
+                approved=True,
+                decision=SimpleNamespace(reason="approved"),
+            )
+        ),
+        finish_tool_execution=AsyncMock(),
+    )
+    monkeypatch.setattr("core.constitution.get_constitutional_core", lambda *_a, **_k: fake_core)
+
+    loop = SubconsciousLoop(orchestrator=SimpleNamespace(), sandbox_timeout=0.05)
+    await loop._run_proactive_sandbox()
+
+    fake_core.finish_tool_execution.assert_awaited_once()
+    finish_kwargs = fake_core.finish_tool_execution.await_args.kwargs
+    assert finish_kwargs["success"] is False
+    assert "TimeoutError" in finish_kwargs["error"]
 
 
 def test_subconscious_loop_idle_gate_does_not_require_chat_lane_readiness():
