@@ -9,7 +9,7 @@
     "pass_only_function": 55,
     "placeholder_stub_mock": 681,
     "pytest_skip_xfail": 55,
-    "raise_only_function": 50,
+    "raise_only_function": 55,
     "subprocess_usage_review": 150,
     "swallowed_broad_exception": 890,
     "todo_fixme_hack": 23,

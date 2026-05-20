@@ -567,8 +567,9 @@ def scan_file(path: Path, root: Path, report: GateReport) -> None:
                         token.string.strip()[:240],
                     )
                 )
-    except tokenize.TokenError as exc:
-        report.findings.append(Finding("critical", "syntax_error", rel, exc.args[1][0], str(exc)))
+    except (tokenize.TokenError, IndentationError, SyntaxError) as exc:
+        line_no = getattr(exc, "lineno", 0) or (exc.args[1][0] if len(exc.args) > 1 and isinstance(exc.args[1], tuple) else 0)
+        report.findings.append(Finding("critical", "syntax_error", rel, line_no, str(exc)))
 
     try:
         tree = ast.parse(source, filename=rel)

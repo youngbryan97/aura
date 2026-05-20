@@ -108,6 +108,15 @@ class CapabilityGuard:
             # Explicitly log the mismatch without suppressing the full context
             logger.debug("Path %s is not under Data Dir: %s", p, e)
 
+        # Allow temp folder explicitly for security sandboxing
+        import tempfile
+        sys_temp = Path(tempfile.gettempdir()).resolve()
+        try:
+            if p.relative_to(sys_temp):
+                return True
+        except ValueError:
+            pass
+
         logger.warning("SecurityViolation: Access Denied (Path not in manifest): %s", path)
         return False
 
@@ -136,6 +145,15 @@ class CapabilityGuard:
         except ValueError as e:
             logger.debug("Write path %s check: not under data dir (%s)", p, e)
 
+        # Allow temp folder explicitly for security sandboxing
+        import tempfile
+        sys_temp = Path(tempfile.gettempdir()).resolve()
+        try:
+            if p.relative_to(sys_temp):
+                return True
+        except ValueError:
+            pass
+
         logger.warning("SecurityViolation: Write Denied (Path not in manifest): %s", path)
         return False
 
@@ -143,10 +161,43 @@ class CapabilityGuard:
         """Checks if a tool call is permitted with given arguments."""
         # 1. Network check if the tool involves external requests
         if tool_name in ["read_url_content", "search_web"]:
-            allowed_domains = self.capabilities.get("network", {}).get("allowed_domains", [])
-            if "*" in allowed_domains:
-                return True
-            # further domain validation logic...
+            url = args.get("Url", args.get("url", ""))
+            if not url and tool_name == "search_web":
+                url = args.get("query", "")
+
+            if url:
+                import urllib.parse
+                import socket
+                import ipaddress
+                
+                parsed = urllib.parse.urlparse(url)
+                domain = parsed.hostname or url
+                
+                # SSRF Protection
+                try:
+                    ip = socket.gethostbyname(domain)
+                    ip_obj = ipaddress.ip_address(ip)
+                    if ip_obj.is_loopback or ip_obj.is_private or ip_obj.is_link_local:
+                        logger.warning("SSRF SecurityViolation: Blocked request to private/loopback IP: %s (resolved from %s)", ip, domain)
+                        return False
+                except Exception as e:
+                    if url.startswith("http://") or url.startswith("https://"):
+                        logger.warning("SecurityViolation: Blocked unresolvable URL: %s", url)
+                        return False
+
+                # Allowed domains validation
+                allowed_domains = self.capabilities.get("network", {}).get("allowed_domains", [])
+                if "*" not in allowed_domains:
+                    domain_lower = domain.lower()
+                    matched = False
+                    for allowed in allowed_domains:
+                        allowed_lower = allowed.lower()
+                        if domain_lower == allowed_lower or domain_lower.endswith("." + allowed_lower):
+                            matched = True
+                            break
+                    if not matched:
+                        logger.warning("SecurityViolation: Domain %s not in allowed list", domain)
+                        return False
             
         # 2. Command check for potentially destructive operations
         if tool_name in ["run_command", "shell_execute"]:

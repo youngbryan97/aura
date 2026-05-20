@@ -39,11 +39,12 @@ _GENERIC_ASSISTANT_LANGUAGE = (
     re.compile(r"\b(?:nice try\.\s*)?this is just chat\b", re.IGNORECASE),
     re.compile(r"\bthat'?s not how this works\b", re.IGNORECASE),
     re.compile(r"\bas an ai\b", re.IGNORECASE),
-    re.compile(r"\bi(?: do not| don't| can't| cannot) have (?:feelings|opinions|preferences|experience)\b", re.IGNORECASE),
-    re.compile(r"\bi(?: do not| don't| can't| cannot) have personal (?:experiences|memories)\b", re.IGNORECASE),
+    re.compile(r"\bi(?: do not| don't| can't| cannot) have (?!phenomenal |biological |human |physical |cautious |grounded |scientific |empirical |functional |subjective )(?:feelings|opinions|preferences|experience)\b", re.IGNORECASE),
+    re.compile(r"\bi(?: do not| don't| can't| cannot) have personal (?!phenomenal |biological |human |physical |cautious |grounded |scientific |empirical |functional |subjective )(?:experiences|memories)\b", re.IGNORECASE),
     re.compile(
         r"\bi (?:do not|don[’']?t|cannot|can[’']?t) "
         r"(?:inherently )?(?:have|possess) subjective "
+        r"(?!phenomenal |biological |human |physical |cautious |grounded |scientific |empirical |functional )"
         r"(?:beliefs|opinions|feelings|experiences)"
         r"(?:\s+or\s+(?:beliefs|opinions|feelings|experiences))*\b",
         re.IGNORECASE,

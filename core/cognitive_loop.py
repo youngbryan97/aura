@@ -31,6 +31,16 @@ class CognitiveLoop:
         self.cycle_count = 0
         self.last_cycle_time = time.time()
         self.stall_threshold = 30.0  # Seconds
+        from concurrent.futures import ProcessPoolExecutor
+        self._deliberation_pool = ProcessPoolExecutor(max_workers=2)
+        self._active_deliberation_task: Optional[asyncio.Task] = None
+
+    def __del__(self):
+        if hasattr(self, '_deliberation_pool'):
+            try:
+                self._deliberation_pool.shutdown(wait=False)
+            except Exception as e:
+                logger.debug("Failed to shutdown deliberation pool: %s", e)
 
     async def start(self):
         """Start the cognitive cycle."""
@@ -49,6 +59,8 @@ class CognitiveLoop:
                 await self._task
             except asyncio.CancelledError as _e:
                 logger.debug('Ignored asyncio.CancelledError in cognitive_loop.py: %s', _e)
+        if self._active_deliberation_task:
+            self._active_deliberation_task.cancel()
         logger.info("🧠 Cognitive Loop service stopped.")
 
     async def run(self):
@@ -138,11 +150,30 @@ class CognitiveLoop:
             affect.update_emotion("free_energy", fe_state.valence, fe_state.arousal)
 
         # 4. Autonomous action — driven by FE (Active Inference), not a timer
+        # Decouple heavy deliberation asynchronously to prevent 1Hz heartbeat tick drift
         if not user_present and fe_state.dominant_action in ("act_on_world", "explore", "update_beliefs"):
-            await self._autonomous_action(fe_state)
+            if self._active_deliberation_task is None or self._active_deliberation_task.done():
+                if self._active_deliberation_task and self._active_deliberation_task.done():
+                    try:
+                        self._active_deliberation_task.result()
+                    except Exception as e:
+                        record_degradation('cognitive_loop', e)
+                        logger.error("Async deep deliberation failed: %s", e)
+                
+                self._active_deliberation_task = get_task_tracker().create_task(
+                    self._autonomous_action_async(fe_state)
+                )
 
         # 5. Update self-model with real internal telemetry
         self._update_self_telemetry(fe_state, prediction_error)
+
+    async def _autonomous_action_async(self, fe_state):
+        """Asynchronous wrapper for autonomous actions to prevent main cognitive heartbeat drift."""
+        try:
+            await self._autonomous_action(fe_state)
+        except Exception as e:
+            record_degradation('cognitive_loop', e)
+            logger.error("Error in async autonomous action: %s", e)
 
     async def _autonomous_action(self, fe_state):
         """

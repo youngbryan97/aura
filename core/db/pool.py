@@ -1,5 +1,7 @@
 import asyncio
 import logging
+import random
+import sqlite3
 from contextlib import asynccontextmanager
 
 import aiosqlite
@@ -31,9 +33,12 @@ class ConnectionPool:
         """Async context manager: yields a fresh, configured aiosqlite connection."""
         sem = await self._get_semaphore(path)
         async with sem:
-            async with aiosqlite.connect(path) as conn:
-                await conn.execute("PRAGMA journal_mode=WAL")
-                await conn.execute("PRAGMA busy_timeout=5000")
+            async with aiosqlite.connect(path, timeout=30.0) as conn:
+                await conn.execute("PRAGMA journal_mode=WAL;")
+                await conn.execute("PRAGMA synchronous=NORMAL;")
+                await conn.execute("PRAGMA cache_size=-64000;")
+                await conn.execute("PRAGMA temp_store=MEMORY;")
+                await conn.execute("PRAGMA mmap_size=30000000000;")
                 yield conn
 
     # Keep acquire/release for backward-compat callers that
@@ -43,9 +48,12 @@ class ConnectionPool:
             "ConnectionPool.acquire() is deprecated and not concurrency-safe. "
             "Use ConnectionPool.connection() context manager instead."
         )
-        conn = await aiosqlite.connect(path)
-        await conn.execute("PRAGMA journal_mode=WAL")
-        await conn.execute("PRAGMA busy_timeout=5000")
+        conn = await aiosqlite.connect(path, timeout=30.0)
+        await conn.execute("PRAGMA journal_mode=WAL;")
+        await conn.execute("PRAGMA synchronous=NORMAL;")
+        await conn.execute("PRAGMA cache_size=-64000;")
+        await conn.execute("PRAGMA temp_store=MEMORY;")
+        await conn.execute("PRAGMA mmap_size=30000000000;")
         return conn
 
     async def release(self, conn: object | None = None) -> None:
@@ -55,5 +63,31 @@ class ConnectionPool:
             await close()
         elif conn is not None:
             logger.debug("ConnectionPool.release() received non-connection legacy token: %r", conn)
+
+
+async def execute_write_with_backoff(conn: aiosqlite.Connection | sqlite3.Connection, query: str, params: tuple = (), max_retries: int = 5):
+    """Executes atomic state changes utilizing a randomized exponential backoff loop to resolve race contentions."""
+    base_delay = 0.05
+    for attempt in range(max_retries):
+        try:
+            if hasattr(conn, "commit") and not hasattr(conn, "execute_insert"):
+                # Standard synchronous sqlite3.Connection
+                with conn:
+                    cursor = conn.cursor()
+                    cursor.execute(query, params)
+                    return cursor.lastrowid
+            else:
+                # aiosqlite Connection
+                async with conn.execute(query, params) as cursor:
+                    await conn.commit()
+                    return cursor.lastrowid
+        except sqlite3.OperationalError as e:
+            if "locked" in str(e).lower() and attempt < max_retries - 1:
+                sleep_time = (base_delay * (2 ** attempt)) + random.uniform(0, 0.05)
+                logger.warning(f"⚠️ DB locked conflict. Attempt {attempt+1}/{max_retries}. Sleeping {sleep_time:.3f}s")
+                await asyncio.sleep(sleep_time)
+            else:
+                raise e
+
 
 pool = ConnectionPool()

@@ -55,3 +55,27 @@ def test_loop_lag_monitor_has_bounded_shutdown_contract():
         assert task.done()
 
     asyncio.run(scenario())
+
+
+def test_dialogue_policy_allows_scientific_uncertainty():
+    from core.phases.dialogue_policy import validate_dialogue_response
+    from core.phases.response_contract import ResponseContract
+
+    contract = ResponseContract(is_user_facing=True, requires_state_reflection=True)
+
+    # Cautious scientific or biological assertions of phenomenal feelings/experience should be allowed
+    assert validate_dialogue_response(
+        "I do not have biological feelings, but I track functional curiosity and topological alignment.",
+        contract,
+    ).ok is True
+
+    assert validate_dialogue_response(
+        "Whether I possess phenomenal experiences is an open scientific question, but my internal state is coherent.",
+        contract,
+    ).ok is True
+
+    # Generic, ungrounded assistant denials should still be blocked
+    assert validate_dialogue_response(
+        "I do not have feelings, opinions, or preferences.",
+        contract,
+    ).ok is False

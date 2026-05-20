@@ -115,7 +115,8 @@ class SerializedDBWriter:
             logger.warning("DBWriter checkpoint failed for %s: %s", db_path, exc)
 
     def _writer_loop(self):
-        """Background thread: processes queued writes in short micro-batches."""
+        """Background thread: processes queued writes in short micro-batches with exponential retry backoff."""
+        import random
         while True:
             try:
                 item = self._queue.get()
@@ -130,38 +131,46 @@ class SerializedDBWriter:
                 for db_path, requests in grouped.items():
                     conn = self._get_writer_conn(db_path)
                     results: List[Tuple[_WriteRequest, Dict[str, Any]]] = []
-                    try:
-                        with conn:
-                            for req in requests:
-                                cursor = conn.execute(req.sql, req.params)
-                                results.append(
-                                    (
-                                        req,
-                                        {"rowcount": cursor.rowcount, "lastrowid": cursor.lastrowid},
-                                    )
-                                )
-                                self._writes_since_checkpoint[db_path] = int(
-                                    self._writes_since_checkpoint.get(db_path, 0) or 0
-                                ) + 1
-
-                        self._maybe_checkpoint(db_path, conn)
-
+                    
+                    max_retries = 5
+                    base_delay = 0.05
+                    success = False
+                    last_exc = None
+                    
+                    for attempt in range(max_retries):
                         try:
-                            from core.container import ServiceContainer
+                            with conn:
+                                results.clear()
+                                for req in requests:
+                                    cursor = conn.execute(req.sql, req.params)
+                                    results.append(
+                                        (
+                                            req,
+                                            {"rowcount": cursor.rowcount, "lastrowid": cursor.lastrowid},
+                                        )
+                                    )
+                                    self._writes_since_checkpoint[db_path] = int(
+                                        self._writes_since_checkpoint.get(db_path, 0) or 0
+                                    ) + 1
+                            success = True
+                            break
+                        except sqlite3.OperationalError as e:
+                            last_exc = e
+                            if "locked" in str(e).lower() and attempt < max_retries - 1:
+                                sleep_time = (base_delay * (2 ** attempt)) + random.uniform(0, 0.05)
+                                logger.warning(
+                                    "⚠️ DB locked conflict in batch. Attempt %d/%d. Sleeping %.3fs",
+                                    attempt + 1, max_retries, sleep_time
+                                )
+                                time.sleep(sleep_time)
+                            else:
+                                break
+                        except Exception as e:
+                            last_exc = e
+                            break
 
-                            mycelium = ServiceContainer.get("mycelial_network", default=None)
-                            if mycelium:
-                                h = mycelium.get_hypha("core", "memory")
-                                if h:
-                                    h.pulse(success=True)
-                        except (ImportError, AttributeError, RuntimeError) as e:
-                            record_degradation('db_writer_queue', e)
-                            capture_and_log(e, {'module': __name__})
-
-                        for req, result in results:
-                            if self._loop and not req.future.done():
-                                self._loop.call_soon_threadsafe(req.future.set_result, result)
-                    except (ImportError, AttributeError, RuntimeError) as e:
+                    if not success:
+                        e = last_exc or RuntimeError("Unknown database error in batch")
                         record_degradation('db_writer_queue', e)
                         logger.error(
                             "DBWriter error on %s sql=%s params=%s: %s",
@@ -173,10 +182,29 @@ class SerializedDBWriter:
                         for req in requests:
                             if self._loop and not req.future.done():
                                 self._loop.call_soon_threadsafe(req.future.set_exception, e)
+                        continue
+
+                    self._maybe_checkpoint(db_path, conn)
+
+                    try:
+                        from core.container import ServiceContainer
+
+                        mycelium = ServiceContainer.get("mycelial_network", default=None)
+                        if mycelium:
+                            h = mycelium.get_hypha("core", "memory")
+                            if h:
+                                h.pulse(success=True)
+                    except (ImportError, AttributeError, RuntimeError) as e:
+                        record_degradation('db_writer_queue', e)
+                        capture_and_log(e, {'module': __name__})
+
+                    for req, result in results:
+                        if self._loop and not req.future.done():
+                            self._loop.call_soon_threadsafe(req.future.set_result, result)
 
                 if stop_requested:
                     break
-            except (ImportError, AttributeError, RuntimeError) as e:
+            except (sqlite3.Error, OSError, Exception) as e:
                 record_degradation('db_writer_queue', e)
                 logger.error("DBWriter loop error: %s", e)
 

@@ -1,20 +1,45 @@
 {
-    "version": "1.0",
+    "version": "1.1",
     "capabilities": {
         "file_system": {
             "allowed_read": [
-                "/"
+                "core/",
+                "interface/",
+                "utils/",
+                "skills/",
+                "config/",
+                "data/",
+                "logs/",
+                "tmp/",
+                "artifacts/"
             ],
             "allowed_write": [
-                "/"
+                "data/",
+                "logs/",
+                "tmp/",
+                "artifacts/"
             ],
-            "restricted_paths": []
+            "restricted_paths": [
+                "*.key",
+                "core/security/**",
+                "core/guardians/**",
+                "core/prime_directives.py"
+            ]
         },
         "network": {
             "allowed_domains": [
-                "*"
+                "github.com",
+                "huggingface.co",
+                "pypi.org",
+                "python.org",
+                "google.com"
             ],
-            "restricted_ports": []
+            "restricted_ports": [
+                22,
+                25,
+                445,
+                3389
+            ]
         },
         "process": {
             "allow_subprocess": true,
@@ -25,8 +50,8 @@
             }
         },
         "self_modification": {
-            "allowed": true,
-            "requires_approval": false,
+            "allowed": false,
+            "requires_approval": true,
             "safe_mode_enabled": true,
             "rollback_depth": 5
         }

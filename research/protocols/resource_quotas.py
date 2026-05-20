@@ -7,12 +7,30 @@ Once milestones are passed, the Governor unlocks more compute.
 
 import json
 import logging
+import time
 from pathlib import Path
 from typing import Dict, Any
 
 from core.container import ServiceContainer
 
 logger = logging.getLogger("Aura.Governance")
+
+
+_GOVERNOR_INSTANCE = None
+
+
+def get_compute_governor() -> "ComputeGovernor":
+    """Stateful accessor for the ComputeGovernor singleton."""
+    global _GOVERNOR_INSTANCE
+    if _GOVERNOR_INSTANCE is None:
+        _GOVERNOR_INSTANCE = ComputeGovernor()
+    return _GOVERNOR_INSTANCE
+
+
+class QuotaExceededError(RuntimeError):
+    """Raised when resource quotas are exceeded."""
+    pass
+
 
 class ComputeGovernor:
     """Manages resource unlocks based on benchmarking milestones."""
@@ -29,6 +47,9 @@ class ComputeGovernor:
             "max_concurrent_sims": 1,
             "internet_access": False
         }
+        self.token_usage_hourly = 0
+        self.last_reset_time = time.time()
+        self.active_simulations = set()
         self._load()
         
     def evaluate_promotion(self, latest_benchmark: Dict[str, Any]) -> bool:
@@ -74,22 +95,95 @@ class ComputeGovernor:
         """Provides the current operating bounds for the Orchestrator."""
         return self.state.copy()
 
+    def get_throttle_factor(self) -> float:
+        """Returns a multiplier (0.0 to 1.0) indicating compute availability.
+        
+        As hourly token usage approaches the quota limit, this factor drops,
+        signaling sampling loops to scale down their generation parameters.
+        """
+        max_allowed = self.state.get("max_tokens_per_hour", 100000)
+        if max_allowed <= 0:
+            return 1.0
+        
+        usage_ratio = self.token_usage_hourly / max_allowed
+        if usage_ratio >= 1.0:
+            return 0.0
+        elif usage_ratio >= 0.95:
+            return 0.2
+        elif usage_ratio >= 0.80:
+            return 0.5
+        return 1.0
+
+    def start_simulation(self, simulation_id: str):
+        """Statefully registers the start of a simulation."""
+        max_allowed = self.state.get("max_concurrent_sims", 1)
+        if len(self.active_simulations) >= max_allowed:
+            msg = f"Quota exceeded: Max concurrent simulations is {max_allowed}. Attempted to start simulation '{simulation_id}'."
+            logger.error("🚫 GOVERNANCE: %s", msg)
+            raise QuotaExceededError(msg)
+        self.active_simulations.add(simulation_id)
+        logger.info("📊 GOVERNANCE: Stateful simulation '%s' started. Active: %d/%d limit.", simulation_id, len(self.active_simulations), max_allowed)
+
+    def end_simulation(self, simulation_id: str):
+        """Statefully registers the completion of a simulation."""
+        self.active_simulations.discard(simulation_id)
+        logger.info("📊 GOVERNANCE: Stateful simulation '%s' finished. Active: %d/%d limit.", simulation_id, len(self.active_simulations), self.state.get("max_concurrent_sims", 1))
+
     def enforce_quota(self, metric: str, amount: int):
         """Called by telemetry to check if a run should be killed."""
-        # E.g. token tracking
-        pass
+        if metric == "tokens":
+            now = time.time()
+            # If 1 hour has elapsed, reset token window
+            if now - self.last_reset_time >= 3600:
+                self.token_usage_hourly = 0
+                self.last_reset_time = now
+                logger.info("🔄 GOVERNANCE: Hourly token usage quota reset.")
+
+            projected = self.token_usage_hourly + amount
+            max_allowed = self.state.get("max_tokens_per_hour", 100000)
+            if projected > max_allowed:
+                msg = f"Quota exceeded: Token limit of {max_allowed}/hr reached. Attempted to add {amount} (current: {self.token_usage_hourly})."
+                logger.error("🚫 GOVERNANCE: %s", msg)
+                raise QuotaExceededError(msg)
+            
+            self.token_usage_hourly = projected
+            logger.debug("📊 GOVERNANCE: Tokens consumed: %d/%d hourly limit.", self.token_usage_hourly, max_allowed)
+
+        elif metric == "simulations":
+            max_allowed = self.state.get("max_concurrent_sims", 1)
+            # Support both stateful tracking and backwards compatibility for raw counts
+            total_active = max(len(self.active_simulations), amount)
+            if total_active > max_allowed:
+                msg = f"Quota exceeded: Max concurrent simulations is {max_allowed}. Attempted to run {total_active} simulations."
+                logger.error("🚫 GOVERNANCE: %s", msg)
+                raise QuotaExceededError(msg)
+            logger.debug("📊 GOVERNANCE: Current active simulations: %d/%d limit.", total_active, max_allowed)
 
     def _save(self):
         try:
+            self.state_file.parent.mkdir(parents=True, exist_ok=True)
             with open(self.state_file, "w") as f:
                 json.dump(self.state, f, indent=4)
-        except Exception:
-            pass
+        except PermissionError as e:
+            logger.error("🚫 GOVERNANCE: Permission denied while writing state file %s: %s", self.state_file, e)
+            raise
+        except OSError as e:
+            logger.error("🚫 GOVERNANCE: OS error writing state file %s: %s", self.state_file, e)
+            raise
+        except TypeError as e:
+            logger.error("🚫 GOVERNANCE: Type error serializing state: %s", e)
+            raise
             
     def _load(self):
         if self.state_file.exists():
             try:
                 with open(self.state_file, "r") as f:
                     self.state.update(json.load(f))
-            except Exception:
-                pass
+            except FileNotFoundError:
+                logger.warning("⚠️ GOVERNANCE: State file not found during load: %s", self.state_file)
+            except json.JSONDecodeError as e:
+                logger.error("🚫 GOVERNANCE: Malformed state JSON at %s: %s", self.state_file, e)
+            except PermissionError as e:
+                logger.error("🚫 GOVERNANCE: Permission denied reading state %s: %s", self.state_file, e)
+            except OSError as e:
+                logger.error("🚫 GOVERNANCE: OS error reading state %s: %s", self.state_file, e)

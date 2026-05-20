@@ -240,44 +240,162 @@ class LocalAgentClient(RobustOllamaClient):
         return {"content": "I tried to think but ran out of steps.", "confidence": 0.0}
 
     def _parse_tool_call(self, text: str) -> Optional[Dict]:
-        """Robustly find valid JSON tool calls in the text.
+        """Robustly find, repair, and parse JSON tool calls in the text.
         Searches for the largest valid JSON object containing a "tool" key.
+        Supports markdown codeblocks, single-quote correction, trailing comma
+        cleanup, truncated JSON repair, and param unnesting.
         """
-        try:
-            # 1. Quick check for clean JSON
-            if text.strip().startswith('{') and text.strip().endswith('}'):
-                try:
-                    data = json.loads(text)
-                    if "tool" in data: return data
-                except json.JSONDecodeError:
-                    pass  # Not valid JSON, fall through to scanning approach
+        if not text:
+            return None
 
-            # 2. Scanning approach (handles mixed content)
-            # Find all potential start and end brackets
+        # Helper to repair malformed JSON strings
+        def repair_json_string(s: str) -> str:
+            s = s.strip()
+            # 1. Strip markdown fences
+            if s.startswith("```"):
+                lines = s.splitlines()
+                if lines[0].startswith("```"):
+                    lines = lines[1:]
+                if lines and lines[-1].strip() == "```":
+                    lines = lines[:-1]
+                s = "\n".join(lines).strip()
+
+            # 2. Extract content between first '{' and last '}'
+            start_idx = s.find('{')
+            if start_idx == -1:
+                return s
+            
+            # Balance brackets to find the end index
+            opened = 0
+            end_idx = -1
+            for i in range(start_idx, len(s)):
+                if s[i] == '{':
+                    opened += 1
+                elif s[i] == '}':
+                    opened -= 1
+                    if opened == 0:
+                        end_idx = i
+                        break
+            if end_idx == -1:
+                end_idx = s.rfind('}')
+                
+            if end_idx != -1 and end_idx > start_idx:
+                s = s[start_idx:end_idx + 1]
+
+            # 3. Clean up single quotes to double quotes for standard JSON
+            import re
+            
+            def normalise_quotes(match):
+                val = match.group(0)
+                if val.startswith("'") and val.endswith("'"):
+                    inner = val[1:-1]
+                    inner = inner.replace('"', '\\"') # escape double quotes
+                    inner = inner.replace("\\'", "'")
+                    return f'"{inner}"'
+                return val
+
+            s = re.sub(r"'(?:[^'\\]|\\.)*'", normalise_quotes, s)
+
+            # 4. Remove trailing commas in objects/arrays
+            s = re.sub(r",\s*([\]\}])", r"\1", s)
+
+            # 5. Fix mismatched/truncated braces and brackets
+            stack = []
+            for char in s:
+                if char in ('{', '['):
+                    stack.append(char)
+                elif char in ('}', ']'):
+                    if stack:
+                        top = stack[-1]
+                        if (char == '}' and top == '{') or (char == ']' and top == '['):
+                            stack.pop()
+
+            # Append missing closing delimiters in reverse order
+            while stack:
+                top = stack.pop()
+                if top == '{':
+                    s += '}'
+                elif top == '[':
+                    s += ']'
+
+            return s
+
+        def normalize_nested_params(d: Any) -> Any:
+            if not isinstance(d, dict):
+                return d
+            
+            for key in ["args", "params"]:
+                if key in d and isinstance(d[key], dict):
+                    nested = d[key]
+                    if isinstance(nested, dict):
+                        for nested_key in ["args", "params"]:
+                            if nested_key in nested and isinstance(nested[nested_key], dict):
+                                inner_params = nested[nested_key]
+                                for k, v in inner_params.items():
+                                    nested.setdefault(k, v)
+                                nested.pop(nested_key, None)
+                        
+                        d[key] = normalize_nested_params(nested)
+
+            if "tool" in d:
+                if "params" in d and "args" not in d:
+                    d["args"] = d.pop("params")
+                if "args" not in d:
+                    d["args"] = {}
+                elif not isinstance(d["args"], dict):
+                    d["args"] = {"value": d["args"]}
+
+            return d
+
+        try:
+            # 1. Clean and parse direct JSON
+            repaired_text = repair_json_string(text)
+            try:
+                data = json.loads(repaired_text)
+                if isinstance(data, dict) and "tool" in data:
+                    return normalize_nested_params(data)
+            except json.JSONDecodeError:
+                pass
+
+            # 2. Scanning approach: extract any potential JSON blocks
             starts = [i for i, c in enumerate(text) if c == '{']
             ends = [i for i, c in enumerate(text) if c == '}']
-            
-            # We want the *largest* valid block first, or the *last* valid block?
-            # Usually tool call is at the end. Let's try to find ANY valid tool call.
-            # We iterate starts and reversed ends.
-            
+
             for start in starts:
                 for end in reversed(ends):
-                    if end < start: break
-                    
+                    if end < start:
+                        break
                     candidate = text[start:end+1]
-                    # Optimization: Must contain "tool"
                     if '"tool"' not in candidate and "'tool'" not in candidate:
                         continue
-                        
                     try:
-                        data = json.loads(candidate)
-                        if "tool" in data:
-                            return data
+                        repaired_candidate = repair_json_string(candidate)
+                        data = json.loads(repaired_candidate)
+                        if isinstance(data, dict) and "tool" in data:
+                            return normalize_nested_params(data)
                     except json.JSONDecodeError:
                         continue
-        except (json.JSONDecodeError, TypeError, ValueError) as e:
+
+            # 3. Regex Fallback Parser for severely broken formats
+            import re
+            tool_match = re.search(r'"tool"\s*:\s*"([^"]+)"|\'tool\'\s*:\s*\'([^\']+)\'', text)
+            if tool_match:
+                tool_name = tool_match.group(1) or tool_match.group(2)
+                args_dict = {}
+                args_block_match = re.search(r'"args"\s*:\s*(\{.*?\}|\{.*)|\'args\'\s*:\s*(\{.*?\}|\{.*)', text, re.DOTALL)
+                if args_block_match:
+                    args_str = args_block_match.group(1) or args_block_match.group(2)
+                    try:
+                        repaired_args = repair_json_string(args_str)
+                        args_parsed = json.loads(repaired_args)
+                        if isinstance(args_parsed, dict):
+                            args_dict = args_parsed
+                    except Exception:
+                        pass
+                return normalize_nested_params({"tool": tool_name, "args": args_dict})
+
+        except Exception as e:
             record_degradation('local_agent_client', e)
-            logger.error("Tool parsing error: %s", e)
-            
+            logger.error("Tool parsing crash: %s", e)
+
         return None

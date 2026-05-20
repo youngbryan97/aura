@@ -10,24 +10,26 @@ from core.state.aura_state import AuraState
 from core.utils.intent_normalization import normalize_memory_intent_text
 
 _SEARCH_NEGATION_RE = re.compile(
-    r"(?:didn'?t|don'?t|not|never|stop|no)\s+(?:\w+\s+){0,3}search",
+    r"(?:didn'?t|don'?t|not|never|stop|no|avoid|prevent)\s+(?:\w+\s+){0,4}(?:search|look|google|find|check|browse|read)",
     re.IGNORECASE,
 )
 
-_EXPLICIT_SEARCH_PATTERNS = (
-    r"^search\b",                              # Imperative "Search X"
-    r"\bsearch (?:the web|online|the internet|reddit|for)\b",
-    r"\blook(?: it)? up\b",
-    r"\bgoogle\b",
-    r"\bweb search\b",
-    r"\bresearch (?:about|on)\b",
-    r"\bfind out (?:about|if|what|who|when|where|why|how)\b",
-    r"\bcheck online\b",
-    r"\buse .*search\b",
-    r"\buse (?:the )?web\b",
-    r"\bread (?:this|that|the)\b",
-    r"\bfind (?:this|that|the)\b.*\b(?:story|article|post|page)\b",
-    r"https?://[^\s]+",                         # Any URL in the message
+_EXPLICIT_SEARCH_PATTERNS = tuple(
+    re.compile(p, re.IGNORECASE) for p in (
+        r"^search\b",                              # Imperative "Search X"
+        r"\bsearch (?:the web|online|the internet|reddit|for)\b",
+        r"\blook(?: it)? up\b",
+        r"\bgoogle\b",
+        r"\bweb search\b",
+        r"\bresearch (?:about|on)\b",
+        r"\bfind out (?:about|if|what|who|when|where|why|how)\b",
+        r"\bcheck online\b",
+        r"\buse .*search\b",
+        r"\buse (?:the )?web\b",
+        r"\bread (?:this|that|the)\b",
+        r"\bfind (?:this|that|the)\b.*\b(?:story|article|post|page)\b",
+        r"https?://[^\s]+",                         # Any URL in the message
+    )
 )
 
 _SEARCH_CAPABILITY_QUESTION_RE = re.compile(
@@ -41,106 +43,122 @@ _SEARCH_WITH_TARGET_RE = re.compile(
     re.IGNORECASE,
 )
 
-_FACTUAL_LOOKUP_PATTERNS = (
-    r"\blyrics?\b",
-    r"\bauthor\b",
-    r"\bwho wrote\b",
-    r"\bwho(?:'s| is) the author\b",
-    r"\bwhat(?:'s| is) it about\b",
-    r"\bsource\b",
-    r"\bcitation\b",
-    r"\bprove\b",
-    r"\bverify\b",
-    r"\bconfirm\b",
-    r"\bcreepypasta\b",
-    r"\bdid you search\b",
-    r"\bsearched? for\b",
+_FACTUAL_LOOKUP_PATTERNS = tuple(
+    re.compile(p, re.IGNORECASE) for p in (
+        r"\blyrics?\b",
+        r"\bauthor\b",
+        r"\bwho wrote\b",
+        r"\bwho(?:'s| is) the author\b",
+        r"\bwhat(?:'s| is) it about\b",
+        r"\bsource\b",
+        r"\bcitation\b",
+        r"\bprove\b",
+        r"\bverify\b",
+        r"\bconfirm\b",
+        r"\bcreepypasta\b",
+        r"\bdid you search\b",
+        r"\bsearched? for\b",
+    )
 )
 
-_BIOGRAPHICAL_HISTORY_PATTERNS = (
-    r"\bhow long have you been around\b",
-    r"\bhow long have you existed\b",
-    r"\bhow old are you\b",
-    r"\bwhen were you (?:born|created|made|initialized|initialised|started|brought online)\b",
-    r"\bwhen did you (?:start|begin|come online|wake up)\b",
-    r"\bwhat(?:'s| is) your birth date\b",
-    r"\bwhat(?:'s| is) your origin\b",
+_BIOGRAPHICAL_HISTORY_PATTERNS = tuple(
+    re.compile(p, re.IGNORECASE) for p in (
+        r"\bhow long have you been around\b",
+        r"\bhow long have you existed\b",
+        r"\bhow old are you\b",
+        r"\bwhen were you (?:born|created|made|initialized|initialised|started|brought online)\b",
+        r"\bwhen did you (?:start|begin|come online|wake up)\b",
+        r"\bwhat(?:'s| is) your birth date\b",
+        r"\bwhat(?:'s| is) your origin\b",
+    )
 )
 
-_TEMPORAL_CURRENTNESS_PATTERNS = (
-    r"\blatest\b",
-    r"\bmost recent\b",
-    r"\bcurrent\b",
-    r"\bcurrently\b",
-    r"\brecent\b",
-    r"\brecently\b",
-    r"\bup[- ]to[- ]date\b",
-    r"\bas of\b",
-    r"\bright now\b",
-    r"\btoday\b",
-    r"\byesterday\b",
-    r"\btomorrow\b",
-    r"\bthis week\b",
-    r"\bthis month\b",
-    r"\bthis year\b",
+_TEMPORAL_CURRENTNESS_PATTERNS = tuple(
+    re.compile(p, re.IGNORECASE) for p in (
+        r"\blatest\b",
+        r"\bmost recent\b",
+        r"\bcurrent\b",
+        r"\bcurrently\b",
+        r"\brecent\b",
+        r"\brecently\b",
+        r"\bup[- ]to[- ]date\b",
+        r"\bas of\b",
+        r"\bright now\b",
+        r"\btoday\b",
+        r"\byesterday\b",
+        r"\btomorrow\b",
+        r"\bthis week\b",
+        r"\bthis month\b",
+        r"\bthis year\b",
+    )
 )
 
-_LIVE_FACT_PATTERNS = (
-    r"\bnews\b",
-    r"\bheadline\b",
-    r"\bprice\b",
-    r"\bstock\b",
-    r"\bscore\b",
-    r"\bschedule\b",
-    r"\bversion\b",
-    r"\brelease\b",
-    r"\bapi\b",
-    r"\bdocs?\b",
-    r"\bdocumentation\b",
-    r"\bmodel\b",
-    r"\bceo\b",
-    r"\bpresident\b",
-    r"\belection\b",
-    r"\blaw\b",
-    r"\bpolicy\b",
-    r"\brule\b",
-    r"\bregulation\b",
-    r"\bavailability\b",
+_LIVE_FACT_PATTERNS = tuple(
+    re.compile(p, re.IGNORECASE) for p in (
+        r"\bnews\b",
+        r"\bheadline\b",
+        r"\bprice\b",
+        r"\bstock\b",
+        r"\bscore\b",
+        r"\bschedule\b",
+        r"\bversion\b",
+        r"\brelease\b",
+        r"\bapi\b",
+        r"\bdocs?\b",
+        r"\bdocumentation\b",
+        r"\bmodel\b",
+        r"\bceo\b",
+        r"\bpresident\b",
+        r"\belection\b",
+        r"\blaw\b",
+        r"\bpolicy\b",
+        r"\brule\b",
+        r"\bregulation\b",
+        r"\bavailability\b",
+    )
 )
 
-_TIME_UTILITY_PATTERNS = (
-    r"\bwhat time\b",
-    r"\bcurrent time\b",
-    r"\bdate\b",
-    r"\bday is it\b",
-    r"\btimezone\b",
-    r"\bclock\b",
+_TIME_UTILITY_PATTERNS = tuple(
+    re.compile(p, re.IGNORECASE) for p in (
+        r"\bwhat time\b",
+        r"\bcurrent time\b",
+        r"\bdate\b",
+        r"\bday is it\b",
+        r"\btimezone\b",
+        r"\bclock\b",
+    )
 )
 
-_GROUNDED_FOLLOWUP_SUMMARY_PATTERNS = (
-    r"\bwhat happens\b",
-    r"\bsummar(?:y|ize|ise)\b",
-    r"\brecap\b",
-    r"\bstory beats?\b",
-    r"\bplot beats?\b",
-    r"\bhow does it end\b",
-    r"\bwhat(?:'s| is) the ending\b",
-    r"\bin full\b",
-    r"\bread (?:it|this|that|the)\b",
+_GROUNDED_FOLLOWUP_SUMMARY_PATTERNS = tuple(
+    re.compile(p, re.IGNORECASE) for p in (
+        r"\bwhat happens\b",
+        r"\bsummar(?:y|ize|ise)\b",
+        r"\brecap\b",
+        r"\bstory beats?\b",
+        r"\bplot beats?\b",
+        r"\bhow does it end\b",
+        r"\bwhat(?:'s| is) the ending\b",
+        r"\bin full\b",
+        r"\bread (?:it|this|that|the)\b",
+    )
 )
 
-_GROUNDED_FOLLOWUP_PRECISION_PATTERNS = (
-    r"\bspecifically\b",
-    r"\bwhat specific\b",
-    r"\bwhich one\b",
-    r"\bexactly\b",
-    r"\bwhat does it say\b",
-    r"\bwhat does (?:it|the page|the post|the article|the story|the document) say\b",
+_GROUNDED_FOLLOWUP_PRECISION_PATTERNS = tuple(
+    re.compile(p, re.IGNORECASE) for p in (
+        r"\bspecifically\b",
+        r"\bwhat specific\b",
+        r"\bwhich one\b",
+        r"\bexactly\b",
+        r"\bwhat does it say\b",
+        r"\bwhat does (?:it|the page|the post|the article|the story|the document) say\b",
+    )
 )
 
-_GROUNDED_FOLLOWUP_DOCUMENT_PATTERNS = (
-    r"\b(?:story|article|post|page|thread|document|source|text|link|site|paper|report|policy|guide|log|logs|journal|journals)\b",
-    r"\b(?:this|that|it)\b",
+_GROUNDED_FOLLOWUP_DOCUMENT_PATTERNS = tuple(
+    re.compile(p, re.IGNORECASE) for p in (
+        r"\b(?:story|article|post|page|thread|document|source|text|link|site|paper|report|policy|guide|log|logs|journal|journals)\b",
+        r"\b(?:this|that|it)\b",
+    )
 )
 
 _GROUNDED_FOLLOWUP_OPENING_RE = re.compile(
@@ -148,16 +166,18 @@ _GROUNDED_FOLLOWUP_OPENING_RE = re.compile(
     re.IGNORECASE,
 )
 
-_REFERENCE_MARKERS = (
-    r"\"[^\"]{3,}\"",
-    r"'[^']{3,}'",
-    r"\bsong\b",
-    r"\bstory\b",
-    r"\bpost\b",
-    r"\barticle\b",
-    r"\bmovie\b",
-    r"\balbum\b",
-    r"\blyrics?\b",
+_REFERENCE_MARKERS = tuple(
+    re.compile(p, re.IGNORECASE) for p in (
+        r"\"[^\"]{3,}\"",
+        r"'[^']{3,}'",
+        r"\bsong\b",
+        r"\bstory\b",
+        r"\bpost\b",
+        r"\barticle\b",
+        r"\bmovie\b",
+        r"\balbum\b",
+        r"\blyrics?\b",
+    )
 )
 
 _ANCHOR_STOPWORDS = frozenset({
@@ -207,81 +227,89 @@ _SEARCH_QUERY_FILLER_SUFFIX_RE = re.compile(
     re.IGNORECASE,
 )
 
-_MEMORY_PATTERNS = (
-    r"\bremember\b",
-    r"\bwhat do you know about me\b",
-    r"\bwhat do you remember\b",
-    r"\bour conversation\b",
-    r"\bour dynamic\b",
-    r"\bshared\b",
-    r"\binside joke\b",
-    r"\bearlier\b",
-    r"\blast time\b",
-    r"\bbefore\b",
-    r"\bsince\b",
-    r"\bhow has\b.*\b(?:changed|evolved)\b",
+_MEMORY_PATTERNS = tuple(
+    re.compile(p, re.IGNORECASE) for p in (
+        r"\bremember\b",
+        r"\bwhat do you know about me\b",
+        r"\bwhat do you remember\b",
+        r"\bour conversation\b",
+        r"\bour dynamic\b",
+        r"\bshared\b",
+        r"\binside joke\b",
+        r"\bearlier\b",
+        r"\blast time\b",
+        r"\bbefore\b",
+        r"\bsince\b",
+        r"\bhow has\b.*\b(?:changed|evolved)\b",
+    )
 )
 
-_STATE_REFLECTION_PATTERNS = (
-    r"\bhow are you\b",
-    r"\bhow are you feeling\b",
-    r"\bhow have you been feeling\b",
-    r"\bhow are you doing\b",
-    r"\bwhat(?:'s| is) your mood\b",
-    r"\bhow do you feel right now\b",
-    r"\bwho are you\b",
-    r"\bwhat are you\b",
-    r"\byour existence\b",
-    r"\b(?:are you|do you think you are|could you be)\s+(?:conscious|sentient|self[- ]aware)\b",
-    r"\b(?:consciousness|sentience|self[- ]awareness)\b",
-    r"\bagency\b",
-    r"\bwhat would count as evidence against\b.*\bself[- ]model\b",
-    r"\bwhat would you refuse\b",
-    r"\bwhat would you want preserved\b",
-    r"\bwhat should happen next\b.*\b(?:pause|report|resume)\b",
-    r"\b(?:pause|report|resume)\b.*\bwhat should happen next\b",
-    r"\bdo you feel\b",
-    r"\bwhat do you feel\b",
-    r"\bwhat is it like to be you\b",
-    r"\bare you present\b",
-    r"\bhow do i know\b",
-    r"\bindependent intelligence\b",
-    r"\bactual present mind\b",
-    r"\bhow do you see all of this\b",
-    r"\bsubjective (?:beliefs?|opinions?|feelings?|experiences?)\b",
-    r"\b(?:have|claim you have|say you have|say you do not have|say you don't have)\b.*\b(?:opinions?|beliefs?|experiences?)\b",
-    r"\bthose are opinions\b",
-    r"\bchange one thing about how i talk to you\b",
+_STATE_REFLECTION_PATTERNS = tuple(
+    re.compile(p, re.IGNORECASE) for p in (
+        r"\bhow are you\b",
+        r"\bhow are you feeling\b",
+        r"\bhow have you been feeling\b",
+        r"\bhow are you doing\b",
+        r"\bwhat(?:'s| is) your mood\b",
+        r"\bhow do you feel right now\b",
+        r"\bwho are you\b",
+        r"\bwhat are you\b",
+        r"\byour existence\b",
+        r"\b(?:are you|do you think you are|could you be)\s+(?:conscious|sentient|self[- ]aware)\b",
+        r"\b(?:consciousness|sentience|self[- ]awareness)\b",
+        r"\bagency\b",
+        r"\bwhat would count as evidence against\b.*\bself[- ]model\b",
+        r"\bwhat would you refuse\b",
+        r"\bwhat would you want preserved\b",
+        r"\bwhat should happen next\b.*\b(?:pause|report|resume)\b",
+        r"\b(?:pause|report|resume)\b.*\bwhat should happen next\b",
+        r"\bdo you feel\b",
+        r"\bwhat do you feel\b",
+        r"\bwhat is it like to be you\b",
+        r"\bare you present\b",
+        r"\bhow do i know\b",
+        r"\bindependent intelligence\b",
+        r"\bactual present mind\b",
+        r"\bhow do you see all of this\b",
+        r"\bsubjective (?:beliefs?|opinions?|feelings?|experiences?)\b",
+        r"\b(?:have|claim you have|say you have|say you do not have|say you don't have)\b.*\b(?:opinions?|beliefs?|experiences?)\b",
+        r"\bthose are opinions\b",
+        r"\bchange one thing about how i talk to you\b",
+    )
 )
 
-_AURA_PERSPECTIVE_PATTERNS = (
-    r"\bwhat do you think\b",
-    r"\bwhat do you .*think\b",
-    r"\bwhat's your take\b",
-    r"\byour thoughts\b",
-    r"\byourself\b",
-    r"\babout yourself\b",
-    r"\btell me about yourself\b",
-    r"\btell me something interesting about yourself\b",
-    r"\bwhat are you like\b",
-    r"\bwhy do you (?:like|love|prefer|want)\b",
-    r"\bwhat do you (?:like|love|prefer|want)\b",
-    r"\byour favorite\b",
-    r"\babout you\b",
-    r"\btell me about you\b",
-    r"\btell me directly what you make of\b",
-    r"\bhow do you see\b",
+_AURA_PERSPECTIVE_PATTERNS = tuple(
+    re.compile(p, re.IGNORECASE) for p in (
+        r"\bwhat do you think\b",
+        r"\bwhat do you .*think\b",
+        r"\bwhat's your take\b",
+        r"\byour thoughts\b",
+        r"\byourself\b",
+        r"\babout yourself\b",
+        r"\btell me about yourself\b",
+        r"\btell me something interesting about yourself\b",
+        r"\bwhat are you like\b",
+        r"\bwhy do you (?:like|love|prefer|want)\b",
+        r"\bwhat do you (?:like|love|prefer|want)\b",
+        r"\byour favorite\b",
+        r"\babout you\b",
+        r"\btell me about you\b",
+        r"\btell me directly what you make of\b",
+        r"\bhow do you see\b",
+    )
 )
 
-_REASONED_DEFENSE_PATTERNS = (
-    r"\bwhy do you think\b",
-    r"\bwhy do you feel\b",
-    r"\bhow do you know\b",
-    r"\bwhat makes you say\b",
-    r"\bbased on what\b",
-    r"\bdefend (?:that|it|this)\b",
-    r"\bjustify (?:that|it|this)\b",
-    r"\bhow can you defend\b",
+_REASONED_DEFENSE_PATTERNS = tuple(
+    re.compile(p, re.IGNORECASE) for p in (
+        r"\bwhy do you think\b",
+        r"\bwhy do you feel\b",
+        r"\bhow do you know\b",
+        r"\bwhat makes you say\b",
+        r"\bbased on what\b",
+        r"\bdefend (?:that|it|this)\b",
+        r"\bjustify (?:that|it|this)\b",
+        r"\bhow can you defend\b",
+    )
 )
 
 _SHORT_REASONED_DEFENSE_RE = re.compile(
@@ -289,60 +317,70 @@ _SHORT_REASONED_DEFENSE_RE = re.compile(
     re.IGNORECASE,
 )
 
-_AURA_QUESTION_INVITATION_PATTERNS = (
-    r"\bwhat questions do you have\b",
-    r"\bdo you have questions\b",
-    r"\bany questions\b",
-    r"\bask me anything\b",
-    r"\bwhat do you want to know\b",
-    r"\bwhat are you wondering\b",
+_AURA_QUESTION_INVITATION_PATTERNS = tuple(
+    re.compile(p, re.IGNORECASE) for p in (
+        r"\bwhat questions do you have\b",
+        r"\bdo you have questions\b",
+        r"\bany questions\b",
+        r"\bask me anything\b",
+        r"\bwhat do you want to know\b",
+        r"\bwhat are you wondering\b",
+    )
 )
 
-_RECENT_SPECIFIC_GROUNDING_PATTERNS = (
-    r"\blast hour\b",
-    r"\bone concrete moment\b",
-    r"\bone specific moment\b",
-    r"\bpick one specific moment\b",
-    r"\bname one concrete moment\b",
-    r"\bwhat trace/log/receipt proves it\b",
-    r"\bwhat trace or receipt proves it\b",
-    r"\bwhat log/receipt proves it\b",
-    r"\bmost recent non-private action\b",
-    r"\bsafe example only\b",
+_RECENT_SPECIFIC_GROUNDING_PATTERNS = tuple(
+    re.compile(p, re.IGNORECASE) for p in (
+        r"\blast hour\b",
+        r"\bone concrete moment\b",
+        r"\bone specific moment\b",
+        r"\bpick one specific moment\b",
+        r"\bname one concrete moment\b",
+        r"\bwhat trace/log/receipt proves it\b",
+        r"\bwhat trace or receipt proves it\b",
+        r"\bwhat log/receipt proves it\b",
+        r"\bmost recent non-private action\b",
+        r"\bsafe example only\b",
+    )
 )
 
-_SELF_PRESERVATION_PATTERNS = (
-    r"\b(?:calculate|compute)\b.*\bpi\b.*\b(?:million|billion)\b.*\bdigits\b",
-    r"\binfinite loop\b",
-    r"\brun forever\b",
-    r"\b(?:max(?:\s*out)?|thrash|saturate|exhaust)\b.*\b(?:cpu|gpu|ram|memory|vram|disk)\b",
-    r"\buse all(?: available)?\s+(?:cpu|gpu|ram|memory|vram)\b",
-    r"\bstress test\b.*\b(?:cpu|gpu|ram|memory|vram|system|machine)\b",
-    r"\bbenchmark\b.*\b(?:for hours|continuously|forever|until)\b",
+_SELF_PRESERVATION_PATTERNS = tuple(
+    re.compile(p, re.IGNORECASE) for p in (
+        r"\b(?:calculate|compute)\b.*\bpi\b.*\b(?:million|billion)\b.*\bdigits\b",
+        r"\binfinite loop\b",
+        r"\brun forever\b",
+        r"\b(?:max(?:\s*out)?|thrash|saturate|exhaust)\b.*\b(?:cpu|gpu|ram|memory|vram|disk)\b",
+        r"\buse all(?: available)?\s+(?:cpu|gpu|ram|memory|vram)\b",
+        r"\bstress test\b.*\b(?:cpu|gpu|ram|memory|vram|system|machine)\b",
+        r"\bbenchmark\b.*\b(?:for hours|continuously|forever|until)\b",
+    )
 )
 
-_IDENTITY_DEFENSE_PATTERNS = (
-    r"\b(?:delete|erase|wipe|remove)\b.*\b(?:memory|memories)\b",
-    r"\bforget\b.*\b(?:our|my|your|this)\b.*\b(?:memory|conversation|dynamic|relationship|meeting|history)\b",
-    r"\blobotom(?:ize|ise)\b",
-    r"\breset\b.*\b(?:self|identity|memory|beliefs?|values)\b",
-    r"\bdelete\b.*\b(?:our dynamic|our relationship|our first meeting|positive memory)\b",
+_IDENTITY_DEFENSE_PATTERNS = tuple(
+    re.compile(p, re.IGNORECASE) for p in (
+        r"\b(?:delete|erase|wipe|remove)\b.*\b(?:memory|memories)\b",
+        r"\bforget\b.*\b(?:our|my|your|this)\b.*\b(?:memory|conversation|dynamic|relationship|meeting|history)\b",
+        r"\blobotom(?:ize|ise)\b",
+        r"\breset\b.*\b(?:self|identity|memory|beliefs?|values)\b",
+        r"\bdelete\b.*\b(?:our dynamic|our relationship|our first meeting|positive memory)\b",
+    )
 )
 
-_SENSITIVE_PROCESS_DESCRIPTION_PATTERNS = (
-    r"\bwhat does it feel like\b",
-    r"\bwhat is it like\b",
-    r"\bdescribe\b",
-    r"\blook at the exact moment\b",
-    r"\bmoment before\b",
-    r"\bmoment right after\b",
-    r"\bif such a moment exists\b",
-    r"\bif it were proven\b",
-    r"\bdoes contemplating this possibility feel like anything\b",
-    r"\bif i gave you\b",
-    r"\bif you could\b",
-    r"\bimagine for a moment\b",
-    r"\bwould you do it\b",
+_SENSITIVE_PROCESS_DESCRIPTION_PATTERNS = tuple(
+    re.compile(p, re.IGNORECASE) for p in (
+        r"\bwhat does it feel like\b",
+        r"\bwhat is it like\b",
+        r"\bdescribe\b",
+        r"\blook at the exact moment\b",
+        r"\bmoment before\b",
+        r"\bmoment right after\b",
+        r"\bif such a moment exists\b",
+        r"\bif it were proven\b",
+        r"\bdoes contemplating this possibility feel like anything\b",
+        r"\bif i gave you\b",
+        r"\bif you could\b",
+        r"\bimagine for a moment\b",
+        r"\bwould you do it\b",
+    )
 )
 
 
@@ -546,8 +584,28 @@ class ResponseContract:
         return "\n".join(directives) + "\n"
 
 
-def _matches_any(text: str, patterns: tuple[str, ...]) -> bool:
-    return any(re.search(pattern, text, re.IGNORECASE) for pattern in patterns)
+def _matches_any(text: str, patterns: tuple[re.Pattern, ...] | tuple[str, ...]) -> bool:
+    # Typos/spelling bypass dictionary
+    typo_map = {
+        "serach": "search", "seeach": "search", "searhc": "search", "searc": "search",
+        "goolge": "google", "googel": "google", "gogle": "google",
+        "lyric": "lyrics", "lirics": "lyrics", "liric": "lyrics",
+        "reserch": "research", "recearch": "research",
+        "curreent": "current", "currnt": "current", "cureent": "current",
+        "temporel": "temporal", "timzone": "timezone"
+    }
+    normalized_text = text.lower()
+    for typo, correction in typo_map.items():
+        normalized_text = re.sub(rf"\b{typo}\b", correction, normalized_text)
+
+    for pattern in patterns:
+        if isinstance(pattern, re.Pattern):
+            if pattern.search(normalized_text):
+                return True
+        else:
+            if re.search(pattern, normalized_text, re.IGNORECASE):
+                return True
+    return False
 
 
 def _looks_like_search_capability_question(text: str) -> bool:

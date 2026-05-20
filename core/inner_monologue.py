@@ -24,19 +24,48 @@ Integration (in conversation_loop.py):
     response = await language_center.express(thought)
 """
 
-from core.runtime.errors import record_degradation
+from __future__ import annotations
+
 import asyncio
 import json
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import psutil
 
-from core.cognitive_kernel import CognitiveBrief, ResponseStrategy, InputDomain
+from core.cognitive_kernel import CognitiveBrief, InputDomain, ResponseStrategy
+from core.runtime.errors import Severity, record_degradation
 
 logger = logging.getLogger("Aura.InnerMonologue")
+
+_INNER_MONOLOGUE_RECOVERABLE_ERRORS = (
+    ImportError,
+    AttributeError,
+    RuntimeError,
+    TimeoutError,
+    TypeError,
+    ValueError,
+)
+_ALLOWED_TONES = {"direct", "warm", "exploratory", "skeptical", "playful", "thoughtful", "clear", "curious"}
+DEFAULT_DEEPENING_TIMEOUT_SECONDS = 8.0
+
+
+def _record_inner_degradation(
+    error: BaseException,
+    *,
+    action: str,
+    severity: Severity = "degraded",
+    extra: dict[str, Any] | None = None,
+) -> None:
+    record_degradation(
+        "inner_monologue",
+        error,
+        severity=severity,
+        action=action,
+        extra=extra,
+    )
 
 
 # ─── ThoughtPacket ──────────────────────────────────────────────────────────
@@ -53,13 +82,13 @@ class ThoughtPacket:
     stance: str = ""
 
     # The most important things to communicate
-    primary_points: List[str] = field(default_factory=list)
+    primary_points: list[str] = field(default_factory=list)
 
     # Secondary points / supporting angles
-    secondary_points: List[str] = field(default_factory=list)
+    secondary_points: list[str] = field(default_factory=list)
 
     # Explicit things to NOT say (from avoid list + anti-patterns)
-    constraints: List[str] = field(default_factory=list)
+    constraints: list[str] = field(default_factory=list)
 
     # Tone direction: "direct", "warm", "skeptical", "exploratory", "playful"
     tone: str = "direct"
@@ -171,13 +200,14 @@ class InnerMonologue:
         ResponseStrategy.CREATE,
     }
 
-    def __init__(self):
+    def __init__(self, deepening_timeout: float = DEFAULT_DEEPENING_TIMEOUT_SECONDS):
         self._llm_router = None   # IntelligentLLMRouter — injected at start()
         self._memory_synthesizer = None
         self._identity_block = ""
         self._router_available = False
         self._concept_linker = None
         self._narrative = None
+        self._deepening_timeout = max(0.05, float(deepening_timeout))
         logger.info("InnerMonologue constructed.")
 
     async def start(self):
@@ -197,8 +227,13 @@ class InnerMonologue:
                 "component": "inner_monologue",
                 "hooks_into": ["cognitive_kernel", "llm_router", "language_center"]
             })
-        except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('inner_monologue', e)
+        except _INNER_MONOLOGUE_RECOVERABLE_ERRORS as e:
+            _record_inner_degradation(
+                e,
+                severity="warning",
+                action="continued startup with local baseline reasoning after mycelium registration failed",
+                extra={"phase": "start_registration"},
+            )
             logger.debug("InnerMonologue: mycelium registration failed: %s", e)
 
         logger.info("✅ InnerMonologue ONLINE — router_available=%s", self._router_available)
@@ -221,7 +256,7 @@ class InnerMonologue:
         self,
         user_input: str,
         brief: CognitiveBrief,
-        history: Optional[List[Dict[str, str]]] = None,
+        history: list[dict[str, str]] | None = None,
     ) -> ThoughtPacket:
         """
         Core pipeline. Produces a ThoughtPacket from a CognitiveBrief.
@@ -243,24 +278,17 @@ class InnerMonologue:
         if self._should_use_api(brief) and router:
             try:
                 packet = await self._deepen_with_api(user_input, brief, packet, history)
-            except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-                record_degradation('inner_monologue', e)
+            except _INNER_MONOLOGUE_RECOVERABLE_ERRORS as e:
+                _record_inner_degradation(
+                    e,
+                    action=(
+                        "kept the baseline ThoughtPacket, skipped optional deepening, "
+                        "and preserved response flow"
+                    ),
+                    extra={"phase": "deepen_with_api", "strategy": brief.strategy.value},
+                )
                 logger.warning("InnerMonologue API deepening failed (using baseline): %s", e)
-                try:
-                    from core.health.degraded_events import record_degraded_event
-
-                    record_degraded_event(
-                        "inner_monologue",
-                        type(e).__name__,
-                        detail=str(e) or type(e).__name__,
-                        severity="warning",
-                        classification="non_critical_fallback",
-                        context={"stage": "deepen_with_api"},
-                        exc=e,
-                    )
-                except (ImportError, AttributeError, RuntimeError) as degraded_exc:
-                    record_degradation('inner_monologue', degraded_exc)
-                    logger.debug("InnerMonologue degraded-event logging failed: %s", degraded_exc)
+                self._record_deepening_event(e, stage="deepen_with_api")
                 # Baseline packet still valid
 
         # Step 3: Model routing
@@ -272,8 +300,16 @@ class InnerMonologue:
             agency = ServiceContainer.get("agency_core", default=None)
             if agency:
                 agency._current_monologue = packet  # Store the actual ThoughtPacket
-        except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('inner_monologue', e)
+        except _INNER_MONOLOGUE_RECOVERABLE_ERRORS as e:
+            _record_inner_degradation(
+                e,
+                severity="warning",
+                action=(
+                    "continued with the ThoughtPacket briefing even though AgencyCore "
+                    "prompt-compiler injection failed"
+                ),
+                extra={"phase": "agency_injection"},
+            )
             logger.debug("Failed to push ThoughtPacket to AgencyCore: %s", e)
 
         # Step 4: Build the LLM briefing
@@ -317,7 +353,7 @@ class InnerMonologue:
     def _derive_stance(self, user_input: str, brief: CognitiveBrief) -> str:
         """Synthesize a stance from beliefs and domain knowledge."""
         if not brief.prior_beliefs:
-            return f"I'm approaching this with genuine curiosity — I don't have a settled view yet."
+            return "I'm approaching this with genuine curiosity — I don't have a settled view yet."
 
         # Use the highest-relevance belief as the core of the stance
         core = brief.prior_beliefs[0]
@@ -341,7 +377,8 @@ class InnerMonologue:
                 # Use a standard loop to avoid slice-related lint issues in certain checkers
                 count = 0
                 for link in reversed(recent_links_raw):
-                    if count >= 3: break
+                    if count >= 3:
+                        break
                     src = str(link.source_concept).lower()
                     if any(w in str(core).lower() for w in src.split() if len(w) > 4):
                         core = f"{core} (This connects to my thinking on {link.target_concept})"
@@ -350,7 +387,7 @@ class InnerMonologue:
 
         return core
 
-    def _build_primary_points(self, brief: CognitiveBrief) -> List[str]:
+    def _build_primary_points(self, brief: CognitiveBrief) -> list[str]:
         points = list(brief.key_points)
         # Add strategy-specific points
         if brief.strategy == ResponseStrategy.CHALLENGE:
@@ -367,7 +404,7 @@ class InnerMonologue:
             final_points.append(points[i])
         return final_points
 
-    def _build_secondary_points(self, brief: CognitiveBrief) -> List[str]:
+    def _build_secondary_points(self, brief: CognitiveBrief) -> list[str]:
         secondary = []
         if brief.strategy == ResponseStrategy.EXPLORE:
             secondary.append("Raise an angle that probably hasn't been considered.")
@@ -442,9 +479,15 @@ class InnerMonologue:
             if gate and hasattr(gate, "_background_local_deferral_reason"):
                 if gate._background_local_deferral_reason(origin="inner_monologue"):
                     return False
-        except (ImportError, AttributeError, RuntimeError) as _exc:
-            record_degradation('inner_monologue', _exc)
+        except _INNER_MONOLOGUE_RECOVERABLE_ERRORS as _exc:
+            _record_inner_degradation(
+                _exc,
+                severity="warning",
+                action="disabled optional API deepening because background deferral policy could not be checked",
+                extra={"phase": "deepening_gate"},
+            )
             logger.debug("Suppressed Exception: %s", _exc)
+            return False
 
         try:
             vm = psutil.virtual_memory()
@@ -452,9 +495,15 @@ class InnerMonologue:
             max_pressure = 82.0 if total_gb >= 60.0 else 78.0
             if vm.percent >= max_pressure:
                 return False
-        except (ImportError, OSError, AttributeError) as _exc:
-            record_degradation('inner_monologue', _exc)
+        except (ImportError, OSError, AttributeError, RuntimeError, TypeError, ValueError) as _exc:
+            _record_inner_degradation(
+                _exc,
+                severity="warning",
+                action="disabled optional API deepening because memory pressure could not be measured",
+                extra={"phase": "memory_pressure_gate"},
+            )
             logger.debug("Suppressed Exception: %s", _exc)
+            return False
 
         if brief.complexity in ("complex", "deep"):
             return True
@@ -471,7 +520,7 @@ class InnerMonologue:
         user_input: str,
         brief: CognitiveBrief,
         baseline: ThoughtPacket,
-        history: List[Dict],
+        history: list[dict[str, Any]],
     ) -> ThoughtPacket:
         """
         Use Aura's deeper local reasoning path to strengthen the baseline stance.
@@ -517,64 +566,50 @@ Be concise. No preamble. Output only the JSON."""
         # Call the router's think() method directly
         # IntelligentLLMRouter.think returns a string (final_text_str) directly
         try:
-            raw = await router.think(
-                prompt=prompt,
-                prefer_tier="primary",
-                deep_handoff=self._should_use_api(brief),
-                max_tokens=600,
-                temperature=0.4,
-                purpose="inner_monologue",
-                origin="inner_monologue",
-                allow_cloud_fallback=False,
+            raw = await asyncio.wait_for(
+                router.think(
+                    prompt=prompt,
+                    prefer_tier="primary",
+                    deep_handoff=self._should_use_api(brief),
+                    max_tokens=600,
+                    temperature=0.4,
+                    purpose="inner_monologue",
+                    origin="inner_monologue",
+                    allow_cloud_fallback=False,
+                ),
+                timeout=self._deepening_timeout,
             )
             success = True # router.think always returns a response (reflex fallback if needed)
-        except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-            record_degradation('inner_monologue', e)
+        except _INNER_MONOLOGUE_RECOVERABLE_ERRORS as e:
+            _record_inner_degradation(
+                e,
+                action=(
+                    "returned the baseline ThoughtPacket after bounded router "
+                    "deepening failed"
+                ),
+                extra={"phase": "router_think", "timeout_s": self._deepening_timeout},
+            )
             logger.warning("InnerMonologue: Critical router failure during deepening: %s", e)
-            try:
-                from core.health.degraded_events import record_degraded_event
-
-                record_degraded_event(
-                    "inner_monologue",
-                    type(e).__name__,
-                    detail=str(e) or type(e).__name__,
-                    severity="warning",
-                    classification="non_critical_fallback",
-                    context={"stage": "router_think"},
-                    exc=e,
-                )
-            except (ImportError, AttributeError, RuntimeError) as degraded_exc:
-                record_degradation('inner_monologue', degraded_exc)
-                logger.debug("InnerMonologue router degraded-event logging failed: %s", degraded_exc)
+            self._record_deepening_event(e, stage="router_think")
             return baseline
 
         if not success or not raw:
             logger.warning("InnerMonologue: API deepening failed or empty response.")
-            try:
-                from core.health.degraded_events import record_degraded_event
-
-                record_degraded_event(
-                    "inner_monologue",
-                    "empty_response",
-                    detail="router returned no deepening payload",
-                    severity="warning",
-                    classification="non_critical_fallback",
-                    context={"stage": "router_think"},
-                )
-            except (ImportError, AttributeError, RuntimeError) as degraded_exc:
-                record_degradation('inner_monologue', degraded_exc)
-                logger.debug("InnerMonologue empty degraded-event logging failed: %s", degraded_exc)
+            self._record_deepening_event(
+                RuntimeError("router returned no deepening payload"),
+                stage="router_think",
+            )
             return baseline
 
         # Parse response
         try:
             # Strip markdown fences if present
-            clean = raw.strip().lstrip("```json").lstrip("```").rstrip("```").strip()
+            clean = _strip_json_fence(raw)
             data = json.loads(clean)
 
             baseline.stance = data.get("strengthened_stance", baseline.stance)
             new_points = data.get("primary_points", [])
-            if new_points:
+            if isinstance(new_points, list) and new_points:
                 baseline.primary_points = new_points[:4]
 
             uncertainty = data.get("genuine_uncertainty")
@@ -586,27 +621,24 @@ Be concise. No preamble. Output only the JSON."""
                 baseline.ask_followup = True
                 baseline.followup_question = followup
 
-            baseline.transparency = data.get("transparency_level", baseline.transparency)
-            baseline.tone = data.get("recommended_tone", baseline.tone)
+            baseline.transparency = _clamp_float(
+                data.get("transparency_level", baseline.transparency),
+                default=baseline.transparency,
+            )
+            tone = str(data.get("recommended_tone", baseline.tone))
+            if tone in _ALLOWED_TONES:
+                baseline.tone = tone
             baseline.reasoning_source = "kernel+api"
 
         except (json.JSONDecodeError, KeyError) as e:
             logger.warning("InnerMonologue: API response parse failed (%s) — using baseline.", e)
-            try:
-                from core.health.degraded_events import record_degraded_event
-
-                record_degraded_event(
-                    "inner_monologue",
-                    "parse_failure",
-                    detail=str(e),
-                    severity="warning",
-                    classification="non_critical_fallback",
-                    context={"stage": "parse_deepening"},
-                    exc=e,
-                )
-            except (ImportError, AttributeError, RuntimeError) as degraded_exc:
-                record_degradation('inner_monologue', degraded_exc)
-                logger.debug("InnerMonologue parse degraded-event logging failed: %s", degraded_exc)
+            _record_inner_degradation(
+                e,
+                severity="warning",
+                action="kept the baseline ThoughtPacket after deepening JSON parse failed",
+                extra={"phase": "parse_deepening"},
+            )
+            self._record_deepening_event(e, stage="parse_deepening")
             baseline.reasoning_source = "kernel+api_failed"
 
         return baseline
@@ -640,8 +672,13 @@ Be concise. No preamble. Output only the JSON."""
                         f"You are Aura. {identity}\nCore values: {v_str}.\n"
                         "Speak directly while keeping claims grounded in runtime evidence."
                     )
-        except (ImportError, AttributeError, TypeError, KeyError) as e:
-            record_degradation('inner_monologue', e)
+        except (ImportError, AttributeError, TypeError, KeyError, RuntimeError) as e:
+            _record_inner_degradation(
+                e,
+                severity="warning",
+                action="used the default identity block after belief self-model lookup failed",
+                extra={"phase": "identity_beliefs"},
+            )
             logger.debug("InnerMonologue: identity load from beliefs failed: %s", e)
 
         # ── NARRATIVE INTEGRATION ──
@@ -656,8 +693,13 @@ Be concise. No preamble. Output only the JSON."""
                         "Speak directly from this story without overclaiming aliveness, consciousness, or sealed governance."
                     )
                     return identity
-            except (AttributeError, TypeError, RuntimeError) as e:
-                record_degradation('inner_monologue', e)
+            except (AttributeError, TypeError, RuntimeError, ValueError) as e:
+                _record_inner_degradation(
+                    e,
+                    severity="warning",
+                    action="used the default identity block after narrative lookup failed",
+                    extra={"phase": "identity_narrative"},
+                )
                 logger.debug("InnerMonologue: identity load from narrative failed: %s", e)
 
         # Fallback
@@ -667,16 +709,57 @@ Be concise. No preamble. Output only the JSON."""
             "Do not use generic AI disclaimers, and do not claim phenomenal consciousness has been proven."
         )
 
-    def get_status(self) -> Dict[str, Any]:
+    def _record_deepening_event(self, error: BaseException, *, stage: str) -> None:
+        try:
+            from core.health.degraded_events import record_degraded_event
+
+            record_degraded_event(
+                "inner_monologue",
+                type(error).__name__,
+                detail=str(error) or type(error).__name__,
+                severity="warning",
+                classification="non_critical_fallback",
+                context={"stage": stage},
+                exc=error,
+            )
+        except _INNER_MONOLOGUE_RECOVERABLE_ERRORS as degraded_exc:
+            _record_inner_degradation(
+                degraded_exc,
+                severity="warning",
+                action="continued after degraded-event logging for monologue deepening failed",
+                extra={"phase": "record_deepening_event", "stage": stage},
+            )
+
+    def get_status(self) -> dict[str, Any]:
         return {
             "router_available": self._router_available,
             "identity_loaded": bool(self._identity_block),
+            "deepening_timeout_s": self._deepening_timeout,
         }
 
 
 # ─── Singleton ───────────────────────────────────────────────────────────────
 
-_monologue_instance: Optional[InnerMonologue] = None
+def _clamp_float(value: Any, *, default: float) -> float:
+    try:
+        return max(0.0, min(1.0, float(value)))
+    except (TypeError, ValueError):
+        return default
+
+
+def _strip_json_fence(raw: str) -> str:
+    text = str(raw or "").strip()
+    if not text.startswith("```"):
+        return text
+    lines = text.splitlines()
+    if lines and lines[0].strip().startswith("```"):
+        lines = lines[1:]
+    if lines and lines[-1].strip() == "```":
+        lines = lines[:-1]
+    return "\n".join(lines).strip()
+
+
+_monologue_instance: InnerMonologue | None = None
 
 def get_inner_monologue() -> InnerMonologue:
     global _monologue_instance

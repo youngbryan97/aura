@@ -208,6 +208,170 @@ class SkillRequirements(BaseModel):
         return len(errors) == 0, errors
 
 
+def _get_base_types(annotation: Any) -> list[Any]:
+    if annotation is None:
+        return []
+    import typing
+    import types
+    from typing import Union, get_origin, get_args
+
+    origin = get_origin(annotation)
+    # Check if union type (typing.Union or PEP 604 | )
+    if origin is Union or (hasattr(types, "UnionType") and origin is types.UnionType):
+        args = get_args(annotation)
+        types_list = []
+        for arg in args:
+            types_list.extend(_get_base_types(arg))
+        return types_list
+
+    if annotation is type(None):
+        return []
+
+    if origin is not None:
+        return [origin]
+
+    return [annotation]
+
+
+def _coerce_and_harmonize_params(params: dict[str, Any], input_model: Any) -> dict[str, Any]:
+    """Coerces parameter types and injects defaults from a Pydantic model class."""
+    if not input_model or not isinstance(params, dict):
+        return params
+
+    import json
+    from typing import Union, get_origin, get_args
+
+    # 1. Get fields map
+    fields = {}
+    if hasattr(input_model, "model_fields"):
+        fields = input_model.model_fields
+    elif hasattr(input_model, "__fields__"):
+        fields = input_model.__fields__
+
+    if not fields:
+        return params
+
+    healed = dict(params)
+
+    # Helper to resolve field annotation/type
+    def get_field_info(field_obj: Any) -> tuple[Any, Any, bool]:
+        annotation = None
+        default_val = None
+        has_default = False
+
+        if hasattr(field_obj, "annotation"):  # v2
+            annotation = field_obj.annotation
+            from pydantic_core import PydanticUndefined
+            if field_obj.default is not PydanticUndefined:
+                default_val = field_obj.default
+                has_default = True
+            elif field_obj.default_factory is not None:
+                try:
+                    default_val = field_obj.default_factory()
+                    has_default = True
+                except Exception:
+                    pass
+        elif hasattr(field_obj, "type_"):  # v1
+            annotation = field_obj.type_
+            if field_obj.default is not None:
+                default_val = field_obj.default
+                has_default = True
+            elif field_obj.default_factory is not None:
+                try:
+                    default_val = field_obj.default_factory()
+                    has_default = True
+                except Exception:
+                    pass
+        return annotation, default_val, has_default
+
+    # 2. Coerce existing params
+    for name, val in list(healed.items()):
+        if name not in fields:
+            continue
+        
+        field_obj = fields[name]
+        annotation, _, _ = get_field_info(field_obj)
+        if not annotation:
+            continue
+
+        target_types = _get_base_types(annotation)
+        if not target_types:
+            continue
+
+        # If value already matches one of target types, keep it
+        if any(isinstance(val, t) for t in target_types if isinstance(t, type)):
+            continue
+
+        # Otherwise, let's coerce!
+        coerced = False
+        for t in target_types:
+            if coerced:
+                break
+            if not isinstance(t, type):
+                continue
+
+            try:
+                if t is bool:
+                    val_str = str(val).strip().lower()
+                    if val_str in {"true", "yes", "1", "t", "y", "on"}:
+                        healed[name] = True
+                        coerced = True
+                    elif val_str in {"false", "no", "0", "f", "n", "off", ""}:
+                        healed[name] = False
+                        coerced = True
+                    elif isinstance(val, (int, float)):
+                        healed[name] = bool(val)
+                        coerced = True
+                elif t is int:
+                    if isinstance(val, float):
+                        healed[name] = int(val)
+                        coerced = True
+                    elif isinstance(val, str):
+                        cleaned = val.strip()
+                        healed[name] = int(float(cleaned))
+                        coerced = True
+                elif t is float:
+                    if isinstance(val, (int, str)):
+                        healed[name] = float(val)
+                        coerced = True
+                elif t is str:
+                    if isinstance(val, (dict, list)):
+                        healed[name] = json.dumps(val)
+                        coerced = True
+                    else:
+                        healed[name] = str(val)
+                        coerced = True
+                elif t is list:
+                    if isinstance(val, str):
+                        cleaned = val.strip()
+                        if cleaned.startswith("[") and cleaned.endswith("]"):
+                            healed[name] = json.loads(cleaned)
+                            coerced = True
+                        elif "," in cleaned:
+                            healed[name] = [item.strip() for item in cleaned.split(",")]
+                            coerced = True
+                        else:
+                            healed[name] = [cleaned]
+                            coerced = True
+                elif t is dict:
+                    if isinstance(val, str):
+                        cleaned = val.strip()
+                        if cleaned.startswith("{") and cleaned.endswith("}"):
+                            healed[name] = json.loads(cleaned)
+                            coerced = True
+            except Exception:
+                pass  # Try next type
+
+    # 3. Inject Defaults for missing keys
+    for name, field_obj in fields.items():
+        if name not in healed:
+            _, default_val, has_default = get_field_info(field_obj)
+            if has_default:
+                healed[name] = default_val
+
+    return healed
+
+
 class SkillMetadata(BaseModel):
     """Metadata and schema for a skill."""
 
@@ -257,9 +421,75 @@ class SkillMetadata(BaseModel):
             if not self.input_model:
                 return params
 
+            # 1. Self-healing Parameter Coercion & Schema Harmonization
+            if isinstance(params, dict):
+                params = _coerce_and_harmonize_params(params, self.input_model)
+
             # Simple validation if it's a Pydantic model
             if hasattr(self.input_model, "model_validate"):
-                return self.input_model.model_validate(params).model_dump()
+                try:
+                    return self.input_model.model_validate(params).model_dump()
+                except Exception as val_error:
+                    # 2. Non-destructive Recovery / Sanitized Subset fallback
+                    sanitized = {}
+                    fields = {}
+                    if hasattr(self.input_model, "model_fields"):
+                        fields = self.input_model.model_fields
+                    elif hasattr(self.input_model, "__fields__"):
+                        fields = self.input_model.__fields__
+
+                    for field_name, field_obj in fields.items():
+                        if field_name in params:
+                            sanitized[field_name] = params[field_name]
+                    
+                    try:
+                        return self.input_model.model_validate(sanitized).model_dump()
+                    except Exception:
+                        minimal = {}
+                        for field_name, field_obj in fields.items():
+                            annotation = None
+                            default_val = None
+                            has_default = False
+                            if hasattr(field_obj, "annotation"):
+                                annotation = field_obj.annotation
+                                from pydantic_core import PydanticUndefined
+                                if field_obj.default is not PydanticUndefined:
+                                    default_val = field_obj.default
+                                    has_default = True
+                                elif field_obj.default_factory is not None:
+                                    try:
+                                        default_val = field_obj.default_factory()
+                                        has_default = True
+                                    except Exception:
+                                        pass
+                            elif hasattr(field_obj, "type_"):
+                                annotation = field_obj.type_
+                                if field_obj.default is not None:
+                                    default_val = field_obj.default
+                                    has_default = True
+                                elif field_obj.default_factory is not None:
+                                    try:
+                                        default_val = field_obj.default_factory()
+                                        has_default = True
+                                    except Exception:
+                                        pass
+                            
+                            if has_default:
+                                minimal[field_name] = default_val
+                            elif field_name in params:
+                                minimal[field_name] = params[field_name]
+                        
+                        try:
+                            return self.input_model.model_validate(minimal).model_dump()
+                        except Exception as final_err:
+                            _record_capability_degradation(
+                                final_err,
+                                action="returned fallback sanitized parameters after strict schema recovery failed",
+                                severity="warning",
+                            )
+                            fallback_dict = {k: v for k, v in params.items() if k in fields}
+                            fallback_dict["_error"] = f"Validation failed: {final_err}"
+                            return fallback_dict
 
             return params
         except (json.JSONDecodeError, TypeError, ValueError) as e:
@@ -1891,7 +2121,25 @@ class CapabilityEngine(AuraBaseModule):
             for key, value in normalized.items():
                 if key != "params":
                     nested_params.setdefault(key, value)
-            return nested_params
+            normalized = nested_params
+
+        # Safe general basic type coercion for obvious types
+        for k, v in list(normalized.items()):
+            if isinstance(v, str):
+                v_strip = v.strip()
+                if v_strip.lower() in ("true", "yes", "1", "t", "y", "on"):
+                    normalized[k] = True
+                elif v_strip.lower() in ("false", "no", "0", "f", "n", "off", ""):
+                    normalized[k] = False
+                elif v_strip.lower() in ("none", "null"):
+                    normalized[k] = None
+                elif re.match(r"^-?\d+$", v_strip):
+                    normalized[k] = int(v_strip)
+                elif re.match(r"^-?\d+\.\d+$", v_strip):
+                    try:
+                        normalized[k] = float(v_strip)
+                    except ValueError:
+                        pass
         return normalized
 
     @staticmethod
@@ -1948,7 +2196,7 @@ class CapabilityEngine(AuraBaseModule):
 
         @self.error_boundary
         async def _execute_wrapped():
-            nonlocal constitution, tool_handle, result
+            nonlocal constitution, tool_handle, result, params
             start_time = time.monotonic()
             ctx = self._augment_execution_context(context)
             exec_source = self._resolve_execution_source(ctx)
@@ -2048,6 +2296,79 @@ class CapabilityEngine(AuraBaseModule):
                     )
                     self.logger.error("Failed to lazy load %s: %s", skill_name, e)
                     return {"ok": False, "error": f"Failed to load implementation: {e}"}
+
+            # Harmonize and self-heal parameters before gates and execution
+            if meta.input_model and isinstance(params, dict):
+                params = _coerce_and_harmonize_params(params, meta.input_model)
+                if hasattr(meta.input_model, "model_validate"):
+                    try:
+                        params = meta.input_model.model_validate(params).model_dump()
+                    except Exception as val_error:
+                        self.logger.warning(
+                            "[%s] Parameters validation failed: %s. Attempting self-healing recovery.",
+                            skill_name,
+                            val_error,
+                        )
+                        # 2. Non-destructive Recovery / Sanitized Subset fallback
+                        sanitized = {}
+                        fields = {}
+                        if hasattr(meta.input_model, "model_fields"):
+                            fields = meta.input_model.model_fields
+                        elif hasattr(meta.input_model, "__fields__"):
+                            fields = meta.input_model.__fields__
+
+                        for field_name, field_obj in fields.items():
+                            if field_name in params:
+                                sanitized[field_name] = params[field_name]
+                        
+                        try:
+                            params = meta.input_model.model_validate(sanitized).model_dump()
+                        except Exception:
+                            minimal = {}
+                            for field_name, field_obj in fields.items():
+                                annotation = None
+                                default_val = None
+                                has_default = False
+                                if hasattr(field_obj, "annotation"):
+                                    annotation = field_obj.annotation
+                                    from pydantic_core import PydanticUndefined
+                                    if field_obj.default is not PydanticUndefined:
+                                        default_val = field_obj.default
+                                        has_default = True
+                                    elif field_obj.default_factory is not None:
+                                        try:
+                                            default_val = field_obj.default_factory()
+                                            has_default = True
+                                        except Exception:
+                                            pass
+                                elif hasattr(field_obj, "type_"):
+                                    annotation = field_obj.type_
+                                    if field_obj.default is not None:
+                                        default_val = field_obj.default
+                                        has_default = True
+                                    elif field_obj.default_factory is not None:
+                                        try:
+                                            default_val = field_obj.default_factory()
+                                            has_default = True
+                                        except Exception:
+                                            pass
+                                
+                                if has_default:
+                                    minimal[field_name] = default_val
+                                elif field_name in params:
+                                    minimal[field_name] = params[field_name]
+                            
+                            try:
+                                params = meta.input_model.model_validate(minimal).model_dump()
+                            except Exception as final_err:
+                                _record_capability_degradation(
+                                    final_err,
+                                    action="returned fallback sanitized parameters in execute after strict schema recovery failed",
+                                    severity="warning",
+                                )
+                                fallback_dict = {k: v for k, v in params.items() if k in fields}
+                                fallback_dict["_error"] = f"Validation failed: {final_err}"
+                                params = fallback_dict
 
             ok, errors = meta.requirements.check()
             if not ok:
@@ -2729,6 +3050,16 @@ class CapabilityEngine(AuraBaseModule):
             return {"goal": goal_payload, "context": context}
         if "params" in sig.parameters:
             return {"params": params, "context": context}
+        if isinstance(params, dict):
+            has_var_keyword = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values())
+            if not has_var_keyword:
+                filtered = {}
+                for k, v in params.items():
+                    if k in sig.parameters:
+                        filtered[k] = v
+                if "context" in sig.parameters and "context" not in filtered:
+                    filtered["context"] = context
+                return filtered
         return params
 
     def _check_success(self, out: Any) -> bool:

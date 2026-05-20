@@ -34,11 +34,20 @@ import time
 import traceback
 from collections import defaultdict
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import Any, Literal
 
 logger = logging.getLogger("Aura.Errors")
 
 Severity = Literal["debug", "warning", "degraded", "critical"]
+
+
+class FallbackClassification(str, Enum):
+    SAFE_FALLBACK = "SAFE_FALLBACK"
+    SILENT_LOSS_OF_CAPABILITY = "SILENT_LOSS_OF_CAPABILITY"
+    GOVERNANCE_BYPASS = "GOVERNANCE_BYPASS"
+    AUDIT_GAP = "AUDIT_GAP"
+    STATE_CORRUPTION_RISK = "STATE_CORRUPTION_RISK"
 
 # ---------------------------------------------------------------------------
 # Typed Degradation Exceptions
@@ -181,6 +190,7 @@ def record_degradation(
     severity: Severity = "degraded",
     action: str = "",
     *,
+    classification: FallbackClassification | None = None,
     receipt_required: bool = False,
     extra: dict[str, Any] | None = None,
 ) -> DegradationRecord:
@@ -196,6 +206,8 @@ def record_degradation(
         One of "debug", "warning", "degraded", "critical".
     action : str
         What the code did in response (e.g. "fell back to cache").
+    classification : FallbackClassification, optional
+        Risk classification of the fallback pathway.
     receipt_required : bool
         If True, emit a durable receipt to the ReceiptStore.
     extra : dict, optional
@@ -206,6 +218,13 @@ def record_degradation(
     DegradationRecord
         The created record, for further programmatic use.
     """
+    if classification in (FallbackClassification.GOVERNANCE_BYPASS, FallbackClassification.STATE_CORRUPTION_RISK):
+        # Trigger strict fail-closed exceptions
+        if classification == FallbackClassification.GOVERNANCE_BYPASS:
+            raise CapabilityDenied(f"Fail-Closed: Governance bypass detected in {subsystem}. original_error={error}")
+        else:
+            raise StateCoherenceFailure(f"Fail-Closed: State corruption risk detected in {subsystem}. original_error={error}")
+
     error_type = type(error).__qualname__
     error_msg = str(error)[:500]
     

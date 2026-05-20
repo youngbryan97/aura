@@ -2397,6 +2397,14 @@ class MLXLocalClient:
         except (OSError, AttributeError) as exc:
             logger.debug("MLX memory pressure probe unavailable: %s", exc)
 
+        # ── SOMATIC COUPLING: Metabolic hardware throttle ────────────
+        try:
+            from core.brain.llm.somatic_throttle import SomaticComputeSentinel
+            sentinel = SomaticComputeSentinel()
+            kwargs = sentinel.adjust_generation_options(kwargs)
+        except Exception as exc:
+            logger.debug("Somatic parameter throttle check failed: %s", exc)
+
         acquired = await self._acquire_request_lock(
             owner_label=owner_label,
             deadline=deadline,
