@@ -16,6 +16,7 @@ from core.brain.llm.local_server_client import (
     _thread_lock_context,
 )
 from core.brain.memory_guard import ContextPruner
+from core.runtime.errors import get_degradation_tracker
 
 TMP_ROOT = Path(tempfile.gettempdir())
 QWEN32_GGUF = str(TMP_ROOT / "qwen2.5-32b-instruct-q5_k_m.gguf")
@@ -32,8 +33,10 @@ def _register(client: LocalServerClient) -> LocalServerClient:
 @pytest.fixture(autouse=True)
 def _clear_runtime_clients():
     _SERVER_CLIENTS.clear()
+    get_degradation_tracker().reset()
     yield
     _SERVER_CLIENTS.clear()
+    get_degradation_tracker().reset()
 
 
 @pytest.mark.asyncio
@@ -130,11 +133,7 @@ async def test_message_payload_sanitization_drops_non_json_metadata():
             captured["timeout"] = kwargs.get("timeout")
             return httpx.Response(
                 200,
-                json={
-                    "choices": [
-                        {"message": {"content": "Hello from Cortex."}}
-                    ]
-                },
+                json={"choices": [{"message": {"content": "Hello from Cortex."}}]},
             )
 
     async def _fake_client():
@@ -157,9 +156,7 @@ async def test_message_payload_sanitization_drops_non_json_metadata():
     )
 
     assert result == "Hello from Cortex."
-    assert captured["json"]["messages"] == [
-        {"role": "user", "content": '{"text": "hello"}'}
-    ]
+    assert captured["json"]["messages"] == [{"role": "user", "content": '{"text": "hello"}'}]
 
 
 def test_is_alive_repairs_adopted_runtime_without_owned_process():
@@ -178,24 +175,38 @@ async def test_response_parser_handles_part_arrays_and_reasoning_fallback():
     client._lane_state = "ready"
     client._ensure_runtime_ready = AsyncMock(return_value=True)
 
-    responses = deque([
-        httpx.Response(
-            200,
-            json={
-                "choices": [
-                    {"message": {"content": [{"type": "text", "text": "Hello"}, {"type": "text", "text": " world"}]}}
-                ]
-            },
-        ),
-        httpx.Response(
-            200,
-            json={
-                "choices": [
-                    {"message": {"content": "", "reasoning_content": "I can still answer here."}}
-                ]
-            },
-        ),
-    ])
+    responses = deque(
+        [
+            httpx.Response(
+                200,
+                json={
+                    "choices": [
+                        {
+                            "message": {
+                                "content": [
+                                    {"type": "text", "text": "Hello"},
+                                    {"type": "text", "text": " world"},
+                                ]
+                            }
+                        }
+                    ]
+                },
+            ),
+            httpx.Response(
+                200,
+                json={
+                    "choices": [
+                        {
+                            "message": {
+                                "content": "",
+                                "reasoning_content": "I can still answer here.",
+                            }
+                        }
+                    ]
+                },
+            ),
+        ]
+    )
 
     class _FakeHttpClient:
         async def post(self, _url, json=None, **_kwargs):
@@ -222,11 +233,7 @@ async def test_warmup_treats_empty_generation_as_benign_runtime_readiness():
         async def post(self, _url, json=None, **_kwargs):
             return httpx.Response(
                 200,
-                json={
-                    "choices": [
-                        {"message": {"content": ""}}
-                    ]
-                },
+                json={"choices": [{"message": {"content": ""}}]},
             )
 
     async def _fake_client():
@@ -259,11 +266,7 @@ async def test_single_empty_generation_does_not_immediately_crash_foreground_lan
         async def post(self, _url, json=None, **_kwargs):
             return httpx.Response(
                 200,
-                json={
-                    "choices": [
-                        {"message": {"content": ""}}
-                    ]
-                },
+                json={"choices": [{"message": {"content": ""}}]},
             )
 
     async def _fake_client():
@@ -310,6 +313,53 @@ async def test_restart_server_wait_is_offloaded_from_event_loop(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_restart_server_does_not_claim_success_until_lane_ready():
+    client = LocalServerClient(QWEN32_GGUF)
+    client.warmup = AsyncMock(return_value=None)
+    client._http_health_check = lambda: False
+
+    await client._restart_server()
+
+    assert client.get_lane_status()["state"] == "recovering"
+    assert client.get_lane_status()["last_error"] == "restart_warmup_not_ready"
+
+
+@pytest.mark.asyncio
+async def test_restart_server_marks_failed_when_warmup_raises():
+    client = LocalServerClient(QWEN32_GGUF)
+    client.warmup = AsyncMock(side_effect=RuntimeError("warmup exploded"))
+
+    await client._restart_server()
+
+    assert client.get_lane_status()["state"] == "failed"
+    assert client.get_lane_status()["last_error"] == "restart_failed:RuntimeError"
+    last = get_degradation_tracker().recent(subsystem="local_server_client")[-1]
+    assert last.action == "restart warmup failed; lane marked failed until next supervised recovery"
+
+
+@pytest.mark.asyncio
+async def test_generate_text_records_latent_bridge_fallback(monkeypatch):
+    client = LocalServerClient(QWEN32_GGUF)
+    client._ensure_runtime_ready = AsyncMock(return_value=False)
+
+    def broken_bridge(*args, **kwargs):
+        raise RuntimeError("substrate bridge offline")
+
+    monkeypatch.setattr(
+        "core.brain.latent_bridge.compute_inference_params",
+        broken_bridge,
+    )
+
+    assert await client.generate_text_async("hello", foreground_request=True) is None
+
+    last = get_degradation_tracker().recent(subsystem="local_server_client")[-1]
+    assert (
+        last.action
+        == "continued generation with caller/default sampling because latent bridge was unavailable"
+    )
+
+
+@pytest.mark.asyncio
 async def test_server_health_detects_wrong_model_on_reserved_lane_port():
     client = LocalServerClient(QWEN32_GGUF)
 
@@ -320,11 +370,7 @@ async def test_server_health_detects_wrong_model_on_reserved_lane_port():
             if url.endswith("/v1/models"):
                 return httpx.Response(
                     200,
-                    json={
-                        "data": [
-                            {"id": "qwen2.5-72b-instruct-q3_k_m-00001-of-00009.gguf"}
-                        ]
-                    },
+                    json={"data": [{"id": "qwen2.5-72b-instruct-q3_k_m-00001-of-00009.gguf"}]},
                 )
             raise AssertionError(f"unexpected url: {url}")
 

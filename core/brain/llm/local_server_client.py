@@ -1,7 +1,4 @@
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
-from core.runtime.atomic_writer import atomic_write_text
 
 import asyncio
 import contextlib
@@ -11,15 +8,18 @@ import os
 import subprocess
 import threading as _threading
 import time
+from collections.abc import AsyncGenerator, Iterable
 from pathlib import Path
-from typing import Any, AsyncGenerator, Dict, Iterable, Optional
+from typing import Any
 
 import httpx
 import psutil
 
+from core.runtime.atomic_writer import atomic_write_text
+from core.runtime.errors import FallbackClassification, Severity, record_degradation
 from core.utils.deadlines import Deadline, get_deadline
 
-from .chat_format import format_chatml_messages, format_chatml_prompt
+from .chat_format import format_chatml_prompt
 from .model_registry import (
     BRAINSTEM_ENDPOINT,
     DEEP_ENDPOINT,
@@ -32,6 +32,28 @@ from .model_registry import (
 )
 
 logger = logging.getLogger("LLM.LocalRuntime")
+
+
+def _record_server_degradation(
+    error: BaseException,
+    *,
+    stage: str,
+    action: str,
+    severity: Severity = "warning",
+    extra: dict[str, Any] | None = None,
+) -> None:
+    payload = {"stage": stage, "repair_requested": True}
+    if extra:
+        payload.update(extra)
+    record_degradation(
+        "local_server_client",
+        error,
+        severity=severity,
+        action=action,
+        classification=FallbackClassification.SAFE_FALLBACK,
+        extra=payload,
+    )
+
 
 _DEFAULT_PORTS = {
     PRIMARY_ENDPOINT: int(os.getenv("AURA_CORTEX_PORT", "11435")),
@@ -57,8 +79,8 @@ def _parallel_lane_runtime_allowed() -> bool:
 
     try:
         vm = psutil.virtual_memory()
-        total_gb = vm.total / float(1024 ** 3)
-        available_gb = vm.available / float(1024 ** 3)
+        total_gb = vm.total / float(1024**3)
+        available_gb = vm.available / float(1024**3)
         min_total_gb = float(os.getenv("AURA_PARALLEL_LANE_MIN_TOTAL_GB", "48"))
         max_pressure = float(os.getenv("AURA_PARALLEL_LANE_MAX_PRESSURE_PCT", "80"))
         min_available_gb = float(os.getenv("AURA_PARALLEL_LANE_MIN_AVAILABLE_GB", "12"))
@@ -82,7 +104,7 @@ def _normalize_model_identity(value: str) -> str:
 async def _thread_lock_context(
     lock: Any,
     *,
-    timeout: Optional[float] = None,
+    timeout: float | None = None,  # noqa: ASYNC109
     label: str = "lock",
 ):
     """Acquire a thread lock without parking executor threads behind cancellations."""
@@ -157,15 +179,15 @@ class LocalServerClient:
         self.model = None
         self.tokenizer = None
 
-        self._process: Optional[subprocess.Popen] = None
+        self._process: subprocess.Popen | None = None
         self._log_handle = None
         # These clients are created during boot but reused from the API server's
         # event loop, so asyncio locks will eventually explode with
         # "bound to a different event loop".
         self._spawn_lock = _threading.Lock()
         self._request_lock = _threading.Lock()
-        self._http: Optional[httpx.AsyncClient] = None
-        self._init_future: Optional[asyncio.Task] = None
+        self._http: httpx.AsyncClient | None = None
+        self._init_future: asyncio.Task | None = None
         self._lane_state = "cold"
         self._lane_error = ""
         self._lane_transition_at = time.time()
@@ -202,7 +224,7 @@ class LocalServerClient:
         return f"http://127.0.0.1:{self._port}"
 
     @staticmethod
-    def _sanitize_message(message: Dict[str, Any]) -> Dict[str, Any]:
+    def _sanitize_message(message: dict[str, Any]) -> dict[str, Any]:
         role = str(message.get("role", "user") or "user")
         content = message.get("content", "")
         if content is None:
@@ -213,7 +235,7 @@ class LocalServerClient:
             except (TypeError, ValueError):
                 content = str(content)
 
-        payload: Dict[str, Any] = {
+        payload: dict[str, Any] = {
             "role": role,
             "content": content,
         }
@@ -250,7 +272,7 @@ class LocalServerClient:
         return str(payload)
 
     @classmethod
-    def _extract_response_text(cls, data: Dict[str, Any]) -> str:
+    def _extract_response_text(cls, data: dict[str, Any]) -> str:
         choices = data.get("choices") or []
         for choice in choices:
             if not isinstance(choice, dict):
@@ -281,16 +303,16 @@ class LocalServerClient:
         return Path(self.model_path).stem
 
     @staticmethod
-    def _estimate_message_tokens(message: Dict[str, Any]) -> int:
+    def _estimate_message_tokens(message: dict[str, Any]) -> int:
         content = str((message or {}).get("content", "") or "")
         return max(8, (len(content) // 4) + 8)
 
     def _fit_messages_to_context(
         self,
-        messages: Iterable[Dict[str, Any]],
+        messages: Iterable[dict[str, Any]],
         *,
         max_tokens: int,
-    ) -> list[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         fitted = [dict(msg) for msg in list(messages or []) if isinstance(msg, dict)]
         if not fitted:
             return fitted
@@ -304,11 +326,19 @@ class LocalServerClient:
         system_msg = fitted[0] if fitted and fitted[0].get("role") == "system" else None
         body = fitted[1:] if system_msg else fitted[:]
 
-        while body and (sum(self._estimate_message_tokens(msg) for msg in ([system_msg] if system_msg else []) + body) > token_budget):
+        while body and (
+            sum(
+                self._estimate_message_tokens(msg)
+                for msg in ([system_msg] if system_msg else []) + body
+            )
+            > token_budget
+        ):
             body.pop(0)
 
         if system_msg:
-            remaining_budget = token_budget - sum(self._estimate_message_tokens(msg) for msg in body)
+            remaining_budget = token_budget - sum(
+                self._estimate_message_tokens(msg) for msg in body
+            )
             allowed_chars = max(256, (remaining_budget - 8) * 4)
             content = str(system_msg.get("content", "") or "")
             if len(content) > allowed_chars:
@@ -362,7 +392,7 @@ class LocalServerClient:
     def _lock_timeout(
         self,
         *,
-        deadline: Optional[Deadline],
+        deadline: Deadline | None,
         default: float,
         minimum: float,
     ) -> float:
@@ -378,11 +408,17 @@ class LocalServerClient:
 
     def _is_runtime_resident(self) -> bool:
         proc_alive = self._process is not None and self._process.poll() is None
-        return proc_alive or self._lane_state in {"spawning", "handshaking", "warming", "ready", "recovering"}
+        return proc_alive or self._lane_state in {
+            "spawning",
+            "handshaking",
+            "warming",
+            "ready",
+            "recovering",
+        }
 
     def _request_scoped_init_timeout(
         self,
-        deadline: Optional[Deadline],
+        deadline: Deadline | None,
         *,
         foreground_request: bool,
     ) -> tuple[float, bool]:
@@ -429,10 +465,10 @@ class LocalServerClient:
                 },
             )
         except (ImportError, AttributeError, RuntimeError) as exc:
-            record_degradation('local_server_client', exc)
+            record_degradation("local_server_client", exc)
             logger.debug("Failed to record degraded event for %s: %s", self._lane_name, exc)
 
-    def get_lane_status(self) -> Dict[str, Any]:
+    def get_lane_status(self) -> dict[str, Any]:
         return {
             "model_path": self.model_path,
             "expected_model": self._runtime_model,
@@ -452,15 +488,21 @@ class LocalServerClient:
             "current_first_token_at": self._current_first_token_at,
         }
 
-    def get_supervision_status(self) -> Dict[str, Any]:
+    def get_supervision_status(self) -> dict[str, Any]:
         now = time.time()
-        idle_anchor = max(self._last_generation_completed_at, self._last_ready_at, self._last_progress_at)
+        idle_anchor = max(
+            self._last_generation_completed_at, self._last_ready_at, self._last_progress_at
+        )
         return {
             "lane": self._lane_name,
             "state": self._lane_state,
             "alive": self.is_alive(),
-            "process_uptime_s": max(0.0, now - self._process_started_at) if self._process_started_at else 0.0,
-            "request_age_s": max(0.0, now - self._current_request_started_at) if self._current_request_started_at else 0.0,
+            "process_uptime_s": max(0.0, now - self._process_started_at)
+            if self._process_started_at
+            else 0.0,
+            "request_age_s": max(0.0, now - self._current_request_started_at)
+            if self._current_request_started_at
+            else 0.0,
             "time_to_first_token_s": (
                 max(0.0, self._current_first_token_at - self._current_request_started_at)
                 if self._current_request_started_at and self._current_first_token_at
@@ -479,7 +521,9 @@ class LocalServerClient:
             return False
         if self._process_started_at <= 0.0:
             return False
-        idle_anchor = max(self._last_generation_completed_at, self._last_ready_at, self._last_progress_at)
+        idle_anchor = max(
+            self._last_generation_completed_at, self._last_ready_at, self._last_progress_at
+        )
         if idle_anchor <= 0.0:
             return False
         now = time.time()
@@ -516,7 +560,9 @@ class LocalServerClient:
         # Managed llama.cpp lanes can remain alive across desktop restarts, which
         # means Aura may reconnect to a healthy reserved port without owning the
         # subprocess handle that originally launched it.
-        known_identity_mismatch = (not self._runtime_identity_ok) and bool(self._detected_runtime_models)
+        known_identity_mismatch = (not self._runtime_identity_ok) and bool(
+            self._detected_runtime_models
+        )
         if not known_identity_mismatch and self._http_health_check():
             if self._lane_state != "ready":
                 logger.info(
@@ -531,8 +577,8 @@ class LocalServerClient:
     # ── Cached health check state ──────────────────────────────────
     _health_cache: bool = False
     _health_cache_ts: float = 0.0
-    _HEALTH_CACHE_TTL: float = 5.0          # seconds
-    _health_check_running: bool = False     # guard against re-entrant calls
+    _HEALTH_CACHE_TTL: float = 5.0  # seconds
+    _health_check_running: bool = False  # guard against re-entrant calls
 
     def _http_health_check(self) -> bool:
         """Non-blocking cached HTTP health check.
@@ -542,6 +588,7 @@ class LocalServerClient:
         thread refresh so the event loop is never blocked.
         """
         import time as _time
+
         now = _time.monotonic()
 
         # Return cached value if still fresh
@@ -555,6 +602,7 @@ class LocalServerClient:
         # Fire a background thread to refresh the cache
         self._health_check_running = True
         import threading
+
         def _probe():
             try:
                 result = self._http_health_check_sync()
@@ -562,6 +610,7 @@ class LocalServerClient:
                 self._health_cache_ts = _time.monotonic()
             finally:
                 self._health_check_running = False
+
         threading.Thread(target=_probe, daemon=True, name="health_probe").start()
 
         # Return stale value for this call (next call gets fresh)
@@ -572,6 +621,7 @@ class LocalServerClient:
         """Raw synchronous HTTP probe — runs ONLY inside a background thread."""
         try:
             import urllib.request
+
             url = f"{runtime_url}/health"
             req = urllib.request.Request(url, method="GET")
             with urllib.request.urlopen(req, timeout=2.0) as resp:
@@ -591,7 +641,7 @@ class LocalServerClient:
             self._http = httpx.AsyncClient(timeout=None)
         return self._http
 
-    def _resolve_llama_server_bin(self) -> Optional[str]:
+    def _resolve_llama_server_bin(self) -> str | None:
         return find_llama_server_bin()
 
     def _log_path(self) -> Path:
@@ -601,7 +651,7 @@ class LocalServerClient:
 
             candidate_dirs.append(Path(config.paths.home_dir) / "logs")
         except (ImportError, AttributeError) as _exc:
-            record_degradation('local_server_client', _exc)
+            record_degradation("local_server_client", _exc)
             logger.debug("Suppressed Exception: %s", _exc)
         candidate_dirs.append(Path(__file__).resolve().parents[3] / ".aura_runtime" / "logs")
         candidate_dirs.append(Path.home() / ".aura" / "logs")
@@ -649,18 +699,27 @@ class LocalServerClient:
             "-ngl",
             _lane_gpu_layers(self.model_path),
             # Performance: Flash Attention + quantized KV cache + larger batch
-            "--flash-attn", "on",
-            "--cache-type-k", "q8_0",
-            "--cache-type-v", "q8_0",
-            "-b", "2048",
-            "-ub", "512",
-            "--parallel", parallel_slots,
-            "--cache-ram", cache_ram_mib,
+            "--flash-attn",
+            "on",
+            "--cache-type-k",
+            "q8_0",
+            "--cache-type-v",
+            "q8_0",
+            "-b",
+            "2048",
+            "-ub",
+            "512",
+            "--parallel",
+            parallel_slots,
+            "--cache-ram",
+            cache_ram_mib,
         ]
         cmd.append("--cache-prompt" if prompt_cache_enabled else "--no-cache-prompt")
 
         # Only attach the GGUF LoRA when it matches this runtime model/lane.
-        lora_path = resolve_personality_adapter(self._runtime_model or self.model_path, backend="gguf")
+        lora_path = resolve_personality_adapter(
+            self._runtime_model or self.model_path, backend="gguf"
+        )
         if lora_path and os.path.isfile(lora_path):
             cmd.extend(["--lora", lora_path])
             logger.info("🧠 [%s] Loading personality LoRA adapter: %s", self._lane_name, lora_path)
@@ -685,7 +744,7 @@ class LocalServerClient:
         return get_endpoint_name_for_model(candidate) == self._lane_name
 
     @staticmethod
-    def _extract_runtime_model_ids(payload: Dict[str, Any]) -> list[str]:
+    def _extract_runtime_model_ids(payload: dict[str, Any]) -> list[str]:
         ids: list[str] = []
         for item in list(payload.get("data") or []):
             if isinstance(item, dict):
@@ -767,7 +826,9 @@ class LocalServerClient:
             self._runtime_identity_ok = True
             return True, False
 
-        self._runtime_identity_ok = any(self._runtime_identity_matches(model_id) for model_id in model_ids)
+        self._runtime_identity_ok = any(
+            self._runtime_identity_matches(model_id) for model_id in model_ids
+        )
         if self._runtime_identity_ok:
             return True, False
 
@@ -784,7 +845,7 @@ class LocalServerClient:
     async def _ensure_runtime_ready(
         self,
         *,
-        deadline: Optional[Deadline] = None,
+        deadline: Deadline | None = None,
         foreground_request: bool = False,
     ) -> bool:
         init_timeout, _soft_timeout = self._request_scoped_init_timeout(
@@ -832,7 +893,9 @@ class LocalServerClient:
                             return True
 
                     if not self._external_only:
-                        if not await self._yield_runtime_slot(foreground_request=foreground_request):
+                        if not await self._yield_runtime_slot(
+                            foreground_request=foreground_request
+                        ):
                             return False
 
                     self._set_lane_state("spawning")
@@ -886,6 +949,7 @@ class LocalServerClient:
         ram_pressure_critical = False
         try:
             from core.utils.memory_monitor import AppleSiliconMemoryMonitor
+
             pressure = AppleSiliconMemoryMonitor()._get_pressure_sysctl()
             ram_pressure_critical = pressure >= 85
         except (ImportError, AttributeError, OSError):
@@ -933,7 +997,9 @@ class LocalServerClient:
                     timeout=20.0,
                     label=f"{client._lane_name}_request_lock",
                 ):
-                    await client.reboot_worker(reason=f"yield_to:{self._lane_name}", mark_failed=False)
+                    await client.reboot_worker(
+                        reason=f"yield_to:{self._lane_name}", mark_failed=False
+                    )
             except TimeoutError:
                 logger.warning(
                     "⏸️ [%s] Timed out waiting for %s request lock while yielding the runtime slot.",
@@ -947,13 +1013,47 @@ class LocalServerClient:
     async def _restart_server(self):
         """Kill and restart the llama-server process to recover from compute errors."""
         logger.warning("[%s] Restarting server due to compute error...", self._lane_name)
+        self._set_lane_state("recovering", "restart_requested")
         try:
             if self._process and self._process.poll() is None:
                 self._process.kill()
                 await asyncio.to_thread(self._process.wait, 5.0)
                 logger.info("[%s] Old server process killed.", self._lane_name)
+        except subprocess.TimeoutExpired as e:
+            _record_server_degradation(
+                e,
+                stage="restart_process_kill",
+                action="kill wait timed out; reclaiming runtime port before restart warmup",
+                severity="critical",
+                extra={"lane": self._lane_name, "port": self._port},
+            )
+            try:
+                reclaimed = await asyncio.to_thread(self._reclaim_runtime_port_blocking)
+                if reclaimed:
+                    logger.info(
+                        "[%s] Runtime port %s reclaimed after kill timeout.",
+                        self._lane_name,
+                        self._port,
+                    )
+                else:
+                    self.note_lane_failed("restart_kill_timeout_unreclaimed")
+            except (RuntimeError, AttributeError, TypeError, ValueError, OSError) as reclaim_exc:
+                _record_server_degradation(
+                    reclaim_exc,
+                    stage="restart_port_reclaim",
+                    action="runtime port reclaim after kill timeout failed; lane marked failed",
+                    severity="critical",
+                    extra={"lane": self._lane_name, "port": self._port},
+                )
+                self.note_lane_failed("restart_port_reclaim_failed")
         except (ProcessLookupError, OSError, subprocess.SubprocessError) as e:
-            record_degradation('local_server_client', e)
+            _record_server_degradation(
+                e,
+                stage="restart_process_kill",
+                action="continued restart after old runtime kill reported a recoverable process error",
+                severity="warning",
+                extra={"lane": self._lane_name, "port": self._port},
+            )
             logger.debug("[%s] Kill failed: %s", self._lane_name, e)
 
         self._process = None
@@ -963,12 +1063,23 @@ class LocalServerClient:
         # Re-warmup
         try:
             await self.warmup()
-            logger.info("[%s] Server restarted successfully.", self._lane_name)
+            if self.get_lane_status().get("conversation_ready"):
+                logger.info("[%s] Server restarted successfully.", self._lane_name)
+            else:
+                self.note_lane_recovering("restart_warmup_not_ready")
+                logger.error("[%s] Server restart did not reach ready state.", self._lane_name)
         except (RuntimeError, OSError, TimeoutError) as e:
-            record_degradation('local_server_client', e)
+            _record_server_degradation(
+                e,
+                stage="restart_warmup",
+                action="restart warmup failed; lane marked failed until next supervised recovery",
+                severity="critical",
+                extra={"lane": self._lane_name, "port": self._port},
+            )
+            self.note_lane_failed(f"restart_failed:{type(e).__name__}")
             logger.error("[%s] Server restart failed: %s", self._lane_name, e)
 
-    async def warmup(self, *, foreground_request: Optional[bool] = None, **kwargs):
+    async def warmup(self, *, foreground_request: bool | None = None, **kwargs):
         self._warmup_attempted = True
         self._warmup_in_flight = True
         self._set_lane_state("warming")
@@ -989,7 +1100,10 @@ class LocalServerClient:
             text = await self.generate_text_async(
                 prompt="Warm up Aura's local response lane.",
                 messages=[
-                    {"role": "system", "content": "You are Aura. Reply with a single short token: ready"},
+                    {
+                        "role": "system",
+                        "content": "You are Aura. Reply with a single short token: ready",
+                    },
                     {"role": "user", "content": "ready?"},
                 ],
                 max_tokens=8,
@@ -1015,7 +1129,7 @@ class LocalServerClient:
             try:
                 await self._http.aclose()
             except (RuntimeError, AttributeError, TypeError, ValueError) as _exc:
-                record_degradation('local_server_client', _exc)
+                record_degradation("local_server_client", _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
             self._http = None
 
@@ -1026,7 +1140,7 @@ class LocalServerClient:
             try:
                 await asyncio.to_thread(proc.wait, 5.0)
             except (RuntimeError, asyncio.CancelledError, TimeoutError, AttributeError) as _exc:
-                record_degradation('local_server_client', _exc)
+                record_degradation("local_server_client", _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
 
         # ── Orphan Reclamation ─────────────────────────────────────────
@@ -1042,14 +1156,14 @@ class LocalServerClient:
                     self._port,
                 )
         except (RuntimeError, AttributeError, TypeError, ValueError) as _exc:
-            record_degradation('local_server_client', _exc)
+            record_degradation("local_server_client", _exc)
             logger.debug("reboot_worker: port reclamation failed: %s", _exc)
 
         if self._log_handle is not None and not self._log_handle.closed:
             try:
                 self._log_handle.flush()
             except (RuntimeError, AttributeError, TypeError, ValueError) as _exc:
-                record_degradation('local_server_client', _exc)
+                record_degradation("local_server_client", _exc)
                 logger.debug("Suppressed Exception: %s", _exc)
 
         self._warmup_in_flight = False
@@ -1060,7 +1174,7 @@ class LocalServerClient:
         self._last_generation_completed_at = 0.0
         self._set_lane_state("failed" if mark_failed else "cold", reason if mark_failed else "")
 
-    async def generate_text_async(self, prompt: str, **kwargs) -> Optional[str]:
+    async def generate_text_async(self, prompt: str, **kwargs) -> str | None:
         messages = kwargs.pop("messages", None)
         system_prompt = kwargs.pop("system_prompt", None)
         deadline = kwargs.get("deadline")
@@ -1078,6 +1192,7 @@ class LocalServerClient:
         # as the local MLX lane — one substrate, one sampling.
         try:
             from core.brain.latent_bridge import compute_inference_params as _bridge_params
+
             _bridge = _bridge_params(
                 base_max_tokens=max_tokens,
                 base_temperature=temperature,
@@ -1094,15 +1209,18 @@ class LocalServerClient:
                 stops = list(kwargs.get("stop_sequences") or [])
                 stops.extend(_bridge.extra_stop_sequences)
                 kwargs["stop_sequences"] = stops
-        except (ImportError, AttributeError, TypeError, ValueError) as _bexc:
-            record_degradation('local_server_client', _bexc)
-            pass  # Latent bridge not available
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as _bexc:
+            _record_server_degradation(
+                _bexc,
+                stage="latent_bridge_sampling",
+                action="continued generation with caller/default sampling because latent bridge was unavailable",
+                severity="warning",
+                extra={"lane": self._lane_name},
+            )
 
         if messages and isinstance(messages, list):
             payload_messages = [
-                self._sanitize_message(msg)
-                for msg in messages
-                if isinstance(msg, dict)
+                self._sanitize_message(msg) for msg in messages if isinstance(msg, dict)
             ]
         else:
             if system_prompt:
@@ -1182,29 +1300,29 @@ class LocalServerClient:
             self.note_lane_recovering(str(exc))
             return None
 
-    async def generate(self, prompt: str, **kwargs) -> Optional[str]:
+    async def generate(self, prompt: str, **kwargs) -> str | None:
         return await self.generate_text_async(prompt, **kwargs)
 
     async def _chat_completion(
         self,
-        messages: Iterable[Dict[str, Any]],
+        messages: Iterable[dict[str, Any]],
         *,
         max_tokens: int,
         temperature: float,
-        schema: Optional[Dict[str, Any]],
-        deadline: Optional[Deadline],
+        schema: dict[str, Any] | None,
+        deadline: Deadline | None,
         foreground_request: bool,
-    ) -> Optional[str]:
+    ) -> str | None:
         client = await self._client()
         self._mark_generation_started()
         try:
-            payload: Dict[str, Any] = {
+            payload: dict[str, Any] = {
                 "model": self._runtime_model,
                 "messages": list(messages),
                 "max_tokens": max_tokens,
                 "temperature": temperature,
-                "min_p": 0.05,                # Filter low-probability tokens for quality
-                "repetition_penalty": 1.1,    # Reduce stale/looping responses
+                "min_p": 0.05,  # Filter low-probability tokens for quality
+                "repetition_penalty": 1.1,  # Reduce stale/looping responses
                 "top_p": self.top_p,
             }
             if schema:
@@ -1223,7 +1341,13 @@ class LocalServerClient:
                     timeout=timeout,
                 )
             except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as exc:
-                record_degradation('local_server_client', exc)
+                _record_server_degradation(
+                    exc,
+                    stage="chat_completion_request",
+                    action="marked lane recovering after local runtime request failed",
+                    severity="degraded",
+                    extra={"lane": self._lane_name, "foreground_request": foreground_request},
+                )
                 self._record_degraded_event(
                     "request_failed",
                     detail=f"{self._lane_name}:{type(exc).__name__}",
@@ -1236,7 +1360,10 @@ class LocalServerClient:
             if response.status_code != 200:
                 detail = f"http_{response.status_code}"
                 response_text = (response.text or "")[:240]
-                if response.status_code == 400 and "exceeds the available context size" in response_text.lower():
+                if (
+                    response.status_code == 400
+                    and "exceeds the available context size" in response_text.lower()
+                ):
                     self._record_degraded_event(
                         "context_overflow",
                         detail=f"{self._lane_name}:{response_text[:160]}",
@@ -1249,7 +1376,9 @@ class LocalServerClient:
 
                 # 500 "Compute error" is a fatal server issue — needs restart
                 if response.status_code == 500 and "compute error" in response_text.lower():
-                    logger.error("[%s] COMPUTE ERROR from server. Triggering restart.", self._lane_name)
+                    logger.error(
+                        "[%s] COMPUTE ERROR from server. Triggering restart.", self._lane_name
+                    )
                     self._record_degraded_event(
                         "compute_error",
                         detail=f"{self._lane_name}:server_compute_error",
@@ -1262,18 +1391,32 @@ class LocalServerClient:
                     self.note_lane_recovering("compute_error_restart")
                     try:
                         import asyncio
+
                         task = asyncio.get_event_loop().create_task(
                             self._restart_server(),
                             name=f"restart_server:{self._lane_name}",
                         )
                         # Log if restart task crashes
                         task.add_done_callback(
-                            lambda t: logger.error("Server restart failed: %s", t.exception())
-                            if not t.cancelled() and t.exception() else None
+                            lambda t: (
+                                logger.error("Server restart failed: %s", t.exception())
+                                if not t.cancelled() and t.exception()
+                                else None
+                            )
                         )
                     except (ImportError, AttributeError, RuntimeError) as restart_err:
-                        record_degradation('local_server_client', restart_err)
-                        logger.error("[%s] Failed to schedule server restart: %s", self._lane_name, restart_err)
+                        _record_server_degradation(
+                            restart_err,
+                            stage="compute_error_restart_schedule",
+                            action="restart task scheduling failed; lane remains marked recovering",
+                            severity="critical",
+                            extra={"lane": self._lane_name},
+                        )
+                        logger.error(
+                            "[%s] Failed to schedule server restart: %s",
+                            self._lane_name,
+                            restart_err,
+                        )
                     return None
 
                 self._record_degraded_event(
@@ -1290,7 +1433,13 @@ class LocalServerClient:
             try:
                 data = response.json()
             except (json.JSONDecodeError, ValueError) as exc:
-                record_degradation('local_server_client', exc)
+                _record_server_degradation(
+                    exc,
+                    stage="chat_completion_json",
+                    action="marked lane recovering after local runtime returned invalid JSON",
+                    severity="degraded",
+                    extra={"lane": self._lane_name},
+                )
                 self.note_lane_recovering(f"invalid_json:{type(exc).__name__}")
                 return None
 
@@ -1343,13 +1492,12 @@ class LocalServerClient:
             return text.strip()
         finally:
             self._mark_generation_completed()
-        
-        
+
     async def generate_stream(
         self,
         prompt: str,
-        system_prompt: Optional[str] = None,
-        model: Optional[str] = None,
+        system_prompt: str | None = None,
+        model: str | None = None,
         **kwargs,
     ) -> AsyncGenerator[str, None]:
         text = await self.generate_text_async(
@@ -1365,10 +1513,10 @@ class LocalServerClient:
             await asyncio.sleep(0)
 
 
-_SERVER_CLIENTS: Dict[str, LocalServerClient] = {}
+_SERVER_CLIENTS: dict[str, LocalServerClient] = {}
 
 
-def get_local_server_client(model_path: Optional[str] = None, **kwargs) -> LocalServerClient:
+def get_local_server_client(model_path: str | None = None, **kwargs) -> LocalServerClient:
     if model_path is None:
         raise ValueError("model_path is required for local server clients")
     abs_path = os.path.realpath(model_path)

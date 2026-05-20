@@ -2,13 +2,13 @@
 
 Schema: `aura.architecture.dependency_map.v1`
 Root: `/Users/bryan/.aura/live-source`
-Generated: `1779248795.416578`
+Generated: `1779249108.726888`
 
 ## Summary
 
 - Subsystems: 120
 - Python files: 1539
-- Python lines: 416065
+- Python lines: 416213
 - Dependency edges: 649
 - ServiceContainer `.get()` calls: 1443
 - ServiceContainer registrations: 337
@@ -19,7 +19,7 @@ Generated: `1779248795.416578`
 graph TD
     runtime["runtime<br/>87 files, 18699 lines"]
     utils["utils<br/>41 files, 4843 lines"]
-    brain["brain<br/>111 files, 37122 lines"]
+    brain["brain<br/>111 files, 37270 lines"]
     consciousness["consciousness<br/>120 files, 51773 lines"]
     resilience["resilience<br/>53 files, 10639 lines"]
     health["health<br/>3 files, 561 lines"]
@@ -794,7 +794,7 @@ graph TD
 | --- | ---: | ---: | ---: | ---: | ---: |
 | core_root | 182 | 55673 | 2315812 | 102 | 0 |
 | consciousness | 120 | 51773 | 2200415 | 34 | 28 |
-| brain | 111 | 37122 | 1615839 | 40 | 38 |
+| brain | 111 | 37270 | 1620531 | 40 | 38 |
 | orchestrator | 42 | 18775 | 827354 | 121 | 8 |
 | runtime | 87 | 18699 | 657968 | 37 | 102 |
 | phases | 29 | 14100 | 644007 | 31 | 6 |
@@ -1003,7 +1003,7 @@ graph TD
 | --- | ---: | ---: | ---: | ---: |
 | UnifiedWill decisions | 49 | 25 | 2 | 47 |
 | Memory writes | 249 | 100 | 45 | 204 |
-| State mutation | 346 | 135 | 4 | 342 |
+| State mutation | 347 | 135 | 4 | 343 |
 | Tool execution | 129 | 70 | 3 | 126 |
 | Self-modification and patching | 15 | 12 | 2 | 13 |
 | LLM inference | 246 | 151 | 57 | 189 |
@@ -1210,14 +1210,14 @@ Review candidates:
 - `core/brain/llm/local_llm_setup.py:45` [brain] `subprocess.run` - subprocess.run(["ollama", "--version"], check=True, capture_output=True)
 - `core/brain/llm/local_llm_setup.py:55` [brain] `subprocess.run` - res = subprocess.run(["ollama", "list"], capture_output=True, text=True)
 - `core/brain/llm/local_llm_setup.py:58` [brain] `subprocess.run` - subprocess.run(["ollama", "pull", self.model_name], check=True)
-- `core/brain/llm/local_server_client.py:576` [brain] `urllib.request.Request` - req = urllib.request.Request(url, method="GET")
-- `core/brain/llm/local_server_client.py:577` [brain] `urllib.request.urlopen` - with urllib.request.urlopen(req, timeout=2.0) as resp:
-- `core/brain/llm/local_server_client.py:591` [brain] `httpx.AsyncClient` - self._http = httpx.AsyncClient(timeout=None)
+- `core/brain/llm/local_server_client.py:626` [brain] `urllib.request.Request` - req = urllib.request.Request(url, method="GET")
+- `core/brain/llm/local_server_client.py:627` [brain] `urllib.request.urlopen` - with urllib.request.urlopen(req, timeout=2.0) as resp:
+- `core/brain/llm/local_server_client.py:641` [brain] `httpx.AsyncClient` - self._http = httpx.AsyncClient(timeout=None)
 
 ## Degradation Handling
 
-- Total `record_degradation()` calls: 3194
-- Log-and-limp candidates: 2940
+- Total `record_degradation()` calls: 3189
+- Log-and-limp candidates: 2935
 - Nearby fail-closed candidates: 254
 
 Top limp-on files:
