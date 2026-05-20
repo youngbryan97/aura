@@ -73,25 +73,7 @@ FREE_ENERGY_WINDOW = 40
 
 HIERARCHICAL_PHI_REFRESH_INTERVAL_S = 12.0
 
-# Affective anchor vocabulary for output affect extraction
-AFFECTIVE_OUTPUT_ANCHORS = [
-    ({"joy", "delight", "wonderful", "beautiful", "love", "grateful", "happy", "glad", "excited"},
-     +0.4, +0.3, -0.2, +0.2),
-    ({"curious", "interesting", "fascinating", "wonder", "intriguing", "explore", "discover"},
-     +0.2, +0.2, -0.1, +0.5),
-    ({"frustrated", "stuck", "blocked", "problem", "error", "wrong", "fail", "cannot", "impossible"},
-     -0.3, +0.2, +0.4, -0.1),
-    ({"sad", "sorry", "difficult", "hard", "pain", "loss", "grieve", "hurt", "lonely"},
-     -0.3, -0.1, +0.1, -0.1),
-    ({"calm", "settled", "clear", "understood", "resolved", "good", "well", "fine"},
-     +0.2, -0.2, -0.2, +0.1),
-    ({"uncertain", "confused", "unsure", "unclear", "don't know", "complex", "ambiguous"},
-     -0.1, +0.1, +0.1, +0.2),
-    ({"think", "consider", "analyze", "reason", "understand", "explain", "because"},
-     +0.1, +0.1, 0.0, +0.3),
-    ({"tired", "exhausted", "depleted", "slow", "heavy", "low", "drain"},
-     -0.2, -0.3, +0.1, -0.2),
-]
+
 
 
 # ── Data Structures ────────────────────────────────────────────────────────────
@@ -155,7 +137,7 @@ class OutputReceptor:
         self._lock = threading.Lock()
 
     def receive_output(self, generated_text: str) -> tuple[np.ndarray, float] | None:
-        """Process generated text and return affective delta for substrate injection."""
+        """Process generated text, parse action impulses, run simulation, execute actions, and return delta."""
         if not generated_text or len(generated_text.strip()) < 5:
             return None
 
@@ -175,11 +157,118 @@ class OutputReceptor:
             logger.debug("OutputReceptor substrate lookup failed: %s", exc)
             substrate = None
 
-        delta = self._extract_affective_delta(generated_text)
+        # Parse action impulses from text
+        import re
+        import json
+        from core.actuators.actuator_registry import get_actuator_registry
+        from core.world.world_model import get_physics_world_model, PhysicsWorldModel, WorldEntity
+        from core.sensors.sensor_registry import get_sensor_registry
+
+        actions_found = []
+        # 1. Parse JSON blocks
+        json_matches = re.findall(r"\{.*?\}", generated_text)
+        for match in json_matches:
+            try:
+                data = json.loads(match)
+                if isinstance(data, dict) and "actuator" in data:
+                    actions_found.append((data["actuator"], data.get("params", {})))
+            except json.JSONDecodeError:
+                pass
+
+        # 2. Parse functional format (e.g. reroute_vessel(Vessel_Alpha, 90, 15))
+        if not actions_found:
+            match = re.search(r"reroute_vessel\s*\(\s*['\"]?(\w+)['\"]?,\s*([\d\.]+),\s*([\d\.]+)\s*\)", generated_text)
+            if match:
+                v_id, heading, speed = match.groups()
+                actions_found.append(("reroute_vessel", {"vessel_id": v_id, "heading": float(heading), "speed": float(speed)}))
+                
+            match = re.search(r"reallocate_flow\s*\(\s*['\"]?(\w+)['\"]?,\s*['\"]?(\w+)['\"]?,\s*([\d\.]+)\s*\)", generated_text)
+            if match:
+                src, tgt, amt = match.groups()
+                actions_found.append(("reallocate_flow", {"source_id": src, "target_id": tgt, "amount": float(amt)}))
+
+        if not actions_found:
+            return None
+
+        # Simulate expectations on PhysicsWorldModel
+        world_model = get_physics_world_model()
+        sim_model = PhysicsWorldModel()
+        sim_model.entities = {}
+        for eid, ent in world_model.entities.items():
+            sim_model.add_entity(WorldEntity(
+                entity_id=ent.entity_id,
+                kind=ent.kind,
+                capacity=ent.capacity,
+                load=ent.load,
+                flow_rate=ent.flow_rate,
+                max_flow_rate=ent.max_flow_rate,
+                latency=ent.latency,
+                coordinates=ent.coordinates,
+                attributes=ent.attributes.copy()
+            ))
+
+        sim_actions = []
+        for name, params in actions_found:
+            if name == "reroute_vessel":
+                sim_actions.append({
+                    "type": "reroute",
+                    "entity_id": params.get("vessel_id"),
+                    "heading": params.get("heading"),
+                    "speed": params.get("speed")
+                })
+            elif name == "reallocate_flow":
+                sim_actions.append({
+                    "type": "transfer",
+                    "entity_id": params.get("source_id"),
+                    "target_id": params.get("target_id"),
+                    "amount": params.get("amount")
+                })
+
+        sim_state = sim_model.simulate(10.0, actions=sim_actions)
+
+        # Store the simulated expectations in ClosedCausalLoop
+        loop = ServiceContainer.get("closed_causal_loop", default=None)
+        if loop is not None and hasattr(loop, "_simulated_expectations"):
+            loop._simulated_expectations = {}
+            entities = sim_state.get("entities", {})
+            for eid, ent in entities.items():
+                if eid == "Port_East":
+                    loop._simulated_expectations["port_east_load"] = ent.get("load", 0.0)
+                    loop._simulated_expectations["port_east_latency"] = ent.get("latency", 0.0)
+                elif eid == "Port_West":
+                    loop._simulated_expectations["port_west_load"] = ent.get("load", 0.0)
+                    loop._simulated_expectations["port_west_latency"] = ent.get("latency", 0.0)
+                elif eid == "Vessel_Alpha":
+                    loop._simulated_expectations["vessel_alpha_speed"] = ent.get("flow_rate", 0.0)
+                elif eid == "Warehouse_Central":
+                    loop._simulated_expectations["warehouse_load"] = ent.get("load", 0.0)
+                    loop._simulated_expectations["warehouse_latency"] = ent.get("latency", 0.0)
+            loop._simulated_expectations["system_cpu_usage"] = get_sensor_registry().read_all().get("system_cpu_usage", 0.0)
+
+        # Coordinate/execute actions
+        actuator_registry = get_actuator_registry()
+        all_success = True
+        execution_messages = []
+        for name, params in actions_found:
+            res = actuator_registry.execute_action(name, params)
+            if not res.success:
+                all_success = False
+            execution_messages.append(res.message)
+
+        # Construct physical action-grounded delta vector
+        delta = np.zeros(self._neuron_count, dtype=np.float32)
+        if all_success:
+            delta[0] = 0.35   # Valence (joy/success)
+            delta[1] = 0.20   # Arousal (active execution)
+            delta[3] = -0.30  # Frustration (reduced)
+            delta[4] = 0.25   # Curiosity (explore)
+        else:
+            delta[0] = -0.35  # Valence (fail)
+            delta[1] = 0.15   # Arousal
+            delta[3] = 0.40   # Frustration (increased)
+            delta[4] = 0.10   # Curiosity
 
         magnitude = float(np.linalg.norm(delta))
-        if magnitude < 0.02:
-            return None
 
         # Inject into substrate
         try:
@@ -197,9 +286,9 @@ class OutputReceptor:
                     self._total_injected_energy += magnitude
                     self._last_receive_time = time.time()
 
-                logger.debug(
-                    "OutputReceptor: injected delta (mag=%.3f) from %d chars of output",
-                    magnitude, len(generated_text),
+                logger.info(
+                    "OutputReceptor: executed action %s, injected delta (mag=%.3f) from output",
+                    actions_found, magnitude
                 )
                 return delta, magnitude
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
@@ -237,29 +326,6 @@ class OutputReceptor:
         neuron_count = max(1, int(neuron_count or 64))
         if neuron_count != self._neuron_count:
             self._neuron_count = neuron_count
-
-    def _extract_affective_delta(self, text: str) -> np.ndarray:
-        """Keyword-based affective content extraction."""
-        delta = np.zeros(self._neuron_count, dtype=np.float32)
-        text_lower = text.lower()
-        words = set(text_lower.split())
-        total_matches = 0
-
-        for keywords, val_d, ar_d, frus_d, cur_d in AFFECTIVE_OUTPUT_ANCHORS:
-            hits = sum(1 for kw in keywords if kw in text_lower or any(kw in w for w in words))
-            if hits > 0:
-                weight = min(1.0, hits * 0.4)
-                delta[0] += val_d * weight    # valence
-                delta[1] += ar_d * weight     # arousal
-                delta[3] += frus_d * weight   # frustration
-                delta[4] += cur_d * weight    # curiosity
-                total_matches += hits
-
-        length_scale = min(1.0, len(text) / 500.0)
-        delta *= (0.5 + 0.5 * length_scale)
-        delta = np.clip(delta, -0.3, 0.3)
-
-        return delta
 
     def get_diagnostics(self) -> dict[str, Any]:
         with self._lock:
@@ -310,23 +376,69 @@ class SelfPredictiveCore:
         return predicted
 
     def observe_and_update(
-        self, actual_x: np.ndarray
+        self, actual_x: np.ndarray, simulated_expectations: dict[str, float] | None = None
     ) -> PredictionCycle | None:
         """Observe the actual state, compute error, update model."""
         with self._lock:
             if self._last_prediction is None or self._last_state is None:
                 return None
 
-            error = actual_x - self._last_prediction
-            error_magnitude = float(np.linalg.norm(error)) / math.sqrt(self._n)
+            # Compute substrate state prediction error
+            substrate_error = actual_x - self._last_prediction
+            substrate_free_energy = float(np.mean(substrate_error ** 2))
 
-            free_energy = float(np.mean(error ** 2))
+            # Compute physical telemetry prediction error
+            from core.sensors.sensor_registry import get_sensor_registry
+            try:
+                registry = get_sensor_registry()
+                registry.sync_from_world_model()
+                actual_sensors = registry.read_all()
+                reliability = registry.get_reliability_vector()
+            except Exception:
+                actual_sensors = {}
+                reliability = {}
+
+            if simulated_expectations is None:
+                simulated_expectations = actual_sensors
+
+            norm_factors = {
+                "port_east_load": 1000.0,
+                "port_west_load": 1200.0,
+                "port_east_latency": 10.0,
+                "port_west_latency": 10.0,
+                "vessel_alpha_speed": 40.0,
+                "warehouse_load": 5000.0,
+                "warehouse_latency": 10.0,
+                "system_cpu_usage": 100.0
+            }
+
+            physical_errors = []
+            for sid, actual_val in actual_sensors.items():
+                expected_val = simulated_expectations.get(sid, actual_val)
+                rel = reliability.get(sid, 1.0)
+                norm = norm_factors.get(sid, 1.0)
+                err = (actual_val - expected_val) / norm
+                physical_errors.append((err ** 2) * rel)
+
+            physical_free_energy = float(np.mean(physical_errors)) if physical_errors else 0.0
+
+            # Blend physical and substrate free energy
+            free_energy = 0.85 * physical_free_energy + 0.15 * substrate_free_energy
             self._free_energy_history.append(free_energy)
 
+            error = substrate_error.copy()
+            # Inject physical error magnitude directly into the error vector at index 10 (prediction error)
+            # and index 15 (free energy) to couple physical dynamics to the substrate CTRNN
+            if len(error) > 15:
+                error[10] = float(np.clip(physical_free_energy * 2.0, -0.5, 0.5))
+                error[15] = float(np.clip(free_energy * 2.0, -0.5, 0.5))
+
+            error_magnitude = float(np.linalg.norm(error)) / math.sqrt(self._n)
+
             # Hebbian-style model update
-            outer = np.outer(error, self._last_state)
+            outer = np.outer(substrate_error, self._last_state)
             self._W_pred += PREDICTION_LEARNING_RATE * outer
-            self._b_pred += PREDICTION_LEARNING_RATE * error * 0.1
+            self._b_pred += PREDICTION_LEARNING_RATE * substrate_error * 0.1
 
             # Keep W_pred stable
             norm = np.linalg.norm(self._W_pred)
@@ -340,7 +452,7 @@ class SelfPredictiveCore:
                 timestamp=time.time(),
                 predicted_state=self._last_prediction.copy(),
                 actual_state=actual_x.copy(),
-                error_vector=error.copy(),
+                error_vector=error,
                 prediction_error_magnitude=error_magnitude,
                 free_energy=free_energy,
             )
@@ -547,6 +659,15 @@ class ClosedCausalLoop:
         self._last_output_fingerprint: str = ""
         self._last_output_at: float = 0.0
 
+        # Initialize simulated expectations with current sensor telemetry
+        try:
+            from core.sensors.sensor_registry import get_sensor_registry
+            registry = get_sensor_registry()
+            registry.sync_from_world_model()
+            self._simulated_expectations = registry.read_all()
+        except Exception:
+            self._simulated_expectations = {}
+
         self._task: asyncio.Task | None = None
         self._phi_core_task: asyncio.Task | None = None
         self._hphi_task: asyncio.Task | None = None
@@ -715,7 +836,7 @@ class ClosedCausalLoop:
                 self._phi_witness.record_substrate_state(current_x)
 
                 # STEP 2: Evaluate previous prediction
-                cycle = self._predictor.observe_and_update(current_x)
+                cycle = self._predictor.observe_and_update(current_x, simulated_expectations=getattr(self, "_simulated_expectations", None))
 
                 if cycle is not None:
                     self._loop_state.current_free_energy = cycle.free_energy
