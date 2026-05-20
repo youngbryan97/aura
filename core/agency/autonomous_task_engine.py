@@ -739,7 +739,13 @@ class AutonomousTaskEngine:
                         # and records learning signal. The counterfactual record will
                         # accumulate regret/relief after the fact.
             except (ImportError, AttributeError, RuntimeError) as e:
-                record_degradation("autonomous_task_engine", e)
+                record_degradation(
+                    "autonomous_task_engine",
+                    e,
+                    severity="warning",
+                    action="continued with existing executable plan after optional counterfactual deliberation failed",
+                    extra={"plan_id": plan.plan_id, "phase": "counterfactual_deliberation"},
+                )
                 logger.debug("TaskEngine: counterfactual deliberation failed (non-critical): %s", e)
 
         # 2. Execute steps
@@ -773,14 +779,28 @@ class AutonomousTaskEngine:
                             evidence=result.evidence or [],
                         )
                 except (ImportError, AttributeError, RuntimeError) as _lc_err:
-                    record_degradation("autonomous_task_engine", _lc_err)
+                    record_degradation(
+                        "autonomous_task_engine",
+                        _lc_err,
+                        action="kept completed plan result and active-plan cleanup; lifecycle incident will escalate if repeated",
+                        extra={
+                            "plan_id": plan.plan_id,
+                            "task_id": str(plan.context.get("task_id", "") or plan.plan_id),
+                            "phase": "goal_lifecycle_completion",
+                        },
+                    )
                     logger.debug(
                         "TaskEngine: goal lifecycle completion failed for plan %s: %s",
                         plan.plan_id,
                         _lc_err,
                     )
         except (ImportError, AttributeError, RuntimeError) as exc:
-            record_degradation("autonomous_task_engine", exc)
+            record_degradation(
+                "autonomous_task_engine",
+                exc,
+                action="isolated goal-state sync failure, persisted plan outcome, and cleaned active plan slot",
+                extra={"plan_id": plan.plan_id, "phase": "goal_state_sync"},
+            )
             logger.error("TaskEngine: goal state sync failed for plan %s: %s", plan.plan_id, exc)
         finally:
             self._active_plans.pop(plan.plan_id, None)
@@ -2227,7 +2247,17 @@ Respond ONLY with a JSON array, no other text:
 
                 self._persist_plan_state(plan)
             except (RuntimeError, asyncio.CancelledError, AttributeError) as e:
-                record_degradation("autonomous_task_engine", e)
+                record_degradation(
+                    "autonomous_task_engine",
+                    e,
+                    action="marked step failed, recorded execution evidence, routed tool failure to resilience, and persisted plan state",
+                    extra={
+                        "plan_id": plan.plan_id,
+                        "step_id": step.step_id,
+                        "tool": step.tool,
+                        "attempt": step.attempts,
+                    },
+                )
                 step.error = str(e)
                 self._record_coding_execution(
                     "record_execution_step",

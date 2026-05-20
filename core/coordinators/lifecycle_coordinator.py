@@ -3,7 +3,7 @@ the main execution loop, and cognitive retries.
 
 Extracted from orchestrator.py as part of the God Object decomposition.
 """
-from core.runtime.errors import record_degradation
+from core.runtime.errors import Severity, record_degradation
 import asyncio
 import logging
 import time
@@ -12,6 +12,22 @@ from typing import Any, Dict, Optional
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger(__name__)
+
+
+def _record_lifecycle_degradation(
+    error: BaseException,
+    *,
+    action: str,
+    severity: Severity = "degraded",
+    extra: dict[str, Any] | None = None,
+) -> None:
+    record_degradation(
+        "lifecycle_coordinator",
+        error,
+        severity=severity,
+        action=action,
+        extra=extra,
+    )
 
 
 class LifecycleCoordinator:
@@ -68,7 +84,11 @@ class LifecycleCoordinator:
                 logger.info("Orchestrator run loop cancelled.")
                 break
             except (RuntimeError, AttributeError, TypeError) as e:
-                record_degradation('lifecycle_coordinator', e)
+                _record_lifecycle_degradation(
+                    e,
+                    action="kept run loop alive, recorded orchestrator status error, and applied one-second backoff",
+                    extra={"phase": "run_loop"},
+                )
                 logger.error("CRITICAL LOOP ERROR: %s", e)
                 orch.status.add_error(str(e))
                 await asyncio.sleep(1) # Prevent tight error loops
@@ -123,7 +143,11 @@ class LifecycleCoordinator:
 
                 logger.info("💤 Dreaming Systems Active (Semantic Defrag & DLQ Recycle)")
             except (ImportError, AttributeError, RuntimeError) as e:
-                record_degradation('lifecycle_coordinator', e)
+                _record_lifecycle_degradation(
+                    e,
+                    action="continued boot without dreaming systems; boot barrier and core startup still proceed",
+                    extra={"phase": "dreaming_systems_start"},
+                )
                 logger.error("Failed to start Dreaming Systems: %s", e)
 
             # Loading Self Model
@@ -134,7 +158,11 @@ class LifecycleCoordinator:
                     orch.self_model.beliefs = loaded.beliefs
                     logger.info("✓ Self-Model persistent state loaded.")
                 except (ImportError, AttributeError, RuntimeError) as e:
-                    record_degradation('lifecycle_coordinator', e)
+                    _record_lifecycle_degradation(
+                        e,
+                        action="continued boot with existing in-memory self model state",
+                        extra={"phase": "self_model_load"},
+                    )
                     logger.error("Failed to load Self-Model state: %s", e)
 
             # Start Lazarus Brainstem (v11.0)
@@ -143,7 +171,11 @@ class LifecycleCoordinator:
                 orch.brainstem = LazarusBrainstem(orch)
                 logger.info("✓ Lazarus Brainstem active")
             except (ImportError, AttributeError, RuntimeError) as e:
-                record_degradation('lifecycle_coordinator', e)
+                _record_lifecycle_degradation(
+                    e,
+                    action="continued boot with Lazarus brainstem marked offline",
+                    extra={"phase": "lazarus_brainstem_start"},
+                )
                 logger.error("Failed to init Lazarus: %s", e)
                 orch.brainstem = None
 
@@ -220,7 +252,11 @@ class LifecycleCoordinator:
             logger.info("✓ Orchestrator started")
             return True
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('lifecycle_coordinator', e)
+            _record_lifecycle_degradation(
+                e,
+                action="marked orchestrator not running and returned startup failure",
+                extra={"phase": "orchestrator_start"},
+            )
             logger.error("Failed to start orchestrator: %s", e)
             orch.status.running = False
             return False
@@ -258,7 +294,12 @@ class LifecycleCoordinator:
                 else:
                     logger.debug("Boot barrier: %s not yet registered (optional).", name)
             except (ImportError, AttributeError, RuntimeError) as e:
-                record_degradation('lifecycle_coordinator', e)
+                _record_lifecycle_degradation(
+                    e,
+                    severity="warning",
+                    action="continued boot barrier after optional service instantiation failed",
+                    extra={"phase": "boot_barrier", "service": name},
+                )
                 logger.debug("Boot barrier: %s failed to instantiate: %s", name, e)
 
         logger.info("Boot barrier: %d/%d core services ready. Background loops may proceed.",
@@ -275,7 +316,12 @@ class LifecycleCoordinator:
             get_continuity().save(reason="graceful")
             logger.info("✓ Continuity record saved")
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('lifecycle_coordinator', e)
+            _record_lifecycle_degradation(
+                e,
+                severity="warning",
+                action="continued graceful shutdown after continuity save failed",
+                extra={"phase": "shutdown_continuity_save"},
+            )
             logger.debug("Continuity save failed: %s", e)
 
         # Persist epistemic state (knowledge graph, gaps)
@@ -284,13 +330,23 @@ class LifecycleCoordinator:
             get_epistemic_tracker().save()
             logger.info("✓ Epistemic state saved")
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('lifecycle_coordinator', e)
+            _record_lifecycle_degradation(
+                e,
+                severity="warning",
+                action="continued graceful shutdown after epistemic state save failed",
+                extra={"phase": "shutdown_epistemic_save"},
+            )
             logger.debug("Epistemic save failed: %s", e)
 
         try:
             orch._save_state("shutdown")
         except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-            record_degradation('lifecycle_coordinator', e)
+            _record_lifecycle_degradation(
+                e,
+                severity="warning",
+                action="continued graceful shutdown after final state save failed",
+                extra={"phase": "shutdown_state_save"},
+            )
             logger.debug("Final state save failed: %s", e)
 
         orch._publish_status({"event": "stopping", "message": "Graceful shutdown initiated"})
@@ -316,7 +372,11 @@ class LifecycleCoordinator:
             from core.container import ServiceContainer
             await ServiceContainer.shutdown()
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('lifecycle_coordinator', e)
+            _record_lifecycle_degradation(
+                e,
+                action="continued shutdown into watchdog stop and task tracker cleanup after ServiceContainer shutdown failed",
+                extra={"phase": "service_container_shutdown"},
+            )
             logger.error("Error during ServiceContainer shutdown: %s", e)
 
         # Stop System Watchdog
@@ -346,7 +406,11 @@ class LifecycleCoordinator:
                 logger.info("🔄 Re-wiring cognitive engine...")
                 ce.wire(engine, router=engine)
             except (ImportError, AttributeError, RuntimeError) as e:
-                record_degradation('lifecycle_coordinator', e)
+                _record_lifecycle_degradation(
+                    e,
+                    action="continued cognitive retry after capability rewire failed",
+                    extra={"phase": "cognitive_retry_rewire"},
+                )
                 logger.error("Re-wire failed: %s", e)
             
             # Check result
@@ -358,7 +422,12 @@ class LifecycleCoordinator:
                     from .thought_stream import get_emitter
                     get_emitter().emit("System", "Cognitive Connection Re-established", level="success")
                 except (ImportError, AttributeError, RuntimeError) as e:
-                    record_degradation('lifecycle_coordinator', e)
+                    _record_lifecycle_degradation(
+                        e,
+                        severity="warning",
+                        action="kept recovered cognitive engine registered after thought stream notification failed",
+                        extra={"phase": "cognitive_retry_emit"},
+                    )
                     logger.debug("ThoughtStream emit failed during cognitive retry: %s", e)
                 return True
             else:
@@ -366,7 +435,11 @@ class LifecycleCoordinator:
                 logger.error("  client=%s, autonomous_brain=%s", getattr(ce, 'client', None), getattr(ce, 'autonomous_brain', None))
                 return False
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('lifecycle_coordinator', e)
+            _record_lifecycle_degradation(
+                e,
+                action="returned failed cognitive retry result after exception",
+                extra={"phase": "cognitive_retry"},
+            )
             logger.error("Cognitive Retry Exception: %s", e)
             return False
 

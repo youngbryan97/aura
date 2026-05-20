@@ -24,9 +24,26 @@ import time
 from collections.abc import AsyncGenerator
 from typing import Any
 
-from core.runtime.errors import record_degradation
+from core.runtime.errors import Severity, record_degradation
 
 logger = logging.getLogger("Aura.APIAdapter")
+
+
+def _record_api_degradation(
+    error: BaseException,
+    *,
+    action: str,
+    severity: Severity = "degraded",
+    extra: dict[str, Any] | None = None,
+) -> None:
+    record_degradation(
+        "api_adapter",
+        error,
+        severity=severity,
+        action=action,
+        extra=extra,
+    )
+
 
 try:
     from dotenv import load_dotenv
@@ -111,7 +128,11 @@ class APIAdapter:
             except ImportError:
                 logger.warning("APIAdapter: 'google-genai' package not installed.")
             except (ImportError, AttributeError, RuntimeError) as e:
-                record_degradation('api_adapter', e)
+                _record_api_degradation(
+                    e,
+                    action="disabled Gemini backend for this adapter instance; local runtime remains available for failover",
+                    extra={"backend": "gemini", "phase": "start"},
+                )
                 logger.error("APIAdapter: Gemini init failed: %s", e)
 
         # Initialize Aura's local runtime
@@ -121,7 +142,11 @@ class APIAdapter:
                 self.has_local = True
                 logger.info("✅ APIAdapter: Local runtime enabled.")
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-                record_degradation('api_adapter', e)
+                _record_api_degradation(
+                    e,
+                    action="disabled local runtime backend for this adapter instance; API backend remains available for failover",
+                    extra={"backend": "local", "phase": "start"},
+                )
                 logger.error("APIAdapter: local runtime init failed: %s", e)
 
         if not self.has_gemini and not self.has_local:
@@ -139,7 +164,11 @@ class APIAdapter:
         except ImportError:
             logger.warning("⚠️ [BOOT] Early Facade registration deferred: AgencyFacade missing.")
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('api_adapter', e)
+            _record_api_degradation(
+                e,
+                action="deferred AgencyFacade registration; memory facade setup can retry after container boot",
+                extra={"phase": "setup_memory_facade"},
+            )
             logger.error("❌ [BOOT] AgencyFacade registration error: %s", e)
 
     async def stop(self):
@@ -259,7 +288,11 @@ class APIAdapter:
                 self._call_count["gemini"] += 1
                 return response.text or ""
             except (ImportError, AttributeError, RuntimeError) as e:
-                record_degradation('api_adapter', e)
+                _record_api_degradation(
+                    e,
+                    action="backed off Gemini backend and allowed local generation fallback",
+                    extra={"backend": "gemini", "tier": tier},
+                )
                 err_text = str(e)
                 if "429" in err_text or "quota" in err_text.lower():
                     self._gemini_backoff_until = time.monotonic() + 60.0
@@ -291,7 +324,11 @@ class APIAdapter:
             yield ChatStreamEvent(type="end")
             self._call_count["gemini"] += 1
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('api_adapter', e)
+            _record_api_degradation(
+                e,
+                action="ended Gemini stream path and let caller fall back to non-stream failure handling",
+                extra={"backend": "gemini", "tier": tier},
+            )
             logger.warning("Gemini streaming failed: %s", e)
 
     # ─── Local Runtime ───────────────────────────────────────────────────────
@@ -320,7 +357,11 @@ class APIAdapter:
             self._call_count["local"] += 1
             return result
         except (OSError, ConnectionError, TimeoutError) as e:
-            record_degradation('api_adapter', e)
+            _record_api_degradation(
+                e,
+                action="incremented local error count and returned None so routing can fail over",
+                extra={"backend": "local", "phase": "generate"},
+            )
             logger.warning("Local runtime generate failed: %s", e)
             self._error_count["local"] += 1
         return None
@@ -362,7 +403,11 @@ class APIAdapter:
             yield ChatStreamEvent(type="end")
             self._call_count["local"] += 1
         except (OSError, ConnectionError, TimeoutError) as e:
-            record_degradation('api_adapter', e)
+            _record_api_degradation(
+                e,
+                action="incremented local stream error count and ended stream path cleanly",
+                extra={"backend": "local", "phase": "stream"},
+            )
             logger.warning("Local runtime stream failed: %s", e)
             self._error_count["local"] += 1
 
@@ -378,7 +423,12 @@ class APIAdapter:
                 )
                 return res.embeddings[0].values
             except (OSError, ConnectionError, TimeoutError) as e:
-                record_degradation('api_adapter', e)
+                _record_api_degradation(
+                    e,
+                    severity="warning",
+                    action="used deterministic local bag-of-words embedding fallback",
+                    extra={"backend": "gemini", "phase": "embedding"},
+                )
                 logger.debug("Gemini embedding failed: %s", e)
 
         # Deterministic local embedding fallback using bag-of-words hashing.
@@ -406,7 +456,12 @@ class APIAdapter:
 
             return asyncio.run(self.embed_async(text))
         except (ImportError, AttributeError, RuntimeError) as exc:
-            record_degradation("api_adapter", exc)
+            _record_api_degradation(
+                exc,
+                severity="warning",
+                action="returned deterministic local bag-of-words embedding from synchronous wrapper",
+                extra={"phase": "embed_sync"},
+            )
             logger.debug("Synchronous embedding wrapper failed; falling back to local bag-of-words embedding: %s", exc)
             # Fallback to local bag-of-words embedding
             return self._local_bow_embed(text)
