@@ -1,5 +1,4 @@
-"""
-Context Compression Service — Ported from gemini-cli/contextCompressionService.ts
+"""Context Compression Service — Ported from gemini-cli/contextCompressionService.ts.
 
 Routes files to 4 compression levels based on relevance:
   FULL     — complete content preserved (recently accessed or highly relevant)
@@ -11,15 +10,22 @@ Protects files read in the last 2 turns from any compression.
 Caches summaries with content hashes for change detection.
 """
 
-from core.runtime.errors import record_degradation
+from __future__ import annotations
+
 import hashlib
+import inspect
 import json
 import logging
 import os
+import re
+import tempfile
 import time
 from dataclasses import dataclass, field
 from enum import IntEnum
-from typing import Any, Dict, List, Optional, Set
+from pathlib import Path
+from typing import Any
+
+from core.runtime.errors import FallbackClassification, record_degradation
 
 logger = logging.getLogger("Aura.ContextCompression")
 
@@ -46,7 +52,8 @@ class FileRecord:
 @dataclass
 class CompressionState:
     """Serializable compression state."""
-    files: Dict[str, FileRecord] = field(default_factory=dict)
+
+    files: dict[str, FileRecord] = field(default_factory=dict)
     current_turn: int = 0
 
 
@@ -77,9 +84,119 @@ Files to evaluate:
 
 STATE_FILE = os.path.expanduser("~/.aura_runtime/compression_state.json")
 
+MAX_STATE_FILES = 5000
+MAX_PATH_CHARS = 600
+MAX_SUMMARY_CHARS = 2000
+MAX_TASK_CONTEXT_CHARS = 2000
+MAX_ROUTING_FILES = 200
+MAX_ROUTING_RESPONSE_CHARS = 20000
+SUMMARY_SOURCE_CHARS = 4000
+
+
+def _emit_context_fault(
+    error: BaseException,
+    *,
+    action: str,
+    severity: str = "degraded",
+    stage: str = "",
+    extra: dict[str, Any] | None = None,
+) -> None:
+    """Record a context-compression fault with explicit recovery semantics."""
+    metadata = dict(extra or {})
+    if stage:
+        metadata["stage"] = stage
+    try:
+        record_degradation(
+            "context_compression",
+            error,
+            severity=severity,  # type: ignore[arg-type]
+            action=action,
+            classification=FallbackClassification.SAFE_FALLBACK,
+            extra=metadata or None,
+        )
+    except TypeError:
+        record_degradation("context_compression", error)
+
 
 def _content_hash(content: str) -> str:
     return hashlib.sha256(content.encode()).hexdigest()[:16]
+
+
+def _safe_text(value: Any, default: str = "", *, max_chars: int = 1000) -> str:
+    if value is None:
+        return default
+    try:
+        text = str(value)
+    except (RuntimeError, TypeError, ValueError):
+        return default
+    text = text.replace("\x00", "")
+    if len(text) > max_chars:
+        text = text[:max_chars]
+    return text
+
+
+def _safe_content(value: Any) -> str:
+    if isinstance(value, str):
+        return value.replace("\x00", "")
+    try:
+        return str(value).replace("\x00", "")
+    except (RuntimeError, TypeError, ValueError):
+        return ""
+
+
+def _coerce_response_text(result: Any) -> str:
+    if isinstance(result, str):
+        return result
+    if isinstance(result, dict):
+        for key in ("response", "content", "text", "answer"):
+            value = result.get(key)
+            if isinstance(value, str):
+                return value
+        return ""
+    for attr in ("response", "content", "text", "answer"):
+        value = getattr(result, attr, None)
+        if isinstance(value, str):
+            return value
+    return ""
+
+
+async def _call_generate(brain: Any, prompt: str, *, options: dict[str, Any]) -> Any:
+    generate = getattr(brain, "generate", None)
+    if not callable(generate):
+        raise AttributeError("brain does not expose generate()")
+    result = generate(prompt, options=options)
+    if inspect.isawaitable(result):
+        return await result
+    return result
+
+
+def _extract_json_object(text: str) -> dict[str, Any]:
+    if not text:
+        raise ValueError("empty routing response")
+    bounded = text[:MAX_ROUTING_RESPONSE_CHARS]
+    decoder = json.JSONDecoder()
+    for match in re.finditer(r"\{", bounded, re.DOTALL):
+        try:
+            parsed, _end = decoder.raw_decode(bounded[match.start() :])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, dict):
+            return parsed
+        raise TypeError("routing response root must be an object")
+    raise ValueError("routing response did not contain a JSON object")
+
+
+def _deterministic_summary(path: str, content: str) -> str:
+    normalized_path = _safe_text(path, "unknown file", max_chars=MAX_PATH_CHARS)
+    lines = content.splitlines()
+    nonempty = [line.strip() for line in lines if line.strip()]
+    excerpt = " ".join(nonempty[:3])
+    if not excerpt:
+        excerpt = "No textual content was available."
+    return _safe_text(
+        f"{normalized_path}: {len(lines)} lines, {len(content)} chars. {excerpt}",
+        max_chars=MAX_SUMMARY_CHARS,
+    )
 
 
 class ContextCompressionService:
@@ -92,52 +209,119 @@ class ContextCompressionService:
     - State can be persisted to disk for session recovery
     """
 
-    def __init__(self):
+    def __init__(self, state_file: str | os.PathLike[str] | None = None):
+        self._state_file = Path(state_file or STATE_FILE).expanduser()
         self._state = CompressionState()
         self._load_state()
 
     def _load_state(self):
         """Load compression state from disk if available."""
+        path = self._state_file
         try:
-            if os.path.exists(STATE_FILE):
-                with open(STATE_FILE, "r") as f:
-                    data = json.load(f)
-                self._state.current_turn = data.get("current_turn", 0)
-                for path, fdata in data.get("files", {}).items():
-                    self._state.files[path] = FileRecord(
-                        path=path,
-                        content_hash=fdata.get("content_hash", ""),
-                        compression_level=CompressionLevel(fdata.get("compression_level", 0)),
-                        summary=fdata.get("summary", ""),
-                        last_accessed_turn=fdata.get("last_accessed_turn", 0),
-                        char_count=fdata.get("char_count", 0),
-                    )
-        except (OSError, ConnectionError, TimeoutError) as e:
-            record_degradation('context_compression', e)
+            if not path.exists():
+                return
+            with path.open("r", encoding="utf-8") as f:
+                data = json.load(f)
+            if not isinstance(data, dict):
+                raise TypeError("compression state root must be an object")
+
+            self._state.current_turn = max(0, int(data.get("current_turn", 0) or 0))
+            files = data.get("files", {})
+            if not isinstance(files, dict):
+                raise TypeError("compression state files must be an object")
+
+            for raw_path, fdata in list(files.items())[:MAX_STATE_FILES]:
+                if not isinstance(fdata, dict):
+                    continue
+                safe_path = _safe_text(raw_path, max_chars=MAX_PATH_CHARS)
+                if not safe_path:
+                    continue
+                self._state.files[safe_path] = FileRecord(
+                    path=safe_path,
+                    content_hash=_safe_text(fdata.get("content_hash", ""), max_chars=64),
+                    compression_level=self._coerce_level(fdata.get("compression_level", 0)),
+                    summary=_safe_text(fdata.get("summary", ""), max_chars=MAX_SUMMARY_CHARS),
+                    last_accessed_turn=max(0, int(fdata.get("last_accessed_turn", 0) or 0)),
+                    char_count=max(0, int(fdata.get("char_count", 0) or 0)),
+                )
+        except (json.JSONDecodeError, OSError, RuntimeError, TypeError, ValueError) as e:
+            self._quarantine_state(path)
+            _emit_context_fault(
+                e,
+                action="quarantined unreadable compression state and started fresh",
+                severity="degraded",
+                stage="load_state",
+            )
             logger.debug("Could not load compression state: %s", e)
 
     def _save_state(self):
         """Persist compression state to disk."""
         try:
-            os.makedirs(os.path.dirname(STATE_FILE), exist_ok=True)
+            self._state_file.parent.mkdir(parents=True, exist_ok=True)
             data = {
                 "current_turn": self._state.current_turn,
                 "files": {
                     path: {
                         "content_hash": rec.content_hash,
                         "compression_level": rec.compression_level.value,
-                        "summary": rec.summary,
+                        "summary": _safe_text(rec.summary, max_chars=MAX_SUMMARY_CHARS),
                         "last_accessed_turn": rec.last_accessed_turn,
                         "char_count": rec.char_count,
                     }
-                    for path, rec in self._state.files.items()
-                }
+                    for path, rec in list(self._state.files.items())[:MAX_STATE_FILES]
+                },
             }
-            with open(STATE_FILE, "w") as f:
-                json.dump(data, f, indent=2)
-        except (OSError, IOError) as e:
-            record_degradation('context_compression', e)
+            fd, tmp_name = tempfile.mkstemp(
+                dir=str(self._state_file.parent),
+                prefix=".compression_state.",
+                suffix=".tmp",
+                text=True,
+            )
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    json.dump(data, f, indent=2, ensure_ascii=False, allow_nan=False)
+                os.replace(tmp_name, self._state_file)
+            except (OSError, RuntimeError, TypeError, ValueError):
+                try:
+                    os.unlink(tmp_name)
+                except FileNotFoundError:
+                    pass
+                raise
+        except (OSError, TypeError, ValueError, RuntimeError) as e:
+            _emit_context_fault(
+                e,
+                action="continued without persisting compression state",
+                severity="degraded",
+                stage="save_state",
+            )
             logger.debug("Could not save compression state: %s", e)
+
+    def _quarantine_state(self, path: Path) -> None:
+        if not path.exists():
+            return
+        quarantine = path.with_name(f"{path.stem}.corrupt.{int(time.time())}{path.suffix}")
+        try:
+            path.replace(quarantine)
+        except OSError as exc:
+            _emit_context_fault(
+                exc,
+                action="continued fresh compression state after quarantine rename failed",
+                severity="warning",
+                stage="quarantine_state",
+            )
+
+    @staticmethod
+    def _coerce_level(value: Any) -> CompressionLevel:
+        if isinstance(value, CompressionLevel):
+            return value
+        if isinstance(value, str):
+            normalized = value.strip().upper()
+            if normalized in CompressionLevel.__members__:
+                return CompressionLevel[normalized]
+        try:
+            return CompressionLevel(int(value))
+        except (TypeError, ValueError):
+            return CompressionLevel.FULL
 
     def advance_turn(self):
         """Advance the current turn counter."""
@@ -148,34 +332,48 @@ class ContextCompressionService:
 
         Updates the content hash and marks the file as recently accessed.
         """
-        content_hash = _content_hash(content)
-        existing = self._state.files.get(path)
+        self._ensure_record(path, content, mark_access=True)
 
-        if existing and existing.content_hash == content_hash:
-            # Same content — just update access time
-            existing.last_accessed_turn = self._state.current_turn
-            existing.compression_level = CompressionLevel.FULL
-        else:
-            # New or changed content — reset compression
-            self._state.files[path] = FileRecord(
-                path=path,
+    def _ensure_record(self, path: str, content: str, *, mark_access: bool) -> FileRecord:
+        safe_path = _safe_text(path, "unknown", max_chars=MAX_PATH_CHARS)
+        safe_content = _safe_content(content)
+        content_hash = _content_hash(safe_content)
+        existing = self._state.files.get(safe_path)
+
+        if existing is None:
+            existing = FileRecord(
+                path=safe_path,
                 content_hash=content_hash,
                 compression_level=CompressionLevel.FULL,
-                summary="",  # Invalidate cached summary
-                last_accessed_turn=self._state.current_turn,
-                char_count=len(content),
+                summary="",
+                last_accessed_turn=self._state.current_turn if mark_access else 0,
+                char_count=len(safe_content),
             )
+            self._state.files[safe_path] = existing
+        elif existing.content_hash != content_hash:
+            existing.content_hash = content_hash
+            existing.summary = ""
+            existing.char_count = len(safe_content)
+            if existing.compression_level in {CompressionLevel.SUMMARY, CompressionLevel.EXCLUDED}:
+                existing.compression_level = CompressionLevel.PARTIAL
+
+        if mark_access:
+            existing.last_accessed_turn = self._state.current_turn
+            existing.compression_level = CompressionLevel.FULL
+
+        return existing
 
     def _is_protected(self, record: FileRecord) -> bool:
         """Check if a file is protected from compression."""
-        return (self._state.current_turn - record.last_accessed_turn) <= PROTECTED_TURN_WINDOW
+        age = max(0, self._state.current_turn - record.last_accessed_turn)
+        return age <= PROTECTED_TURN_WINDOW
 
     async def route_files(
         self,
-        file_contents: Dict[str, str],
+        file_contents: dict[str, str],
         task_context: str,
         brain: Any = None,
-    ) -> Dict[str, CompressionLevel]:
+    ) -> dict[str, CompressionLevel]:
         """Route all registered files to compression levels.
 
         Args:
@@ -186,10 +384,13 @@ class ContextCompressionService:
         Returns:
             {path: CompressionLevel} mapping
         """
-        # Register all files
+        if not isinstance(file_contents, dict):
+            raise TypeError("file_contents must be a mapping of path to content")
+
+        # Register all files and invalidate stale hashes without treating every
+        # file in the context window as explicitly accessed by the user.
         for path, content in file_contents.items():
-            if path not in self._state.files:
-                self.register_file_access(path, content)
+            self._ensure_record(path, content, mark_access=path not in self._state.files)
 
         # Separate protected vs evaluatable files
         protected = {}
@@ -206,42 +407,61 @@ class ContextCompressionService:
         # If no brain or nothing to evaluate, keep everything FULL
         if not brain or not to_evaluate:
             result = {**protected}
-            for path in to_evaluate:
+            for path, record in to_evaluate.items():
+                record.compression_level = CompressionLevel.FULL
                 result[path] = CompressionLevel.FULL
+            self._save_state()
             return result
 
         # Batch LLM routing
         try:
             file_list = "\n".join(
                 f"- {path} ({record.char_count} chars, last accessed turn {record.last_accessed_turn})"
-                for path, record in to_evaluate.items()
+                for path, record in list(to_evaluate.items())[:MAX_ROUTING_FILES]
             )
             prompt = ROUTING_PROMPT.format(
-                task_context=task_context,
+                task_context=_safe_text(task_context, max_chars=MAX_TASK_CONTEXT_CHARS),
                 file_list=file_list,
             )
 
-            result_data = await brain.generate(
+            result_data = await _call_generate(
+                brain,
                 prompt, options={"num_predict": 1024, "temperature": 0.1}
             )
-            response_text = result_data.get("response", "")
+            response_text = _coerce_response_text(result_data)
 
             # Parse JSON response
-            import re
-            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
-            if json_match:
-                routing = json.loads(json_match.group())
-                level_map = {"FULL": CompressionLevel.FULL, "PARTIAL": CompressionLevel.PARTIAL,
-                             "SUMMARY": CompressionLevel.SUMMARY, "EXCLUDED": CompressionLevel.EXCLUDED}
+            routing = _extract_json_object(response_text)
+            files = routing.get("files", [])
+            if not isinstance(files, list):
+                raise TypeError("routing response 'files' must be a list")
 
-                for file_info in routing.get("files", []):
-                    path = file_info.get("path", "")
-                    level_str = file_info.get("level", "FULL")
-                    if path in to_evaluate:
-                        to_evaluate[path].compression_level = level_map.get(level_str, CompressionLevel.FULL)
+            for file_info in files:
+                if not isinstance(file_info, dict):
+                    continue
+                path = _safe_text(file_info.get("path", ""), max_chars=MAX_PATH_CHARS)
+                level = self._coerce_level(file_info.get("level", "FULL"))
+                if path in to_evaluate:
+                    to_evaluate[path].compression_level = level
 
-        except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('context_compression', e)
+        except (
+            AttributeError,
+            json.JSONDecodeError,
+            OSError,
+            RuntimeError,
+            TimeoutError,
+            TypeError,
+            ValueError,
+        ) as e:
+            for record in to_evaluate.values():
+                record.compression_level = CompressionLevel.FULL
+            _emit_context_fault(
+                e,
+                action="failed open to FULL context after routing failure",
+                severity="degraded",
+                stage="route_files",
+                extra={"evaluated_files": len(to_evaluate)},
+            )
             logger.warning("LLM file routing failed, keeping all FULL: %s", e)
 
         # Build final result
@@ -283,6 +503,11 @@ class ContextCompressionService:
 
         if level == CompressionLevel.SUMMARY:
             record = self._state.files.get(path)
+            current_hash = _content_hash(_safe_content(content))
+            if record and record.content_hash != current_hash:
+                record.content_hash = current_hash
+                record.summary = ""
+                record.char_count = len(content)
             if record and record.summary:
                 return f"[Summary of {path}]: {record.summary}"
             # No summary cached — fall back to PARTIAL
@@ -292,19 +517,36 @@ class ContextCompressionService:
 
     async def generate_summary(self, path: str, content: str, brain: Any) -> str:
         """Generate and cache an LLM summary for a file."""
+        record = self._ensure_record(path, content, mark_access=False)
         try:
-            result = await brain.generate(
-                f"Summarize this file in 2-3 sentences. Focus on its purpose, key functions, and important constants.\n\n{content[:4000]}",
-                options={"num_predict": 256, "temperature": 0.2}
+            result = await _call_generate(
+                brain,
+                (
+                    "Summarize this file in 2-3 sentences. Focus on its purpose, "
+                    "key functions, and important constants.\n\n"
+                    f"{_safe_text(content, max_chars=SUMMARY_SOURCE_CHARS)}"
+                ),
+                options={"num_predict": 256, "temperature": 0.2},
             )
-            summary = result.get("response", "").strip()
-            if summary:
-                record = self._state.files.get(path)
-                if record:
-                    record.summary = summary
+            summary = _safe_text(
+                _coerce_response_text(result).strip(),
+                max_chars=MAX_SUMMARY_CHARS,
+            )
+            if len(summary) >= 20:
+                record.summary = summary
                 self._save_state()
                 return summary
-        except (OSError, ConnectionError, TimeoutError) as e:
-            record_degradation('context_compression', e)
+            raise ValueError("LLM returned an empty or too-short summary")
+        except (AttributeError, OSError, RuntimeError, TimeoutError, TypeError, ValueError) as e:
+            fallback = _deterministic_summary(path, content)
+            record.summary = fallback
+            self._save_state()
+            _emit_context_fault(
+                e,
+                action="generated deterministic file summary fallback",
+                severity="warning",
+                stage="generate_summary",
+                extra={"path": record.path},
+            )
             logger.warning("Summary generation failed for %s: %s", path, e)
-        return ""
+            return fallback
