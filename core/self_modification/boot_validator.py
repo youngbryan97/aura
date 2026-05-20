@@ -1,64 +1,137 @@
 """GhostBoot: Shadow Boot-Path Validation
 Verifies that Aura can still initialize after code modifications.
 """
-from core.runtime.errors import record_degradation
-import os
-import sys
-import subprocess
-import time
+
 import asyncio
 import logging
+import os
 import shutil
+import subprocess
+import sys
 from pathlib import Path
-from typing import Dict, Any, Optional, Tuple
+from typing import Any
+
+from core.runtime.errors import FallbackClassification, record_degradation
 
 logger = logging.getLogger("SelfEvolution.GhostBoot")
+
+_BOOT_RECOVERABLE_ERRORS = (
+    ImportError,
+    AttributeError,
+    RuntimeError,
+    TypeError,
+    ValueError,
+    OSError,
+    subprocess.SubprocessError,
+    TimeoutError,
+)
+
+
+def _record_boot_degradation(
+    error: BaseException,
+    *,
+    action: str,
+    stage: str,
+    severity: str = "warning",
+    extra: dict[str, Any] | None = None,
+) -> None:
+    metadata = dict(extra or {})
+    metadata["stage"] = stage
+    try:
+        record_degradation(
+            "boot_validator",
+            error,
+            severity=severity,  # type: ignore[arg-type]
+            action=action,
+            classification=FallbackClassification.SAFE_FALLBACK,
+            extra=metadata,
+        )
+    except TypeError:
+        record_degradation(
+            "boot_validator",
+            error,
+            severity=severity,  # type: ignore[arg-type]
+            action=action,
+        )
+
+
+def _safe_decode(data: bytes, *, max_chars: int = 20_000) -> str:
+    text = data.decode(errors="replace") if data else ""
+    if len(text) > max_chars:
+        return text[-max_chars:]
+    return text
+
+
+def _sandbox_path(sandbox_path: Path, requested: str | Path) -> Path:
+    root = sandbox_path.resolve()
+    target = Path(requested)
+    if not target.is_absolute():
+        target = root / target
+    resolved = target.resolve(strict=False)
+    try:
+        resolved.relative_to(root)
+    except ValueError as exc:
+        raise ValueError(f"ghost boot overlay target escapes sandbox: {requested}") from exc
+    return resolved
+
 
 class GhostBootValidator:
     """Validator that performs a 'trial boot' in a separate process."""
 
-    def __init__(self, project_root: Optional[Path] = None):
+    def __init__(self, project_root: Path | None = None):
         from core.config import config
+
         self.root = project_root or config.paths.project_root
 
     async def validate_boot(
         self,
         sandbox_path: Path,
-        timeout: int = 30,
-        overlay_file: Optional[Tuple[str, str]] = None,
-    ) -> Tuple[bool, str]:
+        timeout_s: int | float = 30,
+        overlay_file: tuple[str, str] | None = None,
+        **options: Any,
+    ) -> tuple[bool, str]:
         """Attempts to 'boot' the system in the sandbox (Async)."""
+        if "timeout" in options:
+            timeout_s = options.pop("timeout")
+        if options:
+            unsupported = ", ".join(sorted(options))
+            raise TypeError(f"unsupported ghost boot validation option(s): {unsupported}")
+
         logger.info("👻 Starting Ghost Boot validation in %s...", sandbox_path)
-        
+
         # We use a specialized minimal boot script to speed up validation
         # and avoid side effects (like connecting to real APIs)
         boot_script = sandbox_path / ".ghost_boot.py"
-        self._create_minimal_boot_script(boot_script)
 
-        overlay_target: Optional[Path] = None
-        overlay_backup: Optional[bytes] = None
+        overlay_target: Path | None = None
+        overlay_backup: bytes | None = None
         overlay_had_original = False
 
         try:
+            await asyncio.to_thread(sandbox_path.mkdir, parents=True, exist_ok=True)
+            await asyncio.to_thread(self._create_minimal_boot_script, boot_script)
+
             if overlay_file:
                 target_file, staging_file = overlay_file
-                overlay_target = Path(target_file)
-                if not overlay_target.is_absolute():
-                    overlay_target = sandbox_path / overlay_target
+                overlay_target = _sandbox_path(sandbox_path, target_file)
                 staging_path = Path(staging_file)
-                overlay_target.parent.mkdir(parents=True, exist_ok=True)
-                overlay_had_original = overlay_target.exists()
+                staging_exists = await asyncio.to_thread(staging_path.exists)
+                if not staging_exists:
+                    raise FileNotFoundError(f"ghost boot staging file missing: {staging_path}")
+                await asyncio.to_thread(overlay_target.parent.mkdir, parents=True, exist_ok=True)
+                overlay_had_original = await asyncio.to_thread(overlay_target.exists)
                 if overlay_had_original:
-                    overlay_backup = overlay_target.read_bytes()
-                shutil.copy2(staging_path, overlay_target)
+                    overlay_backup = await asyncio.to_thread(overlay_target.read_bytes)
+                await asyncio.to_thread(shutil.copy2, staging_path, overlay_target)
 
             # Run the boot script in a subprocess
             env = os.environ.copy()
             env["PYTHONPATH"] = str(sandbox_path)
-            env["AURA_GHOST_BOOT"] = "1" # Flag to skip heavy systems
-            
+            env["AURA_GHOST_BOOT"] = "1"  # Flag to skip heavy systems
+
             process = await asyncio.create_subprocess_exec(
-                sys.executable, str(boot_script),
+                sys.executable,
+                str(boot_script),
                 cwd=str(sandbox_path),
                 env=env,
                 stdout=asyncio.subprocess.PIPE,
@@ -66,14 +139,16 @@ class GhostBootValidator:
             )
 
             try:
-                stdout_data, stderr_data = await asyncio.wait_for(process.communicate(), timeout=timeout)
-                output = stdout_data.decode()
-                error_output = stderr_data.decode()
-            except asyncio.TimeoutError:
+                stdout_data, stderr_data = await asyncio.wait_for(
+                    process.communicate(), timeout=timeout_s
+                )
+                output = _safe_decode(stdout_data)
+                error_output = _safe_decode(stderr_data)
+            except TimeoutError:
                 process.kill()
                 stdout_data, stderr_data = await process.communicate()
-                output = stdout_data.decode()
-                error_output = stderr_data.decode()
+                output = _safe_decode(stdout_data)
+                error_output = _safe_decode(stderr_data)
                 error_output += "\n[Timeout reached without heartbeat]"
 
             success = "GHOST_HEARTBEAT_STABLE" in output
@@ -86,25 +161,41 @@ class GhostBootValidator:
                 logger.error("❌ Ghost Boot FAILED: %s", error_msg)
                 return False, f"Boot failure: {error_msg}"
 
-        except (subprocess.SubprocessError, OSError) as e:
-            record_degradation('boot_validator', e)
+        except _BOOT_RECOVERABLE_ERRORS as e:
+            _record_boot_degradation(
+                e,
+                action="failed ghost boot validation without promoting candidate changes",
+                stage="validate_boot",
+                severity="degraded",
+                extra={"sandbox_path": str(sandbox_path)},
+            )
             logger.error("Ghost Boot execution error: %s", e)
             return False, str(e)
         finally:
             if overlay_target is not None:
                 try:
                     if overlay_had_original and overlay_backup is not None:
-                        overlay_target.write_bytes(overlay_backup)
-                    elif overlay_target.exists():
-                        overlay_target.unlink()
-                except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-                    record_degradation('boot_validator', e)
+                        await asyncio.to_thread(overlay_target.write_bytes, overlay_backup)
+                    elif await asyncio.to_thread(overlay_target.exists):
+                        await asyncio.to_thread(overlay_target.unlink)
+                except _BOOT_RECOVERABLE_ERRORS as e:
+                    _record_boot_degradation(
+                        e,
+                        action="left ghost boot overlay for operator cleanup after restore failed",
+                        stage="cleanup.overlay_restore",
+                        extra={"overlay_target": str(overlay_target)},
+                    )
                     logger.debug("Failed to restore ghost boot overlay: %s", e)
-            if boot_script.exists():
+            if await asyncio.to_thread(boot_script.exists):
                 try:
-                    boot_script.unlink()
-                except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-                    record_degradation('boot_validator', e)
+                    await asyncio.to_thread(boot_script.unlink)
+                except _BOOT_RECOVERABLE_ERRORS as e:
+                    _record_boot_degradation(
+                        e,
+                        action="left ghost boot script for operator cleanup after unlink failed",
+                        stage="cleanup.boot_script",
+                        extra={"boot_script": str(boot_script)},
+                    )
                     logger.debug("Failed to unlink ghost boot script: %s", e)
 
     def _create_minimal_boot_script(self, script_path: Path):
@@ -169,5 +260,5 @@ except (ImportError, AttributeError, RuntimeError) as e:
     traceback.print_exc(file=sys.stderr)
     sys.exit(1)
 """
-        with open(script_path, 'w', encoding='utf-8') as f:
+        with open(script_path, "w", encoding="utf-8") as f:
             f.write(content)
