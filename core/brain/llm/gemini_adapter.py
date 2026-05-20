@@ -15,6 +15,7 @@ fallback to local models when daily quota is exhausted.
 import json
 import logging
 import os
+import re
 import time
 from collections import defaultdict, deque
 from collections.abc import AsyncIterator
@@ -24,10 +25,39 @@ from typing import Any
 import httpx
 
 from core.resilience.factory import circuit_breaker
-from core.runtime.errors import record_degradation
+from core.runtime.atomic_writer import atomic_write_text
+from core.runtime.errors import FallbackClassification, Severity, record_degradation
 from core.utils.exceptions import capture_and_log
 
 logger = logging.getLogger("Brain.Gemini")
+
+GEMINI_RECOVERABLE_ERRORS = (
+    AttributeError,
+    ImportError,
+    OSError,
+    RuntimeError,
+    TypeError,
+    ValueError,
+    httpx.HTTPError,
+)
+
+
+def _record_gemini_degradation(
+    error: BaseException,
+    *,
+    action: str,
+    severity: Severity = "warning",
+    extra: dict[str, Any] | None = None,
+) -> None:
+    record_degradation(
+        "gemini_adapter",
+        error,
+        severity=severity,
+        action=action,
+        classification=FallbackClassification.SAFE_FALLBACK,
+        receipt_required=False,
+        extra=extra,
+    )
 
 
 class GeminiProviderUnavailableError(RuntimeError):
@@ -96,8 +126,12 @@ class DailyRateLimiter:
                         logger.info("📊 Loaded Gemini usage: %s", dict(self._counts))
                     else:
                         logger.info("📊 New day — resetting Gemini usage counters")
-            except (ImportError, AttributeError, RuntimeError) as e:
-                record_degradation('gemini_adapter', e)
+            except GEMINI_RECOVERABLE_ERRORS as e:
+                _record_gemini_degradation(
+                    e,
+                    action="started Gemini rate limiter with empty in-memory counters after state load failed",
+                    extra={"state_path": self._state_path},
+                )
                 logger.debug("Failed to load rate limiter state: %s", e)
     
     def _save_state(self):
@@ -105,13 +139,18 @@ class DailyRateLimiter:
         if self._state_path:
             try:
                 from pathlib import Path
-                Path(self._state_path).parent.mkdir(parents=True, exist_ok=True)
-                Path(self._state_path).write_text(json.dumps({
+                state_path = Path(self._state_path)
+                state_path.parent.mkdir(parents=True, exist_ok=True)
+                atomic_write_text(state_path, json.dumps({
                     "date": self._reset_date,
                     "counts": dict(self._counts),
                 }))
-            except (ImportError, AttributeError, RuntimeError) as e:
-                record_degradation('gemini_adapter', e)
+            except GEMINI_RECOVERABLE_ERRORS as e:
+                _record_gemini_degradation(
+                    e,
+                    action="kept Gemini rate limiter counters in memory after durable state save failed",
+                    extra={"state_path": self._state_path},
+                )
                 capture_and_log(e, {'module': __name__})
     
     def _maybe_reset(self):
@@ -318,13 +357,15 @@ class GeminiAdapter:
         """Extract retry-after duration from a 429 error response."""
         try:
             text = error_body.decode('utf-8', errors='replace')
-            # Look for "Please retry in Xs" pattern
-            import re
             match = re.search(r'retry in (\d+\.?\d*)', text)
             if match:
                 return float(match.group(1))
-        except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('gemini_adapter', e)
+        except GEMINI_RECOVERABLE_ERRORS as e:
+            _record_gemini_degradation(
+                e,
+                action="used default Gemini retry-after backoff after parse failed",
+                severity="debug",
+            )
             capture_and_log(e, {'module': __name__})
         return 60.0  # Default 60s backoff
     
@@ -447,17 +488,36 @@ class GeminiAdapter:
                         duration_s=time.monotonic() - t0_stream, # Need to define t0_stream
                         model_tier="PRIMARY" if self.model == self.DEEP_MODEL else "SECONDARY"
                     )
-                except (ImportError, AttributeError, RuntimeError) as _e:
-                    record_degradation('gemini_adapter', _e)
+                except GEMINI_RECOVERABLE_ERRORS as _e:
+                    _record_gemini_degradation(
+                        _e,
+                        action="returned Gemini stream after metabolic cost recording failed",
+                        severity="debug",
+                        extra={"model": self.model, "tokens_yielded": tokens_yielded},
+                    )
                     logger.debug('Ignored Exception in gemini_adapter.py: %s', _e)
                 
-        except httpx.TimeoutException:
-            logger.warning("Gemini stream timed out after %.0fs", self.timeout)
+        except httpx.TimeoutException as e:
+            reason = f"Gemini stream timed out after {self.timeout:.0f}s"
+            self._mark_provider_unavailable(reason, cooldown_s=300.0)
+            _record_gemini_degradation(
+                e,
+                action="raised provider-unavailable signal so router can fail over after Gemini stream timeout",
+                extra={"model": self.model, "timeout": self.timeout, "tokens_yielded": tokens_yielded},
+            )
+            logger.warning(reason)
+            raise GeminiProviderUnavailable(reason) from e
         except GeminiProviderUnavailable as e:
             logger.warning("Gemini stream unavailable: %s", e)
-        except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('gemini_adapter', e)
+            raise
+        except GEMINI_RECOVERABLE_ERRORS as e:
+            _record_gemini_degradation(
+                e,
+                action="raised provider-unavailable signal so router can fail over after Gemini stream error",
+                extra={"model": self.model, "tokens_yielded": tokens_yielded},
+            )
             logger.error("Gemini stream error: %s", e)
+            raise GeminiProviderUnavailable(str(e)) from e
 
     @circuit_breaker(service_name="gemini-api")
     async def call(
@@ -566,8 +626,12 @@ class GeminiAdapter:
                     await self._handle_error(response)
                 except GeminiProviderUnavailable as e:
                     return False, "", {"error": str(e)}
-                except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-                    record_degradation('gemini_adapter', e)
+                except GEMINI_RECOVERABLE_ERRORS as e:
+                    _record_gemini_degradation(
+                        e,
+                        action="returned failed Gemini call result after provider error handler failed",
+                        extra={"model": self.model, "status_code": response.status_code},
+                    )
                     return False, "", {"error": str(e)}
             
             self.rate_limiter.record_call(self.model)
@@ -598,8 +662,13 @@ class GeminiAdapter:
                     duration_s=(time.monotonic() - t0),
                     model_tier="PRIMARY" if self.model == self.DEEP_MODEL else "SECONDARY"
                 )
-            except (ImportError, AttributeError, RuntimeError) as _e:
-                record_degradation('gemini_adapter', _e)
+            except GEMINI_RECOVERABLE_ERRORS as _e:
+                _record_gemini_degradation(
+                    _e,
+                    action="returned Gemini call result after metabolic cost recording failed",
+                    severity="debug",
+                    extra={"model": self.model, "tokens_used": metadata.get("tokens_used", 0)},
+                )
                 logger.debug('Ignored Exception in gemini_adapter.py: %s', _e)
             
             return True, text, metadata
@@ -607,8 +676,12 @@ class GeminiAdapter:
         except httpx.TimeoutException:
             metadata["latency_ms"] = int((time.monotonic() - t0) * 1000)
             return False, "", {"error": f"Timeout after {self.timeout}s"}
-        except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('gemini_adapter', e)
+        except GEMINI_RECOVERABLE_ERRORS as e:
+            _record_gemini_degradation(
+                e,
+                action="returned failed Gemini call result after recoverable client error",
+                extra={"model": self.model},
+            )
             metadata["latency_ms"] = int((time.monotonic() - t0) * 1000)
             return False, "", {"error": str(e)}
 
