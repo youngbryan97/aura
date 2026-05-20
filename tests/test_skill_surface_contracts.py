@@ -9,15 +9,13 @@ from typing import Any
 
 import pytest
 
-from core.capability_engine import CapabilityEngine
-from core.capability_engine import SkillMetadata
+from core.capability_engine import CapabilityEngine, SkillMetadata
 from core.constitution import ConstitutionalDecision, ProposalKind, ProposalOutcome
 from core.skills.install_package import InstallPackageSkill
 from core.skills.self_evolution import SelfEvolutionSkill
 from core.skills.self_improvement import SelfImprovementSkill
 from core.skills.test_generator import TestGeneratorSkill
 from core.skills.toggle_senses import ToggleSensesSkill
-
 
 EXPECTED_REGISTERED_SKILLS = {
     "ManageAbilities",
@@ -184,7 +182,6 @@ def _neutralize_side_effects(monkeypatch: pytest.MonkeyPatch) -> None:
     import core.skills.os_manipulation as os_manipulation
     import core.skills.reddit_adapter as reddit_adapter
     import core.skills.social_lurker as social_lurker
-    import core.skills.speak as speak
     import core.skills.sovereign_browser as sovereign_browser
     import core.skills.vision_actor as vision_actor
     from core.skills.auto_refactor import AutoRefactorSkill
@@ -193,15 +190,25 @@ def _neutralize_side_effects(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(computer_use, "get_pyautogui", lambda: (None, unavailable))
     monkeypatch.setattr(os_manipulation, "get_pyautogui", lambda: (None, unavailable))
     monkeypatch.setattr(vision_actor, "get_pyautogui", lambda: (None, unavailable))
-    monkeypatch.setattr(listen, "_record_sync", lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("mic unavailable")))
+    monkeypatch.setattr(
+        listen,
+        "_record_sync",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("mic unavailable")),
+    )
     monkeypatch.setattr(notify_user.DesktopNotifier, "send", staticmethod(lambda **_kwargs: None))
     monkeypatch.setattr(AutoRefactorSkill, "_publish_proposals", lambda self, issues: None)
-    monkeypatch.setattr(SpeakSkill, "_get_engine", lambda self: SimpleNamespace(synthesize_speech=lambda _text: asyncio.sleep(0)))
+    monkeypatch.setattr(
+        SpeakSkill,
+        "_get_engine",
+        lambda self: SimpleNamespace(synthesize_speech=lambda _text: asyncio.sleep(0)),
+    )
     monkeypatch.setattr(social_lurker, "PLAYWRIGHT", False)
     monkeypatch.setattr(
         email_adapter.EmailAdapterSkill,
         "_get_creds",
-        lambda self: (_ for _ in ()).throw(RuntimeError("email credentials unavailable during contract sweep")),
+        lambda self: (_ for _ in ()).throw(
+            RuntimeError("email credentials unavailable during contract sweep")
+        ),
     )
 
     async def _raise_browser_unavailable(self):
@@ -221,7 +228,9 @@ def _neutralize_side_effects(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         sovereign_browser.SovereignBrowserSkill,
         "_execute_fallback",
-        lambda self, params: asyncio.sleep(0, result={"ok": False, "error": "fallback disabled in contract sweep"}),
+        lambda self, params: asyncio.sleep(
+            0, result={"ok": False, "error": "fallback disabled in contract sweep"}
+        ),
     )
 
 
@@ -264,7 +273,9 @@ async def test_registered_skills_support_safe_execute_contract(
 
 
 @pytest.mark.asyncio
-async def test_self_evolution_generates_fallback_proposal_without_brain(monkeypatch, tmp_path: Path):
+async def test_self_evolution_generates_fallback_proposal_without_brain(
+    monkeypatch, tmp_path: Path
+):
     _disable_governance(monkeypatch)
     evolution_dir = tmp_path / "evolution"
     evolution_dir.mkdir(parents=True, exist_ok=True)
@@ -302,8 +313,8 @@ async def test_self_evolution_generates_fallback_proposal_without_brain(monkeypa
     assert result["ok"] is True
     assert result["fallback"] is True
     proposal_path = Path(result["proposal_path"])
-    assert proposal_path.exists()
-    proposal_text = proposal_path.read_text(encoding="utf-8")
+    assert await asyncio.to_thread(proposal_path.exists)
+    proposal_text = await asyncio.to_thread(proposal_path.read_text, encoding="utf-8")
     assert "deterministic fallback" in proposal_text
     assert "get_priority" in proposal_text
 
@@ -346,12 +357,13 @@ async def test_install_package_awaits_async_sandbox_command(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_test_generator_falls_back_to_deterministic_smoke_without_brain(monkeypatch, tmp_path: Path):
+async def test_test_generator_falls_back_to_deterministic_smoke_without_brain(
+    monkeypatch, tmp_path: Path
+):
     _disable_governance(monkeypatch)
     target = tmp_path / "sample_module.py"
     target.write_text(
-        "def square(value: int) -> int:\n"
-        "    return value * value\n",
+        "def square(value: int) -> int:\n    return value * value\n",
         encoding="utf-8",
     )
 
@@ -359,7 +371,7 @@ async def test_test_generator_falls_back_to_deterministic_smoke_without_brain(mo
     result = await skill.safe_execute({"target_file": str(target)}, {})
 
     assert result["ok"] is True
-    assert Path(result["test_file"]).exists()
+    assert await asyncio.to_thread(Path(result["test_file"]).exists)
     assert "1 passed" in str(result.get("output") or "")
 
 
@@ -368,8 +380,7 @@ async def test_test_generator_read_only_avoids_writing_into_repo(monkeypatch, tm
     _disable_governance(monkeypatch)
     target = tmp_path / "sample_module.py"
     target.write_text(
-        "def square(value: int) -> int:\n"
-        "    return value * value\n",
+        "def square(value: int) -> int:\n    return value * value\n",
         encoding="utf-8",
     )
 
@@ -377,8 +388,8 @@ async def test_test_generator_read_only_avoids_writing_into_repo(monkeypatch, tm
     result = await skill.safe_execute({"target_file": str(target)}, {"read_only": True})
 
     assert result["ok"] is True
-    assert Path(result["test_file"]).exists()
-    assert not (target.parent / f"test_{target.name}").exists()
+    assert await asyncio.to_thread(Path(result["test_file"]).exists)
+    assert not await asyncio.to_thread((target.parent / f"test_{target.name}").exists)
 
 
 @pytest.mark.asyncio
@@ -386,8 +397,7 @@ async def test_test_generator_read_only_skips_llm_generation(monkeypatch, tmp_pa
     _disable_governance(monkeypatch)
     target = tmp_path / "sample_module.py"
     target.write_text(
-        "def square(value: int) -> int:\n"
-        "    return value * value\n",
+        "def square(value: int) -> int:\n    return value * value\n",
         encoding="utf-8",
     )
 
@@ -407,8 +417,7 @@ async def test_test_generator_brain_uses_objective_keyword(monkeypatch, tmp_path
     _disable_governance(monkeypatch)
     target = tmp_path / "export_source.py"
     target.write_text(
-        "def export_source() -> str:\n"
-        "    return 'ok'\n",
+        "def export_source() -> str:\n    return 'ok'\n",
         encoding="utf-8",
     )
 
@@ -433,8 +442,11 @@ async def test_test_generator_brain_uses_objective_keyword(monkeypatch, tmp_path
         def write_file(self, name: str, content: str) -> None:
             self.files[name] = content
 
-        async def run_command(self, command: str, timeout: int = 45):
+        async def run_command(self, command: str, timeout_s: int = 45, **options):
+            if "timeout" in options:
+                timeout_s = options.pop("timeout")
             self.command = command
+            self.timeout_s = timeout_s
             return SimpleNamespace(exit_code=0, stdout="1 passed", stderr="")
 
         def stop(self) -> None:
@@ -448,7 +460,7 @@ async def test_test_generator_brain_uses_objective_keyword(monkeypatch, tmp_path
     result = await skill.safe_execute({"target_file": str(target)}, {})
 
     assert result["ok"] is True
-    assert Path(result["test_file"]).exists()
+    assert await asyncio.to_thread(Path(result["test_file"]).exists)
     assert brain.calls
     assert brain.calls[0]["origin"] == "test_generator"
     assert brain.calls[0]["context"]["target"] == str(target)
@@ -459,12 +471,13 @@ async def test_test_generator_brain_uses_objective_keyword(monkeypatch, tmp_path
 
 
 @pytest.mark.asyncio
-async def test_test_generator_recovers_with_deterministic_fallback_after_llm_failure(monkeypatch, tmp_path: Path):
+async def test_test_generator_recovers_with_deterministic_fallback_after_llm_failure(
+    monkeypatch, tmp_path: Path
+):
     _disable_governance(monkeypatch)
     target = tmp_path / "sample_module.py"
     target.write_text(
-        "def square(value: int) -> int:\n"
-        "    return value * value\n",
+        "def square(value: int) -> int:\n    return value * value\n",
         encoding="utf-8",
     )
 
@@ -486,8 +499,11 @@ async def test_test_generator_recovers_with_deterministic_fallback_after_llm_fai
         def write_file(self, name: str, content: str) -> None:
             self.files[name] = content
 
-        async def run_command(self, command: str, timeout: int = 45):
+        async def run_command(self, command: str, timeout_s: int = 45, **options):
+            if "timeout" in options:
+                timeout_s = options.pop("timeout")
             self.commands.append(command)
+            self.timeout_s = timeout_s
             self._runs += 1
             if self._runs == 1:
                 return SimpleNamespace(exit_code=1, stdout="", stderr="generated test failed")
@@ -612,7 +628,9 @@ async def test_capability_engine_promotes_executive_constraints_into_skill_conte
     )
     monkeypatch.setattr("core.container.ServiceContainer.has", staticmethod(lambda _name: False))
 
-    result = await engine.execute("constraint_probe", {}, context={"objective": "probe constraints"})
+    result = await engine.execute(
+        "constraint_probe", {}, context={"objective": "probe constraints"}
+    )
 
     assert result["ok"] is True
     assert result["read_only"] is True
@@ -620,14 +638,15 @@ async def test_capability_engine_promotes_executive_constraints_into_skill_conte
 
 
 @pytest.mark.asyncio
-async def test_toggle_senses_uses_subprocess_runner_without_local_sandbox(monkeypatch, tmp_path: Path):
+async def test_toggle_senses_uses_subprocess_runner_without_local_sandbox(
+    monkeypatch, tmp_path: Path
+):
     _disable_governance(monkeypatch)
 
     sense_dir = tmp_path / "senses"
     sense_dir.mkdir(parents=True, exist_ok=True)
     (sense_dir / "vision_service.py").write_text(
-        "import time\n"
-        "time.sleep(60)\n",
+        "import time\ntime.sleep(60)\n",
         encoding="utf-8",
     )
 
@@ -649,3 +668,155 @@ async def test_toggle_senses_uses_subprocess_runner_without_local_sandbox(monkey
         {},
     )
     assert off_result["ok"] is True
+
+
+@pytest.mark.asyncio
+async def test_email_adapter_marks_authority_finalize_degraded(monkeypatch):
+    from core.runtime.errors import get_degradation_tracker
+    from core.skills.email_adapter import EmailAdapterSkill, EmailInput
+
+    tracker = get_degradation_tracker()
+    tracker.reset()
+    skill = EmailAdapterSkill()
+
+    class Auth:
+        approved = True
+        reason = ""
+        capability_token_id = "cap-email"
+        executive_intent_id = "intent-email"
+        will_receipt_id = "receipt-email"
+
+    class Gateway:
+        async def authorize_tool_execution(self, *_args, **_kwargs):
+            return Auth()
+
+        def verify_tool_access(self, *_args, **_kwargs):
+            return True
+
+        def finalize_tool_execution(self, *_args, **_kwargs):
+            self.finalized = True
+            raise RuntimeError("authority ledger unavailable")
+
+    gateway = Gateway()
+    monkeypatch.setattr(
+        "core.executive.authority_gateway.get_authority_gateway",
+        lambda: gateway,
+    )
+
+    async def check_inbox(_params):
+        return {"ok": True, "unread": 0, "messages": []}
+
+    monkeypatch.setattr(skill, "_handle_check", check_inbox)
+
+    result = await skill.execute(EmailInput(mode="check"), {})
+
+    assert result["ok"] is True
+    assert result["authority_finalized"] is False
+    assert result["authority_finalization_status"] == "degraded"
+    assert result["authority_receipt_id"] == "receipt-email"
+    assert gateway.finalized is True
+    assert any(
+        "authority finalization degraded" in record.action
+        for record in tracker.recent(subsystem="email_adapter")
+    )
+    tracker.reset()
+
+
+@pytest.mark.asyncio
+async def test_email_adapter_failure_finalizes_authority_false(monkeypatch):
+    from core.skills.email_adapter import EmailAdapterSkill, EmailInput
+
+    skill = EmailAdapterSkill()
+
+    class Auth:
+        approved = True
+        reason = ""
+        capability_token_id = "cap-email"
+        executive_intent_id = "intent-email"
+        will_receipt_id = "receipt-email"
+
+    class Gateway:
+        def __init__(self):
+            self.finalized_success = []
+
+        async def authorize_tool_execution(self, *_args, **_kwargs):
+            return Auth()
+
+        def verify_tool_access(self, *_args, **_kwargs):
+            return True
+
+        def finalize_tool_execution(self, *_args, **kwargs):
+            self.finalized_success.append(kwargs.get("success"))
+
+    gateway = Gateway()
+    check_failures = []
+    monkeypatch.setattr(
+        "core.executive.authority_gateway.get_authority_gateway",
+        lambda: gateway,
+    )
+
+    async def check_inbox(_params):
+        check_failures.append("called")
+        raise RuntimeError("imap unavailable")
+
+    monkeypatch.setattr(skill, "_handle_check", check_inbox)
+
+    result = await skill.execute(EmailInput(mode="check"), {})
+
+    assert result["ok"] is False
+    assert "imap unavailable" in result["error"]
+    assert result["authority_finalized"] is True
+    assert check_failures == ["called"]
+    assert gateway.finalized_success == [False]
+
+
+@pytest.mark.asyncio
+async def test_email_adapter_blocks_auto_reply_threads(monkeypatch):
+    from core.skills.email_adapter import EmailAdapterSkill, EmailInput
+
+    skill = EmailAdapterSkill()
+    send_attempts = []
+
+    async def read_original(_params):
+        return {
+            "ok": True,
+            "from": "sender@example.com",
+            "subject": "Away",
+            "message_id": "<auto@example.com>",
+            "is_auto_reply": True,
+        }
+
+    async def send_reply(params):
+        send_attempts.append(params)
+        return {"ok": True}
+
+    monkeypatch.setattr(skill, "_handle_read", read_original)
+    monkeypatch.setattr(skill, "_handle_send", send_reply)
+
+    result = await skill._handle_reply(EmailInput(mode="reply", uid="42", body="Following up."))
+
+    assert result["ok"] is False
+    assert result["status"] == "blocked_auto_reply"
+    assert send_attempts == []
+
+
+@pytest.mark.asyncio
+async def test_email_adapter_rejects_invalid_recipient_before_credentials(monkeypatch):
+    from core.skills.email_adapter import EmailAdapterSkill, EmailInput
+
+    skill = EmailAdapterSkill()
+    credential_reads = []
+
+    def get_creds():
+        credential_reads.append("called")
+        return "aura@example.com", "credential-value"
+
+    monkeypatch.setattr(skill, "_get_creds", get_creds)
+
+    result = await skill._handle_send(
+        EmailInput(mode="send", to="not-an-address", subject="Hello", body="Body")
+    )
+
+    assert result["ok"] is False
+    assert "to" in result["error"]
+    assert credential_reads == []
