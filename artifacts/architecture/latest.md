@@ -2,13 +2,13 @@
 
 Schema: `aura.architecture.dependency_map.v1`
 Root: `/Users/bryan/.aura/live-source`
-Generated: `1779254184.9967518`
+Generated: `1779254542.697244`
 
 ## Summary
 
 - Subsystems: 120
 - Python files: 1539
-- Python lines: 418559
+- Python lines: 418711
 - Dependency edges: 649
 - ServiceContainer `.get()` calls: 1443
 - ServiceContainer registrations: 337
@@ -38,7 +38,7 @@ graph TD
     security["security<br/>17 files, 4564 lines"]
     tasks["tasks<br/>3 files, 333 lines"]
     world_model["world_model<br/>8 files, 2242 lines"]
-    autonomy["autonomy<br/>22 files, 7052 lines"]
+    autonomy["autonomy<br/>22 files, 7204 lines"]
     executive["executive<br/>4 files, 2306 lines"]
     conversation["conversation<br/>8 files, 3174 lines"]
     learning["learning<br/>19 files, 6142 lines"]
@@ -806,7 +806,7 @@ graph TD
 | self_modification | 29 | 10187 | 403177 | 11 | 13 |
 | environment | 80 | 8018 | 311751 | 10 | 2 |
 | cognitive | 11 | 7980 | 325215 | 9 | 4 |
-| autonomy | 22 | 7052 | 293577 | 16 | 7 |
+| autonomy | 22 | 7204 | 300027 | 16 | 7 |
 | learning | 19 | 6142 | 249088 | 13 | 6 |
 | architect | 25 | 5706 | 238326 | 9 | 2 |
 | utils | 41 | 4843 | 188729 | 17 | 49 |
@@ -1064,9 +1064,9 @@ Review candidates:
 - `core/autonomy/initiative_overflow.py:156` [autonomy] `logger.debug` - logger.debug("Skill gap memory write failed: %s", exc)
 - `core/autonomy/initiative_overflow.py:166` [autonomy] `memory.store_sync` - memory.store_sync(
 - `core/autonomy/personhood_engine.py:199` [autonomy] `state.cognition.working_memory.append` - state.cognition.working_memory.append(
-- `core/autonomy/research_cycle.py:587` [autonomy] `state.cognition.long_term_memory.append` - state.cognition.long_term_memory.append(
-- `core/autonomy/research_cycle.py:605` [autonomy] `hasattr` - if memory_facade is not None and hasattr(memory_facade, "add_memory"):
-- `core/autonomy/research_cycle.py:606` [autonomy] `memory_facade.add_memory` - result = memory_facade.add_memory(memory_payload, metadata=metadata)
+- `core/autonomy/research_cycle.py:687` [autonomy] `state.cognition.long_term_memory.append` - state.cognition.long_term_memory.append(
+- `core/autonomy/research_cycle.py:705` [autonomy] `hasattr` - if memory_facade is not None and hasattr(memory_facade, "add_memory"):
+- `core/autonomy/research_cycle.py:706` [autonomy] `memory_facade.add_memory` - result = memory_facade.add_memory(memory_payload, metadata=metadata)
 - `core/brain/causal_world_model.py:222` [brain] `self.add_observation` - self.add_observation("deep dreaming", "memory consolidation", 0.8)
 - `core/brain/cognitive/memory_management.py:59` [brain] `report.errors.append` - report.errors.append("no_vector_memory")
 - `core/brain/cognitive/memory_management.py:222` [brain] `self.vector_memory._save_fallback` - self.vector_memory._save_fallback()
@@ -1129,9 +1129,9 @@ Review candidates:
 - `core/autonomous_initiative_loop.py:417` [core_root] `capability_engine.execute` - proposal_result = await capability_engine.execute(
 - `core/autonomous_initiative_loop.py:703` [core_root] `skill.execute` - return await skill.execute(EmailInput(**payload), {})
 - `core/autonomous_initiative_loop.py:713` [core_root] `skill.execute` - return await skill.execute(RedditInput(**payload), {})
-- `core/autonomy/research_cycle.py:454` [autonomy] `self.orchestrator.execute_tool` - lambda name=tool_name, **kw: self.orchestrator.execute_tool(name, kw, origin="research_cycle")
-- `core/autonomy/research_cycle.py:461` [autonomy] `self.orchestrator.execute_tool` - lambda name=tool_name, **kw: self.orchestrator.execute_tool(name, kw, origin="research_cycle")
-- `core/autonomy/research_cycle.py:720` [autonomy] `self.orchestrator.execute_tool` - result = await self.orchestrator.execute_tool(
+- `core/autonomy/research_cycle.py:532` [autonomy] `self.orchestrator.execute_tool` - lambda name=tool_name, **kw: self.orchestrator.execute_tool(name, kw, origin="research_cycle")
+- `core/autonomy/research_cycle.py:539` [autonomy] `self.orchestrator.execute_tool` - lambda name=tool_name, **kw: self.orchestrator.execute_tool(name, kw, origin="research_cycle")
+- `core/autonomy/research_cycle.py:836` [autonomy] `self.orchestrator.execute_tool` - result = await self.orchestrator.execute_tool(
 
 ### Self-modification and patching
 
@@ -1180,8 +1180,8 @@ Review candidates:
 - `core/autonomy/genuine_refusal.py:356` [autonomy] `llm.think` - llm.think(prompt, mode="FAST"),
 - `core/autonomy/genuine_refusal.py:383` [autonomy] `llm.think` - llm.think(prompt, mode="FAST"),
 - `core/autonomy/personhood_engine.py:187` [autonomy] `llm.think` - llm.think(f"[Spontaneous Thought Prompt] {prompt}", mode="FAST"),
-- `core/autonomy/research_cycle.py:490` [autonomy] `llm.think` - return await llm.think(prompt)
-- `core/autonomy/research_cycle.py:549` [autonomy] `llm.think` - raw = await asyncio.wait_for(llm.think(prompt), timeout=30.0)
+- `core/autonomy/research_cycle.py:579` [autonomy] `llm.think` - return await llm.think(prompt)
+- `core/autonomy/research_cycle.py:643` [autonomy] `llm.think` - raw = await asyncio.wait_for(llm.think(prompt), timeout=30.0)
 
 ### External I/O
 
@@ -1216,8 +1216,8 @@ Review candidates:
 
 ## Degradation Handling
 
-- Total `record_degradation()` calls: 3111
-- Log-and-limp candidates: 2870
+- Total `record_degradation()` calls: 3098
+- Log-and-limp candidates: 2857
 - Nearby fail-closed candidates: 241
 
 Top limp-on files:

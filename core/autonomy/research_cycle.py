@@ -1,9 +1,7 @@
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
-from core.utils.task_tracker import get_task_tracker
 
 import asyncio
+import inspect
 import json
 import logging
 import os
@@ -12,11 +10,42 @@ import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from time import monotonic
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from core.runtime import background_policy
+from core.runtime.errors import FallbackClassification, Severity, record_degradation
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.ResearchCycle")
+
+RESEARCH_RECOVERABLE_ERRORS = (
+    AttributeError,
+    ImportError,
+    LookupError,
+    OSError,
+    RuntimeError,
+    TimeoutError,
+    TypeError,
+    ValueError,
+)
+
+
+def _record_research_degradation(
+    error: BaseException,
+    *,
+    action: str,
+    severity: Severity = "warning",
+    extra: dict[str, Any] | None = None,
+) -> None:
+    record_degradation(
+        "research_cycle",
+        error,
+        severity=severity,
+        action=action,
+        classification=FallbackClassification.SAFE_FALLBACK,
+        receipt_required=False,
+        extra=extra,
+    )
 
 
 def _env_float(name: str, default: float) -> float:
@@ -49,17 +78,17 @@ class ResearchRecord:
     record_id:       str
     drive:           str              # Which motivation drove this
     goal:            str              # What was researched
-    findings:        List[str]        # Concrete facts extracted
+    findings:        list[str]        # Concrete facts extracted
     identity_impact: str              # How this changed the narrative
-    affect_before:   Dict[str, float]
-    affect_after:    Dict[str, float]
-    phi_before:      Optional[float] = 0.0
-    phi_after:       Optional[float] = 0.0
+    affect_before:   dict[str, float]
+    affect_after:    dict[str, float]
+    phi_before:      float | None = 0.0
+    phi_after:       float | None = 0.0
     started_at:      float = 0.0
     completed_at:    float = 0.0
-    task_plan_id:    Optional[str] = None
+    task_plan_id:    str | None = None
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         return {
             "record_id":       self.record_id,
             "drive":           self.drive,
@@ -76,7 +105,7 @@ class ResearchRecord:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> ResearchRecord:
+    def from_dict(cls, data: dict[str, Any]) -> ResearchRecord:
         return cls(
             record_id=data["record_id"],
             drive=data["drive"],
@@ -117,19 +146,42 @@ class ResearchCycle:
     def __init__(self, orchestrator: Any):
         self.orchestrator = orchestrator
         self._running = False
-        self._task: Optional[asyncio.Task] = None
+        self._task: asyncio.Task | None = None
         self._last_cycle_mono: float = 0.0
         self._started_mono: float = monotonic()
         self._cycle_count: int = 0
-        self._history: List[ResearchRecord] = []
+        self._history: list[ResearchRecord] = []
+        self._daemon_failure_count: int = 0
+        self._last_cycle_error: str | None = None
+        self._history_load_errors: int = 0
 
         try:
             from core.config import config
             self._record_path = config.paths.data_dir / "research" / "cycle_history.jsonl"
         except (ImportError, AttributeError):
             self._record_path = Path.home() / ".aura" / "research" / "cycle_history.jsonl"
-            
-        self._record_path.parent.mkdir(parents=True, exist_ok=True)
+
+        try:
+            self._record_path.parent.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            fallback_root = Path(os.getenv("TMPDIR", "/tmp")) / "aura" / "research"
+            try:
+                fallback_root.mkdir(parents=True, exist_ok=True)
+            except OSError as fallback_exc:
+                _record_research_degradation(
+                    fallback_exc,
+                    action="disabled durable research history after primary and fallback directory creation failed",
+                    severity="degraded",
+                    extra={"configured_path": str(self._record_path)},
+                )
+                self._record_path = Path(os.devnull)
+            else:
+                _record_research_degradation(
+                    exc,
+                    action="fell back to temporary research history path after durable directory creation failed",
+                    extra={"configured_path": str(self._record_path), "fallback_path": str(fallback_root)},
+                )
+                self._record_path = fallback_root / "cycle_history.jsonl"
         self._load_history()
 
         logger.info("ResearchCycle initialized. Previous cycles: %d", self._cycle_count)
@@ -150,9 +202,14 @@ class ResearchCycle:
                 self._task.cancel()
             try:
                 await self._task
-            except (asyncio.CancelledError, Exception):
-                logger.debug("Suppressed bare exception")
-                pass  # no-op: intentional
+            except asyncio.CancelledError:
+                pass
+            except RESEARCH_RECOVERABLE_ERRORS as exc:
+                _record_research_degradation(
+                    exc,
+                    action="completed research daemon shutdown after task ended with recoverable error",
+                )
+                logger.debug("ResearchCycle task ended during shutdown: %s", exc)
             self._task = None
         logger.info("ResearchCycle daemon stopped.")
 
@@ -172,8 +229,14 @@ class ResearchCycle:
 
             except asyncio.CancelledError:
                 break
-            except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-                record_degradation('research_cycle', e)
+            except RESEARCH_RECOVERABLE_ERRORS as e:
+                self._daemon_failure_count += 1
+                self._last_cycle_error = f"{type(e).__name__}: {e}"
+                _record_research_degradation(
+                    e,
+                    action="backed off daemon loop and deferred autonomous research after recoverable cycle failure",
+                    extra={"daemon_failures": self._daemon_failure_count},
+                )
                 logger.error("ResearchCycle daemon error: %s", e, exc_info=True)
                 await asyncio.sleep(60.0)  # Back off on error
 
@@ -196,9 +259,14 @@ class ResearchCycle:
             )
             if reason:
                 return False
-        except (RuntimeError, AttributeError, TypeError, ValueError) as _exc:
-            record_degradation('research_cycle', _exc)
-            logger.debug("Suppressed Exception: %s", _exc)
+        except RESEARCH_RECOVERABLE_ERRORS as _exc:
+            self._last_cycle_error = f"{type(_exc).__name__}: {_exc}"
+            _record_research_degradation(
+                _exc,
+                action="deferred autonomous research because background policy gate was unavailable",
+            )
+            logger.debug("Background policy gate unavailable: %s", _exc)
+            return False
 
         # 2. User must be idle
         last_user = getattr(self.orchestrator, "_last_user_interaction_time", 0.0)
@@ -235,7 +303,7 @@ class ResearchCycle:
 
     # ── One research cycle ────────────────────────────────────────────────────
 
-    async def _run_one_cycle(self) -> Optional[ResearchRecord]:
+    async def _run_one_cycle(self) -> ResearchRecord | None:
         """Execute a single research cycle end-to-end."""
         start_time = time.time()
         state = self._get_state()
@@ -282,8 +350,13 @@ class ResearchCycle:
                 reason="research_cycle_goal_completed",
                 source="research_cycle",
             )
-        except (ImportError, AttributeError, RuntimeError) as exc:
-            record_degradation('research_cycle', exc)
+        except RESEARCH_RECOVERABLE_ERRORS as exc:
+            self._last_cycle_error = f"{type(exc).__name__}: {exc}"
+            _record_research_degradation(
+                exc,
+                action="continued integration but left completed initiative for future authority reconciliation",
+                extra={"goal": goal[:160]},
+            )
             logger.warning("ResearchCycle: executive suppression failed, leaving initiative intact: %s", exc)
 
         # 5. Integrate into knowledge graph
@@ -369,7 +442,7 @@ class ResearchCycle:
 
     # ── Step implementations ──────────────────────────────────────────────────
 
-    def _select_initiative(self, state: Any) -> Optional[Dict]:
+    def _select_initiative(self, state: Any) -> dict | None:
         """
         Select the best initiative from pending_initiatives.
         
@@ -380,7 +453,7 @@ class ResearchCycle:
         # 1. Try explicit pending initiatives
         initiatives = getattr(state.cognition, "pending_initiatives", [])
         if initiatives:
-            def _priority(item: Dict[str, Any]) -> tuple[float, float]:
+            def _priority(item: dict[str, Any]) -> tuple[float, float]:
                 metadata = dict(item.get("metadata", {}) or {})
                 continuity_bonus = 0.0
                 if item.get("continuity_restored") or metadata.get("continuity_restored"):
@@ -415,8 +488,13 @@ class ResearchCycle:
                     # Consume the intent so it's only researched once
                     try:
                         possible_intents.remove(intent)
-                    except (ValueError, AttributeError):
-                        logger.debug('Ignored Exception in research_cycle.py: %s', "unknown_error")
+                    except (ValueError, AttributeError) as exc:
+                        _record_research_degradation(
+                            exc,
+                            action="continued with selected autotelic intent after consume marker update failed",
+                            severity="debug",
+                        )
+                        logger.debug("Autotelic intent consume failed: %s", exc)
                         
                     return {
                         "goal": f"Self-directed exploration of {domain}",
@@ -468,15 +546,26 @@ class ResearchCycle:
                 )
             return result
 
-        except TimeoutError:
+        except TimeoutError as exc:
+            self._last_cycle_error = f"{type(exc).__name__}: {exc}"
+            _record_research_degradation(
+                exc,
+                action="ended research attempt without integration after goal execution timeout",
+                extra={"goal": goal[:160], "drive": drive},
+            )
             logger.warning("ResearchCycle: research timed out for '%s'", goal[:60])
             return None
-        except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('research_cycle', e)
+        except RESEARCH_RECOVERABLE_ERRORS as e:
+            self._last_cycle_error = f"{type(e).__name__}: {e}"
+            _record_research_degradation(
+                e,
+                action="fell back to no-result research outcome after execution path failed",
+                extra={"goal": goal[:160], "drive": drive},
+            )
             logger.error("ResearchCycle: research execution failed: %s", e)
             return None
 
-    async def _direct_llm_research(self, goal: str) -> Optional[str]:
+    async def _direct_llm_research(self, goal: str) -> str | None:
         """Fallback when TaskEngine isn't available: direct LLM call."""
         try:
             from core.container import ServiceContainer
@@ -488,12 +577,17 @@ class ResearchCycle:
                     "Provide a detailed synthesis with specific facts, insights, and implications."
                 )
                 return await llm.think(prompt)
-        except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('research_cycle', e)
+        except RESEARCH_RECOVERABLE_ERRORS as e:
+            self._last_cycle_error = f"{type(e).__name__}: {e}"
+            _record_research_degradation(
+                e,
+                action="returned no direct LLM research result after fallback path failed",
+                extra={"goal": goal[:160]},
+            )
             logger.debug("Direct LLM research failed: %s", e)
         return None
 
-    async def _extract_findings(self, result: Any, goal: str) -> List[str]:
+    async def _extract_findings(self, result: Any, goal: str) -> list[str]:
         """Extract concrete facts from research results."""
         if result is None:
             return []
@@ -547,12 +641,18 @@ class ResearchCycle:
                     '["fact 1", "fact 2", ...]'
                 )
                 raw = await asyncio.wait_for(llm.think(prompt), timeout=30.0)
-                start = raw.find("["); end = raw.rfind("]") + 1
+                raw_text = str(raw or "")
+                start = raw_text.find("[")
+                end = raw_text.rfind("]") + 1
                 if start != -1 and end > start:
-                    findings = json.loads(raw[start:end])
+                    findings = json.loads(raw_text[start:end])
                     return [str(f) for f in findings if isinstance(f, str) and len(f) > 10]
-        except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('research_cycle', e)
+        except RESEARCH_RECOVERABLE_ERRORS as e:
+            _record_research_degradation(
+                e,
+                action="used sentence-splitting findings fallback after LLM extraction failed",
+                extra={"goal": goal[:160]},
+            )
             logger.debug("Finding extraction failed: %s", e)
 
         # Fallback: split content into sentences as findings
@@ -560,7 +660,7 @@ class ResearchCycle:
         return sentences[:5]
 
     async def _integrate_knowledge(
-        self, findings: List[str], goal: str, drive: str
+        self, findings: list[str], goal: str, drive: str
     ) -> None:
         """Write findings to knowledge graph and long-term memory."""
         try:
@@ -604,19 +704,24 @@ class ResearchCycle:
             }
             if memory_facade is not None and hasattr(memory_facade, "add_memory"):
                 result = memory_facade.add_memory(memory_payload, metadata=metadata)
-                if hasattr(result, "__await__"):
+                if inspect.isawaitable(result):
                     await result
             elif semantic_memory is not None and hasattr(semantic_memory, "remember"):
                 result = semantic_memory.remember(memory_payload, metadata)
-                if hasattr(result, "__await__"):
+                if inspect.isawaitable(result):
                     await result
 
-        except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('research_cycle', e)
+        except RESEARCH_RECOVERABLE_ERRORS as e:
+            self._last_cycle_error = f"{type(e).__name__}: {e}"
+            _record_research_degradation(
+                e,
+                action="kept research record but skipped one or more knowledge integration sinks",
+                extra={"goal": goal[:160], "finding_count": len(findings)},
+            )
             logger.debug("Knowledge integration failed: %s", e)
 
     async def _update_narrative(
-        self, state: Any, goal: str, findings: List[str]
+        self, state: Any, goal: str, findings: list[str]
     ) -> str:
         """Update Aura's identity narrative based on what she just learned."""
         try:
@@ -657,15 +762,22 @@ class ResearchCycle:
 
                 title_str = str(goal)[:40]
                 if identity_engine and hasattr(identity_engine, "append_chapter"):
-                    identity_engine.append_chapter(
+                    chapter_result = identity_engine.append_chapter(
                         title=f"Research: {title_str}",
                         content=impact,
                     )
+                    if inspect.isawaitable(chapter_result):
+                        await chapter_result
 
                 return impact
 
-        except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('research_cycle', e)
+        except RESEARCH_RECOVERABLE_ERRORS as e:
+            self._last_cycle_error = f"{type(e).__name__}: {e}"
+            _record_research_degradation(
+                e,
+                action="kept research findings but skipped narrative identity update",
+                extra={"goal": goal[:160], "finding_count": len(findings)},
+            )
             logger.debug("Narrative update failed: %s", e)
 
         return "Research integrated into knowledge base."
@@ -704,13 +816,17 @@ class ResearchCycle:
                     dreamer.engage_sleep_cycle(),
                     name=f"aura.dream_cycle_{self._cycle_count}",
                 )
-        except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('research_cycle', e)
+        except RESEARCH_RECOVERABLE_ERRORS as e:
+            _record_research_degradation(
+                e,
+                action="deferred dream consolidation after maintenance policy or dreamer dispatch failed",
+                extra={"cycle_count": self._cycle_count},
+            )
             logger.debug("Dream trigger failed: %s", e)
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 
-    async def _perform_grounded_search(self, goal: str, drive: str) -> Optional[Dict[str, Any]]:
+    async def _perform_grounded_search(self, goal: str, drive: str) -> dict[str, Any] | None:
         if not hasattr(self.orchestrator, "execute_tool"):
             return None
         query = self._search_query_for_goal(goal)
@@ -724,8 +840,12 @@ class ResearchCycle:
             )
             if isinstance(result, dict) and result.get("ok"):
                 return result
-        except (OSError, ConnectionError, TimeoutError) as exc:
-            record_degradation('research_cycle', exc)
+        except RESEARCH_RECOVERABLE_ERRORS as exc:
+            _record_research_degradation(
+                exc,
+                action="fell back to task-engine or direct research after grounded web search failed",
+                extra={"goal": goal[:160], "drive": drive},
+            )
             logger.debug("ResearchCycle grounded search failed for %s: %s", goal[:80], exc)
         return None
 
@@ -746,7 +866,7 @@ class ResearchCycle:
                 break
         return cleaned.strip(" .")
 
-    def _materialize_research_goal(self, initiative: Dict[str, Any], state: Any) -> Dict[str, Any]:
+    def _materialize_research_goal(self, initiative: dict[str, Any], state: Any) -> dict[str, Any]:
         metadata = dict(initiative.get("metadata", {}) or {})
         goal = str(initiative.get("goal", "") or "").strip()
         drive = str(initiative.get("drive") or metadata.get("triggered_by") or "curiosity")
@@ -800,8 +920,12 @@ class ResearchCycle:
                     content = str(item.get("content", "") or "").strip()
                     if content:
                         return content[:120]
-        except (ImportError, AttributeError, RuntimeError) as exc:
-            record_degradation('research_cycle', exc)
+        except RESEARCH_RECOVERABLE_ERRORS as exc:
+            _record_research_degradation(
+                exc,
+                action="derived autotelic topic from deterministic fallback list after knowledge graph lookup failed",
+                extra={"cycle_count": self._cycle_count},
+            )
             logger.debug("Autotelic topic derivation fell back from KG: %s", exc)
 
         fallback_topics = (
@@ -815,7 +939,7 @@ class ResearchCycle:
         )
         return fallback_topics[self._cycle_count % len(fallback_topics)]
 
-    def _get_state(self) -> Optional[Any]:
+    def _get_state(self) -> Any | None:
         try:
             from core.container import ServiceContainer
             ki = ServiceContainer.get("kernel_interface", default=None)
@@ -825,23 +949,35 @@ class ResearchCycle:
             repo = ServiceContainer.get("state_repository", default=None)
             if repo:
                 return repo.get_state()
-        except (ImportError, AttributeError, RuntimeError) as _e:
-            record_degradation('research_cycle', _e)
-            logger.debug('Ignored Exception in research_cycle.py: %s', _e)
+        except RESEARCH_RECOVERABLE_ERRORS as _e:
+            self._last_cycle_error = f"{type(_e).__name__}: {_e}"
+            _record_research_degradation(
+                _e,
+                action="returned no state and deferred autonomous research after state lookup failed",
+            )
+            logger.debug("ResearchCycle state lookup failed: %s", _e)
         return None
 
     def _save_record(self, record: ResearchRecord) -> None:
         try:
-            with open(self._record_path, "a") as f:
+            with self._record_path.open("a", encoding="utf-8") as f:
                 f.write(json.dumps(record.to_dict()) + "\n")
-        except (json.JSONDecodeError, TypeError, ValueError) as e:
-            record_degradation('research_cycle', e)
+                f.flush()
+                os.fsync(f.fileno())
+        except RESEARCH_RECOVERABLE_ERRORS as e:
+            self._last_cycle_error = f"{type(e).__name__}: {e}"
+            _record_research_degradation(
+                e,
+                action="kept in-memory research record after durable history append failed",
+                extra={"record_id": record.record_id, "path": str(self._record_path)},
+            )
             logger.debug("Record save failed: %s", e)
 
     def _load_history(self) -> None:
         if not self._record_path.exists():
             return
         self._history.clear()
+        self._history_load_errors = 0
         count = 0
         try:
             with open(self._record_path, encoding="utf-8") as f:
@@ -851,20 +987,36 @@ class ResearchCycle:
                         record = ResearchRecord.from_dict(data)
                         self._history.append(record)
                         count += 1
-                    except (json.JSONDecodeError, TypeError, ValueError):
+                    except RESEARCH_RECOVERABLE_ERRORS:
+                        self._history_load_errors += 1
                         continue
-        except (json.JSONDecodeError, TypeError, ValueError) as _e:
-            record_degradation('research_cycle', _e)
-            logger.debug('Ignored Exception in research_cycle.py: %s', _e)
+        except RESEARCH_RECOVERABLE_ERRORS as _e:
+            self._history_load_errors += 1
+            _record_research_degradation(
+                _e,
+                action="started with empty or partial research history after history load failed",
+                extra={"path": str(self._record_path)},
+            )
+            logger.debug("Research history load failed: %s", _e)
+        if self._history_load_errors:
+            _record_research_degradation(
+                ValueError(f"{self._history_load_errors} invalid research history row(s)"),
+                action="loaded valid research history rows and skipped corrupt history entries",
+                severity="debug",
+                extra={"path": str(self._record_path), "bad_rows": self._history_load_errors},
+            )
         self._cycle_count = count
 
-    def get_status(self) -> Dict:
+    def get_status(self) -> dict:
         return {
             "running":           self._running,
             "cycle_count":       self._cycle_count,
             "last_cycle_mono":   self._last_cycle_mono,
             "next_eligible_in":  float(max(0.0, float(self.MIN_CYCLE_INTERVAL_S) - (monotonic() - self._last_cycle_mono))),
             "recent_goals":      [str(r.goal)[:60] for r in self._history[-5:]],
+            "daemon_failure_count": self._daemon_failure_count,
+            "last_cycle_error": self._last_cycle_error,
+            "history_load_errors": self._history_load_errors,
         }
 
 
