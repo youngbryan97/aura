@@ -4,15 +4,38 @@ The Sovereign Watchdog is the final layer of Aura's resilience. It monitors
 the Orchestrator's heartbeat and the availability of critical services. 
 If a deadlock or cognitive stall is detected, it triggers a recovery sequence.
 """
-from core.runtime.errors import record_degradation
-from core.utils.exceptions import capture_and_log
-from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
 import time
-from typing import Optional
+from typing import Any
+
+from core.runtime.errors import FallbackClassification, Severity, record_degradation
+from core.utils.exceptions import capture_and_log
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.SovereignWatchdog")
+
+
+def _record_watchdog_degradation(
+    error: BaseException,
+    *,
+    stage: str,
+    action: str,
+    severity: Severity = "warning",
+    extra: dict[str, Any] | None = None,
+) -> None:
+    payload = {"stage": stage, "repair_requested": True}
+    if extra:
+        payload.update(extra)
+    record_degradation(
+        "sovereign_watchdog",
+        error,
+        severity=severity,
+        action=action,
+        classification=FallbackClassification.SAFE_FALLBACK,
+        extra=payload,
+    )
+
 
 class SovereignWatchdog:
     """Guarantees system availability through active monitoring and recovery."""
@@ -22,11 +45,13 @@ class SovereignWatchdog:
         self._interval = interval
         self._timeout = timeout
         self._running = False
-        self._task: Optional[asyncio.Task] = None
+        self._task: asyncio.Task | None = None
         self._last_heartbeat = time.monotonic()
         self._recovery_count = 0
         self._last_recovery_time = 0.0  # Cooldown: prevent repeated recovery spam
         self._recovery_cooldown = 300.0  # 5 minutes between recoveries
+        self._recovery_failure_streak = 0
+        self._last_recovery_result: dict[str, Any] = {}
 
     async def start(self):
         """Start the watchdog loop."""
@@ -53,6 +78,15 @@ class SovereignWatchdog:
     def heartbeat(self, component: str = "orchestrator"):
         """Called by the Orchestrator to signal life."""
         self._last_heartbeat = time.monotonic()
+
+    def get_status(self) -> dict[str, Any]:
+        return {
+            "running": self._running,
+            "seconds_since_heartbeat": round(time.monotonic() - self._last_heartbeat, 3),
+            "recovery_count": self._recovery_count,
+            "recovery_failure_streak": self._recovery_failure_streak,
+            "last_recovery_result": dict(self._last_recovery_result),
+        }
 
     async def _watch_loop(self):
         """Periodic check for system vitality."""
@@ -85,7 +119,12 @@ class SovereignWatchdog:
                             "metadata": {"system": True},
                         })
                     except (ImportError, AttributeError, RuntimeError) as _exc:
-                        record_degradation('sovereign_watchdog', _exc)
+                        _record_watchdog_degradation(
+                            _exc,
+                            stage="event_loop_lag_telemetry",
+                            action="continued watchdog loop after event-loop lag telemetry publish failed",
+                            severity="warning",
+                        )
                         logger.debug("Suppressed Exception: %s", _exc)
 
                     # ── BACKPRESSURE: Suppress non-critical work during lag ──
@@ -105,20 +144,36 @@ class SovereignWatchdog:
                                 suppress_duration, loop_elapsed,
                             )
                     except (ImportError, AttributeError, RuntimeError) as _bp_exc:
-                        record_degradation('sovereign_watchdog', _bp_exc)
+                        _record_watchdog_degradation(
+                            _bp_exc,
+                            stage="lag_backpressure",
+                            action="continued watchdog loop after autonomous-work backpressure failed",
+                            severity="degraded",
+                        )
                         logger.debug("Backpressure application failed: %s", _bp_exc)
 
             except asyncio.CancelledError:
                 break
             except (ImportError, AttributeError, RuntimeError) as e:
-                record_degradation('sovereign_watchdog', e)
+                _record_watchdog_degradation(
+                    e,
+                    stage="watch_loop",
+                    action="kept watchdog loop alive after recoverable monitor tick failure",
+                    severity="degraded",
+                )
                 logger.error("Watchdog loop error: %s", e)
 
-    async def _execute_recovery(self):
+    async def _execute_recovery(self) -> dict[str, Any]:
         """Attempt to recover from a stall."""
         self._recovery_count += 1
         self._last_recovery_time = time.monotonic()
         logger.warning("🛠️ Initiating Recovery Sequence #%d...", self._recovery_count)
+        result: dict[str, Any] = {
+            "ok": True,
+            "recovery_count": self._recovery_count,
+            "completed_steps": [],
+            "degraded_steps": [],
+        }
         
         # 1. Clear GPU Sentinel (common cause of deadlocks)
         try:
@@ -133,8 +188,17 @@ class SovereignWatchdog:
             else:
                 # If we acquired it, it wasn't deadlocked (at least not by this lock), so release it back.
                 sentinel._lock.release()
+            result["completed_steps"].append("gpu_sentinel")
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('sovereign_watchdog', e)
+            result["ok"] = False
+            result["degraded_steps"].append("gpu_sentinel")
+            _record_watchdog_degradation(
+                e,
+                stage="gpu_sentinel_recovery",
+                action="continued recovery sequence after GPU sentinel recovery failed",
+                severity="degraded",
+                extra={"recovery_count": self._recovery_count},
+            )
             capture_and_log(e, {'module': __name__})
 
         # 2. Reset Heartbeat to give time for recovery
@@ -154,16 +218,41 @@ class SovereignWatchdog:
                     "recovery_count": self._recovery_count
                 }
             })
+            result["completed_steps"].append("telemetry_notification")
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('sovereign_watchdog', e)
+            result["ok"] = False
+            result["degraded_steps"].append("telemetry_notification")
+            _record_watchdog_degradation(
+                e,
+                stage="recovery_telemetry",
+                action="continued recovery sequence after telemetry notification failed",
+                severity="warning",
+                extra={"recovery_count": self._recovery_count},
+            )
             capture_and_log(e, {'module': __name__})
 
         # 4. Signal Orchestrator to reset internal state if supported
         if hasattr(self._orchestrator, "reset_internal_state"):
             try:
                 await self._orchestrator.reset_internal_state()
+                result["completed_steps"].append("orchestrator_reset")
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-                record_degradation('sovereign_watchdog', e)
+                result["ok"] = False
+                result["degraded_steps"].append("orchestrator_reset")
+                _record_watchdog_degradation(
+                    e,
+                    stage="orchestrator_reset",
+                    action="completed watchdog recovery with orchestrator reset still degraded",
+                    severity="degraded",
+                    extra={"recovery_count": self._recovery_count},
+                )
                 logger.error("Failed to reset orchestrator state: %s", e)
 
+        if result["ok"]:
+            self._recovery_failure_streak = 0
+        else:
+            self._recovery_failure_streak += 1
+        result["failure_streak"] = self._recovery_failure_streak
+        self._last_recovery_result = dict(result)
         logger.info("🛠️ Recovery sequence complete. Monitoring for stabilization.")
+        return result
