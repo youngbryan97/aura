@@ -68,7 +68,12 @@ def test_affective_steering_runtime_cache_is_partitioned_by_geometry():
 
 
 def test_production_caa_adapts_alpha_and_detects_collapse(tmp_path):
-    from core.consciousness.caa import ProductionCAA, RegisteredVector, VectorProvenance, VectorRegistry
+    from core.consciousness.caa import (
+        ProductionCAA,
+        RegisteredVector,
+        VectorProvenance,
+        VectorRegistry,
+    )
 
     cache_dir = tmp_path / "vectors"
     cache_dir.mkdir(parents=True, exist_ok=True)

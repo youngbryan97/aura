@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Any, Dict, Iterable, Mapping
+from typing import Any
 
 import numpy as np
 
@@ -17,7 +18,7 @@ class VectorProvenance:
     derived_at: float = 0.0
     extracted: bool = False
     exact_layer_match: bool = False
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -30,7 +31,7 @@ class RegisteredVector:
     substrate_fn: str
     provenance: VectorProvenance
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "key": self.key,
             "layer_idx": self.layer_idx,
@@ -51,7 +52,7 @@ class VectorRegistry:
     """In-memory registry of the layer-specific steering vectors in use."""
 
     def __init__(self) -> None:
-        self._by_layer: Dict[int, Dict[str, RegisteredVector]] = {}
+        self._by_layer: dict[int, dict[str, RegisteredVector]] = {}
 
     def clear(self) -> None:
         self._by_layer.clear()
@@ -59,10 +60,10 @@ class VectorRegistry:
     def register(self, vector: RegisteredVector) -> None:
         self._by_layer.setdefault(int(vector.layer_idx), {})[vector.key] = vector
 
-    def get_layer(self, layer_idx: int) -> Dict[str, RegisteredVector]:
+    def get_layer(self, layer_idx: int) -> dict[str, RegisteredVector]:
         return dict(self._by_layer.get(int(layer_idx), {}))
 
-    def layers(self) -> Dict[int, Dict[str, RegisteredVector]]:
+    def layers(self) -> dict[int, dict[str, RegisteredVector]]:
         return {layer: dict(vectors) for layer, vectors in self._by_layer.items()}
 
     def status(
@@ -70,7 +71,7 @@ class VectorRegistry:
         *,
         expected_layers: Iterable[int] | None = None,
         expected_keys: Iterable[str] | None = None,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         layers = self.layers()
         all_vectors = [vector for per_layer in layers.values() for vector in per_layer.values()]
         expected_layer_list = [int(layer) for layer in (expected_layers or layers.keys())]
@@ -81,6 +82,9 @@ class VectorRegistry:
         nearest = sum(1 for vector in all_vectors if not vector.provenance.exact_layer_match and vector.provenance.selection_reason.startswith("nearest"))
         extracted = sum(1 for vector in all_vectors if vector.provenance.extracted)
         fallback = sum(1 for vector in all_vectors if vector.provenance.source == "fallback_random")
+        disabled_neutral = sum(
+            1 for vector in all_vectors if vector.provenance.source == "disabled_neutral"
+        )
         runtime_derived = sum(1 for vector in all_vectors if vector.provenance.source == "runtime_derived_caa")
         missing = []
         for layer in expected_layer_list:
@@ -88,7 +92,7 @@ class VectorRegistry:
             for key in expected_key_list:
                 if key not in layer_vectors:
                     missing.append({"layer": layer, "key": key})
-        by_source: Dict[str, int] = {}
+        by_source: dict[str, int] = {}
         for vector in all_vectors:
             by_source[vector.provenance.source] = by_source.get(vector.provenance.source, 0) + 1
         return {
@@ -103,6 +107,7 @@ class VectorRegistry:
             "extracted_count": extracted,
             "runtime_derived_count": runtime_derived,
             "fallback_random_count": fallback,
+            "disabled_neutral_count": disabled_neutral,
             "missing": missing,
             "sources": by_source,
         }
