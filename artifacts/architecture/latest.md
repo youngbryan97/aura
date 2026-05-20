@@ -2,13 +2,13 @@
 
 Schema: `aura.architecture.dependency_map.v1`
 Root: `/Users/bryan/.aura/live-source`
-Generated: `1779237717.104755`
+Generated: `1779237920.636682`
 
 ## Summary
 
 - Subsystems: 120
 - Python files: 1534
-- Python lines: 413908
+- Python lines: 414022
 - Dependency edges: 647
 - ServiceContainer `.get()` calls: 1441
 - ServiceContainer registrations: 339
@@ -19,7 +19,7 @@ Generated: `1779237717.104755`
 graph TD
     runtime["runtime<br/>87 files, 18659 lines"]
     utils["utils<br/>41 files, 4787 lines"]
-    brain["brain<br/>110 files, 36646 lines"]
+    brain["brain<br/>110 files, 36760 lines"]
     consciousness["consciousness<br/>120 files, 51685 lines"]
     resilience["resilience<br/>53 files, 10639 lines"]
     health["health<br/>3 files, 561 lines"]
@@ -792,7 +792,7 @@ graph TD
 | --- | ---: | ---: | ---: | ---: | ---: |
 | core_root | 182 | 55228 | 2296609 | 102 | 0 |
 | consciousness | 120 | 51685 | 2197658 | 34 | 28 |
-| brain | 110 | 36646 | 1599364 | 40 | 38 |
+| brain | 110 | 36760 | 1602394 | 40 | 38 |
 | runtime | 87 | 18659 | 656299 | 37 | 102 |
 | orchestrator | 42 | 18618 | 822761 | 121 | 8 |
 | phases | 29 | 13888 | 636124 | 31 | 6 |
@@ -1001,7 +1001,7 @@ graph TD
 | --- | ---: | ---: | ---: | ---: |
 | UnifiedWill decisions | 49 | 25 | 2 | 47 |
 | Memory writes | 245 | 99 | 45 | 200 |
-| State mutation | 345 | 135 | 4 | 341 |
+| State mutation | 346 | 135 | 4 | 342 |
 | Tool execution | 129 | 70 | 3 | 126 |
 | Self-modification and patching | 15 | 12 | 2 | 13 |
 | LLM inference | 247 | 152 | 57 | 190 |
@@ -1214,8 +1214,8 @@ Review candidates:
 
 ## Degradation Handling
 
-- Total `record_degradation()` calls: 3230
-- Log-and-limp candidates: 2976
+- Total `record_degradation()` calls: 3226
+- Log-and-limp candidates: 2972
 - Nearby fail-closed candidates: 254
 
 Top limp-on files:
