@@ -19,7 +19,12 @@ import random
 import re
 from typing import Any
 
-from core.runtime.errors import record_degradation
+from core.runtime.errors import (
+    DependencyUnavailable,
+    FallbackClassification,
+    Severity,
+    record_degradation,
+)
 from core.utils.exceptions import capture_and_log
 
 try:
@@ -36,6 +41,27 @@ except ImportError:
     STEALTH_AVAILABLE = False
 
 logger = logging.getLogger("PhantomBrowser")
+
+
+def _record_browser_degradation(
+    error: BaseException,
+    *,
+    stage: str,
+    action: str,
+    severity: Severity = "warning",
+    extra: dict[str, Any] | None = None,
+) -> None:
+    payload = {"stage": stage, "repair_requested": True}
+    if extra:
+        payload.update(extra)
+    record_degradation(
+        "phantom_browser",
+        error,
+        severity=severity,
+        action=action,
+        classification=FallbackClassification.SAFE_FALLBACK,
+        extra=payload,
+    )
 
 USER_AGENTS = [
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
@@ -122,20 +148,48 @@ class PhantomBrowser:
         self.browser_type = browser_type
         self.is_active = False
         self._homeostasis = None
+        self._resource_lock = None
+        self._startup_error = ""
+        self._startup_failure_count = 0
+        self._last_launch_attempts: list[str] = []
         
         if not PLAYWRIGHT_AVAILABLE:
             return
 
-    async def ensure_ready(self):
+    async def ensure_ready(self) -> bool:
         """Public lifecycle method: ensures the browser is started and ready."""
         if not self.is_active:
             await self._start_browser()
+        return self.is_active
 
-    async def _start_browser(self):
+    def get_status(self) -> dict[str, Any]:
+        return {
+            "active": self.is_active,
+            "visible": self.visible,
+            "browser_type": self.browser_type,
+            "startup_failure_count": self._startup_failure_count,
+            "startup_error": self._startup_error[:240],
+            "last_launch_attempts": list(self._last_launch_attempts),
+        }
+
+    async def _start_browser(self) -> bool:
         """Start the Playwright browser asynchronously"""
         try:
             if self.is_active:
-                return
+                return True
+
+            if not PLAYWRIGHT_AVAILABLE:
+                error = DependencyUnavailable("playwright is not installed")
+                self._startup_failure_count += 1
+                self._startup_error = str(error)
+                _record_browser_degradation(
+                    error,
+                    stage="dependency_check",
+                    action="kept phantom browser inactive because Playwright is unavailable",
+                    severity="degraded",
+                    extra={"browser_type": self.browser_type},
+                )
+                return False
 
             # HARDENING: Signal resource lock — heavy background tasks will pause
             try:
@@ -144,7 +198,13 @@ class PhantomBrowser:
                 self._resource_lock._browser_sessions += 1
                 self._resource_lock._total_browser_sessions += 1
                 self._resource_lock._browser_idle.clear()
-            except (ImportError, AttributeError, RuntimeError):
+            except (ImportError, AttributeError, RuntimeError) as lock_exc:
+                _record_browser_degradation(
+                    lock_exc,
+                    stage="resource_lock",
+                    action="continued browser startup without resource-lock coordination",
+                    severity="warning",
+                )
                 self._resource_lock = None
 
             self.playwright = await async_playwright().start()
@@ -157,7 +217,9 @@ class PhantomBrowser:
                 browser_attempts.append("chromium")
 
             launch_error = None
+            self._last_launch_attempts = []
             for bt in browser_attempts:
+                self._last_launch_attempts.append(bt)
                 try:
                     if bt == "firefox":
                         self.browser = await self.playwright.firefox.launch(headless=not self.visible)
@@ -173,7 +235,19 @@ class PhantomBrowser:
                     launch_error = None
                     break  # Launch succeeded
                 except (RuntimeError, AttributeError, TypeError, ValueError) as launch_exc:
-                    record_degradation('phantom_browser', launch_exc)
+                    self._startup_failure_count += 1
+                    self._startup_error = f"{bt}: {launch_exc}"
+                    _record_browser_degradation(
+                        launch_exc,
+                        stage="browser_launch",
+                        action="trying next browser fallback after launch attempt failed",
+                        severity="warning",
+                        extra={
+                            "attempted_browser": bt,
+                            "configured_browser": self.browser_type,
+                            "attempts": list(self._last_launch_attempts),
+                        },
+                    )
                     launch_error = launch_exc
                     logger.warning("Browser %s failed to launch: %s. Trying next fallback...", bt, launch_exc)
 
@@ -193,19 +267,51 @@ class PhantomBrowser:
                 try:
                     await stealth_async(self.page)
                 except (RuntimeError, AttributeError, TypeError, ValueError) as se:
-                    record_degradation('phantom_browser', se)
+                    _record_browser_degradation(
+                        se,
+                        stage="stealth_setup",
+                        action="continued with standard browser context after stealth setup failed",
+                        severity="warning",
+                        extra={"browser_type": self.browser_type},
+                    )
                     logger.warning("Stealth application failed: %s", se)
             else:
                 logger.warning("playwright-stealth is not installed. Running without stealth.")
 
             self.is_active = True
+            self._startup_error = ""
             logger.info("✓ Phantom Browser initialized (Visible: %s, UA: %s...)", self.visible, user_agent[:30])
-        except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('phantom_browser', e)
+            return True
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as e:
+            self._startup_failure_count += 1
+            self._startup_error = f"{type(e).__name__}: {e}"
+            _record_browser_degradation(
+                e,
+                stage="startup",
+                action="marked phantom browser inactive and released startup resources after startup failed",
+                severity="degraded",
+                extra={
+                    "browser_type": self.browser_type,
+                    "attempts": list(self._last_launch_attempts),
+                },
+            )
             logger.error("Failed to start browser: %s", e)
             self.is_active = False
             # Release resource lock on failure
             self._release_resource_lock()
+            if self.playwright is not None:
+                try:
+                    await asyncio.wait_for(self.playwright.stop(), timeout=5.0)
+                except (RuntimeError, AttributeError, TypeError, ValueError, TimeoutError) as stop_exc:
+                    _record_browser_degradation(
+                        stop_exc,
+                        stage="startup_cleanup",
+                        action="left startup cleanup after Playwright stop failed",
+                        severity="warning",
+                    )
+                finally:
+                    self.playwright = None
+            return False
 
     def _get_random_ua(self) -> str:
         return random.choice(USER_AGENTS)
