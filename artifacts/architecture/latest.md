@@ -2,13 +2,13 @@
 
 Schema: `aura.architecture.dependency_map.v1`
 Root: `/Users/bryan/.aura/live-source`
-Generated: `1779263468.897268`
+Generated: `1779264077.304281`
 
 ## Summary
 
 - Subsystems: 120
 - Python files: 1539
-- Python lines: 419338
+- Python lines: 419781
 - Dependency edges: 649
 - ServiceContainer `.get()` calls: 1443
 - ServiceContainer registrations: 336
@@ -55,7 +55,7 @@ graph TD
     unity["unity<br/>11 files, 2409 lines"]
     agi["agi<br/>5 files, 1103 lines"]
     cognitive["cognitive<br/>11 files, 7980 lines"]
-    collective["collective<br/>6 files, 1520 lines"]
+    collective["collective<br/>6 files, 1963 lines"]
     ethics["ethics<br/>1 files, 309 lines"]
     evaluation["evaluation<br/>10 files, 1765 lines"]
     kernel["kernel<br/>12 files, 4627 lines"]
@@ -831,13 +831,13 @@ graph TD
 | conversational | 4 | 2237 | 95525 | 4 | 3 |
 | embodiment | 14 | 2088 | 81864 | 12 | 3 |
 | identity | 11 | 2079 | 88530 | 9 | 9 |
+| collective | 6 | 1963 | 81012 | 8 | 4 |
 | affect | 5 | 1840 | 83592 | 12 | 11 |
 | evaluation | 10 | 1765 | 61879 | 3 | 4 |
 | search | 2 | 1715 | 64882 | 6 | 2 |
 | self | 6 | 1681 | 70508 | 12 | 5 |
 | ops | 11 | 1639 | 64157 | 14 | 5 |
 | bus | 4 | 1602 | 67748 | 6 | 2 |
-| collective | 6 | 1520 | 67349 | 8 | 4 |
 | evolution | 6 | 1512 | 63237 | 8 | 2 |
 | temporal | 3 | 1502 | 51551 | 2 | 0 |
 | reasoning | 4 | 1456 | 58429 | 2 | 5 |
@@ -1216,8 +1216,8 @@ Review candidates:
 
 ## Degradation Handling
 
-- Total `record_degradation()` calls: 3061
-- Log-and-limp candidates: 2823
+- Total `record_degradation()` calls: 3054
+- Log-and-limp candidates: 2816
 - Nearby fail-closed candidates: 238
 
 Top limp-on files:
