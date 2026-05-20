@@ -2,15 +2,15 @@
 
 Schema: `aura.architecture.dependency_map.v1`
 Root: `/Users/bryan/.aura/live-source`
-Generated: `1779248245.743434`
+Generated: `1779248510.4517498`
 
 ## Summary
 
 - Subsystems: 120
 - Python files: 1539
-- Python lines: 415691
+- Python lines: 415922
 - Dependency edges: 649
-- ServiceContainer `.get()` calls: 1442
+- ServiceContainer `.get()` calls: 1443
 - ServiceContainer registrations: 337
 
 ## Subsystem Dependency Graph
@@ -69,7 +69,7 @@ graph TD
     goals["goals<br/>6 files, 2730 lines"]
     pneuma["pneuma<br/>7 files, 1198 lines"]
     resource["resource<br/>2 files, 403 lines"]
-    skills["skills<br/>71 files, 12101 lines"]
+    skills["skills<br/>71 files, 12332 lines"]
     somatic["somatic<br/>5 files, 2250 lines"]
     verification["verification<br/>4 files, 350 lines"]
     advanced_cognition["advanced_cognition<br/>13 files, 2905 lines"]
@@ -799,7 +799,7 @@ graph TD
 | runtime | 87 | 18699 | 657968 | 37 | 102 |
 | phases | 29 | 14100 | 644007 | 31 | 6 |
 | memory | 64 | 13437 | 545611 | 15 | 20 |
-| skills | 71 | 12101 | 512575 | 24 | 3 |
+| skills | 71 | 12332 | 520173 | 24 | 3 |
 | resilience | 53 | 10639 | 431096 | 16 | 24 |
 | agency | 26 | 10529 | 423359 | 17 | 17 |
 | adaptation | 24 | 10168 | 413043 | 15 | 14 |
@@ -924,7 +924,7 @@ graph TD
 | Service | Gets | Registrations |
 | --- | ---: | ---: |
 | orchestrator | 67 | 3 |
-| cognitive_engine | 53 | 3 |
+| cognitive_engine | 54 | 3 |
 | llm_router | 40 | 3 |
 | affect_engine | 39 | 1 |
 | inference_gate | 34 | 4 |
@@ -1002,11 +1002,11 @@ graph TD
 | Surface | Calls | Files | Owner Calls | Review Candidates |
 | --- | ---: | ---: | ---: | ---: |
 | UnifiedWill decisions | 49 | 25 | 2 | 47 |
-| Memory writes | 245 | 99 | 45 | 200 |
+| Memory writes | 249 | 100 | 45 | 204 |
 | State mutation | 346 | 135 | 4 | 342 |
 | Tool execution | 129 | 70 | 3 | 126 |
 | Self-modification and patching | 15 | 12 | 2 | 13 |
-| LLM inference | 247 | 152 | 57 | 190 |
+| LLM inference | 246 | 151 | 57 | 189 |
 | External I/O | 161 | 80 | 15 | 146 |
 
 ### UnifiedWill decisions
@@ -1216,8 +1216,8 @@ Review candidates:
 
 ## Degradation Handling
 
-- Total `record_degradation()` calls: 3202
-- Log-and-limp candidates: 2948
+- Total `record_degradation()` calls: 3197
+- Log-and-limp candidates: 2943
 - Nearby fail-closed candidates: 254
 
 Top limp-on files:
