@@ -8,7 +8,7 @@ from typing import Any
 
 from core.phases.response_contract import ResponseContract, build_response_contract
 from core.runtime import service_access
-from core.runtime.errors import record_degradation
+from core.runtime.errors import FallbackClassification, Severity, record_degradation
 
 logger = logging.getLogger(__name__)
 
@@ -23,19 +23,42 @@ _SOFT_RUNTIME_FAILURES = (
     ValueError,
 )
 
-_USER_FACING_ORIGINS = frozenset({
-    "user",
-    "voice",
-    "admin",
-    "api",
-    "gui",
-    "ws",
-    "websocket",
-    "direct",
-    "external",
-    "audit",
-    "simulate",
-})
+_USER_FACING_ORIGINS = frozenset(
+    {
+        "user",
+        "voice",
+        "admin",
+        "api",
+        "gui",
+        "ws",
+        "websocket",
+        "direct",
+        "external",
+        "audit",
+        "simulate",
+    }
+)
+
+
+def _record_runtime_wiring_degradation(
+    error: BaseException,
+    *,
+    stage: str,
+    action: str,
+    severity: Severity = "warning",
+    extra: dict[str, Any] | None = None,
+) -> None:
+    payload = {"stage": stage, "repair_requested": True}
+    if extra:
+        payload.update(extra)
+    record_degradation(
+        "runtime_wiring",
+        error,
+        severity=severity,
+        action=action,
+        classification=FallbackClassification.SAFE_FALLBACK,
+        extra=payload,
+    )
 
 
 def _origin_tokens(origin: str | None) -> set[str]:
@@ -121,7 +144,14 @@ async def resolve_runtime_state(
         repo = service_access.resolve_state_repository(default=None)
         if repo and hasattr(repo, "get_current"):
             return await repo.get_current()
-    except _SOFT_RUNTIME_FAILURES:
+    except _SOFT_RUNTIME_FAILURES as exc:
+        _record_runtime_wiring_degradation(
+            exc,
+            stage="state_repository_resolution",
+            action="continued with explicit payload inputs because live state hydration was unavailable",
+            severity="degraded",
+            extra={"origin": str(origin or "system"), "is_background": is_background},
+        )
         return None
     return None
 
@@ -132,13 +162,18 @@ def _normalize_memory_snippet(item: Any) -> str:
         raw_meta = item.get("metadata")
         if isinstance(raw_meta, str):
             import json as _json
+
             try:
                 raw_meta = _json.loads(raw_meta)
             except (ValueError, _json.JSONDecodeError):
                 raw_meta = {}
         metadata = raw_meta if isinstance(raw_meta, dict) else {}
         memory_type = str(metadata.get("type", "") or "").strip().lower()
-        prefix = f"[{memory_type}] " if memory_type in {"fact", "preference", "recent_episode", "shared_ground"} else ""
+        prefix = (
+            f"[{memory_type}] "
+            if memory_type in {"fact", "preference", "recent_episode", "shared_ground"}
+            else ""
+        )
         return f"{prefix}{content}".strip()
     return str(item or "").strip()
 
@@ -179,7 +214,9 @@ async def _hydrate_runtime_memory(payload_state: Any, objective: str) -> None:
         if memory is not None:
             search_method = getattr(memory, "search", None)
             if search_method is not None:
-                for item in list(await _call_memory_method(search_method, objective, limit=5) or []):
+                for item in list(
+                    await _call_memory_method(search_method, objective, limit=5) or []
+                ):
                     _push(item)
 
             hot_method = getattr(memory, "get_hot_memory", None)
@@ -191,11 +228,22 @@ async def _hydrate_runtime_memory(payload_state: Any, objective: str) -> None:
 
         if not snippets:
             graph = service_access.optional_service("knowledge_graph", default=None)
-            search_knowledge = getattr(graph, "search_knowledge", None) if graph is not None else None
+            search_knowledge = (
+                getattr(graph, "search_knowledge", None) if graph is not None else None
+            )
             if search_knowledge is not None:
-                for item in list(await _call_memory_method(search_knowledge, objective, limit=3) or []):
+                for item in list(
+                    await _call_memory_method(search_knowledge, objective, limit=3) or []
+                ):
                     _push(item)
-    except _SOFT_RUNTIME_FAILURES:
+    except _SOFT_RUNTIME_FAILURES as exc:
+        _record_runtime_wiring_degradation(
+            exc,
+            stage="runtime_memory_hydration",
+            action="continued payload assembly with existing state memory after retrieval hydration failed",
+            severity="degraded",
+            extra={"objective_preview": objective[:160]},
+        )
         return
 
     if snippets:
@@ -221,15 +269,28 @@ async def prepare_runtime_payload(
         try:
             if hasattr(runtime_state, "derive"):
                 payload_state = runtime_state.derive("runtime_llm_payload", origin="runtime_wiring")
-        except _SOFT_RUNTIME_FAILURES:
+        except _SOFT_RUNTIME_FAILURES as exc:
+            _record_runtime_wiring_degradation(
+                exc,
+                stage="payload_state_derivation",
+                action="using original runtime state because derived LLM payload clone failed",
+                severity="warning",
+                extra={"origin": str(origin or "system")},
+            )
             payload_state = runtime_state
 
         try:
             payload_state.cognition.current_objective = objective
             payload_state.cognition.current_origin = str(origin or "system")
         except _SOFT_RUNTIME_FAILURES as _exc:
-            record_degradation('runtime_wiring', _exc)
-            logger.debug("Suppressed Exception: %s", _exc)
+            _record_runtime_wiring_degradation(
+                _exc,
+                stage="payload_state_stamping",
+                action="continued with unstamped runtime state; response contract will be built from explicit objective",
+                severity="degraded",
+                extra={"origin": str(origin or "system"), "objective_preview": objective[:160]},
+            )
+            logger.debug("Runtime payload state stamp skipped: %s", _exc)
 
         if not is_background:
             try:
@@ -241,35 +302,66 @@ async def prepare_runtime_payload(
                     origin=str(origin or "system"),
                 )
             except _SOFT_RUNTIME_FAILURES as exc:
-                record_degradation('runtime_wiring', exc)
+                _record_runtime_wiring_degradation(
+                    exc,
+                    stage="substrate_voice_profile",
+                    action="continued without precompiled substrate voice profile; downstream sampler/voice gates remain authoritative",
+                    severity="warning",
+                    extra={"origin": str(origin or "system"), "objective_preview": objective[:160]},
+                )
                 logger.debug("Substrate profile precompile skipped: %s", exc)
 
         if not is_background:
             try:
                 await _hydrate_runtime_memory(payload_state, objective)
             except _SOFT_RUNTIME_FAILURES as _exc:
-                record_degradation('runtime_wiring', _exc)
-                logger.debug("Suppressed Exception: %s", _exc)
+                _record_runtime_wiring_degradation(
+                    _exc,
+                    stage="payload_memory_hydration",
+                    action="continued payload assembly with pre-existing memory evidence only",
+                    severity="degraded",
+                    extra={"origin": str(origin or "system"), "objective_preview": objective[:160]},
+                )
+                logger.debug("Runtime memory hydration skipped: %s", _exc)
 
-        contract = build_response_contract(
-            payload_state,
-            objective,
-            is_user_facing=not is_background and is_user_facing_origin(origin),
-        )
+        try:
+            contract = build_response_contract(
+                payload_state,
+                objective,
+                is_user_facing=not is_background and is_user_facing_origin(origin),
+            )
+        except _SOFT_RUNTIME_FAILURES as exc:
+            _record_runtime_wiring_degradation(
+                exc,
+                stage="response_contract",
+                action="continued without a response contract after contract construction failed",
+                severity="critical",
+                extra={"origin": str(origin or "system"), "objective_preview": objective[:160]},
+            )
+            contract = None
 
         if prepared_messages is None and not is_background:
             try:
                 from core.brain.llm.context_assembler import ContextAssembler
 
                 prepared_messages = ContextAssembler.build_messages(payload_state, objective)
-            except _SOFT_RUNTIME_FAILURES:
+            except _SOFT_RUNTIME_FAILURES as exc:
+                _record_runtime_wiring_degradation(
+                    exc,
+                    stage="context_assembly",
+                    action="using raw prompt/messages because context assembler failed",
+                    severity="degraded",
+                    extra={"origin": str(origin or "system"), "objective_preview": objective[:160]},
+                )
                 prepared_messages = None
 
     if prepared_messages is not None:
         if system_prompt:
             prepared_messages = _merge_system_prompt(prepared_messages, system_prompt)
         if contract and contract.reason != "ordinary_dialogue":
-            prepared_messages = _merge_system_prompt(prepared_messages, contract.to_prompt_block().strip())
+            prepared_messages = _merge_system_prompt(
+                prepared_messages, contract.to_prompt_block().strip()
+            )
         prompt, inferred_system = _coerce_prompt_from_messages(prepared_messages)
         system_prompt = inferred_system or system_prompt
     elif contract and contract.reason != "ordinary_dialogue":
@@ -306,7 +398,13 @@ def derive_substrate_generation_overrides(
             )
         return overrides
     except _SOFT_RUNTIME_FAILURES as exc:
-        record_degradation('runtime_wiring', exc)
+        _record_runtime_wiring_degradation(
+            exc,
+            stage="substrate_generation_overrides",
+            action="continued with caller/default generation parameters because substrate override compilation failed",
+            severity="warning",
+            extra={"origin": str(origin or "system"), "objective_preview": objective[:160]},
+        )
         logger.debug("Substrate generation override skipped: %s", exc)
         return {}
 
@@ -325,11 +423,14 @@ def build_agentic_tool_map(
             return None
 
         if hasattr(cap, "select_tool_definitions"):
-            tool_defs = cap.select_tool_definitions(
-                objective=str(objective or ""),
-                required_skill=required_skill,
-                max_tools=max_tools,
-            ) or []
+            tool_defs = (
+                cap.select_tool_definitions(
+                    objective=str(objective or ""),
+                    required_skill=required_skill,
+                    max_tools=max_tools,
+                )
+                or []
+            )
         else:
             tool_defs = cap.get_tool_definitions() or []
         tools: dict[str, Any] = {}
@@ -343,7 +444,18 @@ def build_agentic_tool_map(
                     continue
             tools[name] = fn
         return tools or None
-    except _SOFT_RUNTIME_FAILURES:
+    except _SOFT_RUNTIME_FAILURES as exc:
+        _record_runtime_wiring_degradation(
+            exc,
+            stage="agentic_tool_map",
+            action="returned no agentic tool map after capability registry lookup failed",
+            severity="degraded",
+            extra={
+                "required_skill": str(required_skill or ""),
+                "objective_preview": str(objective or "")[:160],
+                "max_tools": max_tools,
+            },
+        )
         return None
 
 
