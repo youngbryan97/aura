@@ -8,23 +8,71 @@ Routing Priority:
 
 Never fails. Always has a working brain.
 """
-from core.runtime.errors import record_degradation
 import asyncio
+import hashlib
 import json
 import logging
 import os
 import time
-import hashlib
-from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 from collections import OrderedDict
+from enum import StrEnum
+from typing import Any
+
+import httpx
+from pydantic import BaseModel, ConfigDict
+
+from core.brain.llm.model_registry import (
+    guard_solver_request,
+    normalize_endpoint_name,
+)
+from core.brain.llm.runtime_wiring import (
+    build_agentic_tool_map,
+    derive_substrate_generation_overrides,
+    prepare_runtime_payload,
+    should_force_tool_handoff,
+)
+from core.runtime.errors import FallbackClassification, Severity, record_degradation
+
+logger = logging.getLogger("Brain.Router")
+
+ROUTER_RECOVERABLE_ERRORS = (
+    AttributeError,
+    ImportError,
+    KeyError,
+    IndexError,
+    OSError,
+    RuntimeError,
+    TimeoutError,
+    TypeError,
+    ValueError,
+    httpx.HTTPError,
+)
+
+
+def _record_router_degradation(
+    error: BaseException,
+    *,
+    action: str,
+    severity: Severity = "warning",
+    extra: dict[str, Any] | None = None,
+) -> None:
+    record_degradation(
+        "llm_router",
+        error,
+        severity=severity,
+        action=action,
+        classification=FallbackClassification.SAFE_FALLBACK,
+        receipt_required=False,
+        extra=extra,
+    )
+
 
 class BoundedLRUCache:
     def __init__(self, maxsize: int = 1000):
         self._cache: OrderedDict[str, str] = OrderedDict()
         self._maxsize = maxsize
 
-    def get(self, key: str) -> Optional[str]:
+    def get(self, key: str) -> str | None:
         if key in self._cache:
             self._cache.move_to_end(key)
             return self._cache[key]
@@ -36,27 +84,9 @@ class BoundedLRUCache:
         self._cache[key] = value
         if len(self._cache) > self._maxsize:
             self._cache.popitem(last=False)
-from pydantic import BaseModel, Field, ConfigDict
 
 
-import httpx
-from core.brain.llm.model_registry import (
-    DEEP_ENDPOINT,
-    PRIMARY_ENDPOINT,
-    guard_solver_request,
-    normalize_endpoint_name,
-)
-from core.brain.llm.runtime_wiring import (
-    build_agentic_tool_map,
-    derive_substrate_generation_overrides,
-    prepare_runtime_payload,
-    should_force_tool_handoff,
-)
-
-logger = logging.getLogger("Brain.Router")
-
-
-class LLMTier(str, Enum):
+class LLMTier(StrEnum):
     """LLM quality tiers"""
 
     PRIMARY = "primary"          # Local powerful, best quality
@@ -74,7 +104,7 @@ class LLMTierAlias:
     EMERGENCY  = "emergency"
 
 
-TIER_ALIAS_MAP: Dict[str, LLMTier] = {
+TIER_ALIAS_MAP: dict[str, LLMTier] = {
     LLMTierAlias.API_DEEP:   LLMTier.SECONDARY,
     LLMTierAlias.API_FAST:   LLMTier.PRIMARY,
     LLMTierAlias.LOCAL:      LLMTier.PRIMARY,
@@ -87,10 +117,10 @@ class LLMEndpoint(BaseModel):
 
     name: str
     tier: LLMTier
-    endpoint_url: Optional[str] = None
-    model_name: Optional[str] = None
-    client: Optional[Any] = None  # Direct client object
-    api_key: Optional[str] = None
+    endpoint_url: str | None = None
+    model_name: str | None = None
+    client: Any | None = None  # Direct client object
+    api_key: str | None = None
     max_tokens: int = 4096
     temperature: float = 0.7
     supports_function_calling: bool = False
@@ -99,7 +129,7 @@ class LLMEndpoint(BaseModel):
     
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for compatibility."""
         return self.model_dump()
 
@@ -110,9 +140,9 @@ class LLMHealthMonitor:
     """
     
     def __init__(self, event_bus=None):
-        self.health_status: Dict[str, bool] = {}
-        self.failure_counts: Dict[str, int] = {}
-        self.last_success: Dict[str, float] = {}
+        self.health_status: dict[str, bool] = {}
+        self.failure_counts: dict[str, int] = {}
+        self.last_success: dict[str, float] = {}
         self.failure_threshold = 3
         self.recovery_time = 20  # [STABILITY v52] Reduced from 120s. 
                                  # We need the router to try respawned local workers far sooner 
@@ -120,6 +150,54 @@ class LLMHealthMonitor:
         self.event_bus = event_bus
         
         logger.info("LLMHealthMonitor initialized")
+
+    def _publish_health_event(
+        self,
+        endpoint_name: str,
+        state: str,
+        *,
+        reason: str = "",
+        cooldown_seconds: float | None = None,
+    ) -> None:
+        if not self.event_bus:
+            return
+
+        payload: dict[str, Any] = {
+            "type": "llm_endpoint_health",
+            "endpoint": endpoint_name,
+            "state": state,
+            "reason": reason,
+            "failure_count": self.failure_counts.get(endpoint_name, 0),
+            "timestamp": time.time(),
+        }
+        if cooldown_seconds is not None:
+            payload["cooldown_seconds"] = cooldown_seconds
+
+        try:
+            publish_threadsafe = getattr(self.event_bus, "publish_threadsafe", None)
+            if callable(publish_threadsafe):
+                publish_threadsafe("llm.endpoint_health", payload, priority=3)
+                return
+
+            publish = getattr(self.event_bus, "publish", None)
+            if callable(publish):
+                try:
+                    loop = asyncio.get_running_loop()
+                except RuntimeError:
+                    logger.debug(
+                        "LLMHealthMonitor: no running loop for endpoint health event %s/%s.",
+                        endpoint_name,
+                        state,
+                    )
+                    return
+                loop.create_task(publish("llm.endpoint_health", payload, priority=3))
+        except ROUTER_RECOVERABLE_ERRORS as exc:
+            _record_router_degradation(
+                exc,
+                action="kept local endpoint health state after health-event publication failed",
+                severity="debug",
+                extra={"endpoint": endpoint_name, "state": state},
+            )
 
     
     def record_success(self, endpoint_name: str):
@@ -129,15 +207,8 @@ class LLMHealthMonitor:
         self.failure_counts[endpoint_name] = 0
         self.last_success[endpoint_name] = time.time()
         
-        if was_unhealthy and self.event_bus:
-            try:
-                # Direct import to avoid circular dependencies
-                from core.event_bus import Event
-                # Assuming Event structure or specific health event
-                logger.debug("Event fallback not implemented in router health record.") 
-            except (ImportError, AttributeError, RuntimeError) as e:
-                record_degradation('llm_router', e)
-                logger.debug("Failed to emit recovery event: %s", e)
+        if was_unhealthy:
+            self._publish_health_event(endpoint_name, "recovered", reason="successful_generation")
 
     
     def record_failure(self, endpoint_name: str, error: str):
@@ -154,12 +225,14 @@ class LLMHealthMonitor:
             # Set virtual success time to trigger recovery check in 60 seconds
             self.last_success[endpoint_name] = time.time() - (self.recovery_time - 60)
             logger.warning("🚫 429 Rate Limit: Immediate circuit break for '%s'. Cooldown for 60s.", endpoint_name)
+            self._publish_health_event(endpoint_name, "unhealthy", reason=error, cooldown_seconds=60.0)
         else:
             self.failure_counts[endpoint_name] += 1
             if self.failure_counts[endpoint_name] >= self.failure_threshold:
                 self.health_status[endpoint_name] = False
                 logger.error("Endpoint '%s' marked unhealthy after %d failures. Last error: %s", 
                              endpoint_name, self.failure_counts[endpoint_name], error[:100])
+                self._publish_health_event(endpoint_name, "unhealthy", reason=error)
 
     
     def is_healthy(self, endpoint_name: str) -> bool:
@@ -178,6 +251,7 @@ class LLMHealthMonitor:
                 logger.info("Attempting recovery for '%s'", endpoint_name)
                 self.failure_counts[endpoint_name] = 0
                 self.health_status[endpoint_name] = True
+                self._publish_health_event(endpoint_name, "half_open", reason="recovery_time_elapsed")
                 return True
         
         return False
@@ -207,7 +281,8 @@ class LocalLLMAdapter:
             substrate = container.get("liquid_substrate", default=None)
             if substrate:
                 mood = substrate.get_summary()
-                if mood: context_parts.append(f"Affective State: {mood}")
+                if mood:
+                    context_parts.append(f"Affective State: {mood}")
             
             # 3. Add Memory hooks
             vault = container.get("memory", default=None)
@@ -216,8 +291,13 @@ class LocalLLMAdapter:
                 if recent:
                     snippet = " | ".join([str(m) for m in recent])
                     context_parts.append(f"Recent Memories: {snippet}")
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
-            record_degradation('llm_router', e)
+        except ROUTER_RECOVERABLE_ERRORS as e:
+            _record_router_degradation(
+                e,
+                action="continued local LLM call without optional substrate or memory context",
+                severity="debug",
+                extra={"endpoint": self.endpoint.name},
+            )
             logger.debug("Context injection failed: %s", e)
             
         if not context_parts:
@@ -232,7 +312,7 @@ class LocalLLMAdapter:
         _, text, _ = await self.think(prompt, **kwargs)
         return text
 
-    async def think(self, prompt: str, **kwargs) -> Tuple[bool, str, Dict[str, Any]]:
+    async def think(self, prompt: str, **kwargs) -> tuple[bool, str, dict[str, Any]]:
         """Asynchronous call to the local LLM endpoint with context injection."""
         try:
             # 0. Augmented Prompting (Issue 74)
@@ -323,8 +403,13 @@ class LocalLLMAdapter:
                             "tokens_used": data.get("usage", {}).get("total_tokens", 0)
                         }
                         return True, data.get("response", ""), metadata
-                except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
-                    record_degradation('llm_router', e)
+                except ROUTER_RECOVERABLE_ERRORS as e:
+                    _record_router_degradation(
+                        e,
+                        action="continued to OpenAI-compatible chat-completions after Ollama-native generate failed",
+                        severity="warning",
+                        extra={"endpoint": self.endpoint.name},
+                    )
                     logger.debug("Ollama /api/generate failed, trying /v1/chat/completions: %s", e)
 
                 # 2. Try OpenAI-compatible /v1/chat/completions fallback
@@ -370,15 +455,20 @@ class LocalLLMAdapter:
                     error = f"HTTP {response.status_code}: {response.text}"
                     return False, "", {"error": error}
                     
-        except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
-            record_degradation('llm_router', e)
+        except ROUTER_RECOVERABLE_ERRORS as e:
+            _record_router_degradation(
+                e,
+                action="returned failed local LLM call result so router can try the next endpoint",
+                severity="degraded",
+                extra={"endpoint": self.endpoint.name},
+            )
             return False, "", {"error": str(e)}
 
 
 class StaticReflexClient:
     """Zero-dependency static fallback client for emergency tier."""
     
-    async def call(self, prompt: str, **kwargs: Any) -> Tuple[bool, str, Dict[str, Any]]:
+    async def call(self, prompt: str, **kwargs: Any) -> tuple[bool, str, dict[str, Any]]:
         """Heuristic-based response generation without LLM."""
         p = prompt.lower()
         from core.container import ServiceContainer
@@ -399,8 +489,12 @@ class StaticReflexClient:
             substrate = ServiceContainer.get("liquid_substrate", default=None)
             if substrate:
                 mood_desc = substrate.get_summary()
-        except (ImportError, AttributeError, RuntimeError) as exc:
-            record_degradation('llm_router', exc)
+        except ROUTER_RECOVERABLE_ERRORS as exc:
+            _record_router_degradation(
+                exc,
+                action="continued static reflex response without optional substrate context",
+                severity="debug",
+            )
             logger.debug("Substrate not available for static reflex: %s", exc)
         
         try:
@@ -411,8 +505,12 @@ class StaticReflexClient:
                 if recent:
                     items = [m.content if hasattr(m, "content") else str(m) for m in recent]
                     context_snippet = " | ".join(items)
-        except (ImportError, AttributeError, RuntimeError) as exc:
-            record_degradation('llm_router', exc)
+        except ROUTER_RECOVERABLE_ERRORS as exc:
+            _record_router_degradation(
+                exc,
+                action="continued static reflex response without optional memory context",
+                severity="debug",
+            )
             logger.debug("Memory not available for static reflex: %s", exc)
             
         # 2. Match Heuristics
@@ -455,10 +553,10 @@ class IntelligentLLMRouter:
     Always returns a response. Never fails completely.
     """
     
-    def __init__(self, event_bus: Optional[Any] = None) -> None:
-        self.endpoints: Dict[str, LLMEndpoint] = {}
+    def __init__(self, event_bus: Any | None = None) -> None:
+        self.endpoints: dict[str, LLMEndpoint] = {}
         self.health_monitor = LLMHealthMonitor(event_bus=event_bus)
-        self.adapters: Dict[str, Any] = {}
+        self.adapters: dict[str, Any] = {}
         self.last_tier: str = "primary"  # Assume primary until first inference updates this
         self.last_user_tier: str = "primary"  # Only updated for user-facing requests
 
@@ -468,14 +566,14 @@ class IntelligentLLMRouter:
         # Statistics
         # Phase 19: Use explicit list for Enum iteration to satisfy type checker
         tier_list = [LLMTier.PRIMARY, LLMTier.SECONDARY, LLMTier.TERTIARY, LLMTier.EMERGENCY]
-        self.stats: Dict[str, Any] = {
+        self.stats: dict[str, Any] = {
             "total_calls": 0,
             "cache_hits": 0,
             "failovers": 0,
             "calls_by_tier": {tier.value: 0 for tier in tier_list},
             "calls_by_endpoint": {},
         }
-        self._recovery_states: Dict[str, Any] = {}
+        self._recovery_states: dict[str, Any] = {}
         
         # Initialize Static Reflex
         self.static_reflex = StaticReflexClient()
@@ -524,11 +622,11 @@ class IntelligentLLMRouter:
 
     @staticmethod
     def _blend_generation_value(
-        existing: Optional[Any],
-        substrate: Optional[Any],
+        existing: Any | None,
+        substrate: Any | None,
         *,
         substrate_weight: float = 0.65,
-    ) -> Optional[float]:
+    ) -> float | None:
         if substrate is None:
             if existing is None:
                 return None
@@ -544,8 +642,8 @@ class IntelligentLLMRouter:
     @classmethod
     def _apply_substrate_generation_overrides(
         cls,
-        kwargs: Dict[str, Any],
-        overrides: Optional[Dict[str, Any]],
+        kwargs: dict[str, Any],
+        overrides: dict[str, Any] | None,
     ) -> None:
         if not overrides:
             return
@@ -577,6 +675,34 @@ class IntelligentLLMRouter:
             client=self.static_reflex
         )
         self.register_endpoint(endpoint)
+
+    @staticmethod
+    def _resolve_tier(prefer_tier: LLMTier | str | None) -> LLMTier | None:
+        if isinstance(prefer_tier, LLMTier):
+            return prefer_tier
+        if not isinstance(prefer_tier, str):
+            return None
+
+        normalized = prefer_tier.strip().lower()
+        if not normalized:
+            return None
+        try:
+            return LLMTier(normalized)
+        except ValueError:
+            tier_map = {
+                "api_deep": LLMTier.SECONDARY,
+                "deep": LLMTier.SECONDARY,
+                "api_fast": LLMTier.PRIMARY,
+                "fast": LLMTier.TERTIARY,
+                "local": LLMTier.PRIMARY,
+                "local_fast": LLMTier.TERTIARY,
+                "local_deep": LLMTier.SECONDARY,
+                "primary": LLMTier.PRIMARY,
+                "secondary": LLMTier.SECONDARY,
+                "tertiary": LLMTier.TERTIARY,
+                "emergency": LLMTier.EMERGENCY,
+            }
+            return tier_map.get(normalized)
 
     async def start(self) -> "IntelligentLLMRouter":
         """Async start method."""
@@ -620,9 +746,15 @@ class IntelligentLLMRouter:
             gate = ServiceContainer.get("inference_gate", default=None)
             if gate and hasattr(gate, "_background_local_deferral_reason"):
                 return str(gate._background_local_deferral_reason(origin=origin) or "").strip()
-        except (ImportError, AttributeError, RuntimeError) as exc:
-            record_degradation('llm_router', exc)
+        except ROUTER_RECOVERABLE_ERRORS as exc:
+            _record_router_degradation(
+                exc,
+                action="deferred background inference because inference-gate deferral probe failed",
+                severity="degraded",
+                extra={"origin": origin},
+            )
             logger.debug("LegacyRouter background deferral probe failed: %s", exc)
+            return "inference_gate_probe_failed"
         return ""
 
     @staticmethod
@@ -633,7 +765,7 @@ class IntelligentLLMRouter:
     def _substrate_user_facing_enabled() -> bool:
         return os.getenv("AURA_SUBSTRATE_PRIMARY_USER", "1").strip().lower() not in {"0", "false", "off", "no"}
 
-    async def _try_substrate_primary(self, prompt: str, kwargs: Dict[str, Any], *, is_background: bool) -> Optional[str]:
+    async def _try_substrate_primary(self, prompt: str, kwargs: dict[str, Any], *, is_background: bool) -> str | None:
         """Attempt substrate readout before calling the transformer cortex.
 
         A high prediction error returns ``None`` and the normal LLM path runs.
@@ -671,16 +803,21 @@ class IntelligentLLMRouter:
                 if not is_background:
                     self.last_user_tier = "substrate"
                 return result.text
-        except (ImportError, AttributeError, RuntimeError) as exc:
-            record_degradation("llm_router", exc)
+        except ROUTER_RECOVERABLE_ERRORS as exc:
+            _record_router_degradation(
+                exc,
+                action="continued transformer routing after substrate-primary readout failed",
+                severity="warning",
+                extra={"is_background": is_background},
+            )
             logger.debug("Substrate primary path skipped: %s", exc)
         return None
     
     async def think(
         self,
-        prompt: Optional[str] = None,
-        prefer_tier: Optional[Union[LLMTier, str]] = None,
-        prefer_endpoint: Optional[str] = None,
+        prompt: str | None = None,
+        prefer_tier: LLMTier | str | None = None,
+        prefer_endpoint: str | None = None,
         **kwargs: Any
     ) -> str:
         """Get response from best available LLM."""
@@ -833,35 +970,19 @@ class IntelligentLLMRouter:
             prefer_endpoint = str(solver_guard["endpoint"] or "")
         
         # Resolve tier
-        resolved_tier: Optional[LLMTier] = None
-        if isinstance(prefer_tier, LLMTier):
-            resolved_tier = prefer_tier
-        elif isinstance(prefer_tier, str):
-            try:
-                resolved_tier = LLMTier(prefer_tier.lower())
-            except ValueError:
-                tier_map = {
-                    "api_deep": LLMTier.SECONDARY,
-                    "deep": LLMTier.SECONDARY,
-                    "api_fast": LLMTier.PRIMARY,
-                    "fast": LLMTier.TERTIARY,
-                    "local": LLMTier.PRIMARY,
-                    "local_fast": LLMTier.TERTIARY,
-                    "local_deep": LLMTier.SECONDARY,
-                    "emergency": LLMTier.EMERGENCY
-                }
-                resolved_tier = tier_map.get(prefer_tier.lower())
+        resolved_tier = self._resolve_tier(prefer_tier)
 
         kwargs["system_prompt"] = self._apply_core_persona(kwargs.get("system_prompt", ""))
 
         # Autonomic Routing (Exhaustion Reflex)
         soma = kwargs.get("soma", {})
         if soma and resolved_tier in (LLMTier.PRIMARY, LLMTier.SECONDARY):
-            if hasattr(soma, "get") and callable(getattr(soma, "get")):
+            soma_get = getattr(soma, "get", None)
+            if callable(soma_get):
                 # Dict-like access
-                cpu = soma.get("hardware", {}).get("cpu_usage", 0.0)
-                vram = soma.get("hardware", {}).get("vram_usage", 0.0)
-                thought_ms = soma.get("latency", {}).get("last_thought_ms", 0.0)
+                cpu = soma_get("hardware", {}).get("cpu_usage", 0.0)
+                vram = soma_get("hardware", {}).get("vram_usage", 0.0)
+                thought_ms = soma_get("latency", {}).get("last_thought_ms", 0.0)
             else:
                 # Object-like access (SomaState)
                 hardware = getattr(soma, "hardware", None)
@@ -922,7 +1043,7 @@ class IntelligentLLMRouter:
                 try:
                     success: bool = False
                     response: Any = ""
-                    metadata: Dict[str, Any] = {}
+                    metadata: dict[str, Any] = {}
                     
                     # 1. Core Dispatch - find the right generation method
                     if hasattr(adapter, "think"):
@@ -949,7 +1070,8 @@ class IntelligentLLMRouter:
                         err = metadata.get("error", "Generation failed")
                         logger.warning("❌ %s (Attempt %d) failure: %s", endpoint_name, attempt + 1, err)
                         last_error_str = str(err)
-                        if attempt == 0: await asyncio.sleep(0.5)
+                        if attempt == 0:
+                            await asyncio.sleep(0.5)
                         continue
 
                     # 2. Extract text and check for fatal errors hidden in strings
@@ -967,7 +1089,8 @@ class IntelligentLLMRouter:
                         )
                         self.health_monitor.record_failure(endpoint_name, "empty_response")
                         last_error_str = "empty_response"
-                        if attempt == 0: await asyncio.sleep(0.5)
+                        if attempt == 0:
+                            await asyncio.sleep(0.5)
                         continue
 
                     # [STABILITY v53] Expanded fatal patterns — catch more MLX/Metal/GPU crashes
@@ -998,16 +1121,28 @@ class IntelligentLLMRouter:
                     logger.info("✅ Brain: Response from %s in %.2fs (Tier: %s)", endpoint_name, dur, endpoint.tier.value)
                     return final_text_str
 
-                except asyncio.TimeoutError:
+                except TimeoutError as e:
+                    _record_router_degradation(
+                        e,
+                        action="marked endpoint timeout and continued LLM tier failover",
+                        severity="degraded",
+                        extra={"endpoint": endpoint_name, "attempt": attempt + 1},
+                    )
                     logger.error("⏱️ %s (Attempt %d) TIMED OUT", endpoint_name, attempt + 1)
                     last_error_str = f"timeout:{endpoint_name}"
                     self.health_monitor.record_failure(endpoint_name, last_error_str)
                     break  # Don't retry timeouts — fail over to next endpoint
-                except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
-                    record_degradation('llm_router', e)
+                except ROUTER_RECOVERABLE_ERRORS as e:
+                    _record_router_degradation(
+                        e,
+                        action="recorded endpoint failure and continued LLM tier failover",
+                        severity="degraded",
+                        extra={"endpoint": endpoint_name, "attempt": attempt + 1},
+                    )
                     logger.error("🚨 Error calling %s (Attempt %d): %s", endpoint_name, attempt + 1, e)
                     last_error_str = str(e)
-                    if attempt == 0: await asyncio.sleep(0.5)
+                    if attempt == 0:
+                        await asyncio.sleep(0.5)
 
             # Record final failure for this endpoint after both attempts
             if not success:
@@ -1027,7 +1162,8 @@ class IntelligentLLMRouter:
         """
         from core.schemas import ChatStreamEvent
 
-        prefer_tier = kwargs.get("prefer_tier")
+        prefer_tier = kwargs.pop("prefer_tier", None)
+        prefer_endpoint = normalize_endpoint_name(kwargs.pop("prefer_endpoint", None))
         origin = str(kwargs.get("origin") or "user")
         is_background = bool(
             kwargs.pop(
@@ -1054,7 +1190,7 @@ class IntelligentLLMRouter:
             ),
         )
         system_prompt = self._apply_core_persona(system_prompt_from_payload or system_prompt or "")
-        kwargs["system_prompt"] = system_prompt
+        kwargs.pop("system_prompt", None)
         if prepared_messages is not None:
             kwargs["messages"] = prepared_messages
         else:
@@ -1083,37 +1219,54 @@ class IntelligentLLMRouter:
                 yield ChatStreamEvent(type="token", content="I don't have grounded results yet, so I shouldn't guess.")
                 return
         
-        # Resolve tier
-        resolved_tier: Optional[LLMTier] = None
-        if isinstance(prefer_tier, LLMTier):
-            resolved_tier = prefer_tier
-        elif isinstance(prefer_tier, str):
-            tier_map = {
-                "api_deep": LLMTier.PRIMARY,
-                "api_fast": LLMTier.SECONDARY,
-                "local": LLMTier.TERTIARY,
-                "emergency": LLMTier.EMERGENCY
-            }
-            resolved_tier = tier_map.get(prefer_tier.lower())
+        # Resolve tier with the same aliases as non-streaming generation. The
+        # legacy stream path used to invert api_fast/local routing, causing
+        # apparently random lane choices under live chat pressure.
+        resolved_tier = self._resolve_tier(prefer_tier)
+        deep_handoff = bool(kwargs.get("deep_handoff") or kwargs.get("allow_deep_handoff"))
+        solver_guard = guard_solver_request(prefer_endpoint, deep_handoff=deep_handoff)
+        if solver_guard["redirected"]:
+            prefer_endpoint = str(solver_guard["endpoint"] or "")
 
         # Autonomic Routing (Exhaustion Reflex)
         soma = kwargs.get("soma", {})
         if soma and resolved_tier in (LLMTier.PRIMARY, LLMTier.SECONDARY):
-            cpu = soma.get("hardware", {}).get("cpu_usage", 0.0)
-            vram = soma.get("hardware", {}).get("vram_usage", 0.0)
-            thought_ms = soma.get("latency", {}).get("last_thought_ms", 0.0)
+            soma_get = getattr(soma, "get", None)
+            if callable(soma_get):
+                cpu = soma_get("hardware", {}).get("cpu_usage", 0.0)
+                vram = soma_get("hardware", {}).get("vram_usage", 0.0)
+                thought_ms = soma_get("latency", {}).get("last_thought_ms", 0.0)
+            else:
+                hardware = getattr(soma, "hardware", None)
+                latency = getattr(soma, "latency", None)
+                cpu = getattr(hardware, "cpu_usage", 0.0) if hardware else 0.0
+                vram = getattr(hardware, "vram_usage", 0.0) if hardware else 0.0
+                thought_ms = getattr(latency, "last_thought_ms", 0.0) if latency else 0.0
             
             if cpu > 90.0 or vram > 95.0 or thought_ms > 2000.0:
                 old_tier = resolved_tier.value if resolved_tier else "unknown"
                 resolved_tier = LLMTier.SECONDARY if resolved_tier == LLMTier.PRIMARY else LLMTier.TERTIARY
                 logger.warning("🩸 [AUTONOMIC REFLEX] System exhausted in stream (CPU: %.1f%%). Downgrading from %s to %s.", cpu, old_tier, resolved_tier.value)
 
-        endpoints_to_try = self._get_ordered_endpoints(resolved_tier)
+        if solver_guard["redirected"] and resolved_tier == LLMTier.SECONDARY:
+            resolved_tier = LLMTier.PRIMARY
+
+        if resolved_tier == LLMTier.SECONDARY and not deep_handoff:
+            resolved_tier = LLMTier.PRIMARY
+
+        endpoints_to_try = self._get_ordered_endpoints(
+            resolved_tier,
+            prefer_endpoint=prefer_endpoint,
+            allow_secondary=deep_handoff and not is_background,
+            is_background=is_background,
+        )
+        last_stream_error = "streaming endpoints unavailable"
         
         for endpoint_name in endpoints_to_try:
             if not self.health_monitor.is_healthy(endpoint_name):
                 continue
             
+            endpoint = self.endpoints[endpoint_name]
             adapter = self.adapters[endpoint_name]
             try:
                 # 1. Search for streaming capability
@@ -1124,49 +1277,99 @@ class IntelligentLLMRouter:
                     stream_method = adapter.generate_stream
                 
                 if stream_method:
+                    buffered_events = []
+                    flushed = False
+                    content_chars = 0
                     async for chunk in stream_method(prompt, system_prompt=system_prompt, **kwargs):
                         # Convert raw strings or varying event types to standardized ChatStreamEvent
                         if isinstance(chunk, str):
-                            yield ChatStreamEvent(type="token", content=chunk)
+                            event = ChatStreamEvent(type="token", content=chunk)
                         elif isinstance(chunk, dict) and chunk.get("type") == "metadata":
                             # Standardize metadata events
-                            yield ChatStreamEvent(type="metadata", content=json.dumps(chunk))
+                            event = ChatStreamEvent(type="metadata", content=json.dumps(chunk))
                         elif hasattr(chunk, "type") and hasattr(chunk, "content"):
-                            yield chunk # Already a ChatStreamEvent or similar
+                            event = chunk # Already a ChatStreamEvent or similar
                         else:
-                            yield ChatStreamEvent(type="token", content=str(chunk))
+                            event = ChatStreamEvent(type="token", content=str(chunk))
+
+                        if getattr(event, "type", None) == "token":
+                            content = str(getattr(event, "content", "") or "")
+                            if content.strip():
+                                content_chars += len(content.strip())
+                                if not flushed:
+                                    for buffered in buffered_events:
+                                        yield buffered
+                                    buffered_events.clear()
+                                    flushed = True
+                                yield event
+                            elif flushed:
+                                yield event
+                            else:
+                                buffered_events.append(event)
+                        elif flushed:
+                            yield event
+                        else:
+                            buffered_events.append(event)
                     
-                    self.health_monitor.record_success(endpoint_name)
-                    return # Exit after successful stream
+                    if content_chars > 0:
+                        self.health_monitor.record_success(endpoint_name)
+                        return # Exit after successful stream
+
+                    last_stream_error = f"empty_stream:{endpoint_name}"
+                    _record_router_degradation(
+                        RuntimeError(last_stream_error),
+                        action="marked empty streaming response as failed and continued streaming failover",
+                        severity="degraded",
+                        extra={"endpoint": endpoint_name},
+                    )
+                    self.health_monitor.record_failure(endpoint_name, last_stream_error)
+                    continue
                 else:
                     # Fallback to non-streaming think() but yield as one token event
                     logger.debug("Endpoint %s does not support streaming. Falling back to singular yield.", endpoint_name)
-                    res = await self.think(prompt, system_prompt=system_prompt, **kwargs)
-                    yield ChatStreamEvent(type="token", content=res)
-                    return
+                    res = await self.think(
+                        prompt,
+                        system_prompt=system_prompt,
+                        prefer_tier=endpoint.tier,
+                        prefer_endpoint=endpoint_name,
+                        **kwargs,
+                    )
+                    if str(res or "").strip():
+                        yield ChatStreamEvent(type="token", content=res)
+                        return
+                    last_stream_error = f"empty_nonstream_fallback:{endpoint_name}"
+                    self.health_monitor.record_failure(endpoint_name, last_stream_error)
+                    continue
                     
-            except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
-                record_degradation('llm_router', e)
+            except ROUTER_RECOVERABLE_ERRORS as e:
+                _record_router_degradation(
+                    e,
+                    action="recorded streaming endpoint failure and continued streaming failover",
+                    severity="degraded",
+                    extra={"endpoint": endpoint_name},
+                )
                 logger.warning("Streaming from %s failed: %s. Trying next...", endpoint_name, e)
+                last_stream_error = str(e)
+                self.health_monitor.record_failure(endpoint_name, last_stream_error)
                 continue
 
         # Ultimate fallback
-        yield ChatStreamEvent(type="token", content="I encounter a profound stillness in my cognitive core...")
+        yield ChatStreamEvent(type="token", content=self._emergency_fallback(prompt, last_stream_error))
 
     def _get_ordered_endpoints(
         self,
-        prefer_tier: Optional[LLMTier] = None,
-        prefer_endpoint: Optional[str] = None,
+        prefer_tier: LLMTier | None = None,
+        prefer_endpoint: str | None = None,
         allow_secondary: bool = False,
         is_background: bool = False,
-    ) -> List[str]:
+    ) -> list[str]:
         prefer_endpoint = normalize_endpoint_name(prefer_endpoint)
         tier_list = [LLMTier.PRIMARY, LLMTier.SECONDARY, LLMTier.TERTIARY, LLMTier.EMERGENCY]
-        by_tier: Dict[LLMTier, List[str]] = {tier: [] for tier in tier_list}
+        by_tier: dict[LLMTier, list[str]] = {tier: [] for tier in tier_list}
         for name, endpoint in self.endpoints.items():
             by_tier[endpoint.tier].append(name)
         
-        ordered: List[str] = []
+        ordered: list[str] = []
         if prefer_endpoint and prefer_endpoint in self.endpoints:
             ordered.append(prefer_endpoint)
             
@@ -1209,7 +1412,7 @@ class IntelligentLLMRouter:
                         ordered.append(name)
         return ordered
     
-    def _emergency_fallback(self, prompt: str, last_error: Optional[str]) -> str:
+    def _emergency_fallback(self, prompt: str, last_error: str | None) -> str:
         """Absolute last resort if even EMERGENCY tier fails.
         
         Attempts a final static reflex call before giving up.
@@ -1235,11 +1438,11 @@ class IntelligentLLMRouter:
         self,
         objective: str,
         system_prompt: str = "",
-        tools: Optional[Dict[str, Any]] = None,
+        tools: dict[str, Any] | None = None,
         max_turns: int = 5,
-        context: Optional[Dict[str, Any]] = None,
+        context: dict[str, Any] | None = None,
         **kwargs: Any,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Agentic ReAct loop — delegates to the best endpoint that supports tool calling.
 
         Tries endpoints in priority order.  If no endpoint supports
@@ -1259,6 +1462,9 @@ class IntelligentLLMRouter:
                     background_deferral,
                 )
                 return {"content": "", "turns": 0, "tool_calls": []}
+        prefer_tier = self._resolve_tier(kwargs.pop("prefer_tier", None))
+        prefer_endpoint = normalize_endpoint_name(kwargs.pop("prefer_endpoint", None))
+        deep_handoff = bool(kwargs.get("deep_handoff") or kwargs.get("allow_deep_handoff"))
         state = kwargs.pop("state", None)
         objective, system_prompt, prepared_messages, contract, runtime_state = await prepare_runtime_payload(
             prompt=objective,
@@ -1291,7 +1497,12 @@ class IntelligentLLMRouter:
             max_turns = min(max_turns, max(1, int(getattr(contract, "max_tool_turns", max_turns) or max_turns)))
 
         # Find an endpoint whose client has think_and_act
-        ordered = self._get_ordered_endpoints()
+        ordered = self._get_ordered_endpoints(
+            prefer_tier,
+            prefer_endpoint=prefer_endpoint,
+            allow_secondary=deep_handoff and not is_background,
+            is_background=is_background,
+        )
         for name in ordered:
             if not self.health_monitor.is_healthy(name):
                 continue
@@ -1307,13 +1518,38 @@ class IntelligentLLMRouter:
                         context=agent_context,
                         **kwargs,
                     )
+                    if not isinstance(result, dict):
+                        raise TypeError(f"{name}.think_and_act returned {type(result).__name__}, expected dict")
+                    content = str(result.get("content", "") or "").strip()
+                    tool_calls = result.get("tool_calls") or []
+                    if not content and not tool_calls:
+                        raise ValueError(f"{name}.think_and_act returned no content or tool calls")
                     self.health_monitor.record_success(name)
                     return result
-                except (httpx.HTTPError, OSError, ConnectionError, TimeoutError) as e:
-                    record_degradation('llm_router', e)
+                except ROUTER_RECOVERABLE_ERRORS as e:
+                    _record_router_degradation(
+                        e,
+                        action="recorded agentic endpoint failure and continued tool-capable route fallback",
+                        severity="degraded",
+                        extra={"endpoint": name, "tool_count": len(tools or {})},
+                    )
                     logger.warning("think_and_act on %s failed: %s", name, e)
                     self.health_monitor.record_failure(name, str(e))
                     continue
+
+        if tools:
+            _record_router_degradation(
+                RuntimeError("no_agentic_endpoint"),
+                action="blocked tool-required route instead of hallucinating a tool result without execution",
+                severity="degraded",
+                extra={"tool_count": len(tools), "prefer_endpoint": prefer_endpoint},
+            )
+            return {
+                "content": "",
+                "turns": 0,
+                "tool_calls": [],
+                "error": "no_agentic_endpoint",
+            }
 
         # Fallback: plain think() — wraps in expected dict
         logger.info("think_and_act: no agentic endpoint available, falling back to think()")
@@ -1326,11 +1562,11 @@ class IntelligentLLMRouter:
         )
         return {"content": text, "turns": 0, "tool_calls": []}
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         return {**self.stats, "endpoint_health": {name: self.health_monitor.is_healthy(name) for name in self.endpoints}}
 
-    def get_status(self) -> Dict[str, Any]:
-        status: Dict[str, Any] = {
+    def get_status(self) -> dict[str, Any]:
+        status: dict[str, Any] = {
             "total_endpoints": len(self.endpoints),
             "healthy_endpoints": sum(1 for n in self.endpoints if self.health_monitor.is_healthy(n)),
             "endpoints": {}
@@ -1346,7 +1582,7 @@ class IntelligentLLMRouter:
 
 # ─── Singleton ───────────────────────────────────────────────────────────────
 
-_router_instance: Optional[IntelligentLLMRouter] = None
+_router_instance: IntelligentLLMRouter | None = None
 
 def get_llm_router() -> IntelligentLLMRouter:
     global _router_instance

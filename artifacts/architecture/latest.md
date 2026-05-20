@@ -2,13 +2,13 @@
 
 Schema: `aura.architecture.dependency_map.v1`
 Root: `/Users/bryan/.aura/live-source`
-Generated: `1779255118.631118`
+Generated: `1779262963.9488618`
 
 ## Summary
 
 - Subsystems: 120
 - Python files: 1539
-- Python lines: 418971
+- Python lines: 419207
 - Dependency edges: 649
 - ServiceContainer `.get()` calls: 1443
 - ServiceContainer registrations: 337
@@ -19,7 +19,7 @@ Generated: `1779255118.631118`
 graph TD
     runtime["runtime<br/>87 files, 18706 lines"]
     utils["utils<br/>41 files, 4843 lines"]
-    brain["brain<br/>111 files, 37642 lines"]
+    brain["brain<br/>111 files, 37878 lines"]
     consciousness["consciousness<br/>120 files, 52114 lines"]
     resilience["resilience<br/>53 files, 10728 lines"]
     health["health<br/>3 files, 561 lines"]
@@ -794,7 +794,7 @@ graph TD
 | --- | ---: | ---: | ---: | ---: | ---: |
 | core_root | 182 | 56037 | 2328651 | 102 | 0 |
 | consciousness | 120 | 52114 | 2208434 | 34 | 28 |
-| brain | 111 | 37642 | 1633795 | 40 | 38 |
+| brain | 111 | 37878 | 1643412 | 40 | 38 |
 | orchestrator | 42 | 18775 | 827354 | 121 | 8 |
 | runtime | 87 | 18706 | 658230 | 37 | 102 |
 | phases | 29 | 14100 | 644007 | 31 | 6 |
@@ -1205,7 +1205,7 @@ Review candidates:
 - `core/autonomy/content_fetcher.py:373` [autonomy] `urllib.request.urlopen` - None, lambda: urllib.request.urlopen(req, timeout=HTTP_TIMEOUT_SECONDS)
 - `core/brain/llm/gemini_adapter.py:312` [brain] `httpx.AsyncClient` - self._client = httpx.AsyncClient(
 - `core/brain/llm/gemini_adapter.py:313` [brain] `httpx.Timeout` - timeout=httpx.Timeout(self.timeout, connect=10.0),
-- `core/brain/llm/llm_router.py:247` [brain] `httpx.AsyncClient` - async with httpx.AsyncClient(timeout=self.endpoint.timeout) as client:
+- `core/brain/llm/llm_router.py:327` [brain] `httpx.AsyncClient` - async with httpx.AsyncClient(timeout=self.endpoint.timeout) as client:
 - `core/brain/llm/local_llm_setup.py:31` [brain] `httpx.AsyncClient` - async with httpx.AsyncClient() as client:
 - `core/brain/llm/local_llm_setup.py:45` [brain] `subprocess.run` - subprocess.run(["ollama", "--version"], check=True, capture_output=True)
 - `core/brain/llm/local_llm_setup.py:55` [brain] `subprocess.run` - res = subprocess.run(["ollama", "list"], capture_output=True, text=True)
@@ -1216,9 +1216,9 @@ Review candidates:
 
 ## Degradation Handling
 
-- Total `record_degradation()` calls: 3077
-- Log-and-limp candidates: 2838
-- Nearby fail-closed candidates: 239
+- Total `record_degradation()` calls: 3067
+- Log-and-limp candidates: 2829
+- Nearby fail-closed candidates: 238
 
 Top limp-on files:
 
