@@ -81,7 +81,7 @@ def _port_open(port: int, host: str = "127.0.0.1", timeout: float = 0.15) -> boo
     try:
         with socket.create_connection((host, port), timeout=timeout):
             return True
-    except (RuntimeError, AttributeError, TypeError, ValueError):
+    except (OSError, RuntimeError, AttributeError, TypeError, ValueError):
         return False
 
 

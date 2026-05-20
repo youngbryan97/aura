@@ -19,6 +19,9 @@ jobs:
           AURA_TEST_MODE: "1"
         run: |
           python tools/aura_production_readiness_gate.py --out production_readiness_report.json
+      - name: Generate operational architecture map
+        run: |
+          python tools/arch_map.py --write-latest --json > architecture_dependency_map.json
       - name: Generate provenance smoke
         run: |
           python tools/build_provenance.py --output-dir artifacts/provenance
@@ -29,5 +32,8 @@ jobs:
           name: production-readiness
           path: |
             production_readiness_report.json
+            architecture_dependency_map.json
+            artifacts/architecture/latest.json
+            artifacts/architecture/latest.md
             artifacts/provenance/sbom.json
             artifacts/provenance/provenance.json

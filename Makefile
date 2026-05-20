@@ -1,4 +1,4 @@
-.PHONY: lint test typecheck compile quality smoke setup setup-dev run demo-autonomy report bench courtroom baselines longevity longevity-24h chaos governance-lint security enterprise-gate enterprise-collect enterprise-strict production-gate provenance decisive proof-bundle behavioral-proof activation-audit source-hygiene clean-bench
+.PHONY: lint test typecheck compile quality smoke setup setup-dev run demo-autonomy report bench courtroom baselines longevity longevity-24h chaos governance-lint security enterprise-gate enterprise-collect enterprise-strict production-gate architecture-map provenance decisive proof-bundle behavioral-proof activation-audit source-hygiene clean-bench
 
 PYTHON ?= python
 RUFF_SURFACE_TARGETS ?= core interface llm security senses skills executors infrastructure aura_main.py tools tests
@@ -91,6 +91,11 @@ production-gate:
 	@AURA_TEST_MODE=1 $(PYTHON) tools/aura_production_readiness_gate.py --out /tmp/aura_production_readiness.json
 	@echo "✅ Production readiness contract passed; report written to /tmp/aura_production_readiness.json"
 
+architecture-map:
+	@echo "🧭 Generating operational architecture dependency map..."
+	@$(PYTHON) tools/arch_map.py --write-latest --json > /tmp/aura_architecture_map.json
+	@echo "✅ Architecture map written to artifacts/architecture/latest.json and latest.md"
+
 provenance:
 	@echo "📦 Generating SBOM and release provenance..."
 	@$(PYTHON) tools/build_provenance.py --output-dir artifacts/provenance
@@ -115,7 +120,7 @@ smoke:
 	@$(PYTHON) -m pytest $(SMOKE_TEST_TARGETS)
 	@echo "✅ Smoke suite passed"
 
-quality: source-hygiene enterprise-gate enterprise-collect production-gate compile lint governance-lint security typecheck smoke
+quality: source-hygiene enterprise-gate enterprise-collect production-gate architecture-map compile lint governance-lint security typecheck smoke
 	@echo "🏁 Quality gates passed"
 
 decisive:
@@ -190,4 +195,3 @@ seal: quality seal-quick
 	@echo "  Aura is certified for indefinite autonomous operation."
 	@echo ""
 	@echo "🔒 ══════════════════════════════════════════════════════"
-

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from contextlib import redirect_stdout
 from io import StringIO
 
@@ -78,3 +79,59 @@ def test_operational_authority_report_prints_reviewable_locations():
     assert "External I/O" in rendered
     assert "Direct-call review candidates: 1" in rendered
     assert "core/agency/runner.py:9" in rendered
+
+
+def test_architecture_report_is_machine_readable_and_persisted(tmp_path, monkeypatch):
+    root = tmp_path
+    core = root / "core"
+    agency = core / "agency"
+    runtime = core / "runtime"
+    skills = root / "skills"
+    agency.mkdir(parents=True)
+    runtime.mkdir(parents=True)
+    skills.mkdir(parents=True)
+    (core / "__init__.py").write_text("", encoding="utf-8")
+    (agency / "runner.py").write_text(
+        "\n".join(
+            [
+                "import subprocess",
+                "from core.runtime.errors import record_degradation",
+                "from core.container import ServiceContainer",
+                "",
+                "def run(memory_facade):",
+                "    ServiceContainer.get('inference_gate', default=None)",
+                "    memory_facade.add_memory('durable memory write')",
+                "    subprocess.run(['true'])",
+                "    record_degradation('agency', RuntimeError('x'))",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (runtime / "errors.py").write_text("def record_degradation(*a, **k): pass\n", encoding="utf-8")
+    (core / "container.py").write_text(
+        "class ServiceContainer:\n"
+        "    @classmethod\n"
+        "    def get(cls, name, default=None): return default\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(arch_map, "ROOT", root)
+    monkeypatch.setattr(arch_map, "CORE", core)
+
+    report = arch_map.build_architecture_report()
+
+    assert report["schema"] == arch_map.ARCH_MAP_SCHEMA
+    assert report["totals"]["subsystems"] >= 2
+    assert report["service_container"]["get_call_count"] == 1
+    assert report["operational_surfaces"]["memory_write"]["review_candidate_count"] == 1
+    assert report["operational_surfaces"]["tool_execution"]["review_candidate_count"] == 1
+    assert report["degradation"]["total_calls"] >= 1
+    assert any(call["file"] == "core/agency/runner.py" for call in report["degradation"]["calls"])
+
+    out = arch_map.write_report_artifacts(report, tmp_path / "artifacts" / "architecture")
+    payload = json.loads((tmp_path / "artifacts" / "architecture" / "latest.json").read_text(encoding="utf-8"))
+    markdown = (tmp_path / "artifacts" / "architecture" / "latest.md").read_text(encoding="utf-8")
+
+    assert payload["schema"] == arch_map.ARCH_MAP_SCHEMA
+    assert out["json"].endswith("latest.json")
+    assert "Operational Authority Map" in markdown

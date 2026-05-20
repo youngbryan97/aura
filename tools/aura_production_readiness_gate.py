@@ -62,6 +62,39 @@ def _atomic_write_text(path: Path, text: str) -> None:
         raise
 
 
+def _architecture_map_smoke() -> tuple[bool, str]:
+    try:
+        from tools.arch_map import ARCH_MAP_SCHEMA, build_architecture_report
+
+        report = build_architecture_report()
+        required_surfaces = {
+            "will_decision",
+            "memory_write",
+            "state_mutation",
+            "tool_execution",
+            "patching",
+            "llm_call",
+            "external_io",
+        }
+        surfaces = set(report.get("operational_surfaces", {}))
+        missing = sorted(required_surfaces - surfaces)
+        passed = (
+            report.get("schema") == ARCH_MAP_SCHEMA
+            and int(report.get("totals", {}).get("subsystems", 0)) > 0
+            and not missing
+        )
+        detail = (
+            f"{report.get('totals', {}).get('subsystems', 0)} subsystems, "
+            f"{len(report.get('dependency_edges', []))} dependency edges, "
+            f"{len(surfaces)} operational surfaces"
+        )
+        if missing:
+            detail += f"; missing surfaces: {', '.join(missing)}"
+        return passed, detail
+    except Exception as exc:
+        return False, f"{type(exc).__name__}: {exc}"
+
+
 def run_checks() -> list[Check]:
     checks: list[Check] = []
 
@@ -101,6 +134,8 @@ def run_checks() -> list[Check]:
     add("secure_update_rollback", _contains("core/runtime/release_channels.py", "rollback_pass", "stable") and _contains("docs/OPERATOR_GUIDE.md", "rollback"), "Release policy and runbooks require rollback")
     add("model_provider_failure_policy", _exists("docs/MODEL_PROVIDER_FAILURE_POLICY.md") and _exists("docs/runbooks/model-fails-to-load.md"), "Model/provider failure policy and runbook exist")
     add("memory_state_atomic_replayable", _exists("core/runtime/atomic_writer.py") and _exists("core/consciousness/continuous_experience.py"), "Atomic writer and replayable experience stream exist")
+    arch_map_ok, arch_map_detail = _architecture_map_smoke()
+    add("operational_architecture_dependency_map", arch_map_ok, arch_map_detail)
     add("crash_restart_recovery", _exists("docs/runbooks/dirty-shutdown-recovery.md") and _exists("docs/runbooks/checkpoint-restore-failed.md"), "Crash/restart recovery runbooks exist")
     add("failure_degrades_honestly", _contains("core/runtime/errors.py", "record_degradation") and _contains("core/unity/runtime.py", "record_degradation"), "Runtime records degraded paths instead of hiding them")
     add("continuous_experience_learning", _exists("core/consciousness/continuous_experience.py") and _exists("tests/test_continuous_experience_stream.py"), "Movie-like stream is implemented and tested")

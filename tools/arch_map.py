@@ -11,14 +11,24 @@ Outputs:
 """
 
 import ast
+import argparse
+import json
 import re
+import sys
+import time
 from collections import Counter, defaultdict
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from core.runtime.atomic_writer import atomic_write_text
+
 CORE = ROOT / "core"
 SKIP_DIRS = {"__pycache__", ".git", "node_modules", ".venv", "venv"}
+ARCH_MAP_SCHEMA = "aura.architecture.dependency_map.v1"
 
 
 @dataclass(frozen=True)
@@ -488,9 +498,67 @@ def print_operational_authority_map(operational_calls: list[OperationalCall]) ->
         print()
 
 
-def main():
+def _mermaid_graph(
+    *,
+    dir_stats: dict[str, dict],
+    subsystem_deps: dict[str, set[str]],
+) -> str:
+    lines = ["```mermaid", "graph TD"]
+    sorted_subs = sorted(
+        dir_stats.keys(),
+        key=lambda s: dir_stats[s]["deps_in"],
+        reverse=True,
+    )
+
+    for sub in sorted_subs:
+        stats = dir_stats[sub]
+        lines.append(f'    {sub}["{sub}<br/>{stats["files"]} files, {stats["lines"]} lines"]')
+
+    for sub in sorted_subs:
+        for dep in sorted(subsystem_deps[sub]):
+            if dep in dir_stats:
+                lines.append(f"    {sub} --> {dep}")
+
+    lines.append("```")
+    return "\n".join(lines)
+
+
+def _counter_payload(counter: Counter, *, limit: int | None = None) -> list[dict[str, int | str]]:
+    items = counter.most_common(limit)
+    return [{"name": str(name), "count": int(count)} for name, count in items]
+
+
+def _surface_report(operational_calls: list[OperationalCall]) -> dict[str, dict]:
+    by_surface: dict[str, list[OperationalCall]] = defaultdict(list)
+    for call in operational_calls:
+        by_surface[call.surface].append(call)
+
+    report: dict[str, dict] = {}
+    for surface in OPERATIONAL_SURFACES:
+        calls = by_surface.get(surface.name, [])
+        owner_calls = [call for call in calls if call.owner_path]
+        review_calls = [call for call in calls if not call.owner_path]
+        subsystem_counts = Counter(call.subsystem for call in calls)
+        report[surface.name] = {
+            "label": surface.label,
+            "description": surface.description,
+            "owners": list(surface.owners),
+            "call_count": len(calls),
+            "file_count": len({call.file for call in calls}),
+            "owner_path_call_count": len(owner_calls),
+            "review_candidate_count": len(review_calls),
+            "top_subsystems": _counter_payload(subsystem_counts, limit=8),
+            "review_candidates": [asdict(call) for call in review_calls[:100]],
+            "owner_path_sample": [asdict(call) for call in owner_calls[:25]],
+        }
+    return report
+
+
+def build_architecture_report() -> dict:
+    """Build the canonical machine-readable architecture dependency report."""
     all_files = find_python_files(CORE)
-    skills_files = find_python_files(ROOT / "skills")
+    skills_root = ROOT / "skills"
+    skills_files = find_python_files(skills_root) if skills_root.exists() else []
     
     # ─── 1. SUBSYSTEM DEPENDENCY MAP ───
     subsystem_deps = defaultdict(set)
@@ -548,97 +616,276 @@ def main():
             "deps_out": len(subsystem_deps[sub]),
             "deps_in": sum(1 for other in subsystem_deps if sub in subsystem_deps[other]),
         }
-    
-    # ─── OUTPUT ───
+
+    service_get_counts = Counter(u["service"] for u in sc_gets)
+    service_reg_counts = Counter(u["service"] for u in sc_registers)
+    missing = set(service_get_counts.keys()) - set(service_reg_counts.keys())
+
+    limp_count = sum(1 for d in degradation_calls if d["limp_on"])
+    fail_count = sum(1 for d in degradation_calls if not d["limp_on"])
+    limp_by_file = Counter(d["file"] for d in degradation_calls if d["limp_on"])
+
+    small_subs = {
+        sub: stats
+        for sub, stats in dir_stats.items()
+        if stats["files"] <= 2 and sub != "core_root"
+    }
+    sorted_subs_by_lines = sorted(
+        dir_stats.keys(),
+        key=lambda s: dir_stats[s]["lines"],
+        reverse=True,
+    )
+
+    return {
+        "schema": ARCH_MAP_SCHEMA,
+        "generated_at_unix": time.time(),
+        "root": str(ROOT),
+        "inputs": {
+            "core_python_files": len(all_files),
+            "skills_python_files": len(skills_files),
+            "skip_dirs": sorted(SKIP_DIRS),
+        },
+        "totals": {
+            "subsystems": len(dir_stats),
+            "python_files": sum(s["files"] for s in dir_stats.values()),
+            "python_lines": sum(s["lines"] for s in dir_stats.values()),
+            "python_bytes": sum(s["bytes"] for s in dir_stats.values()),
+        },
+        "subsystems": {
+            sub: {
+                **dir_stats[sub],
+                "dependencies": sorted(subsystem_deps[sub]),
+                "source_files": [str(path.relative_to(ROOT)) for path in subsystem_files[sub]],
+            }
+            for sub in sorted(dir_stats)
+        },
+        "subsystem_order_by_lines": sorted_subs_by_lines,
+        "dependency_edges": [
+            {"source": sub, "target": dep}
+            for sub in sorted(subsystem_deps)
+            for dep in sorted(subsystem_deps[sub])
+            if dep in dir_stats
+        ],
+        "mermaid": _mermaid_graph(dir_stats=dir_stats, subsystem_deps=subsystem_deps),
+        "service_container": {
+            "get_call_count": len(sc_gets),
+            "register_call_count": len(sc_registers),
+            "unique_services_retrieved": len(service_get_counts),
+            "unique_services_registered": len(service_reg_counts),
+            "missing_registrations": [
+                {
+                    "service": service,
+                    "get_count": service_get_counts[service],
+                }
+                for service in sorted(missing)
+            ],
+            "top_fetched_services": [
+                {
+                    "service": svc,
+                    "get_count": count,
+                    "register_count": service_reg_counts.get(svc, 0),
+                }
+                for svc, count in service_get_counts.most_common(50)
+            ],
+            "gets": sorted(sc_gets, key=lambda item: (item["service"], item["file"], item["line"])),
+            "registers": sorted(sc_registers, key=lambda item: (item["service"], item["file"], item["line"])),
+        },
+        "operational_surfaces": _surface_report(operational_calls),
+        "degradation": {
+            "total_calls": len(degradation_calls),
+            "log_and_limp_count": limp_count,
+            "fail_closed_count": fail_count,
+            "top_limp_files": [
+                {"file": file, "count": count}
+                for file, count in limp_by_file.most_common(25)
+            ],
+            "calls": degradation_calls,
+        },
+        "non_runtime_candidates": sorted(non_runtime),
+        "consolidation_candidates": {
+            sub: small_subs[sub]
+            for sub in sorted(small_subs)
+        },
+    }
+
+
+def render_markdown_report(report: dict) -> str:
+    """Render a reviewer-readable architecture report from the JSON contract."""
+    lines: list[str] = []
+    totals = report["totals"]
+    lines.extend(
+        [
+            "# Aura Architecture Dependency Map",
+            "",
+            f"Schema: `{report['schema']}`",
+            f"Root: `{report['root']}`",
+            f"Generated: `{report['generated_at_unix']}`",
+            "",
+            "## Summary",
+            "",
+            f"- Subsystems: {totals['subsystems']}",
+            f"- Python files: {totals['python_files']}",
+            f"- Python lines: {totals['python_lines']}",
+            f"- Dependency edges: {len(report['dependency_edges'])}",
+            f"- ServiceContainer `.get()` calls: {report['service_container']['get_call_count']}",
+            f"- ServiceContainer registrations: {report['service_container']['register_call_count']}",
+            "",
+            "## Subsystem Dependency Graph",
+            "",
+            report["mermaid"],
+            "",
+            "## Core Subsystem Stats",
+            "",
+            "| Subsystem | Files | Lines | Bytes | Deps Out | Deps In |",
+            "| --- | ---: | ---: | ---: | ---: | ---: |",
+        ]
+    )
+
+    subsystems = report["subsystems"]
+    for sub in report["subsystem_order_by_lines"]:
+        stats = subsystems[sub]
+        lines.append(
+            f"| {sub} | {stats['files']} | {stats['lines']} | {stats['bytes']} | "
+            f"{stats['deps_out']} | {stats['deps_in']} |"
+        )
+
+    service = report["service_container"]
+    lines.extend(
+        [
+            "",
+            "## ServiceContainer Cross-Wiring",
+            "",
+            f"- Unique services retrieved: {service['unique_services_retrieved']}",
+            f"- Unique services registered: {service['unique_services_registered']}",
+            f"- Services retrieved without detected registration: {len(service['missing_registrations'])}",
+            "",
+            "### Top Fetched Services",
+            "",
+            "| Service | Gets | Registrations |",
+            "| --- | ---: | ---: |",
+        ]
+    )
+    for item in service["top_fetched_services"][:20]:
+        lines.append(
+            f"| {item['service']} | {item['get_count']} | {item['register_count']} |"
+        )
+
+    if service["missing_registrations"]:
+        lines.extend(["", "### Missing Registration Candidates", ""])
+        for item in service["missing_registrations"][:50]:
+            lines.append(f"- `{item['service']}` fetched {item['get_count']} time(s)")
+
+    lines.extend(
+        [
+            "",
+            "## Operational Authority Map",
+            "",
+            "| Surface | Calls | Files | Owner Calls | Review Candidates |",
+            "| --- | ---: | ---: | ---: | ---: |",
+        ]
+    )
+    for name, surface in report["operational_surfaces"].items():
+        lines.append(
+            f"| {surface['label']} | {surface['call_count']} | {surface['file_count']} | "
+            f"{surface['owner_path_call_count']} | {surface['review_candidate_count']} |"
+        )
+
+    for name, surface in report["operational_surfaces"].items():
+        lines.extend(["", f"### {surface['label']}", "", surface["description"], ""])
+        if surface["review_candidates"]:
+            lines.append("Review candidates:")
+            for call in surface["review_candidates"][:25]:
+                lines.append(
+                    f"- `{call['file']}:{call['line']}` [{call['subsystem']}] "
+                    f"`{call['call']}` - {call['source']}"
+                )
+        else:
+            lines.append("All detected calls are on declared owner paths.")
+
+    degradation = report["degradation"]
+    lines.extend(
+        [
+            "",
+            "## Degradation Handling",
+            "",
+            f"- Total `record_degradation()` calls: {degradation['total_calls']}",
+            f"- Log-and-limp candidates: {degradation['log_and_limp_count']}",
+            f"- Nearby fail-closed candidates: {degradation['fail_closed_count']}",
+            "",
+        ]
+    )
+    if degradation["top_limp_files"]:
+        lines.extend(["Top limp-on files:", ""])
+        for item in degradation["top_limp_files"][:10]:
+            lines.append(f"- `{item['file']}`: {item['count']}")
+
+    if report["non_runtime_candidates"]:
+        lines.extend(["", "## Non-Runtime Candidates", ""])
+        for path in report["non_runtime_candidates"][:100]:
+            lines.append(f"- `{path}`")
+
+    if report["consolidation_candidates"]:
+        lines.extend(["", "## Consolidation Candidates", ""])
+        for sub, stats in report["consolidation_candidates"].items():
+            lines.append(f"- `core/{sub}/`: {stats['files']} file(s), {stats['lines']} line(s)")
+
+    lines.append("")
+    return "\n".join(lines)
+
+
+def print_report(report: dict) -> None:
     print("=" * 80)
     print("AURA ARCHITECTURE DEPENDENCY MAP")
     print("=" * 80)
-    
-    # Mermaid diagram
-    print("\n## Subsystem Dependency Graph (Mermaid)\n")
-    print("```mermaid")
-    print("graph TD")
-    
-    # Sort by importance (deps_in)
-    sorted_subs = sorted(dir_stats.keys(), key=lambda s: dir_stats[s]["deps_in"], reverse=True)
-    
-    for sub in sorted_subs:
-        stats = dir_stats[sub]
-        print(f'    {sub}["{sub}<br/>{stats["files"]} files, {stats["lines"]} lines"]')
-    
-    for sub in sorted_subs:
-        for dep in sorted(subsystem_deps[sub]):
-            if dep in dir_stats:
-                print(f"    {sub} --> {dep}")
-    
-    print("```")
-    
-    # Directory stats
-    print("\n## Core Subsystem Stats\n")
-    print(f"{'Subsystem':<30} {'Files':>6} {'Lines':>8} {'Bytes':>10} {'Deps Out':>9} {'Deps In':>8}")
-    print("-" * 80)
-    for sub in sorted(dir_stats.keys(), key=lambda s: dir_stats[s]["lines"], reverse=True):
-        s = dir_stats[sub]
-        print(f"{sub:<30} {s['files']:>6} {s['lines']:>8} {s['bytes']:>10} {s['deps_out']:>9} {s['deps_in']:>8}")
-    
-    print(f"\nTotal subsystems: {len(dir_stats)}")
-    print(f"Total files: {sum(s['files'] for s in dir_stats.values())}")
-    print(f"Total lines: {sum(s['lines'] for s in dir_stats.values())}")
-    
-    # ServiceContainer audit
-    service_get_counts = Counter(u["service"] for u in sc_gets)
-    service_reg_counts = Counter(u["service"] for u in sc_registers)
-    
-    print("\n## ServiceContainer Cross-Wiring Audit\n")
-    print(f"Total .get() calls: {len(sc_gets)}")
-    print(f"Total .register() calls: {len(sc_registers)}")
-    print(f"Unique services retrieved: {len(service_get_counts)}")
-    print(f"Unique services registered: {len(service_reg_counts)}")
-    
-    # Services retrieved but never registered (potential missing registrations)
-    missing = set(service_get_counts.keys()) - set(service_reg_counts.keys())
-    if missing:
-        print(f"\n⚠️  Services GET'd but never REGISTER'd ({len(missing)}):")
-        for s in sorted(missing):
-            print(f"    - {s} (get'd {service_get_counts[s]}x)")
-    
-    # Top cross-wired services
-    print("\nTop 20 most-fetched services:")
-    for svc, count in service_get_counts.most_common(20):
-        reg_count = service_reg_counts.get(svc, 0)
-        print(f"    {svc:<40} get={count:>3}  register={reg_count}")
+    print(render_markdown_report(report))
 
-    # Operational authority map
-    print_operational_authority_map(operational_calls)
-    
-    # Degradation audit
-    limp_count = sum(1 for d in degradation_calls if d["limp_on"])
-    fail_count = sum(1 for d in degradation_calls if not d["limp_on"])
-    print("\n## record_degradation() Audit\n")
-    print(f"Total calls: {len(degradation_calls)}")
-    print(f"  Log-and-limp (no raise/return after): {limp_count}")
-    print(f"  Fail-closed (raise/return follows): {fail_count}")
-    
-    if limp_count > 0:
-        print("\n  Top 10 limp-on files:")
-        limp_by_file = Counter(d["file"] for d in degradation_calls if d["limp_on"])
-        for fname, count in limp_by_file.most_common(10):
-            print(f"    {fname}: {count}")
-    
-    # Non-runtime
-    if non_runtime:
-        print(f"\n## Non-Runtime Files ({len(non_runtime)})\n")
-        for f in non_runtime:
-            print(f"    {f}")
-    
-    # Consolidation candidates (subsystems with < 3 files)
-    small_subs = {sub: stats for sub, stats in dir_stats.items() if stats["files"] <= 2 and sub != "core_root"}
-    if small_subs:
-        print(f"\n## Consolidation Candidates ({len(small_subs)} small subsystems with ≤2 files)\n")
-        for sub in sorted(small_subs.keys()):
-            s = small_subs[sub]
-            print(f"    {sub}/: {s['files']} files, {s['lines']} lines")
+
+def write_report_artifacts(report: dict, output_dir: Path) -> dict[str, str]:
+    """Write canonical JSON and Markdown artifacts atomically."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    json_path = output_dir / "latest.json"
+    md_path = output_dir / "latest.md"
+    atomic_write_text(
+        json_path,
+        json.dumps(report, indent=2, sort_keys=True, default=str),
+        encoding="utf-8",
+    )
+    atomic_write_text(md_path, render_markdown_report(report), encoding="utf-8")
+    return {"json": str(json_path), "markdown": str(md_path)}
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    parser.add_argument("--out-json", type=Path, default=None, help="Write JSON report to this path.")
+    parser.add_argument("--out-md", type=Path, default=None, help="Write Markdown report to this path.")
+    parser.add_argument(
+        "--write-latest",
+        action="store_true",
+        help="Write artifacts/architecture/latest.json and latest.md.",
+    )
+    args = parser.parse_args(argv)
+
+    report = build_architecture_report()
+
+    if args.out_json:
+        atomic_write_text(
+            args.out_json,
+            json.dumps(report, indent=2, sort_keys=True, default=str),
+            encoding="utf-8",
+        )
+    if args.out_md:
+        atomic_write_text(args.out_md, render_markdown_report(report), encoding="utf-8")
+    if args.write_latest:
+        write_report_artifacts(report, ROOT / "artifacts" / "architecture")
+
+    if args.json:
+        print(json.dumps(report, indent=2, sort_keys=True, default=str))
+    else:
+        print_report(report)
+
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
