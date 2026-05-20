@@ -2,13 +2,13 @@
 
 Schema: `aura.architecture.dependency_map.v1`
 Root: `/Users/bryan/.aura/live-source`
-Generated: `1779250236.901352`
+Generated: `1779250388.687409`
 
 ## Summary
 
 - Subsystems: 120
 - Python files: 1539
-- Python lines: 416972
+- Python lines: 417047
 - Dependency edges: 649
 - ServiceContainer `.get()` calls: 1443
 - ServiceContainer registrations: 337
@@ -83,7 +83,7 @@ graph TD
     evolution["evolution<br/>6 files, 1512 lines"]
     introspection["introspection<br/>3 files, 738 lines"]
     lattice["lattice<br/>5 files, 704 lines"]
-    maintenance["maintenance<br/>2 files, 156 lines"]
+    maintenance["maintenance<br/>2 files, 231 lines"]
     morphogenesis["morphogenesis<br/>12 files, 2686 lines"]
     perception["perception<br/>15 files, 3254 lines"]
     persistence["persistence<br/>2 files, 617 lines"]
@@ -892,6 +892,7 @@ graph TD
 | tools | 2 | 253 | 9290 | 1 | 0 |
 | plasticity | 4 | 243 | 7773 | 0 | 1 |
 | systems | 3 | 238 | 9181 | 3 | 0 |
+| maintenance | 2 | 231 | 8288 | 4 | 2 |
 | play | 1 | 228 | 8774 | 4 | 0 |
 | session | 2 | 225 | 9184 | 1 | 0 |
 | audits | 2 | 222 | 8524 | 2 | 0 |
@@ -901,7 +902,6 @@ graph TD
 | predictive | 2 | 186 | 7105 | 5 | 2 |
 | multimodal | 2 | 176 | 6358 | 0 | 0 |
 | ontology | 2 | 169 | 5381 | 0 | 0 |
-| maintenance | 2 | 156 | 6021 | 4 | 2 |
 | knowledge | 6 | 142 | 3870 | 0 | 0 |
 | distributed | 3 | 140 | 4655 | 0 | 0 |
 | initializers | 2 | 140 | 6565 | 10 | 0 |
@@ -1002,7 +1002,7 @@ graph TD
 | Surface | Calls | Files | Owner Calls | Review Candidates |
 | --- | ---: | ---: | ---: | ---: |
 | UnifiedWill decisions | 49 | 25 | 2 | 47 |
-| Memory writes | 249 | 100 | 45 | 204 |
+| Memory writes | 252 | 101 | 45 | 207 |
 | State mutation | 347 | 135 | 4 | 343 |
 | Tool execution | 129 | 70 | 3 | 126 |
 | Self-modification and patching | 15 | 12 | 2 | 13 |
@@ -1216,8 +1216,8 @@ Review candidates:
 
 ## Degradation Handling
 
-- Total `record_degradation()` calls: 3170
-- Log-and-limp candidates: 2916
+- Total `record_degradation()` calls: 3168
+- Log-and-limp candidates: 2914
 - Nearby fail-closed candidates: 254
 
 Top limp-on files:
@@ -1265,7 +1265,7 @@ Top limp-on files:
 - `core/intent/`: 1 file(s), 68 line(s)
 - `core/latent/`: 1 file(s), 56 line(s)
 - `core/llm/`: 2 file(s), 19 line(s)
-- `core/maintenance/`: 2 file(s), 156 line(s)
+- `core/maintenance/`: 2 file(s), 231 line(s)
 - `core/media/`: 2 file(s), 273 line(s)
 - `core/middleware/`: 2 file(s), 254 line(s)
 - `core/multimodal/`: 2 file(s), 176 line(s)
