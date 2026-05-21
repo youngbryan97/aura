@@ -41,10 +41,59 @@ from enum import StrEnum
 from typing import Any
 
 from core.container import ServiceContainer
-from core.runtime.errors import record_degradation
+from core.runtime.errors import FallbackClassification, Severity, record_degradation
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Consciousness.ParallelBranches")
+
+_RECOVERABLE_BRANCH_ERRORS = (
+    AttributeError,
+    ImportError,
+    LookupError,
+    OSError,
+    RuntimeError,
+    TimeoutError,
+    TypeError,
+    ValueError,
+)
+_MAX_BRANCH_NAME_CHARS = 96
+_MAX_TASK_DESCRIPTION_CHARS = 4096
+
+
+def _record_branch_degradation(
+    error: BaseException,
+    *,
+    action: str,
+    severity: Severity = "degraded",
+    extra: dict[str, Any] | None = None,
+) -> None:
+    try:
+        record_degradation(
+            "parallel_branches",
+            error,
+            severity=severity,
+            action=action,
+            classification=FallbackClassification.SAFE_FALLBACK,
+            receipt_required=True,
+            extra=extra,
+        )
+    except TypeError:
+        record_degradation("parallel_branches", error)
+
+
+def _finite_float(raw: object, default: float) -> tuple[float, bool]:
+    try:
+        value = float(raw)
+    except (TypeError, ValueError, OverflowError):
+        return default, False
+    if not value == value or value in (float("inf"), float("-inf")):
+        return default, False
+    return value, True
+
+
+def _clamp_float(value: float, *, lower: float, upper: float) -> tuple[float, bool]:
+    clamped = max(lower, min(upper, value))
+    return clamped, clamped == value
 
 
 # ---------------------------------------------------------------------------
@@ -112,23 +161,34 @@ class CognitiveBranch:
 
     @property
     def age_seconds(self) -> float:
-        return time.time() - self.created_at
+        created_at, _ = _finite_float(self.created_at, time.time())
+        age = time.time() - created_at
+        age, _ = _clamp_float(age, lower=0.0, upper=10 * 365 * 24 * 3600)
+        return age
 
     @property
     def is_runnable(self) -> bool:
         return self.state == BranchState.ACTIVE
 
     def to_dict(self) -> dict[str, Any]:
+        priority, _ = _finite_float(self.priority, 0.5)
+        progress, _ = _finite_float(self.context.progress, 0.0)
+        cpu_budget, _ = _finite_float(self.cpu_budget_ms, 0.0)
+        total_cpu, _ = _finite_float(self.total_cpu_ms, 0.0)
+        priority, _ = _clamp_float(priority, lower=0.0, upper=1.0)
+        progress, _ = _clamp_float(progress, lower=0.0, upper=1.0)
+        cpu_budget, _ = _clamp_float(cpu_budget, lower=0.0, upper=60_000.0)
+        total_cpu, _ = _clamp_float(total_cpu, lower=0.0, upper=10**9)
         return {
             "branch_id": self.branch_id,
             "name": self.name,
             "origin": self.origin.value,
             "state": self.state.value,
-            "priority": round(self.priority, 3),
-            "progress": round(self.context.progress, 3),
+            "priority": round(priority, 3),
+            "progress": round(progress, 3),
             "task_description": self.context.task_description[:100],
-            "cpu_budget_ms": self.cpu_budget_ms,
-            "total_cpu_ms": round(self.total_cpu_ms, 2),
+            "cpu_budget_ms": cpu_budget,
+            "total_cpu_ms": round(total_cpu, 2),
             "ticks_active": self.ticks_active,
             "age_seconds": round(self.age_seconds, 1),
             "will_receipt_id": self.will_receipt_id,
@@ -187,11 +247,40 @@ class BranchManager:
 
         logger.info("BranchManager created (max_branches=%d)", self.MAX_BRANCHES)
 
+    @staticmethod
+    def _normalize_text(raw: object, *, field_name: str, max_chars: int) -> str:
+        text = str(raw or "").strip()
+        if not text:
+            _record_branch_degradation(
+                ValueError(f"branch {field_name} was empty"),
+                action=f"used safe default for empty branch {field_name}",
+                severity="warning",
+                extra={"field": field_name},
+            )
+            text = f"unnamed_{field_name}"
+        if len(text) > max_chars:
+            _record_branch_degradation(
+                ValueError(f"branch {field_name} exceeded {max_chars} chars"),
+                action=f"truncated oversized branch {field_name}",
+                severity="warning",
+                extra={"field": field_name, "max_chars": max_chars},
+            )
+            text = text[:max_chars]
+        return text
+
     async def start(self) -> None:
         """Initialize and register in ServiceContainer."""
         if self._started:
             return
-        ServiceContainer.register_instance("branch_manager", self)
+        try:
+            ServiceContainer.register_instance("branch_manager", self)
+        except _RECOVERABLE_BRANCH_ERRORS as exc:
+            _record_branch_degradation(
+                exc,
+                action="failed closed when BranchManager registration failed",
+                severity="critical",
+            )
+            raise
         self._started = True
         logger.info("BranchManager ONLINE -- parallel cognitive branches enabled")
 
@@ -236,6 +325,67 @@ class BranchManager:
             metadata:         Extra context dict
         """
         # Enforce branch limit
+        name = self._normalize_text(
+            name,
+            field_name="name",
+            max_chars=_MAX_BRANCH_NAME_CHARS,
+        )
+        task_description = self._normalize_text(
+            task_description,
+            field_name="task_description",
+            max_chars=_MAX_TASK_DESCRIPTION_CHARS,
+        )
+        priority, valid_priority = _finite_float(priority, 0.5)
+        priority, priority_unchanged = _clamp_float(priority, lower=0.0, upper=1.0)
+        cpu_budget_ms, valid_cpu_budget = _finite_float(
+            cpu_budget_ms,
+            self._DEFAULT_CPU_BUDGET_MS,
+        )
+        cpu_budget_ms, cpu_budget_unchanged = _clamp_float(
+            cpu_budget_ms,
+            lower=1.0,
+            upper=5_000.0,
+        )
+        memory_budget_mb, valid_memory_budget = _finite_float(
+            memory_budget_mb,
+            self._DEFAULT_MEMORY_BUDGET_MB,
+        )
+        memory_budget_mb, memory_budget_unchanged = _clamp_float(
+            memory_budget_mb,
+            lower=1.0,
+            upper=10_000.0,
+        )
+        if not isinstance(origin, BranchOrigin):
+            try:
+                origin = BranchOrigin(str(origin))
+            except ValueError:
+                _record_branch_degradation(
+                    ValueError(f"invalid branch origin: {origin!r}"),
+                    action="rejected branch spawn with invalid origin",
+                    severity="warning",
+                )
+                return None
+        if not all(
+            (
+                valid_priority,
+                priority_unchanged,
+                valid_cpu_budget,
+                cpu_budget_unchanged,
+                valid_memory_budget,
+                memory_budget_unchanged,
+            )
+        ):
+            _record_branch_degradation(
+                ValueError("branch spawn resource parameters were invalid"),
+                action="normalized branch priority and resource budgets before spawn",
+                severity="warning",
+                extra={
+                    "priority": priority,
+                    "cpu_budget_ms": cpu_budget_ms,
+                    "memory_budget_mb": memory_budget_mb,
+                },
+            )
+
         active_count = sum(
             1 for b in self._branches.values()
             if b.state in (BranchState.ACTIVE, BranchState.SUSPENDED)
@@ -261,7 +411,7 @@ class BranchManager:
             branch_id=branch_id,
             name=name,
             origin=origin,
-            priority=min(1.0, max(0.0, priority)),
+            priority=priority,
             context=BranchContext(
                 task_description=task_description,
                 metadata=metadata or {},
@@ -281,10 +431,23 @@ class BranchManager:
             self._foreground_id = branch_id
 
         # Launch the async task
-        branch._task = get_task_tracker().create_task(
-            self._run_branch(branch, work_fn),
-            name=f"branch:{name}",
-        )
+        branch_coro = self._run_branch(branch, work_fn)
+        try:
+            branch._task = get_task_tracker().create_task(
+                branch_coro,
+                name=f"branch:{name}",
+            )
+        except _RECOVERABLE_BRANCH_ERRORS as exc:
+            branch_coro.close()
+            branch.state = BranchState.FAILED
+            self._total_failed += 1
+            _record_branch_degradation(
+                exc,
+                action="failed closed when branch task creation failed",
+                severity="critical",
+                extra={"branch_id": branch_id, "name": name},
+            )
+            return None
 
         self._branches[branch_id] = branch
         self._total_spawned += 1
@@ -375,9 +538,14 @@ class BranchManager:
                     "Branch '%s' results merged into Global Workspace (priority=%.2f)",
                     branch.name, candidate.priority,
                 )
-        except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('parallel_branches', e)
-            logger.warning("Failed to merge branch '%s' into workspace: %s", branch.name, e)
+        except _RECOVERABLE_BRANCH_ERRORS as exc:
+            _record_branch_degradation(
+                exc,
+                action="completed branch without workspace merge after merge failure",
+                severity="warning",
+                extra={"branch_id": branch_id, "name": branch.name},
+            )
+            logger.warning("Failed to merge branch '%s' into workspace: %s", branch.name, exc)
 
         self._cleanup_branch(branch_id)
         return True
@@ -442,10 +610,12 @@ class BranchManager:
             t0 = time.monotonic()
             result = await work_fn(branch)
             elapsed_ms = (time.monotonic() - t0) * 1000
+            elapsed_ms, _ = _finite_float(elapsed_ms, 0.0)
+            elapsed_ms, _ = _clamp_float(elapsed_ms, lower=0.0, upper=10**9)
             branch.total_cpu_ms += elapsed_ms
 
             if result:
-                branch.context.partial_results.append(str(result))
+                branch.context.partial_results.append(str(result)[:_MAX_TASK_DESCRIPTION_CHARS])
 
             branch.state = BranchState.COMPLETED
             branch.context.progress = 1.0
@@ -467,16 +637,20 @@ class BranchManager:
             self._total_failed += 1
             logger.debug("Branch cancelled: '%s'", branch.name)
 
-        except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-            record_degradation('parallel_branches', e)
+        except _RECOVERABLE_BRANCH_ERRORS as exc:
+            _record_branch_degradation(
+                exc,
+                action="isolated failed branch without poisoning branch manager",
+                extra={"branch_id": branch.branch_id, "name": branch.name},
+            )
             branch.state = BranchState.FAILED
             self._total_failed += 1
             self._publish_event("branch.failed", {
                 "branch_id": branch.branch_id,
                 "name": branch.name,
-                "error": str(e)[:200],
+                "error": str(exc)[:200],
             })
-            logger.error("Branch failed: '%s' -- %s", branch.name, e)
+            logger.error("Branch failed: '%s' -- %s", branch.name, exc)
 
     # ------------------------------------------------------------------
     # Priority enforcement
@@ -516,6 +690,13 @@ class BranchManager:
                 await asyncio.wait_for(asyncio.shield(branch._task), timeout=2.0)
             except (TimeoutError, asyncio.CancelledError):
                 logger.debug("Branch cancellation acknowledged for %s", branch.branch_id)
+            except _RECOVERABLE_BRANCH_ERRORS as exc:
+                _record_branch_degradation(
+                    exc,
+                    action="continued BranchManager shutdown after branch cancellation failed",
+                    severity="warning",
+                    extra={"branch_id": branch.branch_id},
+                )
         branch.state = BranchState.FAILED
         self._publish_event("branch.cancelled", {
             "branch_id": branch.branch_id,
@@ -561,11 +742,15 @@ class BranchManager:
             if decision.is_approved():
                 return decision.receipt_id
             return ""
-        except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('parallel_branches', e)
-            logger.debug("BranchManager: Will consultation failed (degraded): %s", e)
-            # Degrade gracefully -- allow spawn without Will if Will is unavailable
-            return f"degraded_{int(time.time())}"
+        except _RECOVERABLE_BRANCH_ERRORS as exc:
+            _record_branch_degradation(
+                exc,
+                action="rejected branch spawn because Unified Will was unavailable",
+                severity="critical",
+                extra={"name": name, "origin": origin.value, "priority": priority},
+            )
+            logger.debug("BranchManager: Will consultation failed closed: %s", exc)
+            return ""
 
     # ------------------------------------------------------------------
     # Helpers
@@ -581,8 +766,13 @@ class BranchManager:
         try:
             from core.event_bus import get_event_bus
             get_event_bus().publish_threadsafe(topic, data)
-        except (ImportError, AttributeError, RuntimeError) as exc:
-            record_degradation("parallel_branches", exc)
+        except _RECOVERABLE_BRANCH_ERRORS as exc:
+            _record_branch_degradation(
+                exc,
+                action="kept branch lifecycle state after event publish failed",
+                severity="warning",
+                extra={"topic": topic, "branch_id": data.get("branch_id")},
+            )
             logger.debug("BranchManager: lifecycle event publish failed: %s", exc)
 
     # ------------------------------------------------------------------
@@ -612,6 +802,19 @@ class BranchManager:
         # Wait if suspended
         if branch._suspend_event:
             await branch._suspend_event.wait()
+
+        now = time.monotonic()
+        last_yield = branch.context.metadata.get("_last_yield_monotonic")
+        if isinstance(last_yield, (int, float)):
+            elapsed_ms = max(0.0, (now - float(last_yield)) * 1000.0)
+            branch.cpu_used_ms += elapsed_ms
+        branch.context.metadata["_last_yield_monotonic"] = now
+        cpu_budget, _ = _finite_float(branch.cpu_budget_ms, 50.0)
+        cpu_budget, _ = _clamp_float(cpu_budget, lower=1.0, upper=5_000.0)
+        if branch.cpu_used_ms >= cpu_budget:
+            await asyncio.sleep(0.001)
+            branch.context.metadata["_last_yield_monotonic"] = time.monotonic()
+            branch.cpu_used_ms = 0.0
 
         # Yield to event loop (cooperative multitasking)
         await asyncio.sleep(0)

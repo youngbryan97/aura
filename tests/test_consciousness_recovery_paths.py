@@ -1224,6 +1224,104 @@ def test_parallel_branch_event_publish_failure_is_visible(monkeypatch):
     assert recorded == [("parallel_branches", "RuntimeError")]
 
 
+def test_parallel_branch_failure_is_isolated_with_structured_receipt(monkeypatch):
+    recorded: list[tuple[str, str, str, dict | None]] = []
+
+    def record(module, exc, **kwargs):
+        recorded.append(
+            (
+                module,
+                type(exc).__name__,
+                kwargs.get("action", ""),
+                kwargs.get("extra"),
+            )
+        )
+
+    async def failing_work(branch):
+        branch.context.progress = 0.25
+        raise RuntimeError("branch cognition failed")
+
+    monkeypatch.setattr(parallel_branches, "record_degradation", record)
+
+    manager = BranchManager()
+    manager._publish_event = lambda *_args, **_kwargs: None
+    branch = parallel_branches.CognitiveBranch(
+        branch_id="br_test",
+        name="test_branch",
+        origin=parallel_branches.BranchOrigin.SYSTEM,
+    )
+
+    asyncio.run(manager._run_branch(branch, failing_work))
+
+    assert branch.state == parallel_branches.BranchState.FAILED
+    assert manager.get_status()["total_failed"] == 1
+    assert recorded == [
+        (
+            "parallel_branches",
+            "RuntimeError",
+            "isolated failed branch without poisoning branch manager",
+            {"branch_id": "br_test", "name": "test_branch"},
+        )
+    ]
+
+
+def test_parallel_branch_spawn_fails_closed_without_will(monkeypatch):
+    recorded: list[tuple[str, str, str]] = []
+
+    def record(module, exc, **kwargs):
+        recorded.append((module, type(exc).__name__, kwargs.get("action", "")))
+
+    async def work(_branch):
+        return "should not run"
+
+    monkeypatch.setattr(parallel_branches, "record_degradation", record)
+    monkeypatch.setattr("core.will.get_will", _FailingCallable("will offline"))
+
+    manager = BranchManager()
+    branch = asyncio.run(
+        manager.spawn(
+            name="unauthorized_branch",
+            origin=parallel_branches.BranchOrigin.SYSTEM,
+            task_description="try to run without will",
+            work_fn=work,
+        )
+    )
+
+    assert branch is None
+    assert recorded == [
+        (
+            "parallel_branches",
+            "RuntimeError",
+            "rejected branch spawn because Unified Will was unavailable",
+        )
+    ]
+
+
+def test_parallel_branch_yield_enforces_budget(monkeypatch):
+    sleeps: list[float] = []
+
+    async def tracked_sleep(seconds):
+        sleeps.append(seconds)
+
+    monkeypatch.setattr(parallel_branches.asyncio, "sleep", tracked_sleep)
+
+    branch = parallel_branches.CognitiveBranch(
+        branch_id="br_budget",
+        name="budget_branch",
+        origin=parallel_branches.BranchOrigin.SYSTEM,
+        cpu_budget_ms=1.0,
+    )
+    branch.context.metadata["_last_yield_monotonic"] = (
+        parallel_branches.time.monotonic() - 1.0
+    )
+
+    asyncio.run(BranchManager.branch_yield(branch))
+
+    assert 0.001 in sleeps
+    assert 0 in sleeps
+    assert branch.cpu_used_ms == 0.0
+
+
 def test_structural_opacity_uses_weight_topology_as_readout():
     monitor = StructuralOpacityMonitor(neuron_count=16, n_perturbations=5)
     x = np.linspace(-0.4, 0.4, 16)
