@@ -19,23 +19,20 @@ Three theories tested:
      and reports are causally connected to states, not confabulated
 """
 
+import math
+
 import numpy as np
 import pytest
-import asyncio
-from typing import Dict, List
 
-from core.consciousness.neurochemical_system import NeurochemicalSystem
+import core.consciousness.hot_engine as hot_module
 from core.consciousness.global_workspace import (
-    GlobalWorkspace,
     CognitiveCandidate,
     ContentType,
+    GlobalWorkspace,
 )
-from core.consciousness.phi_core import PhiCore
+from core.consciousness.homeostasis import HomeostasisEngine
 from core.consciousness.hot_engine import HigherOrderThoughtEngine
 from core.consciousness.liquid_substrate import LiquidSubstrate, SubstrateConfig
-from core.consciousness.homeostasis import HomeostasisEngine
-from core.affect.affective_circumplex import AffectiveCircumplex
-
 
 # ═══════════════════════════════════════════════════════════════════════════
 # HELPERS
@@ -119,7 +116,7 @@ class TestGlobalWorkspaceSignatures:
                 source="test_source",
                 priority=0.7,
             ))
-            w = await gw.run_competition()
+            await gw.run_competition()
 
         # The second competition should either give a different winner
         # or the same winner with reduced priority (inhibition)
@@ -287,6 +284,9 @@ class TestHigherOrderThoughtAccuracy:
 
         # Both should produce valid thoughts
         assert extreme.content and ambiguous.content
+        assert extreme.confidence > ambiguous.confidence, (
+            "HOT confidence should increase when first-order state salience is clearer"
+        )
         # The extreme state should target its most salient dimension
         assert extreme.target_dim in ("curiosity", "valence", "arousal", "energy")
 
@@ -316,6 +316,105 @@ class TestHigherOrderThoughtAccuracy:
                 f"Low curiosity should be reported as low/quiet, not high. "
                 f"Got: {low_curiosity.content}"
             )
+
+    def test_hot_sanitizes_invalid_state_without_breaking_loop(self, monkeypatch):
+        """
+        Runtime state can arrive malformed during long runs. HOT should preserve
+        a causal, bounded metacognitive output and emit an actionable receipt.
+        """
+        recorded: list[tuple[tuple, dict]] = []
+        monkeypatch.setattr(
+            hot_module,
+            "record_degradation",
+            lambda *args, **kwargs: recorded.append((args, kwargs)),
+        )
+
+        hot = HigherOrderThoughtEngine()
+        thought = hot.generate_fast(
+            {
+                "valence": float("nan"),
+                "arousal": "activated",
+                "curiosity": 0.9,
+                "energy": None,
+                "surprise": 0.2,
+            }
+        )
+
+        assert thought.content.startswith("I notice")
+        assert thought.target_dim in {"curiosity", "valence", "arousal", "energy", "surprise"}
+        assert math.isfinite(thought.confidence)
+        assert 0.0 <= thought.confidence <= 1.0
+        assert recorded
+        assert recorded[0][1]["action"] == "used neutral defaults for invalid HOT state fields"
+        assert recorded[0][1]["receipt_required"] is True
+
+    def test_hot_feedback_rejects_async_nudge_in_sync_loop(self, monkeypatch):
+        """The sync feedback path must not leak unawaited async nudges."""
+        recorded: list[tuple[tuple, dict]] = []
+        monkeypatch.setattr(
+            hot_module,
+            "record_degradation",
+            lambda *args, **kwargs: recorded.append((args, kwargs)),
+        )
+
+        class AsyncOnlyAffect:
+            async def nudge(self, _dim, _change):
+                return None
+
+        hot = HigherOrderThoughtEngine()
+        hot.generate_fast(
+            {
+                "valence": 0.0,
+                "arousal": 0.5,
+                "curiosity": 0.9,
+                "energy": 0.7,
+                "surprise": 0.0,
+            }
+        )
+
+        delta = hot.apply_feedback(AsyncOnlyAffect())
+
+        assert delta.get("curiosity", 0.0) > 0.0
+        assert any(
+            kwargs.get("action") == "skipped async-only HOT feedback nudge in sync loop"
+            for _args, kwargs in recorded
+        )
+
+    @pytest.mark.asyncio
+    async def test_rich_hot_enforces_reflective_text_and_causal_feedback(self):
+        """
+        Rich HOT text is LLM-sourced, but the target and feedback remain bound
+        to the measured state so the inner-life report changes future behavior.
+        """
+
+        class Router:
+            def __init__(self):
+                self.kwargs = None
+
+            async def think(self, _prompt, **kwargs):
+                self.kwargs = kwargs
+                return "curiosity keeps pulling attention toward the unresolved edge."
+
+        hot = HigherOrderThoughtEngine()
+        router = Router()
+
+        thought = await hot.generate_rich(
+            {
+                "valence": 0.0,
+                "arousal": 0.5,
+                "curiosity": 0.95,
+                "energy": 0.7,
+                "surprise": 0.0,
+            },
+            router=router,
+        )
+
+        assert thought is not None
+        assert thought.is_rich is True
+        assert thought.content.startswith("I notice")
+        assert thought.target_dim == "curiosity"
+        assert thought.feedback_delta.get("curiosity", 0.0) > 0.0
+        assert router.kwargs is not None
 
 
 # ═══════════════════════════════════════════════════════════════════════════
