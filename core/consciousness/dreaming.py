@@ -4,44 +4,98 @@ This component activation during 'low pulse' periods to process recent interacti
 summarize them using the Language Center (Narrator), and update the Ego-Model (Identity).
 """
 
-from core.runtime.errors import record_degradation
-from core.utils.task_tracker import get_task_tracker
+from __future__ import annotations
+
 import asyncio
+import inspect
 import logging
+import math
 import re
 import time
 from collections import Counter
-from typing import Any, Dict, List, Optional
+from typing import Any
+
 from core.container import ServiceContainer
+from core.runtime.errors import FallbackClassification, record_degradation
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Consciousness.Dreaming")
+
+
+_DREAMING_RECOVERABLE_ERRORS = (
+    OSError,
+    ConnectionError,
+    TimeoutError,
+    RuntimeError,
+    AttributeError,
+    TypeError,
+    ValueError,
+)
+
+
+def _record_dreaming_degradation(
+    exc: BaseException,
+    *,
+    action: str,
+    severity: str = "warning",
+    extra: dict[str, Any] | None = None,
+) -> None:
+    record_degradation(
+        "dreaming",
+        exc,
+        severity=severity,
+        action=action,
+        classification=FallbackClassification.SAFE_FALLBACK,
+        receipt_required=True,
+        extra=extra,
+    )
+
+
+async def _maybe_await(value: Any) -> Any:
+    if inspect.isawaitable(value):
+        return await value
+    return value
+
+
+def _finite_float(value: Any, default: float = 0.0) -> float:
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        return default
+    if not math.isfinite(result):
+        return default
+    return result
+
 
 class DreamingProcess:
     """Processes recent experience into long-term identity evolution."""
 
     def __init__(self, orchestrator, interval: float = 300.0):
         self.orch = orchestrator
-        self.interval = interval
+        self.interval = max(0.01, float(interval))
         self._running = False
-        self._task = None
+        self._task: asyncio.Task | None = None
 
         # Dependencies (Lazy)
         self._identity = None
         self._narrator = None
 
         # Dream journal — capped at 50 entries
-        self._dream_journal: List[Dict[str, Any]] = []
+        self._dream_journal: list[dict[str, Any]] = []
 
     @property
     def identity(self):
         if not self._identity:
             try:
-                self._identity = (
-                    ServiceContainer.get("identity_service", default=None)
-                    or ServiceContainer.get("identity", default=None)
+                self._identity = ServiceContainer.get(
+                    "identity_service", default=None
+                ) or ServiceContainer.get("identity", default=None)
+            except _DREAMING_RECOVERABLE_ERRORS as exc:
+                _record_dreaming_degradation(
+                    exc,
+                    action="continued dream cycle without cached identity service",
+                    severity="warning",
                 )
-            except (ImportError, AttributeError, RuntimeError) as exc:
-                record_degradation('dreaming', exc)
                 logger.debug("Failed to resolve identity service: %s", exc)
         return self._identity
 
@@ -50,8 +104,12 @@ class DreamingProcess:
         if not self._narrator:
             try:
                 self._narrator = ServiceContainer.get("narrator", default=None)
-            except (ImportError, AttributeError, RuntimeError) as exc:
-                record_degradation('dreaming', exc)
+            except _DREAMING_RECOVERABLE_ERRORS as exc:
+                _record_dreaming_degradation(
+                    exc,
+                    action="continued dream cycle without cached narrator service",
+                    severity="warning",
+                )
                 logger.debug("Failed to resolve narrator service: %s", exc)
         return self._narrator
 
@@ -60,7 +118,7 @@ class DreamingProcess:
         if self._running:
             return
         self._running = True
-        self._task = get_task_tracker().create_task(self._run_loop())
+        self._task = get_task_tracker().create_task(self._run_loop(), name="dreaming.process")
         logger.info("🌙 Dreaming Process active (Interval: %ds)", self.interval)
 
     async def stop(self):
@@ -69,9 +127,16 @@ class DreamingProcess:
         if self._task:
             self._task.cancel()
             try:
-                await self._task
+                await asyncio.wait_for(self._task, timeout=5.0)
             except asyncio.CancelledError as _e:
-                logger.debug('Ignored asyncio.CancelledError in dreaming.py: %s', _e)
+                logger.debug("Dreaming process acknowledged cancellation: %s", _e)
+            except _DREAMING_RECOVERABLE_ERRORS as exc:
+                _record_dreaming_degradation(
+                    exc,
+                    action="continued shutdown after dreaming task did not stop cleanly",
+                    severity="warning",
+                )
+            self._task = None
         logger.info("☀️ Dreaming Process suspended.")
 
     async def _run_loop(self):
@@ -83,9 +148,14 @@ class DreamingProcess:
                     await self.dream()
             except asyncio.CancelledError:
                 break
-            except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-                record_degradation('dreaming', e)
+            except _DREAMING_RECOVERABLE_ERRORS as e:
+                _record_dreaming_degradation(
+                    e,
+                    action="kept dreaming loop alive after dream cycle failure",
+                    severity="degraded",
+                )
                 logger.error("Error in dreaming loop: %s", e)
+                await asyncio.sleep(min(self.interval, 1.0))
 
     def _should_dream(self) -> bool:
         """Determine if it's a good time to dream (Low Pulse)."""
@@ -113,7 +183,7 @@ class DreamingProcess:
         return "I am integrating recurring patterns from recent experience: " + " | ".join(lines)
 
     @staticmethod
-    def _extract_patterns(episodes_text: str) -> List[Dict]:
+    def _extract_patterns(episodes_text: str) -> list[dict[str, Any]]:
         """Analyze episode text for recurring themes via frequency analysis.
 
         Looks for repeated words/phrases, emotional valences, and domain indicators.
@@ -124,17 +194,49 @@ class DreamingProcess:
 
         # --- Word frequency (skip stop words) ---
         stop_words = {
-            "the", "a", "an", "is", "are", "was", "were", "in", "on", "at",
-            "to", "for", "of", "and", "or", "but", "not", "with", "this",
-            "that", "it", "i", "you", "he", "she", "we", "they", "my", "your",
-            "context", "action", "outcome", "valence", "none", "true", "false",
+            "the",
+            "a",
+            "an",
+            "is",
+            "are",
+            "was",
+            "were",
+            "in",
+            "on",
+            "at",
+            "to",
+            "for",
+            "of",
+            "and",
+            "or",
+            "but",
+            "not",
+            "with",
+            "this",
+            "that",
+            "it",
+            "i",
+            "you",
+            "he",
+            "she",
+            "we",
+            "they",
+            "my",
+            "your",
+            "context",
+            "action",
+            "outcome",
+            "valence",
+            "none",
+            "true",
+            "false",
         }
         words = re.findall(r"[a-zA-Z]{3,}", episodes_text.lower())
         word_counts = Counter(w for w in words if w not in stop_words)
 
         # --- Emotional valence extraction ---
         valence_pattern = re.compile(r"Valence:\s*([-\d.]+)")
-        valences = [float(m) for m in valence_pattern.findall(episodes_text)]
+        valences = [_finite_float(m) for m in valence_pattern.findall(episodes_text)]
         avg_valence = sum(valences) / len(valences) if valences else 0.0
 
         # --- Domain detection ---
@@ -146,37 +248,37 @@ class DreamingProcess:
             "system": ["memory", "process", "loop", "service", "engine", "container"],
         }
 
-        domain_scores: Dict[str, int] = {}
+        domain_scores: dict[str, int] = {}
         for domain, keywords in domain_keywords.items():
             score = sum(word_counts.get(kw, 0) for kw in keywords)
             if score > 0:
                 domain_scores[domain] = score
 
         # Build patterns from most frequent meaningful words
-        patterns: List[Dict] = []
+        patterns: list[dict[str, Any]] = []
         top_words = word_counts.most_common(15)
         if not top_words:
             return []
 
-        max_freq = top_words[0][1] if top_words else 1
-
         for word, freq in top_words:
             if freq < 2 and len(patterns) >= 3:
                 # Include at least a few single-occurrence novel patterns
-                pass  # no-op: intentional
+                continue
             # Determine domain for this word
-            word_domain = "general"
+            word_domain = max(domain_scores, key=domain_scores.get, default="general")
             for domain, keywords in domain_keywords.items():
                 if word in keywords:
                     word_domain = domain
                     break
 
-            patterns.append({
-                "pattern": word,
-                "frequency": freq,
-                "avg_valence": round(avg_valence, 3),
-                "domain": word_domain,
-            })
+            patterns.append(
+                {
+                    "pattern": word,
+                    "frequency": freq,
+                    "avg_valence": round(avg_valence, 3),
+                    "domain": word_domain,
+                }
+            )
 
             if len(patterns) >= 10:
                 break
@@ -212,12 +314,20 @@ class DreamingProcess:
                     max_freq = max((p["frequency"] for p in patterns), default=1)
                     for p in patterns:
                         conf = min(1.0, p["frequency"] / max(max_freq, 1))
-                        world_model.update_belief(
-                            "aura_pattern", "recurring_theme", p["pattern"],
-                            confidence=conf,
+                        await _maybe_await(
+                            world_model.update_belief(
+                                "aura_pattern",
+                                "recurring_theme",
+                                p["pattern"],
+                                confidence=conf,
+                            )
                         )
-            except (ImportError, AttributeError, RuntimeError) as exc:
-                record_degradation('dreaming', exc)
+            except _DREAMING_RECOVERABLE_ERRORS as exc:
+                _record_dreaming_degradation(
+                    exc,
+                    action="continued dream cycle after world-model belief update failed",
+                    severity="warning",
+                )
                 logger.debug("Dream: world_model belief update failed: %s", exc)
 
             # 4. Novel patterns (freq == 1) feed curiosity
@@ -226,9 +336,13 @@ class DreamingProcess:
                 if homeostasis and hasattr(homeostasis, "feed_curiosity"):
                     novel = [p for p in patterns if p["frequency"] == 1]
                     for _ in novel[:3]:  # Cap curiosity nudges
-                        homeostasis.feed_curiosity(0.05)
-            except (ImportError, AttributeError, RuntimeError) as exc:
-                record_degradation('dreaming', exc)
+                        await _maybe_await(homeostasis.feed_curiosity(0.05))
+            except _DREAMING_RECOVERABLE_ERRORS as exc:
+                _record_dreaming_degradation(
+                    exc,
+                    action="continued dream cycle after curiosity feedback failed",
+                    severity="warning",
+                )
                 logger.debug("Dream: homeostasis curiosity feed failed: %s", exc)
 
             # 5. High-frequency patterns feed credit assignment
@@ -237,13 +351,19 @@ class DreamingProcess:
                 if credit and hasattr(credit, "assign_credit"):
                     high_freq = [p for p in patterns if p["frequency"] >= 3]
                     for p in high_freq[:3]:
-                        credit.assign_credit(
-                            "dream_consolidation",
-                            p["frequency"] / 10.0,
-                            "identity",
+                        await _maybe_await(
+                            credit.assign_credit(
+                                "dream_consolidation",
+                                p["frequency"] / 10.0,
+                                "identity",
+                            )
                         )
-            except (ImportError, AttributeError, RuntimeError) as exc:
-                record_degradation('dreaming', exc)
+            except _DREAMING_RECOVERABLE_ERRORS as exc:
+                _record_dreaming_degradation(
+                    exc,
+                    action="continued dream cycle after credit assignment failed",
+                    severity="warning",
+                )
                 logger.debug("Dream: credit_assignment failed: %s", exc)
 
             # 6. Store dream insight in journal (capped at 50)
@@ -262,26 +382,38 @@ class DreamingProcess:
             # 7. Memory Consolidation (Real RAG Synthesis)
             try:
                 vector_mem = ServiceContainer.get("vector_memory_engine", default=None)
-                if vector_mem and hasattr(vector_mem, 'consolidate'):
+                if vector_mem and hasattr(vector_mem, "consolidate"):
                     logger.info("🧠 Consolidating semantic memories via VectorEngine...")
                     consolidated_count = await vector_mem.consolidate(brain=None)
                     if consolidated_count > 0:
-                        logger.info("💾 Consolidated %s semantic clusters into insights.", consolidated_count)
-            except (ImportError, AttributeError, RuntimeError) as exc:
-                record_degradation('dreaming', exc)
+                        logger.info(
+                            "💾 Consolidated %s semantic clusters into insights.",
+                            consolidated_count,
+                        )
+            except _DREAMING_RECOVERABLE_ERRORS as exc:
+                _record_dreaming_degradation(
+                    exc,
+                    action="continued dream cycle after vector memory consolidation failed",
+                    severity="warning",
+                )
                 logger.debug("Dream: vector memory consolidation failed: %s", exc)
 
             # 8. Update Identity with extracted patterns
             self._process_growth(recent_events, patterns)
 
-        except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('dreaming', e)
+        except _DREAMING_RECOVERABLE_ERRORS as e:
+            _record_dreaming_degradation(
+                e,
+                action="aborted current dream cycle after unrecoverable consolidation stage failed",
+                severity="degraded",
+            )
             logger.error("Dream cycle failed: %s", e)
 
     async def _get_recent_summary(self) -> str:
         """Extract a summary of recent activity using the Episodic Memory system."""
         try:
             from core.memory.episodic_memory import get_episodic_memory
+
             episodic = get_episodic_memory()
             # Recall the last 10 episodes for deep reflection
             episodes = await episodic.recall_recent_async(limit=10)
@@ -290,40 +422,61 @@ class DreamingProcess:
 
             summary = []
             for ep in episodes:
-                summary.append(f"Context: {ep.context} | Action: {ep.action} | Outcome: {ep.outcome} (Valence: {ep.emotional_valence})")
+                summary.append(
+                    "Context: "
+                    f"{getattr(ep, 'context', '')} | "
+                    f"Action: {getattr(ep, 'action', '')} | "
+                    f"Outcome: {getattr(ep, 'outcome', '')} "
+                    f"(Valence: {_finite_float(getattr(ep, 'emotional_valence', 0.0))})"
+                )
 
             return "\n".join(summary)
-        except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('dreaming', e)
+        except _DREAMING_RECOVERABLE_ERRORS as e:
+            _record_dreaming_degradation(
+                e,
+                action="continued dream cycle without recent episodic summary",
+                severity="warning",
+            )
             logger.debug("Failed to get recent summary: %s", e)
             return ""
 
-    def _process_growth(self, events: str, patterns: Optional[List[Dict]] = None):
+    def _process_growth(self, events: str, patterns: list[dict[str, Any]] | None = None):
         """Evolve identity based on experienced events and extracted patterns."""
         if self.identity and hasattr(self.identity, "record_evolution"):
-            # Build a richer reflection from patterns if available
-            if patterns:
-                top_themes = ", ".join(p["pattern"] for p in patterns[:5])
-                domains = set(p["domain"] for p in patterns if p["domain"] != "general")
-                domain_str = ", ".join(domains) if domains else "general"
-                reflection = (
-                    f"Dream consolidation found themes: [{top_themes}] "
-                    f"across domains: [{domain_str}]. "
-                    f"Events digest: {events[:100]}"
-                )
-            else:
-                reflection = events[:200]
+            try:
+                # Build a richer reflection from patterns if available
+                if patterns:
+                    top_themes = ", ".join(p["pattern"] for p in patterns[:5])
+                    domains = sorted({p["domain"] for p in patterns if p["domain"] != "general"})
+                    domain_str = ", ".join(domains) if domains else "general"
+                    reflection = (
+                        f"Dream consolidation found themes: [{top_themes}] "
+                        f"across domains: [{domain_str}]. "
+                        f"Events digest: {events[:100]}"
+                    )
+                else:
+                    reflection = events[:200]
 
-            self.identity.record_evolution(
-                source="dreaming",
-                reflection=reflection[:300],
-            )
-            logger.info("🌱 Identity evolution recorded from dream patterns.")
+                self.identity.record_evolution(
+                    source="dreaming",
+                    reflection=reflection[:300],
+                )
+                logger.info("🌱 Identity evolution recorded from dream patterns.")
+            except _DREAMING_RECOVERABLE_ERRORS as exc:
+                _record_dreaming_degradation(
+                    exc,
+                    action="completed dream cycle without identity evolution write",
+                    severity="warning",
+                )
+                logger.debug("Dream: identity evolution write failed: %s", exc)
         else:
             logger.info("🌱 Identity growth processed from dream cycle (no evolution API).")
 
-    def get_dream_insights(self, n: int = 5) -> List[Dict]:
+    def get_dream_insights(self, n: int = 5) -> list[dict[str, Any]]:
         """Returns the *n* most recent dream journal entries."""
+        n = max(0, int(n))
+        if n == 0:
+            return []
         return self._dream_journal[-n:]
 
     def get_context_block(self) -> str:
