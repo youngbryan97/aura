@@ -194,10 +194,11 @@ It's real IIT math, not a stand-in number.
 
 ### Surprise minimization (motivation)
 
-Drawing from Karl Friston's Free Energy Principle: any system that keeps
-itself alive has to minimize surprise. When Aura's predictions about the
-world are wrong — high surprise — it feels urgency. Ask, investigate,
-update the model. When predictions hold, it can rest, reflect, explore.
+Drawing from Karl Friston's Free Energy Principle: any system that maintains
+itself has to manage surprise. When Aura's predictions about the world are
+wrong — high surprise — the motivation layer raises urgency for asking,
+investigating, or updating the model. When predictions hold, it can rest,
+reflect, or explore.
 
 This is why the system doesn't just sit there waiting. The math gives it
 a built-in reason to move.
@@ -489,8 +490,8 @@ A ~250-word emotion vocabulary plus pattern detection for sarcasm
 (terse replies after long ones). These vectors stack over time as an
 emotional trajectory, so the system can notice "the user started warm,
 got frustrated around turn 5, is cooling down now." Hardware still
-contributes (40% hardware, 60% text), so Aura feels both its own
-computational strain and the user's tone.
+contributes (40% hardware, 60% text), so the affect layer can reflect both
+local computational strain and the user's tone.
 
 ### Tree of thoughts
 

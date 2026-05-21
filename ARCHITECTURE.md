@@ -321,39 +321,59 @@ State is event-sourced. Each phase produces a new immutable state version
 derived from the previous one. The committed state survives process crashes,
 power loss, and restarts via SQLite persistence.
 
-### RobustOrchestrator: Composition & Concurrency
+### RobustOrchestrator: composition and concurrency
 
-The central coordinating brain of Aura is the `RobustOrchestrator` (`core/orchestrator/main.py`). Rather than a monolith, it is implemented as a class composing 15 distinct mixins and coordinators to partition responsibilities cleanly:
+The central runtime coordinator is `RobustOrchestrator`
+(`core/orchestrator/main.py`). Rather than holding every concern directly in one
+method body, it composes 15 mixins and coordinators:
 
-1. **`OrchestratorBootMixin`**: Handles boot-up sequencing, initialization sanity checks, and starting the background tasks.
-2. **`StatusManagerMixin`**: Manages operational states (`SystemStatus`) and tracks transition events.
-3. **`OrchestratorStateMixin`**: Handles state configuration, active task mappings, and global properties.
-4. **`OrchestratorServicesMixin`**: Manages service dependency injection, adapter hooks, and external bus handlers.
-5. **`OutputFormatterMixin`**: Normalizes, post-processes, and ensures schema compliance for user-facing responses.
-6. **`PersonalityBridgeMixin`**: Bridges the runtime with target personality profiles and guards against drift.
-7. **`CognitiveBackgroundMixin`**: Orchestrates background tasks, unprompted reflection cycles, and idle-state pacing.
-8. **`MessagePipelineMixin`**: Drives the message routing engine through the pipeline.
-9. **`ToolExecutionMixin`**: Runs system or external tools in isolated, monitored environments.
-10. **`LearningEvolutionMixin`**: Coordinates online STDP learning adjustments and weight consolidation.
-11. **`AutonomyMixin`**: Tracks boredom levels, autonomous action limits, and self-directed initiatives.
-12. **`ResponseProcessingMixin`**: Interfaces with the LLM router, handles post-generation safety scans, and captures response artifacts.
-13. **`ContextStreamingMixin`**: Powers UI-level response token streaming and visual pacing.
-14. **`MessageHandlingMixin`**: Directs internal queue routing, priority ingestion, and user message parsing.
-15. **`IncomingLogicMixin`**: Standardizes priority cognitive block entry points and status updates.
+1. **`OrchestratorBootMixin`**: boot sequencing, initialization checks, and
+   background task startup.
+2. **`StatusManagerMixin`**: operational state transitions and status events.
+3. **`OrchestratorStateMixin`**: state configuration, active task mappings, and
+   global properties.
+4. **`OrchestratorServicesMixin`**: service dependency injection, adapter hooks,
+   and external bus handlers.
+5. **`OutputFormatterMixin`**: response normalization and schema compliance.
+6. **`PersonalityBridgeMixin`**: runtime personality profile bridging and drift
+   guards.
+7. **`CognitiveBackgroundMixin`**: background work, reflection cycles, and idle
+   pacing.
+8. **`MessagePipelineMixin`**: message routing through the pipeline.
+9. **`ToolExecutionMixin`**: governed system and external tool execution.
+10. **`LearningEvolutionMixin`**: online STDP adjustment and consolidation hooks.
+11. **`AutonomyMixin`**: boredom levels, autonomous action limits, and
+    self-directed initiatives.
+12. **`ResponseProcessingMixin`**: LLM routing, post-generation safety scans, and
+    response artifacts.
+13. **`ContextStreamingMixin`**: UI response-token streaming and visual pacing.
+14. **`MessageHandlingMixin`**: queue routing, priority ingestion, and user
+    message parsing.
+15. **`IncomingLogicMixin`**: priority cognitive block entry points and status
+    updates.
 
-#### Synchronization Locks
-The orchestrator maintains separate execution scopes using dedicated `RobustLock` objects to ensure concurrent safety:
-- **`_lock`** (Global StateLock): Protects the primary cognitive loop. Holds exclusive focus for active ticks.
+#### Synchronization locks
+
+The orchestrator maintains separate execution scopes using dedicated
+`RobustLock` objects:
+
+- **`_lock`** (Global StateLock): Protects the primary cognitive loop and holds
+  exclusive focus for active ticks.
 - **`_history_lock`**: Serializes dialogue memory commits and reads.
 - **`_stats_lock`**: Serializes tracking metrics and instrumentation updates.
 - **`_task_lock`**: Governs scheduling and tracking of async background jobs.
 - **`_extension_lock`**: Controls loading and invoking dynamic runtime extensions.
 
-#### Deadlock Watchdog (The 45-Second Gate)
-To counter potential freezes during heavy GPU inference or Apple Metal XPC stalls, the orchestrator runs a background `_deadlock_watchdog` daemon:
+#### Deadlock watchdog
+
+To counter potential freezes during heavy GPU inference or Apple Metal XPC
+stalls, the orchestrator starts `_deadlock_watchdog` during boot:
+
 - It wakes up every 15 seconds to check the global StateLock (`_lock`).
-- If the lock is held and `status.is_processing` is `True` for longer than **45.0 seconds**, the watchdog triggers a force-release of the lock (`_lock.force_release()`).
-- The watchdog then emits a system warning message to the UI ("*I've recovered from a cognitive stall. Reprioritizing...*"), permitting subsequent messages to execute and preventing permanent runtime lockups.
+- If the lock is held and `status.is_processing` is `True` for longer than
+  **45.0 seconds**, the watchdog calls `_lock.force_release()`.
+- The watchdog then emits a system warning message to the UI so later messages
+  can proceed instead of waiting behind the stale lock.
 
 ### Invariants
 
