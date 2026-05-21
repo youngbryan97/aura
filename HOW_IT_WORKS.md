@@ -10,10 +10,14 @@ quick start.
 
 ## The one-line summary
 
-Aura is an organism-inspired digital agent architecture. It has one decision
-gate, a persistent memory, a resource-stakes ledger, affective state that can
-change generation, and offline consolidation. Those are functional mechanisms,
-not proof of phenomenal consciousness or personhood.
+Aura is an organism-inspired digital agent architecture, not just a chatbot
+wrapper.
+
+It has one central decision gate (the Unified Will), persistent memory, a
+resource-stakes metabolism analog, affective state that can influence
+generation and action selection, and offline consolidation. Those are functional
+mechanisms with tests and receipts. They are not proof of life, a soul,
+personhood, or phenomenal consciousness.
 
 ---
 
@@ -75,9 +79,9 @@ energized language. It's the same kind of intervention AI safety
 researchers use to steer models — just applied to continuous emotional
 state.
 
-The difference is the one between an actor reading stage directions and an
-actor actually being angry. One is performance. The other changes what
-comes out.
+The practical difference is that one path only changes prompt text, while the
+other changes a computation path that can be measured, ablated, and compared
+against controls.
 
 ---
 

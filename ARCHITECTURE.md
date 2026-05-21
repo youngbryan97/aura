@@ -11,6 +11,12 @@ IIT-style integration measure over tractable complexes; full-system IIT remains
 intractable. Steering claims now require black-box prompt hygiene plus a rich
 adversarial prompt baseline before they are credited.
 
+**Recent hardening (May 2026).** Recent checkpoints have focused on making
+runtime claims operational: cognitive-loop heartbeat recovery, canonical
+cognitive integration, multimodal asset execution, personality identity
+persistence, causal-loop repair governance, and protocol/import hardening now
+have focused tests and gate coverage.
+
 For claims about verifiable autonomy, superhuman-scale behavior, and novel
 science or engineering output, see
 [docs/BEHAVIORAL_PROOF_STANDARD.md](docs/BEHAVIORAL_PROOF_STANDARD.md). Those
@@ -107,19 +113,20 @@ identifier. The Will keeps a complete audit trail, and any action can be
 traced back via `will.verify_receipt(receipt_id)`. Decisions are published
 to the event bus for system-wide observability.
 
-### Wiring points (8 paths, 7 files)
+### Wiring surfaces
 
-| Path | File | Domain |
-|------|------|--------|
-| Response generation | `orchestrator/mixins/incoming_logic.py` | RESPONSE |
-| Response finalization | `orchestrator/mixins/response_processing.py` | EXPRESSION |
-| Tool execution | `orchestrator/mixins/tool_execution.py` | TOOL_EXECUTION |
-| Boredom impulse | `orchestrator/mixins/autonomy.py` | INITIATIVE |
-| Agency core pulse | `orchestrator/mixins/autonomy.py` | INITIATIVE |
-| Spontaneous emission | `orchestrator/mixins/autonomy.py` | EXPRESSION |
-| Volition tick | `volition.py` | INITIATIVE |
-| Memory write | `orchestrator/mixins/incoming_logic.py` | MEMORY_WRITE |
-| State mutation | `orchestrator/mixins/incoming_logic.py` | STATE_MUTATION |
+Will integration is enforced through runtime wrappers and verified through
+static and behavioral audits. The important claim is not that a label exists;
+it is that consequential operations produce receipts or fail closed.
+
+- `core/runtime/will_transaction.py` wraps critical blocks so
+  `UnifiedWill.decide()` authorizes an action before the block executes.
+- `core/governance/will_gate.py` intercepts selected function calls and binds
+  them to Will authorization.
+- `tools/arch_map.py`, `guardrail_auditor.py`, and `formal_verifier.py` make the
+  dependency labels operational by scanning for direct Will, memory, state,
+  tool, patching, LLM, and external-I/O paths. Bypasses are treated as audit
+  findings, not compatibility behavior.
 
 ### Freedom within constraints
 
@@ -314,6 +321,40 @@ State is event-sourced. Each phase produces a new immutable state version
 derived from the previous one. The committed state survives process crashes,
 power loss, and restarts via SQLite persistence.
 
+### RobustOrchestrator: Composition & Concurrency
+
+The central coordinating brain of Aura is the `RobustOrchestrator` (`core/orchestrator/main.py`). Rather than a monolith, it is implemented as a class composing 15 distinct mixins and coordinators to partition responsibilities cleanly:
+
+1. **`OrchestratorBootMixin`**: Handles boot-up sequencing, initialization sanity checks, and starting the background tasks.
+2. **`StatusManagerMixin`**: Manages operational states (`SystemStatus`) and tracks transition events.
+3. **`OrchestratorStateMixin`**: Handles state configuration, active task mappings, and global properties.
+4. **`OrchestratorServicesMixin`**: Manages service dependency injection, adapter hooks, and external bus handlers.
+5. **`OutputFormatterMixin`**: Normalizes, post-processes, and ensures schema compliance for user-facing responses.
+6. **`PersonalityBridgeMixin`**: Bridges the runtime with target personality profiles and guards against drift.
+7. **`CognitiveBackgroundMixin`**: Orchestrates background tasks, unprompted reflection cycles, and idle-state pacing.
+8. **`MessagePipelineMixin`**: Drives the message routing engine through the pipeline.
+9. **`ToolExecutionMixin`**: Runs system or external tools in isolated, monitored environments.
+10. **`LearningEvolutionMixin`**: Coordinates online STDP learning adjustments and weight consolidation.
+11. **`AutonomyMixin`**: Tracks boredom levels, autonomous action limits, and self-directed initiatives.
+12. **`ResponseProcessingMixin`**: Interfaces with the LLM router, handles post-generation safety scans, and captures response artifacts.
+13. **`ContextStreamingMixin`**: Powers UI-level response token streaming and visual pacing.
+14. **`MessageHandlingMixin`**: Directs internal queue routing, priority ingestion, and user message parsing.
+15. **`IncomingLogicMixin`**: Standardizes priority cognitive block entry points and status updates.
+
+#### Synchronization Locks
+The orchestrator maintains separate execution scopes using dedicated `RobustLock` objects to ensure concurrent safety:
+- **`_lock`** (Global StateLock): Protects the primary cognitive loop. Holds exclusive focus for active ticks.
+- **`_history_lock`**: Serializes dialogue memory commits and reads.
+- **`_stats_lock`**: Serializes tracking metrics and instrumentation updates.
+- **`_task_lock`**: Governs scheduling and tracking of async background jobs.
+- **`_extension_lock`**: Controls loading and invoking dynamic runtime extensions.
+
+#### Deadlock Watchdog (The 45-Second Gate)
+To counter potential freezes during heavy GPU inference or Apple Metal XPC stalls, the orchestrator runs a background `_deadlock_watchdog` daemon:
+- It wakes up every 15 seconds to check the global StateLock (`_lock`).
+- If the lock is held and `status.is_processing` is `True` for longer than **45.0 seconds**, the watchdog triggers a force-release of the lock (`_lock.force_release()`).
+- The watchdog then emits a system warning message to the UI ("*I've recovered from a cognitive stall. Reprioritizing...*"), permitting subsequent messages to execute and preventing permanent runtime lockups.
+
 ### Invariants
 
 These properties have to hold at all times. If any of them is violated,
@@ -326,29 +367,28 @@ it's a bug:
 
 ### Inference pipeline
 
-The LLM inference layer (`core/brain/llm/`) is now substrate-first and
-multi-tier. The live substrate tries a learned readout head before the
-transformer. If its own prediction error exceeds threshold, the request falls
-through to the Cortex/Solver/Brainstem stack.
+The LLM inference layer (`core/brain/llm/`) is organized around a dynamic
+multi-tier fallback system (`IntelligentLLMRouter`) with health monitoring.
 
 ```
 User Message → Orchestrator → LLM Router
-  → Tier 0: Substrate readout (continuous state → logits) ──→ Response
-  │   ↓ (prediction_error > threshold / forced transformer)
-  → Tier 1: Cortex (Qwen 2.5 32B 8-bit + LoRA adapter) ──→ Response
+  → PRIMARY: Local powerful model (for example the Cortex lane) for high-coherence language work.
+  │   ↓ (failure/timeout/429)
+  → SECONDARY: API-deep or Solver lane when configured or explicitly required.
   │   ↓ (failure/timeout/empty)
-  → Tier 2: Solver (Qwen 2.5/3 72B, hot-swapped) ──→ Response
-  │   ↓ (failure/timeout/empty)
-  → Tier 3: Brainstem (Qwen 2.5 7B 4-bit) ──→ Response
-  │   ↓ (failure/timeout/empty)
-  → Tier 4: Cloud (Gemini Flash/Pro, PII-scrubbed) ──→ Response
-  │   ↓ (failure/quota exhausted)
-  → Tier 5: Reflex (Qwen 2.5 1.5B 4-bit CPU) ──→ Response
+  → TERTIARY: Fast local Brainstem lane for rapid response or fallback.
   │   ↓ (failure)
-  → Tier 6: LazarusBrainstem (rule-based static responses, never fails)
+  → EMERGENCY: StaticReflexClient deterministic response floor.
 ```
 
 Key implementation details:
+- **IntelligentLLMRouter** (`llm_router.py`): manages the dynamic tier system
+  rather than a rigid static sequence. It supports endpoint aliases such as
+  `API_DEEP`, `LOCAL`, and `API_FAST` for flexible routing.
+- **LLMHealthMonitor**: tracks per-endpoint failure counts. A 429 rate limit
+  triggers an immediate circuit break, and repeated standard failures disable an
+  endpoint until its recovery window elapses.
+- **Substrate Token Generator**: Pre-transformer readout. If configured, the live substrate tries to map its continuous state to logits before firing the transformer.
 - **Model registry** (`model_registry.py`): single source of truth for model lanes, artifact paths, and backend selection (MLX or llama.cpp)
 - **Health monitor**: per-endpoint failure tracking with a 3-failure threshold, 20-second recovery window, and immediate circuit break on 429 rate limits
 - **GPU semaphore**: a global `threading.Semaphore(1)` ensures only one model loads at a time, preventing OOM from simultaneous loads

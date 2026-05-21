@@ -1,14 +1,14 @@
 # Aura
 
-A local cognitive-architecture research runtime with behavioral steering,
-closed-loop learning, identity persistence experiments, receipt-based action
-governance, and lesion/evidence harnesses.
+A local cognitive-architecture research runtime for testing continuous-state
+agency, receipt-based governance, memory persistence, activation steering, and
+long-run self-maintenance.
 
-Aura is not yet a perfectly sealed governance system, not production-grade in
-the Chrome/Postgres/Kubernetes sense, and not "alive" because modules are named
-consciousness, qualia, will, or soma. The meaningful claims live in causal
-coupling, persistence, action receipts, successful lesions, external task
-performance, and long-run autonomy runs that can be reproduced.
+Aura is not presented as proof of life, personhood, or phenomenal
+consciousness. The serious claim is narrower and testable: internal state can
+causally affect generation, memory writes, tool authorization, initiative
+selection, and runtime repair through code paths that leave receipts and can be
+audited.
 
 [![License: All Rights Reserved (Read-Only)](https://img.shields.io/badge/License-All_Rights_Reserved_(Read--Only)-red.svg)](LICENSE)
 ![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)
@@ -17,8 +17,14 @@ performance, and long-run autonomy runs that can be reproduced.
 For the technical deep dive, read [ARCHITECTURE.md](ARCHITECTURE.md). If you
 want the same ideas without the math, read [HOW_IT_WORKS.md](HOW_IT_WORKS.md). If
 you want the evidence standard for autonomy and novel output claims, read
-[docs/BEHAVIORAL_PROOF_STANDARD.md](docs/BEHAVIORAL_PROOF_STANDARD.md). If you
-want to see it work, keep reading.
+[docs/BEHAVIORAL_PROOF_STANDARD.md](docs/BEHAVIORAL_PROOF_STANDARD.md).
+
+**Evidence map:** Claims should point to runnable tests, proof bundles, receipts,
+or replayable logs. Test counts move with the repo; use `pytest --collect-only`,
+`make proof-bundle`, and [TESTING.md](TESTING.md) for the current surface rather
+than treating prose as evidence.
+
+If you want to see it work, keep reading.
 
 ## Evidence boundary
 
@@ -149,7 +155,7 @@ asking readers to infer maturity from prose.
 
 ---
 
-## What it is
+## Why Aura is Different
 
 Most "AI companion" projects do roughly the same thing: store a mood number, paste
 it into the system prompt, and let the model roleplay. The model says "I'm feeling
