@@ -12,12 +12,82 @@ Handles:
 
 All execution is gated through AuthorityGateway -> UnifiedWill.
 """
-from core.runtime.errors import record_degradation
+from __future__ import annotations
+
 import logging
+import sqlite3
 import time
-from typing import Any, Dict, List
+from typing import Any
+
+from core.runtime.errors import FallbackClassification, Severity, record_degradation
 
 logger = logging.getLogger(__name__)
+
+MAX_TOOL_NAME_CHARS = 128
+MAX_ARG_REPR_CHARS = 2000
+
+_TOOL_EXECUTOR_ERRORS = (
+    AttributeError,
+    ConnectionError,
+    ImportError,
+    LookupError,
+    OSError,
+    RuntimeError,
+    TimeoutError,
+    TypeError,
+    ValueError,
+    sqlite3.Error,
+)
+
+
+def _record_tool_executor_degradation(
+    error: BaseException,
+    *,
+    action: str,
+    severity: Severity = "degraded",
+    extra: dict[str, object] | None = None,
+) -> None:
+    try:
+        record_degradation(
+            "tool_executor",
+            error,
+            severity=severity,
+            action=action,
+            classification=FallbackClassification.SAFE_FALLBACK,
+            receipt_required=True,
+            extra=extra,
+        )
+    except TypeError as signature_exc:
+        try:
+            record_degradation(
+                "tool_executor",
+                error,
+                severity=severity,
+                action=action or "tool executor degraded",
+            )
+        except TypeError:
+            logger.warning(
+                "ToolExecutor degradation could not be recorded: %s",
+                signature_exc,
+            )
+
+
+def _safe_tool_name(tool_name: object) -> str:
+    try:
+        name = str(tool_name or "").replace("\x00", "").strip()
+    except (RuntimeError, TypeError, ValueError):
+        name = ""
+    return name[:MAX_TOOL_NAME_CHARS]
+
+
+def _safe_args(args: object) -> dict[str, Any]:
+    if isinstance(args, dict):
+        return dict(args)
+    return {}
+
+
+def _compact_error(error: BaseException) -> str:
+    return f"{type(error).__name__}: {str(error)[:500]}"
 
 
 class ToolExecutor:
@@ -31,7 +101,7 @@ class ToolExecutor:
         orch: Any,
         *,
         tool_name: str,
-        args: Dict[str, Any],
+        args: dict[str, Any],
         result: Any,
         success: bool,
         error: str = "",
@@ -48,52 +118,116 @@ class ToolExecutor:
                 success=success,
                 error=error,
             )
-        except (ImportError, AttributeError, RuntimeError) as exc:
-            record_degradation('tool_executor', exc)
+        except _TOOL_EXECUTOR_ERRORS as exc:
+            _record_tool_executor_degradation(
+                exc,
+                action="continued tool execution after coding session memory record failed",
+                severity="warning",
+                extra={"tool_name": _safe_tool_name(tool_name)},
+            )
             logger.debug("ToolExecutor: coding tool recording skipped: %s", exc)
 
-    async def execute_tool(self, tool_name: str, args: Dict[str, Any]) -> Any:
+    async def execute_tool(self, tool_name: str, args: dict[str, Any]) -> Any:
         """Execute a single tool with feedback, episodic recording, and learning."""
-        from core.utils.task_tracker import task_tracker
-        from core.world_model.acg import acg as _acg_module
-
         orch = self.orch
         _start = time.time()
+        tool_name = _safe_tool_name(tool_name)
+        args = _safe_args(args)
+        if not tool_name:
+            result = {"ok": False, "error": "invalid_tool_name"}
+            self._record_coding_tool_event(
+                orch,
+                tool_name="",
+                args=args,
+                result=result,
+                success=False,
+                error=result["error"],
+            )
+            return result
+
+        current_objective = getattr(orch, "_current_objective", "") or ""
+        emit_thought = getattr(orch, "_emit_thought_stream", None)
 
         # Swarm debate delegation
         if tool_name == "swarm_debate":
-            if not orch.swarm:
-                result = {"ok": False, "error": "Swarm Delegator not available."}
-                self._record_coding_tool_event(orch, tool_name=tool_name, args=args, result=result, success=False, error=result["error"])
+            try:
+                swarm = getattr(orch, "swarm", None)
+                if not swarm:
+                    result = {"ok": False, "error": "Swarm Delegator not available."}
+                    self._record_coding_tool_event(orch, tool_name=tool_name, args=args, result=result, success=False, error=result["error"])
+                    return result
+                topic = args.get("topic") or args.get("query") or current_objective
+                roles = args.get("roles", ["architect", "critic"])
+                if not isinstance(roles, list):
+                    roles = ["architect", "critic"]
+                if callable(emit_thought):
+                    emit_thought(f"🐝 Engaging Swarm Debate: {str(topic)[:100]}...")
+                result = await swarm.delegate_debate(str(topic), roles=roles)
+                response = {"ok": True, "output": result}
+                self._record_coding_tool_event(orch, tool_name=tool_name, args=args, result=response, success=True)
+                return response
+            except _TOOL_EXECUTOR_ERRORS as e:
+                _record_tool_executor_degradation(
+                    e,
+                    action="returned structured swarm_debate failure",
+                    severity="degraded",
+                    extra={"tool_name": tool_name},
+                )
+                result = {
+                    "ok": False,
+                    "error": "execution_jolt",
+                    "message": _compact_error(e),
+                }
+                self._record_coding_tool_event(
+                    orch,
+                    tool_name=tool_name,
+                    args=args,
+                    result=result,
+                    success=False,
+                    error=str(e),
+                )
                 return result
-            topic = args.get("topic") or args.get("query") or orch._current_objective
-            roles = args.get("roles", ["architect", "critic"])
-            orch._emit_thought_stream(f"🐝 Engaging Swarm Debate: {topic[:100]}...")
-            result = await orch.swarm.delegate_debate(topic, roles=roles)
-            response = {"ok": True, "output": result}
-            self._record_coding_tool_event(orch, tool_name=tool_name, args=args, result=response, success=True)
-            return response
 
         try:
+            router = getattr(orch, "router", None)
+            if router is None or not hasattr(router, "execute"):
+                result = {
+                    "ok": False,
+                    "error": "tool_router_unavailable",
+                    "message": "Tool router is unavailable.",
+                }
+                self._record_coding_tool_event(
+                    orch,
+                    tool_name=tool_name,
+                    args=args,
+                    result=result,
+                    success=False,
+                    error=result["error"],
+                )
+                return result
+
             # Missing tool -> Hephaestus forge
-            if tool_name not in orch.router.skills:
+            if tool_name not in getattr(router, "skills", {}):
                 if tool_name == "notify_user":
                     result = {"ok": True, "message": args.get("message", "Done.")}
                     self._record_coding_tool_event(orch, tool_name=tool_name, args=args, result=result, success=True)
                     return result
-                if orch.hephaestus:
-                    orch._emit_thought_stream(
+                hephaestus = getattr(orch, "hephaestus", None)
+                if hephaestus:
+                    if callable(emit_thought):
+                        emit_thought(
                         f"🔨 Tool '{tool_name}' missing. Initiating Autonomous Forge..."
-                    )
+                        )
                     objective = (
                         f"Create a skill '{tool_name}' to handle request "
-                        f"within objective: {orch._current_objective}"
+                        f"within objective: {current_objective}"
                     )
-                    forge_result = await orch.hephaestus.synthesize_skill(tool_name, objective)
+                    forge_result = await hephaestus.synthesize_skill(tool_name, objective)
                     if forge_result.get("ok"):
-                        orch._emit_thought_stream(
-                            f"✅ Skill '{tool_name}' forged successfully. Retrying..."
-                        )
+                        if callable(emit_thought):
+                            emit_thought(
+                                f"✅ Skill '{tool_name}' forged successfully. Retrying..."
+                            )
                         return await self.execute_tool(tool_name, args)
                     else:
                         logger.warning(
@@ -108,7 +242,7 @@ class ToolExecutor:
             # Execute via router
             goal = {"action": tool_name, "params": args}
             context = {
-                "objective": orch._current_objective,
+                "objective": current_objective,
                 "system": orch.status.__dict__,
                 "stealth": (
                     await orch.stealth_mode.get_stealth_status()
@@ -123,8 +257,10 @@ class ToolExecutor:
                     else {}
                 ),
             }
-            result = await orch.router.execute(goal, context)
-            success = result.get("ok", False)
+            result = await router.execute(goal, context)
+            if not isinstance(result, dict):
+                result = {"ok": True, "output": result}
+            success = bool(result.get("ok", False))
             elapsed_ms = (time.time() - _start) * 1000
             logger.info("Tool %s execution completed: %s", tool_name, success)
 
@@ -148,12 +284,24 @@ class ToolExecutor:
 
             return result
 
-        except (sqlite3.Error, OSError) as e:
-            record_degradation('tool_executor', e)
+        except _TOOL_EXECUTOR_ERRORS as e:
+            _record_tool_executor_degradation(
+                e,
+                action="returned structured tool failure and recorded crash context",
+                severity="degraded",
+                extra={
+                    "tool_name": tool_name,
+                    "args_preview": repr(args)[:MAX_ARG_REPR_CHARS],
+                },
+            )
             logger.error("Execution Jolt (Pain): Tool %s crashed: %s", tool_name, e)
             await self._record_crash(orch, tool_name, args, e)
             elapsed_ms = (time.time() - _start) * 1000
-            result = {"ok": False, "error": "execution_jolt", "message": str(e)}
+            result = {
+                "ok": False,
+                "error": "execution_jolt",
+                "message": _compact_error(e),
+            }
             self._record_coding_tool_event(orch, tool_name=tool_name, args=args, result=result, success=False, error=str(e))
             # [RUBICON] Action Feedback Loop -- record crash
             self._emit_action_feedback(
@@ -163,10 +311,17 @@ class ToolExecutor:
             )
             return result
 
-    async def execute_plan(self, plan: Dict[str, Any]) -> List[Any]:
+    async def execute_plan(self, plan: dict[str, Any]) -> list[Any]:
         """Batch tool execution from a plan dict."""
         results = []
-        for tool_call in plan.get("tool_calls", []):
+        plan = _safe_args(plan)
+        tool_calls = plan.get("tool_calls", [])
+        if not isinstance(tool_calls, list):
+            return [{"ok": False, "error": "invalid_tool_plan"}]
+        for tool_call in tool_calls:
+            if not isinstance(tool_call, dict):
+                results.append({"ok": False, "error": "invalid_tool_call"})
+                continue
             result = await self.execute_tool(
                 tool_call.get("tool", "unknown"),
                 tool_call.get("args", {}),
@@ -178,7 +333,7 @@ class ToolExecutor:
 
     @staticmethod
     def _record_tool_learning(
-        orch: Any, tool_name: str, args: Dict, success: bool, elapsed_ms: float
+        orch: Any, tool_name: str, args: dict[str, Any], success: bool, elapsed_ms: float
     ) -> None:
         if hasattr(orch, "tool_learner") and orch.tool_learner:
             try:
@@ -187,12 +342,17 @@ class ToolExecutor:
                 )
                 orch.tool_learner.record_usage(tool_name, category, success, elapsed_ms)
             except (OSError, ConnectionError, TimeoutError) as _e:
-                record_degradation('tool_executor', _e)
+                _record_tool_executor_degradation(
+                    _e,
+                    action="continued after tool learning record failed",
+                    severity="warning",
+                    extra={"tool_name": _safe_tool_name(tool_name)},
+                )
                 logger.debug("Tool learning record failed: %s", _e)
 
     @staticmethod
     async def _record_memory(
-        orch: Any, tool_name: str, args: Dict, result: Any, success: bool
+        orch: Any, tool_name: str, args: dict[str, Any], result: Any, success: bool
     ) -> None:
         if hasattr(orch, "memory") and orch.memory:
             try:
@@ -204,11 +364,16 @@ class ToolExecutor:
                     importance=0.3 if success else 0.7,
                 )
             except (RuntimeError, AttributeError, TypeError, ValueError) as _e:
-                record_degradation('tool_executor', _e)
+                _record_tool_executor_degradation(
+                    _e,
+                    action="continued after unified memory tool record failed",
+                    severity="warning",
+                    extra={"tool_name": _safe_tool_name(tool_name)},
+                )
                 logger.debug("Unified memory record failed: %s", _e)
 
     @staticmethod
-    def _record_acg(goal: Dict, context: Dict, result: Any, success: bool) -> None:
+    def _record_acg(goal: dict[str, Any], context: dict[str, Any], result: Any, success: bool) -> None:
         try:
             from core.world_model.acg import acg as _acg_module
 
@@ -218,8 +383,13 @@ class ToolExecutor:
                 outcome=result,
                 success=success,
             )
-        except (ImportError, AttributeError, RuntimeError) as _e:
-            record_degradation('tool_executor', _e)
+        except _TOOL_EXECUTOR_ERRORS as _e:
+            _record_tool_executor_degradation(
+                _e,
+                action="continued after ACG outcome record failed",
+                severity="warning",
+                extra={"goal": repr(goal)[:MAX_ARG_REPR_CHARS]},
+            )
             logger.debug("ACG record failed: %s", _e)
 
     @staticmethod
@@ -249,12 +419,22 @@ class ToolExecutor:
                 cost_tokens=cost_tokens,
                 source=source,
             )
-        except (ImportError, AttributeError, RuntimeError) as exc:
-            record_degradation('tool_executor', exc)
+        except _TOOL_EXECUTOR_ERRORS as exc:
+            _record_tool_executor_degradation(
+                exc,
+                action="continued after somatic action feedback emission failed",
+                severity="warning",
+                extra={"tool_name": _safe_tool_name(tool_name)},
+            )
             logger.debug("ToolExecutor: action feedback emission failed: %s", exc)
 
     @staticmethod
-    async def _record_crash(orch: Any, tool_name: str, args: Dict, error: Exception) -> None:
+    async def _record_crash(
+        orch: Any,
+        tool_name: str,
+        args: dict[str, Any],
+        error: BaseException,
+    ) -> None:
         if hasattr(orch, "memory") and orch.memory:
             try:
                 await orch.memory.commit_interaction(
@@ -266,5 +446,10 @@ class ToolExecutor:
                     importance=0.9,
                 )
             except (RuntimeError, AttributeError, TypeError, ValueError) as _e:
-                record_degradation('tool_executor', _e)
+                _record_tool_executor_degradation(
+                    _e,
+                    action="continued after crash memory record failed",
+                    severity="warning",
+                    extra={"tool_name": _safe_tool_name(tool_name)},
+                )
                 logger.debug("Unified memory record failed (crash path): %s", _e)
