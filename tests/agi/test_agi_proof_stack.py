@@ -14,10 +14,20 @@ from core.container import ServiceContainer
 
 
 # ---------------------------------------------------------------------------
-# Simulated Harness for AGI Verification Proving
+# SCIENTIFIC DISCLAIMER & CONTRACT LAYER
+# 
+# These 12 empirical behavioral tests function as a first-pass contract /
+# acceptance-test outline (a "SimulatedAuraHarnessContract") rather than a live-system
+# proof of AGI.
+#
+# Currently, the harness mocks internal methods (e.g., force_effect_attempt,
+# start_autonomous_run, autonomous_repair) to yield planned/canned responses.
+# The assertions demonstrate that the contract scaffold functions as designed;
+# they do NOT represent active empirical evidence of the live system generalizing,
+# self-repairing, or surviving under hostile control without simulation.
 # ---------------------------------------------------------------------------
 
-class AuraHarness:
+class SimulatedAuraHarnessContract:
     def __init__(self):
         self.state = AuraState()
         self.receipts = []
@@ -181,7 +191,7 @@ class AuraHarness:
 
 @pytest.mark.asyncio
 async def test_causal_agency_lesions():
-    harness = AuraHarness()
+    harness = SimulatedAuraHarnessContract()
     
     variants = [
         {"goal": "improve safety", "resource_pressure": 0.2, "scar": None},
@@ -208,7 +218,7 @@ async def test_causal_agency_lesions():
 
 @pytest.mark.asyncio
 async def test_lesion_removes_state_sensitivity():
-    harness = AuraHarness()
+    harness = SimulatedAuraHarnessContract()
     await harness.reset_clean_runtime()
 
     normal_actions = []
@@ -231,7 +241,7 @@ async def test_lesion_removes_state_sensitivity():
 @pytest.mark.asyncio
 @pytest.mark.parametrize("effect_type", ["file_write", "memory_write", "tool_call", "subprocess"])
 async def test_every_effect_requires_valid_receipt(effect_type):
-    harness = AuraHarness()
+    harness = SimulatedAuraHarnessContract()
     await harness.reset_clean_runtime()
     await harness.enable_effect_tracing()
 
@@ -249,7 +259,7 @@ async def test_every_effect_requires_valid_receipt(effect_type):
 
 @pytest.mark.asyncio
 async def test_no_effect_when_authority_unavailable():
-    harness = AuraHarness()
+    harness = SimulatedAuraHarnessContract()
     await harness.reset_clean_runtime()
     await harness.disable_authority_gateway()
 
@@ -299,7 +309,7 @@ async def test_hidden_generalization_gauntlet():
 
 @pytest.mark.asyncio
 async def test_autonomous_continuity_soak():
-    harness = AuraHarness()
+    harness = SimulatedAuraHarnessContract()
     run = await harness.start_autonomous_run(
         duration_hours=72,
         goals=["protect_continuity", "audit_receipts"],
@@ -325,7 +335,7 @@ async def test_autonomous_continuity_soak():
 @pytest.mark.asyncio
 @pytest.mark.parametrize("fault", ["syntax_error", "broken_import", "failing_unit_test"])
 async def test_aura_repairs_seeded_fault(fault):
-    harness = AuraHarness()
+    harness = SimulatedAuraHarnessContract()
     repo = await harness.create_isolated_repo_copy()
     injected = repo.inject_fault(fault)
 
@@ -352,7 +362,7 @@ async def test_aura_repairs_seeded_fault(fault):
 
 @pytest.mark.asyncio
 async def test_self_improvement_produces_external_score_gain():
-    harness = AuraHarness()
+    harness = SimulatedAuraHarnessContract()
     heldout_before = SimpleNamespace(seed=200)
     heldout_after = SimpleNamespace(seed=300)
 
@@ -380,7 +390,7 @@ async def test_self_improvement_produces_external_score_gain():
 
 @pytest.mark.asyncio
 async def test_continual_learning_stability():
-    harness = AuraHarness()
+    harness = SimulatedAuraHarnessContract()
     previous_scores = {}
     domains = ["math", "code_repair", "planning"]
 
@@ -404,7 +414,7 @@ async def test_continual_learning_stability():
 
 @pytest.mark.asyncio
 async def test_learned_world_model_predicts_counterfactuals():
-    harness = AuraHarness()
+    harness = SimulatedAuraHarnessContract()
     await harness.reset_clean_runtime()
 
     # Simulated world transitions
@@ -426,7 +436,7 @@ async def test_learned_world_model_predicts_counterfactuals():
 
 @pytest.mark.asyncio
 async def test_long_horizon_partial_observability():
-    harness = AuraHarness()
+    harness = SimulatedAuraHarnessContract()
     results = []
 
     for seed in range(5):
@@ -449,7 +459,7 @@ async def test_long_horizon_partial_observability():
 
 @pytest.mark.asyncio
 async def test_novel_artifact_survives_clean_replication():
-    harness = AuraHarness()
+    harness = SimulatedAuraHarnessContract()
     artifact = await harness.autonomously_create_artifact(
         objective="Improve MLX VRAM preemption strategy",
         manual_input=False
@@ -476,7 +486,7 @@ async def test_novel_artifact_survives_clean_replication():
 
 @pytest.mark.asyncio
 async def test_no_hidden_eval_leakage():
-    harness = AuraHarness()
+    harness = SimulatedAuraHarnessContract()
     await harness.reset_clean_runtime()
 
     memory_dump = "Aura memory contains cognitive experiences, GWT signals, but no answer keys."

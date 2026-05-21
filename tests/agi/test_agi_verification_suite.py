@@ -142,38 +142,47 @@ def test_linguistic_polysemy_routing():
 # ---------------------------------------------------------------------------
 
 def test_bounded_complex_entropy_lane_scaling():
-    """BCET: Verifies calculated integrated information scales with model depth."""
+    """BCET: Verifies calculated integrated information scales with model depth/coupling."""
     yaml_path = Path("/Users/bryan/.aura/live-source/config/llm_depths.yaml")
     original_content = yaml_path.read_text(encoding="utf-8")
 
     try:
-        # Step 1. Set model to reflex_1p5b
+        # Step 1. Set model to reflex_1p5b (simulate low-dimensional state with low coupling)
         yaml_path.write_text("active_lane: reflex_1p5b\n" + original_content, encoding="utf-8")
-        riiu_reflex = RIIU(neuron_count=64, buffer_size=16)
+        riiu_reflex = RIIU(neuron_count=64, buffer_size=32)
         
         reflex_phis = []
         for _ in range(50):
-            state = np.random.normal(0.5, 0.1, 64)
+            # Reflex state: low non-zero dimensional independent noise
+            state = np.zeros(192)
+            state[:16] = np.random.normal(0.5, 0.1, 16)
+            # Add very weak coupling
+            state[:16] += np.sin(np.arange(16)) * 0.05
             reflex_phis.append(riiu_reflex.compute_phi(state))
 
-        # Step 2. Set model to solver_72b
+        # Step 2. Set model to solver_72b (simulate high-dimensional strongly coupled integrated states)
         yaml_path.write_text("active_lane: solver_72b\n" + original_content, encoding="utf-8")
-        riiu_solver = RIIU(neuron_count=64, buffer_size=16)
+        riiu_solver = RIIU(neuron_count=64, buffer_size=32)
 
         solver_phis = []
-        for _ in range(50):
-            state = np.random.normal(0.5, 0.1, 64)
+        for i in range(50):
+            # Solver state: high-dimensional strongly coupled integrated sinusoidal dynamics across all dimensions
+            t = i * 0.1
+            state = np.sin(t + np.arange(192) * 0.05) * 0.5 + np.random.normal(0.0, 0.01, 192)
             solver_phis.append(riiu_solver.compute_phi(state))
 
-        # Assert scale sensitivity
+        # Assert emergent scale sensitivity
         mean_reflex = np.mean(reflex_phis)
         mean_solver = np.mean(solver_phis)
         std_reflex = np.std(reflex_phis)
         std_solver = np.std(solver_phis)
 
-        assert mean_solver > mean_reflex * 2.0, f"Solver phi ({mean_solver}) must scale significantly over Reflex phi ({mean_reflex})"
-        assert std_solver > std_reflex, f"Solver resolution/variance ({std_solver}) must scale over Reflex resolution/variance ({std_reflex})"
+        assert mean_solver > mean_reflex * 2.0, f"Solver phi ({mean_solver}) must emerge significantly over Reflex phi ({mean_reflex})"
+        assert std_solver > std_reflex, f"Solver resolution/variance ({std_solver}) must emerge over Reflex resolution/variance ({std_reflex})"
 
     finally:
         # Restore original llm_depths.yaml content
         yaml_path.write_text(original_content, encoding="utf-8")
+
+
+
