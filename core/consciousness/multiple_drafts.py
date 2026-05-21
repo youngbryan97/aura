@@ -29,6 +29,7 @@ Integration:
   - ContextAssembler reads draft_divergence for personhood_context
   - Draft competition history is kept for "why did I say that?" debugging
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -41,22 +42,58 @@ from typing import Any
 
 import numpy as np
 
-from core.runtime.errors import record_degradation
+from core.runtime.errors import FallbackClassification, Severity, record_degradation
 
 logger = logging.getLogger("Consciousness.MultipleDrafts")
 
 _RECOVERABLE_DRAFT_ERRORS = (
     AttributeError,
+    ImportError,
     LookupError,
+    OSError,
     RuntimeError,
+    TimeoutError,
     TypeError,
     ValueError,
 )
+_MAX_INPUT_CHARS = 4000
+
+
+def _record_draft_degradation(
+    error: BaseException,
+    *,
+    action: str,
+    severity: Severity = "degraded",
+    extra: dict[str, Any] | None = None,
+) -> None:
+    try:
+        record_degradation(
+            "multiple_drafts",
+            error,
+            severity=severity,
+            action=action,
+            classification=FallbackClassification.SAFE_FALLBACK,
+            receipt_required=True,
+            extra=extra,
+        )
+    except TypeError:
+        record_degradation("multiple_drafts", error)
+
+
+def _finite_float(raw: Any, default: float) -> tuple[float, bool]:
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return default, False
+    if not math.isfinite(value):
+        return default, False
+    return value, True
 
 
 # ---------------------------------------------------------------------------
 # Data structures
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class Draft:
@@ -66,15 +103,16 @@ class Draft:
     the current input.  They compete not by broadcast but by coherence
     at probe time.
     """
-    draft_id: str                      # Unique identifier
-    stream_index: int                  # Which association-tier stream (0, 1, 2)
-    content: str                       # The interpretation text
-    goal: str                          # What this draft is trying to do
-    valence: float                     # Emotional coloring (-1 to +1)
-    urgency: float                     # How pressing (0 to 1)
-    coherence: float                   # Internal coherence score (0 to 1)
+
+    draft_id: str  # Unique identifier
+    stream_index: int  # Which association-tier stream (0, 1, 2)
+    content: str  # The interpretation text
+    goal: str  # What this draft is trying to do
+    valence: float  # Emotional coloring (-1 to +1)
+    urgency: float  # How pressing (0 to 1)
+    coherence: float  # Internal coherence score (0 to 1)
     created_at: float = field(default_factory=time.time)
-    mesh_energy: float = 0.0           # Energy from the association columns that produced it
+    mesh_energy: float = 0.0  # Energy from the association columns that produced it
     association_pattern: np.ndarray | None = field(default=None, repr=False)
 
     def age_secs(self) -> float:
@@ -84,12 +122,13 @@ class Draft:
 @dataclass
 class DraftCompetition:
     """Record of one draft competition for the ring buffer."""
-    input_text: str                    # The original input
-    drafts: list[Draft]                # All competing drafts
-    winner: Draft | None            # The draft that was elevated
-    probe_source: str                  # What triggered elevation ("user", "executive_closure", etc.)
-    probe_delay_ms: float              # Time between input and probe (key MD metric)
-    divergence: float                  # How much the drafts disagreed
+
+    input_text: str  # The original input
+    drafts: list[Draft]  # All competing drafts
+    winner: Draft | None  # The draft that was elevated
+    probe_source: str  # What triggered elevation ("user", "executive_closure", etc.)
+    probe_delay_ms: float  # Time between input and probe (key MD metric)
+    divergence: float  # How much the drafts disagreed
     timestamp: float = field(default_factory=time.time)
 
 
@@ -107,21 +146,21 @@ _STREAM_CONFIGS = [
         "goal_prefix": "Process the direct, surface-level meaning",
         "valence_bias": 0.0,
         "urgency_bias": 0.1,
-        "association_columns": (16, 26),   # First third of association tier
+        "association_columns": (16, 26),  # First third of association tier
     },
     {
         "name": "inferential",
         "goal_prefix": "Read between the lines -- infer implicit intent",
-        "valence_bias": -0.05,             # Slightly cautious
+        "valence_bias": -0.05,  # Slightly cautious
         "urgency_bias": 0.3,
-        "association_columns": (26, 37),   # Middle third of association tier
+        "association_columns": (26, 37),  # Middle third of association tier
     },
     {
         "name": "associative",
         "goal_prefix": "Find unexpected connections and deeper resonance",
-        "valence_bias": 0.1,               # Slightly positive (creative)
-        "urgency_bias": -0.1,              # Less urgent -- needs time to develop
-        "association_columns": (37, 48),   # Last third of association tier
+        "valence_bias": 0.1,  # Slightly positive (creative)
+        "urgency_bias": -0.1,  # Less urgent -- needs time to develop
+        "association_columns": (37, 48),  # Last third of association tier
     },
 ]
 
@@ -129,6 +168,7 @@ _STREAM_CONFIGS = [
 # ---------------------------------------------------------------------------
 # Core engine
 # ---------------------------------------------------------------------------
+
 
 class MultipleDraftsEngine:
     """Runs parallel draft streams and elevates retroactively on probe.
@@ -143,7 +183,7 @@ class MultipleDraftsEngine:
     """
 
     _MAX_HISTORY = 20
-    _DRAFT_EXPIRY_S = 30.0   # Drafts older than this are stale
+    _DRAFT_EXPIRY_S = 30.0  # Drafts older than this are stale
 
     def __init__(self):
         self._current_drafts: list[Draft] = []
@@ -164,11 +204,61 @@ class MultipleDraftsEngine:
             return self._mesh_ref
         try:
             from core.container import ServiceContainer
+
             self._mesh_ref = ServiceContainer.get("neural_mesh", default=None)
         except _RECOVERABLE_DRAFT_ERRORS as exc:
-            record_degradation("multiple_drafts", exc)
+            _record_draft_degradation(
+                exc,
+                action="continued draft generation without neural mesh",
+                severity="warning",
+            )
             logger.debug("NeuralMesh lookup failed: %s", exc)
         return self._mesh_ref
+
+    def _normalize_input_text(self, text: Any) -> str:
+        if text is None:
+            return ""
+        normalized = str(text).strip()
+        if len(normalized) > _MAX_INPUT_CHARS:
+            _record_draft_degradation(
+                ValueError("Multiple Drafts input exceeded bounded length"),
+                severity="warning",
+                action="trimmed oversized draft input before interpretation",
+                extra={"original_length": len(normalized), "limit": _MAX_INPUT_CHARS},
+            )
+            normalized = normalized[:_MAX_INPUT_CHARS].rstrip()
+        return normalized
+
+    def _state_float(
+        self,
+        state_obj: Any,
+        field_name: str,
+        default: float,
+        lower: float,
+        upper: float,
+    ) -> float:
+        value, ok = _finite_float(getattr(state_obj, field_name, default), default)
+        if not ok:
+            _record_draft_degradation(
+                ValueError(f"Invalid affect value for {field_name}"),
+                severity="warning",
+                action="used neutral affect value for draft generation",
+                extra={"field": field_name},
+            )
+            value = default
+        return float(np.clip(value, lower, upper))
+
+    def _stream_name(self, stream_index: int) -> str:
+        try:
+            return str(_STREAM_CONFIGS[stream_index]["name"])
+        except (IndexError, KeyError, TypeError) as exc:
+            _record_draft_degradation(
+                exc,
+                severity="warning",
+                action="treated unknown draft stream as associative",
+                extra={"stream_index": stream_index},
+            )
+            return "associative"
 
     # ── Input submission ─────────────────────────────────────────────
 
@@ -186,10 +276,11 @@ class MultipleDraftsEngine:
         Returns:
             List of generated drafts (for testing/inspection)
         """
-        if not text or not text.strip():
+        text = self._normalize_input_text(text)
+        if not text:
             return []
 
-        self._current_input = text.strip()
+        self._current_input = text
         self._input_time = time.time()
         self._current_drafts = []
 
@@ -200,9 +291,9 @@ class MultipleDraftsEngine:
         if state is not None:
             affect = getattr(state, "affect", None)
             if affect:
-                base_valence = float(getattr(affect, "valence", 0.0))
-                base_arousal = float(getattr(affect, "arousal", 0.5))
-                base_curiosity = float(getattr(affect, "curiosity", 0.5))
+                base_valence = self._state_float(affect, "valence", 0.0, -1.0, 1.0)
+                base_arousal = self._state_float(affect, "arousal", 0.5, 0.0, 1.0)
+                base_curiosity = self._state_float(affect, "curiosity", 0.5, 0.0, 1.0)
 
         # Generate a content fingerprint for seeding the drafts
         text_hash = hashlib.md5(text.encode("utf-8", errors="replace")).hexdigest()
@@ -225,8 +316,7 @@ class MultipleDraftsEngine:
             self._current_drafts.append(draft)
 
         logger.debug(
-            "MultipleDrafts: %d drafts generated for input '%s...' "
-            "[coherences: %s]",
+            "MultipleDrafts: %d drafts generated for input '%s...' [coherences: %s]",
             len(self._current_drafts),
             text[:40],
             ", ".join(f"{d.coherence:.2f}" for d in self._current_drafts),
@@ -257,28 +347,51 @@ class MultipleDraftsEngine:
         col_start, col_end = config["association_columns"]
 
         if mesh is not None:
-            try:
-                energies = []
-                patterns = []
-                for ci in range(col_start, col_end):
+            energies = []
+            patterns = []
+            for ci in range(col_start, col_end):
+                try:
                     summary = mesh.get_column_summary(ci)
-                    energies.append(float(summary.get("energy", 0.0)))
-                    patterns.append(float(summary.get("mean_activation", 0.0)))
-                mesh_energy = float(np.mean(energies)) if energies else 0.0
+                    if not isinstance(summary, dict):
+                        raise TypeError("mesh column summary must be a mapping")
+                    energy, energy_ok = _finite_float(summary.get("energy", 0.0), 0.0)
+                    activation, activation_ok = _finite_float(
+                        summary.get("mean_activation", 0.0), 0.0
+                    )
+                    if not energy_ok or not activation_ok:
+                        raise ValueError("non-finite mesh column summary")
+                    energies.append(float(np.clip(energy, 0.0, 1.0)))
+                    patterns.append(float(np.clip(activation, -1.0, 1.0)))
+                except _RECOVERABLE_DRAFT_ERRORS as exc:
+                    _record_draft_degradation(
+                        exc,
+                        severity="warning",
+                        action="ignored unavailable neural mesh column during draft generation",
+                        extra={"stream_index": stream_index, "column": ci},
+                    )
+                    logger.debug(
+                        "MultipleDrafts: mesh column read failed for stream %d column %d: %s",
+                        stream_index,
+                        ci,
+                        exc,
+                    )
+            if energies:
+                mesh_energy = float(np.mean(energies))
                 association_pattern = np.array(patterns, dtype=np.float32)
-            except _RECOVERABLE_DRAFT_ERRORS as exc:
-                record_degradation('multiple_drafts', exc)
-                logger.debug("MultipleDrafts: mesh read failed for stream %d: %s", stream_index, exc)
 
         # Compute draft properties influenced by mesh state and text features
         valence = np.clip(
             base_valence + config["valence_bias"] + local_rng.normal(0, 0.1),
-            -1.0, 1.0,
+            -1.0,
+            1.0,
         )
         urgency = np.clip(
-            base_arousal * 0.5 + config["urgency_bias"] + mesh_energy * 0.3
+            base_arousal * 0.5
+            + config["urgency_bias"]
+            + mesh_energy * 0.3
             + text_features.get("question_pressure", 0.0) * 0.2,
-            0.0, 1.0,
+            0.0,
+            1.0,
         )
 
         # Coherence: how well this stream's columns agree with each other
@@ -329,12 +442,30 @@ class MultipleDraftsEngine:
         word_count = len(words)
         has_question = "?" in text
         has_exclamation = "!" in text
-        has_negation = any(w.lower() in ("not", "no", "never", "don't", "doesn't", "won't", "can't")
-                          for w in words)
+        has_negation = any(
+            w.lower() in ("not", "no", "never", "don't", "doesn't", "won't", "can't") for w in words
+        )
         # Emotional loading: count words that often carry affect
-        affect_words = {"love", "hate", "feel", "sad", "happy", "angry", "worried",
-                        "excited", "afraid", "hope", "fear", "wish", "miss", "hurt",
-                        "beautiful", "terrible", "amazing", "awful"}
+        affect_words = {
+            "love",
+            "hate",
+            "feel",
+            "sad",
+            "happy",
+            "angry",
+            "worried",
+            "excited",
+            "afraid",
+            "hope",
+            "fear",
+            "wish",
+            "miss",
+            "hurt",
+            "beautiful",
+            "terrible",
+            "amazing",
+            "awful",
+        }
         affect_count = sum(1 for w in words if w.lower().strip(".,!?") in affect_words)
 
         return {
@@ -442,7 +573,7 @@ class MultipleDraftsEngine:
         # Time-dependent coherence adjustment -- the key MD insight
         for draft in self._current_drafts:
             age_ms = draft.age_secs() * 1000.0
-            stream_name = _STREAM_CONFIGS[draft.stream_index]["name"]
+            stream_name = self._stream_name(draft.stream_index)
 
             if stream_name == "literal":
                 # Literal peaks early, then plateaus
@@ -471,10 +602,13 @@ class MultipleDraftsEngine:
         coherence_spread = float(np.std(coherences)) * 2.0 if len(coherences) > 1 else 0.0
         valence_spread = float(np.std(valences)) if len(valences) > 1 else 0.0
         urgency_spread = float(np.std(urgencies)) if len(urgencies) > 1 else 0.0
-        divergence = float(np.clip(
-            coherence_spread * 0.5 + valence_spread * 0.3 + urgency_spread * 0.2,
-            0.0, 1.0,
-        ))
+        divergence = float(
+            np.clip(
+                coherence_spread * 0.5 + valence_spread * 0.3 + urgency_spread * 0.2,
+                0.0,
+                1.0,
+            )
+        )
 
         # Record the competition
         competition = DraftCompetition(
@@ -498,7 +632,7 @@ class MultipleDraftsEngine:
             "MultipleDrafts PROBE [%s]: winner=%s (coherence=%.2f) "
             "divergence=%.2f probe_delay=%.0fms",
             source,
-            _STREAM_CONFIGS[winner.stream_index]["name"],
+            self._stream_name(winner.stream_index),
             winner.coherence,
             divergence,
             probe_delay_ms,
@@ -553,7 +687,7 @@ class MultipleDraftsEngine:
         if self._last_divergence < 0.15 and self._last_winner.stream_index == 0:
             return ""  # Boring case: low divergence, literal won. Don't clutter.
 
-        winner_name = _STREAM_CONFIGS[self._last_winner.stream_index]["name"]
+        winner_name = self._stream_name(self._last_winner.stream_index)
         age = self._last_winner.age_secs()
         if age > 60:
             return ""  # Stale
@@ -583,8 +717,7 @@ class MultipleDraftsEngine:
             "pending_drafts": len(self._current_drafts),
             "last_divergence": round(self._last_divergence, 3),
             "last_winner_stream": (
-                _STREAM_CONFIGS[self._last_winner.stream_index]["name"]
-                if self._last_winner else None
+                self._stream_name(self._last_winner.stream_index) if self._last_winner else None
             ),
             "competition_count": len(self._competition_history),
             "has_mesh": self._get_mesh() is not None,

@@ -566,6 +566,48 @@ def test_multiple_drafts_mesh_lookup_failure_is_visible(monkeypatch):
     assert recorded == [("multiple_drafts", "RuntimeError")]
 
 
+def test_multiple_drafts_partial_mesh_failures_keep_finite_drafts(monkeypatch):
+    recorded = []
+    monkeypatch.setattr(
+        multiple_drafts,
+        "record_degradation",
+        lambda *args, **kwargs: recorded.append((args, kwargs)),
+    )
+
+    class _PartialMesh:
+        def get_column_summary(self, column):
+            if column % 3 == 0:
+                raise RuntimeError("column unavailable")
+            if column % 3 == 1:
+                return {"energy": float("nan"), "mean_activation": 0.2}
+            return {"energy": 0.8, "mean_activation": 0.25}
+
+    state = types.SimpleNamespace(
+        affect=types.SimpleNamespace(
+            valence="not-a-number",
+            arousal=float("nan"),
+            curiosity=2.0,
+        )
+    )
+    engine = multiple_drafts.MultipleDraftsEngine()
+    engine._mesh_ref = _PartialMesh()
+
+    drafts = engine.submit_input("How should I interpret this?", state)
+
+    assert len(drafts) == 3
+    assert all(np.isfinite(d.valence) for d in drafts)
+    assert all(np.isfinite(d.urgency) for d in drafts)
+    assert all(0.0 <= d.urgency <= 1.0 for d in drafts)
+    assert any(
+        kwargs.get("action") == "used neutral affect value for draft generation"
+        for _args, kwargs in recorded
+    )
+    assert any(
+        kwargs.get("action") == "ignored unavailable neural mesh column during draft generation"
+        for _args, kwargs in recorded
+    )
+
+
 def test_mhaf_phi_logdet_failure_is_visible(monkeypatch):
     recorded: list[tuple[str, str]] = []
     monkeypatch.setattr(
