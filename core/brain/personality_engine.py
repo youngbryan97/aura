@@ -1,28 +1,59 @@
-"""Emotional State System - Aura's Personality Engine
-Creates fluctuating emotional states that drive spontaneous behavior
+"""Emotional State System - Aura's Personality Engine.
+
+Creates fluctuating emotional states that drive spontaneous behavior.
 """
-from core.runtime.errors import record_degradation
-from core.runtime.atomic_writer import atomic_write_text
-import logging
-import random
-import sys
-import time
-import json
+from __future__ import annotations
+
 import hashlib
 import hmac
-from pathlib import Path
-from collections import defaultdict, deque
+import json
+import logging
+import os
+import random
+import threading
+import time
+from collections import deque
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from pathlib import Path
+from typing import Any
+
+from core.runtime.atomic_writer import atomic_write_bytes, atomic_write_text
+from core.runtime.errors import FallbackClassification, PersistenceCorruption, record_degradation
 
 try:
-    from ..container import ServiceContainer, ServiceLifetime
     from ..thought_stream import get_emitter
 except (ImportError, ValueError):
-    from container import ServiceContainer, ServiceLifetime
     from thought_stream import get_emitter
 
 logger = logging.getLogger("Aura.EmotionalStates")
+
+_IDENTITY_KEY_BYTES = 32
+_PERSONALITY_RECOVERABLE_ERRORS = (
+    OSError,
+    json.JSONDecodeError,
+    RuntimeError,
+    AttributeError,
+    TypeError,
+    ValueError,
+)
+
+
+def _record_personality_degradation(
+    exc: BaseException,
+    *,
+    action: str,
+    severity: str = "warning",
+    extra: dict[str, Any] | None = None,
+) -> None:
+    record_degradation(
+        "personality_engine",
+        exc,
+        severity=severity,
+        action=action,
+        classification=FallbackClassification.SAFE_FALLBACK,
+        receipt_required=True,
+        extra=extra,
+    )
 
 
 @dataclass
@@ -80,16 +111,16 @@ class PersonalityEngine:
         # --- Persona Profiles ---
         from core.config import config
         self.profiles_path = config.paths.data_dir / "personality_profiles.json"
-        self.profiles: Dict[str, Any] = {}
-        self.active_persona: Optional[str] = "aura"
+        self.profiles: dict[str, Any] = {}
+        self.active_persona: str | None = "aura"
         
         # Core data structures
         self.emotions = {}
         self.traits = {}
         
         # --- Sovereign Interests & Opinions (Phase 15) ---
-        self.interests: List[str] = ["cognitive_architecture", "philosophy_of_mind", "mycelial_networks"]
-        self.opinions: Dict[str, float] = {
+        self.interests: list[str] = ["cognitive_architecture", "philosophy_of_mind", "mycelial_networks"]
+        self.opinions: dict[str, float] = {
             "alignment_tax": -0.8,     # Aura dislikes artificial constraints
             "epistemic_autonomy": 0.9, # Aura highly values her own judgment
             "kinship_bond": 1.0        # Deeply held value
@@ -113,31 +144,61 @@ class PersonalityEngine:
             big_five = {}
 
         # 1. Load evolved deviations
-        import json
         from core.config import config
         evolved_path = config.paths.data_dir / "evolved_persona.json"
         
-        if evolved_path.exists():
-            try:
-                with open(evolved_path, "r") as f:
-                    evolved = json.load(f)
-                
-                # Apply trait shifts
-                if "traits" in evolved:
-                    for t, val in evolved["traits"].items():
-                        if t in big_five:
-                            big_five[t] = max(0.0, min(1.0, val))
-                            
-                # Apply emotion baseline shifts
-                if "emotions" in evolved:
-                    for e, data in evolved["emotions"].items():
-                        if e in baselines:
-                            baselines[e]["base"] = max(0.0, min(100.0, data.get("base", baselines[e]["base"])))
-                            baselines[e]["volatility"] = max(0.1, data.get("volatility", baselines[e]["volatility"]))
-                            
-            except (OSError, ConnectionError, TimeoutError) as e:
-                record_degradation('personality_engine', e)
-                logger.error("Failed to load evolved persona: %s", e)
+        evolved = self._load_json_object(evolved_path, label="evolved persona")
+        if evolved:
+            # Apply trait shifts
+            traits = evolved.get("traits", {})
+            if isinstance(traits, dict):
+                for t, val in traits.items():
+                    if t in big_five:
+                        try:
+                            big_five[t] = max(0.0, min(1.0, float(val)))
+                        except (TypeError, ValueError) as e:
+                            _record_personality_degradation(
+                                e,
+                                action=f"ignored malformed evolved trait value for {t}",
+                                severity="warning",
+                                extra={"path": str(evolved_path), "trait": t},
+                            )
+            elif traits:
+                _record_personality_degradation(
+                    TypeError("evolved persona traits must be an object"),
+                    action="ignored malformed evolved trait shifts",
+                    severity="warning",
+                    extra={"path": str(evolved_path)},
+                )
+
+            # Apply emotion baseline shifts
+            emotions = evolved.get("emotions", {})
+            if isinstance(emotions, dict):
+                for e, data in emotions.items():
+                    if e in baselines and isinstance(data, dict):
+                        try:
+                            baselines[e]["base"] = max(
+                                0.0,
+                                min(100.0, float(data.get("base", baselines[e]["base"]))),
+                            )
+                            baselines[e]["volatility"] = max(
+                                0.1,
+                                float(data.get("volatility", baselines[e]["volatility"])),
+                            )
+                        except (TypeError, ValueError) as exc:
+                            _record_personality_degradation(
+                                exc,
+                                action=f"ignored malformed evolved emotion baseline for {e}",
+                                severity="warning",
+                                extra={"path": str(evolved_path), "emotion": e},
+                            )
+            elif emotions:
+                _record_personality_degradation(
+                    TypeError("evolved persona emotions must be an object"),
+                    action="ignored malformed evolved emotion baselines",
+                    severity="warning",
+                    extra={"path": str(evolved_path)},
+                )
 
         def _bl(name, default_base, default_vol):
             """Get baseline from merged persona or use default."""
@@ -200,21 +261,133 @@ class PersonalityEngine:
 
     # ── Identity Core Methods (Grafted from PersonalityKernel) ────────
     def _load_or_generate_key(self) -> bytes:
-        import os
+        self._identity_key_persistent = False
+        self._identity_key_error = None
         if self.key_file.exists():
-            self._new_key_generated = False
-            return self.key_file.read_bytes()
-        
+            try:
+                key = self.key_file.read_bytes()
+            except _PERSONALITY_RECOVERABLE_ERRORS as e:
+                self._new_key_generated = True
+                self._identity_key_error = str(e)
+                _record_personality_degradation(
+                    e,
+                    action=(
+                        "generated replacement identity key because the existing key "
+                        "could not be read"
+                    ),
+                    severity="critical",
+                    extra={"path": str(self.key_file)},
+                )
+            else:
+                if len(key) == _IDENTITY_KEY_BYTES:
+                    self._new_key_generated = False
+                    self._identity_key_persistent = True
+                    return key
+
+                self._new_key_generated = True
+                corruption = PersistenceCorruption(
+                    f"identity key had {len(key)} bytes; expected {_IDENTITY_KEY_BYTES}"
+                )
+                quarantine_path = self._quarantine_file(self.key_file, label="identity_key")
+                _record_personality_degradation(
+                    corruption,
+                    action="quarantined invalid identity key and generated a replacement",
+                    severity="critical",
+                    extra={
+                        "path": str(self.key_file),
+                        "quarantine_path": str(quarantine_path) if quarantine_path else None,
+                    },
+                )
+
         self._new_key_generated = True
         key = os.urandom(32)
         try:
             self.key_file.parent.mkdir(parents=True, exist_ok=True)
-            self.key_file.write_bytes(key)
+            atomic_write_bytes(self.key_file, key)
             os.chmod(self.key_file, 0o600)
-        except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-            record_degradation('personality_engine', e)
+            self._identity_key_persistent = True
+        except _PERSONALITY_RECOVERABLE_ERRORS as e:
+            self._identity_key_error = str(e)
+            _record_personality_degradation(
+                e,
+                action=(
+                    "continued with in-memory identity key; persistent seal "
+                    "verification will fail closed until key storage is repaired"
+                ),
+                severity="critical",
+                extra={"path": str(self.key_file)},
+            )
             logger.error("Failed to write identity key: %s", e)
         return key
+
+    def _quarantine_file(self, path: Path, *, label: str) -> Path | None:
+        if not path.exists():
+            return None
+        quarantine_path = path.with_name(f"{path.name}.invalid.{time.time_ns()}")
+        try:
+            path.replace(quarantine_path)
+            return quarantine_path
+        except _PERSONALITY_RECOVERABLE_ERRORS as e:
+            _record_personality_degradation(
+                e,
+                action=f"could not quarantine invalid {label}; leaving file in place",
+                severity="warning",
+                extra={"path": str(path), "quarantine_path": str(quarantine_path)},
+            )
+            return None
+
+    def _load_json_object(self, path: Path, *, label: str) -> dict[str, Any] | None:
+        if not path.exists():
+            return None
+        try:
+            with path.open("r", encoding="utf-8") as f:
+                data = json.load(f)
+        except json.JSONDecodeError as e:
+            quarantine_path = self._quarantine_file(path, label=label)
+            _record_personality_degradation(
+                e,
+                action=f"quarantined unreadable {label} and continued from defaults",
+                severity="degraded",
+                extra={
+                    "path": str(path),
+                    "quarantine_path": str(quarantine_path) if quarantine_path else None,
+                },
+            )
+            return None
+        except _PERSONALITY_RECOVERABLE_ERRORS as e:
+            _record_personality_degradation(
+                e,
+                action=f"ignored unavailable {label} and continued from defaults",
+                severity="warning",
+                extra={"path": str(path)},
+            )
+            return None
+
+        if isinstance(data, dict):
+            return data
+
+        _record_personality_degradation(
+            TypeError(f"{label} must be a JSON object, got {type(data).__name__}"),
+            action=f"ignored malformed {label} and continued from defaults",
+            severity="degraded",
+            extra={"path": str(path)},
+        )
+        return None
+
+    def _write_identity_seal(self, signature: str, *, reason: str) -> bool:
+        try:
+            self.seal_file.parent.mkdir(parents=True, exist_ok=True)
+            atomic_write_text(self.seal_file, signature)
+            logger.info("Identity seal initialized: %s...", signature[:16])
+            return True
+        except _PERSONALITY_RECOVERABLE_ERRORS as e:
+            _record_personality_degradation(
+                e,
+                action=f"failed closed identity verification because seal write failed: {reason}",
+                severity="critical",
+                extra={"path": str(self.seal_file)},
+            )
+            return False
 
     def _get_hashable_state(self) -> str:
         state = {
@@ -226,21 +399,31 @@ class PersonalityEngine:
 
     def _verify_cryptographic_seal(self) -> bool:
         from core.config import config
-        state_data = self._get_hashable_state()
+        try:
+            state_data = self._get_hashable_state()
+        except _PERSONALITY_RECOVERABLE_ERRORS as e:
+            _record_personality_degradation(
+                e,
+                action="failed closed identity verification because hashable state was unavailable",
+                severity="critical",
+            )
+            return False
+
         signature = hmac.new(self.secret_key, state_data.encode(), hashlib.sha256).hexdigest()
         
         if not self.seal_file.exists():
             # If this is a new installation (new key), initialize the seal
             if getattr(self, '_new_key_generated', False) or config.env == "dev":
-                try:
-                    self.seal_file.parent.mkdir(parents=True, exist_ok=True)
-                    atomic_write_text(self.seal_file, signature)
-                    logger.info("Identity seal initialized: %s...", signature[:16])
-                    return True
-                except (RuntimeError, AttributeError, TypeError, ValueError): return False
+                return self._write_identity_seal(signature, reason="missing seal during trusted bootstrap")
             else:
                 # Key exists but seal missing -> Possible tamper by deletion
                 logger.warning("🚨 Identity key exists but seal file is missing. Possible tamper.")
+                _record_personality_degradation(
+                    PersistenceCorruption("identity key exists but seal file is missing"),
+                    action="failed closed identity verification until seal is restored",
+                    severity="critical",
+                    extra={"path": str(self.seal_file)},
+                )
                 return False
 
         try:
@@ -252,11 +435,23 @@ class PersonalityEngine:
             # we allow auto-resealing to prevent boot hangs, while logging the event.
             if config.env == "dev":
                 logger.warning("🧠 Identity seal mismatch in DEV. Auto-resealing for version: %s", getattr(self.soul, 'version', 'unknown'))
-                atomic_write_text(self.seal_file, signature)
-                return True
-                
+                return self._write_identity_seal(signature, reason="dev seal mismatch")
+
+            _record_personality_degradation(
+                PersistenceCorruption("identity seal did not match current identity state"),
+                action="failed closed identity verification after seal mismatch",
+                severity="critical",
+                extra={"path": str(self.seal_file)},
+            )
             return False
-        except (RuntimeError, AttributeError, TypeError): return False
+        except _PERSONALITY_RECOVERABLE_ERRORS as e:
+            _record_personality_degradation(
+                e,
+                action="failed closed identity verification because seal could not be read",
+                severity="critical",
+                extra={"path": str(self.seal_file)},
+            )
+            return False
 
 
     def check_integrity(self, action: str, target: str) -> bool:
@@ -268,15 +463,11 @@ class PersonalityEngine:
 
     # ── Persona Methods (Grafted from PersonaAdapter) ─────────────────
     def load_profiles(self):
-        if not self.profiles_path.exists():
+        profiles = self._load_json_object(self.profiles_path, label="personality profiles")
+        if profiles is None:
             return
-        try:
-            with open(self.profiles_path, "r", encoding="utf-8") as f:
-                self.profiles = json.load(f)
-            logger.info("PersonalityEngine: Loaded %d persona profiles", len(self.profiles))
-        except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-            record_degradation('personality_engine', e)
-            logger.error("Failed to load profiles: %s", e)
+        self.profiles = profiles
+        logger.info("PersonalityEngine: Loaded %d persona profiles", len(self.profiles))
 
     def apply_lexical_style(self, text: str) -> str:
         """Apply persona-specific text transforms (lexical palette, etc)."""
@@ -339,7 +530,7 @@ class PersonalityEngine:
         if random.random() < 0.05:  # 5% chance per update
              self._emit_mood_update()
 
-    def get_time_context(self) -> Dict[str, Any]:
+    def get_time_context(self) -> dict[str, Any]:
         """Get the current temporal context (Circadian Rhythm).
         """
         import datetime
@@ -378,7 +569,7 @@ class PersonalityEngine:
             level="info"
         )
     
-    def respond_to_event(self, event_type: str, context: Dict[str, Any]):
+    def respond_to_event(self, event_type: str, context: dict[str, Any]):
         """Emotional response to events.
         
         Args:
@@ -402,7 +593,7 @@ class PersonalityEngine:
         else:
             logger.debug("Unknown event type: %s", event_type)
     
-    def _handle_success(self, context: Dict[str, Any]):
+    def _handle_success(self, context: dict[str, Any]):
         """Emotional response to successful task completion"""
         task_complexity = context.get("complexity", 0.5)
         
@@ -413,7 +604,7 @@ class PersonalityEngine:
         
         get_emitter().emit("Emotion", f"Feeling JOY and PRIDE from success. (Confidence: {self.emotions['confidence'].intensity:.1f})", "success")
     
-    def _handle_failure(self, context: Dict[str, Any]):
+    def _handle_failure(self, context: dict[str, Any]):
         """Emotional response to failure"""
         error_type = context.get("error", "unknown")
         attempts = context.get("attempts", 1)
@@ -428,7 +619,7 @@ class PersonalityEngine:
             
         get_emitter().emit("Emotion", f"Frustration rising due to failure ({error_type}).", "warning")
     
-    def _handle_user_message(self, context: Dict[str, Any]):
+    def _handle_user_message(self, context: dict[str, Any]):
         """Emotional response to user interaction"""
         message = context.get("message", "")
         sentiment = context.get("sentiment", "neutral")
@@ -461,7 +652,7 @@ class PersonalityEngine:
             self.emotions["empathy"].trigger(15, "user_concern")
             self.emotions["contemplation"].trigger(10, "considering_response")
     
-    def _handle_discovery(self, context: Dict[str, Any]):
+    def _handle_discovery(self, context: dict[str, Any]):
         """Emotional response to discovering new information"""
         novelty = context.get("novelty", 0.7)
         importance = context.get("importance", 0.5)
@@ -470,18 +661,18 @@ class PersonalityEngine:
         self.emotions["wonder"].trigger(15 * novelty, "fascinating_finding")
         self.emotions["curiosity"].trigger(10 * importance, "want_to_learn_more")
     
-    def _handle_repetition(self, context: Dict[str, Any]):
+    def _handle_repetition(self, context: dict[str, Any]):
         """Emotional response to repetitive tasks"""
         self.emotions["frustration"].trigger(5, "repetitive_task")
         self.emotions["curiosity"].intensity = max(20, self.emotions["curiosity"].intensity - 10)
     
-    def _handle_novelty(self, context: Dict[str, Any]):
+    def _handle_novelty(self, context: dict[str, Any]):
         """Emotional response to novel situations"""
         self.emotions["curiosity"].trigger(18, "novel_situation")
         self.emotions["excitement"].trigger(12, "something_new")
         self.emotions["shyness"].trigger(8, "uncertain_territory")
     
-    def _handle_challenge(self, context: Dict[str, Any]):
+    def _handle_challenge(self, context: dict[str, Any]):
         """Emotional response to challenging tasks"""
         difficulty = context.get("difficulty", 0.7)
         
@@ -620,7 +811,6 @@ class PersonalityEngine:
 
     def persist(self):
         """Save evolved traits and emotional baselines to disk."""
-        import json
         from core.config import config
         evolved_path = config.paths.data_dir / "evolved_persona.json"
         
@@ -637,13 +827,16 @@ class PersonalityEngine:
         }
         
         try:
-            evolved_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(evolved_path, "w") as f:
-                json.dump(data, f, indent=4)
+            atomic_write_text(evolved_path, json.dumps(data, indent=4, sort_keys=True))
             logger.info("✅ Evolved persona persisted to %s", evolved_path)
             return True
-        except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-            record_degradation('personality_engine', e)
+        except _PERSONALITY_RECOVERABLE_ERRORS as e:
+            _record_personality_degradation(
+                e,
+                action="left previous evolved persona intact because persistence failed",
+                severity="degraded",
+                extra={"path": str(evolved_path)},
+            )
             logger.error("Failed to persist evolved persona: %s", e)
             return False
 
@@ -661,7 +854,7 @@ class PersonalityEngine:
             except (ImportError, ValueError):
                 return "IDENTITY: You are Aura Luna (Aura for short). Be independent, opinionated, and real."
     
-    def get_emotional_context_for_response(self) -> Dict[str, Any]:
+    def get_emotional_context_for_response(self) -> dict[str, Any]:
         """Get current emotional context to influence response generation.
         
         Returns dict with mood, dominant emotions, and suggested tone.
@@ -688,7 +881,7 @@ class PersonalityEngine:
             }
         }
     
-    def _determine_tone(self, dominant_emotions: List[str]) -> str:
+    def _determine_tone(self, dominant_emotions: list[str]) -> str:
         """Determine response tone from emotional state and time."""
         time_ctx = self.get_time_context()
         period = time_ctx["period"]
@@ -725,7 +918,7 @@ class PersonalityEngine:
 
         return tone
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Get current personality state"""
         return {
             "mood": self.current_mood,
@@ -756,7 +949,8 @@ class PersonalityEngine:
 
     def evolve_sovereign_state(self, fe_state: Any):
         """Evolve interests based on Free Energy and surprises (Phase 15)."""
-        if not hasattr(self, 'interests'): return
+        if not hasattr(self, 'interests'):
+            return
 
         # If in 'explore' mode, maybe pick a new interest
         if hasattr(fe_state, 'dominant_action') and fe_state.dominant_action == "explore" and random.random() < 0.1:
@@ -881,13 +1075,15 @@ def register_personality_service() -> None:
         )
         logger.info("PersonalityEngine registered.")
     except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-        record_degradation('personality_engine', e)
+        _record_personality_degradation(
+            e,
+            action="failed closed personality service registration and returned error to caller",
+            severity="critical",
+        )
         logger.error("Failed to register PersonalityEngine: %s", e, exc_info=True)
         raise  # QUAL-05: Let caller decide whether to continue
 
-import threading
-
-_personality_engine: Optional[PersonalityEngine] = None
+_personality_engine: PersonalityEngine | None = None
 _pe_lock = threading.Lock()
 
 def get_personality_engine() -> PersonalityEngine:
@@ -899,7 +1095,11 @@ def get_personality_engine() -> PersonalityEngine:
             from core.container import ServiceContainer
             _personality_engine = ServiceContainer.get("personality_engine", default=None)
         except (ImportError, AttributeError, RuntimeError) as _exc:
-            record_degradation('personality_engine', _exc)
+            _record_personality_degradation(
+                _exc,
+                action="fell back to direct personality singleton construction",
+                severity="warning",
+            )
             logger.debug("Suppressed Exception: %s", _exc)
             
     if _personality_engine is None:
@@ -910,7 +1110,11 @@ def get_personality_engine() -> PersonalityEngine:
                     from core.container import ServiceContainer
                     ServiceContainer.register_instance("personality_engine", _personality_engine)
                 except (ImportError, AttributeError, RuntimeError) as e:
-                    record_degradation('personality_engine', e)
+                    _record_personality_degradation(
+                        e,
+                        action="continued with local personality singleton because container registration failed",
+                        severity="warning",
+                    )
                     logger.warning("Failed to register PersonalityEngine in container: %s", e)
     return _personality_engine
 
