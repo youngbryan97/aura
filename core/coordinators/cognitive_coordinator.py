@@ -462,10 +462,29 @@ class CognitiveCoordinator:
         if not await self.validate_action_safety(action):
             return {"break": True, "response": f"Safety Block: Cannot execute {tool_name}."}
         if getattr(orch, "alignment", None):
-            check = orch.alignment.check_action(tool_name, params)
-            if not check.get("allowed"):
-                logger.warning("🛑 Ethical Block: %s vetoed by conscience. Reason: %s", tool_name, check.get('reason'))
-                return {"break": True, "response": f"Conscience Block: {check.get('reason')}"}
+            try:
+                check = orch.alignment.check_action(tool_name, params)
+                if asyncio.iscoroutine(check):
+                    check = await check
+                if isinstance(check, bool):
+                    allowed = check
+                    reason = "constitutional alignment veto"
+                elif isinstance(check, dict):
+                    allowed = bool(check.get("allowed", False))
+                    reason = str(check.get("reason", "constitutional alignment veto"))
+                else:
+                    allowed = bool(check)
+                    reason = "constitutional alignment returned an ambiguous result"
+            except _COGNITIVE_BOUNDARY_ERRORS as e:
+                _record_cognitive_degradation(
+                    e,
+                    action="blocked tool action after alignment preflight crashed",
+                    severity="critical",
+                )
+                return {"break": True, "response": "Conscience Block: alignment preflight failed."}
+            if not allowed:
+                logger.warning("🛑 Ethical Block: %s vetoed by conscience. Reason: %s", tool_name, reason)
+                return {"break": True, "response": f"Conscience Block: {reason}"}
         orch._emit_telemetry(f"Skill: {tool_name} 🔧", f"Executing: {str(params)[:80]}")
         try:
             result = await orch.execute_tool(tool_name, params)
