@@ -1537,6 +1537,50 @@ def test_heartbeat_time_dilation_failure_records_and_uses_fixed_interval(monkeyp
     assert recorded == [("heartbeat", "RuntimeError")]
 
 
+def test_heartbeat_run_survives_tick_failure_with_structured_action(monkeypatch):
+    recorded = []
+    monkeypatch.setattr(
+        heartbeat,
+        "record_degradation",
+        lambda *args, **kwargs: recorded.append((args, kwargs)),
+    )
+
+    async def _scenario():
+        hb = CognitiveHeartbeat.__new__(CognitiveHeartbeat)
+        hb.tick_count = 0
+        hb._TICK_RATE_HZ = 1000.0
+        hb._stop_event = asyncio.Event()
+        hb._consecutive_tick_failures = 0
+
+        calls = 0
+
+        async def tick():
+            nonlocal calls
+            calls += 1
+            hb.tick_count += 1
+            if calls == 1:
+                raise RuntimeError("workspace unavailable")
+            hb.stop()
+
+        hb._tick = tick
+        hb._evaluate_tick_interval = lambda: 0.0
+
+        async def no_sleep(_delay):
+            return None
+
+        monkeypatch.setattr(heartbeat.asyncio, "sleep", no_sleep)
+        await hb.run()
+        return calls, hb._consecutive_tick_failures
+
+    calls, consecutive = asyncio.run(_scenario())
+
+    assert calls == 2
+    assert consecutive == 0
+    assert recorded
+    assert "kept heartbeat loop alive" in recorded[0][1]["action"]
+    assert recorded[0][1]["receipt_required"] is True
+
+
 def test_heartbeat_mind_model_sync_invokes_live_pulse_and_records_failure(
     monkeypatch,
 ):

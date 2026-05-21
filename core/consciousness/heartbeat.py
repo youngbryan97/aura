@@ -5,7 +5,7 @@ import math
 import time
 from typing import TYPE_CHECKING, Any
 
-from core.runtime.errors import record_degradation
+from core.runtime.errors import FallbackClassification, Severity, record_degradation
 from core.utils.exceptions import capture_and_log
 
 if TYPE_CHECKING:
@@ -25,12 +25,35 @@ logger = logging.getLogger("Consciousness.Heartbeat")
 
 _RECOVERABLE_HEARTBEAT_ERRORS = (
     AttributeError,
+    ImportError,
     LookupError,
     OSError,
     RuntimeError,
+    TimeoutError,
     TypeError,
     ValueError,
 )
+
+
+def _record_heartbeat_degradation(
+    error: BaseException,
+    *,
+    action: str,
+    severity: Severity = "degraded",
+    extra: dict[str, Any] | None = None,
+) -> None:
+    try:
+        record_degradation(
+            "heartbeat",
+            error,
+            severity=severity,
+            action=action,
+            classification=FallbackClassification.SAFE_FALLBACK,
+            receipt_required=True,
+            extra=extra,
+        )
+    except TypeError:
+        record_degradation("heartbeat", error)
 
 
 class CognitiveHeartbeat:
@@ -43,8 +66,8 @@ class CognitiveHeartbeat:
     is caught and logged but never stops the heartbeat itself.
     """
 
-    _TICK_RATE_HZ = 1.0           # Beats per second
-    _NARRATIVE_EMIT_TICKS = 60    # Inject autobiographical narrative every 60s
+    _TICK_RATE_HZ = 1.0  # Beats per second
+    _NARRATIVE_EMIT_TICKS = 60  # Inject autobiographical narrative every 60s
     _SURPRISE_CURIOSITY_THRESHOLD = 0.55  # If surprise > this, seed curiosity
 
     def __init__(
@@ -66,7 +89,8 @@ class CognitiveHeartbeat:
         self.tick_count: int = 0
         self._stop_event = asyncio.Event()
         self._start_time = time.time()
-        
+        self._consecutive_tick_failures: int = 0
+
         # Noise Reduction
         self._last_alert_times: dict[str, float] = {}
         self._last_alert_urgency: dict[str, float] = {}
@@ -74,7 +98,7 @@ class CognitiveHeartbeat:
         # Phase II: CEL Bridge (lazy-loaded from ServiceContainer)
         self._cel_bridge = None
         self._CEL_TICK_INTERVAL = 5  # Constitute expression every 5th tick
-        
+
         # Subsystem Audit Heartbeat (deferred)
         # Fix Issue 69: Lazy-load via _audit_service property
 
@@ -82,43 +106,43 @@ class CognitiveHeartbeat:
 
     @property
     def _audit_service(self):
-        if not hasattr(self, '_audit_cache'):
+        if not hasattr(self, "_audit_cache"):
             self._audit_cache = ServiceContainer.get("subsystem_audit", default=None)
         return self._audit_cache
 
     @property
     def _mycelium(self):
-        if not hasattr(self, '_mycelium_cache'):
+        if not hasattr(self, "_mycelium_cache"):
             self._mycelium_cache = ServiceContainer.get("mycelial_network", default=None)
         return self._mycelium_cache
 
     @property
     def _homeostasis(self):
-        if not hasattr(self, '_homeostasis_cache'):
+        if not hasattr(self, "_homeostasis_cache"):
             self._homeostasis_cache = ServiceContainer.get("homeostasis", default=None)
         return self._homeostasis_cache
 
     @property
     def _mind_model(self):
-        if not hasattr(self, '_mind_model_cache'):
+        if not hasattr(self, "_mind_model_cache"):
             self._mind_model_cache = ServiceContainer.get("mind_model", default=None)
         return self._mind_model_cache
 
     @property
     def _qualia_synthesizer(self):
-        if not hasattr(self, '_qualia_cache'):
+        if not hasattr(self, "_qualia_cache"):
             self._qualia_cache = ServiceContainer.get("qualia_synthesizer", default=None)
         return self._qualia_cache
 
     @property
     def _liquid_substrate(self):
-        if not hasattr(self, '_liquid_cache'):
+        if not hasattr(self, "_liquid_cache"):
             self._liquid_cache = ServiceContainer.get("liquid_substrate", default=None)
         return self._liquid_cache
 
     @property
     def _integrity_monitor(self):
-        if not hasattr(self, '_integrity_cache'):
+        if not hasattr(self, "_integrity_cache"):
             self._integrity_cache = ServiceContainer.get("integrity_monitor", default=None)
         return self._integrity_cache
 
@@ -128,7 +152,7 @@ class CognitiveHeartbeat:
 
     @property
     def _time_dilation(self):
-        if not hasattr(self, '_time_dilation_cache'):
+        if not hasattr(self, "_time_dilation_cache"):
             self._time_dilation_cache = ServiceContainer.get("time_dilation", default=None)
         return self._time_dilation_cache
 
@@ -145,24 +169,38 @@ class CognitiveHeartbeat:
             self._stop_event = asyncio.Event()
 
         logger.info("💓 Cognitive Heartbeat STARTED")
-        interval = 1.0 / self._TICK_RATE_HZ
+        interval = 1.0 / max(self._TICK_RATE_HZ, 0.1)
 
         while not self._stop_event.is_set():
-            tick_start = time.time()
+            tick_start = time.monotonic()
             try:
                 await self._tick()
+                self._consecutive_tick_failures = 0
             except asyncio.CancelledError:
                 break
-            except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-                record_degradation('heartbeat', e)
-                logger.error("Heartbeat tick error (tick=%d): %s", self.tick_count, e, exc_info=True)
+            except _RECOVERABLE_HEARTBEAT_ERRORS as e:
+                self._consecutive_tick_failures = getattr(self, "_consecutive_tick_failures", 0) + 1
+                _record_heartbeat_degradation(
+                    e,
+                    action="kept heartbeat loop alive after recoverable tick failure",
+                    extra={
+                        "tick": self.tick_count,
+                        "consecutive_tick_failures": self._consecutive_tick_failures,
+                    },
+                )
+                logger.error(
+                    "Heartbeat tick error (tick=%d): %s",
+                    self.tick_count,
+                    e,
+                    exc_info=True,
+                )
                 # Never stop the heartbeat for a subsystem error
 
             # Dynamic interval from TimeDilationEngine (falls back to fixed 1Hz)
             interval = self._evaluate_tick_interval()
 
             # Sleep the remainder of the interval
-            elapsed = time.time() - tick_start
+            elapsed = time.monotonic() - tick_start
             sleep_time = max(0.0, interval - elapsed)
             try:
                 await asyncio.sleep(sleep_time)
@@ -185,7 +223,11 @@ class CognitiveHeartbeat:
                     return interval
                 raise ValueError(f"time dilation returned invalid interval: {interval!r}")
         except _RECOVERABLE_HEARTBEAT_ERRORS as e:
-            record_degradation("heartbeat", e)
+            _record_heartbeat_degradation(
+                e,
+                action="used fixed heartbeat interval after time-dilation failure",
+                severity="warning",
+            )
             logger.debug("Time dilation evaluation failed: %s", e)
         return fallback_interval
 
@@ -216,7 +258,11 @@ class CognitiveHeartbeat:
             if tick % self._NARRATIVE_EMIT_TICKS == 0:
                 await self._call_if_available(mind_model, "save")
         except _RECOVERABLE_HEARTBEAT_ERRORS as e:
-            record_degradation("heartbeat", e)
+            _record_heartbeat_degradation(
+                e,
+                action="skipped mind-model sync for this tick",
+                severity="warning",
+            )
             logger.debug("Mind model heartbeat sync failed: %s", e)
 
     async def _send_predictive_feedback(
@@ -236,9 +282,7 @@ class CognitiveHeartbeat:
                     getattr(fe_state, "free_energy", None),
                     default=surprise,
                 ),
-                "dominant_action": str(
-                    getattr(fe_state, "dominant_action", "maintain")
-                ),
+                "dominant_action": str(getattr(fe_state, "dominant_action", "maintain")),
                 "surprise": self._safe_float(surprise),
                 "valence": self._safe_float(getattr(fe_state, "valence", None)),
             }
@@ -247,7 +291,11 @@ class CognitiveHeartbeat:
                 await result
             return True
         except _RECOVERABLE_HEARTBEAT_ERRORS as e:
-            record_degradation("heartbeat", e)
+            _record_heartbeat_degradation(
+                e,
+                action="skipped predictive feedback while preserving heartbeat tick",
+                severity="warning",
+            )
             logger.debug("Predictive engine feedback failed: %s", e)
             return False
 
@@ -258,7 +306,11 @@ class CognitiveHeartbeat:
             if phi_core is not None and hasattr(phi_core, "get_live_phi"):
                 return max(0.0, float(phi_core.get_live_phi(include_surrogate=True)))
         except _RECOVERABLE_HEARTBEAT_ERRORS as e:
-            record_degradation("heartbeat", e)
+            _record_heartbeat_degradation(
+                e,
+                action="used substrate phi fallback after PhiCore read failure",
+                severity="warning",
+            )
             logger.debug("PhiCore live phi read failed: %s", e)
 
         try:
@@ -266,7 +318,11 @@ class CognitiveHeartbeat:
             if substrate and hasattr(substrate, "_current_phi"):
                 return max(0.0, float(getattr(substrate, "_current_phi", 0.0)))
         except _RECOVERABLE_HEARTBEAT_ERRORS as e:
-            record_degradation("heartbeat", e)
+            _record_heartbeat_degradation(
+                e,
+                action="used zero phi after substrate phi fallback failure",
+                severity="warning",
+            )
             logger.debug("Substrate phi fallback read failed: %s", e)
 
         return 0.0
@@ -288,7 +344,7 @@ class CognitiveHeartbeat:
     async def _tick(self):
         self.tick_count += 1
         tick = self.tick_count
-        
+
         # Proof of Life for Subsystem Audit
         if self._audit_service:
             self._audit_service.heartbeat("consciousness")
@@ -301,25 +357,29 @@ class CognitiveHeartbeat:
                 h_con = mycelium.get_hypha("consciousness", "consciousness")
                 if h_con:
                     h_con.pulse(success=True)
-                
+
                 # 2. Workspace Proof of Life
                 h_ws = mycelium.get_hypha("consciousness", "workspace")
                 if h_ws:
                     h_ws.pulse(success=True)
-                
+
                 # 3. Attention Schema Proof of Life
                 h_att = mycelium.get_hypha("consciousness", "attention")
                 if h_att:
                     h_att.pulse(success=True)
         except (RuntimeError, AttributeError, TypeError, ValueError) as _e:
-            record_degradation('heartbeat', _e)
-            logger.debug('Ignored Exception in heartbeat.py: %s', _e)
+            _record_heartbeat_degradation(
+                _e,
+                action="skipped mycelial pulse for this heartbeat tick",
+                severity="warning",
+            )
+            logger.debug("Ignored Exception in heartbeat.py: %s", _e)
 
         # ── 1. GATHER internal state ────────────────────────────────────
         homeostasis = self._homeostasis
         if homeostasis:
             await homeostasis.pulse()
-            
+
         mind_model = self._mind_model
         if mind_model:
             await self._sync_mind_model(mind_model, tick)
@@ -348,7 +408,7 @@ class CognitiveHeartbeat:
         actual_drive = state.get("dominant_drive", "curiosity")
         actual_focus = winner.source if winner else "none"
         actual_valence = state.get("affect_valence", 0.0)
-        
+
         # --- NEW Phase XVI: Qualia Synthesis ---
         qualia_norm = 0.0
         qualia_synthesizer = self._qualia_synthesizer
@@ -356,7 +416,9 @@ class CognitiveHeartbeat:
         # Note: PredictiveEngine metrics are proxied via predictor history in v6.0
         # for high-fidelity qualia we pull directly from the synthesizer's last state or sub-metrics
         if qualia_synthesizer:
-            qualia_norm = qualia_synthesizer.synthesize(substrate_metrics, self.predictor.get_snapshot())
+            qualia_norm = qualia_synthesizer.synthesize(
+                substrate_metrics, self.predictor.get_snapshot()
+            )
             state["qualia_norm"] = qualia_norm
 
         await self.predictor.tick(
@@ -372,11 +434,16 @@ class CognitiveHeartbeat:
         # into the FreeEnergyEngine via accept_surprise_signal().
         try:
             from core.consciousness.predictive_hierarchy import get_predictive_hierarchy
+
             ph = get_predictive_hierarchy()
             ph_inputs = ph.gather_inputs_from_services()
             ph.tick(**ph_inputs)
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('heartbeat', e)
+            _record_heartbeat_degradation(
+                e,
+                action="skipped predictive hierarchy tick and continued heartbeat cycle",
+                severity="warning",
+            )
             logger.debug("Predictive hierarchy tick failed: %s", e)
 
         # ── 5b. FREE ENERGY COMPUTATION ─────────────────────────────────
@@ -386,7 +453,11 @@ class CognitiveHeartbeat:
             if fe_engine:
                 world_model = ServiceContainer.get("epistemic_state", default=None)
                 # Feed attention scatter as complexity signal
-                attention_complexity = self.attention.get_coherence_for_complexity() if hasattr(self.attention, 'get_coherence_for_complexity') else 0.0
+                attention_complexity = (
+                    self.attention.get_coherence_for_complexity()
+                    if hasattr(self.attention, "get_coherence_for_complexity")
+                    else 0.0
+                )
                 fe_engine.accept_attention_complexity(attention_complexity)
                 # Compute free energy from prediction surprise + belief system
                 fe_state = fe_engine.compute(
@@ -407,10 +478,18 @@ class CognitiveHeartbeat:
                     if drive_engine and hasattr(drive_engine, "tick_boredom"):
                         drive_engine.tick_boredom(fe_state.free_energy)
                 except (ImportError, AttributeError, RuntimeError) as be:
-                    record_degradation('heartbeat', be)
+                    _record_heartbeat_degradation(
+                        be,
+                        action="skipped boredom accumulator update for this tick",
+                        severity="warning",
+                    )
                     logger.debug("Boredom accumulator tick failed: %s", be)
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('heartbeat', e)
+            _record_heartbeat_degradation(
+                e,
+                action="skipped free-energy computation for this tick",
+                severity="warning",
+            )
             logger.debug("Free energy computation failed: %s", e)
 
         # ── 5c. CREDIT-WEIGHTED MODULATION ──────────────────────────────
@@ -422,29 +501,42 @@ class CognitiveHeartbeat:
                     credit.get_all_domain_performance()
                     # Feed influence scores to hedonic gradient for resource allocation
                     hg = ServiceContainer.get("hedonic_gradient", default=None)
-                    if hg and hasattr(hg, 'accept_credit_signal'):
+                    if hg and hasattr(hg, "accept_credit_signal"):
                         hg.accept_credit_signal(credit.get_influence_scores())
             except (ImportError, AttributeError, RuntimeError) as e:
-                record_degradation('heartbeat', e)
+                _record_heartbeat_degradation(
+                    e,
+                    action="skipped credit-weighted modulation for this tick",
+                    severity="warning",
+                )
                 logger.debug("Credit modulation failed: %s", e)
 
         # ── 5d. WORLD MODEL CONSISTENCY CHECK (every 30 ticks) ──────────
         if tick % 30 == 0:
             try:
                 world_model = ServiceContainer.get("epistemic_state", default=None)
-                if world_model and hasattr(world_model, 'get_summary'):
+                if world_model and hasattr(world_model, "get_summary"):
                     summary = world_model.get_summary()
                     # High contradiction rate contributes to free energy
-                    contradiction_rate = summary.get("contradiction_count", 0) / max(1, summary.get("total_beliefs", 1))
+                    contradiction_rate = summary.get("contradiction_count", 0) / max(
+                        1, summary.get("total_beliefs", 1)
+                    )
                     if contradiction_rate > 0.1:
                         fe_engine = ServiceContainer.get("free_energy_engine", default=None)
                         if fe_engine:
                             # Belief instability adds complexity
                             fe_engine.accept_attention_complexity(
-                                min(1.0, fe_engine._last_attention_complexity + contradiction_rate * 0.3)
+                                min(
+                                    1.0,
+                                    fe_engine._last_attention_complexity + contradiction_rate * 0.3,
+                                )
                             )
             except (ImportError, AttributeError, RuntimeError) as e:
-                record_degradation('heartbeat', e)
+                _record_heartbeat_degradation(
+                    e,
+                    action="skipped world-model consistency contribution for this tick",
+                    severity="warning",
+                )
                 logger.debug("World model consistency check failed: %s", e)
 
         # ── 6. HOMEOSTATIC COUPLING ─────────────────────────────────────
@@ -466,11 +558,15 @@ class CognitiveHeartbeat:
         try:
             phi = self._resolve_live_phi()
 
-            if hasattr(self.workspace, 'update_phi'):
+            if hasattr(self.workspace, "update_phi"):
                 self.workspace.update_phi(phi)
         except (RuntimeError, AttributeError, TypeError) as e:
-            record_degradation('heartbeat', e)
-            capture_and_log(e, {'module': __name__})
+            _record_heartbeat_degradation(
+                e,
+                action="skipped workspace phi update for this tick",
+                severity="warning",
+            )
+            capture_and_log(e, {"module": __name__})
 
         # ── 8c. CONSTITUTIVE EXPRESSION (every Nth tick) ──────────────
         if tick % self._CEL_TICK_INTERVAL == 0:
@@ -480,7 +576,11 @@ class CognitiveHeartbeat:
                 if self._cel_bridge:
                     await self._cel_bridge.tick()
             except (ImportError, AttributeError, RuntimeError) as e:
-                record_degradation('heartbeat', e)
+                _record_heartbeat_degradation(
+                    e,
+                    action="skipped constitutive expression bridge tick",
+                    severity="warning",
+                )
                 logger.debug("CEL tick error: %s", e, exc_info=True)
 
         # ── 8d. PARALLEL BRANCHES tick ────────────────────────────────
@@ -489,7 +589,11 @@ class CognitiveHeartbeat:
             if branch_mgr:
                 await branch_mgr.tick()
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('heartbeat', e)
+            _record_heartbeat_degradation(
+                e,
+                action="skipped parallel branch manager tick",
+                severity="warning",
+            )
             logger.debug("Branch manager tick failed: %s", e)
 
         # ── 9. NARRATIVE INJECTION & Resource Throttling ───────────────
@@ -525,63 +629,79 @@ class CognitiveHeartbeat:
 
         # Affect
         try:
-            affect_engine = getattr(self.orch, 'affect_engine', None)
-            if affect_engine and hasattr(affect_engine, 'get'):
+            affect_engine = getattr(self.orch, "affect_engine", None)
+            if affect_engine and hasattr(affect_engine, "get"):
                 affect = await affect_engine.get()
                 state["affect_valence"] = affect.valence
                 state["affect_arousal"] = affect.arousal
                 state["affect_engagement"] = affect.engagement
                 state["affect_emotion"] = affect.dominant_emotion
         except (OSError, ConnectionError, TimeoutError) as e:
-            record_degradation('heartbeat', e)
+            _record_heartbeat_degradation(
+                e,
+                action="used neutral affect defaults after affect gather failure",
+                severity="warning",
+            )
             # logger.debug("Affect gather failed: %s", e)
             state.setdefault("affect_valence", 0.0)
 
         # Drives
         try:
-            drive_engine = getattr(self.orch, 'drive_engine', None)
-            if drive_engine and hasattr(drive_engine, 'get_status'):
+            drive_engine = getattr(self.orch, "drive_engine", None)
+            if drive_engine and hasattr(drive_engine, "get_status"):
                 drives = await drive_engine.get_status()
                 state["drives"] = drives
                 # Find most depleted drive
                 ranked = sorted(
-                    [(k, v['level']) for k, v in drives.items() if k not in ("uptime_value",)],
-                    key=lambda x: x[1]
+                    [(k, v["level"]) for k, v in drives.items() if k not in ("uptime_value",)],
+                    key=lambda x: x[1],
                 )
                 if ranked:
-                    state["dominant_drive"] = ranked[0][0]   # Most depleted = most urgent
+                    state["dominant_drive"] = ranked[0][0]  # Most depleted = most urgent
                     state["drive_urgency"] = max(0.0, 1.0 - (ranked[0][1] / 100.0))
         except (RuntimeError, AttributeError, TypeError) as e:
-            record_degradation('heartbeat', e)
+            _record_heartbeat_degradation(
+                e,
+                action="used default curiosity drive after drive gather failure",
+                severity="warning",
+            )
             # logger.debug("Drive gather failed: %s", e)
             state.setdefault("dominant_drive", "curiosity")
             state.setdefault("drive_urgency", 0.3)
 
         # Embodiment
         try:
-            embodiment = getattr(self.orch, 'embodiment', None)
-            body = await embodiment.pulse() if hasattr(embodiment, 'pulse') else {}
+            embodiment = getattr(self.orch, "embodiment", None)
+            body = await embodiment.pulse() if hasattr(embodiment, "pulse") else {}
             # Map SystemSoma (0-1) to Legacy body (0-100)
             state["body_energy"] = (1.0 - body.get("resource_anxiety", 0.0)) * 100
             state["body_heat"] = body.get("thermal_load", 0.0) * 100
             state["body_integrity"] = body.get("vitality", 1.0) * 100
         except (OSError, ConnectionError, TimeoutError) as e:
-            record_degradation('heartbeat', e)
-            capture_and_log(e, {'module': __name__})
-            
+            _record_heartbeat_degradation(
+                e,
+                action="left body state at defaults after embodiment pulse failure",
+                severity="warning",
+            )
+            capture_and_log(e, {"module": __name__})
+
         # Qualia Metrics
         try:
-            substrate = ServiceContainer.get("liquid_state", default=None) or ServiceContainer.get("liquid_substrate", default=None)
-            if substrate and hasattr(substrate, 'get_state_summary'):
+            substrate = ServiceContainer.get("liquid_state", default=None) or ServiceContainer.get(
+                "liquid_substrate", default=None
+            )
+            if substrate and hasattr(substrate, "get_state_summary"):
                 summary_result = substrate.get_state_summary()
                 sub_summary = (
-                    await summary_result
-                    if inspect.isawaitable(summary_result)
-                    else summary_result
+                    await summary_result if inspect.isawaitable(summary_result) else summary_result
                 )
                 state["qualia_metrics"] = sub_summary.get("qualia_metrics", {})
         except _RECOVERABLE_HEARTBEAT_ERRORS as e:
-            record_degradation("heartbeat", e)
+            _record_heartbeat_degradation(
+                e,
+                action="used empty qualia metrics after substrate summary failure",
+                severity="warning",
+            )
             logger.debug("Qualia metrics gather failed: %s", e)
             state["qualia_metrics"] = {}
 
@@ -597,72 +717,82 @@ class CognitiveHeartbeat:
         # --- Drive candidate ---
         dominant_drive = state.get("dominant_drive", "curiosity")
         drive_urgency = state.get("drive_urgency", 0.3)
-        
+
         # Nag Suppression
         # Only alert if urgency is high enough AND (time since last alert > 60s OR urgency spiked)
         current_time = time.time()
         last_alert = self._last_alert_times.get(dominant_drive, 0)
         should_alert = False
-        
+
         if drive_urgency > 0.7:
             if current_time - last_alert > 300:
                 should_alert = True
             elif drive_urgency > self._last_alert_urgency.get(dominant_drive, 0) + 0.2:
-                should_alert = True # Breakthrough alert if urgency spikes
-                
+                should_alert = True  # Breakthrough alert if urgency spikes
+
         if should_alert:
             self._last_alert_times[dominant_drive] = current_time
             self._last_alert_urgency[dominant_drive] = drive_urgency
-            
-            await self.workspace.submit(CognitiveCandidate(
-                content=f"Drive alert: {dominant_drive} is depleted ({drive_urgency:.0%} urgency)",
-                source=f"drive_{dominant_drive}",
-                priority=drive_urgency,
-                affect_weight=affect_weight,
-            ))
+
+            await self.workspace.submit(
+                CognitiveCandidate(
+                    content=f"Drive alert: {dominant_drive} is depleted ({drive_urgency:.0%} urgency)",
+                    source=f"drive_{dominant_drive}",
+                    priority=drive_urgency,
+                    affect_weight=affect_weight,
+                )
+            )
 
         # --- Affect candidate ---
         emotion = state.get("affect_emotion", "Neutral")
         arousal = state.get("affect_arousal", 0.0)
         if arousal > 0.3 or abs(state.get("affect_valence", 0.0)) > 0.3:
-            await self.workspace.submit(CognitiveCandidate(
-                content=f"Affective state: {emotion} (arousal={arousal:.2f})",
-                source="affect_engine",
-                priority=min(1.0, arousal + abs(state.get("affect_valence", 0.0))),
-                affect_weight=affect_weight * 1.5,
-            ))
+            await self.workspace.submit(
+                CognitiveCandidate(
+                    content=f"Affective state: {emotion} (arousal={arousal:.2f})",
+                    source="affect_engine",
+                    priority=min(1.0, arousal + abs(state.get("affect_valence", 0.0))),
+                    affect_weight=affect_weight * 1.5,
+                )
+            )
 
         # --- Embodiment candidate ---
         integrity = state.get("body_integrity", 100.0)
         if integrity < 70.0:
-            await self.workspace.submit(CognitiveCandidate(
-                content=f"Body integrity alert: {integrity:.1f}% (heat={state.get('body_heat', 30):.1f}°)",
-                source="embodiment",
-                priority=max(0.3, 1.0 - (integrity / 100.0)),
-                affect_weight=0.3,
-            ))
+            await self.workspace.submit(
+                CognitiveCandidate(
+                    content=f"Body integrity alert: {integrity:.1f}% (heat={state.get('body_heat', 30):.1f}°)",
+                    source="embodiment",
+                    priority=max(0.3, 1.0 - (integrity / 100.0)),
+                    affect_weight=0.3,
+                )
+            )
 
         # --- Prediction surprise candidate ---
         surprise = self.predictor.get_surprise_signal()
         if surprise > 0.35:
             unpredictable = self.predictor.get_most_unpredictable_dimension()
-            await self.workspace.submit(CognitiveCandidate(
-                content=f"Prediction surprise in {unpredictable} (err={surprise:.2f})",
-                source="self_prediction",
-                priority=surprise,
-                affect_weight=surprise * 0.4,
-            ))
+            await self.workspace.submit(
+                CognitiveCandidate(
+                    content=f"Prediction surprise in {unpredictable} (err={surprise:.2f})",
+                    source="self_prediction",
+                    priority=surprise,
+                    affect_weight=surprise * 0.4,
+                )
+            )
 
         # --- Curiosity candidate (from existing CuriosityEngine) ---
-        curiosity_engine = getattr(self.orch, 'curiosity', None)
-        if curiosity_engine and getattr(curiosity_engine, 'current_topic', None):
+        curiosity_engine = getattr(self.orch, "curiosity", None)
+        if curiosity_engine and getattr(curiosity_engine, "current_topic", None):
             topic = curiosity_engine.current_topic
-            await self.workspace.submit(CognitiveCandidate(
-                content=f"Curiosity topic under exploration: {topic}",
-                source="curiosity_engine",
-                priority=0.5,
-                affect_weight=affect_weight,
-            ))
+            await self.workspace.submit(
+                CognitiveCandidate(
+                    content=f"Curiosity topic under exploration: {topic}",
+                    source="curiosity_engine",
+                    priority=0.5,
+                    affect_weight=affect_weight,
+                )
+            )
 
         # --- Qualia Impulse (Phase XVI) ---
         # When ||q|| is high, Aura feels a strong "urge" to act or explore.
@@ -672,18 +802,19 @@ class CognitiveHeartbeat:
             last_q_alert = self._last_alert_times.get("qualia_surge", 0)
             last_q_value = self._last_alert_urgency.get("qualia_surge", 0)
             q_should_alert = (
-                current_time - last_q_alert > 600
-                or qualia_synthesizer.q_norm > last_q_value + 0.25
+                current_time - last_q_alert > 600 or qualia_synthesizer.q_norm > last_q_value + 0.25
             )
             if q_should_alert:
                 self._last_alert_times["qualia_surge"] = current_time
                 self._last_alert_urgency["qualia_surge"] = qualia_synthesizer.q_norm
-                await self.workspace.submit(CognitiveCandidate(
-                    content=f"Phenomenal Surge: High qualia intensity (||q||={qualia_synthesizer.q_norm:.2f})",
-                    source="qualia_synthesizer",
-                    priority=qualia_synthesizer.q_norm * 0.8,
-                    affect_weight=affect_weight * 2.0,
-                ))
+                await self.workspace.submit(
+                    CognitiveCandidate(
+                        content=f"Phenomenal Surge: High qualia intensity (||q||={qualia_synthesizer.q_norm:.2f})",
+                        source="qualia_synthesizer",
+                        priority=qualia_synthesizer.q_norm * 0.8,
+                        affect_weight=affect_weight * 2.0,
+                    )
+                )
 
         # --- Boredom candidate ---
         # When DriveEngine's boredom accumulator crosses threshold, inject
@@ -695,14 +826,20 @@ class CognitiveHeartbeat:
                 last_boredom_alert = self._last_alert_times.get("boredom_seek", 0)
                 if current_time - last_boredom_alert > 120:  # max once per 2 min
                     self._last_alert_times["boredom_seek"] = current_time
-                    await self.workspace.submit(CognitiveCandidate(
-                        content=f"Boredom: prediction landscape stale ({boredom_lvl:.0%}). Seeking novelty.",
-                        source="boredom_accumulator",
-                        priority=min(0.85, 0.5 + boredom_lvl * 0.4),
-                        affect_weight=affect_weight * 1.5,
-                    ))
+                    await self.workspace.submit(
+                        CognitiveCandidate(
+                            content=f"Boredom: prediction landscape stale ({boredom_lvl:.0%}). Seeking novelty.",
+                            source="boredom_accumulator",
+                            priority=min(0.85, 0.5 + boredom_lvl * 0.4),
+                            affect_weight=affect_weight * 1.5,
+                        )
+                    )
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('heartbeat', e)
+            _record_heartbeat_degradation(
+                e,
+                action="skipped boredom workspace candidate for this tick",
+                severity="warning",
+            )
             logger.debug("Boredom candidate submission failed: %s", e)
 
         # --- Free Energy action tendency candidate ---
@@ -712,27 +849,37 @@ class CognitiveHeartbeat:
             if fe_engine and fe_engine.current and fe_engine.current.free_energy > 0.35:
                 fe = fe_engine.current
                 urgency = fe_engine.get_action_urgency()
-                await self.workspace.submit(CognitiveCandidate(
-                    content=f"Active inference: {fe.dominant_action} (F={fe.free_energy:.2f}, {fe_engine.get_trend()})",
-                    source="free_energy",
-                    priority=urgency,
-                    affect_weight=abs(fe.valence) * 0.3,
-                ))
+                await self.workspace.submit(
+                    CognitiveCandidate(
+                        content=f"Active inference: {fe.dominant_action} (F={fe.free_energy:.2f}, {fe_engine.get_trend()})",
+                        source="free_energy",
+                        priority=urgency,
+                        affect_weight=abs(fe.valence) * 0.3,
+                    )
+                )
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('heartbeat', e)
+            _record_heartbeat_degradation(
+                e,
+                action="skipped free-energy workspace candidate for this tick",
+                severity="warning",
+            )
             logger.debug("Free energy candidate submission failed: %s", e)
 
         # --- Attention Focus Bias ---
         # Apply attention schema focus bias to all candidates already submitted
         # by boosting candidates whose source matches current attentional focus
         try:
-            if hasattr(self.attention, 'get_focus_bias_for_source'):
+            if hasattr(self.attention, "get_focus_bias_for_source"):
                 for candidate in self.workspace._candidates:
                     bias = self.attention.get_focus_bias_for_source(candidate.source)
                     if bias > 0:
                         candidate.focus_bias = min(1.0, candidate.focus_bias + bias)
         except (RuntimeError, AttributeError, TypeError) as e:
-            record_degradation('heartbeat', e)
+            _record_heartbeat_degradation(
+                e,
+                action="left candidate focus bias unchanged after attention failure",
+                severity="warning",
+            )
             logger.debug("Attention focus bias application failed: %s", e)
 
         # --- Baseline cognitive continuity candidate ---
@@ -743,12 +890,14 @@ class CognitiveHeartbeat:
         # interval produced ~12 messages/minute that drowned real cognitive events
         # and caused visible UI lag.
         if tick % 30 == 0:
-            await self.workspace.submit(CognitiveCandidate(
-                content=f"Cognitive baseline tick {tick}: monitoring internal state",
-                source="baseline_continuity",
-                priority=0.1,   # Very low — only wins if nothing else is happening
-                affect_weight=0.0,
-            ))
+            await self.workspace.submit(
+                CognitiveCandidate(
+                    content=f"Cognitive baseline tick {tick}: monitoring internal state",
+                    source="baseline_continuity",
+                    priority=0.1,  # Very low — only wins if nothing else is happening
+                    affect_weight=0.0,
+                )
+            )
 
     async def _emit_thought(
         self,
@@ -759,6 +908,7 @@ class CognitiveHeartbeat:
         """Emit the winning broadcast to the existing ThoughtStream."""
         try:
             from core.thought_stream import get_emitter
+
             emitter = get_emitter()
             mods = self.homeostasis.get_modifiers()
             emitter.emit(
@@ -771,21 +921,21 @@ class CognitiveHeartbeat:
                 level="info" if not mods.urgency_flag else "warning",
             )
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('heartbeat', e)
+            _record_heartbeat_degradation(
+                e,
+                action="skipped thought-stream emission for this winner",
+                severity="warning",
+            )
             logger.debug("ThoughtStream emit failed: %s", e, exc_info=True)
 
     async def _emit_telemetry(
-        self,
-        winner: CognitiveCandidate | None,
-        state: dict[str, Any],
-        tick: int,
-        surprise: float
+        self, winner: CognitiveCandidate | None, state: dict[str, Any], tick: int, surprise: float
     ):
         """Emit high-fidelity telemetry pulse to the EventBus."""
         try:
             mods = self.homeostasis.get_modifiers()
             narrative = await self.temporal.get_narrative()
-            
+
             # Phase Transcendental: Full Qualia V2 Snapshot
             qualia_snapshot = {}
             try:
@@ -793,7 +943,11 @@ class CognitiveHeartbeat:
                 if qualia_synthesizer and hasattr(qualia_synthesizer, "get_snapshot"):
                     qualia_snapshot = qualia_synthesizer.get_snapshot()
             except (ImportError, AttributeError, RuntimeError) as qs_err:
-                record_degradation('heartbeat', qs_err)
+                _record_heartbeat_degradation(
+                    qs_err,
+                    action="emitted telemetry without qualia snapshot",
+                    severity="warning",
+                )
                 logger.debug("Qualia snapshot failed: %s", qs_err)
 
             # Pull from orchestrator's liquid state for gauge consistency
@@ -801,8 +955,8 @@ class CognitiveHeartbeat:
             curiosity = 0.5
             frustration = 0.0
             confidence = 0.5
-            
-            if hasattr(self.orch, 'liquid_state') and self.orch.liquid_state:
+
+            if hasattr(self.orch, "liquid_state") and self.orch.liquid_state:
                 ls = self.orch.liquid_state.current
                 energy = ls.energy
                 curiosity = ls.curiosity
@@ -817,7 +971,7 @@ class CognitiveHeartbeat:
                 if raw > 1.0:
                     return max(0.0, min(100.0, raw))
                 return max(0.0, min(100.0, raw * 100.0))
-            
+
             # Resource metrics lookup
             cpu_usage = 0.0
             ram_usage = 0.0
@@ -826,7 +980,7 @@ class CognitiveHeartbeat:
                 stats = integrity.get_stats()
                 cpu_usage = stats.get("cpu_percent", 0.0)
                 ram_usage = stats.get("memory_percent", 0.0)
-            
+
             # Mycelial metrics lookup
             mycelial_data = {"nodes": 0, "edges": 0, "health": "offline"}
             mycelium = ServiceContainer.get("mycelial_network", default=None)
@@ -834,7 +988,7 @@ class CognitiveHeartbeat:
                 mycelial_data["health"] = "online"
                 mycelial_data["nodes"] = len(getattr(mycelium, "pathways", {}))
                 mycelial_data["edges"] = len(getattr(mycelium, "hyphae", []))
-            
+
             payload = TelemetryPayload(
                 energy=round(_percent(energy, 0.8), 1),
                 curiosity=round(_percent(curiosity, 0.5), 1),
@@ -859,20 +1013,24 @@ class CognitiveHeartbeat:
                     "volatility": qualia_snapshot.get("volatility", 0.0),
                     "phenomenal_context": qualia_snapshot.get("phenomenal_context", ""),
                     "ual": qualia_snapshot.get("ual_profile", {}),
-                }
+                },
             )
-            
+
             get_event_bus().publish_threadsafe("telemetry", payload.model_dump())
-            
+
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('heartbeat', e)
+            _record_heartbeat_degradation(
+                e,
+                action="skipped telemetry emission for this tick",
+                severity="warning",
+            )
             logger.debug("Telemetry emission failed: %s", e)
 
     async def _seed_curiosity_from_surprise(self, surprise: float):
         """When prediction error is high, seed curiosity with the surprising dimension."""
         try:
-            curiosity_engine = getattr(self.orch, 'curiosity', None)
-            if curiosity_engine and hasattr(curiosity_engine, 'add_curiosity'):
+            curiosity_engine = getattr(self.orch, "curiosity", None)
+            if curiosity_engine and hasattr(curiosity_engine, "add_curiosity"):
                 dim = self.predictor.get_most_unpredictable_dimension()
                 curiosity_engine.add_curiosity(
                     topic=f"Why is my {dim} hard to predict?",
@@ -880,8 +1038,12 @@ class CognitiveHeartbeat:
                     priority=min(0.9, surprise),
                 )
         except (RuntimeError, AttributeError, TypeError) as e:
-            record_degradation('heartbeat', e)
-            capture_and_log(e, {'module': __name__})
+            _record_heartbeat_degradation(
+                e,
+                action="skipped curiosity seeding from surprise for this tick",
+                severity="warning",
+            )
+            capture_and_log(e, {"module": __name__})
 
     async def _inject_narrative(self):
         """Inject autobiographical narrative into the orchestrator's context.
@@ -892,13 +1054,17 @@ class CognitiveHeartbeat:
             hud_injection = self.homeostasis.get_prompt_injection()
 
             # Store on orchestrator for cognitive_engine to pick up
-            if hasattr(self.orch, '__dict__'):
+            if hasattr(self.orch, "__dict__"):
                 self.orch._autobiographical_context = narrative
                 self.orch._homeostatic_prompt = hud_injection
 
             logger.debug("Autobiographical narrative injected into orchestrator context.")
         except (RuntimeError, AttributeError, TypeError) as e:
-            record_degradation('heartbeat', e)
+            _record_heartbeat_degradation(
+                e,
+                action="skipped autobiographical narrative injection for this tick",
+                severity="warning",
+            )
             logger.debug("Narrative injection failed: %s", e)
 
     def _compute_significance(
