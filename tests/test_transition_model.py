@@ -127,3 +127,35 @@ def test_lms_delta_learning_convergence() -> None:
     # Check that error is generally declining or converges to a low value
     assert len(errors) == 9
     assert errors[-1] < errors[0]  # Empirical proof of online predictive convergence!
+
+
+def test_simulate_action_consequences() -> None:
+    """Verifies that simulating action consequences produces the proper structured side-effects."""
+    model = TransitionModel()
+    
+    # 1. Simulate safe action
+    safe_sim = model.simulate_action("reflect")
+    assert safe_sim["proposed_action"] == "reflect"
+    assert safe_sim["resource_cost"] == "none"
+    assert safe_sim["risk"] == 0.0
+    assert safe_sim["reversibility"] == 1.0
+    assert safe_sim["memory_affected"] is True
+    assert safe_sim["user_visible"] is False
+    
+    # 2. Simulate medium action
+    med_sim = model.simulate_action("file_write")
+    assert med_sim["proposed_action"] == "file_write"
+    assert med_sim["resource_cost"] == "low"
+    assert med_sim["risk"] == 0.15
+    assert med_sim["reversibility"] == 0.8
+    assert "target_file" in med_sim["files_affected"]
+    
+    # 3. Simulate high-risk action
+    high_sim = model.simulate_action("file_delete")
+    assert high_sim["proposed_action"] == "file_delete"
+    assert high_sim["resource_cost"] == "low"
+    assert high_sim["risk"] == 0.40
+    assert high_sim["reversibility"] == 0.1
+    assert "target_file" in high_sim["files_affected"]
+    assert "FileNotFoundError" in high_sim["possible_failures"]
+

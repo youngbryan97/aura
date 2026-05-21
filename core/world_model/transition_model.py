@@ -112,6 +112,77 @@ class TransitionModel:
             # Clamp predicted state to physical boundaries [0.0, 1.0]
             return np.clip(predicted_state, 0.0, 1.0)
 
+    def simulate_action(self, action_name: str) -> Dict[str, Any]:
+        """Simulates the consequences of executing an action, modeling state changes,
+        resource cost, risk, reversibility, and potential structural effects.
+        """
+        current_state = self.extract_state_vector()
+        action_vec = self.encode_action_vector(action_name)
+        predicted_next = self.predict_next_state(current_state, action_vec)
+        
+        # Calculate state differences
+        state_deltas = (predicted_next - current_state).tolist()
+        
+        # Establish domain-specific heuristics for physical side-effects
+        # (reversibility, resource consumption, file impact, memory impact)
+        reversibility = 1.0
+        risk = 0.05
+        resource_cost = "low"
+        files_changed = []
+        memory_changed = False
+        user_visible = False
+        possible_failures = []
+        
+        if action_name == "file_write":
+            reversibility = 0.8  # Overwriting files is partially reversible via backup
+            risk = 0.15
+            resource_cost = "low"
+            files_changed = ["target_file"]
+        elif action_name == "file_delete":
+            reversibility = 0.1  # Deleting files is highly irreversible
+            risk = 0.4
+            resource_cost = "low"
+            files_changed = ["target_file"]
+            possible_failures = ["FileNotFoundError", "PermissionError"]
+        elif action_name == "command_execute":
+            reversibility = 0.5
+            risk = 0.3
+            resource_cost = "medium"
+            user_visible = True
+            possible_failures = ["ProcessTerminated", "TimeoutExpired"]
+        elif action_name == "run_test":
+            reversibility = 1.0  # Safe and read-only
+            risk = 0.05
+            resource_cost = "medium"
+        elif action_name == "patch_code":
+            reversibility = 0.7  # Reversible via git rollback
+            risk = 0.25
+            resource_cost = "low"
+            files_changed = ["source_file"]
+            possible_failures = ["SyntaxError", "PytestFailure"]
+        elif action_name == "commit_code":
+            reversibility = 0.9  # Fully reversible via git revert
+            risk = 0.1
+            resource_cost = "low"
+            memory_changed = True
+        elif action_name == "reflect":
+            reversibility = 1.0
+            risk = 0.0
+            resource_cost = "none"
+            memory_changed = True
+            
+        return {
+            "proposed_action": action_name,
+            "predicted_state_deltas": state_deltas,
+            "resource_cost": resource_cost,
+            "risk": risk,
+            "reversibility": reversibility,
+            "files_affected": files_changed,
+            "memory_affected": memory_changed,
+            "user_visible": user_visible,
+            "possible_failures": possible_failures
+        }
+
     def process_step(self, action_name: str) -> float:
         """Processes one causal world step: learns from past error, makes next prediction.
         
