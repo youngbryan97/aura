@@ -1,4 +1,4 @@
-"""Unified Reasoning Strategy Layer — v40 Full Realization
+"""Unified Reasoning Strategy Layer — v40 Full Realization.
 
 Wires the previously orphaned brain reasoning patterns (debate, decomposition,
 consistency, compression, recovery, confidence estimation, tool reflection)
@@ -14,17 +14,52 @@ Strategy Selection Rules:
   - CONFIDENCE:   Any answer → estimate confidence 0-1
   - TOOL_REFLECT: After tool use → verify tool output solved the problem
 """
+from __future__ import annotations
 
-from core.runtime.errors import record_degradation
 import asyncio
-import collections
 import logging
 import re
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Any, Dict, List, Optional
+from typing import Any
+
+from core.runtime.errors import FallbackClassification, record_degradation
 
 logger = logging.getLogger("Brain.ReasoningStrategies")
+
+_REASONING_TIMEOUT_S = 120.0
+_REASONING_FAILURE_MESSAGE = (
+    "I could not produce a reliable answer because the reasoning backend failed before "
+    "returning usable text."
+)
+_REASONING_RECOVERABLE_ERRORS = (
+    OSError,
+    ConnectionError,
+    TimeoutError,
+    asyncio.TimeoutError,
+    RuntimeError,
+    AttributeError,
+    TypeError,
+    ValueError,
+)
+
+
+def _record_reasoning_degradation(
+    exc: BaseException,
+    *,
+    action: str,
+    severity: str = "warning",
+    extra: dict[str, Any] | None = None,
+) -> None:
+    record_degradation(
+        "reasoning_strategies",
+        exc,
+        severity=severity,
+        action=action,
+        classification=FallbackClassification.SAFE_FALLBACK,
+        receipt_required=True,
+        extra=extra,
+    )
 
 
 class StrategyType(Enum):
@@ -38,12 +73,13 @@ class StrategyType(Enum):
 @dataclass
 class StrategyResult:
     """Output from a reasoning strategy."""
+
     content: str
     strategy_used: StrategyType
     confidence: float = 0.5
-    reasoning_steps: List[str] = field(default_factory=list)
-    sub_tasks: List[str] = field(default_factory=list)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    reasoning_steps: list[str] = field(default_factory=list)
+    sub_tasks: list[str] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 class ReasoningStrategies:
@@ -98,7 +134,7 @@ class ReasoningStrategies:
                          that performs raw LLM generation.
         """
         self._generate = generate_fn
-        self._strategy_stats: Dict[str, Dict[str, Any]] = {
+        self._strategy_stats: dict[str, dict[str, Any]] = {
             s.name: {"used": 0, "avg_confidence": 0.0} for s in list(StrategyType)
         }
         self._tree_of_thoughts = None  # Lazy-loaded
@@ -110,6 +146,65 @@ class ReasoningStrategies:
         if hasattr(value, "content") and not isinstance(value, str):
             value = getattr(value, "content", "")
         return str(value or "").strip()
+
+    @staticmethod
+    def _timeout_from_kwargs(kwargs: dict[str, Any]) -> float:
+        configured = kwargs.get("reasoning_timeout_s")
+        if configured is None:
+            try:
+                from core.config import config
+
+                configured = config.llm_request_timeout_s
+            except _REASONING_RECOVERABLE_ERRORS:
+                configured = _REASONING_TIMEOUT_S
+        try:
+            return max(1.0, min(300.0, float(configured)))
+        except (TypeError, ValueError):
+            return _REASONING_TIMEOUT_S
+
+    async def _generate_text(self, prompt: str, **kwargs) -> str:
+        call_kwargs = {k: v for k, v in kwargs.items() if k != "reasoning_timeout_s"}
+        timeout_s = self._timeout_from_kwargs(kwargs)
+        try:
+            generated = self._generate(prompt, **call_kwargs)
+            return self._normalize_generated_text(
+                await asyncio.wait_for(generated, timeout=timeout_s)
+            )
+        except _REASONING_RECOVERABLE_ERRORS as exc:
+            _record_reasoning_degradation(
+                exc,
+                action="returned empty generation result so the strategy can use a bounded fallback",
+                severity="warning",
+                extra={"prompt_preview": prompt[:160], "timeout_s": timeout_s},
+            )
+            return ""
+
+    @staticmethod
+    def _degraded_result(
+        query: str,
+        strategy: StrategyType,
+        *,
+        reason: str,
+    ) -> StrategyResult:
+        return StrategyResult(
+            content=_REASONING_FAILURE_MESSAGE,
+            strategy_used=strategy,
+            confidence=0.0,
+            reasoning_steps=[reason],
+            metadata={
+                "degraded": True,
+                "failure_reason": reason,
+                "query_preview": query[:160],
+            },
+        )
+
+    def _track_stats(self, result: StrategyResult) -> None:
+        stats = self._strategy_stats[result.strategy_used.name]
+        stats["used"] += 1
+        n = stats["used"]
+        stats["avg_confidence"] = (
+            stats["avg_confidence"] + (result.confidence - stats["avg_confidence"]) / n
+        )
 
     @classmethod
     def _looks_like_instructional_prompt(cls, query_lower: str) -> bool:
@@ -189,8 +284,10 @@ class ReasoningStrategies:
 
                 async def _llm_fn(system_prompt: str, user_prompt: str, temperature: float) -> str:
                     """Bridge between ToT's interface and the raw generate function."""
-                    return self._normalize_generated_text(
-                        await self._generate(user_prompt, system_prompt=system_prompt, temperature=temperature)
+                    return await self._generate_text(
+                        user_prompt,
+                        system_prompt=system_prompt,
+                        temperature=temperature,
                     )
 
                 self._tree_of_thoughts = TreeOfThoughts(llm_fn=_llm_fn)
@@ -198,7 +295,7 @@ class ReasoningStrategies:
                 logger.debug("TreeOfThoughts not available — using legacy strategies.")
         return self._tree_of_thoughts
 
-    async def execute(self, query: str, strategy: Optional[StrategyType] = None, **kwargs) -> StrategyResult:
+    async def execute(self, query: str, strategy: StrategyType | None = None, **kwargs) -> StrategyResult:
         """Execute a reasoning strategy on the given query.
 
         For DEBATE-class questions, tries the Tree of Thoughts engine first.
@@ -253,14 +350,15 @@ class ReasoningStrategies:
                                     "elapsed_ms": tot_result.elapsed_ms,
                                 },
                             )
-                            # Track stats
-                            stats = self._strategy_stats[strategy.name]
-                            stats["used"] += 1
-                            n = stats["used"]
-                            stats["avg_confidence"] = stats["avg_confidence"] + (result.confidence - stats["avg_confidence"]) / n
+                            self._track_stats(result)
                             return result
-                    except (OSError, ConnectionError, TimeoutError) as tot_exc:
-                        record_degradation('reasoning_strategies', tot_exc)
+                    except _REASONING_RECOVERABLE_ERRORS as tot_exc:
+                        _record_reasoning_degradation(
+                            tot_exc,
+                            action="fell back from Tree of Thoughts to legacy reasoning strategy",
+                            severity="warning",
+                            extra={"strategy": strategy.name, "query_preview": query[:160]},
+                        )
                         logger.debug("Tree of Thoughts failed, falling back to legacy: %s", tot_exc)
 
             if strategy == StrategyType.DEBATE:
@@ -274,24 +372,46 @@ class ReasoningStrategies:
             else:
                 result = await self._direct(query, **kwargs)
             
-            # Track stats
-            stats = self._strategy_stats[strategy.name]
-            stats["used"] += 1
-            n = stats["used"]
-            stats["avg_confidence"] = stats["avg_confidence"] + (result.confidence - stats["avg_confidence"]) / n
+            self._track_stats(result)
             
             return result
             
-        except (OSError, ConnectionError, TimeoutError) as e:
-            record_degradation('reasoning_strategies', e)
+        except _REASONING_RECOVERABLE_ERRORS as e:
+            _record_reasoning_degradation(
+                e,
+                action="fell back to direct reasoning after selected strategy failed",
+                severity="degraded",
+                extra={"strategy": strategy.name, "query_preview": query[:160]},
+            )
             logger.error("Strategy %s failed: %s. Falling back to DIRECT.", strategy.name, e)
-            return await self._direct(query, **kwargs)
+            try:
+                result = await self._direct(query, **kwargs)
+            except _REASONING_RECOVERABLE_ERRORS as direct_exc:
+                _record_reasoning_degradation(
+                    direct_exc,
+                    action="returned honest degraded result because direct generation also failed",
+                    severity="degraded",
+                    extra={"strategy": strategy.name, "query_preview": query[:160]},
+                )
+                result = self._degraded_result(
+                    query,
+                    strategy,
+                    reason="Selected strategy and direct generation both failed.",
+                )
+            self._track_stats(result)
+            return result
 
     # ── Strategy Implementations ──────────────────────────────────────
 
     async def _direct(self, query: str, **kwargs) -> StrategyResult:
         """Simple pass-through generation."""
-        response = self._normalize_generated_text(await self._generate(query, **kwargs))
+        response = await self._generate_text(query, **kwargs)
+        if not response:
+            return self._degraded_result(
+                query,
+                StrategyType.DIRECT,
+                reason="Direct generation returned no usable text.",
+            )
         return StrategyResult(
             content=response,
             strategy_used=StrategyType.DIRECT,
@@ -313,13 +433,10 @@ class ReasoningStrategies:
             f"Question: {query}"
         )
         
-        arg_for_raw, arg_against_raw = await asyncio.gather(
-            self._generate(prompt_for, **kwargs),
-            self._generate(prompt_against, **kwargs),
-            return_exceptions=True,
+        arg_for, arg_against = await asyncio.gather(
+            self._generate_text(prompt_for, **kwargs),
+            self._generate_text(prompt_against, **kwargs),
         )
-        arg_for = self._normalize_generated_text(arg_for_raw)
-        arg_against = self._normalize_generated_text(arg_against_raw)
         if not arg_for and not arg_against:
             return await self._direct(query, **kwargs)
         
@@ -333,7 +450,7 @@ class ReasoningStrategies:
             "Be direct. Be Aura."
         )
 
-        synthesis = self._normalize_generated_text(await self._generate(judge_prompt, **kwargs))
+        synthesis = await self._generate_text(judge_prompt, **kwargs)
         if not synthesis:
             return await self._direct(query, **kwargs)
         
@@ -358,7 +475,7 @@ class ReasoningStrategies:
             f"Objective: {query}"
         )
         
-        steps_raw = self._normalize_generated_text(await self._generate(decompose_prompt, **kwargs))
+        steps_raw = await self._generate_text(decompose_prompt, **kwargs)
         
         # Parse steps
         steps = []
@@ -377,10 +494,12 @@ class ReasoningStrategies:
             f"I've broken this down into these steps:\n"
             + "\n".join(f"  {i+1}. {s}" for i, s in enumerate(steps))
             + "\n\nNow provide a comprehensive answer addressing each step in order. "
-            f"Be specific and actionable."
+            "Be specific and actionable."
         )
         
-        answer = self._normalize_generated_text(await self._generate(answer_prompt, **kwargs))
+        answer = await self._generate_text(answer_prompt, **kwargs)
+        if not answer:
+            return await self._direct(query, **kwargs)
         
         return StrategyResult(
             content=answer,
@@ -395,7 +514,7 @@ class ReasoningStrategies:
         """Self-consistency: generate multiple answers and pick the most common."""
         # Generate multiple samples concurrently
         coros = [
-            self._generate(
+            self._generate_text(
                 f"Answer this question concisely and accurately:\n\n{query}",
                 temperature=0.7,
                 **{k: v for k, v in kwargs.items() if k != 'temperature'}
@@ -403,9 +522,8 @@ class ReasoningStrategies:
             for _ in range(samples)
         ]
         
-        answers = await asyncio.gather(*coros, return_exceptions=True)
-        valid_answers = [self._normalize_generated_text(a) for a in answers]
-        valid_answers = [a for a in valid_answers if a]
+        answers = await asyncio.gather(*coros)
+        valid_answers = [a for a in answers if a]
         
         if not valid_answers:
             return await self._direct(query, **kwargs)
@@ -424,10 +542,10 @@ class ReasoningStrategies:
             f"I generated {len(valid_answers)} different answers:\n\n"
             + "\n\n".join(f"Answer {i+1}:\n{a}" for i, a in enumerate(valid_answers))
             + "\n\nWhich answer is most accurate? Provide the best answer, "
-            f"incorporating the most consistently mentioned facts across all answers."
+            "incorporating the most consistently mentioned facts across all answers."
         )
         
-        best = self._normalize_generated_text(await self._generate(consensus_prompt, **kwargs))
+        best = await self._generate_text(consensus_prompt, **kwargs)
         if not best:
             best = valid_answers[0]
         
@@ -451,7 +569,9 @@ class ReasoningStrategies:
             f"1."
         )
         
-        response = self._normalize_generated_text(await self._generate(cot_prompt, **kwargs))
+        response = await self._generate_text(cot_prompt, **kwargs)
+        if not response:
+            return await self._direct(query, **kwargs)
         
         # Extract reasoning steps
         steps = []
@@ -477,17 +597,13 @@ class ReasoningStrategies:
             f"Answer: {answer}\n\n"
             f"Respond with ONLY a number between 0.0 and 1.0."
         )
-        try:
-            response = self._normalize_generated_text(await self._generate(prompt, **kwargs))
-            match = re.search(r'(0\.\d+|1\.0|0|1)', response)
-            if match:
-                return float(match.group(1))
-        except (RuntimeError, AttributeError, TypeError, ValueError) as _exc:
-            record_degradation('reasoning_strategies', _exc)
-            logger.debug("Suppressed Exception: %s", _exc)
+        response = await self._generate_text(prompt, **kwargs)
+        match = re.search(r'(0\.\d+|1\.0|0|1)', response)
+        if match:
+            return float(match.group(1))
         return 0.5
 
-    async def verify_tool_output(self, task: str, tool_output: str, **kwargs) -> Dict[str, Any]:
+    async def verify_tool_output(self, task: str, tool_output: str, **kwargs) -> dict[str, Any]:
         """Verify whether a tool's output actually solved the task."""
         prompt = (
             f"Task: {task}\n\n"
@@ -499,7 +615,14 @@ class ReasoningStrategies:
             f"- FAILURE: <what went wrong> if it failed"
         )
         
-        response = self._normalize_generated_text(await self._generate(prompt, **kwargs))
+        response = await self._generate_text(prompt, **kwargs)
+        if not response:
+            return {
+                "status": "failure",
+                "explanation": "Tool verification could not be completed by the reasoning backend.",
+                "should_retry": True,
+                "degraded": True,
+            }
         response_upper = response.upper()
         
         if "SUCCESS" in response_upper:
@@ -524,9 +647,13 @@ class ReasoningStrategies:
             f"History:\n{history}\n\n"
             f"Concise Summary:"
         )
-        return self._normalize_generated_text(await self._generate(prompt, **kwargs))
+        summary = await self._generate_text(prompt, **kwargs)
+        if summary:
+            return summary
+        fallback_chars = max(500, max_tokens * 4)
+        return history.strip()[-fallback_chars:]
 
-    async def propose_recovery(self, error: str, context: str, **kwargs) -> Dict[str, Any]:
+    async def propose_recovery(self, error: str, context: str, **kwargs) -> dict[str, Any]:
         """Propose a recovery strategy for an error."""
         prompt = (
             f"An error occurred in the system:\n\n"
@@ -538,7 +665,13 @@ class ReasoningStrategies:
             f"3. Prevention strategy"
         )
         
-        response = self._normalize_generated_text(await self._generate(prompt, **kwargs))
+        response = await self._generate_text(prompt, **kwargs)
+        if not response:
+            response = (
+                "The recovery planner could not generate a strategy. Preserve the failing "
+                "state, capture logs, retry the smallest bounded operation, and escalate if "
+                "the same error repeats."
+            )
         lowered = response.lower()
         return {
             "strategy": response,
@@ -546,7 +679,7 @@ class ReasoningStrategies:
             "auto_recoverable": "restart" not in lowered and "manual" not in lowered
         }
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Return usage statistics for all strategies."""
         return {
             name: {
