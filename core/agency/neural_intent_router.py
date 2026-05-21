@@ -19,18 +19,50 @@ Key rules:
   - On dispatch failure, a LifeTrace ``initiative_blocked`` entry records
     the failure so no "I did X" belief can silently propagate.
 """
-from __future__ import annotations
-from core.runtime.errors import record_degradation
 
+from __future__ import annotations
 
 import asyncio
 import logging
 import re
-import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable, Dict, List, Mapping, Optional
+from typing import Any
+
+from core.runtime.errors import FallbackClassification, record_degradation
 
 logger = logging.getLogger(__name__)
+
+_NEURAL_ROUTER_RECOVERABLE_ERRORS = (
+    AttributeError,
+    ImportError,
+    RuntimeError,
+    TypeError,
+    ValueError,
+    OSError,
+    ConnectionError,
+    TimeoutError,
+)
+
+
+def _record_neural_router_degradation(
+    subsystem: str,
+    error: BaseException,
+    *,
+    action: str,
+    severity: str = "degraded",
+    classification: FallbackClassification = FallbackClassification.SAFE_FALLBACK,
+    extra: dict[str, Any] | None = None,
+):
+    return record_degradation(
+        subsystem,
+        error,
+        severity=severity,
+        action=action,
+        classification=classification,
+        receipt_required=True,
+        extra=extra,
+    )
 
 
 # Internal sources we trust as potential action origins. User messages
@@ -49,7 +81,7 @@ TRUSTED_INTERNAL_SOURCES = {
 
 
 # Minimum intent schema: verb plus enough structure to look actionable.
-_ACTION_SCHEMAS: List[Dict[str, Any]] = [
+_ACTION_SCHEMAS: list[dict[str, Any]] = [
     {
         "skill": "web_search",
         "pattern": re.compile(
@@ -81,18 +113,18 @@ _ACTION_SCHEMAS: List[Dict[str, Any]] = [
 class NeuralIntent:
     source: str
     text: str
-    matched_schema: Optional[Dict[str, Any]] = None
-    params: Dict[str, Any] = field(default_factory=dict)
+    matched_schema: dict[str, Any] | None = None
+    params: dict[str, Any] = field(default_factory=dict)
 
     @property
     def has_action(self) -> bool:
         return self.matched_schema is not None
 
     @property
-    def skill_name(self) -> Optional[str]:
+    def skill_name(self) -> str | None:
         return self.matched_schema.get("skill") if self.matched_schema else None
 
-    def as_dict(self) -> Dict[str, Any]:
+    def as_dict(self) -> dict[str, Any]:
         return {
             "source": self.source,
             "text": self.text[:240],
@@ -123,10 +155,10 @@ class DispatchOutcome:
     approved_reason: str
     dispatched: bool = False
     dispatched_ok: bool = False
-    result: Dict[str, Any] = field(default_factory=dict)
+    result: dict[str, Any] = field(default_factory=dict)
     error: str = ""
 
-    def as_dict(self) -> Dict[str, Any]:
+    def as_dict(self) -> dict[str, Any]:
         return {
             "intent": self.intent.as_dict(),
             "approved": self.approved,
@@ -144,9 +176,9 @@ class NeuralIntentRouter:
     def __init__(
         self,
         *,
-        will_provider: Optional[Callable[[], Any]] = None,
-        capability_provider: Optional[Callable[[], Any]] = None,
-        life_trace_provider: Optional[Callable[[], Any]] = None,
+        will_provider: Callable[[], Any] | None = None,
+        capability_provider: Callable[[], Any] | None = None,
+        life_trace_provider: Callable[[], Any] | None = None,
     ) -> None:
         self._will_provider = will_provider
         self._capability_provider = capability_provider
@@ -168,12 +200,14 @@ class NeuralIntentRouter:
 
         intent = classify_neural_intent(source_norm, text)
         if not intent.has_action:
-            return DispatchOutcome(intent=intent, approved=False, approved_reason="no_action_schema_match")
+            return DispatchOutcome(
+                intent=intent, approved=False, approved_reason="no_action_schema_match"
+            )
 
         # Will gate
         will = self._resolve_will()
-        approved = True
-        approve_reason = "no_will_available_defaulting_allow"
+        approved = False
+        approve_reason = "no_will_available_fail_closed"
         will_receipt = ""
         if will is not None and hasattr(will, "decide"):
             try:
@@ -198,7 +232,13 @@ class NeuralIntentRouter:
                 approve_reason = str(getattr(decision, "reason", "")) or "will_decided"
                 will_receipt = str(getattr(decision, "receipt_id", ""))
             except (ImportError, AttributeError, RuntimeError) as exc:
-                record_degradation('neural_intent_router', exc)
+                _record_neural_router_degradation(
+                    "neural_intent_will",
+                    exc,
+                    action="failed closed neural intent dispatch because Will decision failed",
+                    severity="critical",
+                    extra={"source": source_norm, "skill": intent.skill_name},
+                )
                 approved = False
                 approve_reason = f"will_error:{type(exc).__name__}"
 
@@ -239,19 +279,22 @@ class NeuralIntentRouter:
             )
 
         try:
-            result = await engine.execute(
+            raw_result = await engine.execute(
                 intent.skill_name,
                 dict(intent.params),
                 {"source": f"neural_intent:{source_norm}", "will_receipt": will_receipt},
             )
+            result = raw_result if isinstance(raw_result, dict) else {"value": raw_result}
             ok = bool(result.get("ok", result.get("success", False)))
+            if result.get("error"):
+                ok = False
             outcome = DispatchOutcome(
                 intent=intent,
                 approved=True,
                 approved_reason=approve_reason,
                 dispatched=True,
                 dispatched_ok=ok,
-                result=result if isinstance(result, dict) else {"value": result},
+                result=result,
                 error=str(result.get("error") or "") if not ok else "",
             )
             self._dispatch_count += 1
@@ -266,8 +309,13 @@ class NeuralIntentRouter:
                 success=ok,
             )
             return outcome
-        except (sqlite3.Error, OSError) as exc:
-            record_degradation('neural_intent_router', exc)
+        except _NEURAL_ROUTER_RECOVERABLE_ERRORS as exc:
+            _record_neural_router_degradation(
+                "neural_intent_dispatch",
+                exc,
+                action="blocked neural intent after capability dispatch failed",
+                extra={"source": source_norm, "skill": intent.skill_name},
+            )
             self._block_count += 1
             self._record_life_trace(
                 "initiative_blocked",
@@ -285,7 +333,7 @@ class NeuralIntentRouter:
                 error=repr(exc),
             )
 
-    def stats(self) -> Dict[str, int]:
+    def stats(self) -> dict[str, int]:
         return {"dispatches": self._dispatch_count, "blocks": self._block_count}
 
     # ------------------------------------------------------------------
@@ -293,26 +341,52 @@ class NeuralIntentRouter:
         if self._will_provider is not None:
             try:
                 return self._will_provider()
-            except (RuntimeError, AttributeError, TypeError, ValueError):
+            except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                _record_neural_router_degradation(
+                    "neural_intent_will_provider",
+                    exc,
+                    action="treated Will provider failure as unavailable and failed closed",
+                    severity="critical",
+                )
                 return None
         try:
             from core.container import ServiceContainer
 
-            return ServiceContainer.get("unified_will", default=None) or ServiceContainer.get("will", default=None)
-        except (ImportError, AttributeError, RuntimeError):
+            return ServiceContainer.get("unified_will", default=None) or ServiceContainer.get(
+                "will", default=None
+            )
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            _record_neural_router_degradation(
+                "neural_intent_will_provider",
+                exc,
+                action="treated ServiceContainer Will lookup failure as unavailable and failed closed",
+                severity="critical",
+            )
             return None
 
     def _resolve_capability(self) -> Any:
         if self._capability_provider is not None:
             try:
                 return self._capability_provider()
-            except (RuntimeError, AttributeError, TypeError, ValueError):
+            except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+                _record_neural_router_degradation(
+                    "neural_intent_capability_provider",
+                    exc,
+                    action="blocked neural intent because capability provider failed",
+                    severity="warning",
+                )
                 return None
         try:
             from core.container import ServiceContainer
 
             return ServiceContainer.get("capability_engine", default=None)
-        except (ImportError, AttributeError, RuntimeError):
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            _record_neural_router_degradation(
+                "neural_intent_capability_provider",
+                exc,
+                action="blocked neural intent because capability engine lookup failed",
+                severity="warning",
+            )
             return None
 
     def _record_life_trace(
@@ -324,7 +398,7 @@ class NeuralIntentRouter:
         approved: bool,
         reason: str,
         will_receipt: str = "",
-        dispatch_result: Optional[Dict[str, Any]] = None,
+        dispatch_result: dict[str, Any] | None = None,
         success: bool = False,
     ) -> None:
         try:
@@ -352,7 +426,14 @@ class NeuralIntentRouter:
                 },
             )
         except (ImportError, AttributeError, RuntimeError) as exc:
-            record_degradation('neural_intent_router', exc)
+            _record_neural_router_degradation(
+                "neural_intent_life_trace",
+                exc,
+                action="continued neural-intent routing after LifeTrace write failed",
+                severity="warning",
+                classification=FallbackClassification.AUDIT_GAP,
+                extra={"event_type": event_type, "source": source},
+            )
             logger.debug("LifeTrace write from neural router failed: %s", exc)
 
 
@@ -362,7 +443,7 @@ async def _maybe_await(value: Any) -> Any:
     return value
 
 
-_singleton: Optional[NeuralIntentRouter] = None
+_singleton: NeuralIntentRouter | None = None
 
 
 def get_neural_intent_router() -> NeuralIntentRouter:

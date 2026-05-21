@@ -10,12 +10,12 @@
 4. VolitionEngine produces real initiatives from drive state when the
    idle cooldowns are met.
 """
+
 from __future__ import annotations
 
-import asyncio
 import platform
 import time
-from typing import Any, Dict, List
+from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
@@ -23,6 +23,8 @@ import pytest
 from core.agency.neural_intent_router import (
     NeuralIntentRouter,
     classify_neural_intent,
+)
+from core.agency.neural_intent_router import (
     reset_singleton_for_test as reset_router,
 )
 from core.security.permission_setup import (
@@ -32,7 +34,6 @@ from core.security.permission_setup import (
     format_report,
     open_settings_pane,
 )
-
 
 # ---------------------------------------------------------------------------
 # 1. Background enqueue gate
@@ -207,25 +208,35 @@ class _StubWill:
     def __init__(self, approved: bool = True, reason: str = "ok") -> None:
         self.approved = approved
         self.reason = reason
-        self.calls: List[Dict[str, Any]] = []
+        self.calls: list[dict[str, Any]] = []
 
     async def decide(self, **kwargs: Any) -> Any:
         self.calls.append(kwargs)
-        return type("D", (), {"approved": self.approved, "reason": self.reason, "receipt_id": "r1"})()
+        return type(
+            "D", (), {"approved": self.approved, "reason": self.reason, "receipt_id": "r1"}
+        )()
 
 
 class _StubCapability:
     def __init__(self, ok: bool = True) -> None:
         self.ok = ok
-        self.calls: List[Dict[str, Any]] = []
+        self.calls: list[dict[str, Any]] = []
 
-    async def execute(self, skill: str, params: Dict[str, Any], ctx: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute(
+        self, skill: str, params: dict[str, Any], ctx: dict[str, Any]
+    ) -> dict[str, Any]:
         self.calls.append({"skill": skill, "params": dict(params), "ctx": dict(ctx)})
-        return {"ok": self.ok, "summary": "done" if self.ok else "failed", "error": "" if self.ok else "nope"}
+        return {
+            "ok": self.ok,
+            "summary": "done" if self.ok else "failed",
+            "error": "" if self.ok else "nope",
+        }
 
 
 def test_classify_neural_intent_matches_schemas():
-    intent = classify_neural_intent("sensory_motor", "search for recent papers on integrated information theory")
+    intent = classify_neural_intent(
+        "sensory_motor", "search for recent papers on integrated information theory"
+    )
     assert intent.has_action is True
     assert intent.skill_name == "web_search"
     assert "integrated information theory" in intent.params["query"]
@@ -240,6 +251,7 @@ def test_classify_returns_no_action_for_phenomenology():
 async def test_router_dispatches_when_will_approves(tmp_path):
     reset_router()
     from core.runtime.life_trace import LifeTraceLedger, reset_singleton_for_test
+
     reset_singleton_for_test()
     ledger = LifeTraceLedger(db_path=tmp_path / "lt.sqlite3")
 
@@ -273,6 +285,7 @@ async def test_router_rejects_untrusted_source(tmp_path):
 async def test_router_respects_will_veto(tmp_path):
     reset_router()
     from core.runtime.life_trace import LifeTraceLedger, reset_singleton_for_test
+
     reset_singleton_for_test()
     ledger = LifeTraceLedger(db_path=tmp_path / "lt.sqlite3")
 
@@ -289,6 +302,61 @@ async def test_router_respects_will_veto(tmp_path):
     assert cap.calls == []
     events = ledger.recent()
     assert events and events[0]["event_type"] == "initiative_deferred"
+
+
+@pytest.mark.asyncio
+async def test_router_fails_closed_when_will_unavailable(tmp_path):
+    reset_router()
+    from core.runtime.life_trace import LifeTraceLedger, reset_singleton_for_test
+
+    reset_singleton_for_test()
+    ledger = LifeTraceLedger(db_path=tmp_path / "lt.sqlite3")
+    cap = _StubCapability(ok=True)
+    router = NeuralIntentRouter(
+        will_provider=lambda: None,
+        capability_provider=lambda: cap,
+        life_trace_provider=lambda: ledger,
+    )
+
+    outcome = await router.route("sensory_motor", "search for hidden eval benchmarks")
+
+    assert outcome.approved is False
+    assert outcome.approved_reason == "no_will_available_fail_closed"
+    assert outcome.dispatched is False
+    assert cap.calls == []
+    events = ledger.recent()
+    assert events and events[0]["event_type"] == "initiative_deferred"
+
+
+@pytest.mark.asyncio
+async def test_router_records_capability_dispatch_failure(tmp_path):
+    reset_router()
+    from core.runtime.errors import get_degradation_tracker
+    from core.runtime.life_trace import LifeTraceLedger, reset_singleton_for_test
+
+    class FailingCapability:
+        async def execute(self, *_args: Any, **_kwargs: Any) -> dict[str, Any]:
+            self.called = True
+            raise RuntimeError("capability offline")
+
+    reset_singleton_for_test()
+    get_degradation_tracker().reset()
+    ledger = LifeTraceLedger(db_path=tmp_path / "lt.sqlite3")
+    router = NeuralIntentRouter(
+        will_provider=lambda: _StubWill(approved=True),
+        capability_provider=lambda: FailingCapability(),
+        life_trace_provider=lambda: ledger,
+    )
+
+    outcome = await router.route("sensory_motor", "search for runtime survival tests")
+
+    assert outcome.approved is True
+    assert outcome.dispatched is False
+    assert "RuntimeError" in outcome.error
+    assert any(
+        "capability dispatch failed" in record.action
+        for record in get_degradation_tracker().recent(subsystem="neural_intent_dispatch")
+    )
 
 
 # ---------------------------------------------------------------------------
