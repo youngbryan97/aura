@@ -16,12 +16,13 @@ from typing import Any
 from core.brain.reflex import get_reflex
 from core.config import config
 from core.container import ServiceContainer
-from core.runtime.errors import record_degradation
+from core.runtime.errors import FallbackClassification, record_degradation
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.Cognition")
 
 _CIL_RECOVERABLE_ERRORS = (
+    asyncio.TimeoutError,
     AttributeError,
     TypeError,
     ValueError,
@@ -32,6 +33,24 @@ _CIL_RECOVERABLE_ERRORS = (
     TimeoutError,
     json.JSONDecodeError,
 )
+
+
+def _record_cil_degradation(
+    exc: BaseException,
+    *,
+    action: str,
+    severity: str = "warning",
+    extra: dict[str, Any] | None = None,
+) -> None:
+    record_degradation(
+        "cognitive_integration_layer",
+        exc,
+        severity=severity,
+        action=action,
+        classification=FallbackClassification.SAFE_FALLBACK,
+        receipt_required=True,
+        extra=extra,
+    )
 
 _INLINE_INFERENCE_PROMPT = (
     "Analyze the following user message for IMPLICIT INTENT, AFFECTIVE SUBTEXT, "
@@ -44,6 +63,29 @@ _INLINE_INFERENCE_PROMPT = (
     '}'
 )
 _INLINE_INFERENCE_SYSTEM = "You are Aura's subtext processor. Extract the unsaid. Return only JSON."
+
+
+def _normalize_inline_inference(data: Any) -> dict[str, Any] | None:
+    if not isinstance(data, dict):
+        return None
+    hooks = data.get("conversation_hooks", [])
+    if isinstance(hooks, str):
+        hooks = [hooks]
+    elif isinstance(hooks, list):
+        hooks = [str(item).strip() for item in hooks if str(item).strip()]
+    else:
+        hooks = []
+
+    momentum = str(data.get("momentum", "flowing") or "flowing").strip().lower()
+    if momentum not in {"stalled", "flowing", "intense"}:
+        momentum = "flowing"
+
+    return {
+        "implicit_intent": str(data.get("implicit_intent", "") or "")[:500],
+        "user_subtext": str(data.get("user_subtext", "") or "")[:500],
+        "momentum": momentum,
+        "conversation_hooks": hooks[:3],
+    }
 
 
 async def _extract_history(context: dict[str, Any] | None = None) -> list[dict[str, str]]:
@@ -80,7 +122,11 @@ async def _extract_history(context: dict[str, Any] | None = None) -> list[dict[s
             history.append({"role": str(item.get("role", "user") or "user"), "content": content})
         return history
     except _CIL_RECOVERABLE_ERRORS as exc:
-        record_degradation('cognitive_integration_layer', exc)
+        _record_cil_degradation(
+            exc,
+            action="continued without recovered conversation history",
+            severity="warning",
+        )
         logger.debug("Cognition history extraction failed: %s", exc)
         return []
 
@@ -110,11 +156,22 @@ async def _run_inline_inference(message: str, history: list[dict[str, str]]) -> 
         )
         match = re.search(r"\{.*\}", str(raw or ""), re.DOTALL)
         if match:
-            return json.loads(match.group(0))
-    except TimeoutError:
+            return _normalize_inline_inference(json.loads(match.group(0)))
+    except TimeoutError as exc:
+        _record_cil_degradation(
+            exc,
+            action="continued turn without inline subtext inference after timeout",
+            severity="warning",
+            extra={"message_preview": message[:160]},
+        )
         logger.debug("Inline inference timed out.")
     except _CIL_RECOVERABLE_ERRORS as exc:
-        record_degradation('cognitive_integration_layer', exc)
+        _record_cil_degradation(
+            exc,
+            action="continued turn without inline subtext inference",
+            severity="warning",
+            extra={"message_preview": message[:160]},
+        )
         logger.debug("Inline inference failed: %s", exc)
     return None
 
@@ -137,7 +194,11 @@ def _inject_live_modifiers(data: dict[str, Any]) -> None:
         modifiers["momentum"] = data.get("momentum", "flowing")
         modifiers["conversation_hooks"] = data.get("conversation_hooks", [])
     except _CIL_RECOVERABLE_ERRORS as exc:
-        record_degradation('cognitive_integration_layer', exc)
+        _record_cil_degradation(
+            exc,
+            action="continued turn without live cognitive modifiers",
+            severity="warning",
+        )
         logger.error("Inline modifier injection failed: %s", exc, exc_info=True)
 
 
@@ -149,7 +210,11 @@ def _inject_packet_context(packet: Any) -> None:
         if pcs:
             fragments.append(f"[Phenomenal state: {str(pcs)[:300]}]")
     except _CIL_RECOVERABLE_ERRORS as exc:
-        record_degradation('cognitive_integration_layer', exc)
+        _record_cil_degradation(
+            exc,
+            action="continued packet context injection without phenomenological fragment",
+            severity="warning",
+        )
         logger.error("Phenomenological context injection failed: %s", exc, exc_info=True)
 
     try:
@@ -159,7 +224,11 @@ def _inject_packet_context(packet: Any) -> None:
             if qctx:
                 fragments.append(f"[Qualia: {str(qctx)[:200]}]")
     except _CIL_RECOVERABLE_ERRORS as exc:
-        record_degradation('cognitive_integration_layer', exc)
+        _record_cil_degradation(
+            exc,
+            action="continued packet context injection without qualia fragment",
+            severity="warning",
+        )
         logger.error("Qualia injection failed: %s", exc, exc_info=True)
 
     if not fragments:
@@ -172,7 +241,11 @@ def _inject_packet_context(packet: Any) -> None:
     try:
         packet.llm_briefing = f"{getattr(packet, 'llm_briefing', '') or ''}\n" + "\n".join(fragments) + identity_anchor
     except _CIL_RECOVERABLE_ERRORS as exc:
-        record_degradation('cognitive_integration_layer', exc)
+        _record_cil_degradation(
+            exc,
+            action="continued response generation without packet context injection",
+            severity="warning",
+        )
         logger.error("Packet context injection failed: %s", exc, exc_info=True)
 
 class CognitiveIntegrationLayer:
@@ -221,7 +294,12 @@ class CognitiveIntegrationLayer:
                 try:
                     ServiceContainer.register_instance(name, instance)
                 except _CIL_RECOVERABLE_ERRORS as register_err:
-                    record_degradation('cognitive_integration_layer', register_err)
+                    _record_cil_degradation(
+                        register_err,
+                        action="continued initialization after optional service registration failed",
+                        severity="warning",
+                        extra={"service": name},
+                    )
                     logger.warning("⚠️ [BOOT] Could not register '%s' in ServiceContainer: %s", name, register_err)
 
             _safe_register("cognitive_kernel", self.kernel)
@@ -238,7 +316,11 @@ class CognitiveIntegrationLayer:
                     await self.monologue.start()
                 _safe_register("inner_monologue", self.monologue)
             except _CIL_RECOVERABLE_ERRORS as e:
-                record_degradation('cognitive_integration_layer', e)
+                _record_cil_degradation(
+                    e,
+                    action="continued initialization without InnerMonologue",
+                    severity="degraded",
+                )
                 logger.warning("InnerMonologue failed to resolve: %s. Proceeding in degraded mode.", e)
 
             # 3. Resolve or Instantiate LanguageCenter
@@ -252,14 +334,22 @@ class CognitiveIntegrationLayer:
                     await self.language_center.start()
                 _safe_register("language_center", self.language_center)
             except _CIL_RECOVERABLE_ERRORS as e:
-                record_degradation('cognitive_integration_layer', e)
+                _record_cil_degradation(
+                    e,
+                    action="continued initialization without LanguageCenter",
+                    severity="degraded",
+                )
                 logger.warning("LanguageCenter failed to resolve: %s. Proceeding in degraded mode.", e)
 
             self._initialized = True
             logger.info("✅ CognitiveIntegrationLayer initialized successfully.")
             return True
         except _CIL_RECOVERABLE_ERRORS as e:
-            record_degradation('cognitive_integration_layer', e)
+            _record_cil_degradation(
+                e,
+                action="retrying CognitiveIntegrationLayer initialization once before failing closed",
+                severity="degraded",
+            )
             logger.error("❌ CognitiveIntegrationLayer initialization FAILED: %s", e, exc_info=True)
             # [RECOVERY] One-time force-reload attempt for critical components
             if not getattr(self, "_retrying_init", False):
@@ -286,6 +376,18 @@ class CognitiveIntegrationLayer:
         self._processing_turn = True
         try:
             return await self._process_turn_inner(message, context)
+        except _CIL_RECOVERABLE_ERRORS as exc:
+            _record_cil_degradation(
+                exc,
+                action="returned bounded cognitive fallback after Phase 7 turn failure",
+                severity="degraded",
+                extra={"message_preview": message[:160]},
+            )
+            logger.error("CognitiveIntegrationLayer turn failed: %s", exc, exc_info=True)
+            return (
+                "I'm having trouble completing that cognitive pass cleanly. "
+                "I can retry from the stable conversation path."
+            )
         finally:
             self._processing_turn = False
 
@@ -320,7 +422,11 @@ class CognitiveIntegrationLayer:
                 _speech_profile.tone_override or "default",
             )
         except _CIL_RECOVERABLE_ERRORS as _sve_exc:
-            record_degradation('cognitive_integration_layer', _sve_exc)
+            _record_cil_degradation(
+                _sve_exc,
+                action="continued Phase 7 turn without substrate speech profile",
+                severity="warning",
+            )
             logger.error("SubstrateVoiceEngine compile in Phase 7 failed: %s", _sve_exc, exc_info=True)
 
         if not self.is_active:
@@ -335,18 +441,31 @@ class CognitiveIntegrationLayer:
                 # Ava builds a social model of the user from the input
                 ava.analyze_message(message, is_user=True)
             except _CIL_RECOVERABLE_ERRORS as e:
-                record_degradation('cognitive_integration_layer', e)
+                _record_cil_degradation(
+                    e,
+                    action="continued Phase 7 turn without Ava user analysis",
+                    severity="warning",
+                )
                 logger.debug("Ava analysis failed: %s", e)
 
         # 0. Reflexive Path (Fast Fallback - Thread Isolated)
-        reflex = get_reflex()
-        # Offload to dedicated thread to avoid event-loop starvation
-        reflex_response = await asyncio.get_running_loop().run_in_executor(
-            self._reflex_executor, reflex.process, message
-        )
-        if reflex_response:
-            logger.info("⚡ [REFLEX] Instant response generated (Thread Isolated).")
-            return self._shape_with_substrate(reflex_response, _sve, _speech_profile)
+        try:
+            reflex = get_reflex()
+            # Offload to dedicated thread to avoid event-loop starvation
+            reflex_response = await asyncio.get_running_loop().run_in_executor(
+                self._reflex_executor, reflex.process, message
+            )
+            if reflex_response:
+                logger.info("⚡ [REFLEX] Instant response generated (Thread Isolated).")
+                return self._shape_with_substrate(reflex_response, _sve, _speech_profile)
+        except _CIL_RECOVERABLE_ERRORS as exc:
+            _record_cil_degradation(
+                exc,
+                action="continued Phase 7 turn after reflex path failed",
+                severity="warning",
+                extra={"message_preview": message[:160]},
+            )
+            logger.debug("Reflex path failed in CIL: %s", exc)
 
         if not self.kernel:
             logger.error("CognitiveIntegrationLayer: Kernel missing during process_turn.")
@@ -371,7 +490,11 @@ class CognitiveIntegrationLayer:
                 logger.debug("Inline inference task acknowledged cancellation.")
             logger.debug("Inline inference still running; continuing without blocking.")
         except _CIL_RECOVERABLE_ERRORS as exc:
-            record_degradation('cognitive_integration_layer', exc)
+            _record_cil_degradation(
+                exc,
+                action="continued Phase 7 turn without inline inference modifiers",
+                severity="warning",
+            )
             logger.debug("Inline inference injection failed: %s", exc)
 
         # Agency Integration: Execute tools if needed
@@ -413,7 +536,11 @@ class CognitiveIntegrationLayer:
                     else:
                         logger.warning("AgencyCoordinator missing from container during research-required turn.")
             except _CIL_RECOVERABLE_ERRORS as e:
-                record_degradation('cognitive_integration_layer', e)
+                _record_cil_degradation(
+                    e,
+                    action="continued Phase 7 turn without agency research augmentation",
+                    severity="warning",
+                )
                 logger.error("Agency resolution failed in CIL: %s", e)
         
         # 2. Express (LanguageCenter expression)
@@ -438,7 +565,11 @@ class CognitiveIntegrationLayer:
                     raw = await self.language_center.express(packet, message, history=history)
                     return self._shape_with_substrate(raw, _sve, _speech_profile)
             except _CIL_RECOVERABLE_ERRORS as e:
-                record_degradation('cognitive_integration_layer', e)
+                _record_cil_degradation(
+                    e,
+                    action="returned cognitive expression fallback after LanguageCenter path failed",
+                    severity="degraded",
+                )
                 logger.exception("Error during cognitive expression: %s", e)
                 final_response = "I'm processing that. Give me a second—my internal monologue is a bit of a maze right now."
         else:
@@ -468,7 +599,11 @@ class CognitiveIntegrationLayer:
                     if mem and hasattr(mem, "prune_context"):
                          mem.prune_context()
             except _CIL_RECOVERABLE_ERRORS as e:
-                record_degradation('cognitive_integration_layer', e)
+                _record_cil_degradation(
+                    e,
+                    action="continued Phase 7 turn without Cortana context-health recording",
+                    severity="warning",
+                )
                 logger.debug("Cortana turn recording failed: %s", e)
                 
         # Post-process with Ava for the response
@@ -476,7 +611,11 @@ class CognitiveIntegrationLayer:
             try:
                 ava.analyze_message(final_response, is_user=False)
             except _CIL_RECOVERABLE_ERRORS as e:
-                record_degradation('cognitive_integration_layer', e)
+                _record_cil_degradation(
+                    e,
+                    action="continued Phase 7 turn without Ava response analysis",
+                    severity="warning",
+                )
                 logger.debug("Ava response analysis failed: %s", e)
                 
         return self._shape_with_substrate(final_response, _sve, _speech_profile)
@@ -497,7 +636,11 @@ class CognitiveIntegrationLayer:
                 return shaped[0]  # Primary message; extras queued by orchestrator
             return shaped
         except _CIL_RECOVERABLE_ERRORS as exc:
-            record_degradation("cognitive_integration_layer", exc)
+            _record_cil_degradation(
+                exc,
+                action="returned unshaped response because substrate shaping failed",
+                severity="warning",
+            )
             logger.debug("Substrate response shaping failed: %s", exc)
             return response
 
@@ -529,7 +672,11 @@ class CognitiveIntegrationLayer:
             
             return brief.stance
         except _CIL_RECOVERABLE_ERRORS as e:
-            record_degradation('cognitive_integration_layer', e)
+            _record_cil_degradation(
+                e,
+                action="returned no autonomous thought after CIL autonomous processing failed",
+                severity="warning",
+            )
             logger.error("Autonomous thought processing failed in CIL: %s", e)
             return None
 
@@ -547,7 +694,11 @@ class CognitiveIntegrationLayer:
                     metadata={"domain": domain}
                 )
         except _CIL_RECOVERABLE_ERRORS as e:
-            record_degradation('cognitive_integration_layer', e)
+            _record_cil_degradation(
+                e,
+                action="continued conversation after interaction memory commit failed",
+                severity="warning",
+            )
             logger.error("Failed to record cognitive interaction: %s", e)
 
     async def think(self, user_input: str) -> str:
