@@ -1,7 +1,4 @@
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
-from core.runtime.atomic_writer import atomic_write_text
 
 import ast
 import asyncio
@@ -11,9 +8,12 @@ import os
 import re
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 import psutil
+
+from core.runtime.atomic_writer import atomic_write_text
+from core.runtime.errors import FallbackClassification, Severity, record_degradation
 
 logger = logging.getLogger("Aura.DemoSupport")
 
@@ -81,6 +81,58 @@ _SEARCH_EXCLUDED_DIRS = frozenset(
 )
 _RECENT_ACTIVITY_MAX_AGE_SECONDS = 12 * 60 * 60
 
+_DEMO_SUPPORT_ERRORS = (
+    AttributeError,
+    ImportError,
+    json.JSONDecodeError,
+    LookupError,
+    OSError,
+    RuntimeError,
+    TimeoutError,
+    TypeError,
+    ValueError,
+)
+
+
+def _record_demo_degradation(
+    error: BaseException,
+    *,
+    action: str,
+    severity: Severity = "warning",
+    extra: dict[str, object] | None = None,
+) -> None:
+    try:
+        record_degradation(
+            "demo_support",
+            error,
+            severity=severity,
+            action=action,
+            classification=FallbackClassification.SAFE_FALLBACK,
+            receipt_required=True,
+            extra=extra,
+        )
+    except TypeError as signature_exc:
+        try:
+            record_degradation(
+                "demo_support",
+                error,
+                severity=severity,
+                action=action or "demo support degraded",
+            )
+        except TypeError:
+            logger.warning(
+                "Demo support degradation could not be recorded: %s",
+                signature_exc,
+            )
+
+
+def _is_relative_to(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+        return True
+    except ValueError:
+        return False
+
 
 def _collapsed(text: str) -> str:
     return " ".join(str(text or "").strip().lower().split())
@@ -96,7 +148,7 @@ def _demo_state_path() -> Path:
     return home / "demo_last_activity.json"
 
 
-def extract_background_diagnostic_target(message: str) -> Optional[str]:
+def extract_background_diagnostic_target(message: str) -> str | None:
     collapsed = _collapsed(message)
     if not any(hint in collapsed for hint in _BACKGROUND_REQUEST_HINTS):
         return None
@@ -126,30 +178,37 @@ def build_background_diagnostic_ack(target: str) -> str:
     )
 
 
-def _load_last_activity() -> Optional[Dict[str, Any]]:
+def _load_last_activity() -> dict[str, Any] | None:
     path = _demo_state_path()
     if not path.exists():
         return None
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, TypeError, ValueError) as exc:
-        record_degradation('demo_support', exc)
+        _record_demo_degradation(
+            exc,
+            action="ignored unreadable persisted demo activity state",
+            severity="warning",
+        )
         logger.debug("Failed to read demo activity state: %s", exc)
         return None
 
 
-def _save_last_activity(payload: Dict[str, Any]) -> None:
+def _save_last_activity(payload: dict[str, Any]) -> None:
     path = _demo_state_path()
     atomic_write_text(path, json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def _resolve_target_path(target: str, repo_root: Optional[Path] = None) -> Optional[Path]:
+def _resolve_target_path(target: str, repo_root: Path | None = None) -> Path | None:
     root = Path(repo_root or _repo_root()).resolve()
     raw = Path(os.path.expanduser(str(target or "").strip()))
-    if raw.is_absolute() and raw.is_file():
-        return raw
+    if raw.is_absolute():
+        resolved_raw = raw.resolve()
+        if _is_relative_to(resolved_raw, root) and resolved_raw.is_file():
+            return resolved_raw
+        return None
     direct = (root / raw).resolve()
-    if direct.is_file():
+    if _is_relative_to(direct, root) and direct.is_file():
         return direct
 
     name = raw.name
@@ -158,8 +217,13 @@ def _resolve_target_path(target: str, repo_root: Optional[Path] = None) -> Optio
             dirnames[:] = [d for d in dirnames if d not in _SEARCH_EXCLUDED_DIRS]
             if name in filenames:
                 return (Path(current_root) / name).resolve()
-    except (OSError, IOError) as exc:
-        record_degradation('demo_support', exc)
+    except OSError as exc:
+        _record_demo_degradation(
+            exc,
+            action="returned no diagnostic target after workspace file walk failed",
+            severity="warning",
+            extra={"target": str(target)[:200]},
+        )
         logger.debug("Target resolution fallback failed for %s: %s", target, exc)
     return None
 
@@ -286,7 +350,7 @@ def _summarize_target(path: Path) -> str:
     return _generic_summary(path, source)
 
 
-async def _record_recent_activity(orchestrator: Any, payload: Dict[str, Any]) -> None:
+async def _record_recent_activity(orchestrator: Any, payload: dict[str, Any]) -> None:
     try:
         from core.container import ServiceContainer
 
@@ -306,16 +370,26 @@ async def _record_recent_activity(orchestrator: Any, payload: Dict[str, Any]) ->
                 importance=0.95,
             )
     except (ImportError, AttributeError, RuntimeError) as exc:
-        record_degradation('demo_support', exc)
+        _record_demo_degradation(
+            exc,
+            action="continued background diagnostic after episodic memory record failed",
+            severity="warning",
+            extra={"target": str(payload.get("target_name", ""))[:200]},
+        )
         logger.debug("Failed to record demo background episode: %s", exc)
 
-    setattr(orchestrator, "_demo_last_background_activity", payload)
-    setattr(orchestrator, "_last_background_activity", payload)
-    setattr(orchestrator, "_suppress_unsolicited_proactivity_until", time.time() + 180.0)
+    orchestrator._demo_last_background_activity = payload
+    orchestrator._last_background_activity = payload
+    orchestrator._suppress_unsolicited_proactivity_until = time.time() + 180.0
     try:
         _save_last_activity(payload)
     except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
-        record_degradation('demo_support', exc)
+        _record_demo_degradation(
+            exc,
+            action="continued background diagnostic after persisted demo state write failed",
+            severity="warning",
+            extra={"target": str(payload.get("target_name", ""))[:200]},
+        )
         logger.debug("Failed to persist demo background state: %s", exc)
 
     try:
@@ -347,7 +421,12 @@ async def _record_recent_activity(orchestrator: Any, payload: Dict[str, Any]) ->
             if hasattr(state_repo, "commit"):
                 await state_repo.commit(state, cause=f"Background diagnostic complete: {payload['target_name']}")
     except (ImportError, AttributeError, RuntimeError) as exc:
-        record_degradation('demo_support', exc)
+        _record_demo_degradation(
+            exc,
+            action="continued after runtime working-memory injection failed",
+            severity="warning",
+            extra={"target": str(payload.get("target_name", ""))[:200]},
+        )
         logger.debug("Failed to inject demo background state into runtime: %s", exc)
 
 
@@ -370,14 +449,22 @@ async def _surface_activity(orchestrator: Any, summary: str) -> None:
             )
             return
     except (RuntimeError, AttributeError, TypeError) as exc:
-        record_degradation('demo_support', exc)
+        _record_demo_degradation(
+            exc,
+            action="used fallback spontaneous emission after output gate emission failed",
+            severity="warning",
+        )
         logger.debug("Direct output gate emission failed: %s", exc)
 
     try:
         if hasattr(orchestrator, "emit_spontaneous_message"):
             await orchestrator.emit_spontaneous_message(summary, modality="chat", origin="user")
     except (RuntimeError, AttributeError, TypeError) as exc:
-        record_degradation('demo_support', exc)
+        _record_demo_degradation(
+            exc,
+            action="completed background diagnostic without surfacing activity message",
+            severity="warning",
+        )
         logger.debug("Fallback spontaneous emission failed: %s", exc)
 
 
@@ -385,7 +472,7 @@ async def run_background_file_diagnostic(
     target: str,
     orchestrator: Any,
     *,
-    repo_root: Optional[Path] = None,
+    repo_root: Path | None = None,
 ) -> None:
     resolved = await asyncio.to_thread(_resolve_target_path, target, repo_root)
     now = time.time()
@@ -410,7 +497,12 @@ async def run_background_file_diagnostic(
     try:
         summary = await asyncio.to_thread(_summarize_target, resolved)
     except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
-        record_degradation('demo_support', exc)
+        _record_demo_degradation(
+            exc,
+            action="surfaced bounded failure summary after background diagnostic failed",
+            severity="degraded",
+            extra={"target": str(resolved)[:300]},
+        )
         ok = False
         logger.exception("Background diagnostic failed for %s", resolved)
         summary = (
@@ -452,7 +544,7 @@ def _is_fresh_activity_payload(payload: Any) -> bool:
     return (time.time() - activity_ts) <= _RECENT_ACTIVITY_MAX_AGE_SECONDS
 
 
-def _recent_activity_payload(orchestrator: Any) -> Optional[Dict[str, Any]]:
+def _recent_activity_payload(orchestrator: Any) -> dict[str, Any] | None:
     live = getattr(orchestrator, "_last_background_activity", None)
     if not isinstance(live, dict):
         live = getattr(orchestrator, "_demo_last_background_activity", None)
@@ -468,7 +560,7 @@ def _recent_activity_payload(orchestrator: Any) -> Optional[Dict[str, Any]]:
     return None
 
 
-async def maybe_build_recent_activity_reply(message: str, orchestrator: Any) -> Optional[str]:
+async def maybe_build_recent_activity_reply(message: str, orchestrator: Any) -> str | None:
     if not is_recent_activity_query(message):
         return None
 
@@ -516,7 +608,11 @@ async def maybe_build_recent_activity_reply(message: str, orchestrator: Any) -> 
                         f"{_truncate(str(getattr(ep, 'outcome', '') or getattr(ep, 'full_description', '') or ''), 320)}"
                     )
     except (ImportError, AttributeError, RuntimeError) as exc:
-        record_degradation('demo_support', exc)
+        _record_demo_degradation(
+            exc,
+            action="returned no recent activity reply after episodic recall failed",
+            severity="warning",
+        )
         logger.debug("Recent activity recall fallback failed: %s", exc)
     return None
 
@@ -538,7 +634,7 @@ def _goal_field(item: Any, *keys: str) -> str:
     return ""
 
 
-async def maybe_build_priority_focus_reply(message: str, orchestrator: Any) -> Optional[str]:
+async def maybe_build_priority_focus_reply(message: str, orchestrator: Any) -> str | None:
     if not is_priority_probe(message):
         return None
 
@@ -555,7 +651,11 @@ async def maybe_build_priority_focus_reply(message: str, orchestrator: Any) -> O
             active_goals = list(getattr(state.cognition, "active_goals", []) or [])
             pending = list(getattr(state.cognition, "pending_initiatives", []) or [])
     except (ImportError, AttributeError, RuntimeError) as exc:
-        record_degradation('demo_support', exc)
+        _record_demo_degradation(
+            exc,
+            action="continued priority focus reply after state lookup failed",
+            severity="warning",
+        )
         logger.debug("Priority probe state lookup failed: %s", exc)
 
     lane_state = ""
@@ -567,10 +667,22 @@ async def maybe_build_priority_focus_reply(message: str, orchestrator: Any) -> O
             lane = gate.get_conversation_status()
             lane_state = str(lane.get("state", "") or "").strip().lower()
     except (ImportError, AttributeError, RuntimeError) as exc:
-        record_degradation('demo_support', exc)
+        _record_demo_degradation(
+            exc,
+            action="continued priority focus reply after lane lookup failed",
+            severity="warning",
+        )
         logger.debug("Priority probe lane lookup failed: %s", exc)
 
-    system_mem = psutil.virtual_memory().percent
+    try:
+        system_mem = psutil.virtual_memory().percent
+    except (RuntimeError, AttributeError, OSError, TypeError, ValueError) as exc:
+        _record_demo_degradation(
+            exc,
+            action="built priority focus reply without memory-pressure signal",
+            severity="warning",
+        )
+        system_mem = 0.0
     focus_bits = []
     if lane_state and lane_state != "ready":
         focus_bits.append("keeping my Cortex conversation lane stable")

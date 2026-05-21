@@ -15,6 +15,18 @@ def test_extract_background_diagnostic_target_accepts_realistic_async_phrasing()
     assert target == "interface/static/shell/src/App.jsx"
 
 
+def test_resolve_target_path_rejects_absolute_paths_outside_repo(tmp_path):
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    inside = repo_root / "inside.py"
+    outside = tmp_path / "outside.py"
+    inside.write_text("print('inside')\n", encoding="utf-8")
+    outside.write_text("print('outside')\n", encoding="utf-8")
+
+    assert demo_support._resolve_target_path(str(inside), repo_root=repo_root) == inside
+    assert demo_support._resolve_target_path(str(outside), repo_root=repo_root) is None
+
+
 @pytest.mark.asyncio
 async def test_surface_activity_marks_user_requested_delivery_as_authorized():
     captured = {}
