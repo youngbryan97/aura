@@ -242,6 +242,7 @@ if __name__ == '__main__':
     import subprocess
     import json
     import os
+    tmp_path = None
     try:
         with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
             f.write(wrapper)
@@ -255,7 +256,6 @@ if __name__ == '__main__':
             capture_output=True,
             timeout=1.0
         )
-        os.unlink(tmp_path)
         
         if proc.returncode == 0 and proc.stdout:
             try:
@@ -265,10 +265,16 @@ if __name__ == '__main__':
             except json.JSONDecodeError as exc:
                 return False, None, f"json_decode_error:{exc}:{proc.stdout[-240:]}"
         return False, None, (proc.stderr or proc.stdout or f"returncode:{proc.returncode}")[-500:]
-    except (OSError, ConnectionError, TimeoutError) as exc:
+    except (OSError, ConnectionError, TimeoutError, subprocess.TimeoutExpired) as exc:
         from core.runtime.errors import record_degradation
         record_degradation("rsi_solver_execution", exc)
         return False, None, repr(exc)
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            try:
+                os.unlink(tmp_path)
+            except Exception:
+                pass
 
 
 def solve_with_generated_code(task: Task, source: str) -> Any:

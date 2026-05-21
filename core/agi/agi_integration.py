@@ -45,7 +45,16 @@ class AGIIntegrationLayer:
         self.modulator = HomeostaticModulator()
         self.feedback_loop = InferenceFeedbackLoop()
 
-        logger.info("AGIIntegrationLayer initialized.")
+        # Phase 2 Proprioception, Grounding, and World Modeling
+        from core.embodiment.digital_body import get_digital_body
+        from core.grounding.affordance_model import get_affordance_model
+        from core.world_model.transition_model import get_transition_model
+
+        self.digital_body = get_digital_body()
+        self.affordance_model = get_affordance_model()
+        self.transition_model = get_transition_model()
+
+        logger.info("AGIIntegrationLayer initialized with proprioception, grounding, and transition modeling.")
 
     async def start(self) -> None:
         """Starts the integration layer background tasks."""
@@ -102,6 +111,28 @@ class AGIIntegrationLayer:
         """Executes a single step across all AGI subsystems."""
         self.tick_count += 1
         self.last_tick_time = time.time()
+
+        # 0. Update proprioceptive telemetry and linear-causal transition modeling
+        try:
+            self.digital_body.update_telemetry()
+            
+            # Retrieve last executed action from commitments
+            last_action = "reflect"
+            if self.digital_body.current_commitments:
+                active = [c for c in self.digital_body.current_commitments if c.get("status") == "active"]
+                if active:
+                    last_action = active[-1].get("action", "reflect")
+                    
+            err = self.transition_model.process_step(last_action)
+            
+            # Inject transition prediction error surprise directly into FreeEnergyEngine
+            if err > 0.5:
+                free_energy = ServiceContainer.get("free_energy_engine", default=None)
+                if free_energy and hasattr(free_energy, "accept_surprise_signal"):
+                    free_energy.accept_surprise_signal(err)
+        except Exception as exc:
+            record_degradation("agi_grounding_tick", exc)
+            logger.debug("Failed to step proprioceptive/transition systems: %s", exc)
 
         # 1. Step the PrecisionEngine (FitzHugh-Nagumo oscillator)
         precision = ServiceContainer.get("precision_engine", default=None)
@@ -242,6 +273,20 @@ class AGIIntegrationLayer:
                     "synthesized_count": len(getattr(registry, "synthesized_actuators", {})),
                     "total_count": len(getattr(registry, "actuators", {}))
                 }
+            except Exception:
+                pass
+
+        # 6. Digital Body Schema (Proprioception)
+        if hasattr(self, "digital_body"):
+            try:
+                telemetry["digital_body"] = self.digital_body.get_state_dict()
+            except Exception:
+                pass
+
+        # 7. Transition Model (Causal Predictive World Model)
+        if hasattr(self, "transition_model"):
+            try:
+                telemetry["transition_model"] = self.transition_model.get_state_dict()
             except Exception:
                 pass
 
