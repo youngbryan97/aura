@@ -31,7 +31,7 @@ jobs:
           python -m pip install \
             pydantic pydantic-settings \
             pytest pytest-asyncio \
-            numpy \
+            numpy scipy \
             pyyaml structlog pybreaker psutil tenacity \
             prometheus-client prometheus-fastapi-instrumentator
       - name: Run enterprise regression tests

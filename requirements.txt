@@ -7,6 +7,8 @@ pywebview>=5.0
 fastapi
 uvicorn[standard]
 psutil>=7.2.2
+numpy>=1.26,<3.0
+scipy>=1.13
 pydantic
 structlog
 uvloop>=0.19.0

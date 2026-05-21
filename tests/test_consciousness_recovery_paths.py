@@ -1792,6 +1792,99 @@ def test_unified_field_gamma_failure_and_projection_recovery(monkeypatch):
     ]
 
 
+def test_unified_field_run_loop_survives_tick_failure(monkeypatch):
+    recorded: list[tuple[str, str, dict[str, object]]] = []
+
+    def _record(module, exc, **kwargs):
+        recorded.append((module, type(exc).__name__, kwargs))
+
+    monkeypatch.setattr(unified_field, "record_degradation", _record)
+
+    field = UnifiedField(
+        FieldConfig(
+            dim=8,
+            mesh_input_dim=2,
+            chem_input_dim=2,
+            binding_input_dim=2,
+            intero_input_dim=2,
+            substrate_input_dim=2,
+            update_hz=1000.0,
+            plasticity_interval=100,
+        )
+    )
+    calls = {"count": 0}
+
+    def _flaky_tick():
+        calls["count"] += 1
+        if calls["count"] == 1:
+            raise RuntimeError("field tick failed once")
+        field._running = False
+
+    monkeypatch.setattr(field, "_tick", _flaky_tick)
+    field._running = True
+
+    asyncio.run(field._run_loop())
+
+    assert calls["count"] == 2
+    assert field._running is False
+    assert recorded
+    assert recorded[0][0] == "unified_field"
+    assert recorded[0][1] == "RuntimeError"
+    assert recorded[0][2]["receipt_required"] is True
+    assert "kept UnifiedField loop alive" in str(recorded[0][2]["action"])
+
+
+def test_unified_field_sanitizes_non_finite_inputs_and_state(monkeypatch):
+    recorded: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        unified_field,
+        "record_degradation",
+        lambda module, exc: recorded.append((module, type(exc).__name__)),
+    )
+
+    field = UnifiedField(
+        FieldConfig(
+            dim=8,
+            mesh_input_dim=2,
+            chem_input_dim=2,
+            binding_input_dim=2,
+            intero_input_dim=2,
+            substrate_input_dim=2,
+            plasticity_interval=100,
+        )
+    )
+    field.receive_mesh(np.array([np.nan, np.inf, 5.0], dtype=np.float32))
+    field.receive_chemicals(object())
+    field.F[0] = np.nan
+    field._tick()
+
+    state = field.get_field_state()
+
+    assert np.all(np.isfinite(state))
+    assert np.all(np.abs(state) <= 1.0)
+    assert any(item == ("unified_field", "ValueError") for item in recorded)
+
+
+def test_unified_field_surprise_uses_binding_input():
+    field = UnifiedField(
+        FieldConfig(
+            dim=8,
+            mesh_input_dim=2,
+            chem_input_dim=2,
+            binding_input_dim=2,
+            intero_input_dim=2,
+            substrate_input_dim=2,
+            plasticity_interval=100,
+        )
+    )
+    field.W_bind = np.zeros_like(field.W_bind)
+    field.receive_binding(np.ones(2, dtype=np.float32))
+
+    surprise = field.compute_world_model_surprise()
+
+    assert surprise > 0.5
+
+
 def test_mesh_cognition_signal_failures_are_visible(monkeypatch):
     recorded: list[tuple[str, str]] = []
     monkeypatch.setattr(
