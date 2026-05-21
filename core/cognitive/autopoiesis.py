@@ -33,20 +33,51 @@ Design invariants:
     - Escalation path: repeated failures surface to the human operator.
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
-from core.utils.task_tracker import get_task_tracker
 
 import asyncio
 import hashlib
+import inspect
 import logging
 import time
 from collections import defaultdict, deque
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any, Callable, Deque, Dict, List, Optional, Set, Tuple
+from enum import StrEnum
+from typing import Any
+
+from core.runtime.errors import FallbackClassification, record_degradation
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.Autopoiesis")
+
+_AUTOPOIESIS_RECOVERABLE_ERRORS = (
+    OSError,
+    ConnectionError,
+    TimeoutError,
+    asyncio.TimeoutError,
+    RuntimeError,
+    AttributeError,
+    TypeError,
+    ValueError,
+)
+
+
+def _record_autopoiesis_degradation(
+    exc: BaseException,
+    *,
+    action: str,
+    severity: str = "warning",
+    extra: dict[str, Any] | None = None,
+) -> None:
+    record_degradation(
+        "autopoiesis",
+        exc,
+        severity=severity,
+        action=action,
+        classification=FallbackClassification.SAFE_FALLBACK,
+        receipt_required=True,
+        extra=extra,
+    )
 
 __all__ = [
     "AutopoiesisEngine",
@@ -62,7 +93,7 @@ __all__ = [
 # Enums
 # ---------------------------------------------------------------------------
 
-class RepairStrategy(str, Enum):
+class RepairStrategy(StrEnum):
     """The toolkit of self-repair actions, ordered from least to most invasive.
 
     The engine always prefers the gentlest fix that has a reasonable chance of
@@ -119,7 +150,7 @@ class ErrorSignature:
     last_seen: float = 0.0
     occurrence_count: int = 0
     resolved: bool = False
-    resolution_strategy: Optional[RepairStrategy] = None
+    resolution_strategy: RepairStrategy | None = None
 
     @staticmethod
     def make_fingerprint(exception_type: str, component: str) -> str:
@@ -201,25 +232,26 @@ class AutopoiesisEngine:
     _ENERGY_INTERACTION: float = 5.0      # energy gained from a successful interaction
     _ENERGY_LOW_THRESHOLD: float = 20.0   # below this, start shedding load
     _ENERGY_HIGH_THRESHOLD: float = 70.0  # above this, awaken optional subsystems
+    _REPAIR_HANDLER_TIMEOUT: float = 30.0 # seconds; repair handlers must not hang
 
     def __init__(self, *, tick_interval: float | None = None) -> None:
         # -- Component registry --
         self._health_fns: dict[str, Callable[[], float]] = {}
-        self._component_snapshots: dict[str, Deque[ComponentSnapshot]] = defaultdict(
+        self._component_snapshots: dict[str, deque[ComponentSnapshot]] = defaultdict(
             lambda: deque(maxlen=self._HEALTH_WINDOW)
         )
 
         # -- Error tracking --
-        self._error_buffer: Deque[tuple[str, str, float]] = deque(maxlen=500)
+        self._error_buffer: deque[tuple[str, str, float]] = deque(maxlen=500)
         # (component, exception_type, timestamp)
         self._immune_memory: dict[str, ErrorSignature] = {}
         # fingerprint -> ErrorSignature
 
         # -- Cascade detection --
-        self._recent_cascades: Deque[_CascadeCluster] = deque(maxlen=50)
+        self._recent_cascades: deque[_CascadeCluster] = deque(maxlen=50)
 
         # -- Repair tracking --
-        self._repair_history: Deque[RepairResult] = deque(maxlen=self._MAX_REPAIR_HISTORY)
+        self._repair_history: deque[RepairResult] = deque(maxlen=self._MAX_REPAIR_HISTORY)
         self._last_repair_time: dict[str, float] = {}
         # component -> timestamp of last repair
         self._repair_attempts: dict[str, int] = defaultdict(int)
@@ -414,7 +446,12 @@ class AutopoiesisEngine:
             if adaptive_immune and hasattr(adaptive_immune, "observe_signature"):
                 adaptive_immune.observe_signature(component, exception_type)
         except (ImportError, AttributeError, RuntimeError) as exc:
-            record_degradation('autopoiesis', exc)
+            _record_autopoiesis_degradation(
+                exc,
+                action="continued error tracking without adaptive immune signature feed",
+                severity="warning",
+                extra={"component": component, "exception_type": exception_type},
+            )
             logger.debug("Adaptive immune signature feed skipped: %s", exc)
 
     def record_interaction_success(self) -> None:
@@ -487,8 +524,13 @@ class AutopoiesisEngine:
                 await self._do_tick()
             except asyncio.CancelledError:
                 break
-            except (RuntimeError, AttributeError, TypeError, ValueError):
+            except _AUTOPOIESIS_RECOVERABLE_ERRORS as exc:
                 # The immune system itself must not crash.
+                _record_autopoiesis_degradation(
+                    exc,
+                    action="kept autopoiesis loop alive after a failed monitoring tick",
+                    severity="degraded",
+                )
                 logger.exception("Autopoiesis tick failed (self-healing continues)")
             await asyncio.sleep(self._tick_interval)
 
@@ -547,7 +589,12 @@ class AutopoiesisEngine:
                 raw = fn()
                 health = max(0.0, min(1.0, float(raw)))
             except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
-                record_degradation('autopoiesis', exc)
+                _record_autopoiesis_degradation(
+                    exc,
+                    action="recorded zero health for component after health function failure",
+                    severity="warning",
+                    extra={"component": name},
+                )
                 # If the health function itself fails, the component is in
                 # bad shape.  Record a zero and log the error.
                 logger.warning(
@@ -792,6 +839,12 @@ class AutopoiesisEngine:
 
         if handler is None:
             error_msg = f"No repair handler registered for {strategy.value}/{component}"
+            _record_autopoiesis_degradation(
+                RuntimeError(error_msg),
+                action="recorded ineffective repair because no handler was registered",
+                severity="warning",
+                extra={"component": component, "strategy": strategy.value},
+            )
             logger.warning(error_msg)
         else:
             try:
@@ -801,12 +854,15 @@ class AutopoiesisEngine:
                     component,
                     health_before,
                 )
-                ret = handler()
-                if asyncio.iscoroutine(ret):
-                    await ret
-                success = True
-            except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
-                record_degradation('autopoiesis', exc)
+                success = await self._run_repair_handler(handler)
+            except _AUTOPOIESIS_RECOVERABLE_ERRORS as exc:
+                _record_autopoiesis_degradation(
+                    exc,
+                    action="repair handler failed; recorded failure and escalated future strategy",
+                    severity="degraded",
+                    extra={"component": component, "strategy": strategy.value},
+                )
+                self.record_error(component, type(exc).__name__)
                 error_msg = f"{type(exc).__name__}: {exc}"
                 logger.error(
                     "Repair handler failed: %s / %s -- %s",
@@ -820,7 +876,14 @@ class AutopoiesisEngine:
         try:
             fn = self._health_fns.get(component)
             health_after = max(0.0, min(1.0, float(fn()))) if fn else health_before
-        except (OSError, ConnectionError, TimeoutError):
+        except _AUTOPOIESIS_RECOVERABLE_ERRORS as exc:
+            _record_autopoiesis_degradation(
+                exc,
+                action="kept pre-repair health because post-repair health check failed",
+                severity="warning",
+                extra={"component": component, "strategy": strategy.value},
+            )
+            self.record_error(component, type(exc).__name__)
             health_after = health_before
 
         duration_ms = (time.time() - t0) * 1000
@@ -875,18 +938,24 @@ class AutopoiesisEngine:
 
         return result
 
+    async def _run_repair_handler(self, handler: Callable[[], Any]) -> bool:
+        ret = handler()
+        if inspect.isawaitable(ret):
+            ret = await asyncio.wait_for(ret, timeout=self._REPAIR_HANDLER_TIMEOUT)
+        return True if ret is None else bool(ret)
+
     def _request_governance_approval(
         self, component: str, strategy: RepairStrategy
     ) -> bool:
         """Ask the Unified Will whether this repair is authorized.
 
         The Will evaluates the repair as a STATE_MUTATION action.  If the Will
-        is not available (e.g. during early boot), repairs are allowed by
-        default -- the system needs to be able to heal itself even before all
-        subsystems are online.
+        is not available, repairs fail closed. Autopoiesis may diagnose and
+        queue future attempts, but it does not mutate runtime state without a
+        positive Will decision.
         """
         try:
-            from core.will import get_will, ActionDomain
+            from core.will import ActionDomain, get_will
 
             will = get_will()
             decision = will.decide(
@@ -903,14 +972,16 @@ class AutopoiesisEngine:
             )
             return decision.is_approved()
         except (ImportError, AttributeError, RuntimeError) as exc:
-            record_degradation('autopoiesis', exc)
-            # If the governance system is unavailable, allow the repair.
-            # A living system must be able to heal itself even when parts
-            # of its brain are offline.
-            logger.debug(
-                "Governance unavailable (%s), allowing repair by default", exc
+            _record_autopoiesis_degradation(
+                exc,
+                action="denied repair because Unified Will was unavailable",
+                severity="critical",
+                extra={"component": component, "strategy": strategy.value},
             )
-            return True
+            logger.debug(
+                "Governance unavailable (%s), denying repair by default", exc
+            )
+            return False
 
     def _mark_signatures_resolved(
         self, component: str, strategy: RepairStrategy
