@@ -3,10 +3,9 @@
 Every new module from the tier 1-8 roadmap has a test here so regressions
 break CI rather than silently re-opening a gap.
 """
+
 from __future__ import annotations
 
-import json
-import os
 from pathlib import Path
 
 import pytest
@@ -20,14 +19,17 @@ from core.agency.agency_facade import (
 )
 from core.evaluation.evidence_mode import (
     EvidenceMode,
-    get_evidence_mode,
+)
+from core.evaluation.evidence_mode import (
     reset_singleton_for_test as reset_evidence,
 )
+from core.runtime.errors import get_degradation_tracker
 from core.runtime.life_trace import (
     LifeTraceLedger,
+)
+from core.runtime.life_trace import (
     reset_singleton_for_test as reset_life_trace,
 )
-
 
 # ---------------------------------------------------------------------------
 # Evidence mode
@@ -93,7 +95,7 @@ class _StubAgencyCore:
 
 class _MountedFacade(AgencyFacade):  # pragma: no cover - test stub wiring
     def __init__(self):
-        pass  # bypass AgencyCore __init__
+        self.orchestrator = None  # bypass AgencyCore __init__
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
@@ -123,6 +125,79 @@ async def test_agency_facade_full_cycle(monkeypatch):
         assert isinstance(receipt, ActionReceipt)
         assessment = await facade.evaluate_outcome(receipt)
         assert isinstance(assessment, OutcomeAssessment)
+
+
+@pytest.mark.asyncio
+async def test_agency_facade_no_executor_is_explicit_failure_receipt():
+    facade = _MountedFacade()
+    decision = {
+        "approved": True,
+        "receipt_id": "will-1",
+        "proposal": {
+            "proposal_id": "p1",
+            "content": "perform bounded autonomous action",
+        },
+    }
+
+    receipt = await facade.execute_approved(decision, executor=None)
+
+    assert isinstance(receipt, ActionReceipt)
+    assert receipt.success is False
+    assert receipt.outcome_raw["error"] == "no executor bound"
+    assert receipt.side_effects["will_receipt_id"] == "will-1"
+    assert receipt.side_effects["executor_bound"] is False
+
+
+@pytest.mark.asyncio
+async def test_agency_facade_executor_error_returns_classified_failure_receipt():
+    get_degradation_tracker().reset()
+    facade = _MountedFacade()
+    decision = {
+        "approved": True,
+        "receipt_id": "will-2",
+        "proposal": {
+            "proposal_id": "p2",
+            "content": "run executor",
+        },
+    }
+
+    async def failing_executor(_proposal):
+        failing_executor.called = True
+        raise TimeoutError("executor timed out")
+
+    receipt = await facade.execute_approved(decision, executor=failing_executor)
+
+    assert isinstance(receipt, ActionReceipt)
+    assert receipt.success is False
+    assert receipt.outcome_raw["error_type"] == "TimeoutError"
+    assert receipt.side_effects["error_type"] == "TimeoutError"
+    assert getattr(failing_executor, "called", False) is True
+    assert any(
+        "approved agency executor failed" in record.action
+        for record in get_degradation_tracker().recent(subsystem="agency_facade_executor")
+    )
+
+
+@pytest.mark.asyncio
+async def test_agency_facade_error_dict_from_executor_is_failure():
+    facade = _MountedFacade()
+    decision = {
+        "approved": True,
+        "receipt_id": "will-3",
+        "proposal": {
+            "proposal_id": "p3",
+            "content": "run executor",
+        },
+    }
+
+    async def error_executor(_proposal):
+        return {"error": "tool refused request"}
+
+    receipt = await facade.execute_approved(decision, executor=error_executor)
+
+    assert isinstance(receipt, ActionReceipt)
+    assert receipt.success is False
+    assert receipt.outcome_raw["error"] == "tool refused request"
 
 
 # ---------------------------------------------------------------------------
@@ -156,11 +231,16 @@ def test_life_trace_detects_tamper(tmp_path):
     reset_life_trace()
     db = tmp_path / "lt.sqlite3"
     ledger = LifeTraceLedger(db_path=db)
-    ledger.record("action_executed", origin="test", action_taken={"content": "a"}, result={"ok": True})
-    ledger.record("action_executed", origin="test", action_taken={"content": "b"}, result={"ok": True})
+    ledger.record(
+        "action_executed", origin="test", action_taken={"content": "a"}, result={"ok": True}
+    )
+    ledger.record(
+        "action_executed", origin="test", action_taken={"content": "b"}, result={"ok": True}
+    )
     assert ledger.verify_chain() is True
 
     import sqlite3
+
     with sqlite3.connect(db) as conn:
         conn.execute("UPDATE life_trace SET payload = ? WHERE rowid = 1", ('{"tampered": true}',))
     assert ledger.verify_chain() is False
@@ -191,8 +271,9 @@ def test_continuity_torture_smoke():
 
 
 def test_self_repair_demo_smoke():
-    from tests.self_repair_demo import _run_demo
     import tempfile
+
+    from tests.self_repair_demo import _run_demo
 
     with tempfile.TemporaryDirectory() as tmp:
         report = _run_demo(Path(tmp))
@@ -205,6 +286,7 @@ def test_life_trial_runs_briefly(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     # Redirect the trial dir to a tmp location
     from tests import life_trial as lt
+
     monkeypatch.setattr(lt, "TRIAL_DIR", tmp_path / "life_trial")
     config = lt.TrialConfig(hours=0.001, tick_seconds=0.05, summary_interval_hours=0.0005)
     index = lt.run_trial(config)

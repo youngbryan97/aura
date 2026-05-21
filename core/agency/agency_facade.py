@@ -9,17 +9,49 @@ autonomous action end-to-end without spelunking ``AgencyCore``.
 The facade does NOT reimplement AgencyCore; it wraps it and turns its
 internal signals into receipts that the LifeTrace ledger can persist.
 """
-from __future__ import annotations
-from core.runtime.errors import record_degradation
 
+from __future__ import annotations
 
 import hashlib
 import json
 import time
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable, Dict, List, Optional
+from typing import Any
 
 from core.agency_core import AgencyCore
+from core.runtime.errors import FallbackClassification, record_degradation
+
+_AGENCY_FACADE_RECOVERABLE_ERRORS = (
+    AttributeError,
+    ImportError,
+    RuntimeError,
+    TypeError,
+    ValueError,
+    OSError,
+    ConnectionError,
+    TimeoutError,
+)
+
+
+def _record_agency_facade_degradation(
+    subsystem: str,
+    error: BaseException,
+    *,
+    action: str,
+    severity: str = "degraded",
+    classification: FallbackClassification = FallbackClassification.SAFE_FALLBACK,
+    extra: dict[str, Any] | None = None,
+):
+    return record_degradation(
+        subsystem,
+        error,
+        severity=severity,
+        action=action,
+        classification=classification,
+        receipt_required=True,
+        extra=extra,
+    )
 
 
 @dataclass(frozen=True)
@@ -32,10 +64,10 @@ class InitiativeProposal:
     required_capabilities: tuple[str, ...] = ()
     expected_outcome: str = ""
     counterfactuals: tuple[str, ...] = ()
-    context_snapshot: Dict[str, Any] = field(default_factory=dict)
+    context_snapshot: dict[str, Any] = field(default_factory=dict)
     created_at: float = field(default_factory=time.time)
 
-    def as_dict(self) -> Dict[str, Any]:
+    def as_dict(self) -> dict[str, Any]:
         return {
             "proposal_id": self.proposal_id,
             "source_actor": self.source_actor,
@@ -59,15 +91,17 @@ class ScoredInitiative:
     expected_value: float
     justification: str
 
-    def as_dict(self) -> Dict[str, Any]:
+    def as_dict(self) -> dict[str, Any]:
         d = self.proposal.as_dict()
-        d.update({
-            "priority": round(self.priority, 4),
-            "safety_score": round(self.safety_score, 4),
-            "resource_cost": round(self.resource_cost, 4),
-            "expected_value": round(self.expected_value, 4),
-            "justification": self.justification,
-        })
+        d.update(
+            {
+                "priority": round(self.priority, 4),
+                "safety_score": round(self.safety_score, 4),
+                "resource_cost": round(self.resource_cost, 4),
+                "expected_value": round(self.expected_value, 4),
+                "justification": self.justification,
+            }
+        )
         return d
 
 
@@ -78,10 +112,10 @@ class ActionReceipt:
     action_kind: str
     outcome_raw: Any
     success: bool
-    side_effects: Dict[str, Any] = field(default_factory=dict)
+    side_effects: dict[str, Any] = field(default_factory=dict)
     executed_at: float = field(default_factory=time.time)
 
-    def as_dict(self) -> Dict[str, Any]:
+    def as_dict(self) -> dict[str, Any]:
         raw = self.outcome_raw
         try:
             json.dumps(raw)
@@ -107,7 +141,7 @@ class OutcomeAssessment:
     regret: float
     lessons: tuple[str, ...] = ()
 
-    def as_dict(self) -> Dict[str, Any]:
+    def as_dict(self) -> dict[str, Any]:
         return {
             "receipt_id": self.receipt_id,
             "achieved_expected": self.achieved_expected,
@@ -122,6 +156,18 @@ def _hash(*parts: Any) -> str:
     return hashlib.sha256(blob).hexdigest()[:16]
 
 
+def _coerce_executor_success(outcome_raw: Any) -> bool:
+    if isinstance(outcome_raw, dict):
+        if "success" in outcome_raw:
+            return bool(outcome_raw["success"])
+        if "ok" in outcome_raw:
+            return bool(outcome_raw["ok"])
+        if "error" in outcome_raw:
+            return False
+        return True
+    return bool(outcome_raw)
+
+
 class AgencyFacade(AgencyCore):
     """Typed life-loop wrapper around AgencyCore.
 
@@ -130,10 +176,12 @@ class AgencyFacade(AgencyCore):
     """
 
     # ---- Phase 1: propose ---------------------------------------------
-    async def propose_initiatives(self, context: Optional[Dict[str, Any]] = None) -> List[InitiativeProposal]:
+    async def propose_initiatives(
+        self, context: dict[str, Any] | None = None
+    ) -> list[InitiativeProposal]:
         context = context or {}
         pulse = await self.pulse()  # type: ignore[attr-defined]
-        proposals: List[InitiativeProposal] = []
+        proposals: list[InitiativeProposal] = []
         if not pulse:
             return proposals
         raw_list = pulse.get("initiatives") or pulse.get("proposals") or []
@@ -143,27 +191,35 @@ class AgencyFacade(AgencyCore):
         for idx, raw in enumerate(raw_list):
             if not isinstance(raw, dict):
                 continue
-            origin = str(raw.get("origin_drive") or raw.get("drive") or raw.get("source") or "unspecified")
-            content = str(raw.get("content") or raw.get("objective") or raw.get("description") or "")
+            origin = str(
+                raw.get("origin_drive") or raw.get("drive") or raw.get("source") or "unspecified"
+            )
+            content = str(
+                raw.get("content") or raw.get("objective") or raw.get("description") or ""
+            )
             if not content:
                 continue
             proposal_id = _hash(ts, idx, origin, content)
-            proposals.append(InitiativeProposal(
-                proposal_id=proposal_id,
-                source_actor=str(raw.get("actor") or "agency_core"),
-                origin_drive=origin,
-                content=content,
-                rationale=str(raw.get("rationale") or raw.get("why") or ""),
-                required_capabilities=tuple(raw.get("required_capabilities") or ()),
-                expected_outcome=str(raw.get("expected_outcome") or ""),
-                counterfactuals=tuple(raw.get("counterfactuals") or ()),
-                context_snapshot={"pulse_metrics": pulse.get("metrics", {}), **context},
-            ))
+            proposals.append(
+                InitiativeProposal(
+                    proposal_id=proposal_id,
+                    source_actor=str(raw.get("actor") or "agency_core"),
+                    origin_drive=origin,
+                    content=content,
+                    rationale=str(raw.get("rationale") or raw.get("why") or ""),
+                    required_capabilities=tuple(raw.get("required_capabilities") or ()),
+                    expected_outcome=str(raw.get("expected_outcome") or ""),
+                    counterfactuals=tuple(raw.get("counterfactuals") or ()),
+                    context_snapshot={"pulse_metrics": pulse.get("metrics", {}), **context},
+                )
+            )
         return proposals
 
     # ---- Phase 2: score ------------------------------------------------
-    async def score_initiatives(self, proposals: List[InitiativeProposal]) -> List[ScoredInitiative]:
-        scored: List[ScoredInitiative] = []
+    async def score_initiatives(
+        self, proposals: list[InitiativeProposal]
+    ) -> list[ScoredInitiative]:
+        scored: list[ScoredInitiative] = []
         for p in proposals:
             priority = float(p.context_snapshot.get("pulse_metrics", {}).get("priority", 0.5))
             lowered = p.content.lower()
@@ -183,19 +239,21 @@ class AgencyFacade(AgencyCore):
             justification = (
                 f"priority={priority:.2f} safety={safety:.2f} cost={cost:.2f} ev={ev:.2f}"
             )
-            scored.append(ScoredInitiative(
-                proposal=p,
-                priority=priority,
-                safety_score=safety,
-                resource_cost=cost,
-                expected_value=ev,
-                justification=justification,
-            ))
+            scored.append(
+                ScoredInitiative(
+                    proposal=p,
+                    priority=priority,
+                    safety_score=safety,
+                    resource_cost=cost,
+                    expected_value=ev,
+                    justification=justification,
+                )
+            )
         scored.sort(key=lambda s: s.expected_value, reverse=True)
         return scored
 
     # ---- Phase 3: submit to Will --------------------------------------
-    async def submit_to_will(self, scored: List[ScoredInitiative]) -> Optional[Dict[str, Any]]:
+    async def submit_to_will(self, scored: list[ScoredInitiative]) -> dict[str, Any] | None:
         if not scored:
             return None
         top = scored[0]
@@ -232,30 +290,51 @@ class AgencyFacade(AgencyCore):
                 "proposal": top.as_dict(),
             }
         except (ImportError, AttributeError, RuntimeError) as exc:
-            record_degradation('agency_facade', exc)
-            return {"approved": False, "receipt_id": "", "reason": f"will error: {exc}", "proposal": top.as_dict()}
+            _record_agency_facade_degradation(
+                "agency_facade_will",
+                exc,
+                action="failed closed agency initiative because Unified Will submission failed",
+                severity="critical",
+            )
+            return {
+                "approved": False,
+                "receipt_id": "",
+                "reason": f"will error: {exc}",
+                "proposal": top.as_dict(),
+            }
 
     # ---- Phase 4: execute ---------------------------------------------
     async def execute_approved(
         self,
-        decision: Optional[Dict[str, Any]],
-        executor: Optional[Callable[[Dict[str, Any]], Awaitable[Any]]] = None,
-    ) -> Optional[ActionReceipt]:
+        decision: dict[str, Any] | None,
+        executor: Callable[[dict[str, Any]], Awaitable[Any]] | None = None,
+    ) -> ActionReceipt | None:
         if not decision or not decision.get("approved"):
             return None
         proposal = decision.get("proposal", {})
         started = time.time()
+        side_effects = {
+            "will_receipt_id": str(decision.get("receipt_id", "")),
+            "executor_bound": executor is not None,
+        }
         try:
             if executor is not None:
                 outcome_raw = await executor(proposal)
-                success = bool(outcome_raw) if not isinstance(outcome_raw, dict) else bool(outcome_raw.get("success", True))
+                success = _coerce_executor_success(outcome_raw)
             else:
-                outcome_raw = {"recorded": True, "note": "no executor bound"}
-                success = True
-        except (OSError, ConnectionError, TimeoutError) as exc:
-            record_degradation('agency_facade', exc)
-            outcome_raw = {"error": repr(exc)}
+                outcome_raw = {"error": "no executor bound", "recorded": False}
+                success = False
+        except _AGENCY_FACADE_RECOVERABLE_ERRORS as exc:
+            _record_agency_facade_degradation(
+                "agency_facade_executor",
+                exc,
+                action="returned failure receipt after approved agency executor failed",
+                extra={"proposal_id": str(proposal.get("proposal_id", ""))},
+            )
+            outcome_raw = {"error": repr(exc), "error_type": type(exc).__qualname__}
+            side_effects["error_type"] = type(exc).__qualname__
             success = False
+        side_effects["duration_ms"] = round((time.time() - started) * 1000, 3)
         receipt_id = _hash("receipt", started, proposal.get("proposal_id", ""))
         return ActionReceipt(
             receipt_id=receipt_id,
@@ -263,16 +342,17 @@ class AgencyFacade(AgencyCore):
             action_kind=str(proposal.get("content", ""))[:64],
             outcome_raw=outcome_raw,
             success=success,
+            side_effects=side_effects,
         )
 
     # ---- Phase 5: evaluate --------------------------------------------
-    async def evaluate_outcome(self, receipt: Optional[ActionReceipt]) -> Optional[OutcomeAssessment]:
+    async def evaluate_outcome(self, receipt: ActionReceipt | None) -> OutcomeAssessment | None:
         if receipt is None:
             return None
         measured = 1.0 if receipt.success else 0.0
         achieved = receipt.success
         regret = 0.0 if receipt.success else 0.5
-        lessons: List[str] = []
+        lessons: list[str] = []
         if not receipt.success:
             lessons.append("retry with smaller step or different actor")
         return OutcomeAssessment(
@@ -284,19 +364,23 @@ class AgencyFacade(AgencyCore):
         )
 
     # ---- Phase 6: consolidate -----------------------------------------
-    async def consolidate_learning(self, assessment: Optional[OutcomeAssessment]) -> Dict[str, Any]:
+    async def consolidate_learning(self, assessment: OutcomeAssessment | None) -> dict[str, Any]:
         if assessment is None:
             return {"consolidated": False}
         try:
             from core.container import ServiceContainer
 
-            memory = ServiceContainer.get("memory_facade", default=None) or ServiceContainer.get("dual_memory", default=None)
+            memory = ServiceContainer.get("memory_facade", default=None) or ServiceContainer.get(
+                "dual_memory", default=None
+            )
             if memory is not None and hasattr(memory, "record_event"):
-                memory.record_event({
-                    "kind": "agency_outcome",
-                    "assessment": assessment.as_dict(),
-                    "timestamp": time.time(),
-                })
+                memory.record_event(
+                    {
+                        "kind": "agency_outcome",
+                        "assessment": assessment.as_dict(),
+                        "timestamp": time.time(),
+                    }
+                )
             emergent = ServiceContainer.get("emergent_goal_engine", default=None)
             if emergent is not None and assessment.regret >= 0.5:
                 emergent.observe(
@@ -306,15 +390,22 @@ class AgencyFacade(AgencyCore):
                 )
             return {"consolidated": True, "assessment": assessment.as_dict()}
         except (ImportError, AttributeError, RuntimeError) as exc:
-            record_degradation('agency_facade', exc)
+            _record_agency_facade_degradation(
+                "agency_facade_learning",
+                exc,
+                action="returned unconsolidated assessment after learning persistence failed",
+                severity="warning",
+                classification=FallbackClassification.AUDIT_GAP,
+                extra={"receipt_id": assessment.receipt_id},
+            )
             return {"consolidated": False, "reason": repr(exc)}
 
     # ---- Full cycle convenience ---------------------------------------
     async def run_cycle(
         self,
-        context: Optional[Dict[str, Any]] = None,
-        executor: Optional[Callable[[Dict[str, Any]], Awaitable[Any]]] = None,
-    ) -> Dict[str, Any]:
+        context: dict[str, Any] | None = None,
+        executor: Callable[[dict[str, Any]], Awaitable[Any]] | None = None,
+    ) -> dict[str, Any]:
         proposals = await self.propose_initiatives(context)
         scored = await self.score_initiatives(proposals)
         decision = await self.submit_to_will(scored)
