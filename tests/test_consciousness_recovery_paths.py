@@ -29,6 +29,7 @@ from core.consciousness import (
     neologism_engine,
     neural_mesh,
     neurochemical_system,
+    oscillatory_binding,
     parallel_branches,
     phi_core,
     precision_sampler,
@@ -1078,6 +1079,86 @@ def test_neural_mesh_invalid_column_summary_is_observable(monkeypatch):
             "returned empty NeuralMesh column summary for invalid index",
         )
     ]
+
+
+def test_oscillatory_binding_run_loop_survives_tick_failure(monkeypatch):
+    recorded: list[tuple[str, str, str, dict | None]] = []
+
+    def record(module, exc, **kwargs):
+        recorded.append(
+            (
+                module,
+                type(exc).__name__,
+                kwargs.get("action", ""),
+                kwargs.get("extra"),
+            )
+        )
+
+    async def no_sleep(_seconds):
+        return None
+
+    monkeypatch.setattr(oscillatory_binding, "record_degradation", record)
+    monkeypatch.setattr(oscillatory_binding.asyncio, "sleep", no_sleep)
+
+    cfg = oscillatory_binding.BindingConfig(internal_rate=200.0, output_rate=200.0)
+    binding = oscillatory_binding.OscillatoryBinding(cfg)
+    attempts = {"count": 0}
+
+    def fail_once_then_stop():
+        attempts["count"] += 1
+        if attempts["count"] == 1:
+            raise RuntimeError("phase step unavailable")
+        binding._running = False
+
+    binding._oscillator_step = fail_once_then_stop
+    binding._running = True
+
+    asyncio.run(binding._run_loop())
+
+    assert attempts["count"] == 2
+    assert binding._running is False
+    assert any(
+        action
+        == (
+            "kept OscillatoryBinding loop alive after tick failure "
+            "and reset to neutral phase state"
+        )
+        and extra == {"consecutive_tick_failures": 1}
+        for _, _, action, extra in recorded
+    )
+
+
+def test_oscillatory_binding_sanitizes_bad_phase_and_mesh_inputs(monkeypatch):
+    recorded: list[tuple[str, str, str]] = []
+
+    def record(module, exc, **kwargs):
+        recorded.append((module, type(exc).__name__, kwargs.get("action", "")))
+
+    monkeypatch.setattr(oscillatory_binding, "record_degradation", record)
+
+    binding = oscillatory_binding.OscillatoryBinding()
+    binding.receive_mesh_energy(
+        {"sensory": np.nan, "association": 4.0, "executive": -1.0}
+    )
+    binding.report_phase("", 1.0)
+    binding.report_phase("invalid", np.nan)
+    binding.report_phase("valid_a", 0.0)
+    binding.report_phase("valid_b", 2 * np.pi)
+    binding._compute_synchronization()
+    phase = binding.compute_subsystem_phase(np.inf, "computed")
+
+    assert 0.0 <= binding._mesh_sensory_energy <= 1.0
+    assert 0.0 <= binding._mesh_association_energy <= 1.0
+    assert 0.0 <= binding._mesh_executive_energy <= 1.0
+    assert "invalid" not in binding._phase_reports
+    assert 0.0 <= phase < 2 * np.pi
+    assert 0.0 <= binding.get_psi() <= 1.0
+    assert np.isfinite(binding.get_gamma_amplitude())
+    actions = {action for _, _, action in recorded}
+    assert "normalized mesh energy before oscillator modulation" in actions
+    assert "ignored phase report with invalid source" in actions
+    assert "ignored invalid phase report" in actions
+    assert "normalized subsystem activation before phase computation" in actions
 
 
 def test_aura_protocol_identity_read_failure_records_and_preserves_message(monkeypatch):

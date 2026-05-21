@@ -24,22 +24,75 @@ Integration:
   • Desynchronization → fragmentation signal → executive attention redirect
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
-
-
-from core.utils.task_tracker import get_task_tracker
 
 import asyncio
 import logging
 import math
 import time
 from collections import deque
-from dataclasses import dataclass, field
-from typing import Deque, Dict, List, Optional, Tuple
+from dataclasses import dataclass
 
 import numpy as np
 
+from core.runtime.errors import FallbackClassification, Severity, record_degradation
+from core.utils.task_tracker import get_task_tracker
+
 logger = logging.getLogger("Consciousness.OscillatoryBinding")
+
+_RECOVERABLE_BINDING_ERRORS = (
+    AttributeError,
+    ImportError,
+    LookupError,
+    OSError,
+    RuntimeError,
+    TimeoutError,
+    TypeError,
+    ValueError,
+)
+_TAU = 2.0 * math.pi
+_MAX_PHASE_SOURCES = 256
+_MAX_SOURCE_NAME_CHARS = 128
+
+
+def _record_binding_degradation(
+    error: BaseException,
+    *,
+    action: str,
+    severity: Severity = "degraded",
+    extra: dict[str, object] | None = None,
+) -> None:
+    try:
+        record_degradation(
+            "oscillatory_binding",
+            error,
+            severity=severity,
+            action=action,
+            classification=FallbackClassification.SAFE_FALLBACK,
+            receipt_required=True,
+            extra=extra,
+        )
+    except TypeError:
+        record_degradation("oscillatory_binding", error)
+
+
+def _finite_float(raw: object, default: float) -> tuple[float, bool]:
+    try:
+        value = float(raw)
+    except (TypeError, ValueError, OverflowError):
+        return default, False
+    if not math.isfinite(value):
+        return default, False
+    return value, True
+
+
+def _clamp_float(value: float, *, lower: float, upper: float) -> tuple[float, bool]:
+    clamped = max(lower, min(upper, value))
+    return clamped, clamped == value
+
+
+def _normalize_phase(raw: object) -> tuple[float, bool]:
+    phase, valid = _finite_float(raw, 0.0)
+    return phase % _TAU, valid
 
 
 @dataclass(frozen=True)
@@ -62,7 +115,7 @@ class BindingMoment:
     gamma_amplitude: float
     theta_phase: float
     is_bound: bool                  # True if PSI > threshold
-    contributing_sources: List[str]
+    contributing_sources: list[str]
     field_coherence: float          # how coherent the unified field is
 
 
@@ -89,6 +142,7 @@ class OscillatoryBinding:
 
     def __init__(self, cfg: BindingConfig | None = None):
         self.cfg = cfg or BindingConfig()
+        self._validate_config()
 
         # Internal oscillator state
         self._gamma_phase: float = 0.0  # radians
@@ -97,25 +151,27 @@ class OscillatoryBinding:
         self._theta_amplitude: float = 1.0
 
         # Phase reports from subsystems
-        self._phase_reports: Dict[str, float] = {}  # source → last reported phase
-        self._phase_timestamps: Dict[str, float] = {}
+        self._phase_reports: dict[str, float] = {}  # source → last reported phase
+        self._phase_timestamps: dict[str, float] = {}
 
         # Synchronization
         self._psi: float = 0.5  # Phase Synchronization Index
         self._bound: bool = False
-        self._binding_history: Deque[BindingMoment] = deque(maxlen=self.cfg.history_len)
+        self._binding_history: deque[BindingMoment] = deque(maxlen=self.cfg.history_len)
 
         # Theta-gamma coupling measurement
-        self._gamma_at_theta_peak: Deque[float] = deque(maxlen=50)
-        self._gamma_at_theta_trough: Deque[float] = deque(maxlen=50)
+        self._gamma_at_theta_peak: deque[float] = deque(maxlen=50)
+        self._gamma_at_theta_trough: deque[float] = deque(maxlen=50)
         self._measured_coupling: float = 0.0
 
         # Runtime
         self._running = False
-        self._task: Optional[asyncio.Task] = None
+        self._task: asyncio.Task | None = None
         self._internal_tick: int = 0
         self._output_tick: int = 0
         self._start_time: float = 0.0
+        self._consecutive_tick_failures: int = 0
+        self._last_tick_error_at: float = 0.0
 
         # Fragmentation events (for executive attention)
         self._fragmentation_count: int = 0
@@ -124,14 +180,48 @@ class OscillatoryBinding:
         logger.info("OscillatoryBinding initialized (γ=%.0fHz, θ=%.0fHz, coupling=%.2f)",
                      self.cfg.gamma_freq, self.cfg.theta_freq, self.cfg.coupling_strength)
 
+    def _validate_config(self) -> None:
+        numeric_ranges = {
+            "gamma_freq": (self.cfg.gamma_freq, 1.0, 200.0),
+            "theta_freq": (self.cfg.theta_freq, 0.1, 40.0),
+            "internal_rate": (self.cfg.internal_rate, 1.0, 1000.0),
+            "output_rate": (self.cfg.output_rate, 0.1, 200.0),
+            "coupling_strength": (self.cfg.coupling_strength, 0.0, 1.0),
+            "sync_threshold": (self.cfg.sync_threshold, 0.0, 1.0),
+            "fragmentation_threshold": (self.cfg.fragmentation_threshold, 0.0, 1.0),
+        }
+        for name, (raw, lower, upper) in numeric_ranges.items():
+            value, valid = _finite_float(raw, 0.0)
+            if not valid or not (lower <= value <= upper):
+                raise ValueError(
+                    f"OscillatoryBinding config {name} must be finite in [{lower}, {upper}]"
+                )
+        if self.cfg.output_rate > self.cfg.internal_rate:
+            raise ValueError("OscillatoryBinding output_rate must not exceed internal_rate")
+        if self.cfg.history_len <= 0:
+            raise ValueError("OscillatoryBinding history_len must be positive")
+
     # ── Lifecycle ────────────────────────────────────────────────────────
 
     async def start(self):
         if self._running:
             return
         self._running = True
-        self._start_time = time.time()
-        self._task = get_task_tracker().create_task(self._run_loop(), name="OscillatoryBinding")
+        self._start_time = time.monotonic()
+        try:
+            self._task = get_task_tracker().create_task(
+                self._run_loop(),
+                name="OscillatoryBinding",
+            )
+        except _RECOVERABLE_BINDING_ERRORS as exc:
+            self._running = False
+            self._task = None
+            _record_binding_degradation(
+                exc,
+                action="failed closed when OscillatoryBinding task creation failed",
+                severity="critical",
+            )
+            raise
         logger.info("OscillatoryBinding STARTED")
 
     async def stop(self):
@@ -141,7 +231,7 @@ class OscillatoryBinding:
             try:
                 await self._task
             except asyncio.CancelledError:
-                pass  # no-op: intentional
+                logger.debug("OscillatoryBinding task cancellation acknowledged")
             self._task = None
         logger.info("OscillatoryBinding STOPPED")
 
@@ -149,12 +239,38 @@ class OscillatoryBinding:
         """Internal loop at 100 Hz for oscillator dynamics.
         Emits binding moments at output_rate (10 Hz).
         """
-        internal_interval = 1.0 / self.cfg.internal_rate
-        output_every = int(self.cfg.internal_rate / self.cfg.output_rate)
+        internal_rate, valid_internal_rate = _finite_float(self.cfg.internal_rate, 100.0)
+        output_rate, valid_output_rate = _finite_float(self.cfg.output_rate, 10.0)
+        internal_rate, internal_rate_unchanged = _clamp_float(
+            internal_rate,
+            lower=1.0,
+            upper=1000.0,
+        )
+        output_rate, output_rate_unchanged = _clamp_float(
+            output_rate,
+            lower=0.1,
+            upper=internal_rate,
+        )
+        if not all(
+            (
+                valid_internal_rate,
+                valid_output_rate,
+                internal_rate_unchanged,
+                output_rate_unchanged,
+            )
+        ):
+            _record_binding_degradation(
+                ValueError("OscillatoryBinding loop rates were invalid"),
+                action="normalized OscillatoryBinding loop rates before runtime loop",
+                severity="warning",
+                extra={"internal_rate": internal_rate, "output_rate": output_rate},
+            )
+        internal_interval = 1.0 / internal_rate
+        output_every = max(1, int(round(internal_rate / output_rate)))
 
         try:
             while self._running:
-                t0 = time.time()
+                t0 = time.monotonic()
                 try:
                     self._oscillator_step()
                     self._internal_tick += 1
@@ -164,14 +280,46 @@ class OscillatoryBinding:
                         self._emit_binding_moment()
                         self._output_tick += 1
 
-                except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-                    record_degradation('oscillatory_binding', e)
-                    logger.error("Oscillatory binding error: %s", e, exc_info=True)
+                    self._consecutive_tick_failures = 0
+                except _RECOVERABLE_BINDING_ERRORS as exc:
+                    self._consecutive_tick_failures += 1
+                    self._last_tick_error_at = time.monotonic()
+                    _record_binding_degradation(
+                        exc,
+                        action=(
+                            "kept OscillatoryBinding loop alive after tick failure "
+                            "and reset to neutral phase state"
+                        ),
+                        extra={
+                            "consecutive_tick_failures": self._consecutive_tick_failures
+                        },
+                    )
+                    logger.error("Oscillatory binding error: %s", exc, exc_info=True)
+                    self._enter_fail_safe_state()
 
-                elapsed = time.time() - t0
-                await asyncio.sleep(max(0.0, internal_interval - elapsed))
+                elapsed = time.monotonic() - t0
+                backoff = min(
+                    internal_interval * max(0, self._consecutive_tick_failures),
+                    2.0,
+                )
+                await asyncio.sleep(max(0.0, internal_interval + backoff - elapsed))
         except asyncio.CancelledError:
-            pass  # no-op: intentional
+            logger.debug("OscillatoryBinding run loop cancelled")
+        finally:
+            self._running = False
+
+    def _enter_fail_safe_state(self) -> None:
+        self._gamma_phase, _ = _normalize_phase(self._gamma_phase)
+        self._theta_phase, _ = _normalize_phase(self._theta_phase)
+        gamma_amp, _ = _finite_float(self._gamma_amplitude, 1.0)
+        theta_amp, _ = _finite_float(self._theta_amplitude, 1.0)
+        measured, _ = _finite_float(self._measured_coupling, 0.0)
+        psi, _ = _finite_float(self._psi, 0.5)
+        self._gamma_amplitude, _ = _clamp_float(gamma_amp, lower=0.0, upper=2.0)
+        self._theta_amplitude, _ = _clamp_float(theta_amp, lower=0.0, upper=2.0)
+        self._measured_coupling, _ = _clamp_float(measured, lower=0.0, upper=1.0)
+        self._psi, _ = _clamp_float(psi, lower=0.0, upper=1.0)
+        self._bound = self._psi >= self.cfg.sync_threshold
 
     # ── Oscillator dynamics ──────────────────────────────────────────────
 
@@ -186,9 +334,28 @@ class OscillatoryBinding:
         Args:
             tier_energy: dict with "sensory", "association", "executive" float values
         """
-        self._mesh_sensory_energy = float(tier_energy.get("sensory", 0.0))
-        self._mesh_association_energy = float(tier_energy.get("association", 0.0))
-        self._mesh_executive_energy = float(tier_energy.get("executive", 0.0))
+        if not isinstance(tier_energy, dict):
+            _record_binding_degradation(
+                TypeError("mesh tier energy must be a dict"),
+                action="ignored malformed mesh energy update for oscillator binding",
+                severity="warning",
+            )
+            return
+        values: dict[str, float] = {}
+        for key in ("sensory", "association", "executive"):
+            value, valid = _finite_float(tier_energy.get(key, 0.0), 0.0)
+            value, unchanged = _clamp_float(value, lower=0.0, upper=1.0)
+            if not valid or not unchanged:
+                _record_binding_degradation(
+                    ValueError(f"invalid mesh {key} energy for oscillator binding"),
+                    action="normalized mesh energy before oscillator modulation",
+                    severity="warning",
+                    extra={"tier": key, "value": value},
+                )
+            values[key] = value
+        self._mesh_sensory_energy = values["sensory"]
+        self._mesh_association_energy = values["association"]
+        self._mesh_executive_energy = values["executive"]
 
     def _oscillator_step(self):
         """Advance gamma and theta oscillators by one internal tick.
@@ -198,42 +365,66 @@ class OscillatoryBinding:
         - Association tier energy → theta amplitude (richer associations = stronger framing)
         - Sensory tier energy → gamma amplitude boost (strong input = stronger binding)
         """
-        dt = 1.0 / self.cfg.internal_rate
+        internal_rate, valid_internal_rate = _finite_float(self.cfg.internal_rate, 100.0)
+        internal_rate, rate_unchanged = _clamp_float(
+            internal_rate,
+            lower=1.0,
+            upper=1000.0,
+        )
+        if not valid_internal_rate or not rate_unchanged:
+            _record_binding_degradation(
+                ValueError("OscillatoryBinding internal rate was invalid"),
+                action="normalized internal rate before oscillator step",
+                severity="warning",
+                extra={"internal_rate": internal_rate},
+            )
+        dt = 1.0 / internal_rate
 
         # ── Mesh-driven modulation ──────────────────────────────────────
         # These create genuine bidirectional coupling:
         # mesh activity → oscillator dynamics → binding moments → back to mesh via unified field
-        mesh_exec = getattr(self, "_mesh_executive_energy", 0.0)
-        mesh_assoc = getattr(self, "_mesh_association_energy", 0.0)
-        mesh_sens = getattr(self, "_mesh_sensory_energy", 0.0)
+        mesh_exec, _ = _finite_float(getattr(self, "_mesh_executive_energy", 0.0), 0.0)
+        mesh_assoc, _ = _finite_float(getattr(self, "_mesh_association_energy", 0.0), 0.0)
+        mesh_sens, _ = _finite_float(getattr(self, "_mesh_sensory_energy", 0.0), 0.0)
+        mesh_exec, _ = _clamp_float(mesh_exec, lower=0.0, upper=1.0)
+        mesh_assoc, _ = _clamp_float(mesh_assoc, lower=0.0, upper=1.0)
+        mesh_sens, _ = _clamp_float(mesh_sens, lower=0.0, upper=1.0)
 
         # Executive activity modulates gamma FREQUENCY (±5 Hz around 40 Hz base)
         # High executive activity = faster binding = sharper temporal integration
         gamma_freq_mod = self.cfg.gamma_freq + (mesh_exec - 0.3) * 10.0
-        gamma_freq_mod = max(30.0, min(50.0, gamma_freq_mod))  # clamp 30-50 Hz
+        gamma_freq_mod, _ = _finite_float(gamma_freq_mod, 40.0)
+        gamma_freq_mod, _ = _clamp_float(gamma_freq_mod, lower=30.0, upper=50.0)
 
         # Association activity modulates theta AMPLITUDE (richer associations = stronger framing)
         theta_amp_mod = 1.0 + (mesh_assoc - 0.3) * 0.5  # 0.85-1.35 range
-        theta_amp_mod = max(0.5, min(1.5, theta_amp_mod))
+        theta_amp_mod, _ = _finite_float(theta_amp_mod, 1.0)
+        theta_amp_mod, _ = _clamp_float(theta_amp_mod, lower=0.5, upper=1.5)
 
         # Sensory input modulates coupling STRENGTH (strong input = tighter coupling)
         coupling_mod = self.cfg.coupling_strength + mesh_sens * 0.3
-        coupling_mod = max(0.0, min(1.0, coupling_mod))
+        coupling_mod, _ = _finite_float(coupling_mod, self.cfg.coupling_strength)
+        coupling_mod, _ = _clamp_float(coupling_mod, lower=0.0, upper=1.0)
 
         # Advance theta (slow oscillator — 8 Hz)
-        self._theta_phase += 2.0 * math.pi * self.cfg.theta_freq * dt
-        if self._theta_phase > 2.0 * math.pi:
-            self._theta_phase -= 2.0 * math.pi
+        theta_freq, _ = _finite_float(self.cfg.theta_freq, 8.0)
+        theta_freq, _ = _clamp_float(theta_freq, lower=0.1, upper=40.0)
+        theta_phase, _ = _normalize_phase(self._theta_phase)
+        self._theta_phase = (theta_phase + _TAU * theta_freq * dt) % _TAU
 
         # Theta-gamma coupling: gamma amplitude modulated by theta phase
         # Now uses mesh-modulated coupling strength
         theta_modulation = (1.0 + coupling_mod * math.cos(self._theta_phase)) / (1.0 + coupling_mod)
-        self._gamma_amplitude = theta_modulation * theta_amp_mod
+        self._gamma_amplitude, _ = _finite_float(theta_modulation * theta_amp_mod, 1.0)
+        self._gamma_amplitude, _ = _clamp_float(
+            self._gamma_amplitude,
+            lower=0.0,
+            upper=2.0,
+        )
 
         # Advance gamma (fast oscillator — now mesh-modulated frequency)
-        self._gamma_phase += 2.0 * math.pi * gamma_freq_mod * dt
-        if self._gamma_phase > 2.0 * math.pi:
-            self._gamma_phase -= 2.0 * math.pi
+        gamma_phase, _ = _normalize_phase(self._gamma_phase)
+        self._gamma_phase = (gamma_phase + _TAU * gamma_freq_mod * dt) % _TAU
 
         # Track coupling: record gamma amplitude at theta peaks and troughs
         theta_val = math.cos(self._theta_phase)
@@ -247,7 +438,12 @@ class OscillatoryBinding:
             peak_mean = np.mean(list(self._gamma_at_theta_peak))
             trough_mean = np.mean(list(self._gamma_at_theta_trough))
             self._measured_coupling = (peak_mean - trough_mean) / (peak_mean + trough_mean + 1e-8)
-            self._measured_coupling = max(0.0, min(1.0, self._measured_coupling))
+            self._measured_coupling, _ = _finite_float(self._measured_coupling, 0.0)
+            self._measured_coupling, _ = _clamp_float(
+                self._measured_coupling,
+                lower=0.0,
+                upper=1.0,
+            )
 
     # ── Synchronization computation ──────────────────────────────────────
 
@@ -259,11 +455,15 @@ class OscillatoryBinding:
         This is the circular mean resultant length — a standard measure of
         phase concentration.  1.0 = all in phase, 0.0 = uniformly distributed.
         """
-        now = time.time()
+        now = time.monotonic()
         stale_cutoff = now - 2.0
 
         # Prune stale reports to prevent unbounded dict growth
-        stale_keys = [k for k, ts in self._phase_timestamps.items() if ts < stale_cutoff]
+        stale_keys = []
+        for key, timestamp in self._phase_timestamps.items():
+            ts, valid_ts = _finite_float(timestamp, 0.0)
+            if not valid_ts or ts < stale_cutoff:
+                stale_keys.append(key)
         for k in stale_keys:
             self._phase_reports.pop(k, None)
             self._phase_timestamps.pop(k, None)
@@ -272,11 +472,21 @@ class OscillatoryBinding:
         active_phases = []
         for source, phase in self._phase_reports.items():
             if self._phase_timestamps.get(source, 0) > stale_cutoff:
-                active_phases.append(phase)
+                normalized_phase, valid_phase = _normalize_phase(phase)
+                if valid_phase:
+                    active_phases.append(normalized_phase)
+                else:
+                    _record_binding_degradation(
+                        ValueError(f"invalid phase report from {source}"),
+                        action="ignored invalid phase report during synchronization",
+                        severity="warning",
+                        extra={"source": source},
+                    )
 
         if len(active_phases) < 2:
             # Not enough sources to compute synchronization
             self._psi = 0.5  # neutral
+            self._bound = False
             return
 
         # Phase Synchronization Index (circular statistics)
@@ -287,10 +497,18 @@ class OscillatoryBinding:
 
         # Binding state
         was_bound = self._bound
-        self._bound = self._psi >= self.cfg.sync_threshold
+        sync_threshold, _ = _finite_float(self.cfg.sync_threshold, 0.65)
+        sync_threshold, _ = _clamp_float(sync_threshold, lower=0.0, upper=1.0)
+        self._bound = self._psi >= sync_threshold
 
         # Fragmentation detection
-        if not self._bound and self._psi < self.cfg.fragmentation_threshold:
+        fragmentation_threshold, _ = _finite_float(self.cfg.fragmentation_threshold, 0.3)
+        fragmentation_threshold, _ = _clamp_float(
+            fragmentation_threshold,
+            lower=0.0,
+            upper=1.0,
+        )
+        if not self._bound and self._psi < fragmentation_threshold:
             if was_bound or (now - self._last_fragmentation_time > 5.0):
                 self._fragmentation_count += 1
                 self._last_fragmentation_time = now
@@ -299,21 +517,26 @@ class OscillatoryBinding:
 
     def _emit_binding_moment(self):
         """Record a BindingMoment for history and downstream consumers."""
-        now = time.time()
+        now = time.monotonic()
         stale_cutoff = now - 2.0
         contributing = [
             src for src, ts in self._phase_timestamps.items()
             if ts > stale_cutoff
         ]
+        gamma_amplitude, _ = _finite_float(self._gamma_amplitude, 1.0)
+        gamma_amplitude, _ = _clamp_float(gamma_amplitude, lower=0.0, upper=2.0)
+        theta_phase, _ = _normalize_phase(self._theta_phase)
+        psi, _ = _finite_float(self._psi, 0.5)
+        psi, _ = _clamp_float(psi, lower=0.0, upper=1.0)
 
         moment = BindingMoment(
-            timestamp=now,
-            psi=self._psi,
-            gamma_amplitude=self._gamma_amplitude,
-            theta_phase=self._theta_phase,
+            timestamp=time.time(),
+            psi=psi,
+            gamma_amplitude=gamma_amplitude,
+            theta_phase=theta_phase,
             is_bound=self._bound,
             contributing_sources=contributing,
-            field_coherence=self._psi * self._gamma_amplitude,
+            field_coherence=max(0.0, min(1.0, psi * gamma_amplitude)),
         )
         self._binding_history.append(moment)
 
@@ -325,8 +548,41 @@ class OscillatoryBinding:
         phase should be in radians [0, 2π).  Subsystems that are "in sync"
         with the binding rhythm report similar phases, increasing PSI.
         """
-        self._phase_reports[source] = phase % (2.0 * math.pi)
-        self._phase_timestamps[source] = time.time()
+        if not isinstance(source, str) or not source.strip():
+            _record_binding_degradation(
+                ValueError("phase report source was empty or non-string"),
+                action="ignored phase report with invalid source",
+                severity="warning",
+            )
+            return
+        source = source.strip()[:_MAX_SOURCE_NAME_CHARS]
+        normalized_phase, valid_phase = _normalize_phase(phase)
+        if not valid_phase:
+            _record_binding_degradation(
+                ValueError(f"phase report from {source} was non-finite"),
+                action="ignored invalid phase report",
+                severity="warning",
+                extra={"source": source},
+            )
+            return
+        if source not in self._phase_reports and len(self._phase_reports) >= _MAX_PHASE_SOURCES:
+            if self._phase_timestamps:
+                oldest_source = min(
+                    self._phase_timestamps,
+                    key=lambda item: self._phase_timestamps.get(item, 0.0),
+                )
+            else:
+                oldest_source = next(iter(self._phase_reports))
+            self._phase_reports.pop(oldest_source, None)
+            self._phase_timestamps.pop(oldest_source, None)
+            _record_binding_degradation(
+                RuntimeError("OscillatoryBinding phase source capacity reached"),
+                action="evicted oldest phase source before accepting new report",
+                severity="warning",
+                extra={"evicted_source": oldest_source},
+            )
+        self._phase_reports[source] = normalized_phase
+        self._phase_timestamps[source] = time.monotonic()
 
     def compute_subsystem_phase(self, activation_level: float, source: str) -> float:
         """Helper: derive a phase from a subsystem's activation level.
@@ -335,6 +591,19 @@ class OscillatoryBinding:
         will naturally synchronize when subsystems have correlated activity.
         """
         # Lock subsystem activity to gamma rhythm
+        activation_level, valid_activation = _finite_float(activation_level, 0.0)
+        activation_level, activation_unchanged = _clamp_float(
+            activation_level,
+            lower=-1.0,
+            upper=1.0,
+        )
+        if not valid_activation or not activation_unchanged:
+            _record_binding_degradation(
+                ValueError("subsystem activation level was invalid"),
+                action="normalized subsystem activation before phase computation",
+                severity="warning",
+                extra={"source": source, "activation_level": activation_level},
+            )
         gamma_signal = math.sin(self._gamma_phase) * self._gamma_amplitude
         # Phase = atan2 of (activity, gamma_signal) — creates natural sync
         phase = math.atan2(activation_level, gamma_signal + 1e-8)
@@ -347,15 +616,20 @@ class OscillatoryBinding:
 
     def get_psi(self) -> float:
         """Current Phase Synchronization Index [0, 1]."""
-        return self._psi
+        psi, _ = _finite_float(self._psi, 0.5)
+        psi, _ = _clamp_float(psi, lower=0.0, upper=1.0)
+        return psi
 
     def get_gamma_amplitude(self) -> float:
         """Current gamma oscillation amplitude (modulated by theta)."""
-        return self._gamma_amplitude
+        amplitude, _ = _finite_float(self._gamma_amplitude, 1.0)
+        amplitude, _ = _clamp_float(amplitude, lower=0.0, upper=2.0)
+        return amplitude
 
     def get_theta_phase(self) -> float:
         """Current theta phase in radians."""
-        return self._theta_phase
+        theta_phase, _ = _normalize_phase(self._theta_phase)
+        return theta_phase
 
     def is_bound(self) -> bool:
         """Whether current processing is in a bound (unified) state."""
@@ -363,13 +637,18 @@ class OscillatoryBinding:
 
     def get_coupling_strength(self) -> float:
         """Measured theta-gamma coupling (Modulation Index)."""
-        return self._measured_coupling
+        coupling, _ = _finite_float(self._measured_coupling, 0.0)
+        coupling, _ = _clamp_float(coupling, lower=0.0, upper=1.0)
+        return coupling
 
     def get_fragmentation_count(self) -> int:
         return self._fragmentation_count
 
-    def get_binding_history(self, n: int = 20) -> List[Dict]:
+    def get_binding_history(self, n: int = 20) -> list[dict]:
         """Recent binding moments for telemetry."""
+        if not isinstance(n, int):
+            n = 20
+        n = max(0, min(500, n))
         return [
             {
                 "timestamp": m.timestamp,
@@ -388,20 +667,27 @@ class OscillatoryBinding:
 
         High PSI + high coupling → high integration → high Φ contribution.
         """
-        return self._psi * (0.5 + 0.5 * self._measured_coupling)
+        contribution = self.get_psi() * (0.5 + 0.5 * self.get_coupling_strength())
+        contribution, _ = _clamp_float(contribution, lower=0.0, upper=1.0)
+        return contribution
 
-    def get_status(self) -> Dict:
+    def get_status(self) -> dict:
         return {
             "running": self._running,
             "internal_tick": self._internal_tick,
             "output_tick": self._output_tick,
-            "psi": round(self._psi, 4),
+            "psi": round(self.get_psi(), 4),
             "is_bound": self._bound,
-            "gamma_amplitude": round(self._gamma_amplitude, 4),
-            "gamma_phase": round(self._gamma_phase, 4),
-            "theta_phase": round(self._theta_phase, 4),
-            "measured_coupling": round(self._measured_coupling, 4),
+            "gamma_amplitude": round(self.get_gamma_amplitude(), 4),
+            "gamma_phase": round(_normalize_phase(self._gamma_phase)[0], 4),
+            "theta_phase": round(self.get_theta_phase(), 4),
+            "measured_coupling": round(self.get_coupling_strength(), 4),
             "fragmentation_count": self._fragmentation_count,
             "active_sources": len(self._phase_reports),
             "history_len": len(self._binding_history),
+            "consecutive_tick_failures": self._consecutive_tick_failures,
+            "last_tick_error_age_s": round(time.monotonic() - self._last_tick_error_at, 1)
+            if self._last_tick_error_at
+            else 0,
+            "uptime_s": round(time.monotonic() - self._start_time, 1) if self._start_time else 0,
         }
