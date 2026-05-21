@@ -137,6 +137,115 @@ def test_adaptive_mood_failures_fall_back_with_receipts(monkeypatch):
     ]
 
 
+def test_neurochemical_run_loop_survives_tick_failure(monkeypatch):
+    recorded: list[tuple[str, str, str, dict | None]] = []
+
+    def record(module, exc, **kwargs):
+        recorded.append(
+            (
+                module,
+                type(exc).__name__,
+                kwargs.get("action", ""),
+                kwargs.get("extra"),
+            )
+        )
+
+    async def no_sleep(_seconds):
+        return None
+
+    monkeypatch.setattr(neurochemical_system, "record_degradation", record)
+    monkeypatch.setattr(neurochemical_system.asyncio, "sleep", no_sleep)
+
+    ncs = NeurochemicalSystem()
+    attempts = {"count": 0}
+
+    def fail_once_then_stop():
+        attempts["count"] += 1
+        if attempts["count"] == 1:
+            raise RuntimeError("metabolic tick unavailable")
+        ncs._running = False
+
+    ncs._metabolic_tick = fail_once_then_stop
+    ncs._running = True
+
+    asyncio.run(ncs._run_loop())
+
+    assert attempts["count"] == 2
+    assert ncs._running is False
+    assert any(
+        action
+        == "kept NeurochemicalSystem loop alive after tick failure and normalized chemistry"
+        and extra == {"consecutive_tick_failures": 1}
+        for _, _, action, extra in recorded
+    )
+
+
+def test_neurochemical_corrupted_state_is_repaired(monkeypatch):
+    recorded: list[tuple[str, str, str]] = []
+
+    def record(module, exc, **kwargs):
+        recorded.append((module, type(exc).__name__, kwargs.get("action", "")))
+
+    monkeypatch.setattr(neurochemical_system, "record_degradation", record)
+
+    ncs = NeurochemicalSystem()
+    dopamine = ncs.chemicals["dopamine"]
+    dopamine.level = float("nan")
+    dopamine.tonic_level = float("inf")
+    dopamine.phasic_burst = -1.0
+    dopamine.receptor_sensitivity = float("nan")
+
+    ncs._metabolic_tick()
+
+    assert 0.0 <= dopamine.level <= 1.0
+    assert 0.0 <= dopamine.tonic_level <= 1.0
+    assert 0.0 <= dopamine.phasic_burst <= 0.5
+    assert 0.3 <= dopamine.receptor_sensitivity <= 2.0
+    assert np.all(np.isfinite(ncs.get_mesh_modulation()))
+    assert any(
+        action == "normalized chemical state before interaction"
+        for _, _, action in recorded
+    )
+
+
+def test_neurochemical_modulation_push_failure_is_structured(monkeypatch):
+    recorded: list[tuple[str, str, str, dict | None]] = []
+
+    def record(module, exc, **kwargs):
+        recorded.append(
+            (
+                module,
+                type(exc).__name__,
+                kwargs.get("action", ""),
+                kwargs.get("extra"),
+            )
+        )
+
+    class _Mesh:
+        def __init__(self):
+            self.calls = 0
+
+        def set_modulatory_state(self, *_args):
+            self.calls += 1
+            raise RuntimeError("mesh offline")
+
+    monkeypatch.setattr(neurochemical_system, "record_degradation", record)
+
+    ncs = NeurochemicalSystem()
+    mesh = _Mesh()
+    ncs._mesh_ref = mesh
+
+    ncs._push_modulation()
+
+    assert mesh.calls == 1
+    assert any(
+        action == "kept chemistry alive when mesh modulation push failed"
+        and extra is not None
+        and {"gain", "plasticity", "noise"} <= set(extra)
+        for _, _, action, extra in recorded
+    )
+
+
 def test_consciousness_bridge_prediction_hook_records_failures(monkeypatch):
     recorded: list[tuple[str, str]] = []
     monkeypatch.setattr(

@@ -50,11 +50,58 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from core.runtime.errors import record_degradation
+from core.runtime.errors import FallbackClassification, Severity, record_degradation
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Consciousness.Neurochemical")
 _latest_instance: NeurochemicalSystem | None = None
+
+_RECOVERABLE_NEUROCHEMICAL_ERRORS = (
+    AttributeError,
+    ImportError,
+    LookupError,
+    OSError,
+    RuntimeError,
+    TimeoutError,
+    TypeError,
+    ValueError,
+)
+
+
+def _record_neurochemical_degradation(
+    error: BaseException,
+    *,
+    action: str,
+    severity: Severity = "degraded",
+    extra: dict[str, object] | None = None,
+) -> None:
+    try:
+        record_degradation(
+            "neurochemical_system",
+            error,
+            severity=severity,
+            action=action,
+            classification=FallbackClassification.SAFE_FALLBACK,
+            receipt_required=True,
+            extra=extra,
+        )
+    except TypeError:
+        record_degradation("neurochemical_system", error)
+
+
+def _finite_float(raw: object, default: float) -> tuple[float, bool]:
+    try:
+        value = float(raw)
+    except (TypeError, ValueError, OverflowError):
+        return default, False
+    if not np.isfinite(value):
+        return default, False
+    return value, True
+
+
+def _clamp_float(value: float, *, lower: float, upper: float) -> tuple[float, bool]:
+    clamped = max(lower, min(upper, value))
+    return clamped, clamped == value
 
 
 def get_latest_neurochemical_system() -> NeurochemicalSystem | None:
@@ -82,9 +129,18 @@ class ReceptorSubtype:
     adaptation_rate: float = 0.003
 
     def adapt(self, level: float, baseline: float, dt: float):
+        level, _ = _finite_float(level, 0.5)
+        baseline, _ = _finite_float(baseline, 0.5)
+        dt, _ = _finite_float(dt, 1.0)
+        rate, _ = _finite_float(self.adaptation_rate, 0.003)
+        level, _ = _clamp_float(level, lower=0.0, upper=1.0)
+        baseline, _ = _clamp_float(baseline, lower=0.0, upper=1.0)
+        dt, _ = _clamp_float(dt, lower=0.0, upper=60.0)
+        rate, _ = _clamp_float(rate, lower=0.0, upper=1.0)
+        sensitivity, _ = _finite_float(self.sensitivity, 1.0)
         deviation = level - baseline
-        self.sensitivity -= self.adaptation_rate * deviation * dt
-        self.sensitivity = max(0.3, min(2.0, self.sensitivity))
+        sensitivity -= rate * deviation * dt
+        self.sensitivity = max(0.3, min(2.0, sensitivity))
 
 
 @dataclass
@@ -119,16 +175,92 @@ class Chemical:
     # Effective level = (tonic + phasic) * receptor_sensitivity * proximity_weight
     @property
     def effective(self) -> float:
-        combined = min(1.0, self.tonic_level + self.phasic_burst)
-        return min(1.0, combined * self.receptor_sensitivity * self.proximity_weight)
+        tonic, _ = _finite_float(self.tonic_level, self.baseline)
+        phasic, _ = _finite_float(self.phasic_burst, 0.0)
+        sensitivity, _ = _finite_float(self.receptor_sensitivity, 1.0)
+        proximity, _ = _finite_float(self.proximity_weight, 1.0)
+        tonic, _ = _clamp_float(tonic, lower=0.0, upper=1.0)
+        phasic, _ = _clamp_float(phasic, lower=0.0, upper=0.5)
+        sensitivity, _ = _clamp_float(
+            sensitivity,
+            lower=self.min_sensitivity,
+            upper=self.max_sensitivity,
+        )
+        proximity, _ = _clamp_float(proximity, lower=0.0, upper=3.0)
+        combined = min(1.0, tonic + phasic)
+        return max(0.0, min(1.0, combined * sensitivity * proximity))
 
     def effective_subtype(self, subtype_name: str) -> float:
         """Get effective level through a specific receptor subtype."""
         if not self.subtypes or subtype_name not in self.subtypes:
             return self.effective
         st = self.subtypes[subtype_name]
-        combined = min(1.0, self.tonic_level + self.phasic_burst)
-        return min(1.0, combined * st.sensitivity * st.weight * self.proximity_weight)
+        tonic, _ = _finite_float(self.tonic_level, self.baseline)
+        phasic, _ = _finite_float(self.phasic_burst, 0.0)
+        sensitivity, _ = _finite_float(st.sensitivity, 1.0)
+        weight, _ = _finite_float(st.weight, 0.5)
+        proximity, _ = _finite_float(self.proximity_weight, 1.0)
+        tonic, _ = _clamp_float(tonic, lower=0.0, upper=1.0)
+        phasic, _ = _clamp_float(phasic, lower=0.0, upper=0.5)
+        sensitivity, _ = _clamp_float(sensitivity, lower=0.3, upper=2.0)
+        weight, _ = _clamp_float(weight, lower=0.0, upper=1.0)
+        proximity, _ = _clamp_float(proximity, lower=0.0, upper=3.0)
+        combined = min(1.0, tonic + phasic)
+        return max(0.0, min(1.0, combined * sensitivity * weight * proximity))
+
+    def _sanitize_state(self, *, action: str) -> None:
+        min_sensitivity, min_valid = _finite_float(self.min_sensitivity, 0.3)
+        max_sensitivity, max_valid = _finite_float(self.max_sensitivity, 2.0)
+        min_sensitivity, min_unchanged = _clamp_float(
+            min_sensitivity,
+            lower=0.01,
+            upper=2.0,
+        )
+        max_sensitivity, max_unchanged = _clamp_float(
+            max_sensitivity,
+            lower=min_sensitivity,
+            upper=5.0,
+        )
+        sensitivity_bounds_repaired = not all(
+            (min_valid, max_valid, min_unchanged, max_unchanged)
+        )
+        self.min_sensitivity = min_sensitivity
+        self.max_sensitivity = max_sensitivity
+        fields = {
+            "level": (self.level, 0.5, 0.0, 1.0),
+            "baseline": (self.baseline, 0.5, 0.0, 1.0),
+            "tonic_level": (self.tonic_level, 0.5, 0.0, 1.0),
+            "phasic_burst": (self.phasic_burst, 0.0, 0.0, 0.5),
+            "production_rate": (self.production_rate, 0.0, -0.15, 0.15),
+            "_base_production": (self._base_production, 0.0, -0.15, 0.15),
+            "uptake_rate": (self.uptake_rate, 0.02, 0.0, 1.0),
+            "receptor_sensitivity": (
+                self.receptor_sensitivity,
+                1.0,
+                self.min_sensitivity,
+                self.max_sensitivity,
+            ),
+            "adaptation_rate": (self.adaptation_rate, 0.005, 0.0, 1.0),
+            "proximity_weight": (self.proximity_weight, 1.0, 0.0, 3.0),
+        }
+        repaired: list[str] = []
+        for field_name, (raw, default, lower, upper) in fields.items():
+            value, valid = _finite_float(raw, float(default))
+            value, unchanged = _clamp_float(value, lower=float(lower), upper=float(upper))
+            if not valid or not unchanged:
+                repaired.append(field_name)
+            setattr(self, field_name, value)
+        if sensitivity_bounds_repaired:
+            repaired.extend(["min_sensitivity", "max_sensitivity"])
+        if repaired:
+            _record_neurochemical_degradation(
+                ValueError(
+                    f"{self.name} chemical state had invalid fields: {', '.join(repaired)}"
+                ),
+                action=action,
+                severity="warning",
+                extra={"chemical": self.name, "fields": repaired},
+            )
 
     def tick(self, dt: float = 1.0):
         """One metabolic step.
@@ -142,6 +274,16 @@ class Chemical:
         - Below baseline → sensitivity increases (re-sensitization)
         Both are bounded by [min_sensitivity, max_sensitivity].
         """
+        self._sanitize_state(action="normalized chemical state before metabolic tick")
+        dt, valid_dt = _finite_float(dt, 1.0)
+        dt, dt_unchanged = _clamp_float(dt, lower=0.0, upper=60.0)
+        if not valid_dt or not dt_unchanged:
+            _record_neurochemical_degradation(
+                ValueError(f"{self.name} chemical tick dt was invalid"),
+                action="normalized chemical tick dt",
+                severity="warning",
+                extra={"chemical": self.name, "dt": dt},
+            )
         expected_level = min(1.0, self.tonic_level + self.phasic_burst)
         external_level = max(0.0, min(1.0, self.level))
         if external_level > expected_level + 1e-6:
@@ -183,6 +325,16 @@ class Chemical:
         effective_amount scales down as level approaches 1.0.
         This prevents NE/cortisol from hitting ceiling under sustained threat.
         """
+        self._sanitize_state(action="normalized chemical state before surge")
+        amount, valid_amount = _finite_float(amount, 0.0)
+        amount, amount_unchanged = _clamp_float(amount, lower=0.0, upper=1.0)
+        if not valid_amount or not amount_unchanged:
+            _record_neurochemical_degradation(
+                ValueError(f"{self.name} chemical surge amount was invalid"),
+                action="normalized chemical surge amount",
+                severity="warning",
+                extra={"chemical": self.name, "amount": amount},
+            )
         headroom = max(0.0, 1.0 - self.level)
         # Diminishing returns: effective surge is proportional to remaining headroom
         effective = amount * min(1.0, headroom * 2.0)
@@ -194,6 +346,16 @@ class Chemical:
 
         Applies floor protection: depletion scales down as level approaches 0.
         """
+        self._sanitize_state(action="normalized chemical state before depletion")
+        amount, valid_amount = _finite_float(amount, 0.0)
+        amount, amount_unchanged = _clamp_float(amount, lower=0.0, upper=1.0)
+        if not valid_amount or not amount_unchanged:
+            _record_neurochemical_degradation(
+                ValueError(f"{self.name} chemical depletion amount was invalid"),
+                action="normalized chemical depletion amount",
+                severity="warning",
+                extra={"chemical": self.name, "amount": amount},
+            )
         floor_guard = max(0.0, self.tonic_level - 0.05)  # protect last 5%
         effective = min(amount, floor_guard)
         self.tonic_level = max(0.0, self.tonic_level - effective)
@@ -359,6 +521,8 @@ class NeurochemicalSystem:
         self._task: asyncio.Task | None = None
         self._tick_count: int = 0
         self._start_time: float = 0.0
+        self._consecutive_tick_failures: int = 0
+        self._last_tick_error_at: float = 0.0
 
         # External driver hooks (set by bridge)
         self._mesh_ref: object | None = None  # NeuralMesh
@@ -373,8 +537,21 @@ class NeurochemicalSystem:
         if self._running:
             return
         self._running = True
-        self._start_time = time.time()
-        self._task = get_task_tracker().create_task(self._run_loop(), name="Neurochemical")
+        self._start_time = time.monotonic()
+        try:
+            self._task = get_task_tracker().create_task(
+                self._run_loop(),
+                name="Neurochemical",
+            )
+        except _RECOVERABLE_NEUROCHEMICAL_ERRORS as exc:
+            self._running = False
+            self._task = None
+            _record_neurochemical_degradation(
+                exc,
+                action="failed closed when NeurochemicalSystem task creation failed",
+                severity="critical",
+            )
+            raise
         logger.info("NeurochemicalSystem STARTED (%.0f Hz)", self._UPDATE_HZ)
 
     async def stop(self):
@@ -384,25 +561,78 @@ class NeurochemicalSystem:
             try:
                 await self._task
             except asyncio.CancelledError:
-                pass  # no-op: intentional
+                logger.debug("NeurochemicalSystem task cancellation acknowledged")
             self._task = None
         logger.info("NeurochemicalSystem STOPPED")
 
     async def _run_loop(self):
-        interval = 1.0 / self._UPDATE_HZ
+        update_hz, valid_update_hz = _finite_float(self._UPDATE_HZ, 2.0)
+        update_hz, update_hz_unchanged = _clamp_float(
+            update_hz,
+            lower=0.1,
+            upper=20.0,
+        )
+        if not valid_update_hz or not update_hz_unchanged:
+            _record_neurochemical_degradation(
+                ValueError(f"unsafe NeurochemicalSystem update_hz: {self._UPDATE_HZ!r}"),
+                action="normalized NeurochemicalSystem update rate before runtime loop",
+                severity="warning",
+                extra={"normalized_update_hz": update_hz},
+            )
+        interval = 1.0 / update_hz
         try:
             while self._running:
-                t0 = time.time()
+                t0 = time.monotonic()
                 try:
                     self._metabolic_tick()
                     self._push_modulation()
-                except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-                    record_degradation('neurochemical_system', e)
-                    logger.error("Neurochemical tick error: %s", e, exc_info=True)
-                elapsed = time.time() - t0
-                await asyncio.sleep(max(0.0, interval - elapsed))
+                    self._consecutive_tick_failures = 0
+                except _RECOVERABLE_NEUROCHEMICAL_ERRORS as exc:
+                    self._consecutive_tick_failures += 1
+                    self._last_tick_error_at = time.monotonic()
+                    _record_neurochemical_degradation(
+                        exc,
+                        action=(
+                            "kept NeurochemicalSystem loop alive after tick failure "
+                            "and normalized chemistry"
+                        ),
+                        extra={
+                            "consecutive_tick_failures": self._consecutive_tick_failures
+                        },
+                    )
+                    logger.error("Neurochemical tick error: %s", exc, exc_info=True)
+                    self._stabilize_chemistry_after_failure()
+                elapsed = time.monotonic() - t0
+                backoff = min(
+                    interval * max(0, self._consecutive_tick_failures),
+                    2.0,
+                )
+                await asyncio.sleep(max(0.0, interval + backoff - elapsed))
         except asyncio.CancelledError:
-            pass  # no-op: intentional
+            logger.debug("NeurochemicalSystem run loop cancelled")
+        finally:
+            self._running = False
+
+    def _repair_missing_chemicals(self) -> None:
+        repaired: list[str] = []
+        for name in self._order:
+            if name not in self.chemicals:
+                self.chemicals[name] = Chemical(name)
+                repaired.append(name)
+        if repaired:
+            _record_neurochemical_degradation(
+                RuntimeError(f"missing chemicals repaired: {', '.join(repaired)}"),
+                action="recreated missing NeurochemicalSystem chemical slots",
+                severity="critical",
+                extra={"chemicals": repaired},
+            )
+
+    def _stabilize_chemistry_after_failure(self) -> None:
+        self._repair_missing_chemicals()
+        for chemical in self.chemicals.values():
+            chemical._sanitize_state(
+                action="normalized all chemical state after NeurochemicalSystem failure"
+            )
 
     # ── Core tick ────────────────────────────────────────────────────────
 
@@ -415,14 +645,44 @@ class NeurochemicalSystem:
         (= tonic + phasic), which incorrectly eroded the phasic burst component
         and doubled the pull strength. Removed 2026-05-02.
         """
-        dt = 1.0 / self._UPDATE_HZ
+        self._repair_missing_chemicals()
+        update_hz, valid_update_hz = _finite_float(self._UPDATE_HZ, 2.0)
+        update_hz, update_hz_unchanged = _clamp_float(
+            update_hz,
+            lower=0.1,
+            upper=20.0,
+        )
+        if not valid_update_hz or not update_hz_unchanged:
+            _record_neurochemical_degradation(
+                ValueError(f"unsafe NeurochemicalSystem update_hz: {self._UPDATE_HZ!r}"),
+                action="normalized NeurochemicalSystem update rate before metabolic tick",
+                severity="warning",
+                extra={"normalized_update_hz": update_hz},
+            )
+        dt = 1.0 / update_hz
 
         # Get current levels as vector
+        for chemical in self.chemicals.values():
+            chemical._sanitize_state(action="normalized chemical state before interaction")
         levels = np.array([self.chemicals[n].level for n in self._order], dtype=np.float32)
+        if not np.all(np.isfinite(levels)):
+            _record_neurochemical_degradation(
+                ValueError("NeurochemicalSystem level vector contained non-finite values"),
+                action="sanitized chemical level vector before interaction",
+                severity="warning",
+            )
+            levels = np.nan_to_num(levels, nan=0.5, posinf=1.0, neginf=0.0)
+        levels = np.clip(levels, 0.0, 1.0)
 
         # Cross-chemical interactions
         interaction_deltas = _INTERACTIONS.T @ levels  # (10,)
         interaction_deltas *= 0.05 * dt  # scale factor (reduced from 0.1 to prevent drift)
+        interaction_deltas = np.nan_to_num(
+            interaction_deltas,
+            nan=0.0,
+            posinf=0.15,
+            neginf=-0.15,
+        )
 
         # Apply interaction effects as ADDITIVE delta to base production,
         # with production damping: chemicals above baseline have their
@@ -449,9 +709,14 @@ class NeurochemicalSystem:
             gain, plasticity, noise = self.get_mesh_modulation()
             try:
                 self._mesh_ref.set_modulatory_state(gain, plasticity, noise)
-            except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-                record_degradation('neurochemical_system', e)
-                logger.debug("Failed to push mesh modulation: %s", e)
+            except _RECOVERABLE_NEUROCHEMICAL_ERRORS as exc:
+                _record_neurochemical_degradation(
+                    exc,
+                    action="kept chemistry alive when mesh modulation push failed",
+                    severity="warning",
+                    extra={"gain": gain, "plasticity": plasticity, "noise": noise},
+                )
+                logger.debug("Failed to push mesh modulation: %s", exc)
 
         # GWT threshold modulation
         if self._workspace_ref is not None:
@@ -462,26 +727,46 @@ class NeurochemicalSystem:
                 self._workspace_ref._IGNITION_THRESHOLD = max(
                     0.3, min(0.9, base_threshold + threshold_adj)
                 )
-            except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-                record_degradation('neurochemical_system', e)
-                logger.debug("Failed to push GWT modulation: %s", e)
+            except _RECOVERABLE_NEUROCHEMICAL_ERRORS as exc:
+                _record_neurochemical_degradation(
+                    exc,
+                    action="kept chemistry alive when GWT threshold push failed",
+                    severity="warning",
+                )
+                logger.debug("Failed to push GWT modulation: %s", exc)
+
+    def _event_amount(self, raw: object, *, event: str, default: float) -> float:
+        self._repair_missing_chemicals()
+        amount, valid = _finite_float(raw, default)
+        amount, unchanged = _clamp_float(amount, lower=0.0, upper=1.0)
+        if not valid or not unchanged:
+            _record_neurochemical_degradation(
+                ValueError(f"{event} neurochemical event amount was invalid"),
+                action="normalized neurochemical event amount before applying trigger",
+                severity="warning",
+                extra={"event": event, "amount": amount},
+            )
+        return amount
 
     # ── Event triggers ───────────────────────────────────────────────────
 
     def on_reward(self, magnitude: float = 0.3):
         """Reward received — dopamine + endorphin surge."""
+        magnitude = self._event_amount(magnitude, event="reward", default=0.3)
         self.chemicals["dopamine"].surge(magnitude * 0.6)
         self.chemicals["endorphin"].surge(magnitude * 0.3)
         self.chemicals["serotonin"].surge(magnitude * 0.1)
 
     def on_prediction_error(self, error: float):
         """Prediction was wrong — norepinephrine + dopamine (learning signal)."""
+        error = self._event_amount(error, event="prediction_error", default=0.0)
         self.chemicals["norepinephrine"].surge(error * 0.4)
         self.chemicals["dopamine"].surge(error * 0.3)
         self.chemicals["acetylcholine"].surge(error * 0.2)
 
     def on_social_connection(self, strength: float = 0.3):
         """Social interaction detected."""
+        strength = self._event_amount(strength, event="social_connection", default=0.3)
         self.chemicals["oxytocin"].surge(strength * 0.5)
         self.chemicals["serotonin"].surge(strength * 0.2)
         self.chemicals["endorphin"].surge(strength * 0.1)
@@ -502,6 +787,7 @@ class NeurochemicalSystem:
         capping per-call deplete to 0.08 (≈ one threshold-crossing budget)
         and reducing the multiplier to 0.05 of severity.
         """
+        severity = self._event_amount(severity, event="threat", default=0.5)
         self.chemicals["cortisol"].surge(severity * 0.6)
         self.chemicals["norepinephrine"].surge(severity * 0.5)
         self.chemicals["dopamine"].deplete(min(0.08, severity * 0.05))
@@ -518,12 +804,17 @@ class NeurochemicalSystem:
             drive = ServiceContainer.get("drive_engine", default=None)
             if drive and hasattr(drive, "relieve_boredom"):
                 drive.relieve_boredom("tool_success")
-        except (ImportError, AttributeError, RuntimeError) as exc:
-            record_degradation("neurochemical_system", exc)
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            _record_neurochemical_degradation(
+                exc,
+                action="kept success chemistry after drive boredom relief failed",
+                severity="warning",
+            )
             logger.debug("Drive boredom relief after success failed: %s", exc)
 
     def on_frustration(self, amount: float = 0.3):
         """Frustration event."""
+        amount = self._event_amount(amount, event="frustration", default=0.3)
         self.chemicals["cortisol"].surge(amount * 0.4)
         self.chemicals["norepinephrine"].surge(amount * 0.3)
         self.chemicals["serotonin"].deplete(amount * 0.2)
@@ -537,6 +828,7 @@ class NeurochemicalSystem:
 
     def on_novelty(self, amount: float = 0.3):
         """Novel stimulus encountered -- also relieves boredom in DriveEngine."""
+        amount = self._event_amount(amount, event="novelty", default=0.3)
         self.chemicals["dopamine"].surge(amount * 0.4)
         self.chemicals["acetylcholine"].surge(amount * 0.3)
         self.chemicals["norepinephrine"].surge(amount * 0.15)
@@ -547,8 +839,12 @@ class NeurochemicalSystem:
                 drive = ServiceContainer.get("drive_engine", default=None)
                 if drive and hasattr(drive, "relieve_boredom"):
                     drive.relieve_boredom("novelty")
-            except (ImportError, AttributeError, RuntimeError) as exc:
-                record_degradation("neurochemical_system", exc)
+            except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+                _record_neurochemical_degradation(
+                    exc,
+                    action="kept novelty chemistry after drive boredom relief failed",
+                    severity="warning",
+                )
                 logger.debug("Drive boredom relief after novelty failed: %s", exc)
 
     def on_flow_state(self):
@@ -568,7 +864,7 @@ class NeurochemicalSystem:
         Orexin (wakefulness/motivation) drops because there is nothing to pursue.
         Serotonin rises slightly (calm but unstimulated).
         """
-        magnitude = min(1.0, max(0.0, boredom_level))
+        magnitude = self._event_amount(boredom_level, event="boredom", default=0.5)
         self.chemicals["dopamine"].deplete(magnitude * 0.25)
         self.chemicals["orexin"].deplete(magnitude * 0.2)
         self.chemicals["norepinephrine"].deplete(magnitude * 0.15)
@@ -578,17 +874,20 @@ class NeurochemicalSystem:
 
     def on_wakefulness(self, intensity: float = 0.3):
         """Stimulus-driven arousal (orexin-mediated)."""
+        intensity = self._event_amount(intensity, event="wakefulness", default=0.3)
         self.chemicals["orexin"].surge(intensity * 0.5)
         self.chemicals["norepinephrine"].surge(intensity * 0.2)
         self.chemicals["glutamate"].surge(intensity * 0.15)
 
     def on_excitation(self, amount: float = 0.2):
         """General excitatory drive increase."""
+        amount = self._event_amount(amount, event="excitation", default=0.2)
         self.chemicals["glutamate"].surge(amount * 0.5)
         self.chemicals["dopamine"].surge(amount * 0.1)
 
     def on_inhibition(self, amount: float = 0.2):
         """General inhibitory drive increase."""
+        amount = self._event_amount(amount, event="inhibition", default=0.2)
         self.chemicals["gaba"].surge(amount * 0.5)
         self.chemicals["glutamate"].deplete(amount * 0.1)
 
@@ -605,6 +904,7 @@ class NeurochemicalSystem:
         plasticity: learning rate scaling (ACh increases, cortisol impairs)
         noise: stochastic exploration (NE inverted-U per Yerkes-Dodson)
         """
+        self._repair_missing_chemicals()
         glu = self.chemicals["glutamate"].effective
         da = self.chemicals["dopamine"].effective
         ne = self.chemicals["norepinephrine"].effective
@@ -620,19 +920,22 @@ class NeurochemicalSystem:
         # Gain: glutamate excites, GABA-A inhibits (fast), NE/DA modulate
         # Disinhibition: low GABA = reduced inhibition = higher net gain
         gain = 0.5 + (glu * 0.25) + (ne * 0.2) + (da * 0.15) + (orx * 0.1) - (gaba_a_eff * 0.35) - (gaba_b_eff * 0.1)
-        gain = max(0.3, min(2.5, gain))
+        gain, _ = _finite_float(gain, 1.0)
+        gain, _ = _clamp_float(gain, lower=0.3, upper=2.5)
 
         # Plasticity: ACh is THE learning chemical; cortisol impairs it
         # DA D1 subtype also enhances working memory / plasticity
         da_d1 = self.chemicals["dopamine"].effective_subtype("d1")
         plasticity = 0.5 + (ach * 0.7) + (da_d1 * 0.2) - (cort * 0.4)
-        plasticity = max(0.1, min(3.0, plasticity))
+        plasticity, _ = _finite_float(plasticity, 1.0)
+        plasticity, _ = _clamp_float(plasticity, lower=0.1, upper=3.0)
 
         # Noise: inverted-U with NE (Yerkes-Dodson)
         ne_optimal = 0.5
         ne_deviation = abs(ne - ne_optimal)
         noise = 0.5 + ne_deviation * 1.5
-        noise = max(0.2, min(2.5, noise))
+        noise, _ = _finite_float(noise, 0.5)
+        noise, _ = _clamp_float(noise, lower=0.2, upper=2.5)
 
         return gain, plasticity, noise
 
@@ -645,6 +948,7 @@ class NeurochemicalSystem:
         High orexin → lower threshold (alert, awake)
         Glutamate/GABA balance directly modulates ease of ignition
         """
+        self._repair_missing_chemicals()
         ne = self.chemicals["norepinephrine"].effective
         gaba = self.chemicals["gaba"].effective
         cort = self.chemicals["cortisol"].effective
@@ -654,28 +958,37 @@ class NeurochemicalSystem:
         # Excitatory drive (glutamate, orexin) lowers threshold
         # Inhibitory drive (GABA) raises threshold
         adjustment = -0.08 * ne + 0.12 * gaba - 0.06 * cort - 0.05 * glu - 0.04 * orx
-        return max(-0.25, min(0.25, adjustment))
+        adjustment, _ = _finite_float(adjustment, 0.0)
+        adjustment, _ = _clamp_float(adjustment, lower=-0.25, upper=0.25)
+        return adjustment
 
     def get_attention_span(self) -> float:
         """How many seconds before attention naturally shifts.
 
         ACh↑ → longer span. DA↑ → shorter (novelty-seeking).
         """
+        self._repair_missing_chemicals()
         ach = self.chemicals["acetylcholine"].effective
         da = self.chemicals["dopamine"].effective
         base = 10.0  # seconds
         span = base + (ach * 15.0) - (da * 5.0)
-        return max(3.0, min(60.0, span))
+        span, _ = _finite_float(span, base)
+        span, _ = _clamp_float(span, lower=3.0, upper=60.0)
+        return span
 
     def get_decision_bias(self) -> float:
         """Explore vs exploit tendency. >0 = explore, <0 = exploit.
 
         DA↑ → explore. 5HT↑ → exploit (contentment). NE↑ → exploit (vigilance).
         """
+        self._repair_missing_chemicals()
         da = self.chemicals["dopamine"].effective
         srt = self.chemicals["serotonin"].effective
         ne = self.chemicals["norepinephrine"].effective
-        return (da * 0.5) - (srt * 0.3) - (ne * 0.2)
+        bias = (da * 0.5) - (srt * 0.3) - (ne * 0.2)
+        bias, _ = _finite_float(bias, 0.0)
+        bias, _ = _clamp_float(bias, lower=-1.0, upper=1.0)
+        return bias
 
     def get_mood_vector(self) -> dict[str, float]:
         """Mood derived from chemical balance via learned coefficients.
@@ -685,13 +998,18 @@ class NeurochemicalSystem:
         are seeded to match the legacy values but drift under outcome
         feedback, so the mapping is a learned prediction, not a definition.
         """
+        self._repair_missing_chemicals()
         chem = {name: float(c.effective) for name, c in self.chemicals.items()}
         try:
             from core.consciousness.adaptive_mood import get_adaptive_mood
 
             return get_adaptive_mood().predict(chem)
-        except (ImportError, AttributeError, RuntimeError) as exc:
-            record_degradation("neurochemical_system", exc)
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            _record_neurochemical_degradation(
+                exc,
+                action="used legacy mood vector when adaptive mood prediction failed",
+                severity="warning",
+            )
             logger.debug("Adaptive mood prediction failed, using legacy fallback: %s", exc)
             # Defensive fallback: degrade to legacy formula if adaptive layer
             # is unavailable (boot order, test isolation, etc.).
@@ -721,18 +1039,24 @@ class NeurochemicalSystem:
         mood estimate derived from behavior/world-state rather than from the
         chemistry itself, so coefficients can drift away from their seeds.
         """
+        self._repair_missing_chemicals()
         chem = {name: float(c.effective) for name, c in self.chemicals.items()}
         try:
             from core.consciousness.adaptive_mood import get_adaptive_mood
 
             return get_adaptive_mood().update_from_outcome(chem, observed_mood)
-        except (ImportError, AttributeError, RuntimeError) as exc:
-            record_degradation("neurochemical_system", exc)
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            _record_neurochemical_degradation(
+                exc,
+                action="skipped adaptive mood learning when outcome update failed",
+                severity="warning",
+            )
             logger.debug("Adaptive mood outcome update failed: %s", exc)
             return {}
 
     def get_snapshot(self) -> dict[str, dict[str, float]]:
         """Full chemical state for telemetry/diagnostics."""
+        self._repair_missing_chemicals()
         return {
             name: {
                 "level": round(c.level, 4),
@@ -744,6 +1068,7 @@ class NeurochemicalSystem:
         }
 
     def get_status(self) -> dict:
+        self._repair_missing_chemicals()
         return {
             "running": self._running,
             "tick_count": self._tick_count,
@@ -759,4 +1084,9 @@ class NeurochemicalSystem:
             "gwt_threshold_adj": round(self.get_gwt_modulation(), 3),
             "attention_span_s": round(self.get_attention_span(), 1),
             "decision_bias": round(self.get_decision_bias(), 3),
+            "consecutive_tick_failures": self._consecutive_tick_failures,
+            "last_tick_error_age_s": round(time.monotonic() - self._last_tick_error_at, 1)
+            if self._last_tick_error_at
+            else 0,
+            "uptime_s": round(time.monotonic() - self._start_time, 1) if self._start_time else 0,
         }
