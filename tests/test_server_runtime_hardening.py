@@ -58,7 +58,7 @@ async def test_memory_facade_add_and_query_memory_compat():
         def add_memory(self, content, metadata=None):
             records.append(
                 {
-                    "id": f"id-{len(records)+1}",
+                    "id": f"id-{len(records) + 1}",
                     "content": content,
                     "metadata": dict(metadata or {}),
                 }
@@ -68,7 +68,10 @@ async def test_memory_facade_add_and_query_memory_compat():
     facade = MemoryFacade()
     facade._vector = VectorStub()
 
-    assert await facade.add_memory("Journal line", {"type": "narrative_journal", "timestamp": 10.0}) is True
+    assert (
+        await facade.add_memory("Journal line", {"type": "narrative_journal", "timestamp": 10.0})
+        is True
+    )
     assert await facade.add_memory("Other line", {"type": "other", "timestamp": 11.0}) is True
 
     result = await facade.query_memory("type:narrative_journal", limit=5)
@@ -155,7 +158,9 @@ def test_stability_guardian_treats_stale_tick_history_as_idle_not_degraded():
 async def test_api_health_exposes_liquid_state_and_soma_payloads(service_container, monkeypatch):
     from interface import server as server_module
 
-    monkeypatch.setattr(server_module, "_restore_owner_session_from_request", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        server_module, "_restore_owner_session_from_request", lambda *_args, **_kwargs: None
+    )
     monkeypatch.setattr(
         server_module,
         "_collect_conversation_lane_status",
@@ -228,22 +233,40 @@ async def test_api_health_exposes_liquid_state_and_soma_payloads(service_contain
 
     service_container.register_instance(
         "orchestrator",
-        SimpleNamespace(status=SimpleNamespace(initialized=True, running=True, cycle_count=5, start_time=time.time() - 5)),
+        SimpleNamespace(
+            status=SimpleNamespace(
+                initialized=True, running=True, cycle_count=5, start_time=time.time() - 5
+            )
+        ),
         required=False,
     )
     service_container.register_instance(
         "liquid_state",
-        SimpleNamespace(get_status=lambda: {"energy": 81, "curiosity": 23, "frustration": 9, "focus": 55, "mood": "NEUTRAL"}),
+        SimpleNamespace(
+            get_status=lambda: {
+                "energy": 81,
+                "curiosity": 23,
+                "frustration": 9,
+                "focus": 55,
+                "mood": "NEUTRAL",
+            }
+        ),
         required=False,
     )
     service_container.register_instance(
         "homeostasis",
-        SimpleNamespace(get_health=lambda: {"integrity": 1.0, "persistence": 1.0, "will_to_live": 0.91}),
+        SimpleNamespace(
+            get_health=lambda: {"integrity": 1.0, "persistence": 1.0, "will_to_live": 0.91}
+        ),
         required=False,
     )
     service_container.register_instance("soma", _Soma(), required=False)
-    service_container.register_instance("social", SimpleNamespace(get_health=lambda: {"depth": 0.0}), required=False)
-    service_container.register_instance("moral", SimpleNamespace(get_health=lambda: {"integrity": 0.95}), required=False)
+    service_container.register_instance(
+        "social", SimpleNamespace(get_health=lambda: {"depth": 0.0}), required=False
+    )
+    service_container.register_instance(
+        "moral", SimpleNamespace(get_health=lambda: {"integrity": 0.95}), required=False
+    )
 
     response = await server_module.api_health(SimpleNamespace(headers={}))
     payload = json.loads(response.body)
@@ -338,8 +361,12 @@ async def test_api_health_treats_cold_standby_lane_as_ready(service_container, m
         "warmup_in_flight": False,
     }
 
-    monkeypatch.setattr(server_module, "_restore_owner_session_from_request", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(server_module, "_collect_conversation_lane_status", lambda: dict(standby_lane))
+    monkeypatch.setattr(
+        server_module, "_restore_owner_session_from_request", lambda *_args, **_kwargs: None
+    )
+    monkeypatch.setattr(
+        server_module, "_collect_conversation_lane_status", lambda: dict(standby_lane)
+    )
     monkeypatch.setattr(
         server_module,
         "build_boot_health_snapshot",
@@ -362,12 +389,22 @@ async def test_api_health_treats_cold_standby_lane_as_ready(service_container, m
         "get_runtime_state",
         lambda: {"state": {"affect": {}}, "sha256": "abc", "signature": "sig"},
     )
-    monkeypatch.setattr(server_module.psutil, "cpu_percent", lambda interval=None, percpu=False: [10.0, 12.0] if percpu else 11.0)
-    monkeypatch.setattr(server_module.psutil, "virtual_memory", lambda: SimpleNamespace(percent=33.0))
+    monkeypatch.setattr(
+        server_module.psutil,
+        "cpu_percent",
+        lambda interval=None, percpu=False: [10.0, 12.0] if percpu else 11.0,
+    )
+    monkeypatch.setattr(
+        server_module.psutil, "virtual_memory", lambda: SimpleNamespace(percent=33.0)
+    )
 
     service_container.register_instance(
         "orchestrator",
-        SimpleNamespace(status=SimpleNamespace(initialized=True, running=True, cycle_count=3, start_time=time.time() - 5)),
+        SimpleNamespace(
+            status=SimpleNamespace(
+                initialized=True, running=True, cycle_count=3, start_time=time.time() - 5
+            )
+        ),
         required=False,
     )
 
@@ -487,7 +524,9 @@ async def test_shared_memory_transport_falls_back_to_file_backed_mmap(monkeypatc
 
 
 @pytest.mark.asyncio
-async def test_shared_memory_transport_attach_suppresses_non_owner_resource_tracker_registration(monkeypatch):
+async def test_shared_memory_transport_attach_suppresses_non_owner_resource_tracker_registration(
+    monkeypatch,
+):
     closed = []
     register_calls = []
 
@@ -563,9 +602,7 @@ def test_shared_memory_transport_cross_process_attach_exits_without_leak_warning
 
     env = os.environ.copy()
     pythonpath = env.get("PYTHONPATH", "")
-    env["PYTHONPATH"] = (
-        f"{os.getcwd()}{os.pathsep}{pythonpath}" if pythonpath else os.getcwd()
-    )
+    env["PYTHONPATH"] = f"{os.getcwd()}{os.pathsep}{pythonpath}" if pythonpath else os.getcwd()
     proc = subprocess.run(
         [sys.executable, "-c", code],
         cwd=os.getcwd(),
@@ -945,7 +982,9 @@ async def test_state_repository_uses_overflow_marker_when_state_exceeds_shm_capa
 @pytest.mark.asyncio
 async def test_state_repository_fetches_from_vault_when_shm_reports_overflow():
     repo = StateRepository(is_vault_owner=False)
-    repo._shm = SimpleNamespace(read=AsyncMock(return_value={"_state_overflow": True, "version": 9}))
+    repo._shm = SimpleNamespace(
+        read=AsyncMock(return_value={"_state_overflow": True, "version": 9})
+    )
     repo._current = AuraState()
     repo._current.version = 4
 
@@ -1092,7 +1131,9 @@ async def test_autonomous_initiative_loop_background_tasks_are_supervised(monkey
 
     loop._world_watcher_loop = _hold
     loop._knowledge_gap_monitor_loop = _hold
-    monkeypatch.setattr("core.autonomous_initiative_loop.ServiceContainer.get", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        "core.autonomous_initiative_loop.ServiceContainer.get", lambda *_args, **_kwargs: None
+    )
 
     await loop.start()
     await asyncio.sleep(0)
@@ -1149,7 +1190,7 @@ async def test_robust_lock_cancellation_clears_watchdog_entry(monkeypatch):
             self.active[lock_id] = self.active.get(lock_id, "lock")
 
         def report_wait_progress(self, lock_id):
-            pass  # no-op: test stub
+            return self.active.get(lock_id)
 
         def report_release(self, lock_id):
             self.active.pop(lock_id, None)
@@ -1276,15 +1317,21 @@ async def test_state_repository_owner_commit_coalesces_stale_queue_entries(tmp_p
 
 
 @pytest.mark.asyncio
-async def test_state_repository_process_commit_writes_inline_without_spawning_background_tasks(service_container, monkeypatch, tmp_path):
+async def test_state_repository_process_commit_writes_inline_without_spawning_background_tasks(
+    service_container, monkeypatch, tmp_path
+):
     repo = StateRepository(db_path=str(tmp_path / "aura_state.db"), is_vault_owner=False)
     repo._current = AuraState()
     repo._shm = object()
     repo._commit_to_db = AsyncMock()
     repo._sync_to_shm = AsyncMock()
 
-    allowed_gate = SimpleNamespace(approve_state_mutation=AsyncMock(return_value=(True, "approved_by_test")))
-    monkeypatch.setattr("core.constitution.get_constitutional_core", lambda *args, **kwargs: allowed_gate)
+    allowed_gate = SimpleNamespace(
+        approve_state_mutation=AsyncMock(return_value=(True, "approved_by_test"))
+    )
+    monkeypatch.setattr(
+        "core.constitution.get_constitutional_core", lambda *args, **kwargs: allowed_gate
+    )
 
     next_state = repo._current.derive("inline_commit", origin="test")
     next_state.cognition.current_objective = "inline persistence"
@@ -1299,17 +1346,39 @@ async def test_state_repository_process_commit_writes_inline_without_spawning_ba
 
 
 @pytest.mark.asyncio
-async def test_state_repository_background_commit_prefers_bounded_snapshot_serialization(service_container, monkeypatch, tmp_path):
+async def test_state_repository_background_commit_prefers_bounded_snapshot_serialization(
+    service_container, monkeypatch, tmp_path
+):
     repo = StateRepository(db_path=str(tmp_path / "aura_state.db"), is_vault_owner=False)
     repo._current = AuraState()
     repo._shm = object()
     repo._commit_to_db = AsyncMock()
     repo._sync_to_shm = AsyncMock()
 
-    allowed_gate = SimpleNamespace(approve_state_mutation=AsyncMock(return_value=(True, "approved_by_test")))
-    monkeypatch.setattr("core.constitution.get_constitutional_core", lambda *args, **kwargs: allowed_gate)
-    monkeypatch.setattr(repo, "_serialize", lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("full serialize should be skipped")))
-    monkeypatch.setattr(repo, "_serialize_transport_snapshot", lambda state: json.dumps({"state_id": state.state_id, "version": state.version, "_transport_snapshot_kind": "hot"}))
+    allowed_gate = SimpleNamespace(
+        approve_state_mutation=AsyncMock(return_value=(True, "approved_by_test"))
+    )
+    monkeypatch.setattr(
+        "core.constitution.get_constitutional_core", lambda *args, **kwargs: allowed_gate
+    )
+    monkeypatch.setattr(
+        repo,
+        "_serialize",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("full serialize should be skipped")
+        ),
+    )
+    monkeypatch.setattr(
+        repo,
+        "_serialize_transport_snapshot",
+        lambda state: json.dumps(
+            {
+                "state_id": state.state_id,
+                "version": state.version,
+                "_transport_snapshot_kind": "hot",
+            }
+        ),
+    )
 
     next_state = repo._current.derive("background_compaction", origin="autonomous_thought")
     next_state.cognition.current_objective = "Background continuity maintenance"
@@ -1377,7 +1446,9 @@ async def test_state_repository_initialize_tracks_owner_consumer_task(monkeypatc
 
 
 @pytest.mark.asyncio
-async def test_state_repository_repair_runtime_restarts_consumer_and_coalesces_queue(monkeypatch, tmp_path):
+async def test_state_repository_repair_runtime_restarts_consumer_and_coalesces_queue(
+    monkeypatch, tmp_path
+):
     repo = StateRepository(db_path=str(tmp_path / "aura_state.db"), is_vault_owner=True)
     repo._current = AuraState()
     repo._is_processing = True
@@ -1443,7 +1514,9 @@ async def test_mind_tick_background_task_is_supervised(monkeypatch):
 
     monkeypatch.setattr("infrastructure.watchdog.get_watchdog", lambda: _Watchdog())
 
-    tick = MindTick(SimpleNamespace(state_repo=SimpleNamespace(get_current=AsyncMock(return_value=None))))
+    tick = MindTick(
+        SimpleNamespace(state_repo=SimpleNamespace(get_current=AsyncMock(return_value=None)))
+    )
     release = asyncio.Event()
 
     async def _hold():
@@ -1492,7 +1565,8 @@ async def test_mind_tick_missing_state_uses_single_backoff_path(monkeypatch, cap
         await tick._run_loop()
 
     missing_state_logs = [
-        record for record in caplog.records
+        record
+        for record in caplog.records
         if "No current state found. Deferring tick" in record.getMessage()
     ]
     assert sleeps == pytest.approx([2.0, 4.0, 5.0], rel=0.0, abs=0.05)
@@ -1594,7 +1668,9 @@ async def test_sleep_trigger_primes_missing_last_user_baseline():
 
 
 @pytest.mark.asyncio
-async def test_backup_manager_vacuum_discovers_sqlite_files_without_connection_pool_state(monkeypatch, tmp_path):
+async def test_backup_manager_vacuum_discovers_sqlite_files_without_connection_pool_state(
+    monkeypatch, tmp_path
+):
     from core.backup import BackupManager
 
     seen = []
@@ -1721,7 +1797,9 @@ async def test_motivation_engine_tracks_autonomous_intention(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_motivation_engine_queues_governed_initiative_when_cognitive_sink_missing(monkeypatch):
+async def test_motivation_engine_queues_governed_initiative_when_cognitive_sink_missing(
+    monkeypatch,
+):
     queued = AsyncMock(return_value={"action": "queued", "reason": "initiative_queued"})
     release_expression = AsyncMock()
 
@@ -1734,7 +1812,9 @@ async def test_motivation_engine_queues_governed_initiative_when_cognitive_sink_
         lambda *_args, **_kwargs: SimpleNamespace(release_expression=release_expression),
     )
 
-    intention = Intention(DriveType.GROWTH, "Find one concrete live-runtime repair target.", urgency=0.7)
+    intention = Intention(
+        DriveType.GROWTH, "Find one concrete live-runtime repair target.", urgency=0.7
+    )
     await engine._dispatch_intention(intention)
 
     queued.assert_awaited_once()
@@ -1753,9 +1833,15 @@ async def test_motivation_update_recovers_social_drive_during_high_energy_conver
     state.cognition.conversation_energy = 1.0
     state.motivation.last_tick = time.time() - 300.0
 
-    authority = SimpleNamespace(propose_initiative_to_state=AsyncMock(return_value=(state, {"reason": "noop"})))
-    monkeypatch.setattr("core.phases.motivation_update.ServiceContainer.has", lambda *_args, **_kwargs: False)
-    monkeypatch.setattr("core.phases.motivation_update.get_executive_authority", lambda *_args, **_kwargs: authority)
+    authority = SimpleNamespace(
+        propose_initiative_to_state=AsyncMock(return_value=(state, {"reason": "noop"}))
+    )
+    monkeypatch.setattr(
+        "core.phases.motivation_update.ServiceContainer.has", lambda *_args, **_kwargs: False
+    )
+    monkeypatch.setattr(
+        "core.phases.motivation_update.get_executive_authority", lambda *_args, **_kwargs: authority
+    )
 
     next_state = await phase.execute(state)
 
@@ -1946,7 +2032,10 @@ async def test_memory_governor_prune_failure_does_not_block_vector_prune(monkeyp
 
     assert result == {"episodes_evaporated": 0, "vectors_pruned": 1}
     assert vector.pruned is True
-    assert any("dual-memory Hawking decay failed" in event["action"] for event in governor.health_snapshot()["recent_cleanup_events"])
+    assert any(
+        "dual-memory Hawking decay failed" in event["action"]
+        for event in governor.health_snapshot()["recent_cleanup_events"]
+    )
 
 
 @pytest.mark.asyncio
@@ -1975,7 +2064,10 @@ async def test_memory_governor_unload_lanes_continue_after_router_failure(monkey
     assert result["cognitive_nucleus_unloaded"] == 1
     gate._shed_background_workers_for_memory_pressure.assert_awaited_once()
     nucleus.unload_models.assert_awaited_once()
-    assert any("llm_router unload failed" in event["action"] for event in governor.health_snapshot()["recent_cleanup_events"])
+    assert any(
+        "llm_router unload failed" in event["action"]
+        for event in governor.health_snapshot()["recent_cleanup_events"]
+    )
 
 
 def test_stability_guardian_treats_single_slow_tick_as_non_degraded_signal():
@@ -2325,7 +2417,9 @@ async def test_message_coordinator_dispatch_uses_task_tracker(monkeypatch):
             return task
 
     monkeypatch.setattr(message_coordinator_module, "task_tracker", _Tracker())
-    monkeypatch.setattr(orchestrator_types_module, "_bg_task_exception_handler", lambda task: callbacks.append(task))
+    monkeypatch.setattr(
+        orchestrator_types_module, "_bg_task_exception_handler", lambda task: callbacks.append(task)
+    )
 
     coord.dispatch_message("hi there", origin="voice")
     await asyncio.sleep(0)
@@ -2405,7 +2499,9 @@ async def test_metabolic_coordinator_trigger_background_reflection_is_task_track
         "core.conversation_reflection.get_reflector",
         lambda: SimpleNamespace(maybe_reflect=lambda *_args, **_kwargs: _reflect()),
     )
-    monkeypatch.setattr(orchestrator_types_module, "_bg_task_exception_handler", lambda task: callbacks.append(task))
+    monkeypatch.setattr(
+        orchestrator_types_module, "_bg_task_exception_handler", lambda task: callbacks.append(task)
+    )
 
     coord.trigger_background_reflection("hi")
     await asyncio.sleep(0)
@@ -2525,7 +2621,9 @@ async def test_metabolic_coordinator_terminal_self_heal_is_task_tracked(monkeypa
 
     orch = SimpleNamespace(
         _current_thought_task=None,
-        self_modifier=SimpleNamespace(on_error=lambda *args, **kwargs: modifier_calls.append((args, kwargs))),
+        self_modifier=SimpleNamespace(
+            on_error=lambda *args, **kwargs: modifier_calls.append((args, kwargs))
+        ),
         _run_cognitive_loop=_runner,
         _handle_incoming_message=None,
     )
@@ -2533,7 +2631,9 @@ async def test_metabolic_coordinator_terminal_self_heal_is_task_tracked(monkeypa
 
     monkeypatch.setattr(metabolic_module, "get_task_tracker", lambda: _Tracker())
     monkeypatch.setattr("core.terminal_monitor.get_terminal_monitor", lambda: _Monitor())
-    monkeypatch.setattr("core.runtime.background_policy.background_activity_reason", lambda *args, **kwargs: "")
+    monkeypatch.setattr(
+        "core.runtime.background_policy.background_activity_reason", lambda *args, **kwargs: ""
+    )
 
     await coord.run_terminal_self_heal()
     await orch._current_thought_task
@@ -2739,7 +2839,13 @@ async def test_metabolic_coordinator_update_liquid_pacing_tracks_liquid_state_up
         lnn=None,
         mortality=None,
         affect_engine=None,
-        status=SimpleNamespace(cycle_count=1, acceleration_factor=1.0, singularity_threshold=False, agency=0.0, curiosity=0.0),
+        status=SimpleNamespace(
+            cycle_count=1,
+            acceleration_factor=1.0,
+            singularity_threshold=False,
+            agency=0.0,
+            curiosity=0.0,
+        ),
         _last_thought_time=time.time(),
         homeostasis=None,
         _last_boredom_impulse=time.time(),
@@ -2753,9 +2859,11 @@ async def test_metabolic_coordinator_update_liquid_pacing_tracks_liquid_state_up
     monkeypatch.setattr(
         metabolic_module.ServiceContainer,
         "get",
-        lambda name, default=None: SimpleNamespace(get_status=lambda: {"valence": 0.25, "arousal": 0.75})
-        if name == "affect_engine"
-        else default,
+        lambda name, default=None: (
+            SimpleNamespace(get_status=lambda: {"valence": 0.25, "arousal": 0.75})
+            if name == "affect_engine"
+            else default
+        ),
     )
 
     coord.update_liquid_pacing()
@@ -2826,7 +2934,9 @@ async def test_metabolic_coordinator_impulses_are_task_tracked(monkeypatch):
     coord = MetabolicCoordinator(orch=orch)
 
     monkeypatch.setattr(metabolic_module, "get_task_tracker", lambda: _Tracker())
-    monkeypatch.setattr(metabolic_module, "background_activity_reason", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        metabolic_module, "background_activity_reason", lambda *_args, **_kwargs: None
+    )
     monkeypatch.setattr(metabolic_module, "run_governed_impulse", impulse)
     monkeypatch.setattr(metabolic_module.random, "choice", lambda _topics: "quantum physics")
 
@@ -3341,7 +3451,9 @@ async def test_liquid_substrate_idle_throttles_without_recent_user(monkeypatch, 
     dt = await substrate._apply_battery_throttling()
 
     assert dt == pytest.approx(substrate.config.time_constant * 4.0)
-    assert substrate.current_update_rate == pytest.approx(max(2.0, substrate.config.update_rate / 4.0))
+    assert substrate.current_update_rate == pytest.approx(
+        max(2.0, substrate.config.update_rate / 4.0)
+    )
 
 
 # ==========================================================================
@@ -3390,12 +3502,8 @@ async def test_cognitive_background_reflection_uses_named_tracker(monkeypatch):
         def maybe_reflect(self, *args, **kwargs):
             return _reflect()
 
-    monkeypatch.setattr(
-        "core.utils.task_tracker.get_task_tracker", lambda: tracker
-    )
-    monkeypatch.setattr(
-        "core.conversation_reflection.get_reflector", lambda: _Reflector()
-    )
+    monkeypatch.setattr("core.utils.task_tracker.get_task_tracker", lambda: tracker)
+    monkeypatch.setattr("core.conversation_reflection.get_reflector", lambda: _Reflector())
 
     class _Orchestrator(CognitiveBackgroundMixin):
         conversation_history = []
@@ -3424,9 +3532,7 @@ async def test_cognitive_background_learning_uses_named_tracker(monkeypatch):
     tracker = _NamedTracker()
     release = asyncio.Event()
 
-    monkeypatch.setattr(
-        "core.utils.task_tracker.get_task_tracker", lambda: tracker
-    )
+    monkeypatch.setattr("core.utils.task_tracker.get_task_tracker", lambda: tracker)
 
     class _Curiosity:
         async def extract_curiosity_from_conversation(self, original_msg):
@@ -3467,9 +3573,7 @@ async def test_message_handling_deferred_enqueue_uses_named_tracker(monkeypatch)
     import core.orchestrator.mixins.message_handling as mh_module
 
     tracker = _NamedTracker()
-    monkeypatch.setattr(
-        "core.utils.task_tracker.get_task_tracker", lambda: tracker
-    )
+    monkeypatch.setattr("core.utils.task_tracker.get_task_tracker", lambda: tracker)
 
     class _FlowDecision:
         allow = True
@@ -3515,9 +3619,7 @@ async def test_message_handling_dispatch_uses_named_tracker(monkeypatch):
     import core.orchestrator.mixins.message_handling as mh_module
 
     tracker = _NamedTracker()
-    monkeypatch.setattr(
-        "core.utils.task_tracker.get_task_tracker", lambda: tracker
-    )
+    monkeypatch.setattr("core.utils.task_tracker.get_task_tracker", lambda: tracker)
     release = asyncio.Event()
 
     class _Orch(mh_module.MessageHandlingMixin):
@@ -3543,9 +3645,7 @@ async def test_incoming_logic_handle_message_uses_named_tracker(monkeypatch):
     import core.orchestrator.mixins.incoming_logic as il_module
 
     tracker = _NamedTracker()
-    monkeypatch.setattr(
-        "core.utils.task_tracker.get_task_tracker", lambda: tracker
-    )
+    monkeypatch.setattr("core.utils.task_tracker.get_task_tracker", lambda: tracker)
 
     class _Orch(il_module.IncomingLogicMixin):
         async def _process_message_pipeline(self, message, origin="user", **kwargs):
@@ -3560,9 +3660,7 @@ async def test_incoming_logic_handle_message_uses_named_tracker(monkeypatch):
     assert any(n.startswith("incoming_logic.process_message") for n in names)
 
     tracker_b = _NamedTracker()
-    monkeypatch.setattr(
-        "core.utils.task_tracker.get_task_tracker", lambda: tracker_b
-    )
+    monkeypatch.setattr("core.utils.task_tracker.get_task_tracker", lambda: tracker_b)
     orch2 = _Orch()
     await orch2._handle_incoming_message("[VOICE] hi", origin="voice")
     names2 = [entry["name"] for entry in tracker_b.created]
@@ -3574,9 +3672,7 @@ async def test_output_formatter_eternal_snapshot_uses_named_tracker(monkeypatch)
     import core.orchestrator.mixins.output_formatter as of_module
 
     tracker = _NamedTracker()
-    monkeypatch.setattr(
-        "core.utils.task_tracker.get_task_tracker", lambda: tracker
-    )
+    monkeypatch.setattr("core.utils.task_tracker.get_task_tracker", lambda: tracker)
 
     class _Orch(of_module.OutputFormatterMixin):
         def _emit_thought_stream(self, thought):
@@ -3597,9 +3693,7 @@ async def test_output_formatter_emit_thought_stream_uses_named_tracker(monkeypat
     import core.orchestrator.mixins.output_formatter as of_module
 
     tracker = _NamedTracker()
-    monkeypatch.setattr(
-        "core.utils.task_tracker.get_task_tracker", lambda: tracker
-    )
+    monkeypatch.setattr("core.utils.task_tracker.get_task_tracker", lambda: tracker)
 
     release = asyncio.Event()
 
@@ -3629,9 +3723,7 @@ async def test_autonomy_thought_uses_named_tracker(monkeypatch):
     import core.orchestrator.mixins.autonomy as autonomy_module
 
     tracker = _NamedTracker()
-    monkeypatch.setattr(
-        "core.utils.task_tracker.get_task_tracker", lambda: tracker
-    )
+    monkeypatch.setattr("core.utils.task_tracker.get_task_tracker", lambda: tracker)
     monkeypatch.setattr(autonomy_module, "background_activity_reason", lambda *args, **kwargs: "")
 
     release = asyncio.Event()
@@ -3921,7 +4013,9 @@ class _StubWill:
             cause = args[1]
             domain = args[2]
 
-        self.calls.append({"domain": domain, "action": action, "cause": cause, "context": dict(context or {})})
+        self.calls.append(
+            {"domain": domain, "action": action, "cause": cause, "context": dict(context or {})}
+        )
         if self._raises:
             raise RuntimeError("will failure")
         decision = {
@@ -3930,8 +4024,10 @@ class _StubWill:
             "outcome": "approved" if self._approved else "denied",
         }
         if self._async:
+
             async def _wrap():
                 return decision
+
             return _wrap()
         return decision
 
@@ -4046,7 +4142,9 @@ def test_atomic_writer_cleans_up_temp_on_failure(tmp_path, monkeypatch):
     monkeypatch.setattr(atomic_writer.os, "replace", _kaboom)
     with pytest.raises(OSError):
         atomic_writer.atomic_write_bytes(target, b"payload")
-    leftovers = [p for p in tmp_path.iterdir() if p.name.startswith(atomic_writer.DEFAULT_TEMP_PREFIX)]
+    leftovers = [
+        p for p in tmp_path.iterdir() if p.name.startswith(atomic_writer.DEFAULT_TEMP_PREFIX)
+    ]
     assert leftovers == []
     # Target was never created.
     assert not target.exists()
@@ -4394,6 +4492,7 @@ async def test_self_repair_ladder_acceptance_requires_all_rungs():
 
 def _clean_registered_snapshot():
     from core.runtime.service_manifest import SERVICE_MANIFEST
+
     return {role.canonical_owner: object() for role in SERVICE_MANIFEST.values()}
 
 
@@ -4914,11 +5013,20 @@ def test_silence_policy_respects_high_energy_scene():
 
     policy = SilencePolicy()
     # high energy -> stay quiet
-    assert policy.should_speak(scene_energy=0.8, since_user_speech_s=60, last_aura_comment_age_s=60) is False
+    assert (
+        policy.should_speak(scene_energy=0.8, since_user_speech_s=60, last_aura_comment_age_s=60)
+        is False
+    )
     # low energy + long silence + cooldown elapsed -> may speak
-    assert policy.should_speak(scene_energy=0.2, since_user_speech_s=60, last_aura_comment_age_s=60) is True
+    assert (
+        policy.should_speak(scene_energy=0.2, since_user_speech_s=60, last_aura_comment_age_s=60)
+        is True
+    )
     # within backchannel cooldown -> stay quiet
-    assert policy.should_speak(scene_energy=0.2, since_user_speech_s=60, last_aura_comment_age_s=5) is False
+    assert (
+        policy.should_speak(scene_energy=0.2, since_user_speech_s=60, last_aura_comment_age_s=5)
+        is False
+    )
 
 
 # ==========================================================================
@@ -5393,7 +5501,9 @@ def test_memory_guard_unknown_actor_returns_no_violations():
 
 def test_incoming_logic_vector_memory_gate_fails_closed_when_will_raises():
     project_root = Path(__file__).resolve().parent.parent
-    src = (project_root / "core" / "orchestrator" / "mixins" / "incoming_logic.py").read_text(encoding="utf-8")
+    src = (project_root / "core" / "orchestrator" / "mixins" / "incoming_logic.py").read_text(
+        encoding="utf-8"
+    )
     # No old "fail-open" comment for memory write or state mutation gates
     assert "pass  # fail-open for safety" not in src
     assert "pass  # fail-open" not in src
@@ -5681,7 +5791,9 @@ async def test_concrete_state_gateway_round_trip(tmp_path):
         return {"approved": True, "receipt_id": "rcpt-test"}
 
     gw = ConcreteStateGateway(root=tmp_path, governance_decide=_approve)
-    await gw.mutate(StateMutationRequest(key="world_state/mood", new_value="curious", cause="probe"))
+    await gw.mutate(
+        StateMutationRequest(key="world_state/mood", new_value="curious", cause="probe")
+    )
     snap = await gw.snapshot()
     assert snap["world_state/mood"] == "curious"
     value = await gw.read("world_state/mood")
@@ -5746,7 +5858,9 @@ def test_bryan_model_engine_uses_atomic_writer_not_direct_replace():
 
 def test_abstraction_engine_uses_atomic_writer_not_direct_write_text():
     project_root = Path(__file__).resolve().parent.parent
-    src = (project_root / "core" / "adaptation" / "abstraction_engine.py").read_text(encoding="utf-8")
+    src = (project_root / "core" / "adaptation" / "abstraction_engine.py").read_text(
+        encoding="utf-8"
+    )
     # The old write_text path is gone.
     assert "asyncio.to_thread(self.storage_path.write_text," not in src
     assert "atomic_write_json" in src
@@ -5756,8 +5870,8 @@ def test_enhanced_memory_system_routes_learn_through_task_tracker():
     project_root = Path(__file__).resolve().parent.parent
     src = (project_root / "core" / "conversation" / "memory.py").read_text(encoding="utf-8")
     assert "asyncio.create_task(self.learn_fact_from_interaction(" not in src
-    assert 'get_task_tracker().create_task(' in src
-    assert 'enhanced_memory.learn_fact_from_interaction' in src
+    assert "get_task_tracker().create_task(" in src
+    assert "enhanced_memory.learn_fact_from_interaction" in src
 
 
 # ==========================================================================
@@ -5789,6 +5903,7 @@ async def test_boot_probes_strict_mode_raises_on_failure(monkeypatch):
 
     async def _bad_probe():
         from core.runtime.boot_probes import ProbeResult
+
         return ProbeResult(name="bad", ok=False, detail="boom")
 
     with pytest.raises(RuntimeError, match="AURA_STRICT_RUNTIME"):
@@ -5947,20 +6062,28 @@ async def test_durable_workflow_resumes_after_failure(tmp_path):
         counter["b"] += 1
         raise RuntimeError("disk full")
 
-    cp = await engine.run("wf-resume", [
-        WorkflowStep(step_id="a", name="a", apply=_a),
-        WorkflowStep(step_id="b", name="b", apply=_b_fails),
-    ], workflow_id="wf-resume")
+    cp = await engine.run(
+        "wf-resume",
+        [
+            WorkflowStep(step_id="a", name="a", apply=_a),
+            WorkflowStep(step_id="b", name="b", apply=_b_fails),
+        ],
+        workflow_id="wf-resume",
+    )
     assert cp.status.value == "failed"
     assert "a" in cp.completed_steps
+
     # Resume with a fixed step b. 'a' must NOT re-run.
     def _b_ok(outs):
         return "B"
 
-    cp2 = await engine.resume("wf-resume", [
-        WorkflowStep(step_id="a", name="a", apply=_a),
-        WorkflowStep(step_id="b", name="b", apply=_b_ok),
-    ])
+    cp2 = await engine.resume(
+        "wf-resume",
+        [
+            WorkflowStep(step_id="a", name="a", apply=_a),
+            WorkflowStep(step_id="b", name="b", apply=_b_ok),
+        ],
+    )
     assert cp2.status.value == "completed"
     assert counter["a"] == 1  # idempotency: a didn't re-run on resume
 
@@ -5974,11 +6097,14 @@ async def test_durable_workflow_pauses_for_human_approval(tmp_path):
     )
 
     engine = DurableWorkflowEngine(store=WorkflowStore(root=tmp_path))
-    cp = await engine.run("approval-flow", [
-        WorkflowStep(step_id="x", name="x", apply=lambda outs: "X"),
-        WorkflowStep(step_id="y", name="y", apply=lambda outs: "Y", human_approval=True),
-        WorkflowStep(step_id="z", name="z", apply=lambda outs: "Z"),
-    ])
+    cp = await engine.run(
+        "approval-flow",
+        [
+            WorkflowStep(step_id="x", name="x", apply=lambda outs: "X"),
+            WorkflowStep(step_id="y", name="y", apply=lambda outs: "Y", human_approval=True),
+            WorkflowStep(step_id="z", name="z", apply=lambda outs: "Z"),
+        ],
+    )
     assert cp.status.value == "paused_for_approval"
     assert cp.paused_at_step == "y"
 
@@ -6028,6 +6154,7 @@ def test_operator_cli_unknown_command_returns_error():
 
 def test_backup_then_restore_round_trip(tmp_path, monkeypatch):
     from core.runtime.backup_restore import perform_backup, perform_restore
+
     fake_home = tmp_path / "fake_home"
     fake_home.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(Path, "home", lambda: fake_home)
@@ -6041,6 +6168,7 @@ def test_backup_then_restore_round_trip(tmp_path, monkeypatch):
     assert snapshot_path.exists()
     # Wipe state and restore
     import shutil
+
     shutil.rmtree(state_dir, ignore_errors=True)
     restore_result = perform_restore(snapshot=snapshot_path)
     assert restore_result["ok"] is True
@@ -6055,7 +6183,9 @@ def test_migrations_dry_run_reports_targets(tmp_path, monkeypatch):
         run_migrations,
     )
 
-    register_migration(MigrationStep(from_version=1, to_version=2, transform=lambda p: {**p, "migrated": True}))
+    register_migration(
+        MigrationStep(from_version=1, to_version=2, transform=lambda p: {**p, "migrated": True})
+    )
     fake_home = tmp_path / "fakehome"
     fake_home.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(Path, "home", lambda: fake_home)
@@ -6075,8 +6205,18 @@ def test_vector_index_rebuild_from_memory_log(tmp_path):
 
     target_dir = tmp_path / "memory" / "episodic"
     target_dir.mkdir(parents=True, exist_ok=True)
-    atomic_write_json(target_dir / "m1.json", {"content": "first memory"}, schema_version=1, schema_name="memory.episodic")
-    atomic_write_json(target_dir / "m2.json", {"content": "second memory"}, schema_version=1, schema_name="memory.episodic")
+    atomic_write_json(
+        target_dir / "m1.json",
+        {"content": "first memory"},
+        schema_version=1,
+        schema_name="memory.episodic",
+    )
+    atomic_write_json(
+        target_dir / "m2.json",
+        {"content": "second memory"},
+        schema_version=1,
+        schema_name="memory.episodic",
+    )
     result = rebuild_vector_index(source=tmp_path / "memory")
     assert result["ok"] is True
     assert result["rebuilt"] == 2
@@ -6273,7 +6413,9 @@ def test_memory_consent_session_only_records_tracked():
     )
 
     policy = MemoryConsentPolicy(default_mode=MemoryConsentMode.SESSION_ONLY)
-    policy.register_session_record(StoredRecordRef(record_id="r1", family="episodic", stored_at=0.0))
+    policy.register_session_record(
+        StoredRecordRef(record_id="r1", family="episodic", stored_at=0.0)
+    )
     assert policy.session_only_records()
     cleared = policy.clear_session_records()
     assert cleared and policy.session_only_records() == []
@@ -6286,7 +6428,9 @@ def test_memory_consent_command_parser():
         parse_consent_command,
     )
 
-    assert parse_consent_command("Aura, please go private mode now.") == MemoryConsentMode.PRIVATE_MODE
+    assert (
+        parse_consent_command("Aura, please go private mode now.") == MemoryConsentMode.PRIVATE_MODE
+    )
     assert parse_consent_command("session only please") == MemoryConsentMode.SESSION_ONLY
     assert parse_consent_command("normal text") is None
     assert is_forget_command("forget this") is True

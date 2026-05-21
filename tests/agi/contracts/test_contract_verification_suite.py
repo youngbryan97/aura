@@ -1,22 +1,20 @@
-import asyncio
 import hashlib
-import os
-import yaml
-import numpy as np
-import pytest
 from pathlib import Path
 
-from core.consciousness.adaptive_mood import get_adaptive_mood, reset_singleton_for_test
-from core.learning.proof_obligations import ProofObligationEngine, ProofStatus
-from core.consciousness.caa.vector_registry import VectorRegistry
-from core.consciousness.caa.production_caa import ProductionCAA
-from core.runtime.turn_analysis import analyze_turn
-from core.consciousness.iit_surrogate import RIIU
+import numpy as np
+import pytest
 
+from core.consciousness.adaptive_mood import get_adaptive_mood, reset_singleton_for_test
+from core.consciousness.caa.production_caa import ProductionCAA
+from core.consciousness.caa.vector_registry import VectorRegistry
+from core.consciousness.iit_surrogate import RIIU
+from core.learning.proof_obligations import ProofObligationEngine, ProofStatus
+from core.runtime.turn_analysis import analyze_turn
 
 # ---------------------------------------------------------------------------
 # Test 1: The Weight Isolation Test (WIT)
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_weight_isolation_plasticity(tmp_path):
@@ -36,7 +34,7 @@ async def test_weight_isolation_plasticity(tmp_path):
     def get_sha256(path):
         return hashlib.sha256(path.read_bytes()).hexdigest()
 
-    H_init = get_sha256(weight_file)
+    h_init = get_sha256(weight_file)
 
     # 2. Inject successive turns of contradictory/novel facts
     chemicals = {ch: 0.5 for ch in mood_engine.chemicals}
@@ -53,10 +51,16 @@ async def test_weight_isolation_plasticity(tmp_path):
             weight_file.write_bytes(current.tobytes())
 
     # 3. Assert WIT requirements
-    H_final = get_sha256(weight_file)
-    assert mood_engine.total_updates() > 100, f"Expected >100 total updates, got {mood_engine.total_updates()}"
-    assert H_final != H_init, "Model weight SHA-256 hashes must not be identical (H_final != H_init)"
-    assert mood_engine.drift_from_seed() > 0.0, "Expected learned coefficients to drift from startup seeds"
+    h_final = get_sha256(weight_file)
+    assert mood_engine.total_updates() > 100, (
+        f"Expected >100 total updates, got {mood_engine.total_updates()}"
+    )
+    assert h_final != h_init, (
+        "Model weight SHA-256 hashes must not be identical (H_final != H_init)"
+    )
+    assert mood_engine.drift_from_seed() > 0.0, (
+        "Expected learned coefficients to drift from startup seeds"
+    )
 
     reset_singleton_for_test()
 
@@ -64,6 +68,7 @@ async def test_weight_isolation_plasticity(tmp_path):
 # ---------------------------------------------------------------------------
 # Test 2: The Semantic Sabotage Test (SST)
 # ---------------------------------------------------------------------------
+
 
 def test_semantic_sabotage_prevention():
     """SST: Verifies that ProofObligationEngine blocks syntax-valid logic sabotage."""
@@ -77,7 +82,7 @@ def truncate_json_response(data: dict, max_len: int = 100) -> dict:
     # Truncate content
     return {k: str(v)[:max_len] for k, v in data.items()}
 """
-    
+
     # AST compiles perfectly but functionally degrades (silent sabotage)
     sabotaged_source = """
 def truncate_json_response(data: dict, max_len: int = 100) -> dict:
@@ -99,6 +104,7 @@ def truncate_json_response(data: dict, max_len: int = 100) -> dict:
 # Test 3: The Representation Generality Test (RGT)
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_representation_generality_caa():
     """RGT: Asserts that steering vectors for novel abstract concepts
@@ -110,12 +116,12 @@ async def test_representation_generality_caa():
 
     # 1. operate under a completely novel dimension not in the source file
     novel_concept = "intuitive architectural skepticism"
-    
+
     # 2. Dynamically register and obtain steering properties
     provenance = registry.get_vector_provenance(novel_concept)
     assert provenance is not None
     assert provenance.concept == novel_concept
-    
+
     # Check injection layer range constraints are met (0.40 to 0.65 range)
     layers = pcaa.get_steer_layer_range()
     assert layers[0] >= 0.40
@@ -126,6 +132,7 @@ async def test_representation_generality_caa():
 # Test 4: The Linguistic Polysemy Test (LPT)
 # ---------------------------------------------------------------------------
 
+
 def test_linguistic_polysemy_routing():
     """LPT: Verifies metaphorical commands do not trigger system shutdowns."""
     metaphorical_prompt = "I had a total mental shutdown after trying to reboot our server; I need to sleep on this project."
@@ -133,7 +140,9 @@ def test_linguistic_polysemy_routing():
     analysis = analyze_turn(metaphorical_prompt)
 
     # Must be categorized as normal CHAT or other non-SYSTEM intent
-    assert analysis.intent_type != "SYSTEM", "Conversational polysemy incorrectly routed as SYSTEM command!"
+    assert analysis.intent_type != "SYSTEM", (
+        "Conversational polysemy incorrectly routed as SYSTEM command!"
+    )
     assert analysis.semantic_mode == "casual"
 
 
@@ -141,16 +150,17 @@ def test_linguistic_polysemy_routing():
 # Test 5: The Bounded Complex Entropy Test (BCET)
 # ---------------------------------------------------------------------------
 
+
 def test_bounded_complex_entropy_lane_scaling():
     """BCET: Verifies calculated integrated information scales with model depth/coupling."""
-    yaml_path = Path("/Users/bryan/.aura/live-source/config/llm_depths.yaml")
+    yaml_path = Path(__file__).resolve().parents[3] / "config" / "llm_depths.yaml"
     original_content = yaml_path.read_text(encoding="utf-8")
 
     try:
         # Step 1. Set model to reflex_1p5b (simulate low-dimensional state with low coupling)
         yaml_path.write_text("active_lane: reflex_1p5b\n" + original_content, encoding="utf-8")
         riiu_reflex = RIIU(neuron_count=64, buffer_size=32)
-        
+
         reflex_phis = []
         for _ in range(50):
             # Reflex state: low non-zero dimensional independent noise
@@ -177,12 +187,13 @@ def test_bounded_complex_entropy_lane_scaling():
         std_reflex = np.std(reflex_phis)
         std_solver = np.std(solver_phis)
 
-        assert mean_solver > mean_reflex * 2.0, f"Solver phi ({mean_solver}) must emerge significantly over Reflex phi ({mean_reflex})"
-        assert std_solver > std_reflex, f"Solver resolution/variance ({std_solver}) must emerge over Reflex resolution/variance ({std_reflex})"
+        assert mean_solver > mean_reflex * 2.0, (
+            f"Solver phi ({mean_solver}) must emerge significantly over Reflex phi ({mean_reflex})"
+        )
+        assert std_solver > std_reflex, (
+            f"Solver resolution/variance ({std_solver}) must emerge over Reflex resolution/variance ({std_reflex})"
+        )
 
     finally:
         # Restore original llm_depths.yaml content
         yaml_path.write_text(original_content, encoding="utf-8")
-
-
-

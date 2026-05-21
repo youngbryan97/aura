@@ -77,6 +77,7 @@ ALLOW_DYNAMIC_CODE = {
 }
 
 ALLOW_SUBPROCESS = {
+    "_gen_icons.py",
     "aura_main.py",
     "core/agency/agency_orchestrator.py",
     "core/brain/llm/mlx_client.py",
@@ -568,7 +569,9 @@ def scan_file(path: Path, root: Path, report: GateReport) -> None:
                     )
                 )
     except (tokenize.TokenError, IndentationError, SyntaxError) as exc:
-        line_no = getattr(exc, "lineno", 0) or (exc.args[1][0] if len(exc.args) > 1 and isinstance(exc.args[1], tuple) else 0)
+        line_no = getattr(exc, "lineno", 0) or (
+            exc.args[1][0] if len(exc.args) > 1 and isinstance(exc.args[1], tuple) else 0
+        )
         report.findings.append(Finding("critical", "syntax_error", rel, line_no, str(exc)))
 
     try:

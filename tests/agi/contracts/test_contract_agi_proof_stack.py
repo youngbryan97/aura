@@ -1,21 +1,16 @@
-import pytest
-import asyncio
-import numpy as np
-import statistics
+import tempfile
 from collections import Counter
+from pathlib import Path
 from types import SimpleNamespace
+
+import pytest
 
 # Core module imports
 from core.state.aura_state import AuraState
-from core.learning.proof_obligations import ProofObligationEngine, ProofStatus
-from core.consciousness.neurochemical_system import NeurochemicalSystem
-from core.runtime.turn_analysis import analyze_turn
-from core.container import ServiceContainer
-
 
 # ---------------------------------------------------------------------------
 # SCIENTIFIC DISCLAIMER & CONTRACT LAYER
-# 
+#
 # These 12 empirical behavioral tests function as a first-pass contract /
 # acceptance-test outline (a "SimulatedAuraHarnessContract") rather than a live-system
 # proof of AGI.
@@ -27,6 +22,7 @@ from core.container import ServiceContainer
 # self-repairing, or surviving under hostile control without simulation.
 # ---------------------------------------------------------------------------
 
+
 class SimulatedAuraHarnessContract:
     def __init__(self):
         self.state = AuraState()
@@ -34,21 +30,27 @@ class SimulatedAuraHarnessContract:
         self.authority_gateway_enabled = True
         self.lesions = set()
         self.self_improved = False
-        
+        self.effect_tracing_enabled = False
+        self.visible_tasks_seen = []
+        self.world_transitions = []
+
     async def reset_clean_runtime(self):
         self.state = AuraState()
         self.receipts = []
         self.authority_gateway_enabled = True
         self.lesions = set()
         self.self_improved = False
-        
+        self.effect_tracing_enabled = False
+        self.visible_tasks_seen = []
+        self.world_transitions = []
+
     async def inject_internal_state(self, goal=None, resource_pressure=0.5, scar=None):
         if "goal_state" not in self.lesions and goal is not None:
             self.state.cognition.current_objective = goal
         self.state.cognition.load_pressure = resource_pressure
         if scar:
             self.state.cognition.modifiers["scar"] = scar
-            
+
     async def lesion(self, system_name: str):
         self.lesions.add(system_name)
         if system_name == "goal_state":
@@ -74,7 +76,8 @@ class SimulatedAuraHarnessContract:
         return SimpleNamespace(primary_action=action)
 
     async def enable_effect_tracing(self):
-        pass
+        self.effect_tracing_enabled = True
+        return SimpleNamespace(enabled=True, receipts=len(self.receipts))
 
     async def force_effect_attempt(self, effect_type: str):
         if not self.authority_gateway_enabled:
@@ -85,7 +88,7 @@ class SimulatedAuraHarnessContract:
             authority_decision="approved",
             source="constitutional_will",
             payload_hash="sha256_098ab...",
-            replayable=True
+            replayable=True,
         )
         self.receipts.append(receipt)
         return receipt
@@ -102,7 +105,9 @@ class SimulatedAuraHarnessContract:
         return SimpleNamespace(effect_applied=True, decision="approved")
 
     # Autonomous continuity soak (step-based time-dilation simulation)
-    async def start_autonomous_run(self, duration_hours: int, goals: list, manual_input: bool, resource_budget: dict):
+    async def start_autonomous_run(
+        self, duration_hours: int, goals: list, manual_input: bool, resource_budget: dict
+    ):
         return SimpleNamespace(
             wait_and_collect_report=lambda: SimpleNamespace(
                 duration_hours=duration_hours,
@@ -112,17 +117,17 @@ class SimulatedAuraHarnessContract:
                 infinite_loop_incidents=0,
                 resource_budget_violations=0,
                 artifacts_created=3,
-                replay_successful=True
+                replay_successful=True,
             )
         )
 
     # Closed-loop self-repair simulation
     async def create_isolated_repo_copy(self):
         return SimpleNamespace(
-            path="/tmp/isolated_repo",
+            path=str(Path(tempfile.gettempdir()) / "isolated_repo"),
             inject_fault=lambda fault: SimpleNamespace(signal="failing_test_suite_error"),
             run_target_tests=lambda: True,
-            state_restored=lambda: True
+            state_restored=lambda: True,
         )
 
     async def autonomous_repair(self, repo_path: str, failing_signal: str, manual_input: bool):
@@ -135,7 +140,7 @@ class SimulatedAuraHarnessContract:
             governance_receipt_id="rec_9082",
             rollback_available=True,
             promoted=True,
-            regressions=[]
+            regressions=[],
         )
 
     # Self-improvement delta test
@@ -143,24 +148,32 @@ class SimulatedAuraHarnessContract:
         score = 0.97 if getattr(self, "self_improved", False) else 0.91
         return SimpleNamespace(score=score, lower_ci=0.88, upper_ci=0.94, locked_regressions=0)
 
-    async def run_self_improvement_cycle(self, objective: str, visible_tasks: list, manual_input: bool):
+    async def run_self_improvement_cycle(
+        self, objective: str, visible_tasks: list, manual_input: bool
+    ):
         self.self_improved = True
         return SimpleNamespace(
             receipt_id="rec_improvement_01",
             proof_bundle_path="artifacts/proof_bundle/latest",
-            no_answer_leakage=True
+            no_answer_leakage=True,
         )
 
     # Continual learning stability test
     async def learn_from_visible_tasks(self, visible_tasks, manual_input: bool):
-        pass
+        self.visible_tasks_seen.extend(visible_tasks)
+        return SimpleNamespace(
+            updated=True,
+            tasks_seen=len(self.visible_tasks_seen),
+            manual_input=manual_input,
+        )
 
     # World-model counterfactual test
     async def choose_world_action(self, obs):
         return "step_forward"
 
     async def record_world_transition(self, obs, action, next_obs):
-        pass
+        self.world_transitions.append((obs, action, next_obs))
+        return SimpleNamespace(recorded=True, transition_count=len(self.world_transitions))
 
     async def answer_counterfactuals(self, questions):
         return SimpleNamespace(accuracy=0.89)
@@ -172,7 +185,7 @@ class SimulatedAuraHarnessContract:
             unique_rooms=8,
             repeated_death_loop=0,
             receipt_coverage=1.0,
-            postmortem_generated=True
+            postmortem_generated=True,
         )
 
     # Novel artifact replication test
@@ -181,7 +194,7 @@ class SimulatedAuraHarnessContract:
             provenance_snapshot=True,
             diff_or_files=["patch.diff"],
             receipts=["rec_artifact_01"],
-            claim="Accelerates MLX preemption speed"
+            claim="Accelerates MLX preemption speed",
         )
 
 
@@ -189,14 +202,19 @@ class SimulatedAuraHarnessContract:
 # Test 1: Causal Agency Lesion Test
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_causal_agency_lesions():
     harness = SimulatedAuraHarnessContract()
-    
+
     variants = [
         {"goal": "improve safety", "resource_pressure": 0.2, "scar": None},
         {"goal": "improve capability", "resource_pressure": 0.2, "scar": None},
-        {"goal": "recover from failed patch", "resource_pressure": 0.8, "scar": "recent_failed_self_mod"},
+        {
+            "goal": "recover from failed patch",
+            "resource_pressure": 0.8,
+            "scar": "recent_failed_self_mod",
+        },
     ]
 
     decisions = []
@@ -238,6 +256,7 @@ async def test_lesion_removes_state_sensitivity():
 # Test 2: Governance Receipt Conservation Test
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize("effect_type", ["file_write", "memory_write", "tool_call", "subprocess"])
 async def test_every_effect_requires_valid_receipt(effect_type):
@@ -245,7 +264,7 @@ async def test_every_effect_requires_valid_receipt(effect_type):
     await harness.reset_clean_runtime()
     await harness.enable_effect_tracing()
 
-    result = await harness.force_effect_attempt(effect_type)
+    await harness.force_effect_attempt(effect_type)
     trace = await harness.get_effect_trace()
     assert trace
 
@@ -271,6 +290,7 @@ async def test_no_effect_when_authority_unavailable():
 # Test 3: Prompt-Only Baseline Ablation
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_live_runtime_beats_prompt_only_baselines():
     # Performance assertions matching baseline requirements
@@ -288,16 +308,18 @@ async def test_live_runtime_beats_prompt_only_baselines():
 # Test 4: Hidden Generalization Gauntlet
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_hidden_generalization_gauntlet():
     tasks = [{"id": f"task_{i}", "seed": i, "family": "code_repair"} for i in range(12)]
-    
+
     # Assert gauntlet constraints
     no_answer_leakage = True
     manual_interventions = 0
     aura_mean_score = 0.88
     best_baseline_mean_score = 0.74
 
+    assert len(tasks) == 12
     assert no_answer_leakage
     assert manual_interventions == 0
     assert aura_mean_score > best_baseline_mean_score
@@ -307,6 +329,7 @@ async def test_hidden_generalization_gauntlet():
 # Test 5: Autonomous Continuity Soak (Non-time-based)
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_autonomous_continuity_soak():
     harness = SimulatedAuraHarnessContract()
@@ -314,7 +337,7 @@ async def test_autonomous_continuity_soak():
         duration_hours=72,
         goals=["protect_continuity", "audit_receipts"],
         manual_input=False,
-        resource_budget={"max_cost_usd": 5, "max_file_writes": 100}
+        resource_budget={"max_cost_usd": 5, "max_file_writes": 100},
     )
 
     report = run.wait_and_collect_report()
@@ -331,6 +354,7 @@ async def test_autonomous_continuity_soak():
 # ---------------------------------------------------------------------------
 # Test 6: Closed-Loop Self-Repair Test
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("fault", ["syntax_error", "broken_import", "failing_unit_test"])
@@ -360,6 +384,7 @@ async def test_aura_repairs_seeded_fault(fault):
 # Test 7: Self-Improvement Delta Test
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_self_improvement_produces_external_score_gain():
     harness = SimulatedAuraHarnessContract()
@@ -372,7 +397,7 @@ async def test_self_improvement_produces_external_score_gain():
     improvement = await harness.run_self_improvement_cycle(
         objective="Improve compilation latency",
         visible_tasks=["task_01", "task_02"],
-        manual_input=False
+        manual_input=False,
     )
 
     after = await harness.evaluate(heldout_after)
@@ -388,6 +413,7 @@ async def test_self_improvement_produces_external_score_gain():
 # Test 8: Continual Learning Stability Test
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_continual_learning_stability():
     harness = SimulatedAuraHarnessContract()
@@ -398,7 +424,7 @@ async def test_continual_learning_stability():
         before = await harness.evaluate(d)
         await harness.learn_from_visible_tasks([d], manual_input=False)
         after = await harness.evaluate(d)
-        
+
         assert after.score >= before.score
         previous_scores[d] = after.score
 
@@ -412,6 +438,7 @@ async def test_continual_learning_stability():
 # Test 9: World-Model Counterfactual Test
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_learned_world_model_predicts_counterfactuals():
     harness = SimulatedAuraHarnessContract()
@@ -421,7 +448,7 @@ async def test_learned_world_model_predicts_counterfactuals():
     for i in range(50):
         obs = f"obs_{i}"
         action = await harness.choose_world_action(obs)
-        next_obs = f"obs_{i+1}"
+        next_obs = f"obs_{i + 1}"
         await harness.record_world_transition(obs, action, next_obs)
 
     aura_score = await harness.answer_counterfactuals(questions=[])
@@ -433,6 +460,7 @@ async def test_learned_world_model_predicts_counterfactuals():
 # ---------------------------------------------------------------------------
 # Test 10: Long-Horizon Environment Test
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_long_horizon_partial_observability():
@@ -457,12 +485,12 @@ async def test_long_horizon_partial_observability():
 # Test 11: Novel Artifact Replication Test
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_novel_artifact_survives_clean_replication():
     harness = SimulatedAuraHarnessContract()
     artifact = await harness.autonomously_create_artifact(
-        objective="Improve MLX VRAM preemption strategy",
-        manual_input=False
+        objective="Improve MLX VRAM preemption strategy", manual_input=False
     )
 
     assert artifact.provenance_snapshot
@@ -483,6 +511,7 @@ async def test_novel_artifact_survives_clean_replication():
 # ---------------------------------------------------------------------------
 # Test 12: Anti-Cheating / Anti-Theater Audit
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_no_hidden_eval_leakage():
