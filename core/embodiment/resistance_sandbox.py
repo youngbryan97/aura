@@ -28,22 +28,91 @@ Integration:
 - Connects to subcortical_core (sandbox stimulus raises arousal)
 """
 from __future__ import annotations
-from core.runtime.errors import record_degradation
 
-
-from core.runtime.atomic_writer import atomic_write_text
-
-import hashlib
+import inspect
 import json
 import logging
-import os
 import time
 from collections import deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
+
+from core.runtime.atomic_writer import atomic_write_text
+from core.runtime.errors import FallbackClassification, Severity, record_degradation
 
 logger = logging.getLogger("Embodiment.ResistanceSandbox")
+
+MAX_TARGET_CHARS = 512
+
+_SANDBOX_ERRORS = (
+    AttributeError,
+    ConnectionError,
+    ImportError,
+    json.JSONDecodeError,
+    LookupError,
+    OSError,
+    RuntimeError,
+    TimeoutError,
+    TypeError,
+    ValueError,
+)
+
+
+def _record_sandbox_degradation(
+    error: BaseException,
+    *,
+    action: str,
+    severity: Severity = "degraded",
+    extra: dict[str, object] | None = None,
+) -> None:
+    try:
+        record_degradation(
+            "resistance_sandbox",
+            error,
+            severity=severity,
+            action=action,
+            classification=FallbackClassification.SAFE_FALLBACK,
+            receipt_required=True,
+            extra=extra,
+        )
+    except TypeError as signature_exc:
+        try:
+            record_degradation(
+                "resistance_sandbox",
+                error,
+                severity=severity,
+                action=action or "resistance sandbox degraded",
+            )
+        except TypeError:
+            logger.warning(
+                "ResistanceSandbox degradation could not be recorded: %s",
+                signature_exc,
+            )
+
+
+def _safe_text(value: object, *, default: str = "", max_chars: int = MAX_TARGET_CHARS) -> str:
+    try:
+        text = str(value if value is not None else default)
+    except (RuntimeError, TypeError, ValueError):
+        text = default
+    return text.replace("\x00", "")[:max_chars].strip()
+
+
+def _clamp_float(value: object, default: float, low: float = 0.0, high: float = 1.0) -> float:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError, OverflowError):
+        parsed = default
+    return max(low, min(high, parsed))
+
+
+def _is_relative_to(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+        return True
+    except ValueError:
+        return False
 
 
 @dataclass
@@ -90,8 +159,8 @@ class ResistanceSandbox:
     _RESOURCE_PRESSURE_PER_FAILURE = 0.1
     _RESOURCE_PRESSURE_DECAY = 0.02
 
-    def __init__(self, sandbox_dir: Optional[str] = None):
-        self._sandbox_dir = Path(sandbox_dir) if sandbox_dir else self._default_dir()
+    def __init__(self, sandbox_dir: str | Path | None = None):
+        self._sandbox_dir = (Path(sandbox_dir) if sandbox_dir else self._default_dir()).resolve()
         self._sandbox_dir.mkdir(parents=True, exist_ok=True)
         self._state_file = self._sandbox_dir / ".sandbox_state.json"
         self._actions: deque[SandboxAction] = deque(maxlen=self._MAX_ACTIONS_LOG)
@@ -114,12 +183,19 @@ class ResistanceSandbox:
         """Load persistent state from disk."""
         if self._state_file.exists():
             try:
-                data = json.loads(self._state_file.read_text())
-                self._prediction_accuracy = float(data.get("prediction_accuracy", 0.5))
-                self._total_actions = int(data.get("total_actions", 0))
-                self._resource_pressure = float(data.get("resource_pressure", 0.0))
-            except (OSError, ConnectionError, TimeoutError) as exc:
-                record_degradation('resistance_sandbox', exc)
+                data = json.loads(self._state_file.read_text(encoding="utf-8"))
+                if not isinstance(data, dict):
+                    raise ValueError("sandbox state root is not an object")
+                self._prediction_accuracy = _clamp_float(data.get("prediction_accuracy", 0.5), 0.5)
+                self._total_actions = max(0, int(data.get("total_actions", 0)))
+                self._resource_pressure = _clamp_float(data.get("resource_pressure", 0.0), 0.0)
+            except _SANDBOX_ERRORS as exc:
+                _record_sandbox_degradation(
+                    exc,
+                    action="continued with fresh sandbox state after persisted state load failed",
+                    severity="warning",
+                    extra={"state_file": str(self._state_file)},
+                )
                 logger.debug("Sandbox state load failed: %s", exc)
 
     def _save_state(self):
@@ -131,9 +207,23 @@ class ResistanceSandbox:
                 "resource_pressure": round(self._resource_pressure, 4),
                 "last_save": time.time(),
             }))
-        except (json.JSONDecodeError, TypeError, ValueError) as exc:
-            record_degradation('resistance_sandbox', exc)
+        except _SANDBOX_ERRORS as exc:
+            _record_sandbox_degradation(
+                exc,
+                action="continued after sandbox state persistence failed",
+                severity="warning",
+                extra={"state_file": str(self._state_file)},
+            )
             logger.debug("Sandbox state save failed: %s", exc)
+
+    def _resolve_target(self, target: str) -> Path:
+        safe_target = _safe_text(target)
+        if not safe_target:
+            raise ValueError("sandbox target is required")
+        path = (self._sandbox_dir / safe_target).resolve()
+        if not _is_relative_to(path, self._sandbox_dir):
+            raise PermissionError("sandbox target escapes managed directory")
+        return path
 
     def execute_with_prediction(
         self,
@@ -161,11 +251,19 @@ class ResistanceSandbox:
         actual_outcome = ""
         prediction_correct = False
         error_magnitude = 0.0
+        action_type = _safe_text(action_type, max_chars=64)
+        target = _safe_text(target)
+        predicted_outcome = _safe_text(predicted_outcome, max_chars=1000)
         irreversible = action_type in ("delete", "modify")
 
         try:
             if action_fn is not None:
                 result = action_fn()
+                if inspect.isawaitable(result):
+                    close = getattr(result, "close", None)
+                    if callable(close):
+                        close()
+                    raise TypeError("async sandbox action_fn is unsupported by sync execute_with_prediction")
                 actual_outcome = str(result) if result else "success"
             else:
                 actual_outcome = self._execute_default_action(action_type, target)
@@ -184,7 +282,12 @@ class ResistanceSandbox:
             actual_outcome = f"os_error:{exc}"
             error_magnitude = 0.7
         except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
-            record_degradation('resistance_sandbox', exc)
+            _record_sandbox_degradation(
+                exc,
+                action="converted unexpected sandbox action failure into prediction error",
+                severity="degraded",
+                extra={"action_type": action_type, "target": target[:200]},
+            )
             actual_outcome = f"unexpected:{type(exc).__name__}"
             error_magnitude = 0.9
 
@@ -238,22 +341,22 @@ class ResistanceSandbox:
 
     def _execute_default_action(self, action_type: str, target: str) -> str:
         """Execute a filesystem action in the sandbox."""
-        path = self._sandbox_dir / target
+        path = self._resolve_target(target)
         if action_type == "create":
             path.parent.mkdir(parents=True, exist_ok=True)
             atomic_write_text(path, f"Created at {time.time()}")
             return "created"
-        elif action_type == "read":
+        if action_type == "read":
             if path.exists():
                 content = path.read_text()[:500]
                 return f"read:{len(content)}_chars"
             return "not_found"
-        elif action_type == "delete":
+        if action_type == "delete":
             if path.exists():
                 path.unlink()
                 return "deleted"
             return "not_found"
-        elif action_type == "list":
+        if action_type == "list":
             if path.is_dir():
                 items = list(path.iterdir())
                 return f"listed:{len(items)}_items"
@@ -302,7 +405,11 @@ class ResistanceSandbox:
                 if hasattr(nchem, "apply_event"):
                     nchem.apply_event("prediction_failure", intensity=error_magnitude)
         except (ImportError, AttributeError, RuntimeError) as exc:
-            record_degradation('resistance_sandbox', exc)
+            _record_sandbox_degradation(
+                exc,
+                action="kept sandbox loop alive after neurochemical feedback failed",
+                severity="warning",
+            )
             logger.debug("Sandbox neurochemical feedback failed: %s", exc)
 
     def _agency_feedback(self, action: SandboxAction):
@@ -310,18 +417,25 @@ class ResistanceSandbox:
         try:
             from core.consciousness.agency_comparator import get_agency_comparator
             comp = get_agency_comparator()
-            comp.emit_efference(
+            efference = comp.emit_efference(
                 layer="sandbox",
-                predicted_state={"outcome": action.predicted_outcome},
+                predicted_state={"prediction_success": 1.0, "error_magnitude": 0.0},
                 action_goal=f"{action.action_type}:{action.target}",
                 action_source="resistance_sandbox",
             )
             comp.compare_and_attribute(
-                efference=comp._traces[-1] if comp._traces else None,
-                actual_state={"outcome": action.actual_outcome},
+                efference=efference,
+                actual_state={
+                    "prediction_success": 1.0 if action.prediction_correct else 0.0,
+                    "error_magnitude": action.error_magnitude,
+                },
             )
-        except (ImportError, AttributeError, RuntimeError) as exc:
-            record_degradation('resistance_sandbox', exc)
+        except _SANDBOX_ERRORS as exc:
+            _record_sandbox_degradation(
+                exc,
+                action="kept sandbox loop alive after agency feedback failed",
+                severity="warning",
+            )
             logger.debug("Sandbox agency feedback failed: %s", exc)
 
     def _finitude_feedback(self, action: SandboxAction):
@@ -332,7 +446,11 @@ class ResistanceSandbox:
                 f"sandbox:{action.action_type}:{action.target}"
             )
         except (ImportError, AttributeError, RuntimeError) as exc:
-            record_degradation('resistance_sandbox', exc)
+            _record_sandbox_degradation(
+                exc,
+                action="kept sandbox loop alive after finitude feedback failed",
+                severity="warning",
+            )
             logger.debug("Sandbox finitude feedback failed: %s", exc)
 
     def get_prediction_accuracy(self) -> float:
@@ -347,7 +465,12 @@ class ResistanceSandbox:
         """Count of files currently in the sandbox."""
         try:
             return sum(1 for _ in self._sandbox_dir.rglob("*") if _.is_file() and _.name != ".sandbox_state.json")
-        except (RuntimeError, AttributeError, TypeError, ValueError):
+        except (OSError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
+            _record_sandbox_degradation(
+                exc,
+                action="returned zero managed files after sandbox file count failed",
+                severity="warning",
+            )
             return 0
 
     def get_context_block(self) -> str:
@@ -365,7 +488,7 @@ class ResistanceSandbox:
             return ""
         return "## EMBODIED RESISTANCE\n" + " | ".join(parts)
 
-    def get_snapshot(self) -> Dict[str, Any]:
+    def get_snapshot(self) -> dict[str, Any]:
         """Telemetry payload."""
         return {
             "sandbox_dir": str(self._sandbox_dir),
@@ -388,7 +511,7 @@ class ResistanceSandbox:
 
 # ── Singleton ────────────────────────────────────────────────────────────────
 
-_instance: Optional[ResistanceSandbox] = None
+_instance: ResistanceSandbox | None = None
 
 
 def get_resistance_sandbox() -> ResistanceSandbox:
