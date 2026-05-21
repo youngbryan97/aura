@@ -18,9 +18,39 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any
 
-from core.runtime.errors import record_degradation
+from core.runtime.errors import FallbackClassification, record_degradation
 
 logger = logging.getLogger("Aura.LLMCodeGenerator")
+
+_CODE_GENERATOR_RECOVERABLE_ERRORS = (
+    AttributeError,
+    RuntimeError,
+    SyntaxError,
+    TypeError,
+    ValueError,
+    OSError,
+    ConnectionError,
+    TimeoutError,
+)
+
+
+def _record_code_generator_degradation(
+    subsystem: str,
+    error: BaseException,
+    *,
+    action: str,
+    severity: str = "degraded",
+    extra: dict[str, Any] | None = None,
+):
+    return record_degradation(
+        subsystem,
+        error,
+        severity=severity,
+        action=action,
+        classification=FallbackClassification.SAFE_FALLBACK,
+        receipt_required=True,
+        extra=extra,
+    )
 
 
 _CODE_GEN_SYSTEM_PROMPT = (
@@ -196,7 +226,7 @@ class LLMCodeGenerator:
         max_tokens: int = 8192,
         temperature: float = 0.25,
         timeout_s: float = 180.0,
-        fallback_to_stub: bool = True,
+        fallback_to_stub: bool = False,
     ) -> None:
         self._router = router
         self.service_names = tuple(service_names)
@@ -215,13 +245,25 @@ class LLMCodeGenerator:
             asyncio.get_running_loop()
         except RuntimeError:
             try:
-                return asyncio.run(asyncio.wait_for(self.generate_async(prompt, context), timeout=self.timeout_s + 5.0))
-            except (asyncio.TimeoutError, TimeoutError):
-                raise TimeoutError(f"LLM generation exceeded timeout of {self.timeout_s + 5.0}s")
+                return asyncio.run(
+                    asyncio.wait_for(
+                        self.generate_async(prompt, context), timeout=self.timeout_s + 5.0
+                    )
+                )
+            except (asyncio.TimeoutError, TimeoutError) as exc:
+                raise TimeoutError(
+                    f"LLM generation exceeded timeout of {self.timeout_s + 5.0}s"
+                ) from exc
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-            future = pool.submit(lambda: asyncio.run(self.generate_async(prompt, context)))
+        pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        future = pool.submit(lambda: asyncio.run(self.generate_async(prompt, context)))
+        try:
             return future.result(timeout=self.timeout_s + 5.0)
+        except concurrent.futures.TimeoutError as exc:
+            future.cancel()
+            raise TimeoutError(f"LLM generation exceeded timeout of {self.timeout_s + 5.0}s") from exc
+        finally:
+            pool.shutdown(wait=False, cancel_futures=True)
 
     async def generate_async(self, prompt: str, context: dict[str, Any]) -> str:
         request = GenerationRequest(
@@ -250,11 +292,18 @@ class LLMCodeGenerator:
                 len(code),
             )
             return code
-        except (OSError, ConnectionError, TimeoutError) as exc:
-            record_degradation("llm_code_generator", exc)
+        except _CODE_GENERATOR_RECOVERABLE_ERRORS as exc:
+            _record_code_generator_degradation(
+                "llm_code_generator",
+                exc,
+                action="failed code generation and refused to synthesize placeholder code",
+                extra={"module_path": str(context.get("module_path", ""))},
+            )
             logger.warning("LLM code generation failed: %s", exc)
             if self.fallback_to_stub:
-                return str(context.get("stub_code") or "# Generation failed\npass\n")
+                fallback = self._validated_explicit_fallback(context)
+                if fallback:
+                    return fallback
             raise
 
     def _resolve_router(self) -> Any:
@@ -269,9 +318,21 @@ class LLMCodeGenerator:
                     self._router = service
                     return service
         except (ImportError, AttributeError, RuntimeError) as exc:
-            record_degradation("llm_code_generator", exc)
+            _record_code_generator_degradation(
+                "llm_code_generator_router",
+                exc,
+                action="treated LLM service lookup failure as no registered generator",
+                severity="warning",
+            )
             logger.debug("Could not resolve LLM service for code generation: %s", exc)
         return None
+
+    def _validated_explicit_fallback(self, context: dict[str, Any]) -> str:
+        fallback = str(context.get("stub_code") or "").strip()
+        if not fallback:
+            raise RuntimeError("fallback_to_stub requested but context.stub_code is empty")
+        ast.parse(fallback)
+        return fallback
 
     def _augment_prompt(self, prompt: str, context: dict[str, Any]) -> str:
         module_path = context.get("module_path", "<unknown>")

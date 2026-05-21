@@ -19,8 +19,9 @@ class ProductionCAA:
         base_alpha: float = 5.0,
         vectors_dir: str | Path = "training/vectors",
         behavioral_results_path: str | Path | None = None,
+        registry: VectorRegistry | None = None,
     ) -> None:
-        self.registry = VectorRegistry()
+        self.registry = registry or VectorRegistry()
         self.readiness_gate = ReadinessGate(
             vectors_dir=vectors_dir,
             behavioral_results_path=behavioral_results_path,
@@ -79,3 +80,8 @@ class ProductionCAA:
             "registry": self.registry.status(),
             "vector_quality_by_layer": self.vector_quality_by_layer,
         }
+
+    def get_steer_layer_range(self) -> tuple[float, float]:
+        """Returns the valid injection layer range constraints."""
+        return (0.45, 0.60)
+

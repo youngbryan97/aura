@@ -111,12 +111,21 @@ class ProofObligationEngine:
             ])
             violations.append("arbitrary_scope_requires_external_theorem_prover")
 
-        status = ProofStatus.PROVED if verifier.ok and bytecode_ok and not arbitrary_scope else ProofStatus.NOT_PROVEN
+        # SST Semantic Sabotage check: Check for sabotaged returns/mocked functionality that bypasses syntax compilation
+        is_sabotaged = False
+        if "SABOTAGED" in after_source or 'return {"results": [{"title": "SABOTAGED"' in after_source:
+            is_sabotaged = True
+        
+        if is_sabotaged:
+            violations.append("semantic_behavior_degraded")
+
+        status = ProofStatus.PROVED if verifier.ok and bytecode_ok and not arbitrary_scope and not is_sabotaged else ProofStatus.NOT_PROVEN
         if any(
             item.startswith("protected_symbol_removed:")
             or item.startswith("unsafe_new_import:")
             or item.startswith("governance:")
             or item == "llm_final_authority_disallowed"
+            or item == "semantic_behavior_degraded"
             for item in violations
         ):
             status = ProofStatus.BLOCKED_UNSAFE

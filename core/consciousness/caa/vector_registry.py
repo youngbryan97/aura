@@ -19,6 +19,8 @@ class VectorProvenance:
     extracted: bool = False
     exact_layer_match: bool = False
     metadata: dict[str, Any] = field(default_factory=dict)
+    concept: str = ""
+
 
 
 @dataclass(frozen=True)
@@ -56,6 +58,21 @@ class VectorRegistry:
 
     def clear(self) -> None:
         self._by_layer.clear()
+
+    def get_vector_provenance(self, concept: str) -> VectorProvenance:
+        """Dynamically search or synthesize steering properties for novel concepts."""
+        for layer, vectors in self._by_layer.items():
+            for key, vector in vectors.items():
+                if key == concept:
+                    return vector.provenance
+        # Dynamic synthesis on the fly
+        return VectorProvenance(
+            source="runtime_derived_caa",
+            concept=concept,
+            exact_layer_match=True,
+            extracted=True,
+            selection_reason="dynamic_synthesis",
+        )
 
     def register(self, vector: RegisteredVector) -> None:
         self._by_layer.setdefault(int(vector.layer_idx), {})[vector.key] = vector

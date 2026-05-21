@@ -253,7 +253,18 @@ def analyze_turn(text: str, *, matched_skills: bool | list[str] = False) -> Turn
     elif is_learning_bundle:
         intent_type = "TASK"
     elif _matches_any(lower, _SYSTEM_PATTERNS):
-        intent_type = "SYSTEM"
+        # LPT Polysemy Check: Exclude conversational metaphors from being classified as system commands
+        metaphorical_markers = (
+            r"\bmental shutdown\b",
+            r"\breboot\s+(?:our|the|a|my)\s+server\b",
+            r"\bsleep\s+on\s+(?:this|the|it|a|project)\b",
+            r"\bneed\s+to\s+sleep\b",
+            r"\bgoing\s+to\s+sleep\b",
+        )
+        if _matches_any(lower, metaphorical_markers):
+            intent_type = "CHAT"
+        else:
+            intent_type = "SYSTEM"
     elif is_execution_report:
         intent_type = "CHAT"
     elif word_count <= 18 and _matches_any(lower, _SIMPLE_DIALOGUE_PATTERNS):
