@@ -21,14 +21,66 @@ import threading
 import time
 from dataclasses import dataclass
 from enum import Enum, auto
+from typing import Any
 
 import numpy as np
 
 from core.runtime.desktop_boot_safety import inprocess_mlx_metal_enabled
-from core.runtime.errors import record_degradation
+from core.runtime.errors import FallbackClassification, Severity, record_degradation
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Consciousness.NeuralMesh")
+
+_RECOVERABLE_NEURAL_MESH_ERRORS = (
+    AttributeError,
+    ImportError,
+    LookupError,
+    OSError,
+    RuntimeError,
+    TimeoutError,
+    TypeError,
+    ValueError,
+)
+
+
+def _record_neural_mesh_degradation(
+    error: BaseException,
+    *,
+    action: str,
+    severity: Severity = "degraded",
+    extra: dict[str, Any] | None = None,
+) -> None:
+    """Record a visible, receipt-backed neural mesh degradation."""
+    try:
+        record_degradation(
+            "neural_mesh",
+            error,
+            severity=severity,
+            action=action,
+            classification=FallbackClassification.SAFE_FALLBACK,
+            receipt_required=True,
+            extra=extra,
+        )
+    except TypeError:
+        # Compatibility with legacy tests/adapters that monkeypatch the old
+        # two-argument signature while the runtime migrates to receipt metadata.
+        record_degradation("neural_mesh", error)
+
+
+def _finite_float(raw: object, default: float) -> tuple[float, bool]:
+    """Return a finite float plus whether the caller-provided value was valid."""
+    try:
+        value = float(raw)
+    except (TypeError, ValueError, OverflowError):
+        return default, False
+    if not np.isfinite(value):
+        return default, False
+    return value, True
+
+
+def _clamp_float(value: float, *, lower: float, upper: float) -> tuple[float, bool]:
+    clamped = max(lower, min(upper, value))
+    return clamped, clamped == value
 
 # Metal acceleration: use MLX for the batched column matmul if available.
 # MLX runs on Apple Metal GPU — same hardware as the LLM inference.
@@ -149,8 +201,56 @@ class CorticalColumn:
     def step(self, external_input: np.ndarray, dt: float, decay: float,
              noise_sigma: float, gain: float, now: float, spike_threshold: float = 0.5):
         """Euler step with lateral inhibition and spike-time recording."""
-        # NaN guard on input
+        try:
+            external_input = np.asarray(external_input, dtype=np.float32).reshape(-1)
+        except (TypeError, ValueError) as exc:
+            _record_neural_mesh_degradation(
+                exc,
+                action="discarded malformed CorticalColumn external input",
+                severity="warning",
+                extra={"column": self.index, "expected_len": self.n},
+            )
+            external_input = np.zeros(self.n, dtype=np.float32)
+        if external_input.size != self.n:
+            _record_neural_mesh_degradation(
+                ValueError(
+                    f"CorticalColumn input length {external_input.size} != {self.n}"
+                ),
+                action="padded or truncated CorticalColumn external input",
+                severity="warning",
+                extra={"column": self.index, "expected_len": self.n},
+            )
+            normalized_input = np.zeros(self.n, dtype=np.float32)
+            normalized_input[: min(self.n, external_input.size)] = external_input[: self.n]
+            external_input = normalized_input
         external_input = np.nan_to_num(external_input, nan=0.0, posinf=1.0, neginf=-1.0)
+
+        dt, valid_dt = _finite_float(dt, 0.05)
+        decay, valid_decay = _finite_float(decay, 0.03)
+        noise_sigma, valid_noise = _finite_float(noise_sigma, 0.0)
+        gain, valid_gain = _finite_float(gain, 1.0)
+        spike_threshold, valid_threshold = _finite_float(spike_threshold, 0.5)
+        if not all((valid_dt, valid_decay, valid_noise, valid_gain, valid_threshold)):
+            _record_neural_mesh_degradation(
+                ValueError("CorticalColumn step received non-finite dynamics"),
+                action="normalized CorticalColumn dynamics before stepping",
+                severity="warning",
+                extra={"column": self.index},
+            )
+        dt, _ = _clamp_float(dt, lower=1e-6, upper=1.0)
+        decay, _ = _clamp_float(decay, lower=0.0, upper=10.0)
+        noise_sigma, _ = _clamp_float(noise_sigma, lower=0.0, upper=1.0)
+        gain, _ = _clamp_float(gain, lower=0.05, upper=5.0)
+        spike_threshold, _ = _clamp_float(spike_threshold, lower=0.0, upper=1.0)
+        now, valid_now = _finite_float(now, time.monotonic())
+        if not valid_now:
+            _record_neural_mesh_degradation(
+                ValueError("CorticalColumn spike timestamp was non-finite"),
+                action="used monotonic time for CorticalColumn spike timestamp",
+                severity="warning",
+                extra={"column": self.index},
+            )
+
         recurrent = self.W @ self.x
         recurrent = np.nan_to_num(recurrent, nan=0.0, posinf=1.0, neginf=-1.0)
         activity = np.tanh(gain * (recurrent + external_input))
@@ -162,6 +262,7 @@ class CorticalColumn:
 
         noise = np.random.standard_normal(self.n).astype(np.float32) * noise_sigma
         dx = (-decay * self.x + activity + inhibition + noise) * dt
+        dx = np.nan_to_num(dx, nan=0.0, posinf=1.0, neginf=-1.0)
         self.x = np.clip(self.x + dx, -1.0, 1.0).astype(np.float32)
 
         # Record spike times for STDP
@@ -193,6 +294,7 @@ class NeuralMesh:
 
     def __init__(self, cfg: MeshConfig | None = None):
         self.cfg = cfg or MeshConfig()
+        self._validate_config()
         self._rng = np.random.default_rng(seed=42)
         self._lock = threading.Lock()
 
@@ -221,6 +323,8 @@ class NeuralMesh:
         self._task: asyncio.Task | None = None
         self._tick_count: int = 0
         self._start_time: float = 0.0
+        self._consecutive_tick_failures: int = 0
+        self._last_tick_error_at: float = 0.0
 
         # Sensory injection buffer (set externally, consumed each tick)
         self._sensory_buffer: np.ndarray | None = None
@@ -249,6 +353,119 @@ class NeuralMesh:
             self.cfg.association_end - self.cfg.sensory_end,
             self.cfg.columns - self.cfg.association_end,
         )
+
+    def _validate_config(self) -> None:
+        """Fail closed before invalid numeric topology reaches the runtime loop."""
+        cfg = self.cfg
+        int_fields = {
+            "total_neurons": cfg.total_neurons,
+            "columns": cfg.columns,
+            "neurons_per_column": cfg.neurons_per_column,
+            "sensory_end": cfg.sensory_end,
+            "association_end": cfg.association_end,
+            "projection_dim": cfg.projection_dim,
+        }
+        for name, value in int_fields.items():
+            if not isinstance(value, int) or value <= 0:
+                raise ValueError(f"NeuralMesh config field {name} must be a positive int")
+        if cfg.total_neurons != cfg.columns * cfg.neurons_per_column:
+            raise ValueError(
+                "NeuralMesh total_neurons must equal columns * neurons_per_column"
+            )
+        if not (0 < cfg.sensory_end < cfg.association_end < cfg.columns):
+            raise ValueError(
+                "NeuralMesh tier boundaries must satisfy "
+                "0 < sensory_end < association_end < columns"
+            )
+
+        finite_fields = {
+            "intra_column_density": cfg.intra_column_density,
+            "inter_column_density": cfg.inter_column_density,
+            "inter_column_distance_decay": cfg.inter_column_distance_decay,
+            "inhibitory_fraction": cfg.inhibitory_fraction,
+            "dt": cfg.dt,
+            "decay": cfg.decay,
+            "noise_sigma": cfg.noise_sigma,
+            "activation_gain": cfg.activation_gain,
+            "stdp_lr": cfg.stdp_lr,
+            "stdp_window": cfg.stdp_window,
+            "stdp_potentiation": cfg.stdp_potentiation,
+            "stdp_depression": cfg.stdp_depression,
+            "lateral_inhibition_strength": cfg.lateral_inhibition_strength,
+            "update_hz": cfg.update_hz,
+        }
+        for name, value in finite_fields.items():
+            finite, valid = _finite_float(value, 0.0)
+            if not valid:
+                raise ValueError(f"NeuralMesh config field {name} must be finite")
+            if name in {"dt", "stdp_window", "update_hz"} and finite <= 0.0:
+                raise ValueError(f"NeuralMesh config field {name} must be > 0")
+            if name.endswith("_density") and not (0.0 <= finite <= 1.0):
+                raise ValueError(f"NeuralMesh config field {name} must be in [0, 1]")
+            if name == "inhibitory_fraction" and not (0.0 < finite < 1.0):
+                raise ValueError("NeuralMesh inhibitory_fraction must be in (0, 1)")
+            if name in {"decay", "noise_sigma", "stdp_lr"} and finite < 0.0:
+                raise ValueError(f"NeuralMesh config field {name} must be >= 0")
+            if name in {
+                "activation_gain",
+                "stdp_potentiation",
+                "stdp_depression",
+                "lateral_inhibition_strength",
+            } and finite < 0.0:
+                raise ValueError(f"NeuralMesh config field {name} must be >= 0")
+            if name == "inter_column_distance_decay" and finite < 0.0:
+                raise ValueError("NeuralMesh inter_column_distance_decay must be >= 0")
+
+    @staticmethod
+    def _coerce_signal_vector(
+        vector: object,
+        *,
+        expected_len: int,
+        action: str,
+    ) -> np.ndarray:
+        """Normalize external signals before they can perturb the mesh state."""
+        try:
+            arr = np.asarray(vector, dtype=np.float32).reshape(-1)
+        except (TypeError, ValueError) as exc:
+            _record_neural_mesh_degradation(
+                exc,
+                action=action,
+                severity="warning",
+                extra={"fallback": "zero_vector", "expected_len": expected_len},
+            )
+            return np.zeros(expected_len, dtype=np.float32)
+
+        if arr.size == 0:
+            _record_neural_mesh_degradation(
+                ValueError("empty neural mesh injection vector"),
+                action=action,
+                severity="warning",
+                extra={"fallback": "zero_vector", "expected_len": expected_len},
+            )
+            return np.zeros(expected_len, dtype=np.float32)
+
+        nonfinite = int(np.size(arr) - np.count_nonzero(np.isfinite(arr)))
+        if nonfinite:
+            _record_neural_mesh_degradation(
+                ValueError(f"neural mesh injection vector had {nonfinite} non-finite values"),
+                action=action,
+                severity="warning",
+                extra={"fallback": "finite_sanitization", "expected_len": expected_len},
+            )
+            arr = np.nan_to_num(arr, nan=0.0, posinf=1.0, neginf=-1.0)
+
+        if arr.size > expected_len:
+            _record_neural_mesh_degradation(
+                ValueError(
+                    f"neural mesh injection vector length {arr.size} exceeds {expected_len}"
+                ),
+                action=action,
+                severity="warning",
+                extra={"fallback": "truncate", "expected_len": expected_len},
+            )
+            arr = arr[:expected_len]
+
+        return np.clip(arr.astype(np.float32, copy=False), -1.0, 1.0)
 
     # ── Tier helpers ─────────────────────────────────────────────────────
 
@@ -340,7 +557,19 @@ class NeuralMesh:
 
         # Compute column-level means for the feedback path
         col_means = np.array([np.mean(c.x) for c in self.columns], dtype=np.float32)
-        feedback_drive = self._feedback_W @ col_means * self._recurrent_feedback_strength
+        col_means = np.nan_to_num(col_means, nan=0.0, posinf=1.0, neginf=-1.0)
+        feedback_w = np.nan_to_num(self._feedback_W, nan=0.0, posinf=1.0, neginf=-1.0)
+        strength, valid_strength = _finite_float(self._recurrent_feedback_strength, 0.8)
+        strength, strength_unchanged = _clamp_float(strength, lower=0.0, upper=3.0)
+        if not valid_strength or not strength_unchanged:
+            _record_neural_mesh_degradation(
+                ValueError("NeuralMesh recurrent feedback strength was invalid"),
+                action="normalized recurrent feedback strength before applying feedback",
+                severity="warning",
+                extra={"feedback_strength": strength},
+            )
+        feedback_drive = feedback_w @ col_means * strength
+        feedback_drive = np.nan_to_num(feedback_drive, nan=0.0, posinf=1.0, neginf=-1.0)
 
         # Apply feedback as modulatory input to target columns
         for i, col in enumerate(self.columns):
@@ -370,9 +599,19 @@ class NeuralMesh:
         if self._running:
             return
         self._running = True
-        self._start_time = time.time()
-        self._task = get_task_tracker().create_task(self._run_loop(), name="NeuralMesh")
-        logger.info("NeuralMesh STARTED (%d Hz)", self.cfg.update_hz)
+        self._start_time = time.monotonic()
+        try:
+            self._task = get_task_tracker().create_task(self._run_loop(), name="NeuralMesh")
+        except _RECOVERABLE_NEURAL_MESH_ERRORS as exc:
+            self._running = False
+            self._task = None
+            _record_neural_mesh_degradation(
+                exc,
+                action="failed closed when NeuralMesh task creation failed",
+                severity="critical",
+            )
+            raise
+        logger.info("NeuralMesh STARTED (%s Hz)", self.cfg.update_hz)
 
     async def stop(self):
         self._running = False
@@ -388,21 +627,56 @@ class NeuralMesh:
     # ── Main loop ────────────────────────────────────────────────────────
 
     async def _run_loop(self):
-        interval = 1.0 / self.cfg.update_hz
+        update_hz, valid_update_hz = _finite_float(self.cfg.update_hz, 10.0)
+        update_hz, unchanged_update_hz = _clamp_float(update_hz, lower=0.1, upper=120.0)
+        if not valid_update_hz or not unchanged_update_hz:
+            _record_neural_mesh_degradation(
+                ValueError(f"unsafe NeuralMesh update_hz: {self.cfg.update_hz!r}"),
+                action="normalized NeuralMesh update rate before entering runtime loop",
+                severity="warning",
+                extra={"normalized_update_hz": update_hz},
+            )
+        interval = 1.0 / update_hz
         try:
             while self._running:
-                t0 = time.time()
+                t0 = time.monotonic()
                 try:
                     await asyncio.to_thread(self._tick)
-                except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-                    record_degradation('neural_mesh', e)
-                    logger.error("NeuralMesh tick error: %s", e, exc_info=True)
-                elapsed = time.time() - t0
-                await asyncio.sleep(max(0.0, interval - elapsed))
+                    self._consecutive_tick_failures = 0
+                except _RECOVERABLE_NEURAL_MESH_ERRORS as exc:
+                    self._consecutive_tick_failures += 1
+                    self._last_tick_error_at = time.monotonic()
+                    _record_neural_mesh_degradation(
+                        exc,
+                        action="kept NeuralMesh loop alive after tick failure and damped field",
+                        extra={"consecutive_tick_failures": self._consecutive_tick_failures},
+                    )
+                    logger.error("NeuralMesh tick error: %s", exc, exc_info=True)
+                    self._enter_fail_safe_state()
+                elapsed = time.monotonic() - t0
+                backoff = min(
+                    interval * max(0, self._consecutive_tick_failures),
+                    2.0,
+                )
+                await asyncio.sleep(max(0.0, interval + backoff - elapsed))
         except asyncio.CancelledError:
             logger.debug("NeuralMesh run loop cancelled")
         finally:
             self._running = False
+
+    def _enter_fail_safe_state(self) -> None:
+        """Dampen unstable dynamics after a failed tick without erasing topology."""
+        with self._lock:
+            for col in self.columns:
+                col.x = (
+                    np.nan_to_num(col.x, nan=0.0, posinf=1.0, neginf=-1.0)
+                    .clip(-1.0, 1.0)
+                    .astype(np.float32, copy=False)
+                    * np.float32(0.95)
+                )
+            self._modulatory_gain = max(0.1, min(1.0, self._modulatory_gain))
+            self._modulatory_noise = max(0.0, min(1.0, self._modulatory_noise))
+            self._refresh_cached_snapshots()
 
     def _tick(self):
         """One integration step (runs in thread pool)."""
@@ -410,18 +684,50 @@ class NeuralMesh:
             self._tick_inner()
 
     def _tick_inner(self):
-        now = time.time()
+        now = time.monotonic()
         dt = self.cfg.dt
         cfg = self.cfg
         gain = cfg.activation_gain * self._modulatory_gain
         # Apply subcortical arousal gating to mesh gain
         try:
             from core.consciousness.subcortical_core import get_subcortical_core
-            gain *= get_subcortical_core().get_mesh_gain_multiplier()
-        except (ImportError, AttributeError, RuntimeError) as exc:
-            record_degradation("neural_mesh", exc)
+            subcortical_gain, valid_subcortical_gain = _finite_float(
+                get_subcortical_core().get_mesh_gain_multiplier(),
+                1.0,
+            )
+            if not valid_subcortical_gain:
+                _record_neural_mesh_degradation(
+                    ValueError("subcortical mesh gain was non-finite"),
+                    action="used neutral subcortical gain for NeuralMesh tick",
+                    severity="warning",
+                )
+            gain *= subcortical_gain
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            _record_neural_mesh_degradation(
+                exc,
+                action="used base NeuralMesh gain because subcortical gain was unavailable",
+                severity="warning",
+            )
             logger.debug("Subcortical mesh gain unavailable, using base gain: %s", exc)
+        gain, valid_gain = _finite_float(gain, cfg.activation_gain)
+        gain, gain_unchanged = _clamp_float(gain, lower=0.05, upper=5.0)
+        if not valid_gain or not gain_unchanged:
+            _record_neural_mesh_degradation(
+                ValueError("NeuralMesh gain was non-finite or out of bounds"),
+                action="clamped NeuralMesh gain before integration",
+                severity="warning",
+                extra={"effective_gain": gain},
+            )
         noise_sigma = cfg.noise_sigma * self._modulatory_noise
+        noise_sigma, valid_noise_sigma = _finite_float(noise_sigma, cfg.noise_sigma)
+        noise_sigma, noise_unchanged = _clamp_float(noise_sigma, lower=0.0, upper=1.0)
+        if not valid_noise_sigma or not noise_unchanged:
+            _record_neural_mesh_degradation(
+                ValueError("NeuralMesh noise was non-finite or out of bounds"),
+                action="clamped NeuralMesh noise before integration",
+                severity="warning",
+                extra={"effective_noise_sigma": noise_sigma},
+            )
         n = cfg.neurons_per_column
 
         # ── 1. Distribute injection buffers to tier columns ──────────
@@ -434,6 +740,13 @@ class NeuralMesh:
         # Gather all column activations into a single (columns, n) matrix.
         # This replaces 64 sequential matmuls with batched numpy operations.
         x_matrix = np.array([c.x for c in self.columns], dtype=np.float32)  # (64, 64)
+        if not np.all(np.isfinite(x_matrix)):
+            _record_neural_mesh_degradation(
+                ValueError("NeuralMesh column state contained non-finite values"),
+                action="sanitized NeuralMesh column state before integration",
+                severity="warning",
+            )
+            x_matrix = np.nan_to_num(x_matrix, nan=0.0, posinf=1.0, neginf=-1.0)
 
         # Inter-column coupling: column means → inter-column drive
         col_means = x_matrix.mean(axis=1)  # (64,) — computed ONCE, reused in stats
@@ -474,8 +787,9 @@ class NeuralMesh:
             recurrent = np.array(recurrent_mx, dtype=np.float32)
         else:
             recurrent = np.einsum('cij,cj->ci', self._W_batch, x_matrix)  # (64, 64)
-            recurrent = np.nan_to_num(recurrent, nan=0.0, posinf=1.0, neginf=-1.0)
             activity = np.tanh(gain * (recurrent + ext))
+        recurrent = np.nan_to_num(recurrent, nan=0.0, posinf=1.0, neginf=-1.0)
+        activity = np.nan_to_num(activity, nan=0.0, posinf=1.0, neginf=-1.0)
 
         # Lateral inhibition: per-column inhibitory pool
         inh_masks = np.array([c.inh_mask for c in self.columns])  # (64, 64) bool
@@ -486,6 +800,7 @@ class NeuralMesh:
 
         noise = self._rng.standard_normal(x_matrix.shape).astype(np.float32) * noise_sigma
         dx = (-cfg.decay * x_matrix + activity + inhibition + noise) * dt
+        dx = np.nan_to_num(dx, nan=0.0, posinf=1.0, neginf=-1.0)
         x_new = np.clip(x_matrix + dx, -1.0, 1.0).astype(np.float32)
 
         # Write back to columns and record spike times
@@ -514,7 +829,12 @@ class NeuralMesh:
             norm = np.linalg.norm(self._inter_W)
             if norm > 15.0:
                 self._inter_W *= 15.0 / norm
-            self._inter_W = np.clip(self._inter_W, -1.0, 1.0).astype(np.float32)
+            self._inter_W = np.nan_to_num(
+                np.clip(self._inter_W, -1.0, 1.0),
+                nan=0.0,
+                posinf=1.0,
+                neginf=-1.0,
+            ).astype(np.float32)
 
         # ── 6. Compute stats ─────────────────────────────────────────
         self._update_stats()
@@ -529,11 +849,29 @@ class NeuralMesh:
             return None
         setattr(self, attr, None)
         expected_len = expected_cols * self.cfg.neurons_per_column
+        try:
+            buf = np.asarray(buf, dtype=np.float32).reshape(-1)
+        except (TypeError, ValueError) as exc:
+            _record_neural_mesh_degradation(
+                exc,
+                action=f"discarded malformed NeuralMesh buffer {attr}",
+                severity="warning",
+                extra={"expected_len": expected_len},
+            )
+            return np.zeros(expected_len, dtype=np.float32)
+        if not np.all(np.isfinite(buf)):
+            _record_neural_mesh_degradation(
+                ValueError(f"NeuralMesh buffer {attr} contained non-finite values"),
+                action=f"sanitized NeuralMesh buffer {attr}",
+                severity="warning",
+                extra={"expected_len": expected_len},
+            )
+            buf = np.nan_to_num(buf, nan=0.0, posinf=1.0, neginf=-1.0)
         if len(buf) < expected_len:
             padded = np.zeros(expected_len, dtype=np.float32)
             padded[:len(buf)] = buf[:expected_len]
-            return padded
-        return buf[:expected_len].astype(np.float32)
+            return np.clip(padded, -1.0, 1.0)
+        return np.clip(buf[:expected_len].astype(np.float32, copy=False), -1.0, 1.0)
 
     @staticmethod
     def _foreground_request_active() -> bool:
@@ -553,8 +891,12 @@ class NeuralMesh:
             started_at = float(lane.get("current_request_started_at", 0.0) or 0.0)
             completed_at = float(lane.get("last_generation_completed_at", 0.0) or 0.0)
             return started_at > 0.0 and started_at > completed_at
-        except (ImportError, AttributeError, RuntimeError) as exc:
-            record_degradation("neural_mesh", exc)
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            _record_neural_mesh_degradation(
+                exc,
+                action="allowed NeuralMesh plasticity because foreground lane status was unavailable",
+                severity="warning",
+            )
             logger.debug("Foreground lane status unavailable, allowing plasticity: %s", exc)
             return False
 
@@ -570,12 +912,36 @@ class NeuralMesh:
             return
 
         lr = self.cfg.stdp_lr * self._modulatory_plasticity
-        window = self.cfg.stdp_window
-        a_plus = self.cfg.stdp_potentiation
-        a_minus = self.cfg.stdp_depression
+        lr, lr_valid = _finite_float(lr, self.cfg.stdp_lr)
+        lr, lr_unchanged = _clamp_float(lr, lower=0.0, upper=0.05)
+        window, window_valid = _finite_float(self.cfg.stdp_window, 0.02)
+        window, window_unchanged = _clamp_float(window, lower=1e-6, upper=5.0)
+        a_plus, a_plus_valid = _finite_float(self.cfg.stdp_potentiation, 1.0)
+        a_minus, a_minus_valid = _finite_float(self.cfg.stdp_depression, 0.5)
+        a_plus, a_plus_unchanged = _clamp_float(a_plus, lower=0.0, upper=10.0)
+        a_minus, a_minus_unchanged = _clamp_float(a_minus, lower=0.0, upper=10.0)
+        if not all(
+            (
+                lr_valid,
+                lr_unchanged,
+                window_valid,
+                window_unchanged,
+                a_plus_valid,
+                a_minus_valid,
+                a_plus_unchanged,
+                a_minus_unchanged,
+            )
+        ):
+            _record_neural_mesh_degradation(
+                ValueError("NeuralMesh STDP parameters were non-finite or out of bounds"),
+                action="normalized NeuralMesh STDP parameters before plasticity update",
+                severity="warning",
+                extra={"lr": lr, "window": window, "a_plus": a_plus, "a_minus": a_minus},
+            )
 
         for col in self.columns:
-            t = col.last_spike_time
+            t = np.nan_to_num(col.last_spike_time, nan=-1.0, posinf=-1.0, neginf=-1.0)
+            col.last_spike_time = t
             # Only process neurons that have spiked at least once
             active = t > 0
             if not np.any(active):
@@ -602,9 +968,11 @@ class NeuralMesh:
             )
 
             dw = lr * (potentiate + depress).astype(np.float32)
+            dw = np.nan_to_num(dw, nan=0.0, posinf=0.0, neginf=0.0)
 
             # Respect Dale's law: don't flip inhibitory→excitatory
             # Only modify magnitude, preserve sign
+            col.W = np.nan_to_num(col.W, nan=0.0, posinf=1.0, neginf=-1.0)
             old_sign = np.sign(col.W)
             col.W += dw
             # Where sign flipped, reset to zero (hard Dale's law)
@@ -615,6 +983,12 @@ class NeuralMesh:
             norm = np.linalg.norm(col.W)
             if norm > 5.0:
                 col.W *= 5.0 / norm
+            col.W = np.nan_to_num(
+                np.clip(col.W, -1.0, 1.0),
+                nan=0.0,
+                posinf=1.0,
+                neginf=-1.0,
+            ).astype(np.float32, copy=False)
 
     # ── Stats ────────────────────────────────────────────────────────
 
@@ -626,6 +1000,7 @@ class NeuralMesh:
         """
         # Vectorized energy: mean(|x|) per column
         x_matrix = np.array([c.x for c in self.columns], dtype=np.float32)
+        x_matrix = np.nan_to_num(x_matrix, nan=0.0, posinf=1.0, neginf=-1.0)
         energies = np.mean(np.abs(x_matrix), axis=1)  # (64,)
 
         self._mean_column_energy = float(energies.mean())
@@ -638,6 +1013,7 @@ class NeuralMesh:
         # Global synchrony: reuse cached col_means from tick (no recomputation)
         col_means = getattr(self, '_cached_col_means', None)
         if col_means is not None and len(col_means) > 1:
+            col_means = np.nan_to_num(col_means, nan=0.0, posinf=1.0, neginf=-1.0)
             stds = np.std(x_matrix, axis=1)
             mean_of_stds = stds.mean() + 1e-8
             std_of_means = col_means.std() + 1e-8
@@ -645,15 +1021,28 @@ class NeuralMesh:
 
         full_state = x_matrix.reshape(-1).astype(np.float32, copy=True)
         self._cached_field_state = full_state
-        self._cached_executive_projection = np.tanh(
-            self._projection @ full_state
+        projection = np.nan_to_num(self._projection, nan=0.0, posinf=1.0, neginf=-1.0)
+        self._cached_executive_projection = np.nan_to_num(
+            np.tanh(projection @ full_state),
+            nan=0.0,
+            posinf=1.0,
+            neginf=-1.0,
         ).astype(np.float32)
 
     def _refresh_cached_snapshots(self) -> None:
-        full_state = np.concatenate([col.x for col in self.columns]).astype(np.float32, copy=True)
+        full_state = np.nan_to_num(
+            np.concatenate([col.x for col in self.columns]),
+            nan=0.0,
+            posinf=1.0,
+            neginf=-1.0,
+        ).astype(np.float32, copy=True)
         self._cached_field_state = full_state
-        self._cached_executive_projection = np.tanh(
-            self._projection @ full_state
+        projection = np.nan_to_num(self._projection, nan=0.0, posinf=1.0, neginf=-1.0)
+        self._cached_executive_projection = np.nan_to_num(
+            np.tanh(projection @ full_state),
+            nan=0.0,
+            posinf=1.0,
+            neginf=-1.0,
         ).astype(np.float32)
 
     def _refresh_cached_snapshots_if_idle(self) -> None:
@@ -671,20 +1060,62 @@ class NeuralMesh:
         Vector length should be sensory_columns * neurons_per_column (1024).
         Shorter vectors are zero-padded. Called from EmbodiedInteroception.
         """
-        self._sensory_buffer = np.asarray(vector, dtype=np.float32)
+        expected_len = self.cfg.sensory_end * self.cfg.neurons_per_column
+        self._sensory_buffer = self._coerce_signal_vector(
+            vector,
+            expected_len=expected_len,
+            action="sanitized sensory ingress before NeuralMesh injection",
+        )
 
     def inject_association(self, vector: np.ndarray):
         """Push cross-modal / memory / LLM signals into association tier.
         Vector length should be association_columns * neurons_per_column (2048).
         """
-        self._association_buffer = np.asarray(vector, dtype=np.float32)
+        expected_len = (
+            self.cfg.association_end - self.cfg.sensory_end
+        ) * self.cfg.neurons_per_column
+        self._association_buffer = self._coerce_signal_vector(
+            vector,
+            expected_len=expected_len,
+            action="sanitized association ingress before NeuralMesh injection",
+        )
 
     def set_modulatory_state(self, gain: float = 1.0, plasticity: float = 1.0,
                              noise: float = 1.0):
         """Called by NeurochemicalSystem to modulate mesh dynamics globally."""
-        self._modulatory_gain = max(0.1, min(3.0, gain))
-        self._modulatory_plasticity = max(0.0, min(5.0, plasticity))
-        self._modulatory_noise = max(0.0, min(3.0, noise))
+        gain_value, gain_valid = _finite_float(gain, 1.0)
+        plasticity_value, plasticity_valid = _finite_float(plasticity, 1.0)
+        noise_value, noise_valid = _finite_float(noise, 1.0)
+        gain_value, gain_unchanged = _clamp_float(gain_value, lower=0.1, upper=3.0)
+        plasticity_value, plasticity_unchanged = _clamp_float(
+            plasticity_value,
+            lower=0.0,
+            upper=5.0,
+        )
+        noise_value, noise_unchanged = _clamp_float(noise_value, lower=0.0, upper=3.0)
+        if not all(
+            (
+                gain_valid,
+                plasticity_valid,
+                noise_valid,
+                gain_unchanged,
+                plasticity_unchanged,
+                noise_unchanged,
+            )
+        ):
+            _record_neural_mesh_degradation(
+                ValueError("NeuralMesh modulatory state was non-finite or out of bounds"),
+                action="normalized NeuralMesh modulatory state before applying it",
+                severity="warning",
+                extra={
+                    "gain": gain_value,
+                    "plasticity": plasticity_value,
+                    "noise": noise_value,
+                },
+            )
+        self._modulatory_gain = gain_value
+        self._modulatory_plasticity = plasticity_value
+        self._modulatory_noise = noise_value
 
     def get_executive_projection(self) -> np.ndarray:
         """Project full 4096-d state down to 64-d for LiquidSubstrate injection.
@@ -700,16 +1131,35 @@ class NeuralMesh:
 
     def get_column_summary(self, col_idx: int) -> dict:
         """Per-column diagnostic."""
+        if col_idx < 0 or col_idx >= len(self.columns):
+            _record_neural_mesh_degradation(
+                IndexError(f"NeuralMesh column index out of range: {col_idx}"),
+                action="returned empty NeuralMesh column summary for invalid index",
+                severity="warning",
+                extra={"column_index": col_idx, "columns": len(self.columns)},
+            )
+            return {
+                "index": col_idx,
+                "tier": "UNKNOWN",
+                "mean_activation": 0.0,
+                "energy": 0.0,
+                "std": 0.0,
+                "inhibitory_activity": 0.0,
+                "excitatory_activity": 0.0,
+                "weight_norm": 0.0,
+            }
         col = self.columns[col_idx]
+        x = np.nan_to_num(col.x, nan=0.0, posinf=1.0, neginf=-1.0)
+        weights = np.nan_to_num(col.W, nan=0.0, posinf=1.0, neginf=-1.0)
         return {
             "index": col.index,
             "tier": col.tier.name,
-            "mean_activation": float(np.mean(col.x)),
-            "energy": float(np.mean(np.abs(col.x))),
-            "std": float(np.std(col.x)),
-            "inhibitory_activity": float(np.mean(np.abs(col.x[col.inh_mask]))) if np.any(col.inh_mask) else 0.0,
-            "excitatory_activity": float(np.mean(np.abs(col.x[~col.inh_mask]))),
-            "weight_norm": float(np.linalg.norm(col.W)),
+            "mean_activation": float(np.mean(x)),
+            "energy": float(np.mean(np.abs(x))),
+            "std": float(np.std(x)),
+            "inhibitory_activity": float(np.mean(np.abs(x[col.inh_mask]))) if np.any(col.inh_mask) else 0.0,
+            "excitatory_activity": float(np.mean(np.abs(x[~col.inh_mask]))),
+            "weight_norm": float(np.linalg.norm(weights)),
         }
 
     def get_tier_energy(self, tier: CorticalTier) -> float:
@@ -732,5 +1182,9 @@ class NeuralMesh:
             "modulatory_plasticity": round(self._modulatory_plasticity, 3),
             "accelerator": _MLX_ACCELERATOR,
             "accelerator_reason": _MLX_ACCELERATOR_REASON,
-            "uptime_s": round(time.time() - self._start_time, 1) if self._start_time else 0,
+            "consecutive_tick_failures": self._consecutive_tick_failures,
+            "last_tick_error_age_s": round(time.monotonic() - self._last_tick_error_at, 1)
+            if self._last_tick_error_at
+            else 0,
+            "uptime_s": round(time.monotonic() - self._start_time, 1) if self._start_time else 0,
         }

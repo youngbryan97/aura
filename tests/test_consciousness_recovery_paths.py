@@ -857,6 +857,120 @@ def test_neural_mesh_foreground_lane_failure_records_and_allows_plasticity(monke
     assert recorded == [("neural_mesh", "RuntimeError")]
 
 
+def test_neural_mesh_run_loop_survives_tick_failure_with_structured_action(monkeypatch):
+    recorded: list[tuple[str, str, str, dict | None]] = []
+
+    def record(module, exc, **kwargs):
+        recorded.append(
+            (
+                module,
+                type(exc).__name__,
+                kwargs.get("action", ""),
+                kwargs.get("extra"),
+            )
+        )
+
+    monkeypatch.setattr(neural_mesh, "record_degradation", record)
+
+    cfg = neural_mesh.MeshConfig(
+        total_neurons=64,
+        columns=4,
+        neurons_per_column=16,
+        sensory_end=1,
+        association_end=3,
+        update_hz=1000.0,
+        projection_dim=8,
+    )
+    mesh = neural_mesh.NeuralMesh(cfg)
+    attempts = {"count": 0}
+
+    def fail_once_then_stop():
+        attempts["count"] += 1
+        if attempts["count"] == 1:
+            raise RuntimeError("tick exploded")
+        mesh._running = False
+
+    mesh._tick = fail_once_then_stop
+    mesh._running = True
+
+    asyncio.run(mesh._run_loop())
+
+    assert attempts["count"] == 2
+    assert mesh._running is False
+    assert any(
+        action == "kept NeuralMesh loop alive after tick failure and damped field"
+        and extra == {"consecutive_tick_failures": 1}
+        for _, _, action, extra in recorded
+    )
+
+
+def test_neural_mesh_injection_and_modulators_sanitize_nonfinite(monkeypatch):
+    recorded: list[tuple[str, str, str]] = []
+
+    def record(module, exc, **kwargs):
+        recorded.append((module, type(exc).__name__, kwargs.get("action", "")))
+
+    monkeypatch.setattr(neural_mesh, "record_degradation", record)
+
+    cfg = neural_mesh.MeshConfig(
+        total_neurons=64,
+        columns=4,
+        neurons_per_column=16,
+        sensory_end=1,
+        association_end=3,
+        projection_dim=8,
+    )
+    mesh = neural_mesh.NeuralMesh(cfg)
+
+    mesh.inject_sensory([np.nan, np.inf, -np.inf, 5.0])
+    mesh.inject_association(np.full(40, np.nan, dtype=np.float32))
+    mesh.set_modulatory_state(gain=np.nan, plasticity=np.inf, noise=-3.0)
+    mesh._tick()
+
+    assert mesh._sensory_buffer is None
+    assert mesh._association_buffer is None
+    assert mesh._modulatory_gain == 1.0
+    assert mesh._modulatory_plasticity == 1.0
+    assert mesh._modulatory_noise == 0.0
+    assert np.all(np.isfinite(mesh.get_field_state()))
+    assert np.all(np.isfinite(mesh.get_executive_projection()))
+    actions = {action for _, _, action in recorded}
+    assert "sanitized sensory ingress before NeuralMesh injection" in actions
+    assert "sanitized association ingress before NeuralMesh injection" in actions
+    assert "normalized NeuralMesh modulatory state before applying it" in actions
+
+
+def test_neural_mesh_invalid_column_summary_is_observable(monkeypatch):
+    recorded: list[tuple[str, str, str]] = []
+
+    def record(module, exc, **kwargs):
+        recorded.append((module, type(exc).__name__, kwargs.get("action", "")))
+
+    monkeypatch.setattr(neural_mesh, "record_degradation", record)
+
+    cfg = neural_mesh.MeshConfig(
+        total_neurons=64,
+        columns=4,
+        neurons_per_column=16,
+        sensory_end=1,
+        association_end=3,
+        projection_dim=8,
+    )
+    mesh = neural_mesh.NeuralMesh(cfg)
+
+    summary = mesh.get_column_summary(99)
+
+    assert summary["tier"] == "UNKNOWN"
+    assert summary["energy"] == 0.0
+    assert recorded == [
+        (
+            "neural_mesh",
+            "IndexError",
+            "returned empty NeuralMesh column summary for invalid index",
+        )
+    ]
+
+
 def test_aura_protocol_identity_read_failure_records_and_preserves_message(monkeypatch):
     recorded: list[tuple[str, str]] = []
     monkeypatch.setattr(

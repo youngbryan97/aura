@@ -79,15 +79,18 @@ def _record_aura_protocol_degradation(
     severity: str = "warning",
     extra: dict[str, Any] | None = None,
 ) -> None:
-    record_degradation(
-        "aura_protocol",
-        exc,
-        severity=severity,
-        action=action,
-        classification=FallbackClassification.SAFE_FALLBACK,
-        receipt_required=True,
-        extra=extra,
-    )
+    try:
+        record_degradation(
+            "aura_protocol",
+            exc,
+            severity=severity,
+            action=action,
+            classification=FallbackClassification.SAFE_FALLBACK,
+            receipt_required=True,
+            extra=extra,
+        )
+    except TypeError:
+        record_degradation("aura_protocol", exc)
 
 
 def _finite_float(value: Any) -> float | None:
