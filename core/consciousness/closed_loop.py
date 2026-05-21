@@ -15,6 +15,7 @@ import asyncio
 import inspect
 import logging
 import math
+import tempfile
 import threading
 import time
 from collections import deque
@@ -868,7 +869,7 @@ class ClosedCausalLoop:
         try:
             self._save_dir.mkdir(parents=True, exist_ok=True)
         except OSError as exc:
-            fallback_dir = Path("/tmp/aura/closed_loop")
+            fallback_dir = Path(tempfile.gettempdir()) / "aura" / "closed_loop"
             _emit_closed_loop_fault(
                 exc,
                 action="fell back to temporary closed-loop save directory after mkdir failed",

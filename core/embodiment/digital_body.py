@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from typing import Any, Dict, List, Optional, Set
+from typing import Any
 
 try:
     import psutil
@@ -21,7 +21,7 @@ from core.runtime.errors import record_degradation
 logger = logging.getLogger("Aura.Embodiment.DigitalBody")
 
 _SINGLETON_LOCK = threading.Lock()
-_digital_body_instance: Optional[DigitalBody] = None
+_digital_body_instance: DigitalBody | None = None
 
 
 class DigitalBody:
@@ -29,36 +29,36 @@ class DigitalBody:
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
-        
+
         # Core identification and capabilities
-        self.available_models: List[str] = ["cortex", "solver", "brainstem"]
-        self.available_tools: List[str] = []
-        
+        self.available_models: list[str] = ["cortex", "solver", "brainstem"]
+        self.available_tools: list[str] = []
+
         # Proprioceptive resource state
-        self.resource_state: Dict[str, float] = {
+        self.resource_state: dict[str, float] = {
             "cpu_percent": 0.0,
             "memory_percent": 0.0,
             "disk_percent": 0.0,
-            "latency_ms": 0.0
+            "latency_ms": 0.0,
         }
-        
+
         # Fine-grained security permissions
-        self.permissions: Dict[str, bool] = {
+        self.permissions: dict[str, bool] = {
             "file_write": True,
             "shell_execution": True,
             "network_access": False,
-            "self_modification": True
+            "self_modification": True,
         }
-        
+
         # Operational health indicators
-        self.degraded_systems: Set[str] = set()
-        
+        self.degraded_systems: set[str] = set()
+
         # Commitment / Goal tracking
-        self.current_commitments: List[Dict[str, Any]] = []
-        
+        self.current_commitments: list[dict[str, Any]] = []
+
         # Environment grounding references
-        self.environment_handles: Dict[str, Any] = {}
-        
+        self.environment_handles: dict[str, Any] = {}
+
         # Initialize internal performance clocks
         self._last_update_time = time.time()
         logger.info("DigitalBody schema initialized.")
@@ -73,19 +73,36 @@ class DigitalBody:
                     cpu = psutil.cpu_percent(interval=None)
                     mem = psutil.virtual_memory().percent
                     disk = psutil.disk_usage("/").percent
-                    
+
                     self.resource_state["cpu_percent"] = float(cpu)
                     self.resource_state["memory_percent"] = float(mem)
                     self.resource_state["disk_percent"] = float(disk)
                 else:
                     # Resilient fallback values with slight dynamic fluctuations
                     import random
+
                     t = time.time()
-                    self.resource_state["cpu_percent"] = round(15.0 + 10.0 * (t % 3.0) + random.uniform(-1, 1), 2)
-                    self.resource_state["memory_percent"] = round(42.0 + 2.0 * (t % 5.0) + random.uniform(-0.5, 0.5), 2)
+                    self.resource_state["cpu_percent"] = round(
+                        15.0 + 10.0 * (t % 3.0) + random.uniform(-1, 1), 2
+                    )
+                    self.resource_state["memory_percent"] = round(
+                        42.0 + 2.0 * (t % 5.0) + random.uniform(-0.5, 0.5), 2
+                    )
                     self.resource_state["disk_percent"] = 35.4
-            except Exception as exc:
-                record_degradation("digital_body_telemetry", exc)
+            except (
+                AttributeError,
+                ImportError,
+                OSError,
+                RuntimeError,
+                TypeError,
+                ValueError,
+            ) as exc:
+                record_degradation(
+                    "digital_body_telemetry",
+                    exc,
+                    severity="warning",
+                    action="kept previous digital body telemetry after resource probe failed",
+                )
                 logger.warning("Failed to refresh digital body telemetry: %s", exc)
             finally:
                 elapsed_ms = (time.time() - start_time) * 1000.0
@@ -109,17 +126,18 @@ class DigitalBody:
                 del self.environment_handles[env_id]
                 logger.info("Environment %s deregistered.", env_id)
 
-    def register_commitment(self, commitment: Dict[str, Any]) -> None:
+    def register_commitment(self, commitment: dict[str, Any]) -> None:
         """Registers an active commitment (goal) with a strict, persistent structured schema."""
         with self._lock:
             if "id" not in commitment:
                 import uuid
+
                 commitment["id"] = uuid.uuid4().hex[:12]
             if "created_at" not in commitment:
                 commitment["created_at"] = time.time()
             if "status" not in commitment:
                 commitment["status"] = "active"
-                
+
             # Enforce and default structured goal fields from the prompt specification
             commitment.setdefault("goal", "unspecified_maintenance_task")
             commitment.setdefault("origin", "internal_drive_pressure")
@@ -128,7 +146,7 @@ class DigitalBody:
             commitment.setdefault("resource_budget", "low")
             commitment.setdefault("deadline", "next_idle_window")
             commitment.setdefault("success_metric", "baseline_invariants_preserved")
-            
+
             # Canonical commitment tracking ledger
             commitment.setdefault("current_plan", [])
             commitment.setdefault("last_action", "reflect")
@@ -136,13 +154,23 @@ class DigitalBody:
             commitment.setdefault("next_action", "reflect")
             commitment.setdefault("evidence_of_completion", None)
             commitment.setdefault("postmortem", None)
-                
-            self.current_commitments.append(commitment)
-            logger.info("DigitalBody registered commitment ledger: %s (goal: %s, origin: %s, expected_value: %.2f)", 
-                        commitment["id"], commitment["goal"], commitment["origin"], commitment["expected_value"])
 
-    def resolve_commitment(self, commitment_id: str, status: str = "completed", 
-                           evidence: str = None, postmortem: str = None) -> Optional[Dict[str, Any]]:
+            self.current_commitments.append(commitment)
+            logger.info(
+                "DigitalBody registered commitment ledger: %s (goal: %s, origin: %s, expected_value: %.2f)",
+                commitment["id"],
+                commitment["goal"],
+                commitment["origin"],
+                commitment["expected_value"],
+            )
+
+    def resolve_commitment(
+        self,
+        commitment_id: str,
+        status: str = "completed",
+        evidence: str = None,
+        postmortem: str = None,
+    ) -> dict[str, Any] | None:
         """Resolves an active commitment, storing evidence of completion and postmortem analysis."""
         with self._lock:
             for commitment in self.current_commitments:
@@ -153,13 +181,18 @@ class DigitalBody:
                         commitment["evidence_of_completion"] = evidence
                     if postmortem:
                         commitment["postmortem"] = postmortem
-                    logger.info("DigitalBody commitment %s resolved as: %s. Postmortem: %s", commitment_id, status, postmortem)
+                    logger.info(
+                        "DigitalBody commitment %s resolved as: %s. Postmortem: %s",
+                        commitment_id,
+                        status,
+                        postmortem,
+                    )
                     return commitment
             return None
 
     def is_action_authorized(self, action_name: str) -> bool:
         """Evaluates whether an action is authorized under current proprioceptive class constraints.
-        
+
         Action Classes:
         - safe: reflect, summarize memory, run diagnostics, compact database, generate test, simulate plan
         - medium: modify local files in sandbox (file_read/file_write), run tests, propose patch, browse/read environment
@@ -167,28 +200,47 @@ class DigitalBody:
         """
         with self._lock:
             # Safe action class: implicitly allowed
-            safe_actions = {"reflect", "summarize memory", "run diagnostics", "compact database", "generate test", "simulate plan"}
+            safe_actions = {
+                "reflect",
+                "summarize memory",
+                "run diagnostics",
+                "compact database",
+                "generate test",
+                "simulate plan",
+            }
             if action_name in safe_actions:
                 return True
-                
+
             # Medium action class: requires specific permissions
-            medium_actions = {"file_read", "file_write", "run_test", "patch_code", "browse_environment"}
+            medium_actions = {
+                "file_read",
+                "file_write",
+                "run_test",
+                "patch_code",
+                "browse_environment",
+            }
             if action_name in medium_actions:
                 if action_name == "file_write" or action_name == "patch_code":
                     return self.permissions.get("file_write", False)
                 return True
-                
+
             # High action class: requires advanced permissions
-            high_actions = {"file_delete", "commit_code", "write_production_code", "push_git_changes", "send_messages", "delete_data"}
+            high_actions = {
+                "file_delete",
+                "commit_code",
+                "write_production_code",
+                "push_git_changes",
+                "send_messages",
+                "delete_data",
+            }
             if action_name in high_actions:
                 if action_name == "file_delete":
                     return self.permissions.get("file_write", False)
                 if action_name == "commit_code":
                     return self.permissions.get("self_modification", False)
                 return False  # Strict default block for untested high-risk features
-                
-            return False
 
+            return False
 
     def mark_system_degraded(self, system_name: str, degraded: bool = True) -> None:
         """Flags a system as degraded or recovers it."""
@@ -201,7 +253,7 @@ class DigitalBody:
                     self.degraded_systems.remove(system_name)
                     logger.info("DigitalBody registered system recovery: %s", system_name)
 
-    def get_state_dict(self) -> Dict[str, Any]:
+    def get_state_dict(self) -> dict[str, Any]:
         """Returns a snapshot of the body schema for world model observation."""
         with self._lock:
             return {
@@ -211,8 +263,10 @@ class DigitalBody:
                 "permissions": dict(self.permissions),
                 "degraded_systems": list(self.degraded_systems),
                 "commitments_count": len(self.current_commitments),
-                "active_commitments": [c for c in self.current_commitments if c.get("status") == "active"],
-                "environments": list(self.environment_handles.keys())
+                "active_commitments": [
+                    c for c in self.current_commitments if c.get("status") == "active"
+                ],
+                "environments": list(self.environment_handles.keys()),
             }
 
 

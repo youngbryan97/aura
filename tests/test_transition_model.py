@@ -9,13 +9,14 @@ import numpy as np
 import pytest
 
 from core.container import ServiceContainer
-from core.world_model.transition_model import get_transition_model, TransitionModel
+from core.world_model.transition_model import TransitionModel, get_transition_model
 
 
 class MockSubstrate:
-    """Mock LiquidSubstrate for state vector extraction."""
+    """Fixture LiquidSubstrate for state vector extraction."""
+
     def __init__(self) -> None:
-        self.sync_lock = threading_lock = pytest.importorskip("threading").Lock()
+        self.sync_lock = pytest.importorskip("threading").Lock()
         self.x = np.array([0.1, 0.2, 0.3, 0.4, 0.5] + [0.0] * 50, dtype=np.float32)
         self.idx_valence = 0
         self.idx_arousal = 1
@@ -25,7 +26,8 @@ class MockSubstrate:
 
 
 class MockFreeEnergy:
-    """Mock FreeEnergyEngine for state vector extraction."""
+    """Fixture FreeEnergyEngine for state vector extraction."""
+
     def __init__(self) -> None:
         self.smoothed_fe = 0.65
         self.surprise = 0.0
@@ -35,13 +37,15 @@ class MockFreeEnergy:
 
 
 class MockFHN:
-    """Mock FitzHugh-Nagumo state."""
+    """Fixture FitzHugh-Nagumo state."""
+
     def __init__(self) -> None:
         self.arousal = 0.72
 
 
 class MockPrecisionEngine:
-    """Mock PrecisionEngine for state vector extraction."""
+    """Fixture PrecisionEngine for state vector extraction."""
+
     def __init__(self) -> None:
         self.fhn = MockFHN()
 
@@ -56,18 +60,18 @@ def test_transition_model_singleton() -> None:
 
 def test_state_vector_extraction() -> None:
     """Verifies that TransitionModel extracts substrate state dimensions correctly."""
-    # Register mock services in ServiceContainer
+    # Register fixture services in ServiceContainer.
     sub = MockSubstrate()
     fe = MockFreeEnergy()
     prec = MockPrecisionEngine()
-    
+
     ServiceContainer.register_instance("liquid_substrate", sub)
     ServiceContainer.register_instance("free_energy_engine", fe)
     ServiceContainer.register_instance("precision_engine", prec)
-    
+
     model = TransitionModel()
     state = model.extract_state_vector()
-    
+
     assert state.shape == (7,)
     assert state[0] == 0.1  # valence
     assert state[1] == 0.2  # arousal
@@ -84,14 +88,14 @@ def test_predict_and_clamping() -> None:
     current_state = np.array([0.9, 0.9, 0.1, 0.1, 0.5, 0.5, 0.5], dtype=np.float32)
     action_vec = np.zeros(8, dtype=np.float32)
     action_vec[0] = 1.0  # file_read
-    
+
     # Force extreme positive weight matrix to test upper clamping
     model.W = np.ones((7, 15), dtype=np.float32) * 5.0
     predicted = model.predict_next_state(current_state, action_vec)
-    
+
     assert np.all(predicted <= 1.0)
     assert np.all(predicted >= 0.0)
-    
+
     # Force extreme negative weight matrix to test lower clamping
     model.W = np.ones((7, 15), dtype=np.float32) * -5.0
     predicted_neg = model.predict_next_state(current_state, action_vec)
@@ -104,26 +108,26 @@ def test_lms_delta_learning_convergence() -> None:
     sub = MockSubstrate()
     fe = MockFreeEnergy()
     prec = MockPrecisionEngine()
-    
+
     ServiceContainer.register_instance("liquid_substrate", sub)
     ServiceContainer.register_instance("free_energy_engine", fe)
     ServiceContainer.register_instance("precision_engine", prec)
-    
+
     # Create isolated model with high learning rate to accelerate convergence
     model = TransitionModel(learning_rate=0.2)
-    
+
     errors = []
-    
+
     # Simulate repeated transitions where executing 'file_write' predictably drops arousal and frustration
     for step in range(10):
-        # Update mock states dynamically based on transition
+        # Update fixture states dynamically based on transition.
         sub.x[sub.idx_arousal] = max(0.0, 0.8 - 0.05 * step)
         sub.x[sub.idx_frustration] = max(0.0, 0.7 - 0.06 * step)
-        
+
         err = model.process_step("file_write")
         if step > 0:  # Skip first step because it has no past prediction to update from
             errors.append(err)
-            
+
     # Check that error is generally declining or converges to a low value
     assert len(errors) == 9
     assert errors[-1] < errors[0]  # Empirical proof of online predictive convergence!
@@ -132,7 +136,7 @@ def test_lms_delta_learning_convergence() -> None:
 def test_simulate_action_consequences() -> None:
     """Verifies that simulating action consequences produces the proper structured side-effects."""
     model = TransitionModel()
-    
+
     # 1. Simulate safe action
     safe_sim = model.simulate_action("reflect")
     assert safe_sim["proposed_action"] == "reflect"
@@ -141,7 +145,7 @@ def test_simulate_action_consequences() -> None:
     assert safe_sim["reversibility"] == 1.0
     assert safe_sim["memory_affected"] is True
     assert safe_sim["user_visible"] is False
-    
+
     # 2. Simulate medium action
     med_sim = model.simulate_action("file_write")
     assert med_sim["proposed_action"] == "file_write"
@@ -149,7 +153,7 @@ def test_simulate_action_consequences() -> None:
     assert med_sim["risk"] == 0.15
     assert med_sim["reversibility"] == 0.8
     assert "target_file" in med_sim["files_affected"]
-    
+
     # 3. Simulate high-risk action
     high_sim = model.simulate_action("file_delete")
     assert high_sim["proposed_action"] == "file_delete"
@@ -158,4 +162,3 @@ def test_simulate_action_consequences() -> None:
     assert high_sim["reversibility"] == 0.1
     assert "target_file" in high_sim["files_affected"]
     assert "FileNotFoundError" in high_sim["possible_failures"]
-

@@ -7,15 +7,18 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import re
 import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from core.actuators.actuator_registry import BaseActuator, ActuatorResult, get_actuator_registry
+from core.actuators.actuator_registry import (
+    BaseActuator,
+    SandboxedSynthesizedActuator,
+    get_actuator_registry,
+)
 from core.actuators.actuator_validator import ActuatorCodeValidator
 from core.brain.local_llm import LocalBrain
 from core.runtime.atomic_writer import atomic_write_text
@@ -28,9 +31,9 @@ class SynthesisRequest:
     """A formal request to synthesize a new physical actuator."""
 
     problem_description: str
-    failed_actuators: List[str] = field(default_factory=list)
-    sensor_context: Dict[str, Any] = field(default_factory=dict)
-    world_model_snapshot: Dict[str, Any] = field(default_factory=dict)
+    failed_actuators: list[str] = field(default_factory=list)
+    sensor_context: dict[str, Any] = field(default_factory=dict)
+    world_model_snapshot: dict[str, Any] = field(default_factory=dict)
     urgency: float = 0.5
     timestamp: float = field(default_factory=time.time)
 
@@ -52,7 +55,7 @@ class ActuatorSynthesizer:
         # 1. Code Generation
         try:
             source_code = await self.synthesize_actuator_code(request)
-        except Exception as exc:
+        except (AttributeError, RuntimeError, TypeError, ValueError, OSError) as exc:
             logger.error("Actuator code generation failed: %s", exc)
             return None
 
@@ -62,7 +65,7 @@ class ActuatorSynthesizer:
 
         # 2. Multi-Stage Validation
         logger.info("Executing multi-stage validation pipeline for synthesized code...")
-        
+
         # Stage 1: AST static checks
         ast_res = ActuatorCodeValidator.validate_ast(source_code)
         if not ast_res.success:
@@ -90,7 +93,9 @@ class ActuatorSynthesizer:
         logger.info("Stage 3 (Causal) passed. Causal simulation successfully updated world state.")
 
         # 3. Governance Gate
-        logger.info("Submitting synthesized actuator '%s' to Unified Will governance...", actuator_name)
+        logger.info(
+            "Submitting synthesized actuator '%s' to Unified Will governance...", actuator_name
+        )
         approved = await self._governance_approve(actuator_name, source_code, request)
         if not approved:
             logger.warning("Governance check DENIED activation of actuator '%s'", actuator_name)
@@ -98,8 +103,10 @@ class ActuatorSynthesizer:
         logger.info("Governance APPROVED activation of actuator '%s'", actuator_name)
 
         # 4. Hot-Loading
-        logger.info("Hot-loading and registering actuator '%s' into live registry...", actuator_name)
-        actuator_instance = self.hot_load_actuator(source_code)
+        logger.info(
+            "Hot-loading and registering actuator '%s' into live registry...", actuator_name
+        )
+        actuator_instance = self.hot_load_actuator(source_code, sandbox_res.details)
         if not actuator_instance:
             logger.error("Failed to hot-load the validated actuator class.")
             return None
@@ -129,10 +136,10 @@ class ActuatorSynthesizer:
             "and `execute(self, params: dict[str, Any]) -> ActuatorResult`.\n"
             "4. NEVER import os, sys, subprocess, socket, urllib, requests, ctypes, shutil, pty, platform, builtins, importlib.\n"
             "5. NEVER use eval(), exec(), compile(), __import__(), or open().\n"
-            "6. To interact with the physical world, import `get_physics_world_model` inside `execute()`:\n"
-            "   `from core.world.world_model import get_physics_world_model`\n"
+            "6. Do not import the live world model. Compute and return a bounded update payload only; Aura applies it after sandbox validation.\n"
             "7. Return ActuatorResult(success=True/False, message='...', updates={entity_id: {...}}).\n"
-            "8. ONLY output the valid, clean Python code block. Do NOT surround it with explanations. Do NOT provide comments "
+            "8. Updates may include numeric fields load, flow_rate, latency, capacity, max_flow_rate, coordinates, and primitive attributes.\n"
+            "9. ONLY output the valid, clean Python code block. Do NOT surround it with explanations. Do NOT provide comments "
             "explaining the code; just return the code. Keep it extremely tight and professional."
         )
 
@@ -149,7 +156,7 @@ class ActuatorSynthesizer:
             # We explicitly use LocalBrain in async context
             res = await brain.generate(prompt, system_prompt=system_prompt)
             raw_response = res.get("response", "")
-            
+
             # Extract python code
             code = raw_response
             match = re.search(r"```python\s*(.*?)\s*```", code, re.DOTALL)
@@ -159,14 +166,16 @@ class ActuatorSynthesizer:
                 match = re.search(r"```\s*(.*?)\s*```", code, re.DOTALL)
                 if match:
                     code = match.group(1)
-            
+
             return code.strip()
         finally:
             await brain.close()
 
     # -- governance -------------------------------------------------------------
 
-    async def _governance_approve(self, actuator_name: str, source_code: str, request: SynthesisRequest) -> bool:
+    async def _governance_approve(
+        self, actuator_name: str, source_code: str, request: SynthesisRequest
+    ) -> bool:
         """Consult the Unified Will to get explicit registration approval."""
         try:
             from core.will import ActionDomain, get_will
@@ -185,42 +194,40 @@ class ActuatorSynthesizer:
             )
             return bool(decision.is_approved())
         except (ImportError, AttributeError, RuntimeError) as exc:
-            logger.warning("Unified Will not available for actuator synthesis check: %s. Proceeding...", exc)
-            return True  # Fail-open if will is not present, still protected by AST + sandbox
+            logger.warning(
+                "Unified Will unavailable for actuator synthesis check: %s. Failing closed.",
+                exc,
+            )
+            return False
 
     # -- hot-loading & persistence ----------------------------------------------
 
-    def hot_load_actuator(self, source_code: str) -> BaseActuator | None:
-        """Dynamically compile, execute, and register the actuator class in live registry."""
+    def hot_load_actuator(
+        self,
+        source_code: str,
+        metadata: dict[str, Any] | None = None,
+    ) -> BaseActuator | None:
+        """Register a sandboxed synthesized actuator wrapper in the live registry."""
         try:
-            # Reconstruct isolated module/class namespace
-            from core.actuators.actuator_registry import BaseActuator, ActuatorResult
-
-            namespace = {
-                "BaseActuator": BaseActuator,
-                "ActuatorResult": ActuatorResult,
-                "__builtins__": __builtins__
-            }
-
-            # Compile & exec the source code
-            code_obj = compile(source_code, "<synthesized_actuator>", "exec")
-            exec(code_obj, namespace)
-
-            # Find the subclass
-            classes = [obj for obj in namespace.values() if isinstance(obj, type) and obj != BaseActuator and issubclass(obj, BaseActuator)]
-            if not classes:
-                logger.error("No class inheriting from BaseActuator found in code.")
+            metadata = metadata or ActuatorCodeValidator.validate_sandbox(source_code).details
+            actuator_name = str(metadata.get("name") or "").strip()
+            if not actuator_name:
+                logger.error("No actuator name available for sandboxed synthesized code.")
                 return None
 
-            actuator_cls = classes[0]
-            instance = actuator_cls()
+            instance = SandboxedSynthesizedActuator(
+                name=actuator_name,
+                description=str(metadata.get("description") or "Sandboxed synthesized actuator"),
+                source_code=source_code,
+                trust_score=0.3,
+            )
 
             # Register in live ActuatorRegistry (trust starts at 0.3 for synthesized)
             registry = get_actuator_registry()
             registry.register_synthesized(instance, source_code, trust_score=0.3)
 
             return instance
-        except Exception as exc:
+        except (AttributeError, RuntimeError, TypeError, ValueError, OSError) as exc:
             logger.error("Failed to hot-load actuator: %s", exc)
             return None
 
@@ -230,9 +237,9 @@ class ActuatorSynthesizer:
         atomic_write_text(filepath, source_code)
         logger.info("Persisted verified actuator '%s' to: %s", name, filepath)
 
-    def reload_persisted_actuators(self) -> List[BaseActuator]:
+    def reload_persisted_actuators(self) -> list[BaseActuator]:
         """Scans disk, re-validates, and hot-loads all previously generated actuators on boot."""
-        reloaded: List[BaseActuator] = []
+        reloaded: list[BaseActuator] = []
         if not self.output_dir.exists():
             return reloaded
 
@@ -244,13 +251,15 @@ class ActuatorSynthesizer:
                 ast_res = ActuatorCodeValidator.validate_ast(source_code)
                 sandbox_res = ActuatorCodeValidator.validate_sandbox(source_code)
                 if ast_res.success and sandbox_res.success:
-                    inst = self.hot_load_actuator(source_code)
+                    inst = self.hot_load_actuator(source_code, sandbox_res.details)
                     if inst:
                         logger.info("Successfully reloaded persisted actuator: '%s'", inst.name)
                         reloaded.append(inst)
                 else:
-                    logger.warning("Failed validation during boot reload of persisted actuator: %s", file.name)
-            except Exception as exc:
+                    logger.warning(
+                        "Failed validation during boot reload of persisted actuator: %s", file.name
+                    )
+            except (OSError, RuntimeError, UnicodeDecodeError, TypeError, ValueError) as exc:
                 logger.error("Failed to reload persisted actuator %s: %s", file.name, exc)
 
         return reloaded

@@ -27,15 +27,17 @@ Deactivation:
   - No activity for IDLE_TIMEOUT_SECS and no pending messages
 """
 
-from core.runtime.errors import record_degradation
-from core.runtime.shutdown_coordinator import is_shutdown_requested
-from core.utils.task_tracker import get_task_tracker
 import asyncio
 import collections
 import logging
+import subprocess
 import sys
 import time
-from typing import Deque, Optional
+from typing import Any
+
+from core.runtime.errors import FallbackClassification, record_degradation
+from core.runtime.shutdown_coordinator import is_shutdown_requested
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.TerminalFallback")
 
@@ -49,8 +51,13 @@ MAX_PENDING_MESSAGES: int = 5
 MIN_OUTPUT_INTERVAL: float = 2.0
 # If no input and no pending messages for this long, close terminal session
 IDLE_TIMEOUT_SECS: float = 120.0
+SHELL_COMMAND_TIMEOUT_SECS: float = 30.0
+SHELL_KILL_GRACE_SECS: float = 2.0
+SHELL_COMMENT_TIMEOUT_SECS: float = 15.0
+SHELL_OUTPUT_LINE_CAP: int = 200
+SHELL_OUTPUT_CHAR_CAP: int = 24_000
 
-INPUT_PREFIX  = "[Aura] You: "
+INPUT_PREFIX = "[Aura] You: "
 OUTPUT_PREFIX = "[Aura] "
 BANNER = (
     "\n╔══════════════════════════════════════════════════╗\n"
@@ -60,6 +67,24 @@ BANNER = (
     "║  Type 'exit' to end. Auto-closes when app opens. ║\n"
     "╚══════════════════════════════════════════════════╝\n"
 )
+
+
+def _record_terminal_degradation(
+    error: BaseException,
+    *,
+    action: str,
+    severity: str = "warning",
+    extra: dict[str, Any] | None = None,
+):
+    return record_degradation(
+        "terminal_chat",
+        error,
+        severity=severity,
+        action=action,
+        classification=FallbackClassification.SAFE_FALLBACK,
+        receipt_required=True,
+        extra=extra,
+    )
 
 
 class TerminalFallbackChat:
@@ -72,13 +97,13 @@ class TerminalFallbackChat:
 
     def __init__(self):
         self._active: bool = False
-        self._chat_task: Optional[asyncio.Task] = None
+        self._chat_task: asyncio.Task | None = None
         self._last_output_at: float = 0.0
         self._last_activity_at: float = time.time()
         self._orch = None
 
         # Pending messages Aura wants to deliver autonomously
-        self._pending: Deque[str] = collections.deque(maxlen=MAX_PENDING_MESSAGES)
+        self._pending: collections.deque[str] = collections.deque(maxlen=MAX_PENDING_MESSAGES)
 
     # ── Public API ────────────────────────────────────────────────────────────
 
@@ -96,8 +121,8 @@ class TerminalFallbackChat:
             return False
         constitutional_runtime_live = False
         try:
-            from core.container import ServiceContainer
             from core.constitution import get_constitutional_core
+            from core.container import ServiceContainer
 
             constitutional_runtime_live = (
                 ServiceContainer.has("executive_core")
@@ -126,15 +151,35 @@ class TerminalFallbackChat:
                             classification="background_degraded",
                             context={"reason": reason},
                         )
-                    except (ImportError, AttributeError, RuntimeError) as _exc:
-                        record_degradation('terminal_chat', _exc)
-                        logger.debug("Suppressed Exception: %s", _exc)
-                    logger.debug("TerminalFallback: constitutional gate unavailable, suppressing autonomous message: %s", reason)
+                    except (ImportError, AttributeError, RuntimeError) as exc:
+                        _record_terminal_degradation(
+                            exc,
+                            action=(
+                                "suppressed autonomous terminal message after degraded-event receipt "
+                                "emission failed"
+                            ),
+                            extra={
+                                "message_preview": text[:120],
+                                "reason": str(reason)[:160],
+                            },
+                        )
+                        logger.debug("Suppressed Exception: %s", exc)
+                    logger.debug(
+                        "TerminalFallback: constitutional gate unavailable, suppressing autonomous message: %s",
+                        reason,
+                    )
                     return False
-                logger.debug("TerminalFallback: constitutional gate suppressed queued autonomous message: %s", reason)
+                logger.debug(
+                    "TerminalFallback: constitutional gate suppressed queued autonomous message: %s",
+                    reason,
+                )
                 return False
         except (ImportError, AttributeError, RuntimeError) as exc:
-            record_degradation('terminal_chat', exc)
+            _record_terminal_degradation(
+                exc,
+                action="evaluated autonomous terminal message with executive gate degraded",
+                extra={"message_preview": text[:120]},
+            )
             if constitutional_runtime_live:
                 try:
                     from core.health.degraded_events import record_degraded_event
@@ -148,12 +193,24 @@ class TerminalFallbackChat:
                         context={"error": type(exc).__name__},
                         exc=exc,
                     )
-                except (ImportError, AttributeError, RuntimeError) as _exc:
-                    record_degradation('terminal_chat', _exc)
-                    logger.debug("Suppressed Exception: %s", _exc)
-                logger.debug("TerminalFallback: executive gate unavailable, suppressing autonomous message: %s", exc)
+                except (ImportError, AttributeError, RuntimeError) as receipt_exc:
+                    _record_terminal_degradation(
+                        receipt_exc,
+                        action=(
+                            "suppressed autonomous terminal message after degraded-event receipt "
+                            "emission failed"
+                        ),
+                        extra={"message_preview": text[:120]},
+                    )
+                    logger.debug("Suppressed Exception: %s", receipt_exc)
+                logger.debug(
+                    "TerminalFallback: executive gate unavailable, suppressing autonomous message: %s",
+                    exc,
+                )
                 return False
-            logger.debug("TerminalFallback: executive gate unavailable, proceeding degraded: %s", exc)
+            logger.debug(
+                "TerminalFallback: executive gate unavailable, proceeding degraded: %s", exc
+            )
         self._pending.append(text.strip())
         logger.debug("TerminalFallback: queued message (%d pending)", len(self._pending))
 
@@ -225,9 +282,7 @@ class TerminalFallbackChat:
             while self._active:
                 # Watch for main UI returning
                 if self._is_main_ui_open():
-                    sys.stdout.write(
-                        "\n[Aura] Main app is back online — switching over. Bye!\n\n"
-                    )
+                    sys.stdout.write("\n[Aura] Main app is back online — switching over. Bye!\n\n")
                     sys.stdout.flush()
                     await self.deactivate("main UI returned")
                     return
@@ -253,7 +308,7 @@ class TerminalFallbackChat:
                         loop.run_in_executor(None, sys.stdin.readline),
                         timeout=20.0,
                     )
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     # No input yet — loop back to check for pending messages / UI return
                     # Erase the dangling prompt
                     sys.stdout.write("\r" + " " * len(INPUT_PREFIX) + "\r")
@@ -287,8 +342,11 @@ class TerminalFallbackChat:
 
         except asyncio.CancelledError as _exc:
             logger.debug("Suppressed asyncio.CancelledError: %s", _exc)
-        except (RuntimeError, asyncio.CancelledError, TimeoutError, AttributeError) as e:
-            record_degradation('terminal_chat', e)
+        except (RuntimeError, TimeoutError, AttributeError) as e:
+            _record_terminal_degradation(
+                e,
+                action="closed terminal fallback chat loop after recoverable runtime failure",
+            )
             logger.error("TerminalFallback chat loop error: %s", e)
             self._active = False
 
@@ -299,6 +357,62 @@ class TerminalFallbackChat:
             self._write_output(msg)
             self._last_activity_at = time.time()
             await asyncio.sleep(0)  # yield
+
+    def _validate_shell_command(self, cmd: str) -> tuple[bool, str]:
+        if len(cmd) > 8_192:
+            return False, "command is too long for terminal fallback mode"
+        if "\x00" in cmd:
+            return False, "command contains an invalid NUL byte"
+
+        try:
+            from core.behavior_controller import AutonomousBehaviorController
+
+            controller = AutonomousBehaviorController()
+            if not controller.validate_action({"type": "terminal", "command": cmd}):
+                return False, "that command is on the safety deny-list"
+            return True, "approved"
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            _record_terminal_degradation(
+                exc,
+                action="blocked terminal shell command because safety validation was unavailable",
+                severity="degraded",
+                extra={"command_preview": cmd[:160]},
+            )
+            return (
+                False,
+                "terminal command safety checks are unavailable, so I blocked it fail-closed",
+            )
+
+    async def _terminate_shell_process(self, proc, *, cmd: str) -> None:
+        try:
+            proc.kill()
+        except ProcessLookupError:
+            return
+        except (OSError, RuntimeError, subprocess.SubprocessError) as exc:
+            _record_terminal_degradation(
+                exc,
+                action="attempted to kill timed-out terminal shell process",
+                severity="degraded",
+                extra={"command_preview": cmd[:160]},
+            )
+            return
+
+        try:
+            await asyncio.wait_for(proc.wait(), timeout=SHELL_KILL_GRACE_SECS)
+        except TimeoutError as exc:
+            _record_terminal_degradation(
+                exc,
+                action="timed-out terminal shell process did not exit after kill",
+                severity="degraded",
+                extra={"command_preview": cmd[:160]},
+            )
+        except (OSError, RuntimeError, subprocess.SubprocessError) as exc:
+            _record_terminal_degradation(
+                exc,
+                action="reaped timed-out terminal shell process after kill",
+                severity="degraded",
+                extra={"command_preview": cmd[:160]},
+            )
 
     async def _run_shell_command(self, cmd: str):
         """Execute a shell command and stream output to terminal.
@@ -312,16 +426,10 @@ class TerminalFallbackChat:
         if not cmd:
             return
 
-        # Safety check via BehaviorController
-        try:
-            from core.behavior_controller import AutonomousBehaviorController
-            bc = AutonomousBehaviorController()
-            if not bc.validate_action({"type": "terminal", "command": cmd}):
-                self._write_output(f"[Aura] Blocked: that command is on the safety deny-list.")
-                return
-        except (ImportError, AttributeError, RuntimeError) as _exc:
-            record_degradation('terminal_chat', _exc)
-            logger.debug("Suppressed Exception: %s", _exc)
+        allowed, reason = self._validate_shell_command(cmd)
+        if not allowed:
+            self._write_output(f"[Aura] Blocked: {reason}.")
+            return
 
         sys.stdout.write(f"[Aura] Running: {cmd}\n")
         sys.stdout.flush()
@@ -332,17 +440,35 @@ class TerminalFallbackChat:
                 stderr=asyncio.subprocess.STDOUT,
             )
             try:
-                stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=30.0)
-            except asyncio.TimeoutError:
-                proc.kill()
-                self._write_output("[Aura] Command timed out (30s limit).")
+                stdout, _ = await asyncio.wait_for(
+                    proc.communicate(),
+                    timeout=SHELL_COMMAND_TIMEOUT_SECS,
+                )
+            except TimeoutError as exc:
+                await self._terminate_shell_process(proc, cmd=cmd)
+                _record_terminal_degradation(
+                    exc,
+                    action="killed timed-out terminal shell command and returned timeout result",
+                    severity="degraded",
+                    extra={"command_preview": cmd[:160]},
+                )
+                self._write_output(
+                    f"[Aura] Command timed out ({SHELL_COMMAND_TIMEOUT_SECS:.0f}s limit)."
+                )
                 return
 
             output = stdout.decode(errors="replace").strip() if stdout else ""
+            output_truncated = False
+            if len(output) > SHELL_OUTPUT_CHAR_CAP:
+                output = output[:SHELL_OUTPUT_CHAR_CAP].rstrip()
+                output_truncated = True
             if output:
                 # Stream output lines directly (not through _write_output to preserve formatting)
-                for line in output.splitlines()[:200]:   # cap at 200 lines
+                lines = output.splitlines()
+                for line in lines[:SHELL_OUTPUT_LINE_CAP]:
                     sys.stdout.write(f"  {line}\n")
+                if output_truncated or len(lines) > SHELL_OUTPUT_LINE_CAP:
+                    sys.stdout.write("  ...[terminal output truncated]\n")
                 sys.stdout.flush()
             else:
                 sys.stdout.write("  (no output)\n")
@@ -352,18 +478,26 @@ class TerminalFallbackChat:
             if self._orch and output:
                 try:
                     comment = await asyncio.wait_for(
-                        self._get_response(
-                            f"[Terminal output from '{cmd}']: {output[:400]}"
-                        ),
-                        timeout=15.0,
+                        self._get_response(f"[Terminal output from '{cmd}']: {output[:400]}"),
+                        timeout=SHELL_COMMENT_TIMEOUT_SECS,
                     )
                     if comment and "[Terminal output" not in comment:
                         self._write_output(comment)
-                except asyncio.TimeoutError as _exc:
-                    logger.debug("Suppressed asyncio.TimeoutError: %s", _exc)
+                except TimeoutError as exc:
+                    _record_terminal_degradation(
+                        exc,
+                        action="skipped terminal output commentary after response timeout",
+                        severity="debug",
+                        extra={"command_preview": cmd[:160]},
+                    )
 
-        except (subprocess.SubprocessError, OSError) as e:
-            record_degradation('terminal_chat', e)
+        except (RuntimeError, subprocess.SubprocessError, OSError) as e:
+            _record_terminal_degradation(
+                e,
+                action="returned shell error after terminal command launch failed",
+                severity="degraded",
+                extra={"command_preview": cmd[:160]},
+            )
             self._write_output(f"[Aura] Shell error: {e}")
 
     async def _get_response(self, user_input: str) -> str:
@@ -379,10 +513,14 @@ class TerminalFallbackChat:
                 if isinstance(result, dict):
                     return result.get("response") or result.get("text") or str(result)
                 return str(result) if result else "..."
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return "Response timed out — I'm running slowly in emergency mode."
-        except (OSError, ConnectionError, TimeoutError) as e:
-            record_degradation('terminal_chat', e)
+        except OSError as e:
+            _record_terminal_degradation(
+                e,
+                action="returned terminal fallback response error to user",
+                severity="degraded",
+            )
             logger.debug("TerminalFallback response error: %s", e)
             return f"[error: {e}]"
         return "Message received but can't fully respond in this mode."
@@ -408,19 +546,31 @@ class TerminalFallbackChat:
         """True if the main Aura UI / WebSocket server process is running."""
         try:
             import psutil
+
             for proc in psutil.process_iter(["cmdline"]):
                 try:
                     cmdline = " ".join(proc.info.get("cmdline") or [])
-                    if any(kw in cmdline for kw in [
-                        "aura_main", "aura.server", "uvicorn", "gunicorn",
-                        "Aura.app", "aura_app",
-                    ]):
+                    if any(
+                        kw in cmdline
+                        for kw in [
+                            "aura_main",
+                            "aura.server",
+                            "uvicorn",
+                            "gunicorn",
+                            "Aura.app",
+                            "aura_app",
+                        ]
+                    ):
                         return True
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     continue
-        except (ImportError, AttributeError, RuntimeError) as _exc:
-            record_degradation('terminal_chat', _exc)
-            logger.debug("Suppressed Exception: %s", _exc)
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            _record_terminal_degradation(
+                exc,
+                action="treated main UI as unavailable after UI process probe failed",
+                severity="warning",
+            )
+            logger.debug("Suppressed Exception: %s", exc)
         return False
 
 
@@ -443,8 +593,8 @@ class TerminalWatchdog:
         self._chat = chat
         self._orch = orchestrator
         self._running = False
-        self._task: Optional[asyncio.Task] = None
-        self._ui_gone_since: Optional[float] = None   # timestamp UI was last confirmed gone
+        self._task: asyncio.Task | None = None
+        self._ui_gone_since: float | None = None  # timestamp UI was last confirmed gone
 
     async def start(self):
         if self._running:
@@ -469,7 +619,11 @@ class TerminalWatchdog:
                 logger.warning("TerminalWatchdog spuriously cancelled. Ignoring.")
                 continue
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-                record_degradation('terminal_chat', e)
+                _record_terminal_degradation(
+                    e,
+                    action="kept terminal watchdog alive after recoverable tick failure",
+                    severity="warning",
+                )
                 logger.debug("TerminalWatchdog tick error: %s", e)
 
     async def _tick(self):
@@ -515,8 +669,8 @@ class TerminalWatchdog:
 
 # ── Singleton helpers ─────────────────────────────────────────────────────────
 
-_fallback: Optional[TerminalFallbackChat] = None
-_watchdog: Optional[TerminalWatchdog] = None
+_fallback: TerminalFallbackChat | None = None
+_watchdog: TerminalWatchdog | None = None
 
 
 def get_terminal_fallback() -> TerminalFallbackChat:

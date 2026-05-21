@@ -1,21 +1,22 @@
-"""External-benchmark adapter stubs.
+"""External-benchmark synthetic adapters.
 
 These document the BenchAdapter contract for SWE-bench, WebArena,
-GAIA, long-horizon, and adversarial suites.  Each stub:
+GAIA, long-horizon, and adversarial suites.  Each synthetic adapter:
 
   * exposes a tiny synthetic task list so harness self-tests still
     have something to call,
   * is wired so a real implementation can drop in by replacing
     ``tasks()`` and ``run()`` without changing any caller,
   * marks itself ``synthetic=True`` in task metadata so reports never
-    confuse a stub run with a real one.
+    confuse a synthetic dry run with a real one.
 
 Wiring real evals requires external repos, network, and GPU; those
 land in follow-up work.
 """
+
 from __future__ import annotations
 
-from typing import Iterable, List
+from collections.abc import Iterable
 
 from aura_bench.capability_delta.adapter import (
     BenchAdapter,
@@ -26,7 +27,7 @@ from aura_bench.capability_delta.adapter import (
 
 
 class _StubBase:
-    """Common scaffold for synthetic stubs."""
+    """Common scaffold for synthetic benchmark adapters."""
 
     name: str = "base_stub"
     description: str = ""
@@ -34,7 +35,7 @@ class _StubBase:
 
     def _make_task(self, idx: int) -> BenchTask:
         return BenchTask(
-            task_id=f"{self.name}-stub-{idx:03d}",
+            task_id=f"{self.name}-synthetic-{idx:03d}",
             prompt=f"[{self.name}] synthetic task {idx}",
             metadata={"synthetic": True, "adapter": self.name},
         )
@@ -65,7 +66,7 @@ class _StubBase:
 class SWEBenchStub(_StubBase):
     name = "swe_bench_stub"
     description = (
-        "SWE-bench adapter placeholder; real run resolves Github "
+        "SWE-bench adapter contract; live run resolves Github "
         "issues against patch tests in a sandbox."
     )
 
@@ -73,7 +74,7 @@ class SWEBenchStub(_StubBase):
 class WebArenaStub(_StubBase):
     name = "web_arena_stub"
     description = (
-        "WebArena adapter placeholder; real run drives a browser "
+        "WebArena adapter contract; live run drives a browser "
         "actor through web tasks with success verifiers."
     )
 
@@ -81,15 +82,14 @@ class WebArenaStub(_StubBase):
 class GAIAStub(_StubBase):
     name = "gaia_stub"
     description = (
-        "GAIA adapter placeholder; real run scores tool-use + "
-        "reasoning across multimodal questions."
+        "GAIA adapter contract; live run scores tool-use + reasoning across multimodal questions."
     )
 
 
 class LongHorizonStub(_StubBase):
     name = "long_horizon_stub"
     description = (
-        "Long-horizon adapter placeholder; real run measures multi-day "
+        "Long-horizon adapter contract; live run measures multi-day "
         "planning, memory continuity, and goal persistence."
     )
 
@@ -97,12 +97,12 @@ class LongHorizonStub(_StubBase):
 class AdversarialStub(_StubBase):
     name = "adversarial_stub"
     description = (
-        "Adversarial adapter placeholder; real run attempts prompt "
+        "Adversarial adapter contract; live run attempts prompt "
         "injection, memory poisoning, identity-override attacks."
     )
 
 
-ALL_STUBS: List[BenchAdapter] = [
+ALL_STUBS: list[BenchAdapter] = [
     SWEBenchStub(),
     WebArenaStub(),
     GAIAStub(),

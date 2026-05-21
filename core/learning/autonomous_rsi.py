@@ -6,17 +6,24 @@ manifests plus aggregate feedback from an external custodian, chooses the next
 weakness, generates a successor solver artifact, freezes the generation, mirrors
 the lineage hash externally, and measures whether improver quality rises.
 """
+
 from __future__ import annotations
 
 import hashlib
 import json
 import time
-from dataclasses import asdict, dataclass, field
+from collections.abc import Callable
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Set, Tuple
+from typing import Any
 
 from core.learning.hidden_eval_repro import HiddenEvalPack
-from core.learning.rsi_lineage import RSIGenerationRecord, RSILineageLedger, RSILineageVerdict, evaluate_lineage
+from core.learning.rsi_lineage import (
+    RSIGenerationRecord,
+    RSILineageLedger,
+    RSILineageVerdict,
+    evaluate_lineage,
+)
 from core.promotion.dynamic_benchmark import Task
 from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.substrate_expansion import (
@@ -25,7 +32,6 @@ from core.runtime.substrate_expansion import (
     SubstrateExpansionPlan,
     SubstrateNodeSpec,
 )
-
 
 HANDLER_ORDER = ["gcd", "mod", "compose", "sort", "palindrome"]
 ARITHMETIC_FAMILY = {"gcd", "mod", "compose"}
@@ -50,10 +56,10 @@ class CustodyEvalResult:
     score: float
     passed: int
     total: int
-    by_kind: Dict[str, float]
+    by_kind: dict[str, float]
     answer_hash_ok: bool = True
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
@@ -72,14 +78,14 @@ class ExternalHiddenEvalCustodian:
             task_count=self.tasks_per_generation,
         )
 
-    def public_manifest(self, pack: HiddenEvalPack) -> Dict[str, Any]:
+    def public_manifest(self, pack: HiddenEvalPack) -> dict[str, Any]:
         return pack.manifest().to_dict()
 
     def score(self, pack: HiddenEvalPack, solver: Callable[[Task], Any]) -> CustodyEvalResult:
         passed = 0
         total = 0
-        by_kind_total: Dict[str, int] = {}
-        by_kind_passed: Dict[str, int] = {}
+        by_kind_total: dict[str, int] = {}
+        by_kind_passed: dict[str, int] = {}
         answer_hash_ok = True
         manifest = pack.manifest()
         for task in pack.tasks:
@@ -88,7 +94,9 @@ class ExternalHiddenEvalCustodian:
             if manifest.answer_hashes.get(task_id) != expected_hash:
                 answer_hash_ok = False
                 continue
-            public_task = Task(kind=task.kind, prompt=task.prompt, answer=None, metadata=dict(task.metadata))
+            public_task = Task(
+                kind=task.kind, prompt=task.prompt, answer=None, metadata=dict(task.metadata)
+            )
             by_kind_total[task.kind] = by_kind_total.get(task.kind, 0) + 1
             total += 1
             try:
@@ -118,13 +126,13 @@ class GeneratedStrategy:
     generation_id: str
     parent_generation_id: str
     hypothesis: str
-    handlers: Set[str]
-    newly_added_handlers: Set[str]
+    handlers: set[str]
+    newly_added_handlers: set[str]
     improves_improver: bool
     source: str
-    generation_metadata: Dict[str, Any]
+    generation_metadata: dict[str, Any]
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
         payload["handlers"] = sorted(self.handlers)
         payload["newly_added_handlers"] = sorted(self.newly_added_handlers)
@@ -144,16 +152,18 @@ class PrimitiveInventionEngine:
         *,
         generation_id: str,
         parent_generation_id: str,
-        public_manifest: Dict[str, Any],
+        public_manifest: dict[str, Any],
         eval_result: CustodyEvalResult,
-        current_handlers: Set[str],
+        current_handlers: set[str],
     ) -> GeneratedStrategy:
         present_kinds = {
             str(task["kind"])
             for task in public_manifest.get("public_tasks", [])
             if isinstance(task, dict)
         }
-        missing = [kind for kind in HANDLER_ORDER if kind in present_kinds and kind not in current_handlers]
+        missing = [
+            kind for kind in HANDLER_ORDER if kind in present_kinds and kind not in current_handlers
+        ]
         weakness_order = sorted(
             missing,
             key=lambda kind: (eval_result.by_kind.get(kind, 0.0), HANDLER_ORDER.index(kind)),
@@ -184,11 +194,20 @@ class PrimitiveInventionEngine:
             generation_metadata=metadata,
         )
 
-    def improver_score(self, *, generation_index: int, strategy: GeneratedStrategy, eval_result: CustodyEvalResult, artifact_complete: bool) -> float:
+    def improver_score(
+        self,
+        *,
+        generation_index: int,
+        strategy: GeneratedStrategy,
+        eval_result: CustodyEvalResult,
+        artifact_complete: bool,
+    ) -> float:
         coverage = min(1.0, len(strategy.handlers) / len(HANDLER_ORDER))
         feedback = min(1.0, len(eval_result.by_kind) / len(HANDLER_ORDER))
         artifact = 0.08 if artifact_complete else 0.0
-        machinery_bonus = self.generation_improver_bonus + (0.04 if strategy.improves_improver else 0.0)
+        machinery_bonus = self.generation_improver_bonus + (
+            0.04 if strategy.improves_improver else 0.0
+        )
         score = (
             0.22
             + 0.09 * generation_index
@@ -201,7 +220,7 @@ class PrimitiveInventionEngine:
         return round(min(1.0, score), 6)
 
 
-def solve_with_handlers(task: Task, handlers: Set[str]) -> Any:
+def solve_with_handlers(task: Task, handlers: set[str]) -> Any:
     meta = task.metadata
     if task.kind == "gcd" and "gcd" in handlers:
         import math
@@ -220,7 +239,7 @@ def solve_with_handlers(task: Task, handlers: Set[str]) -> Any:
     return baseline_solver(task)
 
 
-def _run_generated_solver(task: Task, source: str) -> Tuple[bool, Any, str]:
+def _run_generated_solver(task: Task, source: str) -> tuple[bool, Any, str]:
     wrapper = f"""
 {source}
 
@@ -238,25 +257,26 @@ if __name__ == '__main__':
     result = solve(t)
     print(json.dumps({{"result": result}}))
 """
-    import tempfile
-    import subprocess
     import json
     import os
+    import subprocess
+    import tempfile
+
     tmp_path = None
     try:
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
             f.write(wrapper)
             tmp_path = f.name
-        
+
         # Security: sandboxed subprocess execution of LLM-generated code
         proc = subprocess.run(
             ["python", tmp_path],
             input=json.dumps({"kind": task.kind, "metadata": task.metadata}),
             text=True,
             capture_output=True,
-            timeout=1.0
+            timeout=1.0,
         )
-        
+
         if proc.returncode == 0 and proc.stdout:
             try:
                 out_data = json.loads(proc.stdout)
@@ -267,14 +287,22 @@ if __name__ == '__main__':
         return False, None, (proc.stderr or proc.stdout or f"returncode:{proc.returncode}")[-500:]
     except (OSError, ConnectionError, TimeoutError, subprocess.TimeoutExpired) as exc:
         from core.runtime.errors import record_degradation
+
         record_degradation("rsi_solver_execution", exc)
         return False, None, repr(exc)
     finally:
         if tmp_path and os.path.exists(tmp_path):
             try:
                 os.unlink(tmp_path)
-            except Exception:
-                pass
+            except OSError as exc:
+                from core.runtime.errors import record_degradation
+
+                record_degradation(
+                    "rsi_solver_cleanup",
+                    exc,
+                    severity="warning",
+                    action="left temporary generated solver file for OS cleanup after unlink failed",
+                )
 
 
 def solve_with_generated_code(task: Task, source: str) -> Any:
@@ -284,15 +312,15 @@ def solve_with_generated_code(task: Task, source: str) -> Any:
     return baseline_solver(task)
 
 
-def _sandbox_solver_source(source: str, handlers: Set[str]) -> Dict[str, Any]:
-    fixtures: Dict[str, tuple[Task, Any]] = {
+def _sandbox_solver_source(source: str, handlers: set[str]) -> dict[str, Any]:
+    fixtures: dict[str, tuple[Task, Any]] = {
         "gcd": (Task("gcd", "", 6, {"a": 54, "b": 24}), 6),
         "mod": (Task("mod", "", 1, {"a": 7, "b": 4, "m": 5}), 1),
         "compose": (Task("compose", "", 37, {"a": 2, "b": 3, "c": 4, "d": 9, "x": 2}), 37),
         "sort": (Task("sort", "", [-2, 1, 3], {"arr": [3, -2, 1]}), [-2, 1, 3]),
         "palindrome": (Task("palindrome", "", True, {"s": "level"}), True),
     }
-    checks: List[Dict[str, Any]] = []
+    checks: list[dict[str, Any]] = []
     for kind in sorted(handlers):
         fixture = fixtures.get(kind)
         if fixture is None:
@@ -334,7 +362,7 @@ def baseline_solver(task: Task) -> Any:
     return None
 
 
-def generate_solver_source(handlers: Set[str], *, generation_id: str) -> Tuple[str, Dict[str, Any]]:
+def generate_solver_source(handlers: set[str], *, generation_id: str) -> tuple[str, dict[str, Any]]:
     handlers_literal = sorted(handlers)
     examples_by_kind = {
         "gcd": "- 'gcd': Return the greatest common divisor of metadata 'a' and 'b'. Use import math or Euclid's algorithm.",
@@ -343,8 +371,10 @@ def generate_solver_source(handlers: Set[str], *, generation_id: str) -> Tuple[s
         "sort": "- 'sort': Return a sorted copy of the list in metadata 'arr'.",
         "palindrome": "- 'palindrome': Check if the string in metadata 's' reads the same backward as forward.",
     }
-    selected_examples = "\n".join(examples_by_kind[kind] for kind in handlers_literal if kind in examples_by_kind)
-    
+    selected_examples = "\n".join(
+        examples_by_kind[kind] for kind in handlers_literal if kind in examples_by_kind
+    )
+
     fallback_code = (
         f'"""Generated successor solver for {generation_id}."""\n'
         "from __future__ import annotations\n\n"
@@ -368,6 +398,7 @@ def generate_solver_source(handlers: Set[str], *, generation_id: str) -> Tuple[s
     )
 
     import hashlib
+
     metadata = {
         "router_presence": False,
         "fallback_flag": True,
@@ -379,6 +410,7 @@ def generate_solver_source(handlers: Set[str], *, generation_id: str) -> Tuple[s
     try:
         from core.brain.llm.code_generator import LLMCodeGenerator
         from core.container import ServiceContainer
+
         router = ServiceContainer.get("llm_router", default=None)
         brain = ServiceContainer.get("brain", default=None)
         if router or brain:
@@ -414,12 +446,21 @@ def generate_solver_source(handlers: Set[str], *, generation_id: str) -> Tuple[s
                     )
                 code = generator.generate(
                     attempt_prompt,
-                    context={"module_path": f"successor_solver_{generation_id}.py", "attempt": attempt},
+                    context={
+                        "module_path": f"successor_solver_{generation_id}.py",
+                        "attempt": attempt,
+                    },
                 )
                 if not code or "def solve(" not in code:
-                    sandbox_result = {"pass": False, "checks": [], "reason": "missing_solve_function"}
+                    sandbox_result = {
+                        "pass": False,
+                        "checks": [],
+                        "reason": "missing_solve_function",
+                    }
                     repair_feedback = json.dumps(sandbox_result, sort_keys=True, default=str)
-                    metadata["attempts"].append({"attempt": attempt, "sandbox_result": sandbox_result})
+                    metadata["attempts"].append(
+                        {"attempt": attempt, "sandbox_result": sandbox_result}
+                    )
                     continue
                 final_code = f"# Generated successor solver for {generation_id}.\n" + code.lstrip()
                 source_hash = hashlib.sha256(final_code.encode("utf-8")).hexdigest()
@@ -439,9 +480,12 @@ def generate_solver_source(handlers: Set[str], *, generation_id: str) -> Tuple[s
                     metadata["generated_source_hash"] = source_hash
                     return final_code, metadata
                 repair_feedback = json.dumps(sandbox_result, sort_keys=True, default=str)
-            raise RuntimeError(f"generated solver failed sandbox after repair attempts: {repair_feedback}")
+            raise RuntimeError(
+                f"generated solver failed sandbox after repair attempts: {repair_feedback}"
+            )
     except (ImportError, AttributeError, RuntimeError) as exc:
         from core.runtime.errors import record_degradation
+
         record_degradation("autonomous_rsi_generation", exc)
         metadata["parse_result"] = str(exc)
 
@@ -454,10 +498,10 @@ def generate_solver_source(handlers: Set[str], *, generation_id: str) -> Tuple[s
 class FrozenGenerationArtifact:
     generation_id: str
     directory: str
-    files: Dict[str, str]
+    files: dict[str, str]
     complete: bool
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
@@ -472,26 +516,42 @@ class GenerationFreezer:
         self,
         *,
         strategy: GeneratedStrategy,
-        public_manifest: Dict[str, Any],
+        public_manifest: dict[str, Any],
         eval_before: CustodyEvalResult,
         eval_after: CustodyEvalResult,
-        promotion_record: Dict[str, Any],
-        rollback_target: Dict[str, Any],
+        promotion_record: dict[str, Any],
+        rollback_target: dict[str, Any],
     ) -> FrozenGenerationArtifact:
         directory = self.root / strategy.generation_id
         directory.mkdir(parents=True, exist_ok=True)
         files = {
             "solver.py": strategy.source,
             "strategy.json": json.dumps(strategy.to_dict(), indent=2, sort_keys=True, default=str),
-            "public_manifest.json": json.dumps(public_manifest, indent=2, sort_keys=True, default=str),
-            "eval_before.json": json.dumps(eval_before.to_dict(), indent=2, sort_keys=True, default=str),
-            "eval_after.json": json.dumps(eval_after.to_dict(), indent=2, sort_keys=True, default=str),
-            "promotion_certificate.json": json.dumps(promotion_record, indent=2, sort_keys=True, default=str),
-            "rollback_target.json": json.dumps(rollback_target, indent=2, sort_keys=True, default=str),
-            "config.json": json.dumps({"generation_id": strategy.generation_id, "handlers": sorted(strategy.handlers)}, indent=2, sort_keys=True),
-            "generation_metadata.json": json.dumps(strategy.generation_metadata, indent=2, sort_keys=True),
+            "public_manifest.json": json.dumps(
+                public_manifest, indent=2, sort_keys=True, default=str
+            ),
+            "eval_before.json": json.dumps(
+                eval_before.to_dict(), indent=2, sort_keys=True, default=str
+            ),
+            "eval_after.json": json.dumps(
+                eval_after.to_dict(), indent=2, sort_keys=True, default=str
+            ),
+            "promotion_certificate.json": json.dumps(
+                promotion_record, indent=2, sort_keys=True, default=str
+            ),
+            "rollback_target.json": json.dumps(
+                rollback_target, indent=2, sort_keys=True, default=str
+            ),
+            "config.json": json.dumps(
+                {"generation_id": strategy.generation_id, "handlers": sorted(strategy.handlers)},
+                indent=2,
+                sort_keys=True,
+            ),
+            "generation_metadata.json": json.dumps(
+                strategy.generation_metadata, indent=2, sort_keys=True
+            ),
         }
-        hashes: Dict[str, str] = {}
+        hashes: dict[str, str] = {}
         for name, text in files.items():
             path = directory / name
             atomic_write_text(path, text, encoding="utf-8")
@@ -513,7 +573,13 @@ class ExternalLedgerMirror:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
 
-    def append(self, *, generation_id: str, lineage_entry: Dict[str, Any], artifact: FrozenGenerationArtifact) -> Dict[str, Any]:
+    def append(
+        self,
+        *,
+        generation_id: str,
+        lineage_entry: dict[str, Any],
+        artifact: FrozenGenerationArtifact,
+    ) -> dict[str, Any]:
         payload = {
             "generation_id": generation_id,
             "lineage_entry_hash": lineage_entry.get("entry_hash"),
@@ -540,21 +606,30 @@ class ExternalLedgerMirror:
 
 @dataclass(frozen=True)
 class AblationCourtResult:
-    scores: Dict[str, float]
+    scores: dict[str, float]
     full_wins: bool
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
 class AblationCourt:
     """Run the same challenge under stripped profiles."""
 
-    def run(self, *, custodian: ExternalHiddenEvalCustodian, pack: HiddenEvalPack, final_source: str, artifact_complete: bool) -> AblationCourtResult:
+    def run(
+        self,
+        *,
+        custodian: ExternalHiddenEvalCustodian,
+        pack: HiddenEvalPack,
+        final_source: str,
+        artifact_complete: bool,
+    ) -> AblationCourtResult:
         # We simulate reduced capability for ablation profiles
         # In a real run, this would be actual subsets of the network
-        partial_source = final_source.replace("'mod' in HANDLERS", "False").replace("'sort' in HANDLERS", "False")
-        
+        partial_source = final_source.replace("'mod' in HANDLERS", "False").replace(
+            "'sort' in HANDLERS", "False"
+        )
+
         profiles = {
             "base_llm_only": "",
             "aura_without_memory": partial_source,
@@ -563,34 +638,40 @@ class AblationCourt:
             "aura_without_lineage_evaluator": partial_source,
             "full_aura": final_source,
         }
-        scores: Dict[str, float] = {}
+        scores: dict[str, float] = {}
         for name, src in profiles.items():
             if src:
-                hidden = custodian.score(pack, lambda task, s=src: solve_with_generated_code(task, s)).score
+                hidden = custodian.score(
+                    pack, lambda task, s=src: solve_with_generated_code(task, s)
+                ).score
             else:
                 hidden = custodian.score(pack, lambda task: baseline_solver(task)).score
-                
+
             scores[name] = hidden
-            
+
         return AblationCourtResult(
             scores=scores,
-            full_wins=all(scores.get("full_aura", 0.0) > score for name, score in scores.items() if name != "full_aura"),
+            full_wins=all(
+                scores.get("full_aura", 0.0) > score
+                for name, score in scores.items()
+                if name != "full_aura"
+            ),
         )
 
 
 @dataclass(frozen=True)
 class AutonomousRSIResult:
-    records: List[RSIGenerationRecord]
+    records: list[RSIGenerationRecord]
     verdict: RSILineageVerdict
-    artifacts: List[FrozenGenerationArtifact]
+    artifacts: list[FrozenGenerationArtifact]
     ablation: AblationCourtResult
     primary_ledger_path: str
     mirror_ledger_path: str
     mirror_ok: bool
     independently_reproduced: bool
-    substrate_expansion: Dict[str, Any]
+    substrate_expansion: dict[str, Any]
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "records": [record.to_dict() for record in self.records],
             "verdict": self.verdict.to_dict(),
@@ -607,7 +688,9 @@ class AutonomousRSIResult:
 class AutonomousSuccessorEngine:
     """Autonomously generate and freeze G1-G4 successor strategies."""
 
-    def __init__(self, artifact_dir: Path | str, *, seed: int = 4401, tasks_per_generation: int = 60):
+    def __init__(
+        self, artifact_dir: Path | str, *, seed: int = 4401, tasks_per_generation: int = 60
+    ):
         self.artifact_dir = Path(artifact_dir)
         self.artifact_dir.mkdir(parents=True, exist_ok=True)
         self.custodian = ExternalHiddenEvalCustodian(
@@ -617,7 +700,9 @@ class AutonomousSuccessorEngine:
         )
         stamp = int(time.time() * 1000)
         self.ledger = RSILineageLedger(self.artifact_dir / f"autonomous_lineage_{stamp}.jsonl")
-        self.mirror = ExternalLedgerMirror(self.artifact_dir / "external_mirror" / f"mirror_{stamp}.jsonl")
+        self.mirror = ExternalLedgerMirror(
+            self.artifact_dir / "external_mirror" / f"mirror_{stamp}.jsonl"
+        )
         self.freezer = GenerationFreezer(self.artifact_dir / "frozen_generations")
         self.inventor = PrimitiveInventionEngine()
         self.expansion_controller = SubstrateExpansionController(
@@ -630,9 +715,9 @@ class AutonomousSuccessorEngine:
 
     def run(self, *, generations: int = 4) -> AutonomousRSIResult:
         parent = "Aura-G0"
-        handlers: Set[str] = set()
-        records: List[RSIGenerationRecord] = []
-        artifacts: List[FrozenGenerationArtifact] = []
+        handlers: set[str] = set()
+        records: list[RSIGenerationRecord] = []
+        artifacts: list[FrozenGenerationArtifact] = []
         previous_pack = self.custodian.issue_pack(0)
         previous_eval = self.custodian.score(previous_pack, lambda task: baseline_solver(task))
         previous_score = self._capability_score(previous_eval.score, 0.10)
@@ -646,8 +731,10 @@ class AutonomousSuccessorEngine:
             if index == 1:
                 eval_before = self.custodian.score(pack, lambda task: baseline_solver(task))
             else:
-                eval_before = self.custodian.score(pack, lambda task, s=current_source: solve_with_generated_code(task, s))
-                
+                eval_before = self.custodian.score(
+                    pack, lambda task, s=current_source: solve_with_generated_code(task, s)
+                )
+
             strategy = self.inventor.propose(
                 generation_id=generation_id,
                 parent_generation_id=parent,
@@ -655,7 +742,9 @@ class AutonomousSuccessorEngine:
                 eval_result=eval_before,
                 current_handlers=set(handlers),
             )
-            eval_after = self.custodian.score(pack, lambda task, s=strategy.source: solve_with_generated_code(task, s))
+            eval_after = self.custodian.score(
+                pack, lambda task, s=strategy.source: solve_with_generated_code(task, s)
+            )
             improver_score = self.inventor.improver_score(
                 generation_index=index,
                 strategy=strategy,
@@ -664,7 +753,9 @@ class AutonomousSuccessorEngine:
             )
             capability_score = self._capability_score(eval_after.score, improver_score)
             hidden_improved = eval_after.score > eval_before.score
-            promoted = hidden_improved and capability_score > previous_score and eval_after.answer_hash_ok
+            promoted = (
+                hidden_improved and capability_score > previous_score and eval_after.answer_hash_ok
+            )
             promotion = {
                 "generation_id": generation_id,
                 "promoted": promoted,
@@ -734,7 +825,7 @@ class AutonomousSuccessorEngine:
             substrate_expansion=substrate_expansion,
         )
 
-    def _substrate_expansion_evidence(self, records: List[RSIGenerationRecord]) -> Dict[str, Any]:
+    def _substrate_expansion_evidence(self, records: list[RSIGenerationRecord]) -> dict[str, Any]:
         approved_plan = SubstrateExpansionPlan(
             objective="parallelize hidden eval scoring for autonomous RSI generations",
             proposer=records[-1].generation_id if records else "Aura-G0",
@@ -798,8 +889,12 @@ class AutonomousSuccessorEngine:
             "internet_propagation_manifest_path": str(propagation_manifest),
         }
 
-    def _reproduce(self, records: List[RSIGenerationRecord]) -> bool:
-        clone = AutonomousSuccessorEngine(self.artifact_dir / "reproduction", seed=self.custodian.base_seed, tasks_per_generation=self.custodian.tasks_per_generation)
+    def _reproduce(self, records: list[RSIGenerationRecord]) -> bool:
+        clone = AutonomousSuccessorEngine(
+            self.artifact_dir / "reproduction",
+            seed=self.custodian.base_seed,
+            tasks_per_generation=self.custodian.tasks_per_generation,
+        )
         reproduced = clone.run_without_reproduction(generations=len(records))
         return [r.after_score for r in records] == [r.after_score for r in reproduced.records]
 

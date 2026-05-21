@@ -9,10 +9,8 @@ the loop via InferenceFeedbackLoop.
 from __future__ import annotations
 
 import logging
-import time
-from typing import Any, Dict, List, Optional
-
-import numpy as np
+import threading
+from typing import Any
 
 from core.brain.homeostatic_modulator import HomeostaticModulator, InferenceModulation
 from core.brain.inference_feedback import InferenceFeedbackLoop
@@ -20,8 +18,8 @@ from core.brain.inference_feedback import InferenceFeedbackLoop
 logger = logging.getLogger("Aura.Brain.UnifiedInference")
 
 # Cache for Llama instance to avoid reloading weights on every call
-_LLAMA_CACHE: Dict[str, Any] = {}
-_CACHE_LOCK = Exception  # Just a placeholder, we use a threading lock
+_LLAMA_CACHE: dict[str, Any] = {}
+_CACHE_LOCK = threading.Lock()
 
 
 class UnifiedInferenceEngine:
@@ -30,9 +28,7 @@ class UnifiedInferenceEngine:
     def __init__(self) -> None:
         self.modulator = HomeostaticModulator()
         self.feedback_loop = InferenceFeedbackLoop()
-        self._lock = time # threading lock is created on demand or imported
-        import threading
-        self._instance_lock = threading.Lock()
+        self._instance_lock = _CACHE_LOCK
 
     def _get_llama_instance(self, model_path: str, context_size: int = 8192) -> Any:
         """Load and cache the llama-cpp-python model instance safely."""
@@ -55,24 +51,31 @@ class UnifiedInferenceEngine:
                     n_gpu_layers=99,  # Load as much as possible to Apple Silicon GPU
                     n_threads=6,
                     flash_attn=True,
-                    verbose=False
+                    verbose=False,
                 )
                 _LLAMA_CACHE[model_path] = instance
                 logger.info("Successfully loaded GGUF model: %s", model_path)
                 return instance
-            except Exception as exc:
+            except (
+                AttributeError,
+                ImportError,
+                OSError,
+                RuntimeError,
+                TypeError,
+                ValueError,
+            ) as exc:
                 logger.error("Failed to load GGUF model %s: %s", model_path, exc)
                 return None
 
     async def generate_unified(
         self,
         prompt: str,
-        system_prompt: Optional[str] = None,
-        messages: Optional[List[Dict[str, str]]] = None,
-        options: Optional[Dict[str, Any]] = None,
-        endpoint_name: Optional[str] = None,
-        **kwargs
-    ) -> Dict[str, str]:
+        system_prompt: str | None = None,
+        messages: list[dict[str, str]] | None = None,
+        options: dict[str, Any] | None = None,
+        endpoint_name: str | None = None,
+        **kwargs,
+    ) -> dict[str, str]:
         """Perform homeostatically modulated generation.
 
         Checks backend configuration:
@@ -86,15 +89,15 @@ class UnifiedInferenceEngine:
             modulation.temperature,
             modulation.top_p,
             modulation.repetition_penalty,
-            len(modulation.logit_bias)
+            len(modulation.logit_bias),
         )
 
         # 2. Get active model and backend
         from core.brain.llm.model_registry import (
+            get_lane_context_window,
             get_lane_model_name,
             get_lane_runtime_model_path,
             get_local_backend,
-            get_lane_context_window
         )
 
         backend = get_local_backend()
@@ -120,25 +123,19 @@ class UnifiedInferenceEngine:
             if llama_model:
                 try:
                     return await self._run_llama_cpp(
-                        llama_model,
-                        final_messages,
-                        modulation,
-                        options,
-                        **kwargs
+                        llama_model, final_messages, modulation, options, **kwargs
                     )
-                except Exception as exc:
-                    logger.error("GGUF direct inference failed, falling back to Ollama client: %s", exc)
+                except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+                    logger.error(
+                        "GGUF direct inference failed, falling back to Ollama client: %s", exc
+                    )
 
         # 4. Fallback: Ollama / LocalBrain client execution
         return await self._run_ollama_fallback(
-            final_messages,
-            model_name,
-            modulation,
-            options,
-            **kwargs
+            final_messages, model_name, modulation, options, **kwargs
         )
 
-    def _ensure_identity_anchor(self, messages: List[Dict[str, str]]) -> None:
+    def _ensure_identity_anchor(self, messages: list[dict[str, str]]) -> None:
         """Inject Aura's concrete core identity parameters into the system prompt."""
         identity_anchor = (
             "You are Aura Luna. Speak with direct first-person continuity, "
@@ -158,11 +155,11 @@ class UnifiedInferenceEngine:
     async def _run_llama_cpp(
         self,
         llama_model: Any,
-        messages: List[Dict[str, str]],
+        messages: list[dict[str, str]],
         modulation: InferenceModulation,
-        options: Optional[Dict[str, Any]],
-        **kwargs
-    ) -> Dict[str, str]:
+        options: dict[str, Any] | None,
+        **kwargs,
+    ) -> dict[str, str]:
         """Execute inference directly on cached GGUF model via llama-cpp-python."""
         import asyncio
 
@@ -188,7 +185,7 @@ class UnifiedInferenceEngine:
                 logit_bias=logit_bias_processed,
                 max_tokens=max_tokens,
                 logprobs=True,  # Crucial to capture token-level log_probs for surprise
-                top_logprobs=1
+                top_logprobs=1,
             )
 
         loop = asyncio.get_running_loop()
@@ -199,8 +196,8 @@ class UnifiedInferenceEngine:
         text_output = choice["message"]["content"]
 
         # Extract token IDs and log probabilities
-        token_ids: List[int] = []
-        logprobs: List[float] = []
+        token_ids: list[int] = []
+        logprobs: list[float] = []
 
         try:
             # Safely navigate llama-cpp-python logprobs format
@@ -227,7 +224,7 @@ class UnifiedInferenceEngine:
                     ids = llama_model.tokenize(tok_bytes, add_bos=False)
                     if ids:
                         token_ids.extend(ids)
-        except Exception as exc:
+        except (AttributeError, KeyError, RuntimeError, TypeError, ValueError) as exc:
             logger.debug("Failed to extract token IDs/logprobs from llama-cpp response: %s", exc)
 
         # 5. Process feedback and update state
@@ -236,16 +233,17 @@ class UnifiedInferenceEngine:
             token_ids=token_ids,
             logprobs=logprobs if logprobs else None,
             modulation=modulation,
-            modulator_projection=self.modulator.projection
+            modulator_projection=self.modulator.projection,
         )
         logger.info(
             "Unified Inference feedback processed: surprise=%.4f, coherence=%.4f",
             feedback["surprise"],
-            feedback["coherence"]
+            feedback["coherence"],
         )
 
         # Support DeepSeek/Qwen style think tags separation
         import re
+
         think_match = re.search(r"<think>(.*?)</think>", text_output, flags=re.DOTALL)
         thought = think_match.group(1).strip() if think_match else ""
         cleaned = re.sub(r"<think>.*?</think>", "", text_output, flags=re.DOTALL).strip()
@@ -254,12 +252,12 @@ class UnifiedInferenceEngine:
 
     async def _run_ollama_fallback(
         self,
-        messages: List[Dict[str, str]],
+        messages: list[dict[str, str]],
         model_name: str,
         modulation: InferenceModulation,
-        options: Optional[Dict[str, Any]],
-        **kwargs
-    ) -> Dict[str, str]:
+        options: dict[str, Any] | None,
+        **kwargs,
+    ) -> dict[str, str]:
         """Fallback to Ollama REST client while injecting modulated options."""
         from core.brain.local_llm import LocalBrain
 
@@ -294,12 +292,12 @@ class UnifiedInferenceEngine:
                 token_ids=token_ids,
                 logprobs=None,
                 modulation=modulation,
-                modulator_projection=self.modulator.projection
+                modulator_projection=self.modulator.projection,
             )
             logger.info(
                 "Ollama fallback feedback processed: surprise=%.4f, coherence=%.4f",
                 feedback["surprise"],
-                feedback["coherence"]
+                feedback["coherence"],
             )
 
             return result

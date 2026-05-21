@@ -36,9 +36,6 @@ _ALLOWED_UNARYOPS = {
 class ImmuneHeuristicExecutor:
     """Symbolic, sandboxed instruction interpreter for immune cell behavioral rules."""
 
-    def __init__(self) -> None:
-        pass
-
     def evaluate_condition(self, condition: dict[str, Any], sensors_data: dict[str, float]) -> bool:
         """Evaluates a single condition against current sensor values safely."""
         sensor_id = condition.get("sensor")
@@ -106,7 +103,7 @@ class ImmuneHeuristicExecutor:
                 try:
                     res_val = self._safe_eval_numeric(substituted)
                     resolved[key] = float(res_val)
-                except Exception as exc:
+                except (ArithmeticError, SyntaxError, TypeError, ValueError) as exc:
                     logger.warning(
                         "Failed resolving expression '%s' (substituted as '%s'): %s",
                         val,
@@ -214,53 +211,62 @@ class ImmuneHeuristicExecutor:
             )
 
             res: ActuatorResult = actuator_registry.execute_action(actuator_name, resolved_params)
-            
+
             # Trigger dynamic synthesis if actuator is missing
             if not res.success and ("not found" in res.message or "not registered" in res.message):
-                logger.warning("Actuator '%s' not found. Launching open-ended actuator synthesis...", actuator_name)
+                logger.warning(
+                    "Actuator '%s' not found. Launching open-ended actuator synthesis...",
+                    actuator_name,
+                )
                 try:
-                    from core.actuators.actuator_synthesis import get_actuator_synthesizer, SynthesisRequest
-                    from core.utils.task_tracker import get_task_tracker
                     import asyncio
-                    
+
+                    from core.actuators.actuator_synthesis import (
+                        SynthesisRequest,
+                        get_actuator_synthesizer,
+                    )
+                    from core.utils.task_tracker import get_task_tracker
+
                     # Snapshot sensor context and world model
                     from core.world.world_model import get_physics_world_model
+
                     world_snapshot = {
                         eid: {
                             "kind": ent.kind,
                             "load": ent.load,
                             "capacity": ent.capacity,
                             "flow_rate": ent.flow_rate,
-                            "latency": ent.latency
+                            "latency": ent.latency,
                         }
                         for eid, ent in get_physics_world_model().entities.items()
                     }
-                    
+
                     req = SynthesisRequest(
                         problem_description=f"Action requested but actuator '{actuator_name}' is not found in the registry.",
                         failed_actuators=[actuator_name],
                         sensor_context=sensors_data,
                         world_model_snapshot=world_snapshot,
-                        urgency=0.8
+                        urgency=0.8,
                     )
-                    
+
                     try:
                         loop = asyncio.get_running_loop()
                     except RuntimeError:
                         loop = None
-                    
+
                     if loop and loop.is_running():
                         get_task_tracker().create_task(
                             get_actuator_synthesizer().request_synthesis(req),
-                            name=f"actuator_synthesis_{actuator_name}"
+                            name=f"actuator_synthesis_{actuator_name}",
                         )
                     else:
                         import threading
-                        threading.Thread(
-                            target=lambda: asyncio.run(get_actuator_synthesizer().request_synthesis(req)),
-                            daemon=True
-                        ).start()
-                except Exception as exc:
+
+                        def run_synthesis(request=req) -> None:
+                            asyncio.run(get_actuator_synthesizer().request_synthesis(request))
+
+                        threading.Thread(target=run_synthesis, daemon=True).start()
+                except (ImportError, RuntimeError, TypeError, ValueError) as exc:
                     logger.error("Failed to trigger background actuator synthesis: %s", exc)
 
             executed_actions.append(

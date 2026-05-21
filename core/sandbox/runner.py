@@ -32,7 +32,7 @@ _SANDBOX_RUNNER_ERRORS = (
     ValueError,
 )
 
-RUNNER_PY = r'''
+RUNNER_PY = r"""
 import sys
 import json
 import contextlib
@@ -76,20 +76,22 @@ except (OSError, ValueError) as e:
 # Strip dangerous builtins to prevent arbitrary execution or network egress
 import builtins
 safe_builtins = {
+    '__build_class__': builtins.__build_class__,
     'abs': builtins.abs, 'all': builtins.all, 'any': builtins.any, 'ascii': builtins.ascii,
     'bin': builtins.bin, 'bool': builtins.bool, 'bytearray': builtins.bytearray, 
     'bytes': builtins.bytes, 'callable': builtins.callable, 'chr': builtins.chr,
     'complex': builtins.complex, 'dict': builtins.dict, 'dir': builtins.dir,
+    'Exception': builtins.Exception,
     'divmod': builtins.divmod, 'enumerate': builtins.enumerate, 'filter': builtins.filter,
     'float': builtins.float, 'format': builtins.format, 'frozenset': builtins.frozenset,
-    'hash': builtins.hash,
+    'getattr': builtins.getattr, 'hash': builtins.hash,
     'hex': builtins.hex, 'id': builtins.id, 'int': builtins.int, 'isinstance': builtins.isinstance,
     'issubclass': builtins.issubclass, 'iter': builtins.iter, 'len': builtins.len,
     'list': builtins.list, 'map': builtins.map, 'max': builtins.max, 'min': builtins.min,
     'next': builtins.next, 'object': builtins.object, 'oct': builtins.oct, 'ord': builtins.ord,
-    'pow': builtins.pow, 'print': builtins.print, 'range': builtins.range, 'repr': builtins.repr,
+    'pow': builtins.pow, 'print': builtins.print, 'property': builtins.property, 'range': builtins.range, 'repr': builtins.repr,
     'reversed': builtins.reversed, 'round': builtins.round, 'set': builtins.set,
-    'slice': builtins.slice, 'sorted': builtins.sorted, 'str': builtins.str,
+    'slice': builtins.slice, 'sorted': builtins.sorted, 'str': builtins.str, 'super': builtins.super,
     'sum': builtins.sum, 'tuple': builtins.tuple, 'type': builtins.type, 'zip': builtins.zip,
     'None': None, 'True': True, 'False': False,
     # specifically exclude __import__, open, eval, exec, compile, globals, locals
@@ -100,7 +102,7 @@ try:
     stdout_capture = io.StringIO()
     stderr_capture = io.StringIO()
     with contextlib.redirect_stdout(stdout_capture), contextlib.redirect_stderr(stderr_capture):
-        exec(code, globals_dict, {})
+        exec(code, globals_dict, globals_dict)
     print(json.dumps({
         "status": "ok",
         "stdout": stdout_capture.getvalue(),
@@ -125,7 +127,7 @@ except BaseException as e:
         "stderr": "",
         "resource_warning": resource_warning,
     }))
-'''
+"""
 
 
 @dataclass(frozen=True)
@@ -135,6 +137,7 @@ class _RunnerProcessResult:
     stderr: str
     timed_out: bool = False
     memory_exceeded: bool = False
+
 
 def _truncate(s: str, limit: int) -> str:
     if not s:
@@ -232,7 +235,9 @@ def _run_process_blocking(
 
     def runner() -> None:
         try:
-            result["value"] = asyncio.run(_communicate_process(command, payload, timeout, mem_bytes))
+            result["value"] = asyncio.run(
+                _communicate_process(command, payload, timeout, mem_bytes)
+            )
         except _SANDBOX_RUNNER_ERRORS as exc:
             failures.append(exc)
 
@@ -246,15 +251,17 @@ def _run_process_blocking(
     return result["value"]
 
 
-def run_untrusted(code: str, timeout: int = DEFAULT_TIMEOUT, mem_bytes: int = DEFAULT_MEM_BYTES) -> dict:
+def run_untrusted(
+    code: str, timeout: int = DEFAULT_TIMEOUT, mem_bytes: int = DEFAULT_MEM_BYTES
+) -> dict:
     """
     Executes an untrusted block of Python code in an isolated child process with strict safety limits.
-    
+
     Args:
         code: The Python script string to execute.
         timeout: Maximum execution CPU time allowed.
         mem_bytes: Maximum RAM consumption allowed.
-        
+
     Returns:
         Dict: Structured result payload with stdout and stderr output.
     """
@@ -270,11 +277,13 @@ def run_untrusted(code: str, timeout: int = DEFAULT_TIMEOUT, mem_bytes: int = DE
         runner_path = Path(d) / "runner.py"
         atomic_write_text(runner_path, RUNNER_PY)
 
-        payload = json.dumps({
-            "code": code,
-            "mem_bytes": mem_bytes,
-            "cpu_seconds": timeout,
-        }).encode("utf-8")
+        payload = json.dumps(
+            {
+                "code": code,
+                "mem_bytes": mem_bytes,
+                "cpu_seconds": timeout,
+            }
+        ).encode("utf-8")
 
         command = (sys.executable, "-I", str(runner_path))
         process_result = _run_process_blocking(command, payload, timeout + 2, mem_bytes)
@@ -283,21 +292,27 @@ def run_untrusted(code: str, timeout: int = DEFAULT_TIMEOUT, mem_bytes: int = DE
             return {
                 "status": "timeout",
                 "stdout": _truncate(process_result.stdout, DEFAULT_OUTPUT_LIMIT),
-                "stderr": _truncate(process_result.stderr or "timeout expired", DEFAULT_OUTPUT_LIMIT),
+                "stderr": _truncate(
+                    process_result.stderr or "timeout expired", DEFAULT_OUTPUT_LIMIT
+                ),
                 "returncode": process_result.returncode,
             }
         if process_result.memory_exceeded:
             return {
                 "status": "memory_limit",
                 "stdout": _truncate(process_result.stdout, DEFAULT_OUTPUT_LIMIT),
-                "stderr": _truncate(process_result.stderr or "memory limit exceeded", DEFAULT_OUTPUT_LIMIT),
+                "stderr": _truncate(
+                    process_result.stderr or "memory limit exceeded", DEFAULT_OUTPUT_LIMIT
+                ),
                 "returncode": process_result.returncode,
             }
         if process_result.returncode == -getattr(signal, "SIGXCPU", 0):
             return {
                 "status": "timeout",
                 "stdout": _truncate(process_result.stdout, DEFAULT_OUTPUT_LIMIT),
-                "stderr": _truncate(process_result.stderr or "cpu time limit exceeded", DEFAULT_OUTPUT_LIMIT),
+                "stderr": _truncate(
+                    process_result.stderr or "cpu time limit exceeded", DEFAULT_OUTPUT_LIMIT
+                ),
                 "returncode": process_result.returncode,
             }
 

@@ -130,7 +130,7 @@ class SensorRegistry:
                 self.record_reading("warehouse_load", wh.get("load", 0.0))
                 self.record_reading("warehouse_latency", wh.get("latency", 0.0))
 
-            # Sync dummy system cpu usage
+            # Sync host CPU telemetry through psutil.
             import psutil
 
             self.record_reading("system_cpu_usage", psutil.cpu_percent())

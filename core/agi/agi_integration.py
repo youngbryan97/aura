@@ -10,18 +10,48 @@ import asyncio
 import logging
 import threading
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import numpy as np
 
-from core.runtime.errors import record_degradation
 from core.container import ServiceContainer
+from core.runtime.errors import FallbackClassification, record_degradation
 
 logger = logging.getLogger("Aura.AGI.Integration")
 
+_AGI_RUNTIME_ERRORS = (
+    AttributeError,
+    ImportError,
+    LookupError,
+    RuntimeError,
+    TypeError,
+    ValueError,
+    OSError,
+)
+
+
+def _record_agi_degradation(
+    subsystem: str,
+    error: BaseException,
+    *,
+    action: str,
+    severity: str = "warning",
+    extra: dict[str, Any] | None = None,
+):
+    return record_degradation(
+        subsystem,
+        error,
+        severity=severity,
+        action=action,
+        classification=FallbackClassification.SAFE_FALLBACK,
+        receipt_required=True,
+        extra=extra,
+    )
+
+
 # Thread safety lock for the singleton instance
 _SINGLETON_LOCK = threading.Lock()
-_agi_integration_instance: Optional[AGIIntegrationLayer] = None
+_agi_integration_instance: AGIIntegrationLayer | None = None
 
 
 class AGIIntegrationLayer:
@@ -29,7 +59,7 @@ class AGIIntegrationLayer:
 
     def __init__(self) -> None:
         self._running = False
-        self._loop_task: Optional[asyncio.Task] = None
+        self._loop_task: asyncio.Task | None = None
         self._lock = threading.Lock()
 
         # Metrics & Telemetry
@@ -54,7 +84,9 @@ class AGIIntegrationLayer:
         self.affordance_model = get_affordance_model()
         self.transition_model = get_transition_model()
 
-        logger.info("AGIIntegrationLayer initialized with proprioception, grounding, and transition modeling.")
+        logger.info(
+            "AGIIntegrationLayer initialized with proprioception, grounding, and transition modeling."
+        )
 
     async def start(self) -> None:
         """Starts the integration layer background tasks."""
@@ -69,11 +101,9 @@ class AGIIntegrationLayer:
 
             # Spawn background tick loop using task tracker
             from core.utils.task_tracker import get_task_tracker
+
             tracker = get_task_tracker()
-            self._loop_task = tracker.create_task(
-                self._run_loop(),
-                name="agi.integration_loop"
-            )
+            self._loop_task = tracker.create_task(self._run_loop(), name="agi.integration_loop")
             logger.info("AGIIntegrationLayer started background tick task.")
 
     async def stop(self) -> None:
@@ -102,8 +132,13 @@ class AGIIntegrationLayer:
                 await asyncio.sleep(max(0.1, 1.0 - elapsed))
             except asyncio.CancelledError:
                 break
-            except Exception as exc:
-                record_degradation("agi_integration_loop", exc)
+            except _AGI_RUNTIME_ERRORS as exc:
+                _record_agi_degradation(
+                    "agi_integration_loop",
+                    exc,
+                    action="kept AGI integration loop alive after recoverable tick failure",
+                    severity="degraded",
+                )
                 logger.error("Error in AGI integration tick loop: %s", exc)
                 await asyncio.sleep(1.0)
 
@@ -115,23 +150,29 @@ class AGIIntegrationLayer:
         # 0. Update proprioceptive telemetry and linear-causal transition modeling
         try:
             self.digital_body.update_telemetry()
-            
+
             # Retrieve last executed action from commitments
             last_action = "reflect"
             if self.digital_body.current_commitments:
-                active = [c for c in self.digital_body.current_commitments if c.get("status") == "active"]
+                active = [
+                    c for c in self.digital_body.current_commitments if c.get("status") == "active"
+                ]
                 if active:
                     last_action = active[-1].get("action", "reflect")
-                    
+
             err = self.transition_model.process_step(last_action)
-            
+
             # Inject transition prediction error surprise directly into FreeEnergyEngine
             if err > 0.5:
                 free_energy = ServiceContainer.get("free_energy_engine", default=None)
                 if free_energy and hasattr(free_energy, "accept_surprise_signal"):
                     free_energy.accept_surprise_signal(err)
-        except Exception as exc:
-            record_degradation("agi_grounding_tick", exc)
+        except _AGI_RUNTIME_ERRORS as exc:
+            _record_agi_degradation(
+                "agi_grounding_tick",
+                exc,
+                action="skipped proprioceptive transition tick and preserved loop cadence",
+            )
             logger.debug("Failed to step proprioceptive/transition systems: %s", exc)
 
         # 1. Step the PrecisionEngine (FitzHugh-Nagumo oscillator)
@@ -140,8 +181,12 @@ class AGIIntegrationLayer:
             try:
                 # Advancing FHN oscillator
                 precision.step()
-            except Exception as exc:
-                record_degradation("agi_precision_step", exc)
+            except _AGI_RUNTIME_ERRORS as exc:
+                _record_agi_degradation(
+                    "agi_precision_step",
+                    exc,
+                    action="skipped precision oscillator step and continued AGI integration tick",
+                )
                 logger.debug("Failed to step PrecisionEngine: %s", exc)
 
         # 2. Periodically trigger dimensional expansion contractions
@@ -152,8 +197,12 @@ class AGIIntegrationLayer:
                 retired_axes = expansion.evaluate_contraction()
                 if retired_axes:
                     logger.info("Dimensional expansion retired axes: %s", retired_axes)
-            except Exception as exc:
-                record_degradation("agi_expansion_contraction", exc)
+            except _AGI_RUNTIME_ERRORS as exc:
+                _record_agi_degradation(
+                    "agi_expansion_contraction",
+                    exc,
+                    action="skipped dimensional contraction pass and preserved active dimensions",
+                )
                 logger.debug("Failed contraction evaluation: %s", exc)
 
         # 3. Periodically persist SubstrateLogitProjection weights
@@ -167,17 +216,18 @@ class AGIIntegrationLayer:
             if hasattr(self.modulator, "projection") and self.modulator.projection:
                 self.modulator.projection.save()
                 logger.info("Persisted SubstrateLogitProjection weights successfully.")
-        except Exception as exc:
-            record_degradation("agi_projection_save", exc)
+        except _AGI_RUNTIME_ERRORS as exc:
+            _record_agi_degradation(
+                "agi_projection_save",
+                exc,
+                action="kept in-memory projection active after persistence failure",
+                severity="degraded",
+            )
             logger.error("Failed to save logit projection weights: %s", exc)
 
     def on_inference_complete(
-        self,
-        output_text: str,
-        token_ids: List[int],
-        logprobs: Optional[List[float]],
-        modulation: Any
-    ) -> Dict[str, float]:
+        self, output_text: str, token_ids: list[int], logprobs: list[float] | None, modulation: Any
+    ) -> dict[str, float]:
         """Inference callback to compute and propagate feedback metrics."""
         try:
             return self.feedback_loop.process_output(
@@ -185,10 +235,15 @@ class AGIIntegrationLayer:
                 token_ids=token_ids,
                 logprobs=logprobs,
                 modulation=modulation,
-                modulator_projection=self.modulator.projection
+                modulator_projection=self.modulator.projection,
             )
-        except Exception as exc:
-            record_degradation("agi_inference_complete_feedback", exc)
+        except _AGI_RUNTIME_ERRORS as exc:
+            _record_agi_degradation(
+                "agi_inference_complete_feedback",
+                exc,
+                action="returned conservative feedback metrics after inference feedback failure",
+                severity="degraded",
+            )
             logger.error("Failed executing on_inference_complete callback: %s", exc)
             return {"surprise": 0.5, "coherence": 0.0}
 
@@ -196,10 +251,16 @@ class AGIIntegrationLayer:
         """Fetches the active homeostatic inference modulation."""
         try:
             return self.modulator.compute_modulation()
-        except Exception as exc:
-            record_degradation("agi_get_modulation", exc)
+        except _AGI_RUNTIME_ERRORS as exc:
+            _record_agi_degradation(
+                "agi_get_modulation",
+                exc,
+                action="returned conservative homeostatic modulation after modulator failure",
+                severity="degraded",
+            )
             # Safe default fallback modulation
             from core.brain.homeostatic_modulator import InferenceModulation
+
             return InferenceModulation(
                 temperature=0.7,
                 top_p=0.9,
@@ -209,13 +270,13 @@ class AGIIntegrationLayer:
                 urgency=0.5,
             )
 
-    def get_unified_telemetry(self) -> Dict[str, Any]:
+    def get_unified_telemetry(self) -> dict[str, Any]:
         """Aggregates and returns state telemetry from all subsystems."""
-        telemetry: Dict[str, Any] = {
+        telemetry: dict[str, Any] = {
             "integration": {
                 "ticks": self.tick_count,
                 "uptime_seconds": round(time.time() - self.start_time, 2),
-                "last_tick": self.last_tick_time
+                "last_tick": self.last_tick_time,
             }
         }
 
@@ -224,8 +285,13 @@ class AGIIntegrationLayer:
         if precision:
             try:
                 telemetry["precision"] = precision.get_state_dict()
-            except Exception:
-                pass
+            except _AGI_RUNTIME_ERRORS as exc:
+                _record_agi_degradation(
+                    "agi_telemetry_precision",
+                    exc,
+                    action="omitted precision telemetry section from unified AGI telemetry",
+                    severity="debug",
+                )
 
         # 2. Liquid Substrate
         substrate = ServiceContainer.get("liquid_substrate", default=None)
@@ -239,8 +305,13 @@ class AGIIntegrationLayer:
                         "curiosity": round(float(substrate.x[substrate.idx_curiosity]), 4),
                         "focus": round(float(substrate.x[substrate.idx_focus]), 4),
                     }
-            except Exception:
-                pass
+            except _AGI_RUNTIME_ERRORS as exc:
+                _record_agi_degradation(
+                    "agi_telemetry_substrate",
+                    exc,
+                    action="omitted substrate telemetry section from unified AGI telemetry",
+                    severity="debug",
+                )
 
         # 3. Free Energy Engine
         free_energy = ServiceContainer.get("free_energy_engine", default=None)
@@ -248,10 +319,15 @@ class AGIIntegrationLayer:
             try:
                 telemetry["free_energy"] = {
                     "smoothed_free_energy": round(float(free_energy.smoothed_fe), 4),
-                    "current_action": getattr(free_energy, "current_action", None)
+                    "current_action": getattr(free_energy, "current_action", None),
                 }
-            except Exception:
-                pass
+            except _AGI_RUNTIME_ERRORS as exc:
+                _record_agi_degradation(
+                    "agi_telemetry_free_energy",
+                    exc,
+                    action="omitted free-energy telemetry section from unified AGI telemetry",
+                    severity="debug",
+                )
 
         # 4. Dimensional Expansion
         expansion = ServiceContainer.get("dimensional_expansion", default=None)
@@ -262,8 +338,13 @@ class AGIIntegrationLayer:
                     "current_dim": status.get("current_dim"),
                     "expanded_count": status.get("expanded_count"),
                 }
-            except Exception:
-                pass
+            except _AGI_RUNTIME_ERRORS as exc:
+                _record_agi_degradation(
+                    "agi_telemetry_dimensional_expansion",
+                    exc,
+                    action="omitted dimensional expansion telemetry section from unified AGI telemetry",
+                    severity="debug",
+                )
 
         # 5. Actuator Registry
         registry = ServiceContainer.get("actuator_registry", default=None)
@@ -271,24 +352,39 @@ class AGIIntegrationLayer:
             try:
                 telemetry["actuators"] = {
                     "synthesized_count": len(getattr(registry, "synthesized_actuators", {})),
-                    "total_count": len(getattr(registry, "actuators", {}))
+                    "total_count": len(getattr(registry, "actuators", {})),
                 }
-            except Exception:
-                pass
+            except _AGI_RUNTIME_ERRORS as exc:
+                _record_agi_degradation(
+                    "agi_telemetry_actuators",
+                    exc,
+                    action="omitted actuator telemetry section from unified AGI telemetry",
+                    severity="debug",
+                )
 
         # 6. Digital Body Schema (Proprioception)
         if hasattr(self, "digital_body"):
             try:
                 telemetry["digital_body"] = self.digital_body.get_state_dict()
-            except Exception:
-                pass
+            except _AGI_RUNTIME_ERRORS as exc:
+                _record_agi_degradation(
+                    "agi_telemetry_digital_body",
+                    exc,
+                    action="omitted digital body telemetry section from unified AGI telemetry",
+                    severity="debug",
+                )
 
         # 7. Transition Model (Causal Predictive World Model)
         if hasattr(self, "transition_model"):
             try:
                 telemetry["transition_model"] = self.transition_model.get_state_dict()
-            except Exception:
-                pass
+            except _AGI_RUNTIME_ERRORS as exc:
+                _record_agi_degradation(
+                    "agi_telemetry_transition_model",
+                    exc,
+                    action="omitted transition model telemetry section from unified AGI telemetry",
+                    severity="debug",
+                )
 
         return telemetry
 

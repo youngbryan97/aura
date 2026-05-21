@@ -40,6 +40,7 @@ Without an adapter+governor pair the service still works in
 recorded, but no weight update happens.  Tests exercise every
 combination.
 """
+
 from __future__ import annotations
 
 import logging
@@ -77,7 +78,7 @@ def _record_grounding_degradation(exc: BaseException, action: str) -> None:
 # wires this to UnifiedWill.decide(); tests pass in stubs.
 WillDecideCallable = Callable[
     [str, str, float],  # (domain_str, module_name, reward)
-    dict[str, Any],     # {"outcome": str, "reason": str, ...}
+    dict[str, Any],  # {"outcome": str, "reason": str, ...}
 ]
 
 
@@ -195,16 +196,10 @@ class GroundingService:
             }
 
         concept, link = candidates[0]
-        score = self.network.score_evidence_for_concept(
-            evidence.evidence_id, concept.concept_id
-        )
+        score = self.network.score_evidence_for_concept(evidence.evidence_id, concept.concept_id)
         # Map cosine [-1, 1] to a probability-shaped scalar in [0, 1],
         # then weight by the link strength * concept confidence.
-        confidence = (
-            max(0.0, min(1.0, (score + 1.0) / 2.0))
-            * link.strength
-            * concept.confidence
-        )
+        confidence = max(0.0, min(1.0, (score + 1.0) / 2.0)) * link.strength * concept.confidence
         # Threshold tuned for the hash-token feature encoder; with
         # higher-quality embeddings (CLIP, etc.) this can be raised.
         applies = confidence >= 0.20
@@ -298,7 +293,7 @@ class GroundingService:
                 will_outcome = str(will_decision.get("outcome", "proceed")).lower()
                 will_reason = str(will_decision.get("reason", ""))
                 will_receipt_id = will_decision.get("receipt_id")
-            except Exception as e:
+            except (AttributeError, RuntimeError, TypeError, ValueError) as e:
                 # Fail-closed: if the Will errors we treat the update
                 # as refused rather than silently bypassing it.
                 _record_grounding_degradation(e, action="Will decision failed")
@@ -321,7 +316,7 @@ class GroundingService:
             from core.will import is_plastic_target_allowed
 
             target_allowed = is_plastic_target_allowed(self.PLASTIC_MODULE_NAME)
-        except Exception as exc:
+        except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
             _record_grounding_degradation(exc, action="plastic target allow-list lookup failed")
             logger.debug("Grounding plastic target allow-list lookup failed: %s", exc)
             target_allowed = True  # be lenient if Will isn't importable
@@ -363,15 +358,13 @@ class GroundingService:
                         evidence_id=str(ctx.get("evidence_id") or ""),
                         reward=reward,
                         modulation=float(decision.modulation),
-                        delta_norm=float(
-                            (update_info or {}).get("delta_norm", 0.0)
-                        ),
+                        delta_norm=float((update_info or {}).get("delta_norm", 0.0)),
                         hebb_norm=float((update_info or {}).get("hebb_norm", 0.0)),
                         allowed=bool(update_allowed),
                         governance_receipt_id=will_receipt_id,
                     )
                 )
-            except Exception as exc:
+            except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
                 # Receipt failure must not break the learning loop.
                 _record_grounding_degradation(exc, action="semantic weight receipt emission failed")
                 logger.debug("Grounding semantic weight receipt emission failed: %s", exc)

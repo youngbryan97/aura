@@ -195,13 +195,13 @@ class Antigen:
         global _adaptive_immune_singleton
         if _adaptive_immune_singleton is not None:
             target_dim = _adaptive_immune_singleton.expansion_engine.current_dim
-        
+
         if len(vector) != target_dim:
             resized = np.zeros(target_dim, dtype=np.float32)
             copy_len = min(len(vector), target_dim)
             resized[:copy_len] = vector[:copy_len]
             vector = resized
-            
+
         return cls(
             antigen_id=str(data.get("antigen_id", "")),
             subsystem=str(data.get("subsystem", "unknown")),
@@ -702,7 +702,7 @@ def _evaluate_causal_fitness(rule: dict[str, Any] | None) -> float:
         finally:
             wm._instance = original_model
             sr._instance = original_registry
-    except Exception as exc:
+    except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
         logger.debug("Failed evaluating causal fitness in coevolution lab: %s", exc)
         return 0.0
 
@@ -800,7 +800,9 @@ class OfflineCoevolutionLab:
 
         population.sort(
             key=lambda cell: sum(
-                AdaptiveImmuneSystem.compute_affinity_static(cell.receptor, antigen.vector, tau=tau, weights=weights)
+                AdaptiveImmuneSystem.compute_affinity_static(
+                    cell.receptor, antigen.vector, tau=tau, weights=weights
+                )
                 for antigen in antigens
             ),
             reverse=True,
@@ -897,6 +899,7 @@ class AdaptiveImmuneSystem:
         self._lab = OfflineCoevolutionLab(rng=self._rng)
 
         from core.adaptation.dimensional_expansion import DimensionalExpansionEngine
+
         self.expansion_engine = DimensionalExpansionEngine(
             initial_dim=self.cfg.initial_receptor_dim,
             max_dim=self.cfg.max_receptor_dim,
@@ -1326,7 +1329,7 @@ class AdaptiveImmuneSystem:
             w = weights
             if len(w) < max_len:
                 w_pad = np.ones(max_len, dtype=np.float32) * 0.5
-                w_pad[:len(w)] = w
+                w_pad[: len(w)] = w
                 w = w_pad
             else:
                 w = w[:max_len]
@@ -2558,10 +2561,13 @@ class AdaptiveImmuneSystem:
             payload = json.loads(self._state_path.read_text(encoding="utf-8"))
             if "expansion_engine" in payload:
                 from core.adaptation.dimensional_expansion import DimensionalExpansionEngine
-                self.expansion_engine = DimensionalExpansionEngine.from_dict(payload["expansion_engine"])
+
+                self.expansion_engine = DimensionalExpansionEngine.from_dict(
+                    payload["expansion_engine"]
+                )
 
             self._cells = [ImmuneCell.from_dict(item) for item in payload.get("cells", [])]
-            
+
             # Reconcile receptor vectors of loaded cells with system current_dim
             target_dim = self.expansion_engine.current_dim
             for cell in self._cells:

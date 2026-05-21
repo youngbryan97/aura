@@ -6,11 +6,8 @@ Online learning engine tracking action affordances, success rates, risks, and se
 from __future__ import annotations
 
 import logging
-import math
-import random
 import threading
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
 
 import numpy as np
 
@@ -20,12 +17,13 @@ from core.runtime.errors import record_degradation
 logger = logging.getLogger("Aura.Grounding.AffordanceModel")
 
 _SINGLETON_LOCK = threading.Lock()
-_affordance_model_instance: Optional[AffordanceModel] = None
+_affordance_model_instance: AffordanceModel | None = None
 
 
 @dataclass
 class AffordanceInfo:
     """Dynamic representation of a learned action affordance within a specific context."""
+
     action_id: str
     context: str
     execution_count: int = 0
@@ -55,7 +53,7 @@ class AffordanceModel:
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
-        self.affordances: Dict[tuple[str, str], AffordanceInfo] = {}
+        self.affordances: dict[tuple[str, str], AffordanceInfo] = {}
         self._seed_default_affordances()
         logger.info("AffordanceModel initialized.")
 
@@ -66,10 +64,8 @@ class AffordanceModel:
             ("file_read", "filesystem", 0.95, 0.01, 1.0),
             ("file_write", "filesystem", 0.85, 0.15, 0.8),
             ("file_delete", "filesystem", 0.80, 0.40, 0.1),
-            
             # Terminal Context
             ("command_execute", "terminal", 0.90, 0.10, 0.7),
-            
             # Pytest Context
             ("run_test", "pytest", 0.98, 0.02, 1.0),
             ("patch_code", "pytest", 0.70, 0.30, 0.6),
@@ -84,10 +80,10 @@ class AffordanceModel:
                 success_count=int(10 * success_rate),
                 average_latency=15.0,
                 risk_score=risk,
-                reversibility=reversibility
+                reversibility=reversibility,
             )
 
-    def get_available_affordances(self, context: str) -> List[AffordanceInfo]:
+    def get_available_affordances(self, context: str) -> list[AffordanceInfo]:
         """Thread-safe retrieval of available affordances for a given context."""
         with self._lock:
             results = [aff for aff in self.affordances.values() if aff.context == context]
@@ -106,27 +102,31 @@ class AffordanceModel:
         with self._lock:
             if key not in self.affordances:
                 self.affordances[key] = AffordanceInfo(action_id=action_id, context=context)
-            
+
             aff = self.affordances[key]
             aff.execution_count += 1
             if success:
                 aff.success_count += 1
-            
+
             # EMA coefficient
             alpha = 0.15
-            
+
             # Update latency EMA
             if aff.average_latency == 0.0:
                 aff.average_latency = latency_ms
             else:
                 aff.average_latency = (1 - alpha) * aff.average_latency + alpha * latency_ms
-                
+
             # Update risk score EMA
             aff.risk_score = (1 - alpha) * aff.risk_score + alpha * risk_factor
-            
+
             logger.debug(
                 "Updated affordance %s/%s: count=%d, success_rate=%.2f, risk=%.2f",
-                action_id, context, aff.execution_count, aff.success_rate, aff.risk_score
+                action_id,
+                context,
+                aff.execution_count,
+                aff.success_rate,
+                aff.risk_score,
             )
 
     def select_action(self, context: str, temperature: float = 0.5) -> str:
@@ -134,28 +134,36 @@ class AffordanceModel:
         affordances = self.get_available_affordances(context)
         if not affordances:
             return "reflect"
-            
+
         utilities = np.array([aff.compute_utility() for aff in affordances], dtype=np.float32)
-        
+
         # Guard temperature against extreme low values to avoid divide-by-zero
         t = max(0.01, temperature)
-        
+
         try:
             # Softmax calculation with numerical stability subtraction
             shifted_utilities = utilities - np.max(utilities)
             exp_utilities = np.exp(shifted_utilities / t)
             probabilities = exp_utilities / np.sum(exp_utilities)
-            
+
             # Execute random draw based on learned probabilities
             chosen_index = np.random.choice(len(affordances), p=probabilities)
             chosen_action = affordances[chosen_index].action_id
             logger.info(
                 "Affordance selected action '%s' in context '%s' (utilities=%s, probs=%s)",
-                chosen_action, context, np.round(utilities, 2), np.round(probabilities, 2)
+                chosen_action,
+                context,
+                np.round(utilities, 2),
+                np.round(probabilities, 2),
             )
             return chosen_action
-        except Exception as exc:
-            record_degradation("affordance_selection", exc)
+        except (FloatingPointError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation(
+                "affordance_selection",
+                exc,
+                severity="warning",
+                action="selected deterministic affordance fallback after softmax selection failed",
+            )
             logger.error("Failed executing softmax action selection: %s", exc)
             # Default fallback to first available or standard reflect
             return affordances[0].action_id if affordances else "reflect"

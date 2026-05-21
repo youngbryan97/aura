@@ -73,6 +73,108 @@ class BaseActuator(ABC):
         pass
 
 
+class SandboxedSynthesizedActuator(BaseActuator):
+    """Live wrapper for LLM-synthesized actuator code.
+
+    The generated code never executes in Aura's main process. Execution happens
+    through the validator sandbox, then this wrapper applies only bounded,
+    finite update payloads to the live physics world.
+    """
+
+    synthesized: bool = True
+
+    def __init__(
+        self,
+        *,
+        name: str,
+        description: str,
+        source_code: str,
+        trust_score: float = 0.3,
+    ) -> None:
+        self._name = str(name).strip() or "sandboxed_synthesized_actuator"
+        self._description = str(description).strip() or "Sandboxed synthesized actuator"
+        self.source_code = source_code
+        self.trust_score = trust_score
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def description(self) -> str:
+        return self._description
+
+    def validate_params(self, params: dict[str, Any]) -> bool:
+        return isinstance(params, dict)
+
+    def execute(self, params: dict[str, Any]) -> ActuatorResult:
+        if not self.validate_params(params):
+            return ActuatorResult(False, "Parameter validation failed", {})
+
+        try:
+            from core.actuators.actuator_validator import ActuatorCodeValidator
+
+            sandbox_result = ActuatorCodeValidator.execute_sandboxed(self.source_code or "", params)
+            if not sandbox_result.success:
+                return ActuatorResult(False, sandbox_result.error or "Sandbox execution failed", {})
+            updates = sandbox_result.details.get("updates", {})
+            applied_updates = self._apply_bounded_updates(updates)
+            return ActuatorResult(
+                True,
+                str(sandbox_result.details.get("message") or "Sandboxed actuator executed"),
+                applied_updates,
+            )
+        except (ImportError, AttributeError, KeyError, RuntimeError, TypeError, ValueError) as exc:
+            return ActuatorResult(False, f"Sandboxed actuator execution failed: {exc}", {})
+
+    def _apply_bounded_updates(self, updates: dict[str, Any]) -> dict[str, Any]:
+        if not isinstance(updates, dict) or not updates:
+            return {}
+
+        from core.world.world_model import get_physics_world_model
+
+        model = get_physics_world_model()
+        applied: dict[str, Any] = {}
+        for entity_id, fields in updates.items():
+            entity = model.get_entity(str(entity_id))
+            if entity is None or not isinstance(fields, dict):
+                continue
+
+            entity_updates: dict[str, Any] = {}
+            for field in ("capacity", "load", "flow_rate", "max_flow_rate", "latency"):
+                if field in fields:
+                    value = _finite_float(fields[field], minimum=0.0)
+                    if value is not None:
+                        setattr(entity, field, value)
+                        entity_updates[field] = value
+
+            if "coordinates" in fields:
+                coords = fields["coordinates"]
+                if isinstance(coords, (list, tuple)) and len(coords) == 2:
+                    lat = _finite_float(coords[0])
+                    lon = _finite_float(coords[1])
+                    if lat is not None and lon is not None:
+                        entity.coordinates = (lat, lon)
+                        entity_updates["coordinates"] = entity.coordinates
+
+            attrs = fields.get("attributes")
+            if isinstance(attrs, dict):
+                safe_attrs: dict[str, Any] = {}
+                for key, value in attrs.items():
+                    if not isinstance(key, str):
+                        continue
+                    if isinstance(value, (str, bool, int, float)) or value is None:
+                        safe_attrs[key[:64]] = value
+                if safe_attrs:
+                    entity.attributes.update(safe_attrs)
+                    entity_updates["attributes"] = safe_attrs
+
+            entity.enforce_constraints()
+            if entity_updates:
+                applied[str(entity_id)] = entity_updates
+        return applied
+
+
 class RerouteVesselActuator(BaseActuator):
     """Actuator to adjust headings and speeds of maritime vessel edges."""
 
@@ -141,7 +243,7 @@ class RerouteVesselActuator(BaseActuator):
                 updates={vessel_id: {"heading": heading, "speed": speed}},
             )
 
-        except Exception as exc:
+        except (ImportError, AttributeError, KeyError, RuntimeError, TypeError, ValueError) as exc:
             return ActuatorResult(False, f"Actuator execution failed: {exc}", {})
 
 
@@ -231,7 +333,7 @@ class ReallocateFlowActuator(BaseActuator):
                 updates={source_id: {"load": source.load}, target_id: {"load": target.load}},
             )
 
-        except Exception as exc:
+        except (ImportError, AttributeError, KeyError, RuntimeError, TypeError, ValueError) as exc:
             return ActuatorResult(False, f"Actuator execution failed: {exc}", {})
 
 
@@ -253,7 +355,9 @@ class ActuatorRegistry:
     def get_actuator(self, name: str) -> BaseActuator | None:
         return self.actuators.get(name)
 
-    def register_synthesized(self, actuator: BaseActuator, source_code: str, trust_score: float = 0.3) -> None:
+    def register_synthesized(
+        self, actuator: BaseActuator, source_code: str, trust_score: float = 0.3
+    ) -> None:
         """Register a runtime-synthesized actuator with low trust and stored source code."""
         actuator.synthesized = True
         actuator.source_code = source_code
@@ -280,12 +384,22 @@ class ActuatorRegistry:
         # Trust score gating: if synthesized and trust is extremely low, additional checks
         if getattr(actuator, "synthesized", False):
             if actuator.trust_score < 0.2:
-                return ActuatorResult(False, f"Actuator '{name}' has trust score too low ({actuator.trust_score:.2f}) to execute", {})
+                return ActuatorResult(
+                    False,
+                    f"Actuator '{name}' has trust score too low ({actuator.trust_score:.2f}) to execute",
+                    {},
+                )
             elif actuator.trust_score < 0.5:
                 # Run an additional parameter validation check and ensure they are sanitized
-                logger.warning("Executing low-trust synthesized actuator '%s' (trust=%.2f)", name, actuator.trust_score)
+                logger.warning(
+                    "Executing low-trust synthesized actuator '%s' (trust=%.2f)",
+                    name,
+                    actuator.trust_score,
+                )
                 if not params:
-                    return ActuatorResult(False, "Low-trust actuator requires non-empty parameters", {})
+                    return ActuatorResult(
+                        False, "Low-trust actuator requires non-empty parameters", {}
+                    )
 
         return actuator.execute(params)
 
