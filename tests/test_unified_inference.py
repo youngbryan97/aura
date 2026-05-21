@@ -1,9 +1,13 @@
-import pytest
-from unittest.mock import MagicMock, patch, AsyncMock
-import numpy as np
+from unittest.mock import AsyncMock, MagicMock, patch
 
-from core.brain.unified_inference import UnifiedInferenceEngine
+import httpx
+import numpy as np
+import pytest
+
 from core.brain.homeostatic_modulator import InferenceModulation
+from core.brain.local_llm import LocalBrain
+from core.brain.unified_inference import UnifiedInferenceEngine
+from core.runtime.errors import get_degradation_tracker
 
 
 @pytest.mark.asyncio
@@ -108,3 +112,73 @@ async def test_generate_unified_routing():
                 res = await engine.generate_unified(prompt="test prompt")
                 assert res["response"] == "fallback answer"
                 mock_fallback.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_local_brain_records_unified_generate_fallback(monkeypatch):
+    import core.brain.unified_inference as unified_inference
+
+    get_degradation_tracker().reset()
+
+    class FailingUnifiedInference:
+        async def generate_unified(self, **_kwargs):
+            self.was_called = True
+            raise RuntimeError("unified unavailable")
+
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"response": "<think>private scratch</think>visible answer"}
+
+    class FakeClient:
+        async def post(self, *_args, **_kwargs):
+            return FakeResponse()
+
+    monkeypatch.setattr(
+        unified_inference,
+        "UnifiedInferenceEngine",
+        FailingUnifiedInference,
+    )
+
+    brain = LocalBrain(model_name="test-model")
+    brain._client = FakeClient()
+
+    result = await brain.generate("hello")
+
+    assert result == {"response": "visible answer", "thought": "private scratch"}
+    assert any(
+        "fell back to raw Ollama generation" in record.action
+        for record in get_degradation_tracker().recent(
+            subsystem="local_llm_unified_fallback", limit=5
+        )
+    )
+
+
+@pytest.mark.asyncio
+async def test_local_brain_stream_failure_yields_visible_marker():
+    get_degradation_tracker().reset()
+
+    class FailingStream:
+        async def __aenter__(self):
+            self.entered = True
+            raise httpx.ConnectError("stream offline")
+
+        async def __aexit__(self, *_args):
+            return None
+
+    class FakeClient:
+        def stream(self, *_args, **_kwargs):
+            return FailingStream()
+
+    brain = LocalBrain(model_name="test-model")
+    brain._client = FakeClient()
+
+    chunks = [chunk async for chunk in brain.generate_text_stream_async("hello")]
+
+    assert chunks and "Sovereign stream interrupted" in chunks[-1]
+    assert any(
+        "yielded stream interruption marker" in record.action
+        for record in get_degradation_tracker().recent(subsystem="local_llm", limit=5)
+    )
