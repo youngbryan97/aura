@@ -26,6 +26,7 @@ from core.consciousness import (
     mesh_cognition,
     mhaf_field,
     multiple_drafts,
+    neologism_engine,
     neural_mesh,
     neurochemical_system,
     parallel_branches,
@@ -604,6 +605,58 @@ def test_multiple_drafts_partial_mesh_failures_keep_finite_drafts(monkeypatch):
     )
     assert any(
         kwargs.get("action") == "ignored unavailable neural mesh column during draft generation"
+        for _args, kwargs in recorded
+    )
+
+
+def test_neologism_push_state_normalizes_vectors(monkeypatch, tmp_path):
+    recorded = []
+    monkeypatch.setattr(neologism_engine, "_LEXICON_PATH", tmp_path / "lexicon.json")
+    monkeypatch.setattr(
+        neologism_engine,
+        "record_degradation",
+        lambda *args, **kwargs: recorded.append((args, kwargs)),
+    )
+
+    engine = neologism_engine.NeologismEngine()
+    engine.push_state(
+        np.array([1.0, np.nan], dtype=np.float32),
+        np.array([np.inf, -np.inf], dtype=np.float32),
+    )
+
+    assert len(engine._state_buffer) == 1
+    assert engine._state_buffer[0].shape == (48,)
+    assert np.isfinite(engine._state_buffer[0]).all()
+    assert any(
+        kwargs.get("action") == "replaced non-finite neologism state values"
+        for _args, kwargs in recorded
+    )
+
+
+def test_neologism_generation_falls_back_without_brain(monkeypatch, tmp_path):
+    recorded = []
+    monkeypatch.setattr(neologism_engine, "_LEXICON_PATH", tmp_path / "lexicon.json")
+    monkeypatch.setattr(
+        neologism_engine,
+        "record_degradation",
+        lambda *args, **kwargs: recorded.append((args, kwargs)),
+    )
+    monkeypatch.setattr(
+        "core.container.ServiceContainer.get",
+        lambda _name, default=None: default,
+    )
+
+    engine = neologism_engine.NeologismEngine()
+    centroid = np.linspace(-0.5, 0.5, 48, dtype=np.float32)
+
+    data = asyncio.run(engine._generate_neologism(centroid, count=4))
+
+    assert data is not None
+    assert data["word"].startswith("velm")
+    assert data["source"] == "deterministic_fallback"
+    assert data["occurrence_count"] == 4
+    assert any(
+        kwargs.get("action") == "used deterministic neologism fallback without brain service"
         for _args, kwargs in recorded
     )
 
