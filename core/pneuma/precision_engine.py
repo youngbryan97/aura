@@ -131,6 +131,8 @@ class PrecisionEngine:
     """
 
     def __init__(self, config: Optional[PrecisionConfig] = None):
+        import threading
+        self._lock = threading.Lock()
         self.config = config or PrecisionConfig()
         self.fhn = FHNOscillator(
             a=self.config.fhn_a,
@@ -150,14 +152,35 @@ class PrecisionEngine:
 
         i_ext is derived from live somatic + heartstone state if not supplied.
         """
-        if i_ext is None:
-            i_ext = self._compute_drive()
+        with self._lock:
+            if i_ext is None:
+                i_ext = self._compute_drive()
 
-        state = self.fhn.step(i_ext)
-        somatic_stress = self._get_somatic_stress()
-        self.head_module.update(self.fhn, somatic_stress)
-        self._last_step = time.time()
-        return state
+            state = self.fhn.step(i_ext)
+            somatic_stress = self._get_somatic_stress()
+            self.head_module.update(self.fhn, somatic_stress)
+            self._last_step = time.time()
+            return state
+
+    def accept_inference_feedback(self, surprise: float, coherence: float) -> None:
+        """Excite or stabilize FHN membrane potential based on inference feedback."""
+        with self._lock:
+            # Surprise (range ~0-3) acts as an external depolarizing stimulus
+            surprise_stimulus = 0.25 * surprise
+            # Positive coherence stabilizes v towards baseline (resting potential),
+            # while negative coherence increases tension/frustration.
+            coherence_stabilizer = 0.15 * coherence
+
+            self.fhn.state.v += surprise_stimulus - coherence_stabilizer
+            # Clamp FHN voltage to standard membrane limits
+            self.fhn.state.v = max(-3.0, min(3.0, self.fhn.state.v))
+
+            logger.debug(
+                "PrecisionEngine feedback applied: surprise=%.3f, coherence=%.3f -> FHN v=%.4f",
+                surprise,
+                coherence,
+                self.fhn.state.v,
+            )
 
     def _compute_drive(self) -> float:
         """Derive FHN external current from live system state."""
@@ -193,18 +216,21 @@ class PrecisionEngine:
         return 0.0
 
     def get_head_weights(self) -> np.ndarray:
-        return self.head_module.weights
+        with self._lock:
+            return self.head_module.weights
 
     def get_temperature(self) -> float:
         """Map FHN arousal to LLM temperature: arousal 0→0.95, 1→0.55."""
-        return 0.95 - 0.40 * self.fhn.arousal
+        with self._lock:
+            return 0.95 - 0.40 * self.fhn.arousal
 
     def get_state_dict(self) -> Dict:
-        return {
-            "fhn_v": round(self.fhn.state.v, 4),
-            "fhn_w": round(self.fhn.state.w, 4),
-            "arousal": round(self.fhn.arousal, 4),
-            "fatigue": round(self.fhn.fatigue, 4),
-            "temperature": round(self.get_temperature(), 4),
-            "head_weights_mean": round(float(self.head_module.weights.mean()), 4),
-        }
+        with self._lock:
+            return {
+                "fhn_v": round(self.fhn.state.v, 4),
+                "fhn_w": round(self.fhn.state.w, 4),
+                "arousal": round(self.fhn.arousal, 4),
+                "fatigue": round(self.fhn.fatigue, 4),
+                "temperature": round(0.95 - 0.40 * self.fhn.arousal, 4),
+                "head_weights_mean": round(float(self.head_module.weights.mean()), 4),
+            }

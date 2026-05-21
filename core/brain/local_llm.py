@@ -196,6 +196,22 @@ class LocalBrain:
         if not self._check_circuit():
             return {"response": "Error: Local brain temporarily unavailable (circuit breaker open).", "thought": ""}
         
+        try:
+            from core.brain.unified_inference import UnifiedInferenceEngine
+            engine = UnifiedInferenceEngine()
+            res = await engine.generate_unified(
+                prompt=prompt,
+                system_prompt=system_prompt,
+                options=options,
+                endpoint_name=kwargs.get("endpoint_name"),
+                **kwargs
+            )
+            self._record_success()
+            return res
+        except Exception as exc:
+            record_degradation('local_llm_unified_fallback', exc)
+            logger.warning("UnifiedInferenceEngine failed, falling back to raw Ollama call: %s", exc)
+        
         # v27: Task-tier-aware defaults (replaces hard 4K/512 ceiling)
         task_tier = detect_task_tier(prompt, system_prompt or "")
         tier_defaults = _MODEL_TIER_DEFAULTS.get(task_tier, _MODEL_TIER_DEFAULTS["default"])
@@ -275,6 +291,16 @@ class LocalBrain:
         }
         if options:
             final_options.update(options)
+
+        # Homeostatic modulation injection for streaming
+        try:
+            from core.brain.homeostatic_modulator import HomeostaticModulator
+            _mod = HomeostaticModulator().compute_modulation()
+            final_options.setdefault("temperature", _mod.temperature)
+            final_options["top_p"] = _mod.top_p
+            final_options["repeat_penalty"] = _mod.repetition_penalty
+        except Exception as _hm_exc:
+            logger.debug("Homeostatic modulation unavailable for stream: %s", _hm_exc)
 
         # v27: Thought circulation for coding
         effective_system = system_prompt or ""
@@ -361,6 +387,22 @@ class LocalBrain:
         if not self._check_circuit():
             return {"response": "Error: Local brain temporarily unavailable (circuit breaker open).", "thought": ""}
         
+        try:
+            from core.brain.unified_inference import UnifiedInferenceEngine
+            engine = UnifiedInferenceEngine()
+            res = await engine.generate_unified(
+                prompt="",
+                messages=messages,
+                options=options,
+                endpoint_name=kwargs.get("endpoint_name"),
+                **kwargs
+            )
+            self._record_success()
+            return res
+        except Exception as exc:
+            record_degradation('local_llm_unified_fallback', exc)
+            logger.warning("UnifiedInferenceEngine failed, falling back to raw Ollama chat: %s", exc)
+        
         # v27: Detect task tier from message content
         all_content = " ".join(m.get("content", "") for m in messages[-3:])  # Last 3 messages
         task_tier = detect_task_tier(all_content)
@@ -446,6 +488,16 @@ class LocalBrain:
         }
         if options:
             final_options.update(options)
+
+        # Homeostatic modulation injection for streaming chat
+        try:
+            from core.brain.homeostatic_modulator import HomeostaticModulator
+            _mod = HomeostaticModulator().compute_modulation()
+            final_options.setdefault("temperature", _mod.temperature)
+            final_options["top_p"] = _mod.top_p
+            final_options["repeat_penalty"] = _mod.repetition_penalty
+        except Exception as _hm_exc:
+            logger.debug("Homeostatic modulation unavailable for chat stream: %s", _hm_exc)
 
         # v27: Thought circulation for coding
         effective_messages = list(messages)

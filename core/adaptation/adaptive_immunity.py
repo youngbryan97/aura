@@ -112,6 +112,12 @@ class AdaptiveImmuneConfig:
     population_size: int = 24
     max_population: int = 56
     receptor_dim: int = _ANTIGEN_DIM
+    initial_receptor_dim: int = 16
+    max_receptor_dim: int = 128
+    expansion_check_interval: int = 64
+    expansion_eigenvalue_threshold: float = 0.15
+    contraction_score_floor: float = 0.05
+    contraction_min_observations: int = 500
     tau: float = 0.22
     activation_threshold: float = 0.18
     clone_activation_threshold: float = 0.42
@@ -184,9 +190,18 @@ class Antigen:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Antigen:
-        vector = np.asarray(data.get("vector", [0.0] * _ANTIGEN_DIM), dtype=np.float32)
-        if vector.shape[0] != _ANTIGEN_DIM:
-            vector = np.resize(vector, (_ANTIGEN_DIM,)).astype(np.float32)
+        vector = np.asarray(data.get("vector", []), dtype=np.float32)
+        target_dim = len(vector)
+        global _adaptive_immune_singleton
+        if _adaptive_immune_singleton is not None:
+            target_dim = _adaptive_immune_singleton.expansion_engine.current_dim
+        
+        if len(vector) != target_dim:
+            resized = np.zeros(target_dim, dtype=np.float32)
+            copy_len = min(len(vector), target_dim)
+            resized[:copy_len] = vector[:copy_len]
+            vector = resized
+            
         return cls(
             antigen_id=str(data.get("antigen_id", "")),
             subsystem=str(data.get("subsystem", "unknown")),
@@ -263,15 +278,30 @@ class ImmuneCell:
     born_at: float = field(default_factory=time.time)
     behavioral_rule: dict[str, Any] | None = None
 
+    def resize_receptor(self, new_dim: int, rng: np.random.Generator | None = None) -> None:
+        old_dim = len(self.receptor)
+        if old_dim == new_dim:
+            return
+        resized = np.zeros(new_dim, dtype=np.float32)
+        copy_len = min(old_dim, new_dim)
+        resized[:copy_len] = self.receptor[:copy_len]
+        if new_dim > old_dim and rng is not None:
+            noise = rng.normal(0.0, 0.05, size=(new_dim - old_dim))
+            resized[old_dim:] = np.clip(noise, 0.0, 1.0)
+        self.receptor = np.clip(resized, 0.0, 1.0)
+
     def clone(
         self,
         *,
         rng: np.random.Generator,
         cell_id: str,
         mutation_sigma: float,
+        target_dim: int | None = None,
     ) -> ImmuneCell:
         child = copy.deepcopy(self)
         child.cell_id = cell_id
+        if target_dim is not None:
+            child.resize_receptor(target_dim, rng)
         child.receptor = np.clip(
             child.receptor + rng.normal(0.0, mutation_sigma, size=child.receptor.shape),
             0.0,
@@ -692,6 +722,8 @@ class OfflineCoevolutionLab:
         population_size: int = 12,
         tau: float = 0.22,
         mutation_sigma: float = 0.05,
+        target_dim: int = 16,
+        weights: np.ndarray | None = None,
     ) -> list[ImmuneCell]:
         seeds = [
             copy.deepcopy(cell)
@@ -704,6 +736,9 @@ class OfflineCoevolutionLab:
         if not antigens:
             return []
 
+        for cell in seeds:
+            cell.resize_receptor(target_dim, self._rng)
+
         population = seeds[:population_size]
         next_id = 0
         while len(population) < population_size:
@@ -712,6 +747,7 @@ class OfflineCoevolutionLab:
                 rng=self._rng,
                 cell_id=f"offline_lab_{next_id}",
                 mutation_sigma=mutation_sigma,
+                target_dim=target_dim,
             )
             next_id += 1
             population.append(clone)
@@ -725,6 +761,7 @@ class OfflineCoevolutionLab:
                         cell.receptor,
                         antigen.vector,
                         tau=tau,
+                        weights=weights,
                     )
                     if antigen.protected:
                         if cell.kind == CellKind.REGULATORY:
@@ -756,13 +793,14 @@ class OfflineCoevolutionLab:
                         rng=self._rng,
                         cell_id=f"offline_lab_{next_id}",
                         mutation_sigma=mutation_sigma,
+                        target_dim=target_dim,
                     )
                 )
                 next_id += 1
 
         population.sort(
             key=lambda cell: sum(
-                AdaptiveImmuneSystem.compute_affinity_static(cell.receptor, antigen.vector, tau=tau)
+                AdaptiveImmuneSystem.compute_affinity_static(cell.receptor, antigen.vector, tau=tau, weights=weights)
                 for antigen in antigens
             ),
             reverse=True,
@@ -857,6 +895,20 @@ class AdaptiveImmuneSystem:
         self._state_dir.mkdir(parents=True, exist_ok=True)
         self._state_path = self._state_dir / "adaptive_immune_state.json"
         self._lab = OfflineCoevolutionLab(rng=self._rng)
+
+        from core.adaptation.dimensional_expansion import DimensionalExpansionEngine
+        self.expansion_engine = DimensionalExpansionEngine(
+            initial_dim=self.cfg.initial_receptor_dim,
+            max_dim=self.cfg.max_receptor_dim,
+            expansion_check_interval=self.cfg.expansion_check_interval,
+            expansion_eigenvalue_threshold=self.cfg.expansion_eigenvalue_threshold,
+            contraction_score_floor=self.cfg.contraction_score_floor,
+            contraction_min_observations=self.cfg.contraction_min_observations,
+            base_weights=AdaptiveImmuneSystem._FEATURE_WEIGHTS,
+        )
+
+        global _adaptive_immune_singleton
+        _adaptive_immune_singleton = self
 
         if not self._load_state():
             self._cells = self._seed_population()
@@ -1092,16 +1144,26 @@ class AdaptiveImmuneSystem:
                 + 0.20 * recurrence_pressure,
             )
 
-            vector = np.zeros(self.cfg.receptor_dim, dtype=np.float32)
-            vector[:8] = base_vec[:8]
-            vector[8] = danger
-            vector[9] = resource_pressure
-            vector[10] = error_load
-            vector[11] = 1.0 if protected else 0.0
-            vector[12] = health_pressure
-            vector[13] = tissue_need_prior
-            vector[14] = max(temporal_pressure, recurrence_pressure)
-            vector[15] = stack_complexity
+            # Build canonical 16-dim vector
+            base_vector = np.zeros(16, dtype=np.float32)
+            base_vector[:8] = base_vec[:8]
+            base_vector[8] = danger
+            base_vector[9] = resource_pressure
+            base_vector[10] = error_load
+            base_vector[11] = 1.0 if protected else 0.0
+            base_vector[12] = health_pressure
+            base_vector[13] = tissue_need_prior
+            base_vector[14] = max(temporal_pressure, recurrence_pressure)
+            base_vector[15] = stack_complexity
+
+            # Dynamic expansion monitors residual unmodeled variance in raw telemetry
+            vector, new_events = self.expansion_engine.evaluate_expansion(event, base_vector)
+
+            # Resize receptors of all cells dynamically if new dimensions are born
+            if new_events:
+                target_dim = self.expansion_engine.current_dim
+                for cell in self._cells:
+                    cell.resize_receptor(target_dim, self._rng)
 
             antigen_id = (
                 f"ag_{hashlib.sha1(f'{subsystem}:{time.time()}'.encode()).hexdigest()[:12]}"
@@ -1110,7 +1172,7 @@ class AdaptiveImmuneSystem:
             antigen = Antigen(
                 antigen_id=antigen_id,
                 subsystem=subsystem,
-                vector=np.clip(vector, 0.0, 1.0),
+                vector=vector,
                 danger=danger,
                 subsystem_need=max(0.0, min(1.0, subsystem_need)),
                 threat_probability=max(0.0, min(1.0, threat_probability)),
@@ -1172,12 +1234,21 @@ class AdaptiveImmuneSystem:
                 population_size=10,
                 tau=self.cfg.tau,
                 mutation_sigma=self.cfg.mutation_sigma,
+                target_dim=self.expansion_engine.current_dim,
+                weights=self.expansion_engine.feature_weights.get(),
             )
             for champion in champions[:2]:
                 if len(self._cells) < self.cfg.max_population:
                     champion.cell_id = f"lab_{hashlib.sha1((champion.cell_id + str(time.time())).encode()).hexdigest()[:10]}"
                     champion.persistence = min(1.0, champion.persistence + 0.08)
                     self._cells.append(champion)
+
+            # Evaluate dimensional contraction to retire under-used dimensions
+            retired = self.expansion_engine.evaluate_contraction()
+            if retired:
+                target_dim = self.expansion_engine.current_dim
+                for cell in self._cells:
+                    cell.resize_receptor(target_dim, self._rng)
 
             self._assign_species()
             self._prune_population()
@@ -1239,9 +1310,31 @@ class AdaptiveImmuneSystem:
         antigen_vector: np.ndarray,
         *,
         tau: float,
+        weights: np.ndarray | None = None,
     ) -> float:
-        diff = (receptor - antigen_vector) * AdaptiveImmuneSystem._FEATURE_WEIGHTS
-        distance = float(np.linalg.norm(diff) / math.sqrt(max(1, receptor.shape[0])))
+        r_len = receptor.shape[0]
+        a_len = antigen_vector.shape[0]
+        max_len = max(r_len, a_len)
+
+        r_pad = np.zeros(max_len, dtype=np.float32)
+        r_pad[:r_len] = receptor
+
+        a_pad = np.zeros(max_len, dtype=np.float32)
+        a_pad[:a_len] = antigen_vector
+
+        if weights is not None:
+            w = weights
+            if len(w) < max_len:
+                w_pad = np.ones(max_len, dtype=np.float32) * 0.5
+                w_pad[:len(w)] = w
+                w = w_pad
+            else:
+                w = w[:max_len]
+        else:
+            w = np.ones(max_len, dtype=np.float32) * 0.5
+
+        diff = (r_pad - a_pad) * w
+        distance = float(np.linalg.norm(diff) / math.sqrt(max(1, max_len)))
         return float(math.exp(-((distance * distance) / max(tau, 1e-6))))
 
     # ------------------------------------------------------------------
@@ -2446,6 +2539,7 @@ class AdaptiveImmuneSystem:
                 }
                 for key, stats in self._recurrence_tracker.items()
             },
+            "expansion_engine": self.expansion_engine.to_dict(),
         }
         try:
             atomic_write_text(self._state_path, json.dumps(payload, indent=2), encoding="utf-8")
@@ -2462,7 +2556,17 @@ class AdaptiveImmuneSystem:
             return False
         try:
             payload = json.loads(self._state_path.read_text(encoding="utf-8"))
+            if "expansion_engine" in payload:
+                from core.adaptation.dimensional_expansion import DimensionalExpansionEngine
+                self.expansion_engine = DimensionalExpansionEngine.from_dict(payload["expansion_engine"])
+
             self._cells = [ImmuneCell.from_dict(item) for item in payload.get("cells", [])]
+            
+            # Reconcile receptor vectors of loaded cells with system current_dim
+            target_dim = self.expansion_engine.current_dim
+            for cell in self._cells:
+                cell.resize_receptor(target_dim, self._rng)
+
             self._tissue = TissueField.from_dict(
                 payload.get("tissue", {}),
                 diffusion=self.cfg.tissue_diffusion,
@@ -2576,7 +2680,8 @@ class AdaptiveImmuneSystem:
         return seeds
 
     def _seed_receptor(self, kind: CellKind) -> np.ndarray:
-        vec = self._rng.uniform(0.05, 0.55, size=self.cfg.receptor_dim).astype(np.float32)
+        current_dim = self.expansion_engine.current_dim
+        vec = self._rng.uniform(0.05, 0.55, size=current_dim).astype(np.float32)
         if kind == CellKind.DENDRITIC:
             vec[8] = 0.65
             vec[10] = 0.55
@@ -2600,7 +2705,12 @@ class AdaptiveImmuneSystem:
         return np.clip(vec, 0.0, 1.0)
 
     def _affinity(self, cell: ImmuneCell, antigen: Antigen) -> float:
-        affinity = self.compute_affinity_static(cell.receptor, antigen.vector, tau=self.cfg.tau)
+        affinity = self.compute_affinity_static(
+            cell.receptor,
+            antigen.vector,
+            tau=self.cfg.tau,
+            weights=self.expansion_engine.feature_weights.get(),
+        )
         if cell.subsystem_scope == antigen.subsystem:
             affinity *= 1.15
         elif cell.subsystem_scope != "generic":

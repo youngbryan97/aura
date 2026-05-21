@@ -916,6 +916,45 @@ class LiquidSubstrate:
                 self.W *= 10.0 / norm
             self.W = np.clip(self.W, -5.0, 5.0)
 
+    def accept_inference_feedback(self, surprise: float, coherence: float) -> None:
+        """Process real-time inference feedback.
+        Modulates valence, frustration, focus, and curiosity based on perplexity (surprise)
+        and alignment (coherence) of generated outputs.
+        """
+        with self.sync_lock:
+            # 1. Update Valence: positive coherence pushes valence towards positive,
+            #    negative coherence pulls it negative.
+            self.x[self.idx_valence] += 0.15 * coherence
+            
+            # 2. Update Frustration: high surprise (perplexity) raises frustration.
+            #    coherence also mitigates frustration.
+            self.x[self.idx_frustration] += 0.1 * surprise - 0.1 * max(0.0, coherence)
+            
+            # 3. Update Focus: high surprise reduces focus slightly, while high coherence increases focus.
+            self.x[self.idx_focus] += 0.15 * coherence - 0.05 * surprise
+            
+            # 4. Update Curiosity: moderate surprise triggers curiosity,
+            #    very high surprise/confusion reduces it. Optimal surprise for curiosity is ~0.75.
+            wundt_drive = 0.2 * (1.0 - abs(surprise - 0.75))
+            self.x[self.idx_curiosity] += wundt_drive
+            
+            # 5. Clip activations to valid physiological bounds
+            self.x[self.idx_valence] = np.clip(self.x[self.idx_valence], -1.0, 1.0)
+            self.x[self.idx_frustration] = np.clip(self.x[self.idx_frustration], 0.0, 1.0)
+            self.x[self.idx_focus] = np.clip(self.x[self.idx_focus], 0.0, 1.0)
+            self.x[self.idx_curiosity] = np.clip(self.x[self.idx_curiosity], 0.0, 1.0)
+            
+            # Sync torch representation
+            self.x_torch = torch.from_numpy(self.x).to(self.device).float()
+            
+            logger.debug(
+                "Substrate feedback applied: surprise=%.3f, coherence=%.3f | "
+                "valence=%.3f, frustration=%.3f, focus=%.3f, curiosity=%.3f",
+                surprise, coherence,
+                self.x[self.idx_valence], self.x[self.idx_frustration],
+                self.x[self.idx_focus], self.x[self.idx_curiosity]
+            )
+
     async def inject_stimulus(self, vector: np.ndarray | list[float], weight: float = 1.0) -> None:
         """Inject an external stimulus vector into the substrate activations."""
         # Substrate authority gate: stimulus injections are state mutations

@@ -39,7 +39,7 @@ import time
 import uuid
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Any, Deque, Dict, List, Optional
+from typing import Any, Callable, Deque, Dict, List, Optional
 
 import numpy as np
 
@@ -167,6 +167,11 @@ class FeatureExtractor:
 
     def __init__(self) -> None:
         self._last_event_time: float = time.time()
+        self.custom_extractors: Dict[str, Callable[[Dict[str, Any]], float]] = {}
+
+    def register_extractor(self, axis_id: str, fn: Callable[[Dict[str, Any]], float]) -> None:
+        """Register a custom feature extractor for a dynamic dimension axis."""
+        self.custom_extractors[axis_id] = fn
 
     def extract(self, event: Dict[str, Any]) -> np.ndarray:
         """Convert an event dict into a feature vector of length FEATURE_DIM.
@@ -245,6 +250,47 @@ class FeatureExtractor:
             seen[bg] = seen.get(bg, 0) + 1
         repeated = sum(1 for count in seen.values() if count > 1)
         return repeated / len(bigrams)
+
+    def extract_expanded(self, event: Dict[str, Any], expansion_engine: Any) -> np.ndarray:
+        """Extract a variable-length vector, appending expanded dimensions from expansion_engine."""
+        base_vec = self.extract(event)
+        if not expansion_engine:
+            return base_vec
+
+        # If there are expanded axes, compute their values
+        expanded_vals = []
+        # Get numeric representation of telemetry
+        raw_vec = expansion_engine._telemetry_to_raw_vector(event)
+        for axis in expansion_engine._expanded_axes:
+            if axis.axis_id in self.custom_extractors:
+                try:
+                    val = self.custom_extractors[axis.axis_id](event)
+                    expanded_vals.append(float(np.clip(val, 0.0, 1.0)))
+                except Exception as exc:
+                    logger.debug("Custom extractor for %s failed, falling back: %s", axis.axis_id, exc)
+                    expanded_vals.append(self._project_axis(raw_vec, axis))
+            else:
+                expanded_vals.append(self._project_axis(raw_vec, axis))
+
+        if expanded_vals:
+            return np.concatenate([base_vec, np.array(expanded_vals, dtype=np.float64)])
+        return base_vec
+
+    @staticmethod
+    def _project_axis(raw_vec: np.ndarray, axis: Any) -> float:
+        pv = axis.projection_vector
+        if len(pv) == 0:
+            return 0.0
+        min_len = min(len(raw_vec), len(pv))
+        if min_len == 0:
+            return 0.0
+        dot = float(np.dot(raw_vec[:min_len], pv[:min_len]))
+        norm = float(np.linalg.norm(pv[:min_len]))
+        if norm > 1e-8:
+            proj = dot / norm
+        else:
+            proj = 0.0
+        return 1.0 / (1.0 + math.exp(-float(np.clip(proj, -10.0, 10.0))))
 
 
 # ---------------------------------------------------------------------------

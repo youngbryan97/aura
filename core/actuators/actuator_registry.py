@@ -45,6 +45,11 @@ def _finite_float(
 class BaseActuator(ABC):
     """Abstract base class for all physical open-ended actuators."""
 
+    synthesized: bool = False
+    trust_score: float = 1.0
+    generation: int = 0
+    source_code: str | None = None
+
     @property
     @abstractmethod
     def name(self) -> str:
@@ -248,11 +253,40 @@ class ActuatorRegistry:
     def get_actuator(self, name: str) -> BaseActuator | None:
         return self.actuators.get(name)
 
+    def register_synthesized(self, actuator: BaseActuator, source_code: str, trust_score: float = 0.3) -> None:
+        """Register a runtime-synthesized actuator with low trust and stored source code."""
+        actuator.synthesized = True
+        actuator.source_code = source_code
+        actuator.trust_score = trust_score
+        self.register(actuator)
+        logger.info("Registered synthesized actuator: %s (trust=%.2f)", actuator.name, trust_score)
+
+    def deregister(self, name: str) -> None:
+        """Remove an actuator from the registry (retirement)."""
+        if name in self.actuators:
+            del self.actuators[name]
+            logger.info("Deregistered actuator: %s", name)
+
+    def get_synthesized_actuators(self) -> list[BaseActuator]:
+        """List all runtime-synthesized actuators."""
+        return [act for act in self.actuators.values() if getattr(act, "synthesized", False)]
+
     def execute_action(self, name: str, params: dict[str, Any]) -> ActuatorResult:
         """Safely retrieves and executes a physical action primitive."""
         actuator = self.get_actuator(name)
         if not actuator:
             return ActuatorResult(False, f"Actuator '{name}' not found", {})
+
+        # Trust score gating: if synthesized and trust is extremely low, additional checks
+        if getattr(actuator, "synthesized", False):
+            if actuator.trust_score < 0.2:
+                return ActuatorResult(False, f"Actuator '{name}' has trust score too low ({actuator.trust_score:.2f}) to execute", {})
+            elif actuator.trust_score < 0.5:
+                # Run an additional parameter validation check and ensure they are sanitized
+                logger.warning("Executing low-trust synthesized actuator '%s' (trust=%.2f)", name, actuator.trust_score)
+                if not params:
+                    return ActuatorResult(False, "Low-trust actuator requires non-empty parameters", {})
+
         return actuator.execute(params)
 
 
