@@ -1115,6 +1115,84 @@ def test_experience_consolidator_collects_metacognition_and_reflections(monkeypa
     ]
 
 
+def test_experience_consolidator_sanitizes_llm_identity_payload(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        experience_consolidator,
+        "NARRATIVE_PATH",
+        tmp_path / "self_narrative.json",
+    )
+    consolidator = ExperienceConsolidator(cognitive_engine=None)
+    consolidator._narrative = experience_consolidator.IdentityNarrative(version=2)
+
+    narrative = consolidator._narrative_from_mapping(
+        {
+            "signature_phrase": "steady " * 80,
+            "stable_traits": ["curious", "curious", "", 42, "reflective"],
+            "learned_preferences": "quiet rooms",
+            "growth_edges": ["patience", None, "precision", "overflow"],
+        }
+    )
+
+    assert narrative.version == 3
+    assert len(narrative.signature_phrase) <= 280
+    assert narrative.stable_traits == ["curious", "42", "reflective"]
+    assert narrative.learned_preferences == ["quiet rooms"]
+    assert narrative.growth_edges == ["patience", "precision", "overflow"]
+
+
+def test_experience_consolidator_home_vector_rejects_bad_hidden_states(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        experience_consolidator,
+        "NARRATIVE_PATH",
+        tmp_path / "self_narrative.json",
+    )
+    crsm = types.SimpleNamespace(
+        _history=deque(
+            [
+                {"hidden": [1.0, 2.0, 3.0], "prediction_error": 0.3},
+                {"hidden": [float("nan"), 2.0, 3.0], "prediction_error": 0.4},
+                {"hidden": [2.0, 3.0, 4.0], "prediction_error": 0.5},
+                {"hidden": [9.0, 9.0], "prediction_error": 0.6},
+                {"hidden": [3.0, 4.0, 5.0], "prediction_error": 0.7},
+            ]
+        ),
+        home_vector=np.ones(2),
+    )
+    crsm_module = types.ModuleType("core.consciousness.crsm")
+    crsm_module.get_crsm = lambda: crsm
+    monkeypatch.setitem(sys.modules, "core.consciousness.crsm", crsm_module)
+
+    narrative = experience_consolidator.IdentityNarrative()
+    ExperienceConsolidator(cognitive_engine=None)._update_crsm_home_vector(narrative)
+
+    assert np.allclose(crsm.home_vector, np.array([0.2, 0.3, 0.4]))
+    assert narrative.home_vector_delta == [2.0, 3.0, 4.0]
+
+
+def test_experience_consolidator_failure_backoff_records_recovery_action(tmp_path, monkeypatch):
+    recorded = []
+    monkeypatch.setattr(
+        experience_consolidator,
+        "NARRATIVE_PATH",
+        tmp_path / "self_narrative.json",
+    )
+    monkeypatch.setattr(
+        experience_consolidator,
+        "record_degradation",
+        lambda *args, **kwargs: recorded.append((args, kwargs)),
+    )
+
+    consolidator = ExperienceConsolidator(cognitive_engine=None)
+    backoff = consolidator._handle_consolidation_failure(RuntimeError("llm offline"))
+
+    assert backoff == experience_consolidator._BACKOFF_BASE_SECS
+    assert consolidator._consecutive_failures == 1
+    assert consolidator._next_allowed_run > 0.0
+    assert recorded
+    assert "scheduled exponential backoff" in recorded[0][1]["action"]
+    assert recorded[0][1]["receipt_required"] is True
+
+
 def test_time_dilation_signal_failures_return_safe_defaults(monkeypatch):
     recorded: list[tuple[str, str]] = []
     monkeypatch.setattr(
