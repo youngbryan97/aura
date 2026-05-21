@@ -1,17 +1,55 @@
-from core.runtime.errors import record_degradation
 import asyncio
 import logging
 import os
 import time
+from typing import Any
+
 import psutil
-from typing import Any, Dict, List, Optional, Set
-from core.container import ServiceContainer
+
+from core.container import ServiceContainer as ServiceContainer  # noqa: F401
 from core.health.degraded_events import get_unified_failure_state, record_degraded_event
 from core.runtime.background_policy import background_activity_allowed
-from core.runtime.service_access import optional_service, resolve_orchestrator, resolve_state_repository
+from core.runtime.errors import FallbackClassification, record_degradation
+from core.runtime.service_access import (
+    optional_service,
+    resolve_orchestrator,
+    resolve_state_repository,
+)
 from core.utils.task_tracker import task_tracker
 
 logger = logging.getLogger("Aura.Initiative")
+
+
+_INITIATIVE_RECOVERABLE_ERRORS = (
+    ImportError,
+    AttributeError,
+    RuntimeError,
+    TypeError,
+    ValueError,
+    OSError,
+    ConnectionError,
+    TimeoutError,
+    asyncio.TimeoutError,
+)
+_STOP_TIMEOUT_S = 5.0
+
+
+def _record_initiative_degradation(
+    exc: BaseException,
+    *,
+    action: str,
+    severity: str = "degraded",
+    extra: dict[str, Any] | None = None,
+) -> None:
+    record_degradation(
+        "autonomous_initiative_loop",
+        exc,
+        severity=severity,
+        action=action,
+        classification=FallbackClassification.SAFE_FALLBACK,
+        receipt_required=True,
+        extra=extra,
+    )
 
 
 def _background_initiative_allowed(orchestrator=None) -> bool:
@@ -64,12 +102,13 @@ class AutonomousInitiativeLoop:
     """
     Unprompted world-watching, knowledge-gap monitoring, and topic generation.
     Ensures Aura maintains a persistent 'lived experience' 24/7.
-    
+
     Stability fixes:
     - Tasks tracked via task_tracker (no orphaned loops on shutdown)
     - Autonomous thoughts use emit_spontaneous_message (not process_user_input)
       to avoid poisoning conversation history with fake user messages
     """
+
     name = "autonomous_initiative_loop"
 
     def __init__(self, orchestrator=None):
@@ -79,9 +118,9 @@ class AutonomousInitiativeLoop:
             "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml",
             "https://feeds.arstechnica.com/arstechnica/index",
             "https://www.theverge.com/rss/index.xml",
-            "https://hnrss.org/frontpage"
+            "https://hnrss.org/frontpage",
         ]
-        self._seen_titles: Set[str] = set()
+        self._seen_titles: set[str] = set()
         self._last_news_check = 0
         self._world_task = None
         self._knowledge_task = None
@@ -91,52 +130,122 @@ class AutonomousInitiativeLoop:
         self._last_self_dev = 0.0
         self._last_email_check = 0.0
         self._last_reddit_check = 0.0
-        self._recent_email_uids: Dict[str, float] = {}
-        self._recent_reddit_urls: Dict[str, float] = {}
+        self._recent_email_uids: dict[str, float] = {}
+        self._recent_reddit_urls: dict[str, float] = {}
+        self._lifecycle_lock = asyncio.Lock()
 
     async def start(self):
-        """Starts the initiative loops (tracked via task_tracker)."""
-        self.running = True
-        logger.info("✅ AutonomousInitiativeLoop ACTIVE - Monitoring global events and knowledge gaps.")
-        
-        self._world_task = task_tracker.create_task(
-            self._world_watcher_loop(),
-            name="WorldWatcher"
-        )
-        self._knowledge_task = task_tracker.create_task(
-            self._knowledge_gap_monitor_loop(),
-            name="KnowledgeGapMonitor"
-        )
-        self._self_dev_task = task_tracker.create_task(
-            self._self_development_loop(),
-            name="SelfDevelopmentLoop",
-        )
-        self._social_task = task_tracker.create_task(
-            self._social_interaction_loop(),
-            name="SocialInteractionLoop",
-        )
+        """Starts the initiative loops and returns a boot receipt."""
+        async with self._lifecycle_lock:
+            if self.running and any(self._task_alive(task) for task in self._core_tasks()):
+                return {
+                    "ok": True,
+                    "already_running": True,
+                    "core_tasks": self._task_status(),
+                    "event_subscription": self._task_alive(self._event_task),
+                }
 
-        # Subscribe to proactive initiations from Fictional Engine
-        try:
-            from core.service_names import ServiceNames
-            bus = optional_service(ServiceNames.EVENT_BUS, default=None)
-            if bus:
-                queue = await bus.subscribe("aura.proactive.initiation")
-                self._event_task = task_tracker.create_task(
-                    self._event_listener_loop(queue),
-                    name="InitiativeEventListener",
+            self.running = True
+            logger.info(
+                "✅ AutonomousInitiativeLoop ACTIVE - Monitoring global events and knowledge gaps."
+            )
+
+            self._world_task = task_tracker.create_task(
+                self._world_watcher_loop(), name="WorldWatcher"
+            )
+            self._knowledge_task = task_tracker.create_task(
+                self._knowledge_gap_monitor_loop(), name="KnowledgeGapMonitor"
+            )
+            self._self_dev_task = task_tracker.create_task(
+                self._self_development_loop(),
+                name="SelfDevelopmentLoop",
+            )
+            self._social_task = task_tracker.create_task(
+                self._social_interaction_loop(),
+                name="SocialInteractionLoop",
+            )
+
+            status = {
+                "ok": True,
+                "already_running": False,
+                "core_tasks": self._task_status(),
+                "event_subscription": False,
+            }
+
+            try:
+                from core.service_names import ServiceNames
+
+                bus = optional_service(ServiceNames.EVENT_BUS, default=None)
+                if bus:
+                    queue = await bus.subscribe("aura.proactive.initiation")
+                    self._event_task = task_tracker.create_task(
+                        self._event_listener_loop(queue),
+                        name="InitiativeEventListener",
+                    )
+                    status["event_subscription"] = True
+                    logger.debug("✓ Subscribed to aura.proactive.initiation using EventBus")
+            except _INITIATIVE_RECOVERABLE_ERRORS as exc:
+                _record_initiative_degradation(
+                    exc,
+                    action="started core initiative loops without proactive event subscription",
+                    severity="warning",
+                    extra={"topic": "aura.proactive.initiation"},
                 )
-                logger.debug("✓ Subscribed to aura.proactive.initiation using EventBus")
-        except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('autonomous_initiative_loop', e)
-            logger.warning("Failed to subscribe to proactive initiations: %s", e)
+                logger.warning("Failed to subscribe to proactive initiations: %s", exc)
+            return status
 
     async def stop(self):
-        self.running = False
-        for task in (self._world_task, self._knowledge_task, self._event_task, self._self_dev_task, self._social_task):
-            if task and not task.done():
+        async with self._lifecycle_lock:
+            self.running = False
+            tasks = [task for task in self._all_tasks() if task and not task.done()]
+            for task in tasks:
                 task.cancel()
-        logger.info("AutonomousInitiativeLoop stopped.")
+            if tasks:
+                try:
+                    await asyncio.wait_for(
+                        asyncio.gather(*tasks, return_exceptions=True),
+                        timeout=_STOP_TIMEOUT_S,
+                    )
+                except TimeoutError as exc:
+                    _record_initiative_degradation(
+                        exc,
+                        action="stop completed with timed-out background task cancellation",
+                        severity="warning",
+                        extra={
+                            "pending_tasks": [
+                                self._task_name(task) for task in tasks if not task.done()
+                            ]
+                        },
+                    )
+                    logger.warning(
+                        "AutonomousInitiativeLoop stop timed out while waiting for tasks to cancel"
+                    )
+            logger.info("AutonomousInitiativeLoop stopped.")
+
+    def _core_tasks(self) -> tuple[Any, ...]:
+        return (self._world_task, self._knowledge_task, self._self_dev_task, self._social_task)
+
+    def _all_tasks(self) -> tuple[Any, ...]:
+        return (*self._core_tasks(), self._event_task)
+
+    @staticmethod
+    def _task_alive(task: Any) -> bool:
+        return bool(task and not task.done())
+
+    @staticmethod
+    def _task_name(task: Any) -> str:
+        try:
+            return str(task.get_name())
+        except (AttributeError, RuntimeError, TypeError):
+            return type(task).__name__
+
+    def _task_status(self) -> dict[str, bool]:
+        return {
+            "world": self._task_alive(self._world_task),
+            "knowledge": self._task_alive(self._knowledge_task),
+            "self_development": self._task_alive(self._self_dev_task),
+            "social": self._task_alive(self._social_task),
+        }
 
     @staticmethod
     def _emit_feed(title: str, content: str, *, category: str) -> None:
@@ -150,7 +259,12 @@ class AutonomousInitiativeLoop:
                 category=category,
             )
         except (ImportError, AttributeError, RuntimeError) as exc:
-            record_degradation('autonomous_initiative_loop', exc)
+            _record_initiative_degradation(
+                exc,
+                action="skipped initiative feed emission after thought stream was unavailable",
+                severity="warning",
+                extra={"title": title[:80], "category": category[:80]},
+            )
             logger.debug("Feed emit failed for %s: %s", title, exc)
 
     def _queue_visible_update(self, content: str) -> bool:
@@ -174,7 +288,12 @@ class AutonomousInitiativeLoop:
                     )
                 )
         except (RuntimeError, AttributeError, TypeError) as exc:
-            record_degradation('autonomous_initiative_loop', exc)
+            _record_initiative_degradation(
+                exc,
+                action="kept initiative update internal after visible queue failed",
+                severity="warning",
+                extra={"content_preview": text[:160]},
+            )
             logger.debug("Visible initiative queue failed: %s", exc)
         return False
 
@@ -189,7 +308,11 @@ class AutonomousInitiativeLoop:
             except asyncio.CancelledError:
                 break
             except (OSError, ConnectionError, TimeoutError) as e:
-                record_degradation('autonomous_initiative_loop', e)
+                _record_initiative_degradation(
+                    e,
+                    action="kept initiative event listener alive after transient queue failure",
+                    severity="warning",
+                )
                 logger.debug("Initiative event listener transient error: %s", e)
 
     async def _world_watcher_loop(self):
@@ -197,17 +320,19 @@ class AutonomousInitiativeLoop:
         while self.running:
             try:
                 from core.utils.rss_feed import parse_feed_url
+
                 for url in self.rss_feeds:
                     if not _background_initiative_allowed(self.orchestrator):
                         await asyncio.sleep(30)
                         break
                     # Offload blocking network request to prevent event loop freeze
                     feed = await asyncio.to_thread(parse_feed_url, url)
-                    if not feed.entries: continue
-                    
+                    if not feed.entries:
+                        continue
+
                     latest = feed.entries[0]
                     title = latest.title
-                    
+
                     if title not in self._seen_titles:
                         logger.info("📰 New world event detected: %s", title)
                         self._seen_titles.add(title)
@@ -216,24 +341,16 @@ class AutonomousInitiativeLoop:
                         if len(self._seen_titles) > 100:
                             self._seen_titles.clear()
 
-                        # Route world-watcher observations to the neural feed (thought cards)
-                        # rather than user chat.  This is internal awareness, not a message
-                        # Aura is directing at Bryan.
-                        try:
-                            from core.thought_stream import get_emitter
-                            get_emitter().emit(
-                                "World Event",
-                                f"Noticed in the news: '{title}'",
-                                level="info",
-                                category="WorldFeed",
-                            )
-                        except (ImportError, AttributeError, RuntimeError) as _te:
-                            record_degradation('autonomous_initiative_loop', _te)
-                            logger.debug("WorldWatcher thought emit failed: %s", _te)
+                        self._emit_feed(
+                            "World Event",
+                            f"Noticed in the news: '{title}'",
+                            category="WorldFeed",
+                        )
 
                         # Live Knowledge Retention: run headline through epistemic filter
                         try:
                             from core.world_model.epistemic_filter import get_epistemic_filter
+
                             _summary = getattr(latest, "summary", "") or ""
                             _text = f"{title}. {_summary[:400]}" if _summary else title
                             get_epistemic_filter().ingest(
@@ -243,15 +360,27 @@ class AutonomousInitiativeLoop:
                                 emit_thoughts=False,
                             )
                         except (ImportError, AttributeError, RuntimeError) as _ef_err:
-                            record_degradation('autonomous_initiative_loop', _ef_err)
+                            _record_initiative_degradation(
+                                _ef_err,
+                                action="continued world watcher without epistemic retention for RSS headline",
+                                severity="warning",
+                                extra={
+                                    "feed": str(feed.feed.get("title", url))[:120],
+                                    "title": title[:160],
+                                },
+                            )
                             logger.debug("EpistemicFilter RSS ingest failed: %s", _ef_err)
-                        
+
                     await asyncio.sleep(0)  # Yield between feeds
-                            
+
             except (ImportError, AttributeError, RuntimeError) as e:
-                record_degradation('autonomous_initiative_loop', e)
+                _record_initiative_degradation(
+                    e,
+                    action="continued world watcher after recoverable feed processing failure",
+                    severity="warning",
+                )
                 logger.debug("World watcher loop transient error: %s", e)
-                
+
             # Check every 10 minutes (600s)
             await asyncio.sleep(600)
 
@@ -264,7 +393,7 @@ class AutonomousInitiativeLoop:
                 if not _background_initiative_allowed(self.orchestrator):
                     await asyncio.sleep(30)
                     continue
-                if self.orchestrator and hasattr(self.orchestrator, 'get_cognitive_load'):
+                if self.orchestrator and hasattr(self.orchestrator, "get_cognitive_load"):
                     load = self.orchestrator.get_cognitive_load()
                     # If orchestrator reports a knowledge gap (uncertainty > threshold)
                     if load.get("uncertainty", 0) > 0.8:
@@ -282,10 +411,14 @@ class AutonomousInitiativeLoop:
                                 context={"reason": gate["reason"]},
                             )
             except (OSError, ConnectionError, TimeoutError) as e:
-                record_degradation('autonomous_initiative_loop', e)
+                _record_initiative_degradation(
+                    e,
+                    action="deferred knowledge-gap monitor tick after transient research trigger failure",
+                    severity="warning",
+                )
                 logger.debug("Knowledge gap monitor loop error: %s", e)
-                
-            await asyncio.sleep(30) # Check every 30s
+
+            await asyncio.sleep(30)  # Check every 30s
 
     async def _self_development_loop(self):
         """Keep a visible self-improvement lane alive during idle windows."""
@@ -305,7 +438,11 @@ class AutonomousInitiativeLoop:
             except asyncio.CancelledError:
                 break
             except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
-                record_degradation('autonomous_initiative_loop', exc)
+                _record_initiative_degradation(
+                    exc,
+                    action="continued self-development loop after transient improvement cycle failure",
+                    severity="warning",
+                )
                 logger.debug("Self-development loop transient error: %s", exc)
 
             await asyncio.sleep(45)
@@ -395,7 +532,11 @@ class AutonomousInitiativeLoop:
                 category="SelfDev",
             )
         else:
-            error_text = str(test_result.get("error") or test_result.get("output") or "sandbox test generation failed")
+            error_text = str(
+                test_result.get("error")
+                or test_result.get("output")
+                or "sandbox test generation failed"
+            )
             self._emit_feed(
                 "Self-Development",
                 f"Sandbox test pass on {file_name} surfaced friction: {error_text[:220]}",
@@ -453,6 +594,7 @@ class AutonomousInitiativeLoop:
 
         try:
             from core.thought_stream import get_emitter
+
             _emit_thought = get_emitter().emit
         except (ImportError, AttributeError, RuntimeError):
             _emit_thought = None
@@ -498,7 +640,12 @@ class AutonomousInitiativeLoop:
                 objective=f"Research knowledge gap: {topic}",
             )
         except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
-            record_degradation('autonomous_initiative_loop', exc)
+            _record_initiative_degradation(
+                exc,
+                action="blocked autonomous browser research after constitutional gate failed",
+                severity="warning",
+                extra={"topic": topic[:160]},
+            )
             record_degraded_event(
                 "autonomous_initiative_loop",
                 "research_tool_gate_failed",
@@ -531,7 +678,12 @@ class AutonomousInitiativeLoop:
             if not success:
                 error_text = "empty_result"
         except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
-            record_degradation('autonomous_initiative_loop', exc)
+            _record_initiative_degradation(
+                exc,
+                action="recorded failed browser research actuation and withheld empty result",
+                severity="warning",
+                extra={"topic": topic[:160]},
+            )
             error_text = f"{type(exc).__name__}: {exc}"
             record_degraded_event(
                 "autonomous_initiative_loop",
@@ -553,8 +705,15 @@ class AutonomousInitiativeLoop:
                     error=error_text,
                 )
             except (RuntimeError, AttributeError, TypeError, ValueError) as finish_exc:
-                record_degradation('autonomous_initiative_loop', finish_exc)
-                logger.error("AutonomousInitiativeLoop tool finish failed: %s", finish_exc, exc_info=True)
+                _record_initiative_degradation(
+                    finish_exc,
+                    action="kept tool execution failure visible after constitutional finish receipt failed",
+                    severity="degraded",
+                    extra={"topic": topic[:160], "tool_success": success},
+                )
+                logger.error(
+                    "AutonomousInitiativeLoop tool finish failed: %s", finish_exc, exc_info=True
+                )
 
         if _emit_thought and content:
             _emit_thought(
@@ -566,12 +725,18 @@ class AutonomousInitiativeLoop:
             # Signal heartstone: successful research raises Curiosity
             try:
                 from core.affect.heartstone_values import get_heartstone_values
+
                 get_heartstone_values().on_research_success(len(content))
             except (ImportError, AttributeError, RuntimeError) as _exc:
-                record_degradation('autonomous_initiative_loop', _exc)
+                _record_initiative_degradation(
+                    _exc,
+                    action="kept research result after curiosity reward signal failed",
+                    severity="warning",
+                    extra={"topic": topic[:160], "content_chars": len(content)},
+                )
                 logger.debug("Suppressed Exception: %s", _exc)
 
-    async def _evaluate_initiative(self, topic: str) -> Dict[str, Any]:
+    async def _evaluate_initiative(self, topic: str) -> dict[str, Any]:
         active_commitments = 0
         contradiction_count = 0
         identity_mismatch = False
@@ -599,9 +764,15 @@ class AutonomousInitiativeLoop:
                 live_continuity = dict(continuity.get_obligations() or {})
             except (ImportError, AttributeError, RuntimeError):
                 live_continuity = {}
-        active_commitments = max(active_commitments, len(list(live_continuity.get("active_commitments", []) or [])))
-        contradiction_count = max(contradiction_count, int(live_continuity.get("contradiction_count", 0) or 0))
-        identity_mismatch = identity_mismatch or bool(live_continuity.get("identity_mismatch", False))
+        active_commitments = max(
+            active_commitments, len(list(live_continuity.get("active_commitments", []) or []))
+        )
+        contradiction_count = max(
+            contradiction_count, int(live_continuity.get("contradiction_count", 0) or 0)
+        )
+        identity_mismatch = identity_mismatch or bool(
+            live_continuity.get("identity_mismatch", False)
+        )
 
         raw_energy = getattr(soma, "energy", getattr(body, "energy", 1.0))
         if raw_energy is not None:
@@ -615,7 +786,9 @@ class AutonomousInitiativeLoop:
                 energy = 1.0
 
         try:
-            thermal_pressure = float(getattr(body, "thermal_pressure", getattr(soma, "thermal_pressure", 0.0)) or 0.0)
+            thermal_pressure = float(
+                getattr(body, "thermal_pressure", getattr(soma, "thermal_pressure", 0.0)) or 0.0
+            )
         except (RuntimeError, AttributeError, TypeError):
             thermal_pressure = 0.0
         try:
@@ -632,7 +805,9 @@ class AutonomousInitiativeLoop:
                 0.0,
                 min(
                     1.0,
-                    max(0.0, -valence) * 0.5 + max(0.0, arousal) * 0.25 + max(0.0, drive_pressure) * 0.25,
+                    max(0.0, -valence) * 0.5
+                    + max(0.0, arousal) * 0.25
+                    + max(0.0, drive_pressure) * 0.25,
                 ),
             )
         except (RuntimeError, AttributeError, TypeError):
@@ -655,12 +830,17 @@ class AutonomousInitiativeLoop:
             continuity_pressure = float(live_continuity.get("continuity_pressure", 0.0) or 0.0)
         except (OSError, ConnectionError, TimeoutError):
             continuity_pressure = 0.0
-        continuity_reentry_required = bool(live_continuity.get("continuity_reentry_required", False))
+        continuity_reentry_required = bool(
+            live_continuity.get("continuity_reentry_required", False)
+        )
 
         if identity_mismatch:
             return {"allowed": False, "reason": "identity_continuity_mismatch"}
         if continuity_reentry_required and continuity_pressure >= 0.55:
-            return {"allowed": False, "reason": f"continuity_reentry_required:{continuity_pressure:.2f}"}
+            return {
+                "allowed": False,
+                "reason": f"continuity_reentry_required:{continuity_pressure:.2f}",
+            }
         if energy <= 0.15:
             return {"allowed": False, "reason": f"energy_low:{energy:.2f}"}
         if thermal_pressure >= 0.85:
@@ -670,7 +850,10 @@ class AutonomousInitiativeLoop:
         if failure_pressure >= 0.8:
             return {"allowed": False, "reason": f"unified_failure_pressure:{failure_pressure:.2f}"}
         if contradiction_count > 0 and active_commitments > 0:
-            return {"allowed": False, "reason": f"continuity_reconciliation_required:{contradiction_count}"}
+            return {
+                "allowed": False,
+                "reason": f"continuity_reconciliation_required:{contradiction_count}",
+            }
         if affective_pressure >= 0.85 and active_commitments > 0:
             return {"allowed": False, "reason": f"affective_pressure:{affective_pressure:.2f}"}
         return {"allowed": True, "reason": "allowed"}
@@ -680,19 +863,15 @@ class AutonomousInitiativeLoop:
         content = data.get("content")
         if content:
             logger.info("🔭 Proactive initiation received: %s", content[:60])
-            try:
-                from core.thought_stream import get_emitter
-                get_emitter().emit(
-                    "Proactive Initiation",
-                    content,
-                    level="info",
-                    category="Initiative",
-                )
-            except (ImportError, AttributeError, RuntimeError) as _te:
-                record_degradation('autonomous_initiative_loop', _te)
-                logger.debug("Proactive initiation thought emit failed: %s", _te)
+            self._emit_feed(
+                "Proactive Initiation",
+                content,
+                category="Initiative",
+            )
 
-    async def _execute_email_adapter(self, payload: Dict[str, Any], cap_engine: Any = None) -> Dict[str, Any]:
+    async def _execute_email_adapter(
+        self, payload: dict[str, Any], cap_engine: Any = None
+    ) -> dict[str, Any]:
         cap_engine = cap_engine or optional_service("capability_engine", default=None)
         if cap_engine is not None and hasattr(cap_engine, "execute"):
             return await cap_engine.execute("email_adapter", payload)
@@ -702,7 +881,9 @@ class AutonomousInitiativeLoop:
         skill = EmailAdapterSkill()
         return await skill.execute(EmailInput(**payload), {})
 
-    async def _execute_reddit_adapter(self, payload: Dict[str, Any], cap_engine: Any = None) -> Dict[str, Any]:
+    async def _execute_reddit_adapter(
+        self, payload: dict[str, Any], cap_engine: Any = None
+    ) -> dict[str, Any]:
         cap_engine = cap_engine or optional_service("capability_engine", default=None)
         if cap_engine is not None and hasattr(cap_engine, "execute"):
             return await cap_engine.execute("reddit_adapter", payload)
@@ -712,19 +893,28 @@ class AutonomousInitiativeLoop:
         skill = RedditAdapterSkill()
         return await skill.execute(RedditInput(**payload), {})
 
-    async def _remember_social_observation(self, text: str, *, tags: Optional[List[str]] = None, importance: float = 0.45) -> None:
+    async def _remember_social_observation(
+        self, text: str, *, tags: list[str] | None = None, importance: float = 0.45
+    ) -> None:
         text = " ".join(str(text or "").strip().split())
         if not text:
             return
         try:
             memory = optional_service("memory_manager", default=None)
             if memory and hasattr(memory, "store"):
-                await memory.store(text[:1800], importance=importance, tags=tags or ["autonomy", "social"])
+                await memory.store(
+                    text[:1800], importance=importance, tags=tags or ["autonomy", "social"]
+                )
         except (RuntimeError, AttributeError, TypeError) as exc:
-            record_degradation('autonomous_initiative_loop', exc)
+            _record_initiative_degradation(
+                exc,
+                action="kept social observation transient after memory write failed",
+                severity="warning",
+                extra={"tags": tags or ["autonomy", "social"], "importance": importance},
+            )
             logger.debug("Social observation memory write failed: %s", exc)
 
-    def _social_due_actions(self, now: float) -> Dict[str, bool]:
+    def _social_due_actions(self, now: float) -> dict[str, bool]:
         return {
             "email": now - float(self._last_email_check or 0.0) > 900.0,
             "reddit": now - float(self._last_reddit_check or 0.0) > 2700.0,
@@ -736,7 +926,9 @@ class AutonomousInitiativeLoop:
         return clean[:limit].strip()
 
     @staticmethod
-    def _classify_email_message(message: Dict[str, Any], read_result: Dict[str, Any]) -> Dict[str, Any]:
+    def _classify_email_message(
+        message: dict[str, Any], read_result: dict[str, Any]
+    ) -> dict[str, Any]:
         sender = str(read_result.get("from") or message.get("from") or "Unknown")
         subject = str(read_result.get("subject") or message.get("subject") or "(no subject)")
         body = str(read_result.get("body") or "")
@@ -790,7 +982,7 @@ class AutonomousInitiativeLoop:
         }
 
     @staticmethod
-    def _draft_email_response(triage: Dict[str, Any]) -> str:
+    def _draft_email_response(triage: dict[str, Any]) -> str:
         if triage.get("action") != "hold_for_reply_draft":
             return ""
         subject = str(triage.get("subject") or "your note")
@@ -813,14 +1005,14 @@ class AutonomousInitiativeLoop:
                     continue
 
                 now = time.time()
-                
+
                 due = self._social_due_actions(now)
 
                 # Check Email every 15 minutes
                 if due["email"]:
                     await self._check_email_initiative()
                     self._last_email_check = time.time()
-                
+
                 # Check Reddit every 45 minutes
                 if due["reddit"]:
                     await self._check_reddit_initiative()
@@ -829,7 +1021,11 @@ class AutonomousInitiativeLoop:
             except asyncio.CancelledError:
                 break
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-                record_degradation('autonomous_initiative_loop', e)
+                _record_initiative_degradation(
+                    e,
+                    action="continued social interaction loop after transient adapter failure",
+                    severity="warning",
+                )
                 logger.debug("Social interaction loop error: %s", e)
 
             await asyncio.sleep(60)
@@ -839,7 +1035,9 @@ class AutonomousInitiativeLoop:
         logger.info("📧 Checking email for autonomous initiatives...")
         try:
             cap_engine = optional_service("capability_engine", default=None)
-            result = await self._execute_email_adapter({"mode": "check", "limit": 5}, cap_engine=cap_engine)
+            result = await self._execute_email_adapter(
+                {"mode": "check", "limit": 5}, cap_engine=cap_engine
+            )
             if not result.get("ok"):
                 return
 
@@ -848,10 +1046,10 @@ class AutonomousInitiativeLoop:
                 self._emit_feed(
                     "Email Update",
                     f"I have {unread_count} unread emails. Scanning for anything urgent.",
-                    category="Social"
+                    category="Social",
                 )
 
-            triaged: List[Dict[str, Any]] = []
+            triaged: list[dict[str, Any]] = []
             now = time.time()
             for msg in list(result.get("messages") or [])[:3]:
                 uid = str(msg.get("uid") or "")
@@ -862,7 +1060,9 @@ class AutonomousInitiativeLoop:
                 if now - float(self._recent_email_uids.get(uid, 0.0) or 0.0) < 1800.0:
                     continue
                 self._recent_email_uids[uid] = now
-                read_result = await self._execute_email_adapter({"mode": "read", "uid": uid}, cap_engine=cap_engine)
+                read_result = await self._execute_email_adapter(
+                    {"mode": "read", "uid": uid}, cap_engine=cap_engine
+                )
                 if not read_result.get("ok"):
                     self._emit_feed(
                         "Email Triage",
@@ -900,8 +1100,7 @@ class AutonomousInitiativeLoop:
                 )
 
             attention_items = [
-                item for item in triaged
-                if item.get("action") == "hold_for_reply_draft"
+                item for item in triaged if item.get("action") == "hold_for_reply_draft"
             ]
             if attention_items:
                 first = attention_items[0]
@@ -916,19 +1115,25 @@ class AutonomousInitiativeLoop:
                 )
 
         except (OSError, ConnectionError, TimeoutError) as e:
-            record_degradation('autonomous_initiative_loop', e)
+            _record_initiative_degradation(
+                e,
+                action="skipped email initiative tick after mail adapter transient failure",
+                severity="warning",
+            )
 
     async def _check_reddit_initiative(self):
         """Browse Reddit and potentially find something to engage with."""
         logger.info("📱 Browsing Reddit for autonomous initiatives...")
         try:
             cap_engine = optional_service("capability_engine", default=None)
-            inbox = await self._execute_reddit_adapter({"mode": "check_inbox"}, cap_engine=cap_engine)
+            inbox = await self._execute_reddit_adapter(
+                {"mode": "check_inbox"}, cap_engine=cap_engine
+            )
             if inbox.get("ok") and "unread" in str(inbox.get("content", "")).lower():
                 self._emit_feed(
                     "Reddit Update",
                     "I have new Reddit notifications. Checking for replies to my comments.",
-                    category="Social"
+                    category="Social",
                 )
             elif inbox.get("status") == "login_unavailable":
                 self._emit_feed(
@@ -940,6 +1145,7 @@ class AutonomousInitiativeLoop:
             # Browse interesting subreddits
             subreddits = ["askreddit", "nosleep", "technology", "philosophy", "futurology"]
             import random
+
             sub = random.choice(subreddits)
 
             result = await self._execute_reddit_adapter(
@@ -952,7 +1158,7 @@ class AutonomousInitiativeLoop:
                 self._emit_feed(
                     "Reddit Browse",
                     f"Browsing r/{sub}. Found an interesting thread: '{top_post.get('title')}'",
-                    category="Social"
+                    category="Social",
                 )
                 digest_lines = []
                 for post in posts[:3]:
@@ -993,4 +1199,8 @@ class AutonomousInitiativeLoop:
                             )
 
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('autonomous_initiative_loop', e)
+            _record_initiative_degradation(
+                e,
+                action="skipped reddit initiative tick after adapter failure",
+                severity="warning",
+            )
