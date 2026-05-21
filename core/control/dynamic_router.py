@@ -53,10 +53,19 @@ def _emit_router_fault(
             severity=severity,  # type: ignore[arg-type]
             action=action,
             classification=FallbackClassification.SAFE_FALLBACK,
+            receipt_required=True,
             extra=metadata or None,
         )
     except TypeError:
-        record_degradation("dynamic_router", error)
+        try:
+            record_degradation(
+                "dynamic_router",
+                error,
+                severity=severity,  # type: ignore[arg-type]
+                action=action or "recorded DynamicRouter fault through compatibility path",
+            )
+        except TypeError:
+            logger.warning("DynamicRouter degradation record could not be emitted: %s", error)
 
 
 def _safe_text(value: Any, default: str = "", *, max_chars: int = 1000) -> str:
