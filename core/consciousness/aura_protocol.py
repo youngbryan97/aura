@@ -33,12 +33,14 @@ Security:
     - Content is validated before workspace injection
     - No arbitrary code execution -- only structured data
 """
+
 from __future__ import annotations
 
 import asyncio
 import hashlib
 import json
 import logging
+import math
 import struct
 import time
 from collections.abc import Callable, Coroutine
@@ -46,7 +48,7 @@ from dataclasses import asdict, dataclass, field
 from typing import Any
 
 from core.container import ServiceContainer
-from core.runtime.errors import record_degradation
+from core.runtime.errors import FallbackClassification, record_degradation
 
 logger = logging.getLogger("Consciousness.AuraProtocol")
 
@@ -54,11 +56,54 @@ logger = logging.getLogger("Consciousness.AuraProtocol")
 _HEADER_FMT = ">I"
 _HEADER_SIZE = struct.calcsize(_HEADER_FMT)
 _MAX_MESSAGE_SIZE = 1024 * 1024  # 1 MB hard limit
+_MAX_INTENT_CHARS = 8192
+_MAX_SOURCE_IDENTITY_CHARS = 256
+_MAX_EPISODIC_SNAPSHOT_BYTES = 128 * 1024
+_PROTOCOL_CLOSE_TIMEOUT = 5.0
+
+_AURA_PROTOCOL_RECOVERABLE_ERRORS = (
+    OSError,
+    ConnectionError,
+    TimeoutError,
+    RuntimeError,
+    AttributeError,
+    TypeError,
+    ValueError,
+)
+
+
+def _record_aura_protocol_degradation(
+    exc: BaseException,
+    *,
+    action: str,
+    severity: str = "warning",
+    extra: dict[str, Any] | None = None,
+) -> None:
+    record_degradation(
+        "aura_protocol",
+        exc,
+        severity=severity,
+        action=action,
+        classification=FallbackClassification.SAFE_FALLBACK,
+        receipt_required=True,
+        extra=extra,
+    )
+
+
+def _finite_float(value: Any) -> float | None:
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(result):
+        return None
+    return result
 
 
 # ---------------------------------------------------------------------------
 # AuraMessage
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class AuraMessage:
@@ -67,17 +112,20 @@ class AuraMessage:
     This carries the full cognitive context of a thought or intention
     in a way that another Aura instance can reconstruct internally.
     """
+
     # Core content
-    intent: str = ""                           # What the sender wants
-    affect_vector: list[float] = field(default_factory=list)    # Emotional state [valence, arousal, dominance, ...]
+    intent: str = ""  # What the sender wants
+    affect_vector: list[float] = field(
+        default_factory=list
+    )  # Emotional state [valence, arousal, dominance, ...]
     semantic_embedding: list[float] = field(default_factory=list)  # Thought content as vector
     episodic_snapshot: dict[str, Any] = field(default_factory=dict)  # Compressed recent experience
 
     # Metadata
-    urgency: float = 0.5                       # 0.0-1.0
-    source_identity: str = "Aura"              # Who sent this
+    urgency: float = 0.5  # 0.0-1.0
+    source_identity: str = "Aura"  # Who sent this
     timestamp: float = field(default_factory=time.time)
-    message_id: str = ""                       # Unique ID (auto-generated if empty)
+    message_id: str = ""  # Unique ID (auto-generated if empty)
 
     def __post_init__(self):
         if not self.message_id:
@@ -90,11 +138,15 @@ class AuraMessage:
 
     def to_json(self) -> str:
         """Serialize to JSON string."""
-        return json.dumps(asdict(self), default=str)
+        if not self.validate():
+            raise ValueError("AuraMessage failed validation and cannot be serialized")
+        return json.dumps(asdict(self), default=str, allow_nan=False, separators=(",", ":"))
 
     def to_bytes(self) -> bytes:
         """Serialize to wire format (length-prefixed JSON)."""
         payload = self.to_json().encode("utf-8")
+        if len(payload) > _MAX_MESSAGE_SIZE:
+            raise ValueError(f"AuraMessage payload exceeds {_MAX_MESSAGE_SIZE} bytes")
         header = struct.pack(_HEADER_FMT, len(payload))
         return header + payload
 
@@ -102,6 +154,8 @@ class AuraMessage:
     def from_json(cls, data: str) -> AuraMessage:
         """Deserialize from JSON string."""
         d = json.loads(data)
+        if not isinstance(d, dict):
+            raise ValueError("AuraMessage JSON payload must be an object")
         return cls(**{k: v for k, v in d.items() if k in cls.__dataclass_fields__})
 
     @classmethod
@@ -119,16 +173,49 @@ class AuraMessage:
 
     def validate(self) -> bool:
         """Basic validation of message integrity."""
+        if not isinstance(self.intent, str):
+            return False
+        if len(self.intent) > _MAX_INTENT_CHARS:
+            return False
+        if not isinstance(self.source_identity, str):
+            return False
+        if not self.source_identity.strip():
+            return False
+        if len(self.source_identity) > _MAX_SOURCE_IDENTITY_CHARS:
+            return False
+        if not isinstance(self.affect_vector, list):
+            return False
+        if not isinstance(self.semantic_embedding, list):
+            return False
+        if not isinstance(self.episodic_snapshot, dict):
+            return False
         if not self.intent and not self.semantic_embedding:
             return False
-        if not (0.0 <= self.urgency <= 1.0):
+
+        urgency = _finite_float(self.urgency)
+        if urgency is None or not (0.0 <= urgency <= 1.0):
             return False
-        if not self.source_identity:
+        if _finite_float(self.timestamp) is None:
             return False
         if len(self.affect_vector) > 64:
             return False  # Sanity limit
         if len(self.semantic_embedding) > 4096:
             return False  # Sanity limit
+        if any(_finite_float(value) is None for value in self.affect_vector):
+            return False
+        if any(_finite_float(value) is None for value in self.semantic_embedding):
+            return False
+        try:
+            snapshot_bytes = json.dumps(
+                self.episodic_snapshot,
+                default=str,
+                allow_nan=False,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        except (TypeError, ValueError):
+            return False
+        if len(snapshot_bytes) > _MAX_EPISODIC_SNAPSHOT_BYTES:
+            return False
         return True
 
 
@@ -142,6 +229,7 @@ MessageHandler = Callable[[AuraMessage], Coroutine[Any, Any, None]]
 # ---------------------------------------------------------------------------
 # AuraProtocolServer
 # ---------------------------------------------------------------------------
+
 
 class AuraProtocolServer:
     """Listens for incoming AuraMessages from other Aura instances.
@@ -171,7 +259,8 @@ class AuraProtocolServer:
 
         logger.info(
             "AuraProtocolServer created (host=%s, port=%d)",
-            self._host, self._port,
+            self._host,
+            self._port,
         )
 
     async def start(self) -> None:
@@ -188,24 +277,45 @@ class AuraProtocolServer:
             ServiceContainer.register_instance("aura_protocol_server", self)
             logger.info(
                 "AuraProtocolServer ONLINE -- listening on %s:%d",
-                self._host, self._port,
+                self._host,
+                self._port,
             )
         except OSError as e:
+            _record_aura_protocol_degradation(
+                e,
+                action="kept aura protocol server offline after bind failure",
+                severity="degraded",
+                extra={"host": self._host, "port": self._port},
+            )
             logger.warning(
                 "AuraProtocolServer failed to bind %s:%d -- %s",
-                self._host, self._port, e,
+                self._host,
+                self._port,
+                e,
             )
 
     async def stop(self) -> None:
         """Stop the server."""
         if self._server:
             self._server.close()
-            await self._server.wait_closed()
+            try:
+                await asyncio.wait_for(self._server.wait_closed(), timeout=_PROTOCOL_CLOSE_TIMEOUT)
+            except asyncio.CancelledError:
+                raise
+            except _AURA_PROTOCOL_RECOVERABLE_ERRORS as exc:
+                _record_aura_protocol_degradation(
+                    exc,
+                    action="continued shutdown after aura protocol server close failed",
+                    severity="warning",
+                )
+            self._server = None
         self._running = False
         logger.info("AuraProtocolServer OFFLINE")
 
     def register_handler(self, handler: MessageHandler) -> None:
         """Register a handler to be called for every valid incoming message."""
+        if not callable(handler):
+            raise TypeError("AuraProtocol handler must be callable")
         self._handlers.append(handler)
 
     # ------------------------------------------------------------------
@@ -233,7 +343,8 @@ class AuraProtocolServer:
                 if length > _MAX_MESSAGE_SIZE:
                     logger.warning(
                         "AuraProtocol: message too large (%d bytes) from %s -- dropping",
-                        length, peer,
+                        length,
+                        peer,
                     )
                     self._messages_rejected += 1
                     break
@@ -244,23 +355,42 @@ class AuraProtocolServer:
 
         except asyncio.IncompleteReadError:
             logger.debug("AuraProtocol: connection closed by %s", peer)
-        except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-            record_degradation('aura_protocol', e)
+        except asyncio.CancelledError:
+            raise
+        except _AURA_PROTOCOL_RECOVERABLE_ERRORS as e:
+            _record_aura_protocol_degradation(
+                e,
+                action="closed one aura protocol connection after read/process failure",
+                severity="warning",
+                extra={"peer": str(peer)},
+            )
             logger.warning("AuraProtocol: connection error from %s -- %s", peer, e)
         finally:
             writer.close()
             try:
-                await writer.wait_closed()
-            except (RuntimeError, asyncio.CancelledError, TimeoutError, AttributeError) as exc:
-                record_degradation("aura_protocol", exc)
+                await asyncio.wait_for(writer.wait_closed(), timeout=_PROTOCOL_CLOSE_TIMEOUT)
+            except asyncio.CancelledError:
+                raise
+            except _AURA_PROTOCOL_RECOVERABLE_ERRORS as exc:
+                _record_aura_protocol_degradation(
+                    exc,
+                    action="closed aura protocol connection without clean writer shutdown",
+                    severity="warning",
+                    extra={"peer": str(peer)},
+                )
                 logger.debug("AuraProtocol: server writer close failed: %s", exc)
 
     async def _process_message(self, payload: bytes) -> None:
         """Validate and dispatch a received message."""
         try:
             msg = AuraMessage.from_bytes(payload)
-        except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-            record_degradation('aura_protocol', e)
+        except _AURA_PROTOCOL_RECOVERABLE_ERRORS as e:
+            _record_aura_protocol_degradation(
+                e,
+                action="rejected malformed aura protocol payload before dispatch",
+                severity="warning",
+                extra={"payload_bytes": len(payload)},
+            )
             logger.warning("AuraProtocol: malformed message -- %s", e)
             self._messages_rejected += 1
             return
@@ -279,15 +409,27 @@ class AuraProtocolServer:
 
         logger.info(
             "AuraProtocol: received message from '%s' (intent='%s', urgency=%.2f)",
-            msg.source_identity, msg.intent[:60], msg.urgency,
+            msg.source_identity,
+            msg.intent[:60],
+            msg.urgency,
         )
 
         # Dispatch to registered handlers
         for handler in self._handlers:
             try:
                 await handler(msg)
-            except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-                record_degradation('aura_protocol', e)
+            except asyncio.CancelledError:
+                raise
+            except _AURA_PROTOCOL_RECOVERABLE_ERRORS as e:
+                _record_aura_protocol_degradation(
+                    e,
+                    action="continued aura protocol dispatch after handler failure",
+                    severity="warning",
+                    extra={
+                        "handler": getattr(handler, "__qualname__", repr(handler)),
+                        "message_id": msg.message_id,
+                    },
+                )
                 logger.error("AuraProtocol handler error: %s", e)
 
         # Inject into Global Workspace as external candidate
@@ -300,6 +442,12 @@ class AuraProtocolServer:
 
             workspace = ServiceContainer.get("global_workspace", default=None)
             if not workspace:
+                _record_aura_protocol_degradation(
+                    RuntimeError("global workspace unavailable"),
+                    action="accepted aura protocol message without workspace injection",
+                    severity="degraded",
+                    extra={"message_id": msg.message_id, "source_identity": msg.source_identity},
+                )
                 return
 
             # Build a content summary
@@ -322,10 +470,18 @@ class AuraProtocolServer:
             await workspace.submit(candidate)
             logger.debug(
                 "AuraProtocol: injected message from '%s' into workspace (priority=%.2f)",
-                msg.source_identity, candidate.priority,
+                msg.source_identity,
+                candidate.priority,
             )
-        except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('aura_protocol', e)
+        except asyncio.CancelledError:
+            raise
+        except _AURA_PROTOCOL_RECOVERABLE_ERRORS as e:
+            _record_aura_protocol_degradation(
+                e,
+                action="accepted aura protocol message but workspace injection failed",
+                severity="warning",
+                extra={"message_id": msg.message_id, "source_identity": msg.source_identity},
+            )
             logger.warning("AuraProtocol: workspace injection failed -- %s", e)
 
     # ------------------------------------------------------------------
@@ -349,6 +505,7 @@ class AuraProtocolServer:
 # ---------------------------------------------------------------------------
 # AuraProtocolClient
 # ---------------------------------------------------------------------------
+
 
 class AuraProtocolClient:
     """Sends AuraMessages to another Aura instance.
@@ -379,7 +536,8 @@ class AuraProtocolClient:
 
         logger.info(
             "AuraProtocolClient created (target=%s:%d)",
-            self._host, self._port,
+            self._host,
+            self._port,
         )
 
     async def connect(self) -> bool:
@@ -392,13 +550,22 @@ class AuraProtocolClient:
             self._connected = True
             logger.info(
                 "AuraProtocolClient connected to %s:%d",
-                self._host, self._port,
+                self._host,
+                self._port,
             )
             return True
         except (TimeoutError, OSError) as e:
+            _record_aura_protocol_degradation(
+                e,
+                action="kept aura protocol client disconnected after connect failure",
+                severity="warning",
+                extra={"host": self._host, "port": self._port},
+            )
             logger.warning(
                 "AuraProtocolClient: failed to connect to %s:%d -- %s",
-                self._host, self._port, e,
+                self._host,
+                self._port,
+                e,
             )
             self._connected = False
             return False
@@ -408,9 +575,16 @@ class AuraProtocolClient:
         if self._writer:
             self._writer.close()
             try:
-                await self._writer.wait_closed()
-            except (RuntimeError, asyncio.CancelledError, TimeoutError, AttributeError) as exc:
-                record_degradation("aura_protocol", exc)
+                await asyncio.wait_for(self._writer.wait_closed(), timeout=_PROTOCOL_CLOSE_TIMEOUT)
+            except asyncio.CancelledError:
+                raise
+            except _AURA_PROTOCOL_RECOVERABLE_ERRORS as exc:
+                _record_aura_protocol_degradation(
+                    exc,
+                    action="completed aura protocol client disconnect without clean writer shutdown",
+                    severity="warning",
+                    extra={"host": self._host, "port": self._port},
+                )
                 logger.debug("AuraProtocolClient: writer close failed: %s", exc)
         self._connected = False
         self._reader = None
@@ -424,6 +598,7 @@ class AuraProtocolClient:
         Auto-reconnects on failure.
         """
         if not msg.validate():
+            self._messages_failed += 1
             logger.warning("AuraProtocolClient: invalid message -- not sending")
             return False
 
@@ -434,6 +609,8 @@ class AuraProtocolClient:
                 return False
 
         try:
+            if self._writer is None:
+                raise RuntimeError("aura protocol client writer unavailable")
             wire_bytes = msg.to_bytes()
             self._writer.write(wire_bytes)
             await asyncio.wait_for(
@@ -443,14 +620,28 @@ class AuraProtocolClient:
             self._messages_sent += 1
             logger.debug(
                 "AuraProtocolClient: sent message to %s:%d (intent='%s')",
-                self._host, self._port, msg.intent[:60],
+                self._host,
+                self._port,
+                msg.intent[:60],
             )
             return True
 
-        except (TimeoutError, OSError, ConnectionResetError) as e:
+        except _AURA_PROTOCOL_RECOVERABLE_ERRORS as e:
+            _record_aura_protocol_degradation(
+                e,
+                action="marked aura protocol message send as failed",
+                severity="warning",
+                extra={
+                    "host": self._host,
+                    "port": self._port,
+                    "message_id": msg.message_id,
+                },
+            )
             logger.warning(
                 "AuraProtocolClient: send failed to %s:%d -- %s",
-                self._host, self._port, e,
+                self._host,
+                self._port,
+                e,
             )
             self._messages_failed += 1
             self._connected = False
@@ -458,11 +649,12 @@ class AuraProtocolClient:
 
     async def send_and_disconnect(self, msg: AuraMessage) -> bool:
         """One-shot: connect, send, disconnect."""
-        if not await self.connect():
-            return False
-        result = await self.send(msg)
-        await self.disconnect()
-        return result
+        try:
+            if not await self.connect():
+                return False
+            return await self.send(msg)
+        finally:
+            await self.disconnect()
 
     # ------------------------------------------------------------------
     # Status
@@ -482,6 +674,7 @@ class AuraProtocolClient:
 # ---------------------------------------------------------------------------
 # Convenience: build a message from current Aura state
 # ---------------------------------------------------------------------------
+
 
 def build_message_from_state(
     intent: str,
@@ -517,8 +710,12 @@ def build_message_from_state(
                         float(getattr(state, "arousal", 0.0)),
                         float(getattr(state, "dominance", 0.0)),
                     ]
-    except (ImportError, AttributeError, RuntimeError) as e:
-        record_degradation('aura_protocol', e)
+    except _AURA_PROTOCOL_RECOVERABLE_ERRORS as e:
+        _record_aura_protocol_degradation(
+            e,
+            action="built aura protocol message without affect vector",
+            severity="warning",
+        )
         logger.debug("build_message_from_state: affect read failed: %s", e)
 
     # Episodic snapshot from temporal binding
@@ -530,11 +727,13 @@ def build_message_from_state(
             workspace = ServiceContainer.get("global_workspace", default=None)
             if workspace:
                 recent = workspace.get_last_n_winners(3)
-                episodic_snapshot["recent_winner_sources"] = [
-                    w.get("winner", "") for w in recent
-                ]
-    except (ImportError, AttributeError, RuntimeError) as e:
-        record_degradation('aura_protocol', e)
+                episodic_snapshot["recent_winner_sources"] = [w.get("winner", "") for w in recent]
+    except _AURA_PROTOCOL_RECOVERABLE_ERRORS as e:
+        _record_aura_protocol_degradation(
+            e,
+            action="built aura protocol message without episodic snapshot",
+            severity="warning",
+        )
         logger.debug("build_message_from_state: episodic read failed: %s", e)
 
     # Identity
@@ -543,8 +742,12 @@ def build_message_from_state(
         if will:
             status = will.get_status()
             identity_name = status.get("identity_name", identity_name)
-    except (ImportError, AttributeError, RuntimeError) as exc:
-        record_degradation("aura_protocol", exc)
+    except _AURA_PROTOCOL_RECOVERABLE_ERRORS as exc:
+        _record_aura_protocol_degradation(
+            exc,
+            action="built aura protocol message with fallback identity",
+            severity="warning",
+        )
         logger.debug("build_message_from_state: unified will identity read failed: %s", exc)
 
     return AuraMessage(
