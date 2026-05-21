@@ -1514,6 +1514,61 @@ def test_loop_monitor_stale_cache_heal_failure_is_visible(monkeypatch):
     assert recorded == [("loop_monitor", "RuntimeError")]
 
 
+def test_loop_monitor_service_lookup_failure_records_structured_action(monkeypatch):
+    recorded = []
+    monkeypatch.setattr(
+        loop_monitor,
+        "record_degradation",
+        lambda *args, **kwargs: recorded.append((args, kwargs)),
+    )
+
+    service_container = types.SimpleNamespace(
+        get=_FailingCallable("container lookup failed")
+    )
+
+    result = ConsciousnessLoopMonitor()._get(service_container, "affect_engine")
+
+    assert result is None
+    assert recorded
+    assert recorded[0][1]["action"] == "treated missing service container lookup as absent service"
+    assert recorded[0][1]["receipt_required"] is True
+
+
+def test_loop_monitor_end_to_end_probe_awaits_async_bridge():
+    class _Synth:
+        _tick = 1
+
+    class _Affect:
+        def __init__(self):
+            self.calls = 0
+
+        async def receive_qualia_echo(self, *, q_norm, pri, trend):
+            self.calls += 1
+            assert q_norm == 0.001
+            assert pri == 0.001
+            assert trend == 0.0
+
+    affect = _Affect()
+
+    class _Container:
+        @staticmethod
+        def get(name, default=None):
+            if name == "qualia_synthesizer":
+                return _Synth()
+            if name == "affect_engine":
+                return affect
+            return default
+
+    monitor = ConsciousnessLoopMonitor()
+    monitor._consecutive_healthy = 4
+    monitor._get_service_container = lambda: _Container
+
+    issues = asyncio.run(monitor._run_checks())
+
+    assert issues == []
+    assert affect.calls == 1
+
+
 def test_heartbeat_time_dilation_failure_records_and_uses_fixed_interval(monkeypatch):
     recorded: list[tuple[str, str]] = []
     monkeypatch.setattr(

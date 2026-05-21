@@ -52,14 +52,16 @@ INSTALL:
 
   Or via apply_consciousness_patches() which handles all three patches.
 """
+
 from __future__ import annotations
 
 import asyncio
+import inspect
 import logging
 import time
 from typing import Any
 
-from core.runtime.errors import record_degradation
+from core.runtime.errors import FallbackClassification, Severity, record_degradation
 
 logger = logging.getLogger("Aura.LoopMonitor")
 
@@ -69,6 +71,38 @@ HEALTH_CHECK_INTERVAL = 45.0
 
 # How many consecutive healthy checks before we log a positive confirmation.
 _CONFIRM_AFTER = 4
+
+_RECOVERABLE_LOOP_MONITOR_ERRORS = (
+    AttributeError,
+    ImportError,
+    LookupError,
+    OSError,
+    RuntimeError,
+    TimeoutError,
+    TypeError,
+    ValueError,
+)
+
+
+def _record_loop_monitor_degradation(
+    error: BaseException,
+    *,
+    action: str,
+    severity: Severity = "degraded",
+    extra: dict[str, Any] | None = None,
+) -> None:
+    try:
+        record_degradation(
+            "loop_monitor",
+            error,
+            severity=severity,
+            action=action,
+            classification=FallbackClassification.SAFE_FALLBACK,
+            receipt_required=True,
+            extra=extra,
+        )
+    except TypeError:
+        record_degradation("loop_monitor", error)
 
 
 class ConsciousnessLoopMonitor:
@@ -81,13 +115,14 @@ class ConsciousnessLoopMonitor:
 
     def __init__(self, orchestrator: Any | None = None) -> None:
         self.orchestrator = orchestrator
-        self._task:             asyncio.Task | None = None
-        self._running:          bool  = False
-        self._last_healthy_at:  float = 0.0
-        self._last_check_at:    float = 0.0
+        self._task: asyncio.Task | None = None
+        self._running: bool = False
+        self._last_healthy_at: float = 0.0
+        self._last_check_at: float = 0.0
         self._consecutive_healthy: int = 0
-        self._issue_log:        list[dict[str, Any]] = []
-        self._healed_count:     int = 0
+        self._issue_log: list[dict[str, Any]] = []
+        self._healed_count: int = 0
+        self._consecutive_failures: int = 0
 
     # ─────────────────────────────────────────────────────────────────────────
     # Lifecycle
@@ -100,10 +135,19 @@ class ConsciousnessLoopMonitor:
         self._running = True
         from core.utils.task_tracker import get_task_tracker
 
-        self._task = get_task_tracker().create_task(
-            self._loop(),
-            name="ConsciousnessLoopMonitor",
-        )
+        try:
+            self._task = get_task_tracker().create_task(
+                self._loop(),
+                name="ConsciousnessLoopMonitor",
+            )
+        except _RECOVERABLE_LOOP_MONITOR_ERRORS as exc:
+            self._running = False
+            _record_loop_monitor_degradation(
+                exc,
+                action="left loop monitor stopped after task creation failure",
+            )
+            logger.warning("LoopMonitor could not start: %s", exc)
+            return
         logger.info("🔍 ConsciousnessLoopMonitor started (interval=%.0fs)", HEALTH_CHECK_INTERVAL)
 
     def stop(self) -> None:
@@ -119,12 +163,16 @@ class ConsciousnessLoopMonitor:
 
     async def _loop(self) -> None:
         # Brief initial delay — let the orchestrator finish registering services
-        await asyncio.sleep(12.0)
+        try:
+            await asyncio.sleep(12.0)
+        except asyncio.CancelledError:
+            return
 
         while self._running:
             try:
                 issues = await self._run_checks()
                 self._last_check_at = time.time()
+                self._consecutive_failures = 0
 
                 if issues:
                     self._consecutive_healthy = 0
@@ -132,15 +180,15 @@ class ConsciousnessLoopMonitor:
                         self._issue_log.append(issue)
                         logger.warning("⚠️  LoopMonitor: %s", issue["message"])
                         if issue.get("fix_attempted"):
-                            logger.info("🔧 LoopMonitor: self-heal attempted — %s",
-                                        issue["fix"])
+                            logger.info("🔧 LoopMonitor: self-heal attempted — %s", issue["fix"])
                 else:
                     self._consecutive_healthy += 1
                     self._last_healthy_at = time.time()
                     if self._consecutive_healthy == _CONFIRM_AFTER:
                         logger.info(
                             "✅ LoopMonitor: consciousness loop healthy "
-                            "(%d consecutive clean checks)", _CONFIRM_AFTER
+                            "(%d consecutive clean checks)",
+                            _CONFIRM_AFTER,
                         )
 
                 # Cap issue log
@@ -149,11 +197,16 @@ class ConsciousnessLoopMonitor:
 
             except asyncio.CancelledError:
                 break
-            except (OSError, ConnectionError, TimeoutError) as exc:
-                record_degradation('loop_monitor', exc)
+            except _RECOVERABLE_LOOP_MONITOR_ERRORS as exc:
+                self._consecutive_failures += 1
+                _record_loop_monitor_degradation(
+                    exc,
+                    action="kept loop monitor alive after health-check failure",
+                    extra={"consecutive_failures": self._consecutive_failures},
+                )
                 logger.debug("LoopMonitor._loop error: %s", exc)
 
-            await asyncio.sleep(HEALTH_CHECK_INTERVAL)
+            await asyncio.sleep(self._next_interval())
 
     # ─────────────────────────────────────────────────────────────────────────
     # Health checks
@@ -171,51 +224,59 @@ class ConsciousnessLoopMonitor:
         # ── Check 1: qualia_synthesizer is registered ─────────────────────────
         synth = self._get(sc, "qualia_synthesizer")
         if synth is None:
-            issues.append({
-                "check": "qualia_synthesizer_registered",
-                "status": "error",
-                "message": "ServiceContainer['qualia_synthesizer'] is None — QualiaSynthesizer not yet registered. Bridge cannot fire.",
-                "remedy": "Ensure _init_cognitive_architecture registers QualiaSynthesizer early.",
-                "critical": True,
-                "timestamp":     time.time(),
-            })
+            issues.append(
+                {
+                    "check": "qualia_synthesizer_registered",
+                    "status": "error",
+                    "message": "ServiceContainer['qualia_synthesizer'] is None — QualiaSynthesizer not yet registered. Bridge cannot fire.",
+                    "remedy": "Ensure _init_cognitive_architecture registers QualiaSynthesizer early.",
+                    "critical": True,
+                    "timestamp": time.time(),
+                }
+            )
         else:
             # ── Check 2: synthesizer has actually ticked ──────────────────────
             tick = getattr(synth, "_tick", None)
             if tick == 0:
-                issues.append({
-                    "check":         "qualia_synthesizer_ticking",
-                    "message":       "QualiaSynthesizer registered but _tick=0 — "
-                                     "synthesize() has never been called. "
-                                     "LiquidSubstrate may not be providing substrate_metrics.",
-                    "fix":           "Verify LiquidSubstrate is registered and the Heartbeat "
-                                     "is passing qualia_metrics to the synthesizer.",
-                    "fix_attempted": False,
-                    "timestamp":     time.time(),
-                })
+                issues.append(
+                    {
+                        "check": "qualia_synthesizer_ticking",
+                        "message": "QualiaSynthesizer registered but _tick=0 — "
+                        "synthesize() has never been called. "
+                        "LiquidSubstrate may not be providing substrate_metrics.",
+                        "fix": "Verify LiquidSubstrate is registered and the Heartbeat "
+                        "is passing qualia_metrics to the synthesizer.",
+                        "fix_attempted": False,
+                        "timestamp": time.time(),
+                    }
+                )
 
         # ── Check 3: affect_engine is registered ──────────────────────────────
         affect = self._get(sc, "affect_engine")
         if affect is None:
-            issues.append({
-                "check":         "affect_engine_registered",
-                "message":       "ServiceContainer['affect_engine'] is None — "
-                                 "AffectEngineV2 not registered. receive_qualia_echo() "
-                                 "can never be called.",
-                "fix":           "Ensure AffectEngineV2 is registered as 'affect_engine' "
-                                 "in the ServiceContainer before the qualia loop starts.",
-                "fix_attempted": False,
-                "timestamp":     time.time(),
-            })
+            issues.append(
+                {
+                    "check": "affect_engine_registered",
+                    "message": "ServiceContainer['affect_engine'] is None — "
+                    "AffectEngineV2 not registered. receive_qualia_echo() "
+                    "can never be called.",
+                    "fix": "Ensure AffectEngineV2 is registered as 'affect_engine' "
+                    "in the ServiceContainer before the qualia loop starts.",
+                    "fix_attempted": False,
+                    "timestamp": time.time(),
+                }
+            )
         elif not hasattr(affect, "receive_qualia_echo"):
-            issues.append({
-                "check":         "affect_engine_interface",
-                "message":       "affect_engine is registered but lacks receive_qualia_echo(). "
-                                 "Wrong engine type or incomplete initialisation.",
-                "fix":           "Verify AffectEngineV2 (not V1) is registered.",
-                "fix_attempted": False,
-                "timestamp":     time.time(),
-            })
+            issues.append(
+                {
+                    "check": "affect_engine_interface",
+                    "message": "affect_engine is registered but lacks receive_qualia_echo(). "
+                    "Wrong engine type or incomplete initialisation.",
+                    "fix": "Verify AffectEngineV2 (not V1) is registered.",
+                    "fix_attempted": False,
+                    "timestamp": time.time(),
+                }
+            )
 
         # ── Check 4: Stale-cache self-heal ────────────────────────────────────
         #
@@ -227,15 +288,17 @@ class ConsciousnessLoopMonitor:
             healed = self._try_heal_stale_cache(sc, synth)
             if healed:
                 self._healed_count += 1
-                issues.append({
-                    "check":         "stale_cache_healed",
-                    "message":       "Heartbeat had stale _qualia_cache=None despite "
-                                     "qualia_synthesizer being registered. Cache cleared — "
-                                     "bridge will reactivate on next tick.",
-                    "fix":           "Cache attr deleted from Heartbeat instance.",
-                    "fix_attempted": True,
-                    "timestamp":     time.time(),
-                })
+                issues.append(
+                    {
+                        "check": "stale_cache_healed",
+                        "message": "Heartbeat had stale _qualia_cache=None despite "
+                        "qualia_synthesizer being registered. Cache cleared — "
+                        "bridge will reactivate on next tick.",
+                        "fix": "Cache attr deleted from Heartbeat instance.",
+                        "fix_attempted": True,
+                        "timestamp": time.time(),
+                    }
+                )
 
         # ── Check 5: End-to-end connectivity probe (once per 4 checks) ────────
         if (
@@ -247,17 +310,25 @@ class ConsciousnessLoopMonitor:
         ):
             try:
                 # Fire a negligibly small probe echo to verify the path
-                affect.receive_qualia_echo(q_norm=0.001, pri=0.001, trend=0.0)
+                result = affect.receive_qualia_echo(q_norm=0.001, pri=0.001, trend=0.0)
+                if inspect.isawaitable(result):
+                    await asyncio.wait_for(result, timeout=2.0)
                 logger.debug("LoopMonitor: end-to-end probe fired successfully")
-            except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
-                record_degradation('loop_monitor', exc)
-                issues.append({
-                    "check":         "end_to_end_probe",
-                    "message":       f"receive_qualia_echo() raised an exception: {exc}",
-                    "fix":           "Check AffectEngineV2.receive_qualia_echo implementation.",
-                    "fix_attempted": False,
-                    "timestamp":     time.time(),
-                })
+            except _RECOVERABLE_LOOP_MONITOR_ERRORS as exc:
+                _record_loop_monitor_degradation(
+                    exc,
+                    action="marked consciousness loop unhealthy after bridge probe failure",
+                    extra={"check": "end_to_end_probe"},
+                )
+                issues.append(
+                    {
+                        "check": "end_to_end_probe",
+                        "message": f"receive_qualia_echo() raised an exception: {exc}",
+                        "fix": "Check AffectEngineV2.receive_qualia_echo implementation.",
+                        "fix_attempted": False,
+                        "timestamp": time.time(),
+                    }
+                )
 
         return issues
 
@@ -273,6 +344,8 @@ class ConsciousnessLoopMonitor:
 
         Returns True if healing was performed.
         """
+        if live_synth is None:
+            return False
         heartbeat = self._get(sc, "heartbeat")
         if heartbeat is None:
             # Try orchestrator attribute
@@ -291,7 +364,11 @@ class ConsciousnessLoopMonitor:
                 logger.debug("LoopMonitor: cleared stale _qualia_cache on Heartbeat")
                 return True
             except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
-                record_degradation("loop_monitor", exc)
+                _record_loop_monitor_degradation(
+                    exc,
+                    action="left heartbeat qualia cache unchanged after stale-cache heal failure",
+                    extra={"cache_state": "stale_none"},
+                )
                 logger.debug("LoopMonitor stale-cache heal failed: %s", exc)
                 return False
         # Cache is already live — no heal needed
@@ -306,13 +383,28 @@ class ConsciousnessLoopMonitor:
         Run a health check immediately and return a summary dict.
         Useful for debugging or dashboard refresh.
         """
-        issues = await self._run_checks()
+        try:
+            issues = await self._run_checks()
+        except _RECOVERABLE_LOOP_MONITOR_ERRORS as exc:
+            _record_loop_monitor_degradation(
+                exc,
+                action="returned unhealthy probe summary after immediate check failure",
+            )
+            issues = [
+                {
+                    "check": "loop_monitor_probe",
+                    "message": f"Loop monitor probe failed: {exc}",
+                    "fix": "Inspect ServiceContainer and bridge registration before trusting loop health.",
+                    "fix_attempted": False,
+                    "timestamp": time.time(),
+                }
+            ]
         return {
-            "healthy":       len(issues) == 0,
-            "issues":        issues,
-            "checked_at":    time.time(),
-            "last_healthy":  self._last_healthy_at,
-            "healed_count":  self._healed_count,
+            "healthy": len(issues) == 0,
+            "issues": issues,
+            "checked_at": time.time(),
+            "last_healthy": self._last_healthy_at,
+            "healed_count": self._healed_count,
         }
 
     # ─────────────────────────────────────────────────────────────────────────
@@ -321,19 +413,27 @@ class ConsciousnessLoopMonitor:
 
     def get_status(self) -> dict[str, Any]:
         now = time.time()
-        recent_issues = [
-            i for i in self._issue_log
-            if now - i.get("timestamp", 0) < 3600
-        ]
+        recent_issues = [i for i in self._issue_log if now - i.get("timestamp", 0) < 3600]
         return {
-            "running":              self._running,
-            "last_check_ago_s":     round(now - self._last_check_at, 1) if self._last_check_at else None,
-            "last_healthy_ago_s":   round(now - self._last_healthy_at, 1) if self._last_healthy_at else None,
-            "consecutive_healthy":  self._consecutive_healthy,
-            "healed_count":         self._healed_count,
-            "issues_last_hour":     len(recent_issues),
-            "recent_issues":        [i["check"] for i in recent_issues[-5:]],
+            "running": self._running,
+            "last_check_ago_s": round(now - self._last_check_at, 1)
+            if self._last_check_at
+            else None,
+            "last_healthy_ago_s": round(now - self._last_healthy_at, 1)
+            if self._last_healthy_at
+            else None,
+            "consecutive_healthy": self._consecutive_healthy,
+            "healed_count": self._healed_count,
+            "issues_last_hour": len(recent_issues),
+            "recent_issues": [i["check"] for i in recent_issues[-5:]],
         }
+
+    def _next_interval(self) -> float:
+        if self._consecutive_failures <= 0:
+            return HEALTH_CHECK_INTERVAL
+        return min(
+            HEALTH_CHECK_INTERVAL * (1 + self._consecutive_failures), 4 * HEALTH_CHECK_INTERVAL
+        )
 
     # ─────────────────────────────────────────────────────────────────────────
     # Helpers
@@ -342,6 +442,7 @@ class ConsciousnessLoopMonitor:
     def _get_service_container(self) -> Any | None:
         try:
             from core.container import ServiceContainer
+
             return ServiceContainer
         except ImportError:
             return None
@@ -352,8 +453,13 @@ class ConsciousnessLoopMonitor:
                 return None
             result = sc.get(key, default=None)
             return result
-        except (OSError, ConnectionError, TimeoutError) as e:
-            record_degradation('loop_monitor', e)
+        except _RECOVERABLE_LOOP_MONITOR_ERRORS as e:
+            _record_loop_monitor_degradation(
+                e,
+                severity="warning",
+                action="treated missing service container lookup as absent service",
+                extra={"service_key": key},
+            )
             # Degrade gracefully if ServiceContainer API changes
             logger.debug("LoopMonitor: _get(%s) failed: %s", key, e)
             return None
