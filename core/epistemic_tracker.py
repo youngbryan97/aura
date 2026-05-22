@@ -30,11 +30,70 @@ from pathlib import Path
 from typing import Any
 
 from core.runtime.atomic_writer import atomic_write_text
-from core.runtime.errors import record_degradation
+from core.runtime.errors import FallbackClassification, Severity, record_degradation
 from core.utils.exceptions import capture_and_log
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.EpistemicTracker")
+
+_EPISTEMIC_RECOVERABLE_ERRORS = (
+    AttributeError,
+    ImportError,
+    OSError,
+    RuntimeError,
+    TypeError,
+    ValueError,
+    json.JSONDecodeError,
+)
+
+
+def _default_db_path() -> Path:
+    try:
+        from core.config import config
+
+        return Path(config.paths.data_dir) / "epistemic_map.json"
+    except (ImportError, AttributeError, TypeError, ValueError):
+        return Path.home() / ".aura" / "data" / "epistemic_map.json"
+
+
+def _record_epistemic_degradation(
+    error: BaseException,
+    *,
+    severity: Severity = "degraded",
+    action: str,
+    classification: FallbackClassification = FallbackClassification.SAFE_FALLBACK,
+    extra: dict[str, Any] | None = None,
+):
+    return record_degradation(
+        "epistemic_tracker",
+        error,
+        severity=severity,
+        action=action,
+        classification=classification,
+        receipt_required=True,
+        extra=extra,
+    )
+
+
+def _safe_text(value: Any, *, default: str = "", max_length: int = 500) -> str:
+    text = str(default if value is None else value).strip()
+    return text[:max_length]
+
+
+def _clamp_float(value: Any, *, default: float, lower: float = 0.0, upper: float = 1.0) -> float:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        parsed = default
+    return max(lower, min(upper, parsed))
+
+
+def _safe_int(value: Any, *, default: int = 0, lower: int = 0, upper: int = 1_000_000) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        parsed = default
+    return max(lower, min(upper, parsed))
 
 
 # ─── Data structures ────────────────────────────────────────────────────────
@@ -98,11 +157,11 @@ class EpistemicTracker:
     # Urgency growth rate per day for unresolved gaps
     URGENCY_GROWTH_PER_DAY = 0.12
 
-    def __init__(self):
+    def __init__(self, db_path: str | Path | None = None):
         self._nodes: dict[str, KnowledgeNode] = {}
         self._gaps: list[EpistemicGap] = []
         self._resolved_gaps: list[str] = []  # descriptions of closed gaps
-        self._db_path = Path.home() / ".aura" / "data" / "epistemic_map.json"
+        self._db_path = Path(db_path) if db_path is not None else _default_db_path()
         self._beliefs = None
         self._memory_synth = None
         self._update_task: asyncio.Task | None = None
@@ -134,7 +193,13 @@ class EpistemicTracker:
                                "inquiry_engine", "cognitive_kernel"]
             })
         except (ImportError, AttributeError, RuntimeError) as e:
-            record_degradation('epistemic_tracker', e)
+            _record_epistemic_degradation(
+                e,
+                severity="warning",
+                action="continued startup with event-bus registration deferred",
+                classification=FallbackClassification.AUDIT_GAP,
+                extra={"phase": "event_bus_registration"},
+            )
             capture_and_log(e, {"context": "EpistemicTracker.start.event_bus"})
             logger.debug("EpistemicTracker event bus registration failed: %s", e)
 
@@ -144,7 +209,11 @@ class EpistemicTracker:
         self.running = False
         if self._update_task:
             self._update_task.cancel()
-        self._save()
+        self.save()
+
+    def save(self) -> bool:
+        """Persist the epistemic map for shutdown and lifecycle coordinators."""
+        return self._save()
 
     # ─── Public API ──────────────────────────────────────────────────────────
 
@@ -279,10 +348,21 @@ class EpistemicTracker:
         """Periodic belief scan and gap aging."""
         while self.running:
             await asyncio.sleep(180)  # every 3 min
-            await self._scan_beliefs()
-            self._age_gaps()
-            self._detect_stale_nodes()
-            self._save()
+            try:
+                await self._scan_beliefs()
+                self._age_gaps()
+                self._detect_stale_nodes()
+                self._save()
+            except _EPISTEMIC_RECOVERABLE_ERRORS as e:
+                _record_epistemic_degradation(
+                    e,
+                    severity="degraded",
+                    action="kept epistemic loop alive after cycle failure",
+                    classification=FallbackClassification.SILENT_LOSS_OF_CAPABILITY,
+                    extra={"phase": "update_loop"},
+                )
+                capture_and_log(e, {"context": "EpistemicTracker.update_loop"})
+                logger.debug("EpistemicTracker update cycle failed: %s", e)
 
     async def _scan_beliefs(self):
         """Scan the belief system for new nodes and contradictions."""
@@ -322,8 +402,14 @@ class EpistemicTracker:
             # Contradiction detection
             await self._detect_contradictions(beliefs)
 
-        except (RuntimeError, AttributeError, TypeError) as e:
-            record_degradation('epistemic_tracker', e)
+        except (RuntimeError, AttributeError, TypeError, ValueError) as e:
+            _record_epistemic_degradation(
+                e,
+                severity="degraded",
+                action="kept prior epistemic profile after belief scan failure",
+                classification=FallbackClassification.SILENT_LOSS_OF_CAPABILITY,
+                extra={"phase": "scan_beliefs"},
+            )
             capture_and_log(e, {"context": "EpistemicTracker.scan_beliefs"})
             logger.debug("Belief scan error: %s", e)
 
@@ -476,7 +562,7 @@ class EpistemicTracker:
 
     # ─── Persistence ─────────────────────────────────────────────────────────
 
-    def _save(self):
+    def _save(self) -> bool:
         try:
             self._db_path.parent.mkdir(parents=True, exist_ok=True)
             data = {
@@ -484,26 +570,127 @@ class EpistemicTracker:
                 "gaps":  [asdict(g) for g in self._gaps],
                 "resolved": self._resolved_gaps[-200:],
             }
-            atomic_write_text(self._db_path, json.dumps(data, indent=2))
-        except (json.JSONDecodeError, TypeError, ValueError) as e:
-            record_degradation('epistemic_tracker', e)
+            atomic_write_text(self._db_path, json.dumps(data, indent=2, sort_keys=True))
+            return True
+        except (OSError, TypeError, ValueError) as e:
+            _record_epistemic_degradation(
+                e,
+                severity="degraded",
+                action="retained epistemic map in memory after persistence failure",
+                classification=FallbackClassification.SILENT_LOSS_OF_CAPABILITY,
+                extra={"phase": "save", "path": str(self._db_path)},
+            )
             capture_and_log(e, {"context": "EpistemicTracker.save"})
             logger.debug("EpistemicTracker save failed: %s", e)
+            return False
 
     def _load(self):
         if not self._db_path.exists():
             return
         try:
-            data = json.loads(self._db_path.read_text())
-            for k, v in data.get("nodes", {}).items():
-                self._nodes[k] = KnowledgeNode(**v)
-            for g in data.get("gaps", []):
-                self._gaps.append(EpistemicGap(**g))
-            self._resolved_gaps = data.get("resolved", [])
-        except (OSError, ConnectionError, TimeoutError) as e:
-            record_degradation('epistemic_tracker', e)
+            data = json.loads(self._db_path.read_text(encoding="utf-8"))
+            if not isinstance(data, dict):
+                raise ValueError("epistemic map root must be a JSON object")
+
+            nodes = data.get("nodes", {})
+            if not isinstance(nodes, dict):
+                raise ValueError("epistemic map nodes must be an object")
+            for key, payload in nodes.items():
+                if not isinstance(payload, dict):
+                    continue
+                node = self._node_from_payload(key, payload)
+                self._nodes[key] = node
+
+            gaps = data.get("gaps", [])
+            if not isinstance(gaps, list):
+                raise ValueError("epistemic map gaps must be a list")
+            for payload in gaps:
+                if not isinstance(payload, dict):
+                    continue
+                self._gaps.append(self._gap_from_payload(payload))
+
+            resolved = data.get("resolved", [])
+            if isinstance(resolved, list):
+                self._resolved_gaps = [_safe_text(item, max_length=500) for item in resolved[-200:]]
+            else:
+                self._resolved_gaps = []
+        except (OSError, json.JSONDecodeError, TypeError, ValueError) as e:
+            quarantine_path = self._quarantine_corrupt_store(e)
+            self._nodes.clear()
+            self._gaps.clear()
+            self._resolved_gaps.clear()
+            _record_epistemic_degradation(
+                e,
+                severity="degraded",
+                action="started with empty epistemic map after invalid persisted state",
+                classification=FallbackClassification.SILENT_LOSS_OF_CAPABILITY,
+                extra={
+                    "phase": "load",
+                    "path": str(self._db_path),
+                    "quarantine_path": str(quarantine_path) if quarantine_path else None,
+                },
+            )
             capture_and_log(e, {"context": "EpistemicTracker.load"})
             logger.debug("EpistemicTracker load failed: %s", e)
+
+    def _node_from_payload(self, key: str, payload: dict[str, Any]) -> KnowledgeNode:
+        return KnowledgeNode(
+            concept=_safe_text(payload.get("concept"), default=key, max_length=500),
+            confidence=_clamp_float(payload.get("confidence"), default=0.5),
+            depth=_clamp_float(payload.get("depth"), default=0.1),
+            last_updated=_clamp_float(
+                payload.get("last_updated"),
+                default=time.time(),
+                lower=0.0,
+                upper=max(time.time(), 1.0e12),
+            ),
+            source_count=_safe_int(payload.get("source_count"), default=0),
+            contradicted=bool(payload.get("contradicted", False)),
+            contradiction_with=(
+                _safe_text(payload.get("contradiction_with"), max_length=500)
+                if payload.get("contradiction_with") is not None
+                else None
+            ),
+            last_challenged=_clamp_float(
+                payload.get("last_challenged"),
+                default=0.0,
+                lower=0.0,
+                upper=max(time.time(), 1.0e12),
+            ),
+            challenge_survived=_safe_int(payload.get("challenge_survived"), default=0),
+        )
+
+    def _gap_from_payload(self, payload: dict[str, Any]) -> EpistemicGap:
+        return EpistemicGap(
+            domain=_safe_text(payload.get("domain"), default="general", max_length=80),
+            description=_safe_text(payload.get("description"), max_length=500),
+            urgency=_clamp_float(payload.get("urgency"), default=0.4),
+            detected_at=_clamp_float(
+                payload.get("detected_at"),
+                default=time.time(),
+                lower=0.0,
+                upper=max(time.time(), 1.0e12),
+            ),
+            gap_type=_safe_text(payload.get("gap_type"), default="unknown", max_length=80),
+            seed_question=_safe_text(payload.get("seed_question"), max_length=500),
+        )
+
+    def _quarantine_corrupt_store(self, error: BaseException) -> Path | None:
+        if not self._db_path.exists():
+            return None
+        quarantine_path = self._db_path.with_name(
+            f"{self._db_path.name}.corrupt.{int(time.time())}"
+        )
+        try:
+            self._db_path.replace(quarantine_path)
+            return quarantine_path
+        except OSError as quarantine_error:
+            logger.debug(
+                "Failed to quarantine epistemic map after %s: %s",
+                error,
+                quarantine_error,
+            )
+            return None
 
     def get_status(self) -> dict[str, Any]:
         return {
