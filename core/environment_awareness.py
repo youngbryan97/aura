@@ -8,23 +8,100 @@ Gives Aura awareness of:
 This module provides context that gets injected into conversations
 and autonomous thoughts so Aura can be naturally aware of her environment.
 """
+from __future__ import annotations
 
-from core.runtime.errors import record_degradation
+import asyncio
 import hashlib
 import json
 import logging
 import os
 import platform
+import re
+import shutil
 import subprocess
 import time
-import asyncio
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from core.container import ServiceContainer, ServiceLifetime
+from core.runtime.errors import FallbackClassification, Severity, record_degradation
 
 logger = logging.getLogger("Aura.Environment")
+
+_ENVIRONMENT_ERRORS = (
+    AttributeError,
+    ConnectionError,
+    ImportError,
+    json.JSONDecodeError,
+    LookupError,
+    OSError,
+    RuntimeError,
+    subprocess.SubprocessError,
+    TimeoutError,
+    TypeError,
+    ValueError,
+)
+
+_ALLOWED_ENV_COMMANDS = frozenset(
+    {
+        "CoreLocationCLI",
+        "pmset",
+        "sysctl",
+        "vm_stat",
+    }
+)
+
+
+def _record_environment_degradation(
+    error: BaseException,
+    *,
+    action: str,
+    severity: Severity = "warning",
+    extra: dict[str, object] | None = None,
+) -> None:
+    try:
+        record_degradation(
+            "environment_awareness",
+            error,
+            severity=severity,
+            action=action,
+            classification=FallbackClassification.SAFE_FALLBACK,
+            receipt_required=True,
+            extra=extra,
+        )
+    except TypeError as signature_exc:
+        try:
+            record_degradation(
+                "environment_awareness",
+                error,
+                severity=severity,
+                action=action or "environment awareness degraded",
+            )
+        except TypeError:
+            logger.warning(
+                "Environment awareness degradation could not be recorded: %s",
+                signature_exc,
+            )
+
+
+def _safe_text(value: object, *, default: str = "", max_chars: int = 512) -> str:
+    try:
+        text = str(value if value is not None else default)
+    except (RuntimeError, TypeError, ValueError):
+        text = default
+    return text.replace("\x00", "")[:max_chars].strip()
+
+
+def _data_path(filename: str) -> Path:
+    try:
+        from core.config import config
+
+        root = config.paths.data_dir
+    except (ImportError, AttributeError, RuntimeError):
+        root = Path.home() / ".aura" / "data"
+    root.mkdir(parents=True, exist_ok=True)
+    return root / filename
 
 
 # ═══════════════════════════════════════════════
@@ -44,8 +121,8 @@ class DeviceInfo:
     cpu_count: int = 0
     memory_total_gb: float = 0.0
     memory_available_gb: float = 0.0
-    battery_percent: Optional[float] = None
-    battery_charging: Optional[bool] = None
+    battery_percent: float | None = None
+    battery_charging: bool | None = None
     disk_free_gb: float = 0.0
     screen_info: str = ""
     uptime_hours: float = 0.0
@@ -68,23 +145,50 @@ class DeviceInfo:
         return " • ".join(parts)
 
 
-async def _run_command(cmd: List[str], timeout: float = 5.0) -> str:
+async def _run_command(cmd: list[str], timeout_s: float = 5.0) -> str:
     """Helper to run a subprocess asynchronously and return stdout."""
+    if not cmd:
+        return ""
+    executable = Path(str(cmd[0])).name
+    if executable not in _ALLOWED_ENV_COMMANDS:
+        _record_environment_degradation(
+            PermissionError(f"environment command not allowlisted: {executable}"),
+            action="blocked non-allowlisted environment probe command",
+            severity="warning",
+            extra={"command": executable},
+        )
+        return ""
+    timeout_s = max(0.1, min(float(timeout_s or 5.0), 15.0))
     try:
         proc = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
+            stderr=asyncio.subprocess.PIPE,
         )
         try:
-            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+            async with asyncio.timeout(timeout_s):
+                stdout, stderr = await proc.communicate()
             if proc.returncode == 0:
                 return stdout.decode().strip()
-        except asyncio.TimeoutError:
+            if stderr:
+                logger.debug("Environment command stderr from %s: %s", executable, stderr.decode(errors="replace")[:300])
+        except TimeoutError as exc:
             proc.kill()
+            await proc.wait()
+            _record_environment_degradation(
+                exc,
+                action="timed out and killed environment probe command",
+                severity="warning",
+                extra={"command": executable, "timeout_s": timeout_s},
+            )
             logger.debug("Command timed out: %s", " ".join(cmd))
-    except (subprocess.SubprocessError, OSError) as e:
-        record_degradation('environment_awareness', e)
+    except (subprocess.SubprocessError, OSError, RuntimeError, ValueError) as e:
+        _record_environment_degradation(
+            e,
+            action="returned empty environment probe result after command failure",
+            severity="warning",
+            extra={"command": executable},
+        )
         logger.debug("Command failed: %s - %s", " ".join(cmd), e)
     return ""
 
@@ -130,7 +234,11 @@ async def get_device_info() -> DeviceInfo:
                 elif line.startswith("MemAvailable"):
                     info.memory_available_gb = int(line.split()[1]) / (1024**2)
     except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-        record_degradation('environment_awareness', e)
+        _record_environment_degradation(
+            e,
+            action="returned partial device info after memory probe failed",
+            severity="warning",
+        )
         logger.debug("Memory info failed: %s", e)
     
     # Battery (macOS)
@@ -141,30 +249,35 @@ async def get_device_info() -> DeviceInfo:
                 # Parse "InternalBattery-0 (id=...)	85%; charging; ..."
                 for line in output.split("\n"):
                     if "InternalBattery" in line or "%" in line:
-                        import re
-                        pct_match = re.search(r'(\d+)%', line)
+                        pct_match = re.search(r"(\d+)%", line)
                         if pct_match:
                             info.battery_percent = float(pct_match.group(1))
                         info.battery_charging = "charging" in line.lower() or "AC Power" in output
     except (ImportError, AttributeError, RuntimeError) as e:
-        record_degradation('environment_awareness', e)
+        _record_environment_degradation(
+            e,
+            action="returned partial device info after battery probe failed",
+            severity="warning",
+        )
         logger.debug("Battery info failed: %s", e)
     
     # Disk
     try:
-        import shutil
         total, used, free = await asyncio.to_thread(shutil.disk_usage, "/")
         info.disk_free_gb = free / (1024**3)
     except (ImportError, AttributeError, RuntimeError) as e:
-        record_degradation('environment_awareness', e)
+        _record_environment_degradation(
+            e,
+            action="returned partial device info after disk probe failed",
+            severity="warning",
+        )
         logger.debug("Disk info unavailable: %s", e)
     # Uptime
     try:
         if platform.system() == "Darwin":
             output = await _run_command(["sysctl", "-n", "kern.boottime"])
             if output:
-                import re
-                match = re.search(r'sec = (\d+)', output)
+                match = re.search(r"sec = (\d+)", output)
                 if match:
                     boot_time = int(match.group(1))
                     info.uptime_hours = (time.time() - boot_time) / 3600
@@ -175,7 +288,11 @@ async def get_device_info() -> DeviceInfo:
             content = await asyncio.to_thread(_read_uptime)
             info.uptime_hours = float(content.split()[0]) / 3600
     except (ImportError, AttributeError, RuntimeError) as e:
-        record_degradation('environment_awareness', e)
+        _record_environment_degradation(
+            e,
+            action="returned partial device info after uptime probe failed",
+            severity="warning",
+        )
         logger.debug("Uptime info unavailable: %s", e)
     
     summary_str = await info.summary()
@@ -191,15 +308,15 @@ async def get_device_info() -> DeviceInfo:
 class LocationInfo:
     """Where is Aura's host device?"""
 
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
+    latitude: float | None = None
+    longitude: float | None = None
     city: str = ""
     region: str = ""
     country: str = ""
     timezone: str = ""
     ip_address: str = ""
     source: str = ""  # "gps", "ip_geolocation", "browser", "manual"
-    accuracy_meters: Optional[float] = None
+    accuracy_meters: float | None = None
     collected_at: float = 0.0
     
     async def summary(self) -> str:
@@ -248,8 +365,12 @@ async def get_location_from_ip() -> LocationInfo:
             logger.info("📍 Location: %s", summary_str)
         else:
             logger.warning("IP geolocation failed")
-    except (OSError, ConnectionError, TimeoutError) as e:
-        record_degradation('environment_awareness', e)
+    except (OSError, ConnectionError, TimeoutError, json.JSONDecodeError, ValueError) as e:
+        _record_environment_degradation(
+            e,
+            action="returned unknown location after IP geolocation failed",
+            severity="warning",
+        )
         logger.warning("Location lookup failed: %s", e)
     
     return loc
@@ -262,7 +383,10 @@ async def get_location_from_system() -> LocationInfo:
     try:
         if platform.system() == "Darwin":
             # Try using CoreLocationCLI if installed, or fall back to IP
-            output = await _run_command(["CoreLocationCLI", "-once", "-format", "%latitude,%longitude,%locality,%administrativeArea"], timeout=10)
+            output = await _run_command(
+                ["CoreLocationCLI", "-once", "-format", "%latitude,%longitude,%locality,%administrativeArea"],
+                timeout_s=10,
+            )
             if output:
                 parts = output.split(",")
                 if len(parts) >= 4:
@@ -273,11 +397,19 @@ async def get_location_from_system() -> LocationInfo:
                     loc.source = "gps"
                     loc.accuracy_meters = 100.0
                     return loc
-    except FileNotFoundError:
-        import logging
-        logger.debug("Exception caught during execution", exc_info=True)
-    except (ImportError, AttributeError, RuntimeError) as e:
-        record_degradation('environment_awareness', e)
+    except FileNotFoundError as e:
+        _record_environment_degradation(
+            e,
+            action="fell back to IP geolocation after CoreLocationCLI was unavailable",
+            severity="debug",
+        )
+        logger.debug("CoreLocationCLI unavailable", exc_info=True)
+    except (ImportError, AttributeError, RuntimeError, ValueError) as e:
+        _record_environment_degradation(
+            e,
+            action="fell back to IP geolocation after system location failed",
+            severity="warning",
+        )
         logger.debug("System location failed: %s", e)
     
     # Fall back to IP geolocation
@@ -334,39 +466,60 @@ class UserIdentityManager:
     }
     
     def __init__(self):
-        self.active_sessions: Dict[str, UserSession] = {}
-        self._known_fingerprints: Dict[str, str] = {}  # fingerprint -> identified_as
-        self._data_path = Path("data/user_sessions.json")
+        self.active_sessions: dict[str, UserSession] = {}
+        self._known_fingerprints: dict[str, str] = {}  # fingerprint -> identified_as
+        self._data_path = _data_path("user_sessions.json")
         self._load_known_fingerprints()
     
     def _load_known_fingerprints(self):
         """Load previously identified fingerprints."""
         try:
             if self._data_path.exists():
-                with open(self._data_path) as f:
-                    self._known_fingerprints = json.load(f)
+                with open(self._data_path, encoding="utf-8") as f:
+                    payload = json.load(f)
+                if not isinstance(payload, dict):
+                    raise ValueError("known fingerprint store is not an object")
+                self._known_fingerprints = {
+                    _safe_text(key, max_chars=64): _safe_text(value, max_chars=128)
+                    for key, value in payload.items()
+                    if _safe_text(key, max_chars=64) and _safe_text(value, max_chars=128)
+                }
                 logger.info("👤 Loaded %d known device fingerprints", len(self._known_fingerprints))
-        except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-            record_degradation('environment_awareness', e)
+        except _ENVIRONMENT_ERRORS as e:
+            _record_environment_degradation(
+                e,
+                action="continued with empty known-user fingerprint store after load failed",
+                severity="warning",
+                extra={"path": str(self._data_path)},
+            )
             logger.warning("Failed to load user fingerprints: %s", e)
     
     def _save_known_fingerprints(self):
         """Persist fingerprint associations."""
         try:
             self._data_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(self._data_path, "w") as f:
-                json.dump(self._known_fingerprints, f, indent=2)
-        except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-            record_degradation('environment_awareness', e)
+            payload = json.dumps(self._known_fingerprints, ensure_ascii=False, indent=2)
+            self._data_path.write_text(payload, encoding="utf-8")
+        except _ENVIRONMENT_ERRORS as e:
+            _record_environment_degradation(
+                e,
+                action="continued after known-user fingerprint store save failed",
+                severity="warning",
+                extra={"path": str(self._data_path)},
+            )
             logger.warning("Failed to save fingerprints: %s", e)
     
     def _make_fingerprint(self, user_agent: str, ip_address: str = "", extra: str = "") -> str:
         """Create a device fingerprint from available signals."""
-        raw = f"{user_agent}|{ip_address}|{extra}"
+        raw = f"{_safe_text(user_agent)}|{_safe_text(ip_address)}|{_safe_text(extra)}"
         return hashlib.sha256(raw.encode()).hexdigest()[:16]
     
-    def identify_session(self, user_agent: str = "", ip_address: str = "", 
-                         headers: Optional[Dict] = None) -> UserSession:
+    def identify_session(
+        self,
+        user_agent: str = "",
+        ip_address: str = "",
+        headers: dict[str, Any] | None = None,
+    ) -> UserSession:
         """Identify who is talking to Aura based on available signals.
         Returns a UserSession with best-guess identity.
         """
@@ -384,8 +537,8 @@ class UserIdentityManager:
         session = UserSession(
             session_id=hashlib.sha256(f"{fingerprint}{now}".encode()).hexdigest()[:12],
             device_fingerprint=fingerprint,
-            user_agent=user_agent,
-            ip_address=ip_address,
+            user_agent=_safe_text(user_agent, max_chars=512),
+            ip_address=_safe_text(ip_address, max_chars=128),
             first_seen=now,
             last_active=now,
             message_count=1,
@@ -443,6 +596,10 @@ class UserIdentityManager:
     
     def register_identity(self, fingerprint: str, name: str):
         """Explicitly register a user identity for a device."""
+        fingerprint = _safe_text(fingerprint, max_chars=64)
+        name = _safe_text(name, max_chars=128)
+        if not fingerprint or not name:
+            raise ValueError("fingerprint and name are required")
         self._known_fingerprints[fingerprint] = name
         self._save_known_fingerprints()
         
@@ -480,8 +637,8 @@ class EnvironmentAwareness:
     """
     
     def __init__(self):
-        self.device: Optional[DeviceInfo] = None
-        self.location: Optional[LocationInfo] = None
+        self.device: DeviceInfo | None = None
+        self.location: LocationInfo | None = None
         self.user_manager = UserIdentityManager()
         self._last_device_refresh = 0
         self._last_location_refresh = 0
@@ -504,7 +661,7 @@ class EnvironmentAwareness:
             self._last_location_refresh = now
         return self.location
 
-    async def get_full_context(self, user_agent: str = "", ip_address: str = "") -> Dict[str, Any]:
+    async def get_full_context(self, user_agent: str = "", ip_address: str = "") -> dict[str, Any]:
         """Get full environment context for prompt injection (Async)."""
         device = await self.refresh_device()
         location = await self.refresh_location()
@@ -544,7 +701,7 @@ class EnvironmentAwareness:
 # 5. API ENDPOINTS DATA (for server.py)
 # ═══════════════════════════════════════════════
 
-async def get_environment_api_data() -> Dict[str, Any]:
+async def get_environment_api_data() -> dict[str, Any]:
     """Get environment data formatted for API response (Async)."""
     env = get_environment()
     device = await env.refresh_device()
@@ -573,10 +730,14 @@ def get_environment() -> EnvironmentAwareness:
             ServiceContainer.register(
                 "environment_awareness",
                 factory=lambda: EnvironmentAwareness(),
-                lifetime=ServiceLifetime.SINGLETON
+                lifetime=ServiceLifetime.SINGLETON,
             )
         return ServiceContainer.get("environment_awareness", default=None)
     except (ImportError, AttributeError, RuntimeError) as e:
-        record_degradation('environment_awareness', e)
+        _record_environment_degradation(
+            e,
+            action="returned transient environment awareness after service container lookup failed",
+            severity="warning",
+        )
         logger.debug("ServiceContainer unavailable or failed: %s. Using transient EnvironmentAwareness.", e)
         return EnvironmentAwareness()

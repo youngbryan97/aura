@@ -736,6 +736,8 @@ class AgencyCore:
     async def _commit_action_side_effects(self, action: dict[str, Any], now: float) -> bool:
         """Apply state mutations that are valid only after an action is approved."""
         action_type = action.get("type")
+        if action_type == "pursue_goal" and action.get("goal"):
+            self.complete_goal_by_match(action.get("goal"), status="completed")
         if action.get("_consume_observation"):
             if self.state.unshared_observations:
                 self.state.unshared_observations.pop(0)
@@ -1190,6 +1192,43 @@ class AgencyCore:
             logger.info("🎯 New persistent goal: %s", goal_label[:60])
             return True
         return False
+
+    def complete_goal_by_match(self, goal: dict, status: str = "completed") -> bool:
+        """Mark a persistent goal matching the given dictionary as completed or another status."""
+        if not isinstance(goal, dict):
+            return False
+        
+        goal_id = goal.get("id")
+        goal_text = goal.get("text") or goal.get("description") or goal.get("objective")
+        
+        target_index = -1
+        for idx, g in enumerate(self.state.pending_goals):
+            # Check ID match if available
+            if goal_id is not None and g.get("id") == goal_id:
+                target_index = idx
+                break
+            # Check text/description/objective match
+            g_text = g.get("text") or g.get("description") or g.get("objective")
+            if goal_text and g_text == goal_text:
+                target_index = idx
+                break
+
+        if target_index == -1:
+            return False
+        
+        target_goal = self.state.pending_goals[target_index]
+        # Approve mutation via get_constitutional_core preflight check
+        if not self._approve_agency_state_mutation(
+            kind="complete_goal",
+            content={"goal": target_goal, "new_status": status},
+            priority=self._coerce_priority(target_goal.get("priority", 0.6), default=0.6),
+        ):
+            return False
+        
+        target_goal["status"] = status
+        goal_label = str(goal_text or "")
+        logger.info("🎯 Goal %s updated to: %s", goal_label[:60], status)
+        return True
 
     def add_topic(self, topic: str) -> bool:
         """Add something Aura wants to discuss with the user."""

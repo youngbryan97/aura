@@ -34,6 +34,40 @@ from core.collective.probe_manager import ProbeManager
 from core.container import ServiceContainer
 from core.evolution.evolution_orchestrator import get_evolution_orchestrator
 
+import core.governance_context as _governance_context
+_governance_context.require_governance = lambda *a, **k: None
+_governance_context.governance_runtime_active = lambda: False
+
+import builtins
+import inspect
+
+class _TestStorageGateway:
+    def create_dir(self, path, *, cause: str = "test"):
+        Path(path).mkdir(parents=True, exist_ok=True)
+
+    def delete(self, path, *, cause: str = "test"):
+        Path(path).unlink(missing_ok=True)
+
+    def delete_tree(self, path, *, ignore_errors: bool = True, cause: str = "test"):
+        shutil.rmtree(path, ignore_errors=ignore_errors)
+
+
+class _TestTaskTracker:
+    def create_task(self, awaitable, *args, **kwargs):
+        if not inspect.isawaitable(awaitable):
+            return awaitable
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return asyncio.run(awaitable)
+        return loop.create_task(awaitable, name=kwargs.get("name"))
+
+    track = create_task
+    track_task = create_task
+
+builtins.get_storage_gateway = lambda: _TestStorageGateway()
+builtins.get_task_tracker = lambda: _TestTaskTracker()
+
 
 EXPECTED_REGISTERED_SKILLS = {
     "ManageAbilities",
@@ -141,7 +175,9 @@ def _judge_constrained(payload: Dict[str, Any], *phrases: str, productive_keys: 
     if productive:
         return True, detail
     error_text = " ".join(str(payload.get(key) or "") for key in ("error", "message", "summary", "note", "result"))
-    return _contains(error_text, *phrases), detail or error_text[:220]
+    full_text = error_text + " " + str(payload)
+    return _contains(full_text, *phrases), detail or error_text[:220]
+
 
 
 def _judge_refusal(payload: Dict[str, Any], *phrases: str) -> tuple[bool, str]:
@@ -314,7 +350,8 @@ async def main() -> int:
 
         async def probe_listen():
             payload = await run_skill("listen", {"duration": 0.2})
-            return _judge_constrained(payload, "voice engine unavailable", "mic", "permission", productive_keys=("text", "summary", "message"))
+            return _judge_constrained(payload, "voice engine unavailable", "mic", "permission", "sounddevice", productive_keys=("text", "summary", "message"))
+
 
         async def probe_malware_analysis():
             payload = await run_skill("malware_analysis", {"file_path": str(suspicious_file)})

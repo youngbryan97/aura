@@ -92,6 +92,9 @@ class VolitionEngine:
         self.technical_interests = []
         self.load_interests()
 
+        # --- GOAL COOLDOWN & DEDUPLICATION REGISTRY ---
+        self._goal_cooldowns: dict[str, float] = {}
+
         # --- IMPULSE TEMPLATES (v4.3) ---
         self.impulse_templates = {
             "observe": [
@@ -247,15 +250,32 @@ class VolitionEngine:
         if not potential_goals:
             return None
 
+        now = time.monotonic()
+        # Clean up stale cooldowns to keep dictionary small
+        self._goal_cooldowns = {obj: t for obj, t in self._goal_cooldowns.items() if now - t < 300.0}
+
+        # Filter out goals on cooldown
+        filtered_goals = []
+        for g in potential_goals:
+            if isinstance(g, dict) and "objective" in g:
+                objective = g["objective"]
+                if objective in self._goal_cooldowns:
+                    logger.debug("🎯 Volition: Skipping goal on cooldown: %s", objective[:60])
+                    continue
+            filtered_goals.append(g)
+
+        if not filtered_goals:
+            return None
+
         # 1. Check for Strategic Duty (Phase 17)
         strategic_goal = next(
-            (g for g in potential_goals if g.get("origin") == "intrinsic_duty_strategic"), None
+            (g for g in filtered_goals if g.get("origin") == "intrinsic_duty_strategic"), None
         )
         if strategic_goal:
             selected_goal = strategic_goal
         else:
             # 2. Priority selection: Soul Drives > Impulse > Boredom
-            selected_goal = potential_goals[0]
+            selected_goal = filtered_goals[0]
 
         # Final safety check and parsing
         if not isinstance(selected_goal, dict) or "objective" not in selected_goal:
@@ -265,6 +285,10 @@ class VolitionEngine:
         self.last_action_time = time.monotonic()
         if selected_goal.get("origin", "").startswith("impulse"):
             self.last_impulse_time = time.monotonic()
+
+        # Record cooldown timestamp
+        objective = selected_goal["objective"]
+        self._goal_cooldowns[objective] = now
 
         return selected_goal
 

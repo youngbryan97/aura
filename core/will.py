@@ -653,7 +653,7 @@ class UnifiedWill:
                 if (tag_lower in content_lower
                         or tag_lower in source_lower
                         or tag_lower in str(context).lower()):
-                    if severity > 0.3:
+                    if severity > 0.05:
                         constraints.append(
                             f"scar:{tag} (severity={severity:.2f})"
                         )

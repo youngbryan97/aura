@@ -493,7 +493,7 @@ class AutonomyMixin:
 
             elif action_type == "pursue_goal":
                 goal = action.get("goal", {})
-                desc = goal.get("description", "unknown goal")
+                desc = goal.get("text") or goal.get("description") or goal.get("objective") or "unknown goal"
                 if not await _allow_agency_dispatch("pursue_goal", desc):
                     return
                 self._emit_thought_stream(f"🎯 Agency: Pursuing persistent goal: {desc}")
