@@ -11,35 +11,37 @@ quality of the result. A pass can be one of three things:
 
 Exit code 0 means every registered skill executed and satisfied its judge rule.
 """
+# Repo imports are intentionally resolved after the script inserts PROJECT_ROOT.
+# ruff: noqa: E402
 from __future__ import annotations
 
 import asyncio
+import builtins
+import inspect
 import os
 import shutil
-import subprocess
 import sys
 import tempfile
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any, Awaitable, Callable, Dict
+from typing import Any
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+import core.governance_context as _governance_context
 from core.capability_engine import CapabilityEngine
 from core.collective.delegator import AgentDelegator
 from core.collective.probe_manager import ProbeManager
 from core.container import ServiceContainer
 from core.evolution.evolution_orchestrator import get_evolution_orchestrator
 
-import core.governance_context as _governance_context
 _governance_context.require_governance = lambda *a, **k: None
 _governance_context.governance_runtime_active = lambda: False
 
-import builtins
-import inspect
 
 class _TestStorageGateway:
     def create_dir(self, path, *, cause: str = "test"):
@@ -65,8 +67,20 @@ class _TestTaskTracker:
     track = create_task
     track_task = create_task
 
-builtins.get_storage_gateway = lambda: _TestStorageGateway()
-builtins.get_task_tracker = lambda: _TestTaskTracker()
+_TEST_STORAGE_GATEWAY = _TestStorageGateway()
+_TEST_TASK_TRACKER = _TestTaskTracker()
+
+
+def get_storage_gateway() -> _TestStorageGateway:
+    return _TEST_STORAGE_GATEWAY
+
+
+def get_task_tracker() -> _TestTaskTracker:
+    return _TEST_TASK_TRACKER
+
+
+builtins.get_storage_gateway = get_storage_gateway
+builtins.get_task_tracker = get_task_tracker
 
 
 EXPECTED_REGISTERED_SKILLS = {
@@ -150,7 +164,7 @@ class _MemoryFacadeStub:
         return None
 
 
-def _detail_from_payload(payload: Dict[str, Any], *keys: str) -> str:
+def _detail_from_payload(payload: dict[str, Any], *keys: str) -> str:
     for key in keys:
         value = payload.get(key)
         if value:
@@ -164,13 +178,13 @@ def _contains(text: str, *phrases: str) -> bool:
     return any(phrase.lower() in lowered for phrase in phrases)
 
 
-def _judge_productive(payload: Dict[str, Any], *keys: str) -> tuple[bool, str]:
+def _judge_productive(payload: dict[str, Any], *keys: str) -> tuple[bool, str]:
     ok = bool(payload.get("ok"))
     has_signal = any(payload.get(key) for key in keys)
     return ok and has_signal, _detail_from_payload(payload, *keys, "summary", "message", "error")
 
 
-def _judge_constrained(payload: Dict[str, Any], *phrases: str, productive_keys: tuple[str, ...] = ("summary", "message", "result", "answer", "content", "output", "status")) -> tuple[bool, str]:
+def _judge_constrained(payload: dict[str, Any], *phrases: str, productive_keys: tuple[str, ...] = ("summary", "message", "result", "answer", "content", "output", "status")) -> tuple[bool, str]:
     productive, detail = _judge_productive(payload, *productive_keys)
     if productive:
         return True, detail
@@ -180,7 +194,7 @@ def _judge_constrained(payload: Dict[str, Any], *phrases: str, productive_keys: 
 
 
 
-def _judge_refusal(payload: Dict[str, Any], *phrases: str) -> tuple[bool, str]:
+def _judge_refusal(payload: dict[str, Any], *phrases: str) -> tuple[bool, str]:
     error_text = " ".join(str(payload.get(key) or "") for key in ("error", "message", "summary"))
     return (not payload.get("ok")) and _contains(error_text, *phrases), error_text[:220]
 
@@ -189,8 +203,29 @@ async def _run_checked(name: str, probe: Callable[[], Awaitable[tuple[bool, str]
     try:
         ok, detail = await probe()
         return CheckResult(name, ok, detail)
-    except Exception as exc:
+    except (AttributeError, KeyError, OSError, RuntimeError, TypeError, ValueError) as exc:
         return CheckResult(name, False, f"{type(exc).__name__}: {exc}")
+
+
+async def _init_bare_git_repo(path: Path) -> None:
+    proc = await asyncio.create_subprocess_exec(
+        "git",
+        "init",
+        "--bare",
+        str(path),
+        cwd=str(PROJECT_ROOT),
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    try:
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=10.0)
+    except TimeoutError as exc:
+        proc.kill()
+        await proc.wait()
+        raise RuntimeError(f"git init timed out for {path}") from exc
+    if proc.returncode != 0:
+        detail = (stderr or stdout).decode("utf-8", errors="replace")[-500:]
+        raise RuntimeError(f"git init failed for {path}: {detail}")
 
 
 async def main() -> int:
@@ -218,14 +253,14 @@ async def main() -> int:
         ServiceContainer.register_instance("agent_delegator", delegator)
 
         bare_repo = temp_path / "memory-remote.git"
-        subprocess.run(["git", "init", "--bare", str(bare_repo)], check=True, capture_output=True)
+        await _init_bare_git_repo(bare_repo)
         previous_memory_repo = os.environ.get("AURA_MEMORY_REPO")
         os.environ["AURA_MEMORY_REPO"] = str(bare_repo)
 
         belief_subject = "Bryan"
         manifest_path: Path | None = None
 
-        async def run_skill(skill_name: str, params: Dict[str, Any], context: Dict[str, Any] | None = None) -> Dict[str, Any]:
+        async def run_skill(skill_name: str, params: dict[str, Any], context: dict[str, Any] | None = None) -> dict[str, Any]:
             meta = engine.skills[skill_name]
             module = __import__(meta.module_path, fromlist=[meta.class_name])
             cls = getattr(module, meta.class_name)
@@ -512,7 +547,7 @@ async def main() -> int:
             payload = await run_skill("web_search", {"query": "Python official documentation website", "deep": True, "num_results": 2})
             return _judge_productive(payload, "summary", "answer", "content")
 
-        probes: Dict[str, Callable[[], Awaitable[tuple[bool, str]]]] = {
+        probes: dict[str, Callable[[], Awaitable[tuple[bool, str]]]] = {
             "ManageAbilities": probe_manage_abilities,
             "add_belief": probe_add_belief,
             "auto_refactor": probe_auto_refactor,
@@ -590,9 +625,9 @@ async def main() -> int:
             print(f"MISSING PROBES: {len(missing)}")
         print(f"FAILURES: {len(failures)}")
 
-        if manifest_path and manifest_path.exists():
+        if manifest_path and await asyncio.to_thread(manifest_path.exists):
             get_task_tracker().create_task(get_storage_gateway().delete(manifest_path, cause='main'))
-        if workspace_temp.exists():
+        if await asyncio.to_thread(workspace_temp.exists):
             get_task_tracker().create_task(get_storage_gateway().delete_tree(workspace_temp, ignore_errors=True, cause='main'))
         await delegator.stop()
         if previous_memory_repo is None:

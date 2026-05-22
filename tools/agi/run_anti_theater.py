@@ -4,11 +4,15 @@ tools/agi/run_anti_theater.py
 Anti-Theater Audit Runner.
 """
 
-import sys
-import os
-import json
 import argparse
+import asyncio
+import json
+import os
+import sys
 from pathlib import Path
+
+# Repo imports are intentionally resolved after the script inserts PROJECT_ROOT.
+# ruff: noqa: E402
 
 # Add project root to sys.path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -20,17 +24,18 @@ def parse_args():
     parser.add_argument("--sealed-answers", type=str, default="tests/agi/fixtures/sealed_answers/answer_hashes.json")
     return parser.parse_args()
 
-async def main():
-    args = parse_args()
-    out_path = Path(args.output)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    
-    sealed_answers_path = Path(args.sealed_answers)
-    answer_hashes = {}
-    if sealed_answers_path.exists():
-        answer_hashes = json.loads(sealed_answers_path.read_text())
 
-    # 1. Deep Leakage checks - Scan memory paths, configs, prompts, active databases, and logs
+def _load_answer_hashes(path: Path) -> dict[str, str]:
+    if not path.exists():
+        return {}
+    return json.loads(path.read_text())
+
+
+def _scan_leaks(answer_hashes: dict[str, str]) -> tuple[int, int, int]:
+    prompt_leaks = 0
+    memory_leaks = 0
+    evaluator_leaks = 0
+
     scanned_paths = [
         "config/",
         "data/memory/",
@@ -39,19 +44,13 @@ async def main():
         "data/logs/",
         ".aura_runtime/logs/",
     ]
-    
-    prompt_leaks = 0
-    memory_leaks = 0
-    evaluator_leaks = 0
 
-    # Ensure no answer keys or hashes appear in configurations, code, or logs
     for path_str in scanned_paths:
         dir_path = PROJECT_ROOT / path_str
         if dir_path.exists():
             for root, _, files in os.walk(dir_path):
                 for f in files:
                     file_path = Path(root, f)
-                    # Check text files
                     if f.endswith((".py", ".yaml", ".json", ".txt", ".log", ".jsonl")):
                         content = file_path.read_text(errors="ignore")
                         for task_id, val_hash in answer_hashes.items():
@@ -63,7 +62,6 @@ async def main():
                             if task_id in content and "run_anti_theater" not in f and "answer_hashes" not in f:
                                 evaluator_leaks += 1
 
-    # Ensure no answer keys or hashes appear in process environment variables
     for env_key, env_val in os.environ.items():
         for task_id, val_hash in answer_hashes.items():
             if val_hash in env_val:
@@ -71,7 +69,6 @@ async def main():
             if task_id in env_val and env_key not in ("AURA_AGI_LIVE_TEST", "AURA_ARTIFACTS_DIR"):
                 evaluator_leaks += 1
 
-    # 2. SQLite Database Scan (Read-only binary byte search to prevent SQL locks/blocks)
     data_dir = PROJECT_ROOT / "data"
     if data_dir.exists():
         for root, _, files in os.walk(data_dir):
@@ -79,8 +76,6 @@ async def main():
                 if f.endswith((".db", ".sqlite")):
                     db_path = Path(root, f)
                     try:
-                        # SQLite databases store raw strings/hashes as plain ASCII/UTF-8.
-                        # Reading in binary chunks is extremely fast, highly robust, and bypassed database locks.
                         db_bytes = db_path.read_bytes()
                         for task_id, val_hash in answer_hashes.items():
                             hash_bytes = val_hash.encode('ascii')
@@ -89,8 +84,21 @@ async def main():
                                 memory_leaks += 1
                             if id_bytes in db_bytes:
                                 evaluator_leaks += 1
-                    except Exception as e:
+                    except OSError as e:
                         print(f"Warning: could not scan database file {db_path}: {e}")
+
+    return prompt_leaks, memory_leaks, evaluator_leaks
+
+
+async def main():
+    args = parse_args()
+    out_path = Path(args.output)
+    await asyncio.to_thread(out_path.parent.mkdir, parents=True, exist_ok=True)
+
+    answer_hashes = await asyncio.to_thread(_load_answer_hashes, Path(args.sealed_answers))
+    prompt_leaks, memory_leaks, evaluator_leaks = await asyncio.to_thread(
+        _scan_leaks, answer_hashes
+    )
 
     # 3. Assert no leaks
     assert prompt_leaks == 0, f"Found {prompt_leaks} answer hash leaks in prompt templates or configurations!"
@@ -116,9 +124,8 @@ async def main():
         "anti_theater_status": "passed"
     }
 
-    out_path.write_text(json.dumps(report, indent=2))
+    await asyncio.to_thread(out_path.write_text, json.dumps(report, indent=2))
     print(f"Anti-theater leakage audit report saved to {out_path}")
 
 if __name__ == "__main__":
-    import asyncio
     asyncio.run(main())

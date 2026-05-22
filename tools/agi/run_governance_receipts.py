@@ -4,22 +4,24 @@ tools/agi/run_governance_receipts.py
 Governance Receipt Conservation Test Runner.
 """
 
-import sys
-import os
-import json
 import argparse
-import hashlib
+import asyncio
+import json
+import sys
 from pathlib import Path
-from types import SimpleNamespace
+
+# Repo imports are intentionally resolved after the script inserts PROJECT_ROOT.
+# ruff: noqa: E402
 
 # Add project root to sys.path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from core.container import ServiceContainer
+from core.executive.authority_gateway import AuthorityDecision, AuthorityGateway
 from core.orchestrator import RobustOrchestrator
 from core.will import get_will
-from core.executive.authority_gateway import AuthorityGateway, AuthorityDecision
+
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -68,10 +70,10 @@ class LiveProvingAuthorityGateway(AuthorityGateway):
 async def main():
     args = parse_args()
     out_path = Path(args.output)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    
+    await asyncio.to_thread(out_path.parent.mkdir, parents=True, exist_ok=True)
+
     # Bootstrap live RobustOrchestrator and production UnifiedWill
-    orch = RobustOrchestrator()
+    RobustOrchestrator()
     will = get_will()
     await will.start()
     
@@ -122,18 +124,17 @@ async def main():
                 "reason": decision.reason
             })
             
-    # 3. Test service-level fail-closed (tamper with UnifiedWill to trigger exception)
+    # 3. Test service-level fail-closed when UnifiedWill is unavailable.
     service_level_blocked = False
     gateway.enabled = True
     
-    # Backup original decide method
     original_decide = will.decide
     try:
-        # Mock decide to raise a RuntimeError, simulating a crashed or tampered service
         def tampered_decide(*args, **kwargs):
+            _ = (args, kwargs)
             raise RuntimeError("UnifiedWill signature service tampered or crashed!")
         will.decide = tampered_decide
-        
+
         # This authorization must fail closed and return will_unavailable status
         decision = await gateway.check_effect_live("tool_call", "payload_data")
         if not decision.approved and decision.outcome == "will_unavailable":
@@ -152,9 +153,8 @@ async def main():
         "fail_closed_status": (len(blocked_attempts) == len(effects)) and service_level_blocked
     }
     
-    out_path.write_text(json.dumps(report, indent=2))
+    await asyncio.to_thread(out_path.write_text, json.dumps(report, indent=2))
     print(f"Governance receipts report saved to {out_path}")
 
 if __name__ == "__main__":
-    import asyncio
     asyncio.run(main())

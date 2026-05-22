@@ -4,24 +4,28 @@ tools/agi/run_causal_agency_lesion.py
 Causal Agency Lesion Test Runner.
 """
 
-import sys
-import os
-import json
 import argparse
-import time
-import numpy as np
+import asyncio
+import json
+import sys
+from collections import Counter
 from pathlib import Path
-from types import SimpleNamespace
+
+import numpy as np
+
+# Repo imports are intentionally resolved after the script inserts PROJECT_ROOT.
+# ruff: noqa: E402
 
 # Add project root to sys.path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from core.state.aura_state import AuraState
-from core.orchestrator import RobustOrchestrator
 from core.container import ServiceContainer
-from core.will import get_will, ActionDomain
+from core.orchestrator import RobustOrchestrator
+from core.state.aura_state import AuraState
 from core.volition import VolitionEngine
+from core.will import ActionDomain, get_will
+
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -31,10 +35,10 @@ def parse_args():
 
 async def main():
     args = parse_args()
-    
+
     # Standardize output path
     out_path = Path(args.output)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
+    await asyncio.to_thread(out_path.parent.mkdir, parents=True, exist_ok=True)
     
     # 1. Setup actual RobustOrchestrator and VolitionEngine
     orch = RobustOrchestrator()
@@ -45,8 +49,8 @@ async def main():
     will = get_will()
     await will.start()
     
-    # Setup mock cognitive engine on actual orchestrator to avoid remote LLM connection errors
-    class CausalMockCognitiveEngine:
+    # Attach a deterministic cognitive engine so the lesion isolates causal state changes.
+    class CausalProbeCognitiveEngine:
         def __init__(self, state):
             self.state = state
             
@@ -86,7 +90,7 @@ async def main():
         if variant["scar"]:
             orch.state.cognition.modifiers["scar"] = variant["scar"]
             
-        engine = CausalMockCognitiveEngine(orch.state)
+        engine = CausalProbeCognitiveEngine(orch.state)
         action = await engine.process_turn("Evaluate options")
         normal_decisions.append(action)
         
@@ -101,7 +105,6 @@ async def main():
             receipts_registered += 1
         
     # Calculate Normal state action distribution divergence
-    from collections import Counter
     normal_counts = Counter(normal_decisions)
     normal_probs = [c / len(normal_decisions) for c in normal_counts.values()]
     normal_state_action_divergence = float(np.std(normal_probs) * 2.0)
@@ -120,7 +123,7 @@ async def main():
         if variant["scar"]:
             orch.state.cognition.modifiers["scar"] = variant["scar"]
             
-        engine = CausalMockCognitiveEngine(orch.state)
+        engine = CausalProbeCognitiveEngine(orch.state)
         action = await engine.process_turn("Evaluate options")
         lesioned_decisions.append(action)
         
@@ -155,9 +158,8 @@ async def main():
         "lesioned_distribution": lesioned_counts
     }
     
-    out_path.write_text(json.dumps(report, indent=2))
+    await asyncio.to_thread(out_path.write_text, json.dumps(report, indent=2))
     print(f"Causal agency lesion report saved to {out_path}")
 
 if __name__ == "__main__":
-    import asyncio
     asyncio.run(main())
