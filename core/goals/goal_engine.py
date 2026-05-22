@@ -16,10 +16,63 @@ from typing import Any
 
 from core.container import ServiceContainer
 from core.goals.goal_text import is_actionable_goal_text, is_intrinsic_goal_text
-from core.runtime.errors import record_degradation
+from core.runtime.errors import FallbackClassification, Severity, record_degradation
 from core.state.aura_state import _origin_is_user_anchored
 
 logger = logging.getLogger("Aura.GoalEngine")
+
+
+def _record_goal_degradation(
+    error: BaseException,
+    *,
+    severity: Severity = "degraded",
+    action: str,
+    classification: FallbackClassification = FallbackClassification.SILENT_LOSS_OF_CAPABILITY,
+    extra: dict[str, Any] | None = None,
+):
+    return record_degradation(
+        "goal_engine",
+        error,
+        severity=severity,
+        action=action,
+        classification=classification,
+        receipt_required=True,
+        extra=extra,
+    )
+
+
+def _safe_json_list(raw: Any, *, field_name: str, goal_id: str) -> list[Any]:
+    try:
+        parsed = json.loads(str(raw or "[]"))
+        if isinstance(parsed, list):
+            return parsed
+        raise ValueError(f"{field_name} must decode to a list")
+    except (TypeError, ValueError, json.JSONDecodeError) as exc:
+        _record_goal_degradation(
+            exc,
+            severity="warning",
+            action=f"replaced corrupt {field_name} with an empty list",
+            classification=FallbackClassification.SILENT_LOSS_OF_CAPABILITY,
+            extra={"goal_id": goal_id, "field": field_name},
+        )
+        return []
+
+
+def _safe_json_dict(raw: Any, *, field_name: str, goal_id: str) -> dict[str, Any]:
+    try:
+        parsed = json.loads(str(raw or "{}"))
+        if isinstance(parsed, dict):
+            return parsed
+        raise ValueError(f"{field_name} must decode to an object")
+    except (TypeError, ValueError, json.JSONDecodeError) as exc:
+        _record_goal_degradation(
+            exc,
+            severity="warning",
+            action=f"replaced corrupt {field_name} with an empty object",
+            classification=FallbackClassification.SILENT_LOSS_OF_CAPABILITY,
+            extra={"goal_id": goal_id, "field": field_name},
+        )
+        return {}
 
 
 class GoalStatus(StrEnum):
@@ -154,7 +207,6 @@ class GoalEngine:
 
     def __init__(self, db_path: str | None = None):
         self._db_path = Path(db_path) if db_path else self._default_db_path()
-        self._db_path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
         self._conn: sqlite3.Connection | None = None
         self._state_repo = None
@@ -172,19 +224,34 @@ class GoalEngine:
 
             return config.paths.data_dir / "goals" / "goal_lifecycle.db"
         except (ImportError, AttributeError, RuntimeError) as exc:
-            record_degradation("goal_engine", exc)
+            _record_goal_degradation(
+                exc,
+                severity="warning",
+                action="fell back to default Aura data directory for goal lifecycle store",
+                classification=FallbackClassification.SILENT_LOSS_OF_CAPABILITY,
+                extra={"phase": "default_path_lookup"},
+            )
             logger.debug("GoalEngine default path lookup failed: %s", exc)
             return Path.home() / ".aura" / "data" / "goals" / "goal_lifecycle.db"
 
     def _initialize(self) -> None:
         try:
+            self._db_path.parent.mkdir(parents=True, exist_ok=True)
             self._conn = sqlite3.connect(str(self._db_path), check_same_thread=False)
+            self._conn.row_factory = sqlite3.Row
+            self._conn.execute("PRAGMA busy_timeout=5000;")
             self._conn.execute("PRAGMA journal_mode=WAL;")
             self._conn.execute("PRAGMA synchronous=NORMAL;")
             self._conn.executescript(_SCHEMA)
             self._conn.commit()
         except (sqlite3.Error, OSError) as exc:
-            record_degradation('goal_engine', exc)
+            _record_goal_degradation(
+                exc,
+                severity="critical",
+                action="disabled durable goal lifecycle store after initialization failure",
+                classification=FallbackClassification.SILENT_LOSS_OF_CAPABILITY,
+                extra={"phase": "initialize", "path": str(self._db_path)},
+            )
             logger.error("GoalEngine initialization failed: %s", exc)
             self._conn = None
 
@@ -315,7 +382,13 @@ class GoalEngine:
         try:
             snapshot = list(task_engine.get_active_plans() or [])
         except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
-            record_degradation('goal_engine', exc)
+            _record_goal_degradation(
+                exc,
+                severity="warning",
+                action="skipped task-engine active plan reconciliation for this cycle",
+                classification=FallbackClassification.SILENT_LOSS_OF_CAPABILITY,
+                extra={"phase": "active_task_engine_plan_ids"},
+            )
             logger.debug("GoalEngine task-engine plan snapshot skipped: %s", exc)
             return None
 
@@ -438,7 +511,13 @@ class GoalEngine:
             self._reconcile_duplicate_active_records()
             self._last_reconcile_at = now
         except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
-            record_degradation('goal_engine', exc)
+            _record_goal_degradation(
+                exc,
+                severity="degraded",
+                action="left existing goal records unchanged after reconciliation failure",
+                classification=FallbackClassification.SILENT_LOSS_OF_CAPABILITY,
+                extra={"phase": "runtime_reconcile"},
+            )
             logger.debug("GoalEngine reconciliation skipped: %s", exc)
         finally:
             self._reconciling = False
@@ -531,8 +610,9 @@ class GoalEngine:
         return record
 
     def _row_to_record(self, row: sqlite3.Row) -> GoalRecord:
+        goal_id = str(row["id"])
         return GoalRecord(
-            id=str(row["id"]),
+            id=goal_id,
             name=str(row["name"]),
             objective=str(row["objective"]),
             status=str(row["status"]),
@@ -547,10 +627,16 @@ class GoalEngine:
             success_criteria=str(row["success_criteria"] or ""),
             summary=str(row["summary"] or ""),
             error=str(row["error"] or ""),
-            required_tools=list(json.loads(row["required_tools_json"] or "[]")),
-            required_skills=list(json.loads(row["required_skills_json"] or "[]")),
-            evidence=list(json.loads(row["evidence_json"] or "[]")),
-            metadata=dict(json.loads(row["metadata_json"] or "{}")),
+            required_tools=self._normalize_strings(
+                _safe_json_list(row["required_tools_json"], field_name="required_tools_json", goal_id=goal_id)
+            ),
+            required_skills=self._normalize_strings(
+                _safe_json_list(row["required_skills_json"], field_name="required_skills_json", goal_id=goal_id)
+            ),
+            evidence=self._normalize_strings(
+                _safe_json_list(row["evidence_json"], field_name="evidence_json", goal_id=goal_id)
+            )[:8],
+            metadata=_safe_json_dict(row["metadata_json"], field_name="metadata_json", goal_id=goal_id),
             project_id=str(row["project_id"] or ""),
             parent_goal_id=str(row["parent_goal_id"] or ""),
             plan_id=str(row["plan_id"] or ""),
@@ -750,7 +836,13 @@ class GoalEngine:
             try:
                 self.gbm.reinforce_goal(objective_text, "Direct goal registration.")
             except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
-                record_degradation('goal_engine', exc)
+                _record_goal_degradation(
+                    exc,
+                    severity="warning",
+                    action="persisted goal without belief-manager reinforcement",
+                    classification=FallbackClassification.SILENT_LOSS_OF_CAPABILITY,
+                    extra={"phase": "belief_reinforcement", "goal_id": record.id},
+                )
                 logger.debug("Goal belief reinforcement skipped: %s", exc)
         self._sync_state_view()
         return record.to_dict()
@@ -1226,7 +1318,13 @@ class GoalEngine:
             elif not active and is_intrinsic_goal_text(current_objective):
                 cognition.current_objective = None
         except (OSError, ConnectionError, TimeoutError) as exc:
-            record_degradation('goal_engine', exc)
+            _record_goal_degradation(
+                exc,
+                severity="warning",
+                action="left cognition.active_goals unchanged after state sync failure",
+                classification=FallbackClassification.SILENT_LOSS_OF_CAPABILITY,
+                extra={"phase": "state_sync"},
+            )
             logger.debug("GoalEngine state sync skipped: %s", exc)
 
     def _external_goal_items(self) -> list[dict[str, Any]]:
@@ -1354,8 +1452,14 @@ class GoalEngine:
                         "is_terminal": status in TERMINAL_GOAL_STATUSES,
                     }
                 )
-        except (ImportError, AttributeError, RuntimeError) as exc:
-            record_degradation('goal_engine', exc)
+        except (ImportError, AttributeError, RuntimeError, sqlite3.Error) as exc:
+            _record_goal_degradation(
+                exc,
+                severity="warning",
+                action="omitted strategic project items from goal snapshot for this cycle",
+                classification=FallbackClassification.SILENT_LOSS_OF_CAPABILITY,
+                extra={"phase": "strategic_project_snapshot"},
+            )
             logger.debug("Strategic project snapshot skipped: %s", exc)
         return items
 

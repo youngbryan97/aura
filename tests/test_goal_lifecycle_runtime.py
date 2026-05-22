@@ -4,6 +4,7 @@ import pytest
 
 from core.container import ServiceContainer
 from core.goals.goal_engine import GoalEngine
+from core.runtime.errors import get_degradation_tracker
 from core.state.aura_state import AuraState
 
 
@@ -245,3 +246,45 @@ async def test_goal_engine_state_sync_prefers_actionable_goals(service_container
         for goal in state.cognition.active_goals
         if isinstance(goal, dict)
     )
+
+
+def test_goal_engine_sanitizes_corrupt_json_fields(tmp_path):
+    get_degradation_tracker().reset()
+    engine = GoalEngine(db_path=str(tmp_path / "goal_lifecycle.db"))
+
+    record = engine._upsert_goal(
+        name="Verify durable goal loading",
+        objective="Verify durable goal loading",
+        status="queued",
+        required_tools=["search"],
+        metadata={"owner": "runtime"},
+    )
+    assert engine._conn is not None
+    engine._conn.execute(
+        "UPDATE goals SET required_tools_json = ?, metadata_json = ? WHERE id = ?",
+        ("not-json", "[]", record.id),
+    )
+    engine._conn.commit()
+
+    loaded = engine.get_goal(record.id)
+
+    assert loaded is not None
+    assert loaded["required_tools"] == []
+    assert loaded["metadata"] == {}
+    assert get_degradation_tracker().count("goal_engine", "warning") >= 2
+
+
+def test_goal_engine_reconciliation_failure_records_structured_degradation(tmp_path, monkeypatch):
+    get_degradation_tracker().reset()
+    engine = GoalEngine(db_path=str(tmp_path / "goal_lifecycle.db"))
+
+    def fail_reconcile():
+        detail = "reconcile failed"
+        raise RuntimeError(detail)
+
+    monkeypatch.setattr(engine, "_reconcile_stale_task_engine_records", fail_reconcile)
+
+    engine._maybe_reconcile_runtime_records()
+
+    assert engine._reconciling is False
+    assert get_degradation_tracker().count("goal_engine", "degraded") >= 1
