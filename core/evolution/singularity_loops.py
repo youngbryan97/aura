@@ -17,19 +17,48 @@ Loops implemented:
 Runs as a background service at 30-second intervals.
 """
 from __future__ import annotations
-import inspect
-from core.runtime.errors import record_degradation
-
-from core.utils.task_tracker import get_task_tracker
 
 import asyncio
+import inspect
 import logging
 import time
-from typing import Any, Dict, List, Optional
+from collections import defaultdict
+from collections.abc import Awaitable
+from typing import Any
 
 from core.container import ServiceContainer
+from core.runtime.errors import FallbackClassification, Severity, record_degradation
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.SingularityLoops")
+
+_SINGULARITY_RECOVERABLE_ERRORS = (
+    AttributeError,
+    ImportError,
+    RuntimeError,
+    TimeoutError,
+    TypeError,
+    ValueError,
+)
+
+
+def _record_singularity_degradation(
+    error: BaseException,
+    *,
+    severity: Severity = "degraded",
+    action: str,
+    classification: FallbackClassification = FallbackClassification.SILENT_LOSS_OF_CAPABILITY,
+    extra: dict[str, Any] | None = None,
+):
+    return record_degradation(
+        "singularity_loops",
+        error,
+        severity=severity,
+        action=action,
+        classification=classification,
+        receipt_required=True,
+        extra=extra,
+    )
 
 
 class SingularityLoops:
@@ -39,12 +68,15 @@ class SingularityLoops:
 
     def __init__(self) -> None:
         self._stop = asyncio.Event()
-        self._task: Optional[asyncio.Task] = None
+        self._task: asyncio.Task | None = None
         self._tick_count = 0
         self._last_profile_inject: float = 0.0
         self._last_distill_check: float = 0.0
         self._last_goal_advance: float = 0.0
         self._last_curiosity_run: float = 0.0
+        self._loop_failures: dict[str, int] = defaultdict(int)
+        self._last_loop_success: dict[str, float] = {}
+        self._last_loop_error: dict[str, str] = {}
         logger.info("🔗 SingularityLoops initialized — wiring evolutionary feedback loops")
 
     async def start(self) -> None:
@@ -71,26 +103,88 @@ class SingularityLoops:
             self._tick_count += 1
             try:
                 await self._tick()
-            except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
-                record_degradation('singularity_loops', exc)
+            except _SINGULARITY_RECOVERABLE_ERRORS as exc:
+                self._record_loop_failure(
+                    "tick",
+                    exc,
+                    action="kept singularity loop service alive after tick failure",
+                )
                 logger.debug("SingularityLoops tick error: %s", exc)
             try:
                 await asyncio.wait_for(self._stop.wait(), timeout=self._INTERVAL)
                 break
-            except asyncio.TimeoutError as _exc:
+            except TimeoutError as _exc:
                 logger.debug("Suppressed asyncio.TimeoutError: %s", _exc)
 
     async def _tick(self) -> None:
         """Run all feedback loops in parallel."""
-        loops = [
-            self._loop_metacognition_to_self_model(),
-            self._loop_curiosity_to_exploration(),
-            self._loop_goal_advancement(),
-            self._loop_profile_injection(),
-            self._loop_distillation_trigger(),
-            self._loop_affect_to_exploration(),
+        loops: list[tuple[str, Awaitable[None]]] = [
+            ("metacognition_to_self_model", self._loop_metacognition_to_self_model()),
+            ("curiosity_to_exploration", self._loop_curiosity_to_exploration()),
+            ("goal_advancement", self._loop_goal_advancement()),
+            ("profile_injection", self._loop_profile_injection()),
+            ("distillation_trigger", self._loop_distillation_trigger()),
+            ("affect_to_exploration", self._loop_affect_to_exploration()),
         ]
-        await asyncio.gather(*loops, return_exceptions=True)
+        results = await asyncio.gather(*(coro for _, coro in loops), return_exceptions=True)
+        for (loop_name, _), result in zip(loops, results, strict=True):
+            if isinstance(result, asyncio.CancelledError):
+                raise result
+            if isinstance(result, _SINGULARITY_RECOVERABLE_ERRORS):
+                self._record_loop_failure(
+                    loop_name,
+                    result,
+                    action="isolated feedback-loop failure while preserving sibling loops",
+                )
+                continue
+            if isinstance(result, Exception):
+                self._record_loop_failure(
+                    loop_name,
+                    result,
+                    action="contained unexpected feedback-loop exception while preserving sibling loops",
+                    severity="critical",
+                )
+                continue
+            if isinstance(result, BaseException):
+                raise result
+            self._record_loop_success(loop_name)
+
+    def _record_loop_success(self, loop_name: str) -> None:
+        self._loop_failures[loop_name] = 0
+        self._last_loop_success[loop_name] = time.time()
+        self._last_loop_error.pop(loop_name, None)
+
+    def _record_loop_failure(
+        self,
+        loop_name: str,
+        error: BaseException,
+        *,
+        action: str,
+        severity: Severity = "degraded",
+    ) -> None:
+        self._loop_failures[loop_name] += 1
+        self._last_loop_error[loop_name] = f"{type(error).__name__}: {error}"
+        _record_singularity_degradation(
+            error,
+            severity=severity,
+            action=action,
+            extra={
+                "loop": loop_name,
+                "consecutive_failures": self._loop_failures[loop_name],
+                "tick_count": self._tick_count,
+            },
+        )
+
+    def get_status(self) -> dict[str, Any]:
+        """Expose loop health for boot/runtime contracts and diagnostics."""
+        return {
+            "running": not self._stop.is_set(),
+            "task_alive": bool(self._task and not self._task.done()),
+            "tick_count": self._tick_count,
+            "consecutive_failures": dict(self._loop_failures),
+            "last_loop_success": dict(self._last_loop_success),
+            "last_loop_error": dict(self._last_loop_error),
+        }
 
     # ── Loop 1: Metacognition → Self-Model ───────────────────────────────
     # When metacognition identifies knowledge gaps or confusions,
@@ -121,9 +215,14 @@ class SingularityLoops:
                             confidence=0.6,
                             source="metacognition_loop",
                         )
-                except (RuntimeError, AttributeError, TypeError) as _exc:
-                    record_degradation('singularity_loops', _exc)
-                    logger.debug("Suppressed Exception: %s", _exc)
+                except _SINGULARITY_RECOVERABLE_ERRORS as _exc:
+                    self._record_loop_failure(
+                        "metacognition_to_self_model",
+                        _exc,
+                        action="skipped one knowledge-gap belief update after self-model handoff failed",
+                        severity="warning",
+                    )
+                    logger.debug("Knowledge-gap belief update failed: %s", _exc)
 
             # Feed confusions into exploration queue
             confusions = getattr(assessment, "confusions", [])
@@ -177,11 +276,22 @@ class SingularityLoops:
                                     source="curiosity_explorer",
                                     tags=["exploration", "self_directed_learning"],
                                 )
-                            except (RuntimeError, AttributeError, TypeError, ValueError) as _exc:
-                                record_degradation('singularity_loops', _exc)
-                                logger.debug("Suppressed Exception: %s", _exc)
-        except asyncio.TimeoutError as _exc:
-            logger.debug("Suppressed asyncio.TimeoutError: %s", _exc)
+                            except _SINGULARITY_RECOVERABLE_ERRORS as _exc:
+                                self._record_loop_failure(
+                                    "curiosity_to_exploration.memory_store",
+                                    _exc,
+                                    action="kept exploration result in logs after memory store failed",
+                                    severity="warning",
+                                )
+                                logger.debug("Exploration memory store failed: %s", _exc)
+        except TimeoutError as _exc:
+            self._record_loop_failure(
+                "curiosity_to_exploration",
+                _exc,
+                action="bounded curiosity exploration after timeout",
+                severity="warning",
+            )
+            logger.debug("Curiosity exploration timed out: %s", _exc)
 
     # ── Loop 3: Goal Advancement ─────────────────────────────────────────
     # Autonomously advance stalled goals by decomposing them and
@@ -211,12 +321,17 @@ class SingularityLoops:
                         timeout=20.0,
                     )
         except (ImportError, AttributeError, RuntimeError) as exc:
-            record_degradation('singularity_loops', exc)
+            self._record_loop_failure(
+                "goal_advancement.decomposition",
+                exc,
+                action="deferred strategic goal decomposition after planner handoff failed",
+                severity="warning",
+            )
             logger.debug("Goal decomposition failed: %s", exc)
 
         # 2. Advance operational goals by executing them
         try:
-            from core.agi.hierarchical_planner import GoalLevel, GoalStatus
+            from core.agi.hierarchical_planner import GoalLevel
             operational = planner.get_active_goals(GoalLevel.OPERATIONAL)
             for goal in operational[:3]:
                 if goal.progress < 0.5 and router:
@@ -263,9 +378,16 @@ class SingularityLoops:
                                             goal.id, min(goal.progress + 0.2, 0.9),
                                             f"Searched: {query[:40]}",
                                         )
-                                    except (RuntimeError, asyncio.CancelledError, TimeoutError, AttributeError) as _exc:
-                                        record_degradation('singularity_loops', _exc)
-                                        logger.debug("Suppressed Exception: %s", _exc)
+                                    except asyncio.CancelledError:
+                                        raise
+                                    except _SINGULARITY_RECOVERABLE_ERRORS as _exc:
+                                        self._record_loop_failure(
+                                            "goal_advancement.search",
+                                            _exc,
+                                            action="deferred search-backed goal advancement after skill execution failed",
+                                            severity="warning",
+                                        )
+                                        logger.debug("Goal search execution failed: %s", _exc)
                             elif action.upper().startswith("REFLECT:"):
                                 # Store the reflection as progress
                                 planner.update_progress(
@@ -278,10 +400,20 @@ class SingularityLoops:
                                     goal.id, min(goal.progress + 0.05, 0.9),
                                     f"Planned: {action[:60]}",
                                 )
-                    except asyncio.TimeoutError as _exc:
-                        logger.debug("Suppressed asyncio.TimeoutError: %s", _exc)
+                    except TimeoutError as _exc:
+                        self._record_loop_failure(
+                            "goal_advancement.planning",
+                            _exc,
+                            action="bounded LLM-backed goal planning after timeout",
+                            severity="warning",
+                        )
+                        logger.debug("Goal planning timed out: %s", _exc)
         except (ImportError, AttributeError, RuntimeError) as exc:
-            record_degradation('singularity_loops', exc)
+            self._record_loop_failure(
+                "goal_advancement",
+                exc,
+                action="kept existing goal progress after advancement loop failed",
+            )
             logger.debug("Goal advancement failed: %s", exc)
 
     # ── Loop 4: Profile Injection ────────────────────────────────────────
@@ -327,7 +459,12 @@ class SingularityLoops:
                                 f"[USER_PROFILE] {context_block[:500]}"
                             )
         except (ImportError, AttributeError, RuntimeError) as exc:
-            record_degradation('singularity_loops', exc)
+            self._record_loop_failure(
+                "profile_injection",
+                exc,
+                action="kept previous user profile context after injection failed",
+                severity="warning",
+            )
             logger.debug("Profile injection failed: %s", exc)
 
     # ── Loop 5: Distillation Auto-Trigger ────────────────────────────────
@@ -373,10 +510,24 @@ class SingularityLoops:
                             distill.distill(topic),
                             timeout=15.0,
                         )
-            except asyncio.TimeoutError:
+            except TimeoutError:
+                timeout_error = TimeoutError("distillation cycle timed out")
+                self._record_loop_failure(
+                    "distillation_trigger",
+                    timeout_error,
+                    action="bounded distillation trigger after timeout",
+                    severity="warning",
+                )
                 logger.debug("Distillation timed out")
-            except (RuntimeError, asyncio.CancelledError, TimeoutError, AttributeError) as exc:
-                record_degradation('singularity_loops', exc)
+            except asyncio.CancelledError:
+                raise
+            except _SINGULARITY_RECOVERABLE_ERRORS as exc:
+                self._record_loop_failure(
+                    "distillation_trigger",
+                    exc,
+                    action="deferred distillation trigger after teacher pipeline failure",
+                    severity="warning",
+                )
                 logger.debug("Distillation failed: %s", exc)
 
     # ── Loop 6: Affect → Exploration ─────────────────────────────────────
@@ -434,14 +585,19 @@ class SingularityLoops:
                     curiosity=curiosity_level,
                     active_topic=topic or "something new",
                 )
-        except (ImportError, AttributeError, RuntimeError) as exc:
-            record_degradation('singularity_loops', exc)
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            self._record_loop_failure(
+                "affect_to_exploration",
+                exc,
+                action="kept affect-driven exploration idle after state read failed",
+                severity="warning",
+            )
             logger.debug("Affect→Exploration loop failed: %s", exc)
 
 
 # ── Singleton ───────────────────────────────────────────────────────────────
 
-_instance: Optional[SingularityLoops] = None
+_instance: SingularityLoops | None = None
 
 
 def get_singularity_loops() -> SingularityLoops:
@@ -453,6 +609,11 @@ def get_singularity_loops() -> SingularityLoops:
                 "singularity_loops", _instance, required=False
             )
         except (RuntimeError, AttributeError, TypeError, ValueError) as _exc:
-            record_degradation('singularity_loops', _exc)
-            logger.debug("Suppressed Exception: %s", _exc)
+            _instance._record_loop_failure(
+                "singleton_registration",
+                _exc,
+                action="continued with singleton instance after container registration failed",
+                severity="warning",
+            )
+            logger.debug("SingularityLoops singleton registration failed: %s", _exc)
     return _instance
