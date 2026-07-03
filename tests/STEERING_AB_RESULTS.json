@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-04-30T10:12:35.395659+00:00",
+  "timestamp": "2026-04-30T14:45:48.456289+00:00",
   "model": "mlx-community/Qwen2.5-1.5B-Instruct-4bit",
   "n_trials": 10,
   "target_layers": [
