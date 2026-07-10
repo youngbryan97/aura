@@ -2,11 +2,10 @@ from core.runtime.errors import record_degradation
 from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.action_executor import ActionExecutor
 from core.governance.will import ActionDomain
+import hashlib
 import logging
-import os
-import json
 from pathlib import Path
-from typing import Any, Dict, Optional, List
+from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, Field
 from core.config import config
@@ -94,6 +93,43 @@ class MemoryOpsSkill(BaseSkill):
     def _resolve_memory_facade(context: Dict[str, Any]) -> Any:
         return context.get("memory_facade") or ServiceContainer.get("memory_facade", default=None)
 
+    @staticmethod
+    def _sha256_text(value: str) -> str:
+        return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def _file_sha256(path: Path) -> str:
+        digest = hashlib.sha256()
+        with open(path, "rb") as fh:
+            for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+                digest.update(chunk)
+        return digest.hexdigest()
+
+    @classmethod
+    def _core_memory_effect(
+        cls,
+        block_path: Path,
+        *,
+        expected_sha256: str,
+    ) -> dict[str, Any]:
+        exists = block_path.exists()
+        effect: dict[str, Any] = {
+            "path": str(block_path),
+            "exists": exists,
+            "effect_verified": False,
+        }
+        if exists:
+            sha256 = cls._file_sha256(block_path)
+            effect.update({
+                "sha256": sha256,
+                "bytes": block_path.stat().st_size,
+                "expected_sha256": expected_sha256,
+                "effect_verified": sha256 == expected_sha256,
+            })
+        else:
+            effect["expected_sha256"] = expected_sha256
+        return effect
+
     async def _execute_core_memory(self, params: MemoryOpsInput, context: Dict[str, Any], action: str) -> Dict[str, Any]:
         """RAM: Immediate context window blocks."""
         block = params.block or "user"
@@ -110,13 +146,29 @@ class MemoryOpsSkill(BaseSkill):
                 with open(block_path, "r", encoding="utf-8") as f:
                     current_content = f.read()
             new_content = current_content + params.content + "\n"
-            await ActionExecutor.execute(
+            result = await ActionExecutor.execute(
                 domain=ActionDomain.FILE_WRITE,
                 action_name="core_append",
                 params={"path": str(block_path), "text": new_content},
                 source="memory_ops",
             )
-            return {"ok": True, "summary": f"Appended to core memory block '{block}'."}
+            if not result.get("ok"):
+                return {
+                    "ok": False,
+                    "error": result.get("error", "core memory append failed"),
+                    "block": block,
+                }
+            effect = self._core_memory_effect(
+                block_path,
+                expected_sha256=self._sha256_text(new_content),
+            )
+            return {
+                "ok": bool(effect.get("effect_verified")),
+                "summary": f"Appended to core memory block '{block}'.",
+                "block": block,
+                "criteria_results": {"core memory appended": bool(effect.get("effect_verified"))},
+                **effect,
+            }
 
         elif action == "core_replace":
             if not params.content or not params.old_content:
@@ -129,13 +181,29 @@ class MemoryOpsSkill(BaseSkill):
                 return {"ok": False, "error": f"Text to replace not found in block '{block}'."}
                 
             new_data = data.replace(params.old_content, params.content)
-            await ActionExecutor.execute(
+            result = await ActionExecutor.execute(
                 domain=ActionDomain.FILE_WRITE,
                 action_name="core_replace",
                 params={"path": str(block_path), "text": new_data},
                 source="memory_ops",
             )
-            return {"ok": True, "summary": f"Replaced content in core memory block '{block}'."}
+            if not result.get("ok"):
+                return {
+                    "ok": False,
+                    "error": result.get("error", "core memory replace failed"),
+                    "block": block,
+                }
+            effect = self._core_memory_effect(
+                block_path,
+                expected_sha256=self._sha256_text(new_data),
+            )
+            return {
+                "ok": bool(effect.get("effect_verified")),
+                "summary": f"Replaced content in core memory block '{block}'.",
+                "block": block,
+                "criteria_results": {"core memory replaced": bool(effect.get("effect_verified"))},
+                **effect,
+            }
             
         return {"ok": False, "error": f"Unknown core action: {action}"}
 

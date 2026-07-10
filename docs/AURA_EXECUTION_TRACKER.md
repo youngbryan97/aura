@@ -8860,3 +8860,62 @@ Remaining work after this checkpoint:
   result shapes are stable enough to avoid noisy false downgrades.
 - Add planner-side use of recent expectation receipts.
 - Start the runtime control plane/resource admission workstream.
+
+## Checkpoint 2026-07-09-13: Verified Core Memory Expectations
+
+Scope:
+
+- Deepened `memory_ops` core-memory mutations so `core_append` and
+  `core_replace` verify the persisted MemFS block after the governed write.
+- `memory_ops` now checks the `ActionExecutor` result instead of assuming the
+  write succeeded.
+- Successful core-memory mutations now return:
+  - `block`
+  - `path`
+  - `effect_verified`
+  - `sha256`
+  - `expected_sha256`
+  - byte size
+  - `criteria_results`
+- Added central automatic `ActionExpectation` generation for `memory_ops`
+  `core_append` and `core_replace`. Shallow memory writes can no longer claim
+  success without block identity, hash evidence, and effect verification.
+- Left archival memory insert/search out of automatic defaults for now because
+  those result shapes depend on the live memory backend/gateway and need a
+  separate stable receipt contract before enforcement.
+
+Verification:
+
+- `python -m pytest tests/test_memory_facade_runtime.py::test_memory_ops_core_append_writes_to_block tests/test_capability_engine_policy_regressions.py::test_auto_memory_ops_expectation_rejects_shallow_core_append -q`
+  -> `2 passed`.
+- `python -m pytest tests/test_memory_facade_runtime.py tests/test_capability_engine_policy_regressions.py -q`
+  -> `56 passed`.
+- `python -m pytest tests/test_memory_facade_runtime.py tests/test_capability_engine_policy_regressions.py tests/test_skill_surface_contracts.py -q`
+  -> `151 passed`.
+- `python -m py_compile core/skills/memory_ops.py core/capability_engine.py tests/test_memory_facade_runtime.py tests/test_capability_engine_policy_regressions.py`
+  -> passed.
+- `python -m ruff check --select F,E9 core/skills/memory_ops.py core/capability_engine.py tests/test_memory_facade_runtime.py tests/test_capability_engine_policy_regressions.py`
+  -> passed.
+- `git diff --check`
+  -> passed.
+- `make production-gate`
+  -> passed; `/tmp/aura_production_readiness.json` has `passed=true` and
+  `37` checks.
+- `make enterprise-gate`
+  -> passed; `/tmp/aura_enterprise_gate.json` has `counts={}` and
+  `high_or_critical_count=0`.
+
+Current closeout estimate:
+
+- Automatic expectation enforcement now covers desktop tasks, mutating file
+  operations, and core-memory block mutations. These are the highest-confidence
+  stateful local effects because they can be verified deterministically.
+- Web research defaults and archival-memory receipt stabilization remain open.
+
+Remaining work after this checkpoint:
+
+- Stabilize archival memory insert receipts before adding automatic archival
+  memory expectations.
+- Add automatic web research expectations requiring sources/citations for
+  research-shaped web tasks.
+- Add planner-side use of recent expectation receipts.

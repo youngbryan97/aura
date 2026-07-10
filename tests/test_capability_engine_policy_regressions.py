@@ -534,6 +534,57 @@ async def test_auto_file_operation_expectation_ignores_read_only_actions():
     assert "expectation_verdict" not in result
 
 
+@pytest.mark.asyncio
+async def test_auto_memory_ops_expectation_rejects_shallow_core_append(monkeypatch, tmp_path):
+    from core.runtime.receipts import get_receipt_store, reset_receipt_store
+
+    reset_receipt_store()
+    get_receipt_store(tmp_path / "receipts")
+    fault_records = []
+
+    class FaultRegistryStub:
+        def record_fault(self, fault_id, subsystem, **kwargs):
+            fault_records.append((fault_id, subsystem, kwargs))
+
+    monkeypatch.setattr(
+        "core.resilience.fault_taxonomy.get_fault_registry",
+        lambda: FaultRegistryStub(),
+    )
+
+    engine = _engine_with_skill("memory_ops")
+
+    class ShallowMemorySkill:
+        async def safe_execute(self, params, context):
+            return {"ok": True, "summary": "Appended."}
+
+    try:
+        result = await engine._execute_with_retry(
+            ShallowMemorySkill(),
+            "memory_ops",
+            {"action": "core_append", "block": "user", "content": "remember this"},
+            {"origin": "user"},
+        )
+
+        assert result["ok"] is False
+        assert result["status"] == "failed_recoverable"
+        assert result["expectation_verdict"]["missing_criteria"] == [
+            "core memory appended",
+            "user-visible effect: core memory append is persisted and verified",
+        ]
+        assert result["expectation_verdict"]["missing_evidence"] == [
+            "block",
+            "sha256",
+            "effect_verified",
+        ]
+        assert result["expectation_receipt_id"]
+        assert any(
+            fault_id == "PASSF-ACTION-SHALLOW-SUCCESS"
+            for fault_id, _subsystem, _kwargs in fault_records
+        )
+    finally:
+        reset_receipt_store()
+
+
 def test_auto_refactor_scan_is_read_only_not_privileged_mutation():
     engine = _engine_with_skill("auto_refactor")
     meta = engine.skills["auto_refactor"]

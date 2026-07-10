@@ -1,5 +1,6 @@
 import json
 import asyncio
+import hashlib
 import time
 from types import SimpleNamespace
 
@@ -538,6 +539,10 @@ async def test_memory_ops_core_append_writes_to_block(tmp_path, monkeypatch):
     assert "user" in result["summary"]
     block_text = (skill.mem_fs_dir / "user.txt").read_text()
     assert "verification_codename: glass orchard" in block_text
+    assert result["effect_verified"] is True
+    assert result["block"] == "user"
+    assert result["sha256"] == hashlib.sha256(block_text.encode("utf-8")).hexdigest()
+    assert result["criteria_results"]["core memory appended"] is True
 
 
 @pytest.mark.asyncio

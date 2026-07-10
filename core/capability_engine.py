@@ -4396,6 +4396,25 @@ class CapabilityEngine(AuraBaseModule):
             return None
 
         normalized_skill = str(skill_name or "").strip().lower()
+        if normalized_skill == "memory_ops":
+            action = str((params or {}).get("action") or "").strip().lower()
+            memory_expectations = {
+                "core_append": ("core memory appended", "append"),
+                "core_replace": ("core memory replaced", "replace"),
+            }
+            if action not in memory_expectations:
+                return None
+            criterion, verb = memory_expectations[action]
+            block = str((params or {}).get("block") or "user").strip()
+            return expectation_cls(
+                objective=f"{verb} core memory block {block or 'user'}",
+                acceptance_criteria=[criterion],
+                required_evidence=["block", "sha256", "effect_verified"],
+                user_visible_effect=f"core memory {verb} is persisted and verified",
+                repair_hint=f"verify_memory_ops_{action}_effect",
+                allow_partial=False,
+            )
+
         if normalized_skill != "file_operation":
             return None
 
