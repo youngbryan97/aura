@@ -343,6 +343,30 @@ def test_gateway_delete_move_copy_async(tmp_path):
     asyncio.get_event_loop_policy().new_event_loop().run_until_complete(scenario())
 
 
+def test_file_operation_write_returns_effect_evidence(tmp_path):
+    import hashlib
+
+    from core.skills.file_operation import FileOperationSkill
+
+    skill = FileOperationSkill()
+    skill.root_dir = str(tmp_path.resolve())
+
+    result = _run(
+        skill.execute(
+            {"action": "write", "path": "verified.txt", "content": "real payload"},
+            context={"origin": "unit_test"},
+        )
+    )
+
+    expected_sha256 = hashlib.sha256(b"real payload").hexdigest()
+    assert result["ok"] is True
+    assert result["effect_verified"] is True
+    assert result["sha256"] == expected_sha256
+    assert result["expected_sha256"] == expected_sha256
+    assert result["criteria_results"]["file written"] is True
+    assert (tmp_path / "verified.txt").read_text(encoding="utf-8") == "real payload"
+
+
 def test_action_executor_file_ops(tmp_path):
     from core.runtime.action_executor import ActionExecutor
 

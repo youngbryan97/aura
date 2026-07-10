@@ -23,3 +23,4 @@ safe mitigation, unsafe mitigation, rollback, and verification.
 | Camera unavailable | [camera-unavailable.md](camera-unavailable.md) |
 | Microphone unavailable | [microphone-unavailable.md](microphone-unavailable.md) |
 | Movie mode broken | [movie-mode-broken.md](movie-mode-broken.md) |
+| Pass F maturity risks | [pass-f-maturity-risks.md](pass-f-maturity-risks.md) |

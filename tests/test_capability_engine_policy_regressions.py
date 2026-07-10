@@ -393,6 +393,198 @@ async def test_execute_with_retry_marks_missing_expectation_evidence_unverified(
     ]
 
 
+@pytest.mark.asyncio
+async def test_expectation_downgrade_emits_durable_receipt_and_fault(monkeypatch, tmp_path):
+    from core.runtime.receipts import get_receipt_store, reset_receipt_store
+
+    reset_receipt_store()
+    store = get_receipt_store(tmp_path / "receipts")
+    fault_records = []
+
+    class FaultRegistryStub:
+        def record_fault(self, fault_id, subsystem, **kwargs):
+            fault_records.append((fault_id, subsystem, kwargs))
+
+    monkeypatch.setattr(
+        "core.resilience.fault_taxonomy.get_fault_registry",
+        lambda: FaultRegistryStub(),
+    )
+
+    engine = _engine_with_skill("file.write")
+    engine.max_retries = 1
+
+    class FileWriteSkill:
+        async def safe_execute(self, params, context):
+            return {
+                "ok": True,
+                "status": "completed",
+                "criteria_results": {"file written": True},
+            }
+
+    try:
+        result = await engine._execute_with_retry(
+            FileWriteSkill(),
+            "file.write",
+            {"path": "workspace-note.txt"},
+            {
+                "action_expectation": {
+                    "objective": "write and verify a file",
+                    "acceptance_criteria": ["file written"],
+                    "required_evidence": ["sha256"],
+                    "repair_hint": "hash_file_before_reporting_done",
+                }
+            },
+        )
+
+        assert result["ok"] is False
+        assert result["status"] == "success_unverified"
+        assert result["expectation_receipt_id"]
+        assert (
+            result["verification_evidence"]["expectation_receipt_id"]
+            == result["expectation_receipt_id"]
+        )
+
+        receipts = store.query_by_kind("tool_execution")
+        assert len(receipts) == 1
+        receipt = receipts[0]
+        assert receipt.receipt_id == result["expectation_receipt_id"]
+        assert receipt.tool == "file.write"
+        assert receipt.status == "success_unverified"
+        assert receipt.metadata["source"] == "capability_engine.action_expectation"
+        assert receipt.verification_evidence["expectation_verdict"]["missing_evidence"] == [
+            "sha256"
+        ]
+
+        assert fault_records
+        fault_id, subsystem, kwargs = fault_records[0]
+        assert fault_id == "PASSF-ACTION-SHALLOW-SUCCESS"
+        assert subsystem == "capability_engine"
+        assert kwargs["recovered"] is True
+        assert kwargs["recovery_time_s"] == 0.0
+    finally:
+        reset_receipt_store()
+
+
+@pytest.mark.asyncio
+async def test_auto_file_operation_expectation_rejects_shallow_mutation(monkeypatch, tmp_path):
+    from core.runtime.receipts import get_receipt_store, reset_receipt_store
+
+    reset_receipt_store()
+    get_receipt_store(tmp_path / "receipts")
+    fault_records = []
+
+    class FaultRegistryStub:
+        def record_fault(self, fault_id, subsystem, **kwargs):
+            fault_records.append((fault_id, subsystem, kwargs))
+
+    monkeypatch.setattr(
+        "core.resilience.fault_taxonomy.get_fault_registry",
+        lambda: FaultRegistryStub(),
+    )
+
+    engine = _engine_with_skill("file_operation")
+
+    class ShallowFileSkill:
+        async def safe_execute(self, params, context):
+            return {"ok": True, "status": "completed", "path": params["path"]}
+
+    try:
+        result = await engine._execute_with_retry(
+            ShallowFileSkill(),
+            "file_operation",
+            {"action": "write", "path": "shallow.txt", "content": "x"},
+            {"origin": "user"},
+        )
+
+        assert result["ok"] is False
+        assert result["status"] == "failed_recoverable"
+        assert result["expectation_verdict"]["missing_criteria"] == [
+            "file written",
+            "user-visible effect: filesystem write is observable and verified",
+        ]
+        assert result["expectation_verdict"]["missing_evidence"] == [
+            "sha256",
+            "effect_verified",
+        ]
+        assert result["expectation_receipt_id"]
+        assert any(
+            fault_id == "PASSF-ACTION-SHALLOW-SUCCESS"
+            for fault_id, _subsystem, _kwargs in fault_records
+        )
+    finally:
+        reset_receipt_store()
+
+
+@pytest.mark.asyncio
+async def test_auto_file_operation_expectation_ignores_read_only_actions():
+    engine = _engine_with_skill("file_operation")
+
+    class ReadFileSkill:
+        async def safe_execute(self, params, context):
+            return {"ok": True, "content": "hello", "path": params["path"]}
+
+    result = await engine._execute_with_retry(
+        ReadFileSkill(),
+        "file_operation",
+        {"action": "read", "path": "note.txt"},
+        {"origin": "user"},
+    )
+
+    assert result["ok"] is True
+    assert "expectation_verdict" not in result
+
+
+@pytest.mark.asyncio
+async def test_auto_memory_ops_expectation_rejects_shallow_core_append(monkeypatch, tmp_path):
+    from core.runtime.receipts import get_receipt_store, reset_receipt_store
+
+    reset_receipt_store()
+    get_receipt_store(tmp_path / "receipts")
+    fault_records = []
+
+    class FaultRegistryStub:
+        def record_fault(self, fault_id, subsystem, **kwargs):
+            fault_records.append((fault_id, subsystem, kwargs))
+
+    monkeypatch.setattr(
+        "core.resilience.fault_taxonomy.get_fault_registry",
+        lambda: FaultRegistryStub(),
+    )
+
+    engine = _engine_with_skill("memory_ops")
+
+    class ShallowMemorySkill:
+        async def safe_execute(self, params, context):
+            return {"ok": True, "summary": "Appended."}
+
+    try:
+        result = await engine._execute_with_retry(
+            ShallowMemorySkill(),
+            "memory_ops",
+            {"action": "core_append", "block": "user", "content": "remember this"},
+            {"origin": "user"},
+        )
+
+        assert result["ok"] is False
+        assert result["status"] == "failed_recoverable"
+        assert result["expectation_verdict"]["missing_criteria"] == [
+            "core memory appended",
+            "user-visible effect: core memory append is persisted and verified",
+        ]
+        assert result["expectation_verdict"]["missing_evidence"] == [
+            "block",
+            "sha256",
+            "effect_verified",
+        ]
+        assert result["expectation_receipt_id"]
+        assert any(
+            fault_id == "PASSF-ACTION-SHALLOW-SUCCESS"
+            for fault_id, _subsystem, _kwargs in fault_records
+        )
+    finally:
+        reset_receipt_store()
+
+
 def test_auto_refactor_scan_is_read_only_not_privileged_mutation():
     engine = _engine_with_skill("auto_refactor")
     meta = engine.skills["auto_refactor"]

@@ -3978,6 +3978,13 @@ async def test_api_chat_desktop_surface_plans_with_cognitive_engine_before_execu
     assert skill_calls[0]["params"]["allow_heuristic_desktop_plan"] is True
     assert skill_calls[0]["params"]["user_visible_desktop_action"] is True
     assert skill_calls[0]["params"]["verification_required"] is True
+    assert skill_calls[0]["params"]["action_expectation"] == {
+        "objective": skill_calls[0]["params"]["objective"],
+        "acceptance_criteria": ["steps_requested", "steps_completed"],
+        "required_evidence": ["receipts"],
+        "repair_hint": "rerun_desktop_task_with_effect_receipts",
+        "allow_partial": True,
+    }
     assert skill_calls[0]["objective"] == skill_calls[0]["params"]["objective"]
     assert skill_calls[0]["extra_context"] == {
         "origin": "desktop_ui",
@@ -3992,6 +3999,7 @@ async def test_api_chat_desktop_surface_plans_with_cognitive_engine_before_execu
         "allow_desktop_task_model_synthesis": False,
         "desktop_task_document_body": skill_calls[0]["extra_context"]["cognitive_reply"],
         "cognitive_reply": skill_calls[0]["extra_context"]["cognitive_reply"],
+        "action_expectation": skill_calls[0]["params"]["action_expectation"],
     }
     assert "Timestamped Aura summary from CognitiveEngine." in skill_calls[0]["extra_context"]["cognitive_reply"]
     assert completed_exchanges
@@ -4073,6 +4081,8 @@ async def test_chat_desktop_objective_uses_capability_engine_without_agency_wrap
     assert calls[0]["context"]["user_explicitly_authorized"] is True
     assert calls[0]["context"]["allow_heuristic_desktop_plan"] is True
     assert calls[0]["context"]["allow_desktop_task_model_synthesis"] is False
+    assert calls[0]["params"]["action_expectation"]["required_evidence"] == ["receipts"]
+    assert calls[0]["context"]["action_expectation"] == calls[0]["params"]["action_expectation"]
 
 
 @pytest.mark.asyncio
@@ -4121,6 +4131,9 @@ async def test_chat_desktop_research_objective_does_not_enable_hidden_model_synt
     assert calls and calls[0]["skill_name"] == "desktop_task"
     assert calls[0]["context"]["route"] == "chat.desktop_objective"
     assert calls[0]["context"]["allow_desktop_task_model_synthesis"] is False
+    assert calls[0]["context"]["action_expectation"]["repair_hint"] == (
+        "rerun_desktop_task_with_effect_receipts"
+    )
 
 
 @pytest.mark.asyncio

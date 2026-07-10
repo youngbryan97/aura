@@ -8605,3 +8605,317 @@ Remaining work after this checkpoint:
   planning boundaries.
 - Add receipt/memory causal wiring for expectation failures.
 - Commit and push this checkpoint.
+
+## Checkpoint 2026-07-09-09: Chat Desktop Objective Expectation Propagation
+
+Scope:
+
+- Added `_desktop_task_action_expectation(...)` to the chat desktop objective
+  lane so live user requests that become `desktop_task` calls automatically
+  carry action-depth expectations.
+- `_execute_desktop_objective_from_chat(...)` now passes the expectation in
+  both params and execution context. The central `CapabilityEngine` expectation
+  hook therefore sees the contract before returning success to chat.
+- The current default expectation requires:
+  - `steps_requested`
+  - `steps_completed`
+  - `receipts`
+  - repair hint `rerun_desktop_task_with_effect_receipts`
+- The existing chat verifier still performs the deeper step-level proof:
+  receipt shape, critical step success, `effect_verified=true`, non-empty
+  observable effect evidence, and rejection of receipt-id-only proof.
+
+Verification:
+
+- `python -m pytest tests/test_server_conversation_lane.py::test_api_chat_desktop_objective_requires_cognitive_planning tests/test_server_conversation_lane.py::test_chat_desktop_objective_uses_capability_engine_without_agency_wrapper tests/test_server_conversation_lane.py::test_chat_desktop_research_objective_does_not_enable_hidden_model_synthesis tests/test_server_conversation_lane.py::test_chat_desktop_objective_rejects_success_without_effect_receipts tests/test_capability_engine_policy_regressions.py::test_execute_with_retry_downgrades_shallow_action_expectation tests/test_capability_engine_policy_regressions.py::test_execute_with_retry_marks_missing_expectation_evidence_unverified -q`
+  -> `6 passed`.
+- `python -m pytest tests/test_server_conversation_lane.py::test_api_chat_desktop_surface_plans_with_cognitive_engine_before_execution -q`
+  -> `1 passed`.
+- `python -m pytest tests/test_server_conversation_lane.py -q -k desktop_objective`
+  -> `6 passed, 237 deselected`.
+- `python -m py_compile interface/routes/chat.py tests/test_server_conversation_lane.py core/capability_engine.py tests/test_capability_engine_policy_regressions.py`
+  -> passed.
+- `python -m ruff check --select F,E9 interface/routes/chat.py tests/test_server_conversation_lane.py core/capability_engine.py tests/test_capability_engine_policy_regressions.py`
+  -> passed.
+- `make production-gate`
+  -> passed; `/tmp/aura_production_readiness.json` has `passed=true`.
+- `make enterprise-gate`
+  -> passed; `/tmp/aura_enterprise_gate.json` has `counts={}` and
+  `high_or_critical_count=0`.
+- `git diff --check`
+  -> passed.
+
+Current closeout estimate:
+
+- Pass F action-depth enforcement now reaches the live chat -> desktop_task
+  path for visible desktop objectives. It is still intentionally explicit and
+  contract-driven; broader automatic expectation generation for non-desktop
+  skills remains open.
+
+Remaining work after this checkpoint:
+
+- Add durable receipt/memory wiring for expectation verdicts.
+- Expand expectation generation beyond desktop objectives: web research,
+  file/memory actions, live skill API proofs, autonomous overt actions, and
+  chat follow-through.
+- Commit and push this checkpoint.
+
+## Checkpoint 2026-07-09-10: Pass F Failure-Mode Registry
+
+Scope:
+
+- Promoted the Pass F maturity concerns into the production fault taxonomy and
+  FMEA registry instead of leaving them as tracker prose.
+- Added ten explicit `PASSF-*` fault definitions covering:
+  - shallow action success
+  - false health/readiness signals
+  - resource spawn loops
+  - desktop/browser permission drift
+  - repair storms
+  - stale obligations
+  - neural/event stream floods
+  - visible web proof access blockers
+  - proof artifact contamination
+  - semantic review gaps
+- Added FMEA mitigation rows for those ten risks and for the older
+  `ACTION-CLAIM-MISMATCH` grounding fault. Each mitigation points at an
+  existing implementation or runbook artifact so traceability tests can catch
+  stale claims.
+- Added `docs/runbooks/pass-f-maturity-risks.md` and linked it from the runbook
+  index.
+- Extended the reliability hardening tests so Pass F risks must stay
+  registered, mitigated, linked to the runbook, and visible in the high-risk RPN
+  report when applicable.
+- Added `mitigation_count` to `FMEARegistry.full_report()` so downstream
+  diagnostics can show mitigation depth without re-counting nested rows.
+
+Verification:
+
+- `python -m pytest tests/test_reliability_hardening.py -q -k "pass_f or FMEA or Traceability"`
+  -> `8 passed, 89 deselected`.
+- `python -m pytest tests/test_reliability_hardening.py -q`
+  -> `97 passed`.
+- `python -m pytest tests/test_action_depth_honesty.py tests/test_capability_engine_policy_regressions.py::test_execute_with_retry_downgrades_shallow_action_expectation tests/test_capability_engine_policy_regressions.py::test_execute_with_retry_marks_missing_expectation_evidence_unverified -q`
+  -> `19 passed`.
+- `python -m py_compile core/resilience/fault_taxonomy.py core/resilience/fmea_registry.py tests/test_reliability_hardening.py`
+  -> passed.
+- `python -m ruff check --select F,E9 core/resilience/fault_taxonomy.py core/resilience/fmea_registry.py tests/test_reliability_hardening.py`
+  -> passed.
+- FMEA registry probe:
+  - `total_fault_definitions=33`
+  - `total_fmea_entries=33`
+  - `missing_fmea_entries=0`
+  - `coverage_pct=100.0`
+  - `passf_count=10`
+  - high-risk Pass F IDs: `PASSF-STALE-OBLIGATION`,
+    `PASSF-NEURAL-STREAM-FLOOD`, `PASSF-ACTION-SHALLOW-SUCCESS`,
+    `PASSF-FALSE-HEALTH`, `PASSF-SEMANTIC-REVIEW-GAP`
+- `make production-gate`
+  -> passed; `/tmp/aura_production_readiness.json` has `passed=true` and
+  `37` checks.
+- `make enterprise-gate`
+  -> passed; `/tmp/aura_enterprise_gate.json` has `counts={}` and
+  `high_or_critical_count=0`.
+- `git diff --check`
+  -> passed.
+
+Current closeout estimate:
+
+- Pass F now has a machine-readable risk spine. These risks show up through the
+  same taxonomy/FMEA/diagnostics surfaces as earlier production reliability
+  faults instead of relying on free-form notes.
+- This is not a full closure of the risks. Five Pass F risks intentionally
+  remain high-RPN because the registry now acknowledges them honestly while the
+  deeper runtime work continues.
+
+Remaining work after this checkpoint:
+
+- Build durable receipt/memory feedback for expectation verdicts.
+- Expand automatic expectation generation beyond desktop tasks.
+- Start the declarative runtime control plane and resource admission layer so
+  high-risk `PASSF-RESOURCE-SPAWN-LOOP` becomes preventable, not just visible.
+- Keep semantic review coverage moving through the closeout ledger.
+
+## Checkpoint 2026-07-09-11: Expectation Verdict Durable Receipts
+
+Scope:
+
+- Extended `CapabilityEngine._apply_action_expectation_result(...)` so every
+  action expectation verdict can emit a durable `ToolExecutionReceipt`.
+- The returned skill payload now includes `expectation_receipt_id` when receipt
+  emission succeeds, and the same ID is copied into
+  `verification_evidence.expectation_receipt_id`.
+- Expectation receipts record:
+  - the skill/tool name
+  - the final downgraded status
+  - a stable digest of the verdict payload
+  - the full `expectation_verdict`
+  - the original receipt ID when the skill supplied one
+  - the repair hint / next step
+- Failed expectation verdicts now also record a recovered
+  `PASSF-ACTION-SHALLOW-SUCCESS` fault occurrence. This makes shallow-success
+  catches visible in the fault taxonomy without turning a successfully
+  downgraded result into an unrecovered critical fault.
+- Added an isolated regression using a `tmp_path` receipt store and stubbed
+  fault registry to prove the durable receipt and fault occurrence are emitted
+  without touching live receipt state.
+
+Verification:
+
+- `python -m pytest tests/test_capability_engine_policy_regressions.py::test_expectation_downgrade_emits_durable_receipt_and_fault tests/test_capability_engine_policy_regressions.py::test_execute_with_retry_downgrades_shallow_action_expectation tests/test_capability_engine_policy_regressions.py::test_execute_with_retry_marks_missing_expectation_evidence_unverified tests/test_action_depth_honesty.py -q`
+  -> `20 passed`.
+- `python -m pytest tests/test_capability_engine_policy_regressions.py -q`
+  -> `25 passed`.
+- `python -m pytest tests/test_action_depth_honesty.py tests/test_reliability_hardening.py -q`
+  -> `114 passed`.
+- `python -m py_compile core/capability_engine.py tests/test_capability_engine_policy_regressions.py`
+  -> passed.
+- `python -m ruff check --select F,E9 core/capability_engine.py tests/test_capability_engine_policy_regressions.py`
+  -> passed.
+- `make production-gate`
+  -> passed; `/tmp/aura_production_readiness.json` has `passed=true` and
+  `37` checks.
+- `make enterprise-gate`
+  -> passed; `/tmp/aura_enterprise_gate.json` has `counts={}` and
+  `high_or_critical_count=0`.
+
+Current closeout estimate:
+
+- Action-depth enforcement is now durable. A shallow action no longer only
+  returns a downgraded payload; it leaves a receipt and a fault-taxonomy
+  occurrence that can be audited and learned from.
+- This closes the first half of durable expectation feedback. Remaining work is
+  to make future planners consult these receipts/fault counts proactively when
+  choosing action depth.
+
+Remaining work after this checkpoint:
+
+- Expand automatic expectation generation beyond desktop tasks.
+- Build the declarative runtime control plane and resource admission layer.
+- Add planner-side use of recent expectation receipts so repeated shallow
+  failures change future action planning before execution.
+
+## Checkpoint 2026-07-09-12: Verified File Operation Expectations
+
+Scope:
+
+- Deepened `file_operation` mutating actions so they verify the filesystem
+  effect after the governed operation, not just report a summary string.
+- `write`, `append`, and `patch` now return:
+  - `effect_verified`
+  - `sha256`
+  - `expected_sha256`
+  - byte size
+  - `criteria_results`
+- `delete`, `move`, and `copy` now verify post-action state:
+  - delete confirms the target is gone
+  - move confirms destination exists and source is gone
+  - copy compares source/destination hashes when both are files
+- Added central automatic `ActionExpectation` generation for mutating
+  `file_operation` calls in `CapabilityEngine`. A caller no longer has to
+  remember to pass an explicit expectation for write/append/patch/delete/move
+  /copy to avoid shallow success.
+- Automatic expectations are intentionally not applied to read/list/exists and
+  can be disabled with `disable_auto_action_expectation` in params/context for
+  narrow compatibility paths.
+- Added regressions proving:
+  - real `file_operation.write` returns hash-backed effect evidence
+  - a shallow fake `file_operation.write` result is downgraded automatically
+  - read-only file actions are not forced through mutation expectations
+
+Verification:
+
+- `python -m pytest tests/test_action_depth_honesty.py::test_file_operation_write_returns_effect_evidence tests/test_capability_engine_policy_regressions.py::test_auto_file_operation_expectation_rejects_shallow_mutation tests/test_capability_engine_policy_regressions.py::test_auto_file_operation_expectation_ignores_read_only_actions -q`
+  -> `3 passed`.
+- `python -m pytest tests/test_action_depth_honesty.py tests/test_capability_engine_policy_regressions.py -q`
+  -> `45 passed`.
+- `python -m pytest tests/test_live_runtime_surface_regressions.py::test_file_operation_write_creates_nested_live_runtime_directory -q`
+  -> `1 passed`.
+- `python -m pytest tests/test_skill_surface_contracts.py tests/test_action_depth_honesty.py tests/test_capability_engine_policy_regressions.py -q`
+  -> `140 passed`.
+- `python -m py_compile core/skills/file_operation.py core/capability_engine.py tests/test_action_depth_honesty.py tests/test_capability_engine_policy_regressions.py`
+  -> passed.
+- `python -m ruff check --select F,E9 core/skills/file_operation.py core/capability_engine.py tests/test_action_depth_honesty.py tests/test_capability_engine_policy_regressions.py`
+  -> passed.
+- `git diff --check`
+  -> passed.
+- `make production-gate`
+  -> passed; `/tmp/aura_production_readiness.json` has `passed=true` and
+  `37` checks.
+- `make enterprise-gate`
+  -> passed; `/tmp/aura_enterprise_gate.json` has `counts={}` and
+  `high_or_critical_count=0`.
+
+Current closeout estimate:
+
+- File operations are no longer "action fired" shallow. The core mutating file
+  skill now proves the post-action filesystem state and the central capability
+  execution lane auto-enforces that proof for mutating file actions.
+- This is the first automatic expectation expansion beyond desktop tasks. Web,
+  memory, live skill API, and autonomous overt action defaults remain open.
+
+Remaining work after this checkpoint:
+
+- Add automatic defaults for memory writes and web research actions where
+  result shapes are stable enough to avoid noisy false downgrades.
+- Add planner-side use of recent expectation receipts.
+- Start the runtime control plane/resource admission workstream.
+
+## Checkpoint 2026-07-09-13: Verified Core Memory Expectations
+
+Scope:
+
+- Deepened `memory_ops` core-memory mutations so `core_append` and
+  `core_replace` verify the persisted MemFS block after the governed write.
+- `memory_ops` now checks the `ActionExecutor` result instead of assuming the
+  write succeeded.
+- Successful core-memory mutations now return:
+  - `block`
+  - `path`
+  - `effect_verified`
+  - `sha256`
+  - `expected_sha256`
+  - byte size
+  - `criteria_results`
+- Added central automatic `ActionExpectation` generation for `memory_ops`
+  `core_append` and `core_replace`. Shallow memory writes can no longer claim
+  success without block identity, hash evidence, and effect verification.
+- Left archival memory insert/search out of automatic defaults for now because
+  those result shapes depend on the live memory backend/gateway and need a
+  separate stable receipt contract before enforcement.
+
+Verification:
+
+- `python -m pytest tests/test_memory_facade_runtime.py::test_memory_ops_core_append_writes_to_block tests/test_capability_engine_policy_regressions.py::test_auto_memory_ops_expectation_rejects_shallow_core_append -q`
+  -> `2 passed`.
+- `python -m pytest tests/test_memory_facade_runtime.py tests/test_capability_engine_policy_regressions.py -q`
+  -> `56 passed`.
+- `python -m pytest tests/test_memory_facade_runtime.py tests/test_capability_engine_policy_regressions.py tests/test_skill_surface_contracts.py -q`
+  -> `151 passed`.
+- `python -m py_compile core/skills/memory_ops.py core/capability_engine.py tests/test_memory_facade_runtime.py tests/test_capability_engine_policy_regressions.py`
+  -> passed.
+- `python -m ruff check --select F,E9 core/skills/memory_ops.py core/capability_engine.py tests/test_memory_facade_runtime.py tests/test_capability_engine_policy_regressions.py`
+  -> passed.
+- `git diff --check`
+  -> passed.
+- `make production-gate`
+  -> passed; `/tmp/aura_production_readiness.json` has `passed=true` and
+  `37` checks.
+- `make enterprise-gate`
+  -> passed; `/tmp/aura_enterprise_gate.json` has `counts={}` and
+  `high_or_critical_count=0`.
+
+Current closeout estimate:
+
+- Automatic expectation enforcement now covers desktop tasks, mutating file
+  operations, and core-memory block mutations. These are the highest-confidence
+  stateful local effects because they can be verified deterministically.
+- Web research defaults and archival-memory receipt stabilization remain open.
+
+Remaining work after this checkpoint:
+
+- Stabilize archival memory insert receipts before adding automatic archival
+  memory expectations.
+- Add automatic web research expectations requiring sources/citations for
+  research-shaped web tasks.
+- Add planner-side use of recent expectation receipts.

@@ -567,6 +567,164 @@ class FaultRegistry:
                 recovery=RecoveryStrategy.GRACEFUL_DEGRADATION, mttr_seconds=0,
                 blast_radius="Logged and monitored; function continues (log+continue mode)",
             ),
+            FaultDefinition(
+                fault_id="PASSF-ACTION-SHALLOW-SUCCESS",
+                name="Shallow action reports success",
+                description="An action fires and returns a technically true success "
+                            "without satisfying the user's implied acceptance "
+                            "criteria or preserving effect evidence.",
+                domain=FaultDomain.TOOL_EXECUTION,
+                severity=FaultSeverity.CRITICAL,
+                probability=FaultProbability.PROBABLE,
+                detection=DetectionDifficulty.LOW,
+                recovery=RecoveryStrategy.RETRY_WITH_BACKOFF,
+                mttr_seconds=30,
+                blast_radius="User-facing task appears complete while the useful "
+                             "work is missing or too shallow to rely on.",
+                runbook="docs/runbooks/pass-f-maturity-risks.md",
+            ),
+            FaultDefinition(
+                fault_id="PASSF-FALSE-HEALTH",
+                name="False health/readiness signal",
+                description="A readiness, liveness, or proof-health path reports "
+                            "green while the live user path remains blocked.",
+                domain=FaultDomain.OBSERVABILITY,
+                severity=FaultSeverity.CRITICAL,
+                probability=FaultProbability.PROBABLE,
+                detection=DetectionDifficulty.LOW,
+                recovery=RecoveryStrategy.QUARANTINE,
+                mttr_seconds=60,
+                blast_radius="Operators trust a green signal that does not match "
+                             "actual demo or daily-use readiness.",
+                runbook="docs/runbooks/pass-f-maturity-risks.md",
+            ),
+            FaultDefinition(
+                fault_id="PASSF-RESOURCE-SPAWN-LOOP",
+                name="Resource spawn loop",
+                description="Model, memory, or worker orchestration repeatedly "
+                            "spawns work under pressure instead of admitting, "
+                            "backing off, or degrading explicitly.",
+                domain=FaultDomain.RESOURCE,
+                severity=FaultSeverity.CRITICAL,
+                probability=FaultProbability.OCCASIONAL,
+                detection=DetectionDifficulty.MODERATE,
+                recovery=RecoveryStrategy.CIRCUIT_BREAKER,
+                mttr_seconds=45,
+                blast_radius="GPU/RAM pressure cascades into stalled requests, "
+                             "wedged workers, or unreliable boot.",
+                runbook="docs/runbooks/pass-f-maturity-risks.md",
+            ),
+            FaultDefinition(
+                fault_id="PASSF-DESKTOP-PERMISSION-DRIFT",
+                name="Desktop permission drift",
+                description="Desktop, Chrome, accessibility, camera, microphone, "
+                            "or browser-control permissions drift after boot and "
+                            "surface only as shallow action failure.",
+                domain=FaultDomain.TOOL_EXECUTION,
+                severity=FaultSeverity.CRITICAL,
+                probability=FaultProbability.OCCASIONAL,
+                detection=DetectionDifficulty.MODERATE,
+                recovery=RecoveryStrategy.GRACEFUL_DEGRADATION,
+                mttr_seconds=120,
+                blast_radius="Visible computer-use workflows cannot be demoed or "
+                             "completed despite nominal capability registration.",
+                runbook="docs/runbooks/pass-f-maturity-risks.md",
+            ),
+            FaultDefinition(
+                fault_id="PASSF-REPAIR-STORM",
+                name="Self-repair storm",
+                description="Autonomy or self-repair loops continue patching, "
+                            "retrying, or re-planning without cooldown, budget, "
+                            "causal progress, or operator-visible stop condition.",
+                domain=FaultDomain.AGENCY,
+                severity=FaultSeverity.CRITICAL,
+                probability=FaultProbability.REMOTE,
+                detection=DetectionDifficulty.LOW,
+                recovery=RecoveryStrategy.CIRCUIT_BREAKER,
+                mttr_seconds=60,
+                blast_radius="Repair behavior consumes resources and can make "
+                             "the original fault harder to diagnose.",
+                runbook="docs/runbooks/pass-f-maturity-risks.md",
+            ),
+            FaultDefinition(
+                fault_id="PASSF-STALE-OBLIGATION",
+                name="Stale obligation blocks current work",
+                description="Memory, prompt, or task-state residue from an older "
+                            "objective keeps steering unrelated current work.",
+                domain=FaultDomain.MEMORY,
+                severity=FaultSeverity.MARGINAL,
+                probability=FaultProbability.PROBABLE,
+                detection=DetectionDifficulty.LOW,
+                recovery=RecoveryStrategy.AUTOMATIC_FALLBACK,
+                mttr_seconds=30,
+                blast_radius="Aura acts federated and distracted instead of "
+                             "unified around the user's current objective.",
+                runbook="docs/runbooks/pass-f-maturity-risks.md",
+            ),
+            FaultDefinition(
+                fault_id="PASSF-NEURAL-STREAM-FLOOD",
+                name="Neural stream flood hides state",
+                description="High-volume internal streams, events, or logs drown "
+                            "out the actionable user-visible state needed for "
+                            "debugging and daily operation.",
+                domain=FaultDomain.OBSERVABILITY,
+                severity=FaultSeverity.MARGINAL,
+                probability=FaultProbability.PROBABLE,
+                detection=DetectionDifficulty.MODERATE,
+                recovery=RecoveryStrategy.GRACEFUL_DEGRADATION,
+                mttr_seconds=30,
+                blast_radius="Operators see noise rather than crisp state, "
+                             "blockers, receipts, and next actions.",
+                runbook="docs/runbooks/pass-f-maturity-risks.md",
+            ),
+            FaultDefinition(
+                fault_id="PASSF-VISIBLE-WEB-PROOF-ACCESS",
+                name="Visible web proof inaccessible",
+                description="Visible Chrome or web-interlocutor proof depends on "
+                            "a browser profile, extension, or session that is not "
+                            "available to the active runtime.",
+                domain=FaultDomain.TOOL_EXECUTION,
+                severity=FaultSeverity.CRITICAL,
+                probability=FaultProbability.OCCASIONAL,
+                detection=DetectionDifficulty.HIGH,
+                recovery=RecoveryStrategy.MANUAL_INTERVENTION,
+                mttr_seconds=300,
+                blast_radius="External web proof and demo-critical browser "
+                             "workflows remain honestly blocked.",
+                runbook="docs/runbooks/pass-f-maturity-risks.md",
+            ),
+            FaultDefinition(
+                fault_id="PASSF-PROOF-ARTIFACT-CONTAMINATION",
+                name="Proof artifact contamination",
+                description="A proof, certification, or report consumes stale, "
+                            "fixture-backed, hardcoded, or cross-run artifact "
+                            "data as if it were fresh live evidence.",
+                domain=FaultDomain.OBSERVABILITY,
+                severity=FaultSeverity.CRITICAL,
+                probability=FaultProbability.REMOTE,
+                detection=DetectionDifficulty.LOW,
+                recovery=RecoveryStrategy.QUARANTINE,
+                mttr_seconds=120,
+                blast_radius="Certification can overstate maturity and hide "
+                             "runtime regressions until live demo.",
+                runbook="docs/runbooks/pass-f-maturity-risks.md",
+            ),
+            FaultDefinition(
+                fault_id="PASSF-SEMANTIC-REVIEW-GAP",
+                name="Semantic review gap",
+                description="Mechanical closeout, line counting, or path hashing "
+                            "is mistaken for semantic review of code behavior, "
+                            "runtime contracts, and user-facing obligations.",
+                domain=FaultDomain.GOVERNANCE,
+                severity=FaultSeverity.CRITICAL,
+                probability=FaultProbability.PROBABLE,
+                detection=DetectionDifficulty.LOW,
+                recovery=RecoveryStrategy.MANUAL_INTERVENTION,
+                mttr_seconds=600,
+                blast_radius="Remaining code debt is hidden behind a green "
+                             "mechanical audit surface.",
+                runbook="docs/runbooks/pass-f-maturity-risks.md",
+            ),
         ]
         for defn in builtins:
             self._definitions[defn.fault_id] = defn

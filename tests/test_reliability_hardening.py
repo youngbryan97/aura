@@ -100,6 +100,29 @@ class TestFaultTaxonomy:
         assert status["total_faults"] == 1
         assert "definitions_count" in status
 
+    def test_pass_f_maturity_faults_are_registered(self):
+        from core.resilience.fault_taxonomy import FaultRegistry
+
+        reg = FaultRegistry()
+        required = {
+            "PASSF-ACTION-SHALLOW-SUCCESS",
+            "PASSF-FALSE-HEALTH",
+            "PASSF-RESOURCE-SPAWN-LOOP",
+            "PASSF-DESKTOP-PERMISSION-DRIFT",
+            "PASSF-REPAIR-STORM",
+            "PASSF-STALE-OBLIGATION",
+            "PASSF-NEURAL-STREAM-FLOOD",
+            "PASSF-VISIBLE-WEB-PROOF-ACCESS",
+            "PASSF-PROOF-ARTIFACT-CONTAMINATION",
+            "PASSF-SEMANTIC-REVIEW-GAP",
+        }
+        definitions = {d.fault_id: d for d in reg.all_definitions()}
+        missing = required - definitions.keys()
+        assert not missing
+        assert all(definitions[fid].runbook for fid in required)
+        assert definitions["PASSF-ACTION-SHALLOW-SUCCESS"].rpn >= 30
+        assert definitions["PASSF-FALSE-HEALTH"].rpn >= 30
+
 
 class TestFMEARegistry:
     def test_all_faults_have_fmea_entries(self):
@@ -123,6 +146,30 @@ class TestFMEARegistry:
             assert "fault_id" in entry
             assert "rpn" in entry
             assert "mitigations" in entry
+
+    def test_pass_f_maturity_faults_are_mitigated(self):
+        from core.resilience.fmea_registry import get_fmea_registry
+
+        fmea = get_fmea_registry()
+        pass_f = [
+            row for row in fmea.full_report()
+            if row["fault_id"].startswith("PASSF-")
+        ]
+        assert len(pass_f) == 10
+        assert all(row["mitigated"] for row in pass_f)
+        assert all(row["runbook"] == "docs/runbooks/pass-f-maturity-risks.md"
+                   for row in pass_f)
+        assert all(row["mitigation_count"] >= 2 for row in pass_f)
+
+    def test_pass_f_high_risk_faults_surface_in_rpn_report(self):
+        from core.resilience.fmea_registry import get_fmea_registry
+
+        high_risk_ids = {
+            row["fault_id"] for row in get_fmea_registry().faults_above_rpn(30)
+        }
+        assert "PASSF-ACTION-SHALLOW-SUCCESS" in high_risk_ids
+        assert "PASSF-FALSE-HEALTH" in high_risk_ids
+        assert "PASSF-SEMANTIC-REVIEW-GAP" in high_risk_ids
 
 
 # ═══════════════════════════════════════════════════════════════════════
