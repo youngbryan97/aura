@@ -8605,3 +8605,57 @@ Remaining work after this checkpoint:
   planning boundaries.
 - Add receipt/memory causal wiring for expectation failures.
 - Commit and push this checkpoint.
+
+## Checkpoint 2026-07-09-09: Chat Desktop Objective Expectation Propagation
+
+Scope:
+
+- Added `_desktop_task_action_expectation(...)` to the chat desktop objective
+  lane so live user requests that become `desktop_task` calls automatically
+  carry action-depth expectations.
+- `_execute_desktop_objective_from_chat(...)` now passes the expectation in
+  both params and execution context. The central `CapabilityEngine` expectation
+  hook therefore sees the contract before returning success to chat.
+- The current default expectation requires:
+  - `steps_requested`
+  - `steps_completed`
+  - `receipts`
+  - repair hint `rerun_desktop_task_with_effect_receipts`
+- The existing chat verifier still performs the deeper step-level proof:
+  receipt shape, critical step success, `effect_verified=true`, non-empty
+  observable effect evidence, and rejection of receipt-id-only proof.
+
+Verification:
+
+- `python -m pytest tests/test_server_conversation_lane.py::test_api_chat_desktop_objective_requires_cognitive_planning tests/test_server_conversation_lane.py::test_chat_desktop_objective_uses_capability_engine_without_agency_wrapper tests/test_server_conversation_lane.py::test_chat_desktop_research_objective_does_not_enable_hidden_model_synthesis tests/test_server_conversation_lane.py::test_chat_desktop_objective_rejects_success_without_effect_receipts tests/test_capability_engine_policy_regressions.py::test_execute_with_retry_downgrades_shallow_action_expectation tests/test_capability_engine_policy_regressions.py::test_execute_with_retry_marks_missing_expectation_evidence_unverified -q`
+  -> `6 passed`.
+- `python -m pytest tests/test_server_conversation_lane.py::test_api_chat_desktop_surface_plans_with_cognitive_engine_before_execution -q`
+  -> `1 passed`.
+- `python -m pytest tests/test_server_conversation_lane.py -q -k desktop_objective`
+  -> `6 passed, 237 deselected`.
+- `python -m py_compile interface/routes/chat.py tests/test_server_conversation_lane.py core/capability_engine.py tests/test_capability_engine_policy_regressions.py`
+  -> passed.
+- `python -m ruff check --select F,E9 interface/routes/chat.py tests/test_server_conversation_lane.py core/capability_engine.py tests/test_capability_engine_policy_regressions.py`
+  -> passed.
+- `make production-gate`
+  -> passed; `/tmp/aura_production_readiness.json` has `passed=true`.
+- `make enterprise-gate`
+  -> passed; `/tmp/aura_enterprise_gate.json` has `counts={}` and
+  `high_or_critical_count=0`.
+- `git diff --check`
+  -> passed.
+
+Current closeout estimate:
+
+- Pass F action-depth enforcement now reaches the live chat -> desktop_task
+  path for visible desktop objectives. It is still intentionally explicit and
+  contract-driven; broader automatic expectation generation for non-desktop
+  skills remains open.
+
+Remaining work after this checkpoint:
+
+- Add durable receipt/memory wiring for expectation verdicts.
+- Expand expectation generation beyond desktop objectives: web research,
+  file/memory actions, live skill API proofs, autonomous overt actions, and
+  chat follow-through.
+- Commit and push this checkpoint.

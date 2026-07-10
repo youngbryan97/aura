@@ -12956,6 +12956,16 @@ def _verified_desktop_task_result(result: dict[str, Any]) -> tuple[bool, str]:
     return True, "verified"
 
 
+def _desktop_task_action_expectation(objective: str) -> dict[str, Any]:
+    return {
+        "objective": str(objective or "")[:500],
+        "acceptance_criteria": ["steps_requested", "steps_completed"],
+        "required_evidence": ["receipts"],
+        "repair_hint": "rerun_desktop_task_with_effect_receipts",
+        "allow_partial": True,
+    }
+
+
 def _desktop_objective_self_sufficient_without_cognitive_text(user_message: str) -> bool:
     """Whether desktop_task can honestly complete without a model-composed body.
 
@@ -13121,6 +13131,7 @@ async def _execute_desktop_objective_from_chat(
     # explicit callers can still opt into model synthesis by invoking
     # desktop_task directly with allow_desktop_task_model_synthesis=True.
     allow_research_synthesis = False
+    action_expectation = _desktop_task_action_expectation(objective)
     desktop_params = {
         "objective": objective,
         "steps": [],
@@ -13134,6 +13145,7 @@ async def _execute_desktop_objective_from_chat(
         "local_desktop_action": True,
         "verification_required": True,
         "predicted_outcome": "The requested visible desktop/file effect is verified after execution.",
+        "action_expectation": action_expectation,
     }
     result = await _execute_governed_live_skill(
         "desktop_task",
@@ -13152,6 +13164,7 @@ async def _execute_desktop_objective_from_chat(
             "allow_desktop_task_model_synthesis": allow_research_synthesis,
             "desktop_task_document_body": str(cognitive_reply or "").strip(),
             "cognitive_reply": str(cognitive_reply or "").strip(),
+            "action_expectation": action_expectation,
         },
     )
     if not isinstance(result, dict):
