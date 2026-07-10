@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import importlib
 import inspect
 import json
@@ -4421,7 +4422,105 @@ class CapabilityEngine(AuraBaseModule):
         payload["ok"] = checked.ok
         if not checked.ok and checked.failure_reason and not payload.get("error"):
             payload["error"] = checked.failure_reason
+        expectation_receipt_id = cls._emit_action_expectation_receipt(
+            skill_name,
+            payload,
+            expectation,
+            checked,
+        )
+        if expectation_receipt_id:
+            payload["expectation_receipt_id"] = expectation_receipt_id
+            payload["verification_evidence"]["expectation_receipt_id"] = expectation_receipt_id
+            if isinstance(payload.get("expectation_verdict"), dict):
+                payload["expectation_verdict"]["receipt_id"] = expectation_receipt_id
         return payload
+
+    @staticmethod
+    def _action_expectation_digest(payload: dict[str, Any]) -> str:
+        try:
+            encoded = json.dumps(
+                payload,
+                sort_keys=True,
+                separators=(",", ":"),
+                default=str,
+            ).encode("utf-8")
+        except (TypeError, ValueError):
+            encoded = str(payload).encode("utf-8", errors="replace")
+        return hashlib.sha256(encoded).hexdigest()
+
+    @classmethod
+    def _emit_action_expectation_receipt(
+        cls,
+        skill_name: str,
+        result: dict[str, Any],
+        expectation: Any,
+        checked: Any,
+    ) -> str | None:
+        verdict = checked.verification_evidence.get("expectation_verdict", {})
+        if not isinstance(verdict, dict) or not verdict:
+            return None
+
+        try:
+            from core.runtime.receipts import ToolExecutionReceipt, get_receipt_store
+
+            receipt = ToolExecutionReceipt(
+                cause=str(getattr(expectation, "objective", "") or skill_name)[:240],
+                tool=skill_name,
+                status=str(checked.status.value),
+                output_digest=cls._action_expectation_digest(
+                    {
+                        "skill": skill_name,
+                        "status": checked.status.value,
+                        "ok": bool(result.get("ok", False)),
+                        "verdict": verdict,
+                    }
+                ),
+                verification_evidence={
+                    "expectation_verdict": verdict,
+                    "original_receipt_id": checked.receipt_id,
+                    "failure_reason": checked.failure_reason,
+                },
+                metadata={
+                    "source": "capability_engine.action_expectation",
+                    "expectation_objective": str(
+                        getattr(expectation, "objective", "") or skill_name
+                    )[:240],
+                    "expectation_next_step": str(verdict.get("next_step") or "")[:240],
+                    "passed": bool(verdict.get("passed", False)),
+                },
+            )
+            emitted = get_receipt_store().emit(receipt)
+            if not bool(verdict.get("passed", False)):
+                try:
+                    from core.resilience.fault_taxonomy import get_fault_registry
+
+                    missing = list(verdict.get("missing_criteria") or []) + list(
+                        verdict.get("missing_evidence") or []
+                    )
+                    get_fault_registry().record_fault(
+                        "PASSF-ACTION-SHALLOW-SUCCESS",
+                        "capability_engine",
+                        details=(
+                            f"{skill_name} expectation downgraded before verified success; "
+                            f"missing={missing[:6]}"
+                        ),
+                        recovered=True,
+                        recovery_time_s=0.0,
+                    )
+                except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as fault_exc:
+                    _record_capability_degradation(
+                        fault_exc,
+                        action="returned expectation-downgraded result after fault occurrence recording failed",
+                        severity="warning",
+                    )
+            return emitted.receipt_id
+        except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
+            _record_capability_degradation(
+                exc,
+                action="returned expectation verdict after durable receipt emit failed",
+                severity="warning",
+            )
+            return None
 
     @staticmethod
     def _outer_retry_disabled(

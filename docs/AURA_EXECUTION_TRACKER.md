@@ -8735,3 +8735,62 @@ Remaining work after this checkpoint:
 - Start the declarative runtime control plane and resource admission layer so
   high-risk `PASSF-RESOURCE-SPAWN-LOOP` becomes preventable, not just visible.
 - Keep semantic review coverage moving through the closeout ledger.
+
+## Checkpoint 2026-07-09-11: Expectation Verdict Durable Receipts
+
+Scope:
+
+- Extended `CapabilityEngine._apply_action_expectation_result(...)` so every
+  action expectation verdict can emit a durable `ToolExecutionReceipt`.
+- The returned skill payload now includes `expectation_receipt_id` when receipt
+  emission succeeds, and the same ID is copied into
+  `verification_evidence.expectation_receipt_id`.
+- Expectation receipts record:
+  - the skill/tool name
+  - the final downgraded status
+  - a stable digest of the verdict payload
+  - the full `expectation_verdict`
+  - the original receipt ID when the skill supplied one
+  - the repair hint / next step
+- Failed expectation verdicts now also record a recovered
+  `PASSF-ACTION-SHALLOW-SUCCESS` fault occurrence. This makes shallow-success
+  catches visible in the fault taxonomy without turning a successfully
+  downgraded result into an unrecovered critical fault.
+- Added an isolated regression using a `tmp_path` receipt store and stubbed
+  fault registry to prove the durable receipt and fault occurrence are emitted
+  without touching live receipt state.
+
+Verification:
+
+- `python -m pytest tests/test_capability_engine_policy_regressions.py::test_expectation_downgrade_emits_durable_receipt_and_fault tests/test_capability_engine_policy_regressions.py::test_execute_with_retry_downgrades_shallow_action_expectation tests/test_capability_engine_policy_regressions.py::test_execute_with_retry_marks_missing_expectation_evidence_unverified tests/test_action_depth_honesty.py -q`
+  -> `20 passed`.
+- `python -m pytest tests/test_capability_engine_policy_regressions.py -q`
+  -> `25 passed`.
+- `python -m pytest tests/test_action_depth_honesty.py tests/test_reliability_hardening.py -q`
+  -> `114 passed`.
+- `python -m py_compile core/capability_engine.py tests/test_capability_engine_policy_regressions.py`
+  -> passed.
+- `python -m ruff check --select F,E9 core/capability_engine.py tests/test_capability_engine_policy_regressions.py`
+  -> passed.
+- `make production-gate`
+  -> passed; `/tmp/aura_production_readiness.json` has `passed=true` and
+  `37` checks.
+- `make enterprise-gate`
+  -> passed; `/tmp/aura_enterprise_gate.json` has `counts={}` and
+  `high_or_critical_count=0`.
+
+Current closeout estimate:
+
+- Action-depth enforcement is now durable. A shallow action no longer only
+  returns a downgraded payload; it leaves a receipt and a fault-taxonomy
+  occurrence that can be audited and learned from.
+- This closes the first half of durable expectation feedback. Remaining work is
+  to make future planners consult these receipts/fault counts proactively when
+  choosing action depth.
+
+Remaining work after this checkpoint:
+
+- Expand automatic expectation generation beyond desktop tasks.
+- Build the declarative runtime control plane and resource admission layer.
+- Add planner-side use of recent expectation receipts so repeated shallow
+  failures change future action planning before execution.
