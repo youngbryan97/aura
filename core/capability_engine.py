@@ -4355,6 +4355,14 @@ class CapabilityEngine(AuraBaseModule):
         evidence = cls._str_list(source.get("required_evidence") or source.get("evidence_required"))
         visible_effect = source.get("user_visible_effect") or source.get("visible_effect")
         if not criteria and not evidence and not visible_effect:
+            default_expectation = cls._default_action_expectation_for(
+                skill_name,
+                params,
+                context,
+                ActionExpectation,
+            )
+            if default_expectation is not None:
+                return default_expectation
             return None
 
         return ActionExpectation(
@@ -4372,6 +4380,48 @@ class CapabilityEngine(AuraBaseModule):
             user_visible_effect=str(visible_effect) if visible_effect else None,
             repair_hint=str(source.get("repair_hint") or ""),
             allow_partial=cls._bool_value(source.get("allow_partial"), default=True),
+        )
+
+    @classmethod
+    def _default_action_expectation_for(
+        cls,
+        skill_name: str,
+        params: dict[str, Any],
+        context: dict[str, Any],
+        expectation_cls: Any,
+    ) -> Any | None:
+        if cls._bool_value((context or {}).get("disable_auto_action_expectation"), default=False):
+            return None
+        if cls._bool_value((params or {}).get("disable_auto_action_expectation"), default=False):
+            return None
+
+        normalized_skill = str(skill_name or "").strip().lower()
+        if normalized_skill != "file_operation":
+            return None
+
+        action = str((params or {}).get("action") or "").strip().lower()
+        path = str((params or {}).get("path") or "").strip()
+        destination = str((params or {}).get("destination") or "").strip()
+        file_expectations = {
+            "write": ("file written", ["path", "sha256", "effect_verified"]),
+            "append": ("file appended", ["path", "sha256", "effect_verified"]),
+            "patch": ("file patched", ["path", "sha256", "effect_verified"]),
+            "delete": ("path deleted", ["path", "effect_verified"]),
+            "move": ("path moved", ["path", "destination", "sha256", "effect_verified"]),
+            "copy": ("path copied", ["path", "destination", "sha256", "effect_verified"]),
+        }
+        if action not in file_expectations:
+            return None
+
+        criterion, evidence = file_expectations[action]
+        target = f"{path} -> {destination}" if destination else path
+        return expectation_cls(
+            objective=f"{action} file_operation effect for {target or 'requested path'}",
+            acceptance_criteria=[criterion],
+            required_evidence=evidence,
+            user_visible_effect=f"filesystem {action} is observable and verified",
+            repair_hint=f"verify_file_operation_{action}_effect",
+            allow_partial=False,
         )
 
     @classmethod

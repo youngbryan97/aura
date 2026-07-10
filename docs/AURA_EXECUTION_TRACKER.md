@@ -8794,3 +8794,69 @@ Remaining work after this checkpoint:
 - Build the declarative runtime control plane and resource admission layer.
 - Add planner-side use of recent expectation receipts so repeated shallow
   failures change future action planning before execution.
+
+## Checkpoint 2026-07-09-12: Verified File Operation Expectations
+
+Scope:
+
+- Deepened `file_operation` mutating actions so they verify the filesystem
+  effect after the governed operation, not just report a summary string.
+- `write`, `append`, and `patch` now return:
+  - `effect_verified`
+  - `sha256`
+  - `expected_sha256`
+  - byte size
+  - `criteria_results`
+- `delete`, `move`, and `copy` now verify post-action state:
+  - delete confirms the target is gone
+  - move confirms destination exists and source is gone
+  - copy compares source/destination hashes when both are files
+- Added central automatic `ActionExpectation` generation for mutating
+  `file_operation` calls in `CapabilityEngine`. A caller no longer has to
+  remember to pass an explicit expectation for write/append/patch/delete/move
+  /copy to avoid shallow success.
+- Automatic expectations are intentionally not applied to read/list/exists and
+  can be disabled with `disable_auto_action_expectation` in params/context for
+  narrow compatibility paths.
+- Added regressions proving:
+  - real `file_operation.write` returns hash-backed effect evidence
+  - a shallow fake `file_operation.write` result is downgraded automatically
+  - read-only file actions are not forced through mutation expectations
+
+Verification:
+
+- `python -m pytest tests/test_action_depth_honesty.py::test_file_operation_write_returns_effect_evidence tests/test_capability_engine_policy_regressions.py::test_auto_file_operation_expectation_rejects_shallow_mutation tests/test_capability_engine_policy_regressions.py::test_auto_file_operation_expectation_ignores_read_only_actions -q`
+  -> `3 passed`.
+- `python -m pytest tests/test_action_depth_honesty.py tests/test_capability_engine_policy_regressions.py -q`
+  -> `45 passed`.
+- `python -m pytest tests/test_live_runtime_surface_regressions.py::test_file_operation_write_creates_nested_live_runtime_directory -q`
+  -> `1 passed`.
+- `python -m pytest tests/test_skill_surface_contracts.py tests/test_action_depth_honesty.py tests/test_capability_engine_policy_regressions.py -q`
+  -> `140 passed`.
+- `python -m py_compile core/skills/file_operation.py core/capability_engine.py tests/test_action_depth_honesty.py tests/test_capability_engine_policy_regressions.py`
+  -> passed.
+- `python -m ruff check --select F,E9 core/skills/file_operation.py core/capability_engine.py tests/test_action_depth_honesty.py tests/test_capability_engine_policy_regressions.py`
+  -> passed.
+- `git diff --check`
+  -> passed.
+- `make production-gate`
+  -> passed; `/tmp/aura_production_readiness.json` has `passed=true` and
+  `37` checks.
+- `make enterprise-gate`
+  -> passed; `/tmp/aura_enterprise_gate.json` has `counts={}` and
+  `high_or_critical_count=0`.
+
+Current closeout estimate:
+
+- File operations are no longer "action fired" shallow. The core mutating file
+  skill now proves the post-action filesystem state and the central capability
+  execution lane auto-enforces that proof for mutating file actions.
+- This is the first automatic expectation expansion beyond desktop tasks. Web,
+  memory, live skill API, and autonomous overt action defaults remain open.
+
+Remaining work after this checkpoint:
+
+- Add automatic defaults for memory writes and web research actions where
+  result shapes are stable enough to avoid noisy false downgrades.
+- Add planner-side use of recent expectation receipts.
+- Start the runtime control plane/resource admission workstream.

@@ -465,6 +465,75 @@ async def test_expectation_downgrade_emits_durable_receipt_and_fault(monkeypatch
         reset_receipt_store()
 
 
+@pytest.mark.asyncio
+async def test_auto_file_operation_expectation_rejects_shallow_mutation(monkeypatch, tmp_path):
+    from core.runtime.receipts import get_receipt_store, reset_receipt_store
+
+    reset_receipt_store()
+    get_receipt_store(tmp_path / "receipts")
+    fault_records = []
+
+    class FaultRegistryStub:
+        def record_fault(self, fault_id, subsystem, **kwargs):
+            fault_records.append((fault_id, subsystem, kwargs))
+
+    monkeypatch.setattr(
+        "core.resilience.fault_taxonomy.get_fault_registry",
+        lambda: FaultRegistryStub(),
+    )
+
+    engine = _engine_with_skill("file_operation")
+
+    class ShallowFileSkill:
+        async def safe_execute(self, params, context):
+            return {"ok": True, "status": "completed", "path": params["path"]}
+
+    try:
+        result = await engine._execute_with_retry(
+            ShallowFileSkill(),
+            "file_operation",
+            {"action": "write", "path": "shallow.txt", "content": "x"},
+            {"origin": "user"},
+        )
+
+        assert result["ok"] is False
+        assert result["status"] == "failed_recoverable"
+        assert result["expectation_verdict"]["missing_criteria"] == [
+            "file written",
+            "user-visible effect: filesystem write is observable and verified",
+        ]
+        assert result["expectation_verdict"]["missing_evidence"] == [
+            "sha256",
+            "effect_verified",
+        ]
+        assert result["expectation_receipt_id"]
+        assert any(
+            fault_id == "PASSF-ACTION-SHALLOW-SUCCESS"
+            for fault_id, _subsystem, _kwargs in fault_records
+        )
+    finally:
+        reset_receipt_store()
+
+
+@pytest.mark.asyncio
+async def test_auto_file_operation_expectation_ignores_read_only_actions():
+    engine = _engine_with_skill("file_operation")
+
+    class ReadFileSkill:
+        async def safe_execute(self, params, context):
+            return {"ok": True, "content": "hello", "path": params["path"]}
+
+    result = await engine._execute_with_retry(
+        ReadFileSkill(),
+        "file_operation",
+        {"action": "read", "path": "note.txt"},
+        {"origin": "user"},
+    )
+
+    assert result["ok"] is True
+    assert "expectation_verdict" not in result
+
+
 def test_auto_refactor_scan_is_read_only_not_privileged_mutation():
     engine = _engine_with_skill("auto_refactor")
     meta = engine.skills["auto_refactor"]

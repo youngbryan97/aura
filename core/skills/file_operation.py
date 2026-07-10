@@ -2,6 +2,7 @@ from core.runtime.errors import record_degradation
 from core.runtime.action_executor import ActionExecutor
 from core.governance.will import ActionDomain
 import contextlib
+import hashlib
 import logging
 import os
 import tempfile
@@ -54,6 +55,41 @@ class FileOperationSkill(BaseSkill):
         if not self._is_within_root(full):
             raise PermissionError(f"Access denied: path '{path}' resolves outside workspace")
         return full
+
+    @staticmethod
+    def _sha256_text(value: str) -> str:
+        return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def _file_sha256(path: str) -> str:
+        digest = hashlib.sha256()
+        with open(path, "rb") as fh:
+            for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+                digest.update(chunk)
+        return digest.hexdigest()
+
+    @classmethod
+    async def _file_effect(cls, full_path: str, *, expected_sha256: str = "") -> dict[str, Any]:
+        import asyncio
+
+        exists = await asyncio.to_thread(os.path.exists, full_path)
+        is_file = await asyncio.to_thread(os.path.isfile, full_path) if exists else False
+        evidence: dict[str, Any] = {
+            "exists": exists,
+            "is_file": is_file,
+            "effect_verified": exists,
+        }
+        if is_file:
+            sha256 = await asyncio.to_thread(cls._file_sha256, full_path)
+            size = await asyncio.to_thread(os.path.getsize, full_path)
+            evidence.update({"sha256": sha256, "bytes": size})
+            if expected_sha256:
+                evidence["expected_sha256"] = expected_sha256
+                evidence["effect_verified"] = sha256 == expected_sha256
+        elif expected_sha256:
+            evidence["expected_sha256"] = expected_sha256
+            evidence["effect_verified"] = False
+        return evidence
 
     def match(self, goal: Dict[str, Any]) -> bool:
         obj = goal.get("objective", "").lower()
@@ -138,7 +174,15 @@ class FileOperationSkill(BaseSkill):
                 )
                 if not result.get("ok"):
                     return {"ok": False, "error": result.get("error", "write failed"), "path": path}
-                return {"ok": True, "summary": f"Wrote {len(content)} bytes to {path}", "path": path}
+                expected_sha256 = self._sha256_text(content)
+                effect = await self._file_effect(full_path, expected_sha256=expected_sha256)
+                return {
+                    "ok": bool(effect.get("effect_verified")),
+                    "summary": f"Wrote {len(content)} bytes to {path}",
+                    "path": path,
+                    "criteria_results": {"file written": bool(effect.get("effect_verified"))},
+                    **effect,
+                }
 
             elif action == "append":
                 existing = ""
@@ -157,7 +201,15 @@ class FileOperationSkill(BaseSkill):
                 )
                 if not result.get("ok"):
                     return {"ok": False, "error": result.get("error", "append failed"), "path": path}
-                return {"ok": True, "summary": f"Appended to {path}", "path": path}
+                expected_sha256 = self._sha256_text(next_text)
+                effect = await self._file_effect(full_path, expected_sha256=expected_sha256)
+                return {
+                    "ok": bool(effect.get("effect_verified")),
+                    "summary": f"Appended to {path}",
+                    "path": path,
+                    "criteria_results": {"file appended": bool(effect.get("effect_verified"))},
+                    **effect,
+                }
 
             elif action == "list":
                 if await asyncio.to_thread(os.path.isdir, full_path):
@@ -199,7 +251,16 @@ class FileOperationSkill(BaseSkill):
                     )
                     if not result.get("ok"):
                         return {"ok": False, "error": result.get("error", "delete failed"), "path": path}
-                    return {"ok": True, "summary": f"Deleted {path}", "path": path}
+                    exists_after = await asyncio.to_thread(os.path.exists, full_path)
+                    effect_verified = not exists_after
+                    return {
+                        "ok": effect_verified,
+                        "summary": f"Deleted {path}",
+                        "path": path,
+                        "exists": exists_after,
+                        "effect_verified": effect_verified,
+                        "criteria_results": {"path deleted": effect_verified},
+                    }
                 return {"ok": False, "error": "File not found", "path": path}
 
             elif action == "move":
@@ -219,7 +280,19 @@ class FileOperationSkill(BaseSkill):
                 )
                 if not result.get("ok"):
                     return {"ok": False, "error": result.get("error", "move failed"), "path": path}
-                return {"ok": True, "summary": f"Moved {path} to {dest_path}", "path": path, "destination": dest_path}
+                source_exists = await asyncio.to_thread(os.path.exists, full_path)
+                effect = await self._file_effect(full_dest)
+                effect_verified = bool(effect.get("effect_verified")) and not source_exists
+                return {
+                    "ok": effect_verified,
+                    "summary": f"Moved {path} to {dest_path}",
+                    "path": path,
+                    "destination": dest_path,
+                    "source_exists": source_exists,
+                    "criteria_results": {"path moved": effect_verified},
+                    **effect,
+                    "effect_verified": effect_verified,
+                }
 
             elif action == "copy":
                 dest_path = params.destination
@@ -238,7 +311,21 @@ class FileOperationSkill(BaseSkill):
                 )
                 if not result.get("ok"):
                     return {"ok": False, "error": result.get("error", "copy failed"), "path": path}
-                return {"ok": True, "summary": f"Copied {path} to {dest_path}", "path": path, "destination": dest_path}
+                source_effect = await self._file_effect(full_path)
+                dest_effect = await self._file_effect(full_dest)
+                effect_verified = bool(dest_effect.get("effect_verified"))
+                if source_effect.get("sha256") and dest_effect.get("sha256"):
+                    effect_verified = source_effect["sha256"] == dest_effect["sha256"]
+                return {
+                    "ok": effect_verified,
+                    "summary": f"Copied {path} to {dest_path}",
+                    "path": path,
+                    "destination": dest_path,
+                    "source_sha256": source_effect.get("sha256", ""),
+                    "criteria_results": {"path copied": effect_verified},
+                    **dest_effect,
+                    "effect_verified": effect_verified,
+                }
 
             elif action == "patch":
                 start_line = params.start_line
@@ -297,7 +384,15 @@ class FileOperationSkill(BaseSkill):
                     )
                     if not result.get("ok"):
                         return {"ok": False, "error": result.get("error", "patch write failed"), "path": path}
-                    return {"ok": True, "summary": f"Patched {path}: Replaced lines {start_line}-{end_line}", "path": path}
+                    expected_sha256 = self._sha256_text(new_content)
+                    effect = await self._file_effect(full_path, expected_sha256=expected_sha256)
+                    return {
+                        "ok": bool(effect.get("effect_verified")),
+                        "summary": f"Patched {path}: Replaced lines {start_line}-{end_line}",
+                        "path": path,
+                        "criteria_results": {"file patched": bool(effect.get("effect_verified"))},
+                        **effect,
+                    }
                 except ValueError as ve:
                     return {"ok": False, "error": str(ve), "path": path}
 
