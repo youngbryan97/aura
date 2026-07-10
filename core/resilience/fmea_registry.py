@@ -121,6 +121,7 @@ class FMEARegistry:
                     "blast_radius": defn.blast_radius,
                     "runbook": defn.runbook,
                     "mitigated": entry.is_mitigated(),
+                    "mitigation_count": len(entry.mitigations),
                     "mitigations": [
                         {
                             "action_id": m.action_id,
@@ -301,6 +302,248 @@ class FMEARegistry:
                                  automated=True, implementation_path="core/resilience/contracts.py",
                                  verified=False),
             ], notes="Mitigation added during reliability hardening"),
+            "ACTION-CLAIM-MISMATCH": FMEAEntry(
+                fault_id="ACTION-CLAIM-MISMATCH",
+                mitigations=[
+                    MitigationAction(
+                        "MIT-ACM-1",
+                        "Action expectation contract downgrades successful "
+                        "returns when effect evidence or acceptance criteria are missing",
+                        automated=True,
+                        implementation_path="core/runtime/skill_contract.py",
+                        verified=True,
+                    ),
+                    MitigationAction(
+                        "MIT-ACM-2",
+                        "CapabilityEngine enforces explicit action expectations "
+                        "before returning success to callers",
+                        automated=True,
+                        implementation_path="core/capability_engine.py",
+                        verified=True,
+                    ),
+                ],
+                notes="Grounding gap closed by Pass F action-depth contract",
+            ),
+            "PASSF-ACTION-SHALLOW-SUCCESS": FMEAEntry(
+                fault_id="PASSF-ACTION-SHALLOW-SUCCESS",
+                mitigations=[
+                    MitigationAction(
+                        "MIT-PASSF-ACTION-1",
+                        "ActionExpectation evaluates user-visible effect, "
+                        "acceptance criteria, evidence, and repair hints before "
+                        "a result can remain success_verified",
+                        automated=True,
+                        implementation_path="core/runtime/skill_contract.py",
+                        verified=True,
+                    ),
+                    MitigationAction(
+                        "MIT-PASSF-ACTION-2",
+                        "Desktop chat objectives pass expectation contracts "
+                        "through the live capability execution lane",
+                        automated=True,
+                        implementation_path="interface/routes/chat.py",
+                        verified=True,
+                    ),
+                ],
+                notes="Pass F structural maturity risk",
+            ),
+            "PASSF-FALSE-HEALTH": FMEAEntry(
+                fault_id="PASSF-FALSE-HEALTH",
+                mitigations=[
+                    MitigationAction(
+                        "MIT-PASSF-HEALTH-1",
+                        "Production readiness gate separates proof readiness, "
+                        "chat readiness, and health blockers",
+                        automated=True,
+                        implementation_path="tools/aura_production_readiness_gate.py",
+                        verified=True,
+                    ),
+                    MitigationAction(
+                        "MIT-PASSF-HEALTH-2",
+                        "Live boot proof reports explicit readiness blockers "
+                        "instead of treating boot as full user-path proof",
+                        automated=True,
+                        implementation_path="tools/live_boot_proof.py",
+                        verified=True,
+                    ),
+                ],
+                notes="Pass F structural maturity risk",
+            ),
+            "PASSF-RESOURCE-SPAWN-LOOP": FMEAEntry(
+                fault_id="PASSF-RESOURCE-SPAWN-LOOP",
+                mitigations=[
+                    MitigationAction(
+                        "MIT-PASSF-RESOURCE-1",
+                        "Resource governor tracks pressure and applies automatic "
+                        "degradation before unbounded work piles up",
+                        automated=True,
+                        implementation_path="core/resilience/resource_governor.py",
+                        verified=True,
+                    ),
+                    MitigationAction(
+                        "MIT-PASSF-RESOURCE-2",
+                        "Memory governor can demote tiers under pressure",
+                        automated=True,
+                        implementation_path="core/resilience/memory_governor.py",
+                        verified=True,
+                    ),
+                ],
+                notes="Pass F structural maturity risk",
+            ),
+            "PASSF-DESKTOP-PERMISSION-DRIFT": FMEAEntry(
+                fault_id="PASSF-DESKTOP-PERMISSION-DRIFT",
+                mitigations=[
+                    MitigationAction(
+                        "MIT-PASSF-DESKTOP-1",
+                        "Chat desktop verifier rejects critical-step success "
+                        "without observable effect receipts",
+                        automated=True,
+                        implementation_path="interface/routes/chat.py",
+                        verified=True,
+                    ),
+                    MitigationAction(
+                        "MIT-PASSF-DESKTOP-2",
+                        "Browser/desktop actor lifecycle is covered by runtime "
+                        "hardening runbooks and leakage tests",
+                        automated=True,
+                        implementation_path="tests/test_server_runtime_hardening.py",
+                        verified=True,
+                    ),
+                ],
+                notes="Pass F structural maturity risk",
+            ),
+            "PASSF-REPAIR-STORM": FMEAEntry(
+                fault_id="PASSF-REPAIR-STORM",
+                mitigations=[
+                    MitigationAction(
+                        "MIT-PASSF-REPAIR-1",
+                        "Will/governance receipts give repair actions an "
+                        "auditable decision boundary",
+                        automated=True,
+                        implementation_path="core/governance/will.py",
+                        verified=True,
+                    ),
+                    MitigationAction(
+                        "MIT-PASSF-REPAIR-2",
+                        "Self-repair runbook defines safe mitigation, rollback, "
+                        "and postmortem requirements",
+                        automated=False,
+                        implementation_path="docs/runbooks/self-repair-failed.md",
+                        verified=True,
+                    ),
+                ],
+                notes="Pass F structural maturity risk",
+            ),
+            "PASSF-STALE-OBLIGATION": FMEAEntry(
+                fault_id="PASSF-STALE-OBLIGATION",
+                mitigations=[
+                    MitigationAction(
+                        "MIT-PASSF-STALE-1",
+                        "Grounded recall keeps remembered context tied to "
+                        "evidence instead of letting stale assertions dominate",
+                        automated=True,
+                        implementation_path="core/conversation/grounded_recall.py",
+                        verified=True,
+                    ),
+                    MitigationAction(
+                        "MIT-PASSF-STALE-2",
+                        "Remaining checkpoint contract keeps open obligations "
+                        "explicit rather than implicit prompt residue",
+                        automated=True,
+                        implementation_path="tools/closeout/remaining_checkpoint_contract.py",
+                        verified=True,
+                    ),
+                ],
+                notes="Pass F structural maturity risk",
+            ),
+            "PASSF-NEURAL-STREAM-FLOOD": FMEAEntry(
+                fault_id="PASSF-NEURAL-STREAM-FLOOD",
+                mitigations=[
+                    MitigationAction(
+                        "MIT-PASSF-STREAM-1",
+                        "Diagnostics dashboard exposes summarized FMEA, high-risk, "
+                        "and unmitigated state instead of raw stream volume",
+                        automated=True,
+                        implementation_path="core/resilience/diagnostics_dashboard.py",
+                        verified=True,
+                    ),
+                    MitigationAction(
+                        "MIT-PASSF-STREAM-2",
+                        "Distributed tracing uses per-trace sampling decisions "
+                        "to prevent incoherent observability floods",
+                        automated=True,
+                        implementation_path="core/observability/tracing.py",
+                        verified=True,
+                    ),
+                ],
+                notes="Pass F structural maturity risk",
+            ),
+            "PASSF-VISIBLE-WEB-PROOF-ACCESS": FMEAEntry(
+                fault_id="PASSF-VISIBLE-WEB-PROOF-ACCESS",
+                mitigations=[
+                    MitigationAction(
+                        "MIT-PASSF-WEB-1",
+                        "Web interlocutor proof path records browser-access "
+                        "blockers instead of silently substituting weak proof",
+                        automated=True,
+                        implementation_path="tools/proof/run_web_interlocutor_live_proof.py",
+                        verified=True,
+                    ),
+                    MitigationAction(
+                        "MIT-PASSF-WEB-2",
+                        "Live boot proof keeps visible browser proof separate "
+                        "from core boot readiness",
+                        automated=True,
+                        implementation_path="tools/live_boot_proof.py",
+                        verified=True,
+                    ),
+                ],
+                notes="Pass F structural maturity risk",
+            ),
+            "PASSF-PROOF-ARTIFACT-CONTAMINATION": FMEAEntry(
+                fault_id="PASSF-PROOF-ARTIFACT-CONTAMINATION",
+                mitigations=[
+                    MitigationAction(
+                        "MIT-PASSF-PROOF-1",
+                        "Proof fabrication guard rejects hardcoded pass/fail "
+                        "scores and fixture-backed victory claims",
+                        automated=True,
+                        implementation_path="tools/proof_fabrication_guard.py",
+                        verified=True,
+                    ),
+                    MitigationAction(
+                        "MIT-PASSF-PROOF-2",
+                        "Proof step runner wraps each proof command with hard "
+                        "timeout and evidence artifact metadata",
+                        automated=True,
+                        implementation_path="tools/run_proof_step.py",
+                        verified=True,
+                    ),
+                ],
+                notes="Pass F structural maturity risk",
+            ),
+            "PASSF-SEMANTIC-REVIEW-GAP": FMEAEntry(
+                fault_id="PASSF-SEMANTIC-REVIEW-GAP",
+                mitigations=[
+                    MitigationAction(
+                        "MIT-PASSF-SEMANTIC-1",
+                        "Semantic review ledger records per-file behavioral "
+                        "review evidence separate from mechanical hashing",
+                        automated=True,
+                        implementation_path="tools/closeout/semantic_review_ledger.py",
+                        verified=True,
+                    ),
+                    MitigationAction(
+                        "MIT-PASSF-SEMANTIC-2",
+                        "Codebase closeout audit reports semantic review "
+                        "incompleteness instead of closing on text counts alone",
+                        automated=True,
+                        implementation_path="tools/closeout/run_codebase_closeout_audit.py",
+                        verified=True,
+                    ),
+                ],
+                notes="Pass F structural maturity risk",
+            ),
         }
         for fid, entry in entries.items():
             self._entries[fid] = entry

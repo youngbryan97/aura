@@ -8659,3 +8659,79 @@ Remaining work after this checkpoint:
   file/memory actions, live skill API proofs, autonomous overt actions, and
   chat follow-through.
 - Commit and push this checkpoint.
+
+## Checkpoint 2026-07-09-10: Pass F Failure-Mode Registry
+
+Scope:
+
+- Promoted the Pass F maturity concerns into the production fault taxonomy and
+  FMEA registry instead of leaving them as tracker prose.
+- Added ten explicit `PASSF-*` fault definitions covering:
+  - shallow action success
+  - false health/readiness signals
+  - resource spawn loops
+  - desktop/browser permission drift
+  - repair storms
+  - stale obligations
+  - neural/event stream floods
+  - visible web proof access blockers
+  - proof artifact contamination
+  - semantic review gaps
+- Added FMEA mitigation rows for those ten risks and for the older
+  `ACTION-CLAIM-MISMATCH` grounding fault. Each mitigation points at an
+  existing implementation or runbook artifact so traceability tests can catch
+  stale claims.
+- Added `docs/runbooks/pass-f-maturity-risks.md` and linked it from the runbook
+  index.
+- Extended the reliability hardening tests so Pass F risks must stay
+  registered, mitigated, linked to the runbook, and visible in the high-risk RPN
+  report when applicable.
+- Added `mitigation_count` to `FMEARegistry.full_report()` so downstream
+  diagnostics can show mitigation depth without re-counting nested rows.
+
+Verification:
+
+- `python -m pytest tests/test_reliability_hardening.py -q -k "pass_f or FMEA or Traceability"`
+  -> `8 passed, 89 deselected`.
+- `python -m pytest tests/test_reliability_hardening.py -q`
+  -> `97 passed`.
+- `python -m pytest tests/test_action_depth_honesty.py tests/test_capability_engine_policy_regressions.py::test_execute_with_retry_downgrades_shallow_action_expectation tests/test_capability_engine_policy_regressions.py::test_execute_with_retry_marks_missing_expectation_evidence_unverified -q`
+  -> `19 passed`.
+- `python -m py_compile core/resilience/fault_taxonomy.py core/resilience/fmea_registry.py tests/test_reliability_hardening.py`
+  -> passed.
+- `python -m ruff check --select F,E9 core/resilience/fault_taxonomy.py core/resilience/fmea_registry.py tests/test_reliability_hardening.py`
+  -> passed.
+- FMEA registry probe:
+  - `total_fault_definitions=33`
+  - `total_fmea_entries=33`
+  - `missing_fmea_entries=0`
+  - `coverage_pct=100.0`
+  - `passf_count=10`
+  - high-risk Pass F IDs: `PASSF-STALE-OBLIGATION`,
+    `PASSF-NEURAL-STREAM-FLOOD`, `PASSF-ACTION-SHALLOW-SUCCESS`,
+    `PASSF-FALSE-HEALTH`, `PASSF-SEMANTIC-REVIEW-GAP`
+- `make production-gate`
+  -> passed; `/tmp/aura_production_readiness.json` has `passed=true` and
+  `37` checks.
+- `make enterprise-gate`
+  -> passed; `/tmp/aura_enterprise_gate.json` has `counts={}` and
+  `high_or_critical_count=0`.
+- `git diff --check`
+  -> passed.
+
+Current closeout estimate:
+
+- Pass F now has a machine-readable risk spine. These risks show up through the
+  same taxonomy/FMEA/diagnostics surfaces as earlier production reliability
+  faults instead of relying on free-form notes.
+- This is not a full closure of the risks. Five Pass F risks intentionally
+  remain high-RPN because the registry now acknowledges them honestly while the
+  deeper runtime work continues.
+
+Remaining work after this checkpoint:
+
+- Build durable receipt/memory feedback for expectation verdicts.
+- Expand automatic expectation generation beyond desktop tasks.
+- Start the declarative runtime control plane and resource admission layer so
+  high-risk `PASSF-RESOURCE-SPAWN-LOOP` becomes preventable, not just visible.
+- Keep semantic review coverage moving through the closeout ledger.
