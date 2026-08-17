@@ -8645,6 +8645,8 @@ def _reset_lane_status_repeat_state() -> None:
 
 
 _FOREGROUND_GATE_BOOT_WAIT_S = 90.0
+#: A fallback answer is only useful if it beats the cortex finishing its load.
+_FALLBACK_LADDER_TIMEOUT_S = 25.0
 _BOOT_TRANSITION_STALL_S = 45.0
 
 
@@ -8715,6 +8717,54 @@ def _cortex_is_cold_loading(lane: object) -> bool:
         return float(lane.get("last_ready_at") or 0.0) <= 0.0
     except (AttributeError, TypeError, ValueError):
         return False
+
+
+async def _answer_from_fallback_ladder(user_message: object, *, reason: str) -> str:
+    """Answer with the smaller resident model when the cortex cannot serve.
+
+    Returns "" when the ladder cannot answer either, in which case the caller
+    falls back to the honest lane message.
+
+    The reply is marked as coming from the smaller model. Serving a 9B answer
+    silently as though the 32B produced it would trade one honesty problem for
+    a worse one, and the person is entitled to know which mind answered while
+    the main one is still coming up.
+    """
+
+    text = str(user_message or "").strip()
+    if not text:
+        return ""
+    try:
+        from core.brain.llm_health_router import get_llm_router
+
+        router = get_llm_router()
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        record_degradation("chat.fallback_ladder", exc)
+        return ""
+    if router is None or not hasattr(router, "think"):
+        return ""
+    try:
+        raw = await asyncio.wait_for(
+            router.think(text, prefer_tier="tertiary", allow_cloud_fallback=False),
+            timeout=_FALLBACK_LADDER_TIMEOUT_S,
+        )
+    except (TimeoutError, *_CHAT_RECOVERABLE_ERRORS) as exc:
+        record_degradation(
+            "chat.fallback_ladder",
+            exc,
+            action=f"fallback ladder could not answer while cortex was unavailable ({reason[:80]})",
+        )
+        return ""
+    if isinstance(raw, dict):
+        raw = raw.get("content") or raw.get("response") or ""
+    answer = str(raw or "").strip()
+    if not answer:
+        return ""
+    return (
+        f"{answer}\n\n"
+        "(That came from my smaller model — the main one is still loading. "
+        "Ask again in a moment if you want me to think about it properly.)"
+    )
 
 
 async def _await_foreground_gate(*, budget_s: float) -> Any:
@@ -17423,6 +17473,44 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                         )
 
             if admission_reason:
+                # The cortex cannot serve this turn. That is a reason to answer
+                # with the smaller model, not a reason to talk about lane
+                # readiness.
+                #
+                # _foreground_timeout_for_lane already says this outright —
+                # "Give the ladder the time" — and the ladder is real: the
+                # Brainstem is loaded, has weights, and is not the lane owner.
+                # It was asked ZERO times. Every cold start answered the first
+                # message with a sentence about the answer lane instead of the
+                # answer, while a warm 9B sat idle.
+                ladder_reply = await _answer_from_fallback_ladder(
+                    _semantic_user_message,
+                    reason=admission_reason,
+                )
+                if ladder_reply:
+                    _live_turn_trace.update(
+                        {
+                            "response_path": "fallback_ladder",
+                            "cognitive_lane_admitted": False,
+                            "cognitive_lane_admission_reason": admission_reason[:240],
+                        }
+                    )
+                    return JSONResponse(
+                        {
+                            "response": ladder_reply,
+                            "status": "cognitive_engine_fallback_ladder",
+                            "reason": admission_reason,
+                            "conversation_lane": lane,
+                            "response_confidence": "fallback",
+                            "live_turn_contract": _live_turn_contract(
+                                lane_status=lane,
+                                response_confidence="fallback",
+                                status="cognitive_engine_fallback_ladder",
+                                reply_source="fallback_ladder",
+                            ),
+                        },
+                        status_code=200,
+                    )
                 _live_turn_trace.update(
                     {
                         "response_path": "required_cognitive_lane_admission",
