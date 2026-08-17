@@ -13590,6 +13590,9 @@ def _flag_unstable_choice_commitment(user_message: object, reply_text: object) -
     return f"{str(reply_text or '').rstrip()}\n\n{note}"
 
 
+_SELF_METRIC_CORRECTION_MARK = "the instrument does not exist"
+
+
 def _correct_unsourced_self_metrics(reply_text: object) -> object:
     """Withdraw numbers about herself that no channel produced.
 
@@ -13603,6 +13606,9 @@ def _correct_unsourced_self_metrics(reply_text: object) -> object:
     paragraph suspect. The number is withdrawn; the rest of the answer stands.
     """
 
+    text = str(reply_text or "")
+    if _SELF_METRIC_CORRECTION_MARK in text:
+        return reply_text  # already corrected upstream; never append twice
     try:
         from core.conversation.self_metric_claim import unsourced_self_metric_claims
         from core.introspection.self_evidence import resolve_self_health
@@ -14961,6 +14967,13 @@ def _apply_recorded_answer(user_message: object, response: Any) -> Any:
         if not isinstance(reply, str) or not reply.strip():
             return response
         corrected = str(_append_past_action_record(user_message, reply) or reply)
+        # Self-metric honesty belongs here for the same reason the recorded
+        # answer does. Applied on the repair branch alone it missed the lane
+        # that actually served: LIVE 2026-08-17 the guard was wired at one of
+        # forty-eight response sites, and "My memory stores are at 87%
+        # capacity" shipped a second time — in a reply that opened by saying
+        # she does not track memory at all.
+        corrected = str(_correct_unsourced_self_metrics(corrected) or corrected)
         if corrected == reply:
             return response
         data["response"] = corrected
