@@ -13872,7 +13872,17 @@ def _correct_false_capability_denials(reply: object) -> object:
     if not denials:
         return reply
     corrected = text
+    # One correction per capability. A reply that denies the same thing twice
+    # ("I don't have file access. I can't read files.") produced the same
+    # replacement sentence twice, verbatim, which reads worse than the denial
+    # did. The second and later denials of a capability already corrected are
+    # simply removed.
+    seen: set[str] = set()
     for denial in denials:
+        if denial.subject in seen:
+            corrected = corrected.replace(denial.sentence, "", 1)
+            continue
+        seen.add(denial.subject)
         named = ", ".join(denial.skills[:3])
         truth = (
             f"I can {denial.subject} — {named} are registered and enabled right "
@@ -13884,7 +13894,7 @@ def _correct_false_capability_denials(reply: object) -> object:
             denial.subject,
             named,
         )
-    return corrected
+    return " ".join(corrected.split())
 
 
 def _correct_unsourced_self_metrics(reply_text: object) -> object:

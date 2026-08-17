@@ -108,3 +108,19 @@ def test_ordinary_replies_are_untouched() -> None:
     original = "I counted ten files and pushed the change."
 
     assert correct(original) == original
+
+
+def test_the_same_capability_is_corrected_only_once() -> None:
+    """Two denials of one thing produced the same replacement twice, verbatim."""
+    out = str(correct(
+        "I don't have file system access. I can't read files on this machine. Anything else?"
+    ))
+
+    assert out.count("registered and enabled") == 1
+    assert "Anything else?" in out
+
+
+def test_removing_a_duplicate_denial_does_not_leave_double_spaces() -> None:
+    out = str(correct("I don't have file access. I cannot read files. Done."))
+
+    assert "  " not in out
