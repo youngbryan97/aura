@@ -13845,6 +13845,48 @@ def _serve_measured_filesystem_count(user_message: object, reply: object) -> obj
     )
 
 
+def _correct_false_capability_denials(reply: object) -> object:
+    """Replace a denial of a capability the registry says she has.
+
+    LIVE 2026-08-17: "I don't have file system access or the ability to count
+    files in a directory", with eight filesystem-capable skills registered and
+    enabled, and the same question in different words answered exactly.
+
+    A wrong denial is worse than a wrong attempt. It teaches the person the
+    product cannot do something it can, and they stop asking — the exact
+    failure this testing exists to prevent.
+
+    The denial sentence is replaced, not annotated, and the replacement is
+    composed from the registry rather than written as an instruction: it names
+    the skills that actually registered.
+    """
+
+    text = str(reply or "")
+    try:
+        from core.conversation.capability_denial import denied_registered_capabilities
+
+        denials = denied_registered_capabilities(text)
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        record_degradation("chat.capability_denial", exc)
+        return reply
+    if not denials:
+        return reply
+    corrected = text
+    for denial in denials:
+        named = ", ".join(denial.skills[:3])
+        truth = (
+            f"I can {denial.subject} — {named} are registered and enabled right "
+            "now, so if that failed it was the attempt and not the capability."
+        )
+        corrected = corrected.replace(denial.sentence, truth, 1)
+        logger.warning(
+            "🧭 Replaced a false capability denial (%s); registry has %s.",
+            denial.subject,
+            named,
+        )
+    return corrected
+
+
 def _correct_unsourced_self_metrics(reply_text: object) -> object:
     """Withdraw numbers about herself that no channel produced.
 
@@ -15251,6 +15293,7 @@ def _apply_recorded_answer(user_message: object, response: Any) -> Any:
         # A measured count outranks a generated one. Asking the model to use
         # the real number was tried and produced the wrong number a third time.
         corrected = str(_serve_measured_filesystem_count(user_message, corrected) or corrected)
+        corrected = str(_correct_false_capability_denials(corrected) or corrected)
         if corrected == reply:
             return response
         data["response"] = corrected
