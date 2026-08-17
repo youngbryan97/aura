@@ -4211,6 +4211,30 @@ def _probe_mlx_runtime(force: bool = False) -> tuple[bool, str]:
     return ok, detail
 
 
+async def _join_inflight_across_loops(inflight: Any) -> Any:
+    """Await an in-flight warmup that may belong to a different event loop.
+
+    Joining a singleflight only works if the join can actually wait. Awaiting a
+    Future owned by another loop raises immediately, which turns "somebody else
+    is already warming, wait for them" into "warmup failed".
+    """
+
+    shielded = asyncio.shield(inflight)
+    try:
+        owner_loop = inflight.get_loop()
+        current_loop = asyncio.get_running_loop()
+    except (AttributeError, RuntimeError):
+        return await shielded
+    if owner_loop is current_loop:
+        return await shielded
+
+    async def _await_owned() -> Any:
+        return await shielded
+
+    bridged = asyncio.run_coroutine_threadsafe(_await_owned(), owner_loop)
+    return await asyncio.wrap_future(bridged)
+
+
 class MLXLocalClient:
     """
     Parent-process client for the isolated MLX worker.
@@ -14447,8 +14471,22 @@ class MLXLocalClient:
             if age <= _WARMUP_STALE_AFTER_S:
                 # Join the in-flight warmup. shield() so that a cancelled
                 # joiner cannot kill the warmup the other callers need.
+                #
+                # Across loops, awaiting it directly is not a join — it raises
+                # "got Future attached to a different loop", which the handler
+                # below then reports as a WARMUP FAILURE to the joiner.
+                #
+                # LIVE 2026-08-17: that is why the first message after every
+                # launch was answered with "the live answer lane could not
+                # finish preparing". Boot starts the warmup on the boot loop;
+                # the chat turn arrives on the server loop, joins, and is told
+                # instantly that warmup failed — so admission reported
+                # "worker_not_alive,init_not_complete,lane_warming" no matter
+                # how much budget the turn had. Three budget-side fixes moved
+                # the failure time and none removed it, because the failure was
+                # never about time.
                 try:
-                    return bool(await asyncio.shield(inflight))
+                    return bool(await _join_inflight_across_loops(inflight))
                 except asyncio.CancelledError:
                     raise
                 except (RuntimeError, TimeoutError, AttributeError, TypeError, ValueError) as exc:
