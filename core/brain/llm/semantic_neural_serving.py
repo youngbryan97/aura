@@ -358,11 +358,25 @@ def semantic_neural_activation_errors(
     source_hashes = activation.get("source_sha256s")
     if not isinstance(source_hashes, dict) or set(source_hashes) != set(ACTIVATION_SOURCE_FILES):
         errors.append("source_inventory")
-    elif any(
-        source_hashes.get(relative) != _file_sha(root / relative)
-        for relative in ACTIVATION_SOURCE_FILES
-    ):
-        errors.append("source_drift")
+    else:
+        # Name the files. "source_drift" alone is a dead end: it says a proven
+        # surface has been disabled without saying what disabled it, so the
+        # only way to find out is to re-derive twenty hashes by hand.
+        #
+        # LIVE 2026-08-17: this surface had been dark since 2026-08-15, the day
+        # it was sealed, and nobody knew. Four of the twenty bound files had
+        # moved — semantic_neural_shadow.py (Aug 15), foreground_latent_runtime
+        # .py (Aug 16), latent_cortex_service.py (Aug 17) and
+        # response_generation_unitary.py (Aug 17). A BOUNDED_WOW_SIGNAL
+        # established at p=5.7e-14 with lesion controls was switched off by
+        # ordinary development, silently, for two days.
+        drifted = sorted(
+            relative
+            for relative in ACTIVATION_SOURCE_FILES
+            if source_hashes.get(relative) != _file_sha(root / relative)
+        )
+        if drifted:
+            errors.append(f"source_drift:{','.join(drifted)}")
     evidence = activation.get("evidence")
     if not isinstance(evidence, dict):
         errors.append("evidence")
