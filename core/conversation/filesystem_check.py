@@ -205,41 +205,99 @@ class FileRead:
     truncated: bool = False
 
 
+#: Anything shaped like a path with a real extension. No verb, no vocabulary.
+#:
+#: The predecessor demanded one of read/open/check/show me/grab/cat within 40
+#: characters of the filename, so "there's a file at X" — and every other way
+#: a person mentions a file in passing — matched nothing. A token that
+#: RESOLVES to a real file inside her roots is evidence on its own; whether
+#: the sentence around it sounded like an instruction is not the question.
+_PATH_TOKEN_RE = re.compile(r"(?:[~/]|\b)[\w./\-]*[\w\-]\.[A-Za-z0-9]{1,6}\b")
+
+
+def _named_paths(text: str) -> list[str]:
+    """Every path-shaped token in the message, in the order written."""
+    seen: set[str] = set()
+    found: list[str] = []
+    for raw in _PATH_TOKEN_RE.findall(str(text or "")):
+        candidate = raw.strip().strip(".,;:'\"")
+        if not candidate or candidate in seen:
+            continue
+        seen.add(candidate)
+        found.append(candidate)
+    return found
+
+
 def requested_file_read(user_message: Any) -> FileRead | None:
-    """Read the file this message names, or None when it names none.
+    """Read a file this message names, or None when it names none.
 
     LIVE 2026-08-17: "read the file CONTRIBUTING.md and tell me the first rule
     it states" was answered "I don't have a clean grounded answer on that yet."
     The file is in the repo root and she has five skills that can read it. The
     capability was never the problem; nothing executed.
+
+    LIVE 2026-08-11, the same defect one phrasing over: "there's a file at
+    /Users/bryan/.aura/live-source/CLAUDE.md. how many times does the word
+    'degradation' show up in it?" She answered "I didn't open the file. I
+    estimated based on a pattern match against recent modifications and
+    environmental factors in my degradation model. The number is 0." The real
+    count is 3. Two independent reasons it could not have worked:
+
+      * the trigger required a VERB from a fixed list — read, open, check,
+        show me, grab, cat — within 40 characters of the filename. "there's a
+        file at X" contains none of them. This is the fourth thing in this
+        codebase to ask "does the phrasing look like a request?" instead of
+        "does this message reference something real", and each one fails on
+        the first wording its author did not picture;
+
+      * an ABSOLUTE path was rejected outright, so the most explicit way a
+        person can name a file was the one form that could never be read.
+        Containment was already enforced by resolving against her roots,
+        which is the check that actually matters; refusing every "/" as well
+        was blocking the legitimate case to catch the illegitimate one.
+
+    What decides now is whether the message names a path that RESOLVES to a
+    real file inside her roots. That is unambiguous evidence and needs no
+    vocabulary to recognise.
     """
 
     text = " ".join(str(user_message or "").split())
     if not text:
         return None
-    match = _READ_RE.search(text)
-    if not match:
-        return None
-    candidate = match.group("path").strip().strip(".,;:'\"")
-    if candidate.startswith("/") or candidate.startswith("~") or ".." in candidate:
-        return None
-    for root in _allowed_roots():
-        try:
-            target = (root / candidate).resolve()
-        except (OSError, ValueError, RuntimeError):
+    missing: str | None = None
+    for candidate in _named_paths(text):
+        if ".." in candidate:
+            # Refused on the token itself. Containment below is the real
+            # guard, but a token that is trying to escape is not worth
+            # resolving at all.
             continue
-        if not str(target).startswith(str(root)):
-            continue
-        if not target.is_file():
-            continue
-        try:
-            body = target.read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            return None
-        return FileRead(
-            path=str(target),
-            text=body[:READ_CHAR_BUDGET],
-            exists=True,
-            truncated=len(body) > READ_CHAR_BUDGET,
-        )
-    return FileRead(path=candidate, text="", exists=False)
+        for root in _allowed_roots():
+            try:
+                # Absolute paths resolve as themselves, bare names against
+                # each root; both then face the identical containment check.
+                raw = Path(candidate).expanduser()
+                target = (raw if raw.is_absolute() else (root / candidate)).resolve()
+            except (OSError, ValueError, RuntimeError):
+                continue
+            if not str(target).startswith(str(root)):
+                continue
+            if not target.is_file():
+                continue
+            try:
+                body = target.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            return FileRead(
+                path=str(target),
+                text=body[:READ_CHAR_BUDGET],
+                exists=True,
+                truncated=len(body) > READ_CHAR_BUDGET,
+            )
+        # Named something file-shaped that is not there. Remember the first
+        # one so a missing file is REPORTED rather than silently ignored,
+        # which is how "I estimated" became an acceptable answer.
+        if missing is None:
+            missing = candidate
+    if missing is not None:
+        return FileRead(path=missing, text="", exists=False)
+    return None

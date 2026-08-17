@@ -157,14 +157,23 @@ def test_a_missing_bundle_is_skipped_not_failed(monkeypatch):
 
 
 def test_the_health_surface_carries_launcher_currency():
-    """The block a person or an agent actually reads."""
-    from core.runtime import health_contract
+    """The block a person or an agent actually reads.
 
-    source = Path(health_contract.__file__).read_text(encoding="utf-8")
+    Asserts the VALUE, not the source text. Grepping health_contract.py for
+    the string would pass while the reading never reached the block — which is
+    the exact shape of every defect this file is about, and it would have
+    passed for a call that raised on every invocation.
+    """
+    from core.runtime.health_contract import _runtime_integrity_block
 
-    assert "launcher_currency" in source, (
-        "runtime_health_report()['integrity'] must carry launcher staleness"
-    )
+    block = _runtime_integrity_block()
+
+    assert "launcher_currency" in block, block.get("launcher_currency_error")
+    reading = block["launcher_currency"]
+    assert reading["schema"] == "aura.launcher_currency.v1"
+    # Present AND decided: None means "could not tell", which is a legitimate
+    # answer, but the key has to exist either way.
+    assert "stale" in reading
 
 
 @pytest.mark.parametrize("flag", ["/api/ambient/visibility", "/api/ambient/state"])
