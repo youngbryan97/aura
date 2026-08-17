@@ -90,3 +90,46 @@ def test_a_missing_router_is_safe(monkeypatch) -> None:
     monkeypatch.setattr("core.brain.llm_health_router.get_llm_router", lambda: None)
 
     assert _run(chat_module._answer_from_fallback_ladder("hi", reason="x")) == ""
+
+
+# ── the small model echoes its own scaffolding ───────────────────────────────
+#
+# LIVE 2026-08-17, first working ladder answer, verbatim to the user:
+#     <answer>Yes, I'm not available.</answer>
+# The tags are instructions to the model, not part of what it said, and
+# shipping them makes a working fallback look broken.
+
+def test_answer_tags_are_stripped(monkeypatch) -> None:
+    router = _Router(answer="<answer>Yes, I'm here.</answer>")
+    monkeypatch.setattr("core.brain.llm_health_router.get_llm_router", lambda: router)
+
+    reply = _run(chat_module._answer_from_fallback_ladder("hi", reason="x"))
+
+    assert "<answer>" not in reply
+    assert "Yes, I'm here." in reply
+
+
+def test_chat_template_markers_are_stripped(monkeypatch) -> None:
+    router = _Router(answer="<|im_start|>Here you go<|im_end|>")
+    monkeypatch.setattr("core.brain.llm_health_router.get_llm_router", lambda: router)
+
+    reply = _run(chat_module._answer_from_fallback_ladder("hi", reason="x"))
+
+    assert "<|" not in reply
+    assert "Here you go" in reply
+
+
+def test_a_reply_that_was_only_scaffolding_is_not_served(monkeypatch) -> None:
+    router = _Router(answer="<answer></answer>")
+    monkeypatch.setattr("core.brain.llm_health_router.get_llm_router", lambda: router)
+
+    assert _run(chat_module._answer_from_fallback_ladder("hi", reason="x")) == ""
+
+
+def test_ordinary_prose_is_untouched(monkeypatch) -> None:
+    router = _Router(answer="I'm here, still waking up.")
+    monkeypatch.setattr("core.brain.llm_health_router.get_llm_router", lambda: router)
+
+    reply = _run(chat_module._answer_from_fallback_ladder("hi", reason="x"))
+
+    assert reply.startswith("I'm here, still waking up.")

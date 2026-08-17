@@ -8719,6 +8719,24 @@ def _cortex_is_cold_loading(lane: object) -> bool:
         return False
 
 
+def _strip_scaffolding_tags(raw: object) -> str:
+    """Remove prompt scaffolding a small model echoed into its answer.
+
+    The 1.5B emergency model returns its reply wrapped in the tags the prompt
+    used to ask for it — "<answer>Yes, I'm here.</answer>" reached the user
+    verbatim. Those tags are instructions to the model, not part of what it
+    said, and shipping them makes a working fallback look broken.
+    """
+
+    text = str(raw or "").strip()
+    if not text:
+        return ""
+    for tag in ("answer", "response", "reply", "output", "final"):
+        text = re.sub(rf"</?{tag}\s*>", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"<\|[^|>]*\|>", "", text)
+    return text.strip()
+
+
 async def _answer_from_fallback_ladder(user_message: object, *, reason: str) -> str:
     """Answer with the smaller resident model when the cortex cannot serve.
 
@@ -8777,7 +8795,7 @@ async def _answer_from_fallback_ladder(user_message: object, *, reason: str) -> 
     if isinstance(raw, dict):
         ladder_chain = list(raw.get("fallback_chain") or [])
         raw = raw.get("content") or raw.get("response") or ""
-    answer = str(raw or "").strip()
+    answer = _strip_scaffolding_tags(raw)
     if not answer:
         # Name the blocker. "empty answer" describes the outcome and hides the
         # cause, and the router already knows which guard skipped which
