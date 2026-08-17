@@ -490,16 +490,22 @@ async def test_computer_use_direct_execution_records_welfare_transaction(monkeyp
 
 
 @pytest.mark.asyncio
-async def test_computer_use_read_screen_text_fallback_on_unavailable(screen_capture_allowed, monkeypatch):
+async def test_read_screen_text_does_not_retry_the_same_broken_permission(
+    screen_capture_allowed, monkeypatch
+):
+    """An accessibility failure must NOT fall through to the AppleScript tree.
+
+    This test used to assert the opposite, and the code changed underneath it
+    for a good reason: the System Events window tree runs through the SAME
+    accessibility permission that just failed, so trying it spends a
+    subprocess to fail identically. Reporting unavailable immediately is the
+    honest answer.
+    """
     skill = ComputerUseSkill()
+    called_tree = False
 
     async def controlled_permission_pass(capability, *permission_names):
         return None
-
-    def controlled_unavailable_screen_text():
-        return "[accessibility error or ui unresponsive]"
-
-    called_tree = False
 
     def controlled_window_tree():
         nonlocal called_tree
@@ -515,17 +521,54 @@ async def test_computer_use_read_screen_text_fallback_on_unavailable(screen_capt
             )
         ),
     )
-    monkeypatch.setattr(skill, "_read_screen_text_macos", controlled_unavailable_screen_text)
+    monkeypatch.setattr(
+        skill, "_read_screen_text_macos", lambda: "[accessibility error or ui unresponsive]"
+    )
     monkeypatch.setattr(skill, "_query_system_events_window_tree", controlled_window_tree)
 
     result = await skill.execute({"action": "read_screen_text", "target": ""}, {})
+
+    assert result["ok"] is False
+    assert result["status"] == "unavailable"
+    assert called_tree is False, "the tree needs the permission that just failed"
+
+
+@pytest.mark.asyncio
+async def test_read_screen_text_falls_back_when_the_failure_is_not_accessibility(
+    screen_capture_allowed, monkeypatch
+):
+    """A non-accessibility read failure SHOULD try the window tree."""
+    skill = ComputerUseSkill()
+    called_tree = False
+
+    async def controlled_permission_pass(capability, *permission_names):
+        return None
+
+    def controlled_window_tree():
+        nonlocal called_tree
+        called_tree = True
+        return "Fallback Process tree"
+
+    monkeypatch.setattr(skill, "_require_permissions", controlled_permission_pass)
+    monkeypatch.setattr(
+        "core.perception.screen_perception.get_screen_perception",
+        lambda: SimpleNamespace(
+            capture=lambda save_screenshot=False: (_ for _ in ()).throw(
+                RuntimeError("perception unavailable")
+            )
+        ),
+    )
+    monkeypatch.setattr(skill, "_read_screen_text_macos", lambda: "[read_screen_text failed]")
+    monkeypatch.setattr(skill, "_query_system_events_window_tree", controlled_window_tree)
+
+    result = await skill.execute({"action": "read_screen_text", "target": ""}, {})
+
     assert result["ok"] is True
     assert result["source"] == "applescript_window_tree_fallback"
     assert "Fallback Process tree" in result["text"]
     assert called_tree is True
 
 
-@pytest.mark.asyncio
 async def test_computer_use_click_retry_success(monkeypatch):
     skill = ComputerUseSkill()
 
@@ -2726,4 +2769,10 @@ async def test_a_refused_screen_capture_returns_the_refusal_not_a_reading(
     assert result["text"] == ""
     # The reason reaches the caller; the private window title does not.
     assert result["capture_admission"]["reason"] == "private_foreground"
-    assert "foreground is private" in result["error"]
+    # Assert the STRUCTURED refusal, not its prose. This asserted the exact
+    # sentence "foreground is private" and broke when the message was reworded
+    # to "screen capture refused because private content is visible" — the
+    # behaviour never changed. capture_admission.reason above is the contract;
+    # the message only has to tell the person it was a privacy refusal.
+    assert "private" in str(result["error"]).lower()
+    assert "refused" in str(result["error"]).lower()

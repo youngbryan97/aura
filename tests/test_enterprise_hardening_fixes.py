@@ -1871,9 +1871,20 @@ def test_health_router_preserves_inference_gate_context_for_direct_generate():
     assert "mlx_strict_answer_contract_enabled," in source
     assert 'and not strict_answer_contract' in source
     assert 'kwargs["strict_answer_contract"] = True' in source
-    assert 'cloud_fallback_explicit = "allow_cloud_fallback" in kwargs' in source
-    assert 'and allow_auto_cloud_recovery' in source
-    assert 'and allow_cloud_fallback' in source
+    # The cloud lane was REMOVED (12f8c9392 "remove remote inference provider").
+    # This used to assert the three lines that decided when to reach for it.
+    # Asserting deleted code exists is how a test starts guarding the past, so
+    # it now asserts the property that replaced them: there is no remote
+    # inference path left to gate. Aura answers locally or says she cannot.
+    assert "cloud_fallback_explicit" not in source
+    assert "allow_auto_cloud_recovery" not in source
+    # Indicators of a real remote CALL, not of a message format. "OpenAI-style
+    # message list" is a shape this router serialises locally and must not
+    # trip this check.
+    for marker in ("import openai", "https://api.", "api_key", "bearer "):
+        assert marker not in source.lower(), (
+            f"a remote inference path came back into the router: {marker!r}"
+        )
     assert 'explicit_foreground = bool(kwargs.get("foreground_request", False)) or bool(' in source
     assert 'kwargs.get("health_probe", False)' in source
     assert 'if explicit_foreground:' in source

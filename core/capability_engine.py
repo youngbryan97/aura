@@ -1383,6 +1383,14 @@ def _normalize_context_origin(origin: Any) -> str:
     return normalized
 
 
+#: Skills that report the world as it is RIGHT NOW. A self-contained problem
+#: carries its own data and must never pull one of these in on a noun that is
+#: only a prop in its story ("a clock strikes 6 times", "a file walks into a bar").
+_REALTIME_SENSOR_SKILLS = frozenset(
+    {"clock", "weather", "system_status", "screen_capture", "read_screen_text"}
+)
+
+
 class CapabilityEngine(AuraBaseModule):
     """Unified engine for Aura's capabilities (skills).
 
@@ -2316,6 +2324,45 @@ class CapabilityEngine(AuraBaseModule):
             )
             return []
 
+    _WORD_PROBLEM_ASK = re.compile(
+        r"\b(?:how (?:many|much|long|far|fast|old)|what (?:is|are|will|would)\b"
+        r"|find the|calculate|solve for|at what (?:time|rate|speed))\b",
+        re.IGNORECASE,
+    )
+    _ABOUT_THE_USERS_MACHINE = re.compile(
+        r"\b(?:my|your|the)\s+(?:screen|display|desktop|clipboard|file|files|folder|"
+        r"directory|window|browser|tab|notes|calendar|email|inbox)\b"
+        r"|\bright now\b|\bcurrently\b|\bwhat time is it\b",
+        re.IGNORECASE,
+    )
+
+    @classmethod
+    def _is_self_contained_word_problem(cls, text: str) -> bool:
+        """True when the turn supplies its own quantities and asks for another.
+
+        The heuristic tool rules match bare substrings, so "A clock strikes 6
+        times in 5 seconds" reached for the realtime clock, and "a file walks
+        into a bar" would reach for file_operation. The noun is a prop in the
+        story, not a thing to go and look at.
+
+        The distinguishing property is not which noun appears — that set is
+        unbounded and every new tool adds to it — but where the DATA comes
+        from. A word problem carries its own numbers and asks for a derived
+        one; it needs arithmetic, not a sensor. A question about the machine
+        asks for a reading, and is excluded here even when it contains numbers.
+        """
+
+        body = str(text or "")
+        if not body.strip():
+            return False
+        if cls._ABOUT_THE_USERS_MACHINE.search(body):
+            return False
+        if not cls._WORD_PROBLEM_ASK.search(body):
+            return False
+        # Two or more given quantities is what makes it self-contained: one
+        # number can be a reference ("open tab 2"), a pair is a problem.
+        return len(re.findall(r"\b\d+(?:\.\d+)?\b", body)) >= 2
+
     def _rank_tool_candidates(
         self,
         *,
@@ -2394,7 +2441,12 @@ class CapabilityEngine(AuraBaseModule):
             ),
             (("nethack", "game", "dungeon", "action", "move"), ("execute_nethack_action",)),
         )
+        # A self-contained word problem must not pull an environment sensor in
+        # on a noun that is only a prop in its story.
+        word_problem = self._is_self_contained_word_problem(objective_text)
         for tokens, names in heuristic_rules:
+            if word_problem and not (set(names) & {"run_code", "calculator"}):
+                continue
             if skip_web_search and any(
                 name in {"web_search", "search_web", "free_search", "grounded_search"}
                 for name in names
@@ -2516,6 +2568,16 @@ class CapabilityEngine(AuraBaseModule):
                     ):
                         continue
                 ordered.append(name)
+
+        # One exclusion, applied where every path converges.
+        #
+        # skip_realtime_clock guarded only the cost-ordered filler, so "A clock
+        # strikes 6 times in 5 seconds" still surfaced the realtime clock —
+        # semantic retrieval had already added it upstream. Guarding one
+        # contributor means the next contributor reintroduces the bug, so the
+        # rule belongs on the result rather than on each source of it.
+        if word_problem or self._looks_like_reasoning_time_problem(objective_lower):
+            ordered = [name for name in ordered if name not in _REALTIME_SENSOR_SKILLS]
 
         return ordered[:max_tools]
 
