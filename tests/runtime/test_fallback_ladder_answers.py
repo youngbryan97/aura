@@ -24,8 +24,8 @@ class _Router:
         self.raises = raises
         self.calls = []
 
-    async def think(self, text, prefer_tier=None, allow_cloud_fallback=True):
-        self.calls.append((text, prefer_tier, allow_cloud_fallback))
+    async def think(self, text, prefer_tier=None, allow_cloud_fallback=True, **kwargs):
+        self.calls.append((text, prefer_tier, allow_cloud_fallback, kwargs))
         if self.raises:
             raise self.raises
         return self.answer
@@ -46,9 +46,12 @@ def test_it_uses_the_small_local_tier_and_never_the_cloud(monkeypatch) -> None:
 
     _run(chat_module._answer_from_fallback_ladder("hi there", reason="lane_warming"))
 
-    _text, tier, cloud = router.calls[0]
+    _text, tier, cloud, kwargs = router.calls[0]
     assert tier == "tertiary"
     assert cloud is False
+    # Naming the endpoint is what gets a background-only tier past the
+    # foreground selector; a tier alone considered nothing at all.
+    assert kwargs.get("prefer_endpoint") == "Reflex"
 
 
 def test_the_answer_says_which_model_produced_it(monkeypatch) -> None:

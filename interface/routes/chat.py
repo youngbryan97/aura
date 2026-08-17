@@ -8749,8 +8749,21 @@ async def _answer_from_fallback_ladder(user_message: object, *, reason: str) -> 
         )
         return ""
     try:
+        # Name the endpoint rather than asking for a tier. A tier request is
+        # still a foreground request, and the selector skips background-only
+        # tiers for those unless the caller named one — which is why asking
+        # for "tertiary" came back with an empty chain, having considered
+        # nothing at all.
+        from core.brain.llm.model_registry import FALLBACK_ENDPOINT
+
         raw = await asyncio.wait_for(
-            router.think(text, prefer_tier="tertiary", allow_cloud_fallback=False),
+            router.think(
+                text,
+                prefer_tier="tertiary",
+                prefer_endpoint=FALLBACK_ENDPOINT,
+                foreground_request=True,
+                allow_cloud_fallback=False,
+            ),
             timeout=_FALLBACK_LADDER_TIMEOUT_S,
         )
     except (TimeoutError, *_CHAT_RECOVERABLE_ERRORS) as exc:
