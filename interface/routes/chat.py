@@ -8798,19 +8798,43 @@ async def _answer_from_fallback_ladder(user_message: object, *, reason: str) -> 
         # tiers for those unless the caller named one — which is why asking
         # for "tertiary" came back with an empty chain, having considered
         # nothing at all.
-        from core.brain.llm.model_registry import FALLBACK_ENDPOINT
-
-        raw = await asyncio.wait_for(
-            router.think(
-                text,
-                system_prompt=_fallback_ladder_identity(),
-                prefer_tier="tertiary",
-                prefer_endpoint=FALLBACK_ENDPOINT,
-                foreground_request=True,
-                allow_cloud_fallback=False,
-            ),
-            timeout=_FALLBACK_LADDER_TIMEOUT_S,
+        # Descend the ladder in order. The 9B Brainstem answers coherently;
+        # the 1.5B Reflex is the last resort and shows it — asked "are you
+        # there?" it replied "Yes, I'm sorry but I am not there." Reflex is
+        # better than silence, but only after the 9B has been tried.
+        from core.brain.llm.model_registry import (
+            BRAINSTEM_ENDPOINT,
+            FALLBACK_ENDPOINT,
         )
+
+        identity = _fallback_ladder_identity()
+        ladder_chain: list = []
+        raw = ""
+        deadline = time.monotonic() + _FALLBACK_LADDER_TIMEOUT_S
+        for endpoint in (BRAINSTEM_ENDPOINT, FALLBACK_ENDPOINT):
+            remaining = deadline - time.monotonic()
+            if remaining <= 1.0:
+                break
+            try:
+                candidate = await asyncio.wait_for(
+                    router.think(
+                        text,
+                        system_prompt=identity,
+                        prefer_tier="tertiary",
+                        prefer_endpoint=endpoint,
+                        foreground_request=True,
+                        allow_cloud_fallback=False,
+                    ),
+                    timeout=remaining,
+                )
+            except (TimeoutError, *_CHAT_RECOVERABLE_ERRORS):
+                continue
+            if isinstance(candidate, dict):
+                ladder_chain = list(candidate.get("fallback_chain") or [])
+                candidate = candidate.get("content") or candidate.get("response") or ""
+            if _strip_scaffolding_tags(candidate):
+                raw = candidate
+                break
     except (TimeoutError, *_CHAT_RECOVERABLE_ERRORS) as exc:
         record_degradation(
             "chat.fallback_ladder",
@@ -8818,10 +8842,6 @@ async def _answer_from_fallback_ladder(user_message: object, *, reason: str) -> 
             action=f"fallback ladder could not answer while cortex was unavailable ({reason[:80]})",
         )
         return ""
-    ladder_chain: list = []
-    if isinstance(raw, dict):
-        ladder_chain = list(raw.get("fallback_chain") or [])
-        raw = raw.get("content") or raw.get("response") or ""
     answer = _strip_scaffolding_tags(raw)
     if not answer:
         # Name the blocker. "empty answer" describes the outcome and hides the

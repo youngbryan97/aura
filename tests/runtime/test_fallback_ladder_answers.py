@@ -51,7 +51,7 @@ def test_it_uses_the_small_local_tier_and_never_the_cloud(monkeypatch) -> None:
     assert cloud is False
     # Naming the endpoint is what gets a background-only tier past the
     # foreground selector; a tier alone considered nothing at all.
-    assert kwargs.get("prefer_endpoint") == "Reflex"
+    assert kwargs.get("prefer_endpoint") == "Brainstem"
 
 
 def test_the_answer_says_which_model_produced_it(monkeypatch) -> None:
@@ -169,3 +169,56 @@ def test_a_missing_identity_file_does_not_break_the_ladder(monkeypatch) -> None:
     )
 
     assert chat_module._fallback_ladder_identity() == ""
+
+
+# ── the ladder descends in order ─────────────────────────────────────────────
+#
+# The 9B answers coherently; the 1.5B is the last resort and shows it. Asked
+# "are you there?" Reflex replied "Yes, I'm sorry but I am not there."
+
+class _TieredRouter:
+    def __init__(self, answers):
+        self.answers = answers
+        self.tried = []
+
+    async def think(self, text, **kwargs):
+        endpoint = kwargs.get("prefer_endpoint")
+        self.tried.append(endpoint)
+        return self.answers.get(endpoint, "")
+
+
+def test_the_brainstem_is_tried_first(monkeypatch) -> None:
+    router = _TieredRouter({"Brainstem": "I'm here.", "Reflex": "nonsense"})
+    monkeypatch.setattr("core.brain.llm_health_router.get_llm_router", lambda: router)
+
+    reply = _run(chat_module._answer_from_fallback_ladder("hi", reason="x"))
+
+    assert router.tried == ["Brainstem"]
+    assert "I'm here." in reply
+
+
+def test_reflex_answers_when_the_brainstem_cannot(monkeypatch) -> None:
+    router = _TieredRouter({"Brainstem": "", "Reflex": "Still here."})
+    monkeypatch.setattr("core.brain.llm_health_router.get_llm_router", lambda: router)
+
+    reply = _run(chat_module._answer_from_fallback_ladder("hi", reason="x"))
+
+    assert router.tried == ["Brainstem", "Reflex"]
+    assert "Still here." in reply
+
+
+def test_a_scaffolding_only_reply_descends_to_the_next_rung(monkeypatch) -> None:
+    router = _TieredRouter({"Brainstem": "<answer></answer>", "Reflex": "Here."})
+    monkeypatch.setattr("core.brain.llm_health_router.get_llm_router", lambda: router)
+
+    reply = _run(chat_module._answer_from_fallback_ladder("hi", reason="x"))
+
+    assert router.tried == ["Brainstem", "Reflex"]
+    assert "Here." in reply
+
+
+def test_both_rungs_failing_yields_nothing(monkeypatch) -> None:
+    router = _TieredRouter({"Brainstem": "", "Reflex": ""})
+    monkeypatch.setattr("core.brain.llm_health_router.get_llm_router", lambda: router)
+
+    assert _run(chat_module._answer_from_fallback_ladder("hi", reason="x")) == ""
