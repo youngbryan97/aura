@@ -1884,6 +1884,36 @@ class UnitaryResponsePhase(Phase):
         return cls._current_turn_targets_skill(state, objective, last_skill, contract=contract)
 
     @classmethod
+    def _build_corpus_grounding_message(cls, objective: str) -> dict[str, str] | None:
+        """Grounding built from the local reference corpus, or None.
+
+        Returns None on anything that is not a question about the world, on a
+        miss, and on any failure — an ungrounded turn is the status quo, and a
+        lookup that cannot answer must not cost the turn its latency or crowd
+        the live context with irrelevant text.
+        """
+
+        try:
+            from core.knowledge.corpus_grounding import corpus_grounding_for
+
+            grounding = corpus_grounding_for(objective)
+        except _RESPONSE_RECOVERABLE_ERRORS as exc:
+            _record_response_degradation(
+                exc, "UnitaryResponse: corpus grounding lookup failed: %s"
+            )
+            return None
+        if not grounding.grounded:
+            return None
+        lines = [
+            "[ACTIVE GROUNDING EVIDENCE]",
+            "Reference passages retrieved from the local corpus for this turn.",
+            "Use them as the authoritative basis for factual claims here, and "
+            "prefer their wording on definitions over your own recollection.",
+        ]
+        lines.extend(grounding.render())
+        return {"role": "system", "content": "\n".join(lines)}
+
+    @classmethod
     def _build_active_grounding_message(
         cls,
         state: AuraState,
@@ -1891,7 +1921,19 @@ class UnitaryResponsePhase(Phase):
         contract: Any,
     ) -> dict[str, str] | None:
         if not cls._current_turn_targets_grounding_evidence(state, objective, contract):
-            return None
+            # No skill ran, so nothing has grounded this turn. Before answering
+            # a question about the world from weights alone, ask the local
+            # corpus — a BM25 index over ~7M Wikipedia pages that sits on this
+            # disk and answers a topical query in tens of milliseconds.
+            #
+            # LIVE 2026-08-17: "explain correlation vs causation" was answered
+            # with "correlation means two things happen together without any
+            # clear relationship between them". The corpus returns the article
+            # "Correlation does not imply causation" for that question in
+            # 105ms. The reader existed and this channel existed; no wire ran
+            # between them, because grounding was only ever built from a
+            # web_search or sovereign_browser result.
+            return cls._build_corpus_grounding_message(objective)
 
         modifiers = dict(getattr(state, "response_modifiers", {}) or {})
         skill_name = cls._resolve_skill_name(modifiers.get("last_skill_run", ""))
