@@ -2178,6 +2178,55 @@ async def _reanswer_when_the_runtime_contradicts_her(
             action="served a reply without the arithmetic verification pass",
         )
 
+    # A count of files on this disk is not a thing to estimate.
+    #
+    # LIVE 2026-08-17: "count the .py files in core/introspection" was answered
+    # "There are 3.py files"; there are ten. Asked again with "use your tools
+    # and give me the exact number", the answer was still 3, and the log for
+    # that turn shows no tool ran. The number came out of the model twice.
+    #
+    # Same remedy as the arithmetic case above, for the same reason: the
+    # runtime can take the count exactly, so a generated guess is competing
+    # with a fact that was available the whole time. Re-answer FROM the value
+    # rather than appending a correction under a wrong sentence.
+    try:
+        from core.conversation.filesystem_check import requested_filesystem_count
+
+        counted = requested_filesystem_count(user_message)
+        if counted is not None:
+            if not counted.exists:
+                fs_context = (
+                    f"[That directory does not exist: {counted.path}. Say so; "
+                    "do not report a count for it.]"
+                )
+            elif str(counted.count) not in str(text):
+                listed = ", ".join(counted.names[:12]) or "nothing"
+                fs_context = (
+                    "[Your reply does not contain the real count. This runtime "
+                    f"listed {counted.path} directly: {counted.count} "
+                    f"{counted.suffix or ''} file(s) — {listed}. Answer again "
+                    "from that.]"
+                )
+            else:
+                fs_context = ""
+            if fs_context:
+                computed_context = (
+                    f"{computed_context}\n\n{fs_context}"
+                    if computed_context
+                    else fs_context
+                )
+                logger.warning(
+                    "📁 Reply lacked the real filesystem count (%s in %s); re-answering.",
+                    counted.count,
+                    counted.path,
+                )
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        record_degradation(
+            "chat.filesystem_check",
+            exc,
+            action="served a reply without the filesystem verification pass",
+        )
+
     # Invented instruments. Asked for real numbers rather than adjectives, she
     # produced a thirty-line panel including a substrate pH, a humidity
     # deviation and a spatial distortion, to two decimal places. The runtime
