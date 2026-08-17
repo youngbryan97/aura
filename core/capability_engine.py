@@ -4982,6 +4982,25 @@ class CapabilityEngine(AuraBaseModule):
         raw = str(text or "").strip()
         if not raw:
             return False
+        # A file on this disk is not something to search the web for.
+        #
+        # LIVE 2026-08-17: "read the file CONTRIBUTING.md and tell me the first
+        # rule it states" was dispatched to the search skill —
+        # "Required desktop search evidence failed ... query=read the file
+        # CONTRIBUTING.md" — and the turn ended "I couldn't successfully read
+        # the file. The action failed with an error." The file was in the repo
+        # root the whole time.
+        #
+        # Naming a file that actually resolves is unambiguous, so it settles
+        # the routing rather than competing with it.
+        try:
+            from core.conversation.filesystem_check import requested_file_read
+
+            named = requested_file_read(raw)
+        except (ImportError, OSError, RuntimeError, TypeError, ValueError):
+            named = None
+        if named is not None and named.exists:
+            return True
         if re.search(r"https?://[^\s]+", raw):
             return False
         if _SEARCH_WITH_TARGET_RE.search(raw):

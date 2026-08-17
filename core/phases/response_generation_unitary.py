@@ -1972,10 +1972,14 @@ class UnitaryResponsePhase(Phase):
             # and tell me the first rule it states" was answered "I don't have
             # a clean grounded answer on that yet" — the file is in the repo
             # root and five registered skills can read it. Nothing executed.
-            return (
-                cls._build_file_grounding_message(objective)
-                or cls._build_corpus_grounding_message(objective)
-            )
+            built = cls._build_file_grounding_message(objective)
+            if built is not None:
+                logger.info(
+                    "📄 [GROUNDING] read a named file for this turn (%d chars).",
+                    len(built.get("content", "")),
+                )
+                return built
+            return cls._build_corpus_grounding_message(objective)
 
         modifiers = dict(getattr(state, "response_modifiers", {}) or {})
         skill_name = cls._resolve_skill_name(modifiers.get("last_skill_run", ""))

@@ -74,3 +74,39 @@ def test_requests_about_the_world_are_not_word_problems(engine, prompt: str) -> 
 def test_one_number_is_not_a_problem(engine) -> None:
     """A single number can be a reference ('open tab 2'), not a given quantity."""
     assert engine._is_self_contained_word_problem("what is tab 2 showing?") is False
+
+
+# ── a file on this disk is not a web search ─────────────────────────────────
+#
+# LIVE 2026-08-17: "read the file CONTRIBUTING.md and tell me the first rule it
+# states" was dispatched to the SEARCH skill — "Required desktop search
+# evidence failed ... query=read the file CONTRIBUTING.md" — and the turn ended
+# "I couldn't successfully read the file. The action failed with an error."
+# The file was in the repo root the whole time.
+
+def test_reading_a_local_file_does_not_route_to_web_search(engine) -> None:
+    candidates = engine._rank_tool_candidates(
+        objective="read the file CONTRIBUTING.md and tell me the first rule it states",
+        max_tools=3,
+    )
+
+    assert "web_search" not in candidates
+    assert "file_operation" in candidates
+
+
+def test_a_real_web_query_still_routes_to_search(engine) -> None:
+    """The exclusion must not cost her web search."""
+    candidates = engine._rank_tool_candidates(
+        objective="search the web for the latest MLX release", max_tools=3
+    )
+
+    assert any(name in candidates for name in ("web_search", "search_web", "free_search"))
+
+
+def test_a_filename_that_does_not_exist_does_not_hijack_routing(engine) -> None:
+    """Only a file that actually resolves settles the routing."""
+    candidates = engine._rank_tool_candidates(
+        objective="search the web for nonexistent_thing.md release notes", max_tools=3
+    )
+
+    assert any(name in candidates for name in ("web_search", "search_web", "free_search"))
