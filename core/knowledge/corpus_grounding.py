@@ -180,6 +180,42 @@ def corpus_grounding_for(
     passages: list[tuple[str, str]] = []
     for hit in hits or ():
         title, text = _passage_of(hit)
-        if text.strip():
-            passages.append((title, text))
+        if not text.strip():
+            # Title-only rows carry no passage to ground anything with.
+            continue
+        if not _is_relevant(topical, title, text):
+            continue
+        passages.append((title, text))
     return CorpusGrounding(query=query, passages=tuple(passages))
+
+
+def _is_relevant(query: str, title: str, text: str) -> bool:
+    """Does this hit actually concern the query, or did BM25 reach?
+
+    The corpus search falls back to ANY-term matching when the full conjunction
+    misses, and over 7M pages that fallback will always return something. It
+    returned "Pee-wee Herman" for "wrote Rust borrow checker originally" and
+    "Django Haskins" for "Django released 2005" — matching on the incidental
+    words while missing the subject entirely.
+
+    An irrelevant passage presented as authoritative grounding is strictly
+    worse than no grounding: it does not merely fail to help, it argues for the
+    wrong answer with the weight of a citation. So a hit has to earn its place
+    by carrying most of what was asked about, and a near-miss is discarded in
+    favour of the model answering unaided.
+    """
+
+    terms = [t for t in re.findall(r"[a-z0-9]+", query.lower()) if len(t) > 2]
+    if not terms:
+        return False
+    haystack = f"{title} {text}".lower()
+    matched = sum(1 for t in terms if t in haystack)
+    # Most of the asked-about terms, and never on a single incidental word.
+    #
+    # The ratio matters more than it looks. At half, "Django released 2005"
+    # still admitted "Django Haskins" — it matched the name and the verb while
+    # missing "web" and "framework", which are the two words that said WHICH
+    # Django. The discriminating terms are usually the ones a wrong-sense hit
+    # lacks, so the bar has to sit above half.
+    needed = max(2, -(-len(terms) * 3 // 5))
+    return matched >= needed

@@ -142,14 +142,67 @@ def test_empty_hits_render_nothing() -> None:
 
 
 def test_blank_passages_are_dropped() -> None:
-    store = _Store([_Hit("Title", "   "), _Hit("Real", "actual text")])
+    store = _Store([
+        _Hit("Entropy", "   "),
+        _Hit("Entropy (statistical thermodynamics)", "entropy in physics measures disorder"),
+    ])
 
     grounding = corpus_grounding_for("what is entropy in physics", store=store)
 
-    assert [t for t, _ in grounding.passages] == ["Real"]
+    assert [t for t, _ in grounding.passages] == [
+        "Entropy (statistical thermodynamics)"
+    ]
 
 
 def test_garbage_input_is_safe() -> None:
     for value in (None, "", 0, [], {"a": 1}):
         assert not corpus_grounding_for(value).grounded
         assert not is_corpus_groundable(value)
+
+
+# ── relevance: BM25's any-term fallback always returns SOMETHING ─────────────
+#
+# Measured against the live corpus before this guard existed:
+#   "wrote Rust borrow checker originally" -> Pee-wee Herman
+#   "Django released 2005"                 -> Django Haskins (a person)
+# An irrelevant passage presented as authoritative grounding is worse than no
+# grounding: it argues for the wrong answer with the weight of a citation.
+
+def test_an_incidental_word_match_is_rejected() -> None:
+    store = _Store([_Hit("Pee-wee Herman", "Paul Reubens originally wrote the character ...")])
+
+    grounding = corpus_grounding_for(
+        "who originally wrote the Rust borrow checker", store=store
+    )
+
+    assert not grounding.grounded
+
+
+def test_a_wrong_sense_of_the_word_is_rejected() -> None:
+    store = _Store([_Hit("Django Haskins", "an American singer-songwriter released ...")])
+
+    grounding = corpus_grounding_for(
+        "when was Django the web framework released", store=store
+    )
+
+    assert not grounding.grounded
+
+
+def test_a_genuinely_relevant_hit_survives() -> None:
+    store = _Store([
+        _Hit(
+            "Correlation does not imply causation",
+            "The phrase refers to the inability to deduce a causation "
+            "relationship between two variables from correlation alone.",
+        )
+    ])
+
+    grounding = corpus_grounding_for("what is correlation versus causation", store=store)
+
+    assert grounding.grounded
+
+
+def test_a_title_only_row_grounds_nothing() -> None:
+    store = _Store([_Hit("Lunar Module Eagle", "")])
+
+    assert not corpus_grounding_for("when did Apollo 11 land", store=store).grounded
