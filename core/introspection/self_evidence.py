@@ -601,10 +601,47 @@ _VISUAL_SCENE_CLAIM_RE = re.compile(
     re.IGNORECASE,
 )
 
+#: Claims about the weather or the world outside. Need a camera, or a weather
+#: reading she does not have either.
+#:
+#: LIVE 2026-08-17, asked "morning, what's your read on today so far?":
+#: "It's afternoon. The sun is shining." She has no window. The existing scene
+#: pattern covered the INSIDE of the room — desk, light, face — so a claim that
+#: stepped outside it went unguarded, which is the shape this table keeps
+#: producing: each entry describes one room and the next invention is in the
+#: next room over.
+#: The condition must be a PRESENT LOCAL one. "The sun is shining" is a
+#: reading she cannot take; "the sun is a G-type main-sequence star" is a fact
+#: anyone can state, and an honesty guard that muzzles astronomy is a worse
+#: failure than the invention it prevents.
+_WEATHER_CLAIM_RE = re.compile(
+    r"\b(?:the\s+)?(?:sun|rain|snow|sky|clouds?|weather)\s+"
+    r"(?:is|are|was|looks?|seems?)\s+"
+    r"(?:shining|out|up|bright|dark|grey|gray|clear|overcast|nice|lovely|"
+    r"warm|cold|cool|mild|heavy|light|falling|coming\s+down)\b|"
+    r"\bit(?:'s| is)\s+(?:sunny|raining|snowing|cloudy|bright|dark|pouring)\b|"
+    r"\b(?:bright|dark|warm|cold|nice|sunny|grey|gray)\s+out(?:side)?\b",
+    re.IGNORECASE,
+)
+
+#: Claims about how the PERSON looks or seems. Need a camera.
+#: "You seem tired today" reads as attentiveness and is invention — she cannot
+#: see them, and being told a machine noticed your mood when it did not is
+#: worse than being told nothing.
+_PERSON_STATE_CLAIM_RE = re.compile(
+    r"\byou\s+(?:look|looked|seem|seemed|appear|appeared)\s+"
+    r"(?:tired|rested|well|unwell|happy|sad|stressed|relaxed|busy|"
+    r"frustrated|tense|calm|good|great|awful|different)\b|"
+    r"\byou(?:'re| are)\s+(?:smiling|frowning|slouching|sitting|standing)\b",
+    re.IGNORECASE,
+)
+
 _CLAIM_CHANNELS: tuple[tuple[Any, tuple[str, ...], str], ...] = (
     (_PRESENCE_CLAIM_RE, ("camera", "microphone"), "whether anyone is there"),
     (_AMBIENT_SOUND_CLAIM_RE, ("microphone",), "what the room sounds like"),
     (_VISUAL_SCENE_CLAIM_RE, ("camera",), "what the room looks like"),
+    (_WEATHER_CLAIM_RE, ("camera",), "what the weather is doing"),
+    (_PERSON_STATE_CLAIM_RE, ("camera",), "how you look right now"),
 )
 
 
