@@ -2636,6 +2636,37 @@ class InferenceGate:
         return True
 
     @staticmethod
+    def _cortex_already_resident() -> bool:
+        """True when the conversation model is loaded and has served a turn.
+
+        Deliberately conservative in both directions. It requires evidence that
+        the model is actually up — a lane that merely intends to load does not
+        count — and any failure to determine that answers False, which keeps
+        the stricter load-sized floor rather than relaxing it on a guess.
+        """
+        try:
+            from core.container import ServiceContainer
+
+            gate = ServiceContainer.peek("inference_gate", default=None)
+            if gate is None:
+                return False
+            lane = gate.get_conversation_status()
+        except _INFERENCE_RECOVERABLE_ERRORS:
+            # A probe must never break admission; unknown residency keeps the
+            # stricter load-sized floor.
+            return False
+        if not isinstance(lane, dict):
+            return False
+        try:
+            if not bool(lane.get("conversation_ready")):
+                return False
+            # "Ready" without a completed generation is an intention, not a
+            # residency: the weights may still be streaming in.
+            return bool(lane.get("has_generated_successfully"))
+        except (AttributeError, TypeError, ValueError):
+            return False
+
+    @staticmethod
     def _headroom_snapshot(requested_tier: str = "primary") -> dict[str, Any]:
         try:
             from core.utils.memory_monitor import get_memory_pressure_snapshot
@@ -2678,6 +2709,62 @@ class InferenceGate:
                     "AURA_FOREGROUND_PRIMARY_MIN_AVAILABLE_GB",
                     "18" if total_gb >= 60.0 else "10",
                 )
+                # The floor above answers "is there room to LOAD a model?".
+                # For a turn on a cortex that is ALREADY resident, that is the
+                # wrong question, and asking it double-counts: the resident
+                # weights are counted as used, and then the gate demands 18GB
+                # more on top of them.
+                #
+                # LIVE 2026-08-17, 64GB host, 32B resident (~20GB wired) beside
+                # Chrome and two Electron apps:
+                #     pressure=78.4% available=13.8GB (need <76.0% and >=18.0GB)
+                # The condition is unsatisfiable in Aura's own normal operating
+                # state, so admission tightened on an ordinary conversational
+                # turn and the person got "I couldn't get to an answer I'd
+                # stand behind" — from a worker that had just completed a
+                # generation.
+                #
+                # A turn on a loaded model needs its transient decode working
+                # set, not another model's worth of headroom. When nothing has
+                # to be loaded, the floor becomes that transient requirement.
+                if InferenceGate._cortex_already_resident():
+                    min_available_gb = min(
+                        min_available_gb,
+                        _threshold(
+                            "AURA_FOREGROUND_RESIDENT_TURN_MIN_AVAILABLE_GB", "6"
+                        ),
+                    )
+                    max_pressure = max(
+                        max_pressure,
+                        _threshold(
+                            "AURA_FOREGROUND_RESIDENT_TURN_MAX_PRESSURE_PCT", "88"
+                        ),
+                    )
+
+            # The percentages above are derived from psutil's macOS accounting,
+            # which counts file-backed cache and compressed pages as consumed.
+            # They are not — the OS reclaims them on demand. Measured on this
+            # host while a turn was being refused for "78.4% pressure": the
+            # kernel reported level NORMAL and 79% free, with 24GB of the
+            # "used" memory sitting in reclaimable inactive pages.
+            #
+            # So when the OS itself says there is no pressure, a derived
+            # percentage does not get to veto a turn. The absolute floors still
+            # apply: this relaxes the RATE signal, never the hard minimum, the
+            # process-tree RSS limit, or an explicit refusal.
+            kernel_level = str(
+                getattr(snapshot, "kernel_pressure_level", "unknown") or "unknown"
+            )
+            if kernel_level == "normal":
+                min_available_gb = min(
+                    min_available_gb,
+                    _threshold("AURA_FOREGROUND_KERNEL_NORMAL_MIN_AVAILABLE_GB", "4"),
+                )
+                max_pressure = max(max_pressure, 100.0)
+            elif kernel_level == "critical":
+                # The OS is actively asking processes to free memory. Whatever
+                # the derived percentage says, this is not the moment.
+                max_pressure = min(max_pressure, 0.0)
             system_admit = bool(pressure_pct < max_pressure and available_gb >= min_available_gb)
             process_admit = bool(
                 process_rss_limit_gb <= 0.0

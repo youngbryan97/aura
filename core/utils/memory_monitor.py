@@ -2,6 +2,7 @@ import asyncio
 import contextlib
 import logging
 import os
+import sys
 import threading
 import time
 from dataclasses import asdict, dataclass
@@ -21,6 +22,21 @@ from core.runtime.resource_observation import (
 )
 
 logger = logging.getLogger("Aura.MemoryMonitor")
+
+MEMORY_PRESSURE_NORMAL = "normal"
+MEMORY_PRESSURE_WARN = "warn"
+MEMORY_PRESSURE_CRITICAL = "critical"
+MEMORY_PRESSURE_UNKNOWN = "unknown"
+
+_KERNEL_PRESSURE_LEVELS = {
+    1: MEMORY_PRESSURE_NORMAL,
+    2: MEMORY_PRESSURE_WARN,
+    4: MEMORY_PRESSURE_CRITICAL,
+}
+_KERNEL_PRESSURE_CACHE: tuple[float, str] = (0.0, MEMORY_PRESSURE_UNKNOWN)
+_KERNEL_PRESSURE_TTL_S = 2.0
+_KERNEL_PRESSURE_LOCK = threading.Lock()
+
 _MEMORY_MONITOR_RECOVERABLE_ERRORS = (
     AttributeError,
     OSError,
@@ -131,6 +147,7 @@ class MemoryPressureSnapshot:
     host_observed: bool
     qualifies_as_live_pressure: bool
     observation_available: bool
+    kernel_pressure_level: str = MEMORY_PRESSURE_UNKNOWN
 
     @property
     def warning(self) -> bool:
@@ -186,6 +203,59 @@ class MemoryPressureSnapshot:
             }
         )
         return payload
+
+
+# ── the kernel's own pressure verdict ────────────────────────────────────────
+#
+# LIVE 2026-08-17. A foreground turn was refused with
+# "pressure=78.4% available=13.8GB (need <76.0% and >=18.0GB)" while the kernel
+# reported kern.memorystatus_vm_pressure_level = 1 (NORMAL) and
+# "System-wide memory free percentage: 79%". Both numbers were honestly
+# computed and they measured different things.
+#
+# psutil's macOS `available` counts file-backed cache and compressed pages as
+# consumed. They are not: the OS reclaims them on demand, which is what a cache
+# is for. On a box deliberately holding a 20GB resident model plus a browser,
+# that accounting reads as sustained pressure forever, so a gate keyed to it
+# refuses ordinary turns in the system's normal operating state.
+#
+# macOS already publishes the signal it uses to tell processes to free memory.
+# Ask it, instead of inferring a worse answer from page counts.
+
+
+def kernel_memory_pressure_level() -> str:
+    """What the OS itself says about memory pressure.
+
+    Returns MEMORY_PRESSURE_UNKNOWN off Darwin or when the sysctl cannot be
+    read, and callers must treat UNKNOWN as "no opinion" — it must never
+    relax a limit on its own.
+    """
+
+    global _KERNEL_PRESSURE_CACHE
+    now = time.monotonic()
+    with _KERNEL_PRESSURE_LOCK:
+        stamped_at, cached = _KERNEL_PRESSURE_CACHE
+        if cached != MEMORY_PRESSURE_UNKNOWN and (now - stamped_at) <= _KERNEL_PRESSURE_TTL_S:
+            return cached
+    if sys.platform != "darwin":
+        return MEMORY_PRESSURE_UNKNOWN
+    try:
+        import subprocess
+
+        raw = subprocess.run(
+            ["sysctl", "-n", "kern.memorystatus_vm_pressure_level"],
+            capture_output=True,
+            text=True,
+            timeout=2.0,
+        )
+        level = _KERNEL_PRESSURE_LEVELS.get(
+            int(str(raw.stdout).strip() or "0"), MEMORY_PRESSURE_UNKNOWN
+        )
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return MEMORY_PRESSURE_UNKNOWN
+    with _KERNEL_PRESSURE_LOCK:
+        _KERNEL_PRESSURE_CACHE = (now, level)
+    return level
 
 
 def get_memory_pressure_snapshot(
@@ -307,6 +377,7 @@ def get_memory_pressure_snapshot(
         level=level,
         reason=reason,
         observation_source=provenance.source.value,
+        kernel_pressure_level=kernel_memory_pressure_level(),
         observation_scenario_id=provenance.scenario_id,
         host_observed=provenance.host_observed,
         qualifies_as_live_pressure=provenance.qualifies_as_live_pressure,
