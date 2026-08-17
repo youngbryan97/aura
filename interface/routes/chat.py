@@ -13845,6 +13845,53 @@ def _flag_unstable_choice_commitment(user_message: object, reply_text: object) -
 _SELF_METRIC_CORRECTION_MARK = "the instrument does not exist"
 
 
+def _serve_measured_filesystem_count(user_message: object, reply: object) -> object:
+    """Replace a contradicted file count with the one the runtime took.
+
+    The re-answer pass injects the real count into the context and asks the
+    model to answer again from it. LIVE 2026-08-17 it did that, logged that it
+    did it, and the model returned "There are 3 Python files" for the third
+    time. The codebase already knew this would happen — response_generation
+    says it outright: "evidence informs, it does not enforce."
+
+    So the fact is served rather than requested. A count is not a matter of
+    opinion, the runtime holds it exactly, and at that point the model can only
+    add error. This composes the sentence from the reading, the way
+    _desktop_effect_summary composes an action summary from receipts instead of
+    letting the model narrate what it did.
+    """
+
+    text = str(reply or "")
+    try:
+        from core.conversation.filesystem_check import requested_filesystem_count
+
+        counted = requested_filesystem_count(user_message)
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        record_degradation("chat.filesystem_check", exc)
+        return reply
+    if counted is None:
+        return reply
+    if not counted.exists:
+        return (
+            f"There is no directory at {counted.path}, so there is nothing to "
+            "count there."
+        )
+    if str(counted.count) in text:
+        return reply  # she already has it right; leave her wording alone
+    kind = f"{counted.suffix} " if counted.suffix else ""
+    listed = ", ".join(counted.names[:12])
+    more = "" if len(counted.names) <= 12 else f", and {len(counted.names) - 12} more"
+    logger.warning(
+        "📁 Served the measured count (%s) over the generated one for %s.",
+        counted.count,
+        counted.path,
+    )
+    return (
+        f"{counted.count} {kind}files. I listed the directory rather than "
+        f"estimating: {listed}{more}."
+    )
+
+
 def _correct_unsourced_self_metrics(reply_text: object) -> object:
     """Withdraw numbers about herself that no channel produced.
 
@@ -15248,6 +15295,9 @@ def _apply_recorded_answer(user_message: object, response: Any) -> Any:
         # capacity" shipped a second time — in a reply that opened by saying
         # she does not track memory at all.
         corrected = str(_correct_unsourced_self_metrics(corrected) or corrected)
+        # A measured count outranks a generated one. Asking the model to use
+        # the real number was tried and produced the wrong number a third time.
+        corrected = str(_serve_measured_filesystem_count(user_message, corrected) or corrected)
         if corrected == reply:
             return response
         data["response"] = corrected

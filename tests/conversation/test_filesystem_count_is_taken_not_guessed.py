@@ -92,3 +92,56 @@ def test_an_unrecognised_qualifier_is_declined() -> None:
 )
 def test_unrelated_questions_are_ignored(question: str) -> None:
     assert requested_filesystem_count(question) is None
+
+
+# ── the measured count is SERVED, not requested ──────────────────────────────
+#
+# The re-answer pass injected the real count into the context and asked the
+# model to answer again from it. It did that, logged that it did it, and the
+# model returned "There are 3 Python files" for the third time. Asking is still
+# prompting; response_generation already says "evidence informs, it does not
+# enforce."
+
+from interface.routes.chat import _serve_measured_filesystem_count as serve
+
+
+def test_a_contradicted_count_is_replaced_with_the_measured_one() -> None:
+    truth = len(list((REPO / "core" / "introspection").glob("*.py")))
+
+    out = str(serve(
+        "count the .py files in core/introspection",
+        "There are 3 Python files in the core/introspection folder.",
+    ))
+
+    assert str(truth) in out
+    assert "3 Python files" not in out
+
+
+def test_a_correct_count_leaves_her_wording_alone() -> None:
+    truth = len(list((REPO / "core" / "introspection").glob("*.py")))
+    original = f"There are {truth} Python files there, which is fewer than I expected."
+
+    assert serve("count the .py files in core/introspection", original) == original
+
+
+def test_the_served_answer_shows_what_was_counted() -> None:
+    """A bare number invites the same doubt the guess did."""
+    out = str(serve("count the .py files in core/introspection", "There are 3."))
+
+    assert "self_evidence.py" in out
+
+
+def test_a_missing_directory_is_reported_as_missing() -> None:
+    out = str(serve("how many files are in core/nope_not_real", "There are 4 files."))
+
+    assert "no directory" in out.lower()
+
+
+def test_unrelated_replies_are_untouched() -> None:
+    assert serve("how are you", "I am fine.") == "I am fine."
+
+
+def test_a_path_outside_her_roots_is_untouched() -> None:
+    original = "There are 56 files in /etc."
+
+    assert serve("how many files are in /etc", original) == original
