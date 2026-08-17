@@ -41,7 +41,13 @@ _COUNT_RE = re.compile(
     r"\b(?:how\s+many|count(?:\s+the)?|number\s+of)\s+"
     r"(?P<kind>[.\w+]*?)\s*"
     r"(?:files?|scripts?|modules?)\s+"
-    r"(?:are\s+)?(?:there\s+)?(?:in|inside|under|within)\s+"
+    # Anything short may sit between the noun and the preposition — "files ARE
+    # in", "files LIVE in", "files SIT inside", "files do we have in". Pinning
+    # this to a fixed word list is how "how many python files live in
+    # core/introspection?" went unparsed and got answered "I don't have file
+    # system access", while the same question with "are in" was answered
+    # exactly. The preposition is the anchor; what precedes it is filler.
+    r"(?:\w+\s+){0,3}?(?:in|inside|under|within)\s+"
     r"(?:the\s+)?(?P<path>[\w./\-]+)",
     re.IGNORECASE,
 )

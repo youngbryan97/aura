@@ -38,6 +38,12 @@ def test_the_live_question_returns_the_real_count() -> None:
         "how many python files are in the core/introspection folder?",
         "how many .py files are in core/introspection",
         "number of python files in core/introspection",
+        # LIVE: this exact phrasing went unparsed and was answered "I don't
+        # have file system access", while "are in" was answered exactly. Asking
+        # the same thing a different way must not change what she can do.
+        "how many python files live in core/introspection?",
+        "how many python files do we have in core/introspection",
+        "how many python files sit inside core/introspection",
     ],
 )
 def test_phrasings_all_reach_the_same_count(question: str) -> None:
