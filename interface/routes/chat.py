@@ -11073,6 +11073,7 @@ async def _stabilize_user_facing_reply(
     # typed absence into the prompt was not enough: evidence informs, it does
     # not enforce.
     reply_text = _append_sensory_claim_correction(user_message, reply_text)
+    reply_text = _correct_unsourced_self_metrics(reply_text)
     reply_text = _flag_unstable_choice_commitment(user_message, reply_text)
     reply_text = _correct_unfulfilled_write_claims(reply_text, user_message)
     # Runs after the path check so a reply that names a missing file is
@@ -13586,6 +13587,47 @@ def _flag_unstable_choice_commitment(user_message: object, reply_text: object) -
         f"I called {contradiction.first_option!r} the one I would take, then said "
         f"{contradiction.second_option!r}."
     )
+    return f"{str(reply_text or '').rstrip()}\n\n{note}"
+
+
+def _correct_unsourced_self_metrics(reply_text: object) -> object:
+    """Withdraw numbers about herself that no channel produced.
+
+    LIVE 2026-08-17, answering "how are you doing": "My memory stores are at
+    87% capacity". There is no memory-store capacity metric in this codebase —
+    the number was invented and stated flatly beside real readings.
+
+    The correction names the specific quantity rather than issuing a general
+    disclaimer, because a reply that says "some of the above may be estimated"
+    is worse than the fabrication: it makes every real reading in the same
+    paragraph suspect. The number is withdrawn; the rest of the answer stands.
+    """
+
+    try:
+        from core.conversation.self_metric_claim import unsourced_self_metric_claims
+        from core.introspection.self_evidence import resolve_self_health
+
+        bundle = resolve_self_health()
+        unsourced = unsourced_self_metric_claims(reply_text, bundle)
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        record_degradation("chat", exc)
+        return reply_text
+    if not unsourced:
+        return reply_text
+    if len(unsourced) == 1:
+        claim = unsourced[0]
+        note = (
+            f"Correction on one thing I just said: I have no channel that reads "
+            f"my {claim.subject}, so {claim.quantity}{claim.unit} was not a "
+            f"measurement. Withdraw that number — the instrument does not exist."
+        )
+    else:
+        listed = ", ".join(f"{c.subject} ({c.quantity}{c.unit})" for c in unsourced)
+        note = (
+            "Correction on some numbers I just gave: nothing samples these, so "
+            f"they were not measurements — {listed}. Withdraw them; those "
+            "instruments do not exist."
+        )
     return f"{str(reply_text or '').rstrip()}\n\n{note}"
 
 
