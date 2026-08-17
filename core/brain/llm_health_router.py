@@ -2822,6 +2822,33 @@ class HealthAwareLLMRouter:
         else:
             max_pressure = _threshold("AURA_BACKGROUND_REFLEX_MAX_PRESSURE_PCT", 66.0)
             min_available = _threshold("AURA_BACKGROUND_REFLEX_MIN_AVAILABLE_GB", 20.0)
+        # The percentages above come from psutil's macOS accounting, which
+        # counts file-backed cache and compressed pages as consumed. The OS
+        # reclaims those on demand, so during a cortex load the derived reading
+        # says "no headroom" while the kernel reports no pressure at all.
+        #
+        # LIVE 2026-08-17: that is why the fallback ladder returned an empty
+        # answer on every cold start. The Brainstem and the CPU-only Reflex
+        # were both deferred for want of headroom the machine had, so a turn
+        # the cortex could not take was answered by nobody.
+        #
+        # When the OS itself says there is no pressure, the derived percentage
+        # does not get to veto the small models. The absolute floor still
+        # binds, and a kernel WARN or CRITICAL still defers.
+        try:
+            from core.utils.memory_monitor import kernel_memory_pressure_level
+
+            kernel_level = kernel_memory_pressure_level()
+        except (ImportError, OSError, RuntimeError, ValueError):
+            kernel_level = "unknown"
+        if kernel_level == "normal":
+            max_pressure = max(max_pressure, 100.0)
+            min_available = min(
+                min_available,
+                _threshold(f"AURA_BACKGROUND_{name.upper()}_KERNEL_NORMAL_MIN_GB", 4.0),
+            )
+        elif kernel_level == "critical":
+            max_pressure = min(max_pressure, 0.0)
         if pressure_pct >= max_pressure or available_gb < min_available:
             return (
                 f"desktop_background_headroom:{name}:"
