@@ -8742,6 +8742,11 @@ async def _answer_from_fallback_ladder(user_message: object, *, reason: str) -> 
         record_degradation("chat.fallback_ladder", exc)
         return ""
     if router is None or not hasattr(router, "think"):
+        record_degradation(
+            "chat.fallback_ladder",
+            RuntimeError("no router available for the fallback ladder"),
+            action="cortex unavailable and the ladder could not be reached",
+        )
         return ""
     try:
         raw = await asyncio.wait_for(
@@ -8759,7 +8764,13 @@ async def _answer_from_fallback_ladder(user_message: object, *, reason: str) -> 
         raw = raw.get("content") or raw.get("response") or ""
     answer = str(raw or "").strip()
     if not answer:
+        record_degradation(
+            "chat.fallback_ladder",
+            RuntimeError("fallback ladder returned an empty answer"),
+            action="cortex unavailable and the ladder produced nothing",
+        )
         return ""
+    logger.info("🪜 Fallback ladder answered while the cortex was unavailable (%s).", reason[:80])
     return (
         f"{answer}\n\n"
         "(That came from my smaller model — the main one is still loading. "
