@@ -32,7 +32,9 @@ from pathlib import Path
 from typing import Any
 
 __all__ = [
+    "FileRead",
     "FilesystemCount",
+    "requested_file_read",
     "requested_filesystem_count",
 ]
 
@@ -173,3 +175,71 @@ def requested_filesystem_count(user_message: Any) -> FilesystemCount | None:
         exists=True,
         names=tuple(entries),
     )
+
+
+#: "read CONTRIBUTING.md and tell me...", "open core/config.py", "what does
+#: docs/WRITING_RULES.md say about X"
+_READ_RE = re.compile(
+    # The verb varies more than a fixed list survives: "read X", "open X",
+    # "what does X say", "check X", "grab X". Anchor on the FILENAME — a token
+    # with a real extension inside her roots is the unambiguous part — and let
+    # a short verb phrase precede it.
+    r"\b(?:read|open|look\s+at|check|show\s+me|grab|pull\s+up|cat|"
+    r"what(?:'s| is| does)|tell\s+me\s+(?:what|about))\b[^.?!]{0,40}?"
+    r"(?:the\s+)?(?:file\s+)?(?P<path>[\w./\-]+\.[A-Za-z0-9]{1,6})\b",
+    re.IGNORECASE,
+)
+
+#: Enough of a file to answer a question about it without pasting a codebase
+#: into a chat reply.
+READ_CHAR_BUDGET = 4000
+
+
+@dataclass(frozen=True, slots=True)
+class FileRead:
+    """Text actually read off the disk, or a named reason it was not."""
+
+    path: str
+    text: str
+    exists: bool
+    truncated: bool = False
+
+
+def requested_file_read(user_message: Any) -> FileRead | None:
+    """Read the file this message names, or None when it names none.
+
+    LIVE 2026-08-17: "read the file CONTRIBUTING.md and tell me the first rule
+    it states" was answered "I don't have a clean grounded answer on that yet."
+    The file is in the repo root and she has five skills that can read it. The
+    capability was never the problem; nothing executed.
+    """
+
+    text = " ".join(str(user_message or "").split())
+    if not text:
+        return None
+    match = _READ_RE.search(text)
+    if not match:
+        return None
+    candidate = match.group("path").strip().strip(".,;:'\"")
+    if candidate.startswith("/") or candidate.startswith("~") or ".." in candidate:
+        return None
+    for root in _allowed_roots():
+        try:
+            target = (root / candidate).resolve()
+        except (OSError, ValueError, RuntimeError):
+            continue
+        if not str(target).startswith(str(root)):
+            continue
+        if not target.is_file():
+            continue
+        try:
+            body = target.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return None
+        return FileRead(
+            path=str(target),
+            text=body[:READ_CHAR_BUDGET],
+            exists=True,
+            truncated=len(body) > READ_CHAR_BUDGET,
+        )
+    return FileRead(path=candidate, text="", exists=False)

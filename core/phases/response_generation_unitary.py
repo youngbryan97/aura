@@ -1884,6 +1884,37 @@ class UnitaryResponsePhase(Phase):
         return cls._current_turn_targets_skill(state, objective, last_skill, contract=contract)
 
     @classmethod
+    def _build_file_grounding_message(cls, objective: str) -> dict[str, str] | None:
+        """Grounding built from a file the turn names, read off the disk."""
+
+        try:
+            from core.conversation.filesystem_check import requested_file_read
+
+            read = requested_file_read(objective)
+        except _RESPONSE_RECOVERABLE_ERRORS as exc:
+            _record_response_degradation(
+                exc, "UnitaryResponse: file grounding read failed: %s"
+            )
+            return None
+        if read is None:
+            return None
+        if not read.exists:
+            lines = [
+                "[ACTIVE GROUNDING EVIDENCE]",
+                f"No file exists at {read.path} inside her roots.",
+            ]
+            return {"role": "system", "content": "\n".join(lines)}
+        if not read.text.strip():
+            return None
+        suffix = " [truncated]" if read.truncated else ""
+        lines = [
+            "[ACTIVE GROUNDING EVIDENCE]",
+            f"{read.path}{suffix}:",
+            read.text,
+        ]
+        return {"role": "system", "content": "\n".join(lines)}
+
+    @classmethod
     def _build_corpus_grounding_message(cls, objective: str) -> dict[str, str] | None:
         """Grounding built from the local reference corpus, or None.
 
@@ -1936,7 +1967,15 @@ class UnitaryResponsePhase(Phase):
             # 105ms. The reader existed and this channel existed; no wire ran
             # between them, because grounding was only ever built from a
             # web_search or sovereign_browser result.
-            return cls._build_corpus_grounding_message(objective)
+            # A file she was asked to read is grounding of the strongest kind:
+            # the actual bytes. LIVE 2026-08-17, "read the file CONTRIBUTING.md
+            # and tell me the first rule it states" was answered "I don't have
+            # a clean grounded answer on that yet" — the file is in the repo
+            # root and five registered skills can read it. Nothing executed.
+            return (
+                cls._build_file_grounding_message(objective)
+                or cls._build_corpus_grounding_message(objective)
+            )
 
         modifiers = dict(getattr(state, "response_modifiers", {}) or {})
         skill_name = cls._resolve_skill_name(modifiers.get("last_skill_run", ""))

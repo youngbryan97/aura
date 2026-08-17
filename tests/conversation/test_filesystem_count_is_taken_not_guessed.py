@@ -151,3 +151,66 @@ def test_a_path_outside_her_roots_is_untouched() -> None:
     original = "There are 56 files in /etc."
 
     assert serve("how many files are in /etc", original) == original
+
+
+# ── reading a file she was asked to read ─────────────────────────────────────
+#
+# LIVE 2026-08-17: "read the file CONTRIBUTING.md and tell me the first rule it
+# states" was answered "I don't have a clean grounded answer on that yet." The
+# file is in the repo root and five registered skills can read it. The
+# capability was never the problem — nothing executed.
+
+from core.conversation.filesystem_check import requested_file_read
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "read the file CONTRIBUTING.md and tell me the first rule it states",
+        "what does CONTRIBUTING.md say about tests?",
+        "open CONTRIBUTING.md",
+        "tell me about CONTRIBUTING.md",
+    ],
+)
+def test_named_files_are_actually_read(question: str) -> None:
+    read = requested_file_read(question)
+
+    assert read is not None and read.exists
+    assert read.text.strip()
+
+
+def test_the_content_is_the_real_file() -> None:
+    read = requested_file_read("open CONTRIBUTING.md")
+    on_disk = (REPO / "CONTRIBUTING.md").read_text(encoding="utf-8")
+
+    assert read is not None
+    assert on_disk.startswith(read.text[:200])
+
+
+def test_a_missing_file_is_reported_not_invented() -> None:
+    read = requested_file_read("read the file NOPE_NOT_REAL.md")
+
+    assert read is not None and read.exists is False
+
+
+@pytest.mark.parametrize(
+    "question",
+    ["read /etc/passwd", "open ../../../etc/hosts", "read ~/.ssh/id_rsa"],
+)
+def test_files_outside_her_roots_are_refused(question: str) -> None:
+    assert requested_file_read(question) is None
+
+
+@pytest.mark.parametrize("question", ["how are you", "what is 2+2", ""])
+def test_messages_naming_no_file_are_ignored(question: str) -> None:
+    assert requested_file_read(question) is None
+
+
+def test_a_large_file_is_bounded() -> None:
+    from core.conversation.filesystem_check import READ_CHAR_BUDGET
+
+    read = requested_file_read("open interface/routes/chat.py")
+
+    assert read is not None
+    assert len(read.text) <= READ_CHAR_BUDGET
+    assert read.truncated is True
