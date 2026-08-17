@@ -8719,6 +8719,32 @@ def _cortex_is_cold_loading(lane: object) -> bool:
         return False
 
 
+def _fallback_ladder_identity() -> str:
+    """The identity the runtime already defines, for the small model to use.
+
+    Handed the bare user text with no identity, the 1.5B answered "hey, are you
+    there?" with "I'm not getting any traffic. I'm just sitting here." — not
+    wrong exactly, just nobody in particular.
+
+    This reads core/identity_base.txt, the same file the main identity is built
+    from, rather than inventing a persona here. A fallback that speaks as
+    someone else is a different failure from one that stays quiet, and the
+    point of the ladder is that she is still the one answering.
+    """
+
+    try:
+        from core.identity import CORE_DIR
+
+        base = (CORE_DIR / "identity_base.txt").read_text(encoding="utf-8")
+    except (ImportError, AttributeError, OSError, ValueError):
+        return ""
+    return (
+        f"{base.strip()}\n\n"
+        "You are answering while your main model is still loading, so keep the "
+        "reply short and direct. Answer what was actually asked."
+    )
+
+
 def _strip_scaffolding_tags(raw: object) -> str:
     """Remove prompt scaffolding a small model echoed into its answer.
 
@@ -8777,6 +8803,7 @@ async def _answer_from_fallback_ladder(user_message: object, *, reason: str) -> 
         raw = await asyncio.wait_for(
             router.think(
                 text,
+                system_prompt=_fallback_ladder_identity(),
                 prefer_tier="tertiary",
                 prefer_endpoint=FALLBACK_ENDPOINT,
                 foreground_request=True,

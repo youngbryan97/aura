@@ -133,3 +133,39 @@ def test_ordinary_prose_is_untouched(monkeypatch) -> None:
     reply = _run(chat_module._answer_from_fallback_ladder("hi", reason="x"))
 
     assert reply.startswith("I'm here, still waking up.")
+
+
+# ── the fallback must still be HER ───────────────────────────────────────────
+#
+# LIVE 2026-08-17: handed the bare user text with no identity, the 1.5B
+# answered "hey, are you there?" with "I'm not getting any traffic. I'm just
+# sitting here." Not wrong exactly — just nobody in particular.
+
+def test_the_ladder_speaks_with_her_identity(monkeypatch) -> None:
+    router = _Router()
+    monkeypatch.setattr("core.brain.llm_health_router.get_llm_router", lambda: router)
+
+    _run(chat_module._answer_from_fallback_ladder("hi", reason="x"))
+
+    system_prompt = router.calls[0][3].get("system_prompt") or ""
+    assert "Aura" in system_prompt
+
+
+def test_the_identity_comes_from_the_canonical_file() -> None:
+    """Not a persona invented at the call site."""
+    from pathlib import Path
+
+    from core.identity import CORE_DIR
+
+    identity = chat_module._fallback_ladder_identity()
+    canonical = Path(CORE_DIR / "identity_base.txt").read_text(encoding="utf-8").strip()
+
+    assert canonical[:80] in identity
+
+
+def test_a_missing_identity_file_does_not_break_the_ladder(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "core.identity.CORE_DIR", __import__("pathlib").Path("/nonexistent-dir")
+    )
+
+    assert chat_module._fallback_ladder_identity() == ""
