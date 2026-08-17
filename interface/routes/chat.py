@@ -8760,13 +8760,32 @@ async def _answer_from_fallback_ladder(user_message: object, *, reason: str) -> 
             action=f"fallback ladder could not answer while cortex was unavailable ({reason[:80]})",
         )
         return ""
+    ladder_chain: list = []
     if isinstance(raw, dict):
+        ladder_chain = list(raw.get("fallback_chain") or [])
         raw = raw.get("content") or raw.get("response") or ""
     answer = str(raw or "").strip()
     if not answer:
+        # Name the blocker. "empty answer" describes the outcome and hides the
+        # cause, and the router already knows which guard skipped which
+        # endpoint — it records a reason for every skip.
+        detail = ""
+        try:
+            chain = ladder_chain or getattr(router, "last_fallback_chain", None) or []
+            skips = [
+                f"{c.get('endpoint')}:{c.get('skip_reason') or c.get('status')}"
+                for c in chain
+                if isinstance(c, dict)
+            ]
+            detail = (
+                f" last_error={getattr(router, 'last_background_error', '')!r}"
+                f" chain={skips}"
+            )[:300]
+        except (AttributeError, TypeError, ValueError):
+            detail = ""
         record_degradation(
             "chat.fallback_ladder",
-            RuntimeError("fallback ladder returned an empty answer"),
+            RuntimeError(f"fallback ladder returned an empty answer;{detail}"),
             action="cortex unavailable and the ladder produced nothing",
         )
         return ""
