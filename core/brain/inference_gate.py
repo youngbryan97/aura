@@ -4210,6 +4210,42 @@ class InferenceGate:
         # or the primary timeout, whichever is greater.
         return max(180.0, float(primary_timeout))
 
+    async def _await_warmup_deferral_clear(
+        self,
+        *,
+        deadline: float,
+        context: str,
+        initial_reason: str,
+    ) -> str:
+        """Poll until the warmup deferral lifts, or the budget runs out.
+
+        Returns "" when it cleared and the caller may proceed, or the last
+        reason when it did not. Backpressure is a wait; only an exhausted
+        budget is a failure.
+        """
+
+        reason = str(initial_reason or "")
+        announced = False
+        while reason and time.monotonic() < deadline:
+            if is_shutdown_requested():
+                return reason
+            if not announced:
+                logger.info(
+                    "⏳ Cortex warmup deferred (%s); holding the turn for up to "
+                    "%.0fs rather than answering with a failure.",
+                    reason,
+                    max(0.0, deadline - time.monotonic()),
+                )
+                announced = True
+            await asyncio.sleep(0.5)
+            lane = self.get_conversation_status()
+            if self._lane_can_attempt_visible_conversation_turn(lane):
+                return ""
+            reason = str(self._cortex_warmup_deferral_reason(context) or "")
+        if not reason and announced:
+            logger.info("✅ Cortex warmup deferral cleared; the turn proceeds.")
+        return reason
+
     async def ensure_foreground_ready(self, timeout: float | None = None) -> dict[str, Any]:  # noqa: ASYNC109
         """Ensure the 32B conversation lane has actually attempted warmup for this turn."""
         if is_shutdown_requested():
@@ -4257,6 +4293,9 @@ class InferenceGate:
             raise RuntimeError("foreground_lane_unavailable")
 
         task: asyncio.Task | None = None
+        # The turn's own budget, minus a slice so a cleared deferral still
+        # leaves time for the warmup it was waiting for.
+        deferral_deadline = time.monotonic() + max(0.0, float(timeout) * 0.6)
         try:
             async with _thread_lock_context(
                 self._foreground_ready_lock,
@@ -4277,6 +4316,28 @@ class InferenceGate:
                         )
                         gc.collect()
                         warmup_deferral = self._cortex_warmup_deferral_reason("foreground")
+                    if warmup_deferral:
+                        # A deferral says "not yet", not "no". Raising here
+                        # spent the turn instantly and handed the person a
+                        # canned failure while the budget it was given went
+                        # unused.
+                        #
+                        # LIVE 2026-08-17: the first message after launch died
+                        # in 15s with "the live answer lane could not finish
+                        # preparing", on a 90s budget, with last_ready_at=0.0
+                        # and no foreign lane owner. Nothing had timed out —
+                        # the cortex prewarm was standing down behind the
+                        # foreground chat-dependency owner, and that deferral
+                        # was reported as a lane failure. Ten seconds later the
+                        # same message served normally.
+                        #
+                        # So wait it out. Re-check until the deferral clears or
+                        # the budget really is gone; only then is it a failure.
+                        warmup_deferral = await self._await_warmup_deferral_clear(
+                            deadline=deferral_deadline,
+                            context="foreground",
+                            initial_reason=warmup_deferral,
+                        )
                     if warmup_deferral:
                         self._log_cortex_warmup_deferral(warmup_deferral, context="foreground")
                         if hasattr(self._mlx_client, "note_lane_recovering"):
