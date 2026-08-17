@@ -43,9 +43,14 @@ def test_action_executor_owns_one_context_bound_admission(monkeypatch):
     assert calls[0]["domain"] is ActionDomain.TOOL_EXECUTION
     assert calls[0]["source"] == "curiosity"
     assert calls[0]["priority"] == 0.7
-    assert calls[0]["context"] == {
-        "standing_authority_token": "signed-test-token"
-    }
+    # The token is the contract; the rest of the context is provenance the
+    # executor is free to add. Exact-dict equality made this test fail the
+    # moment action_executor_action_name and action_executor_source were
+    # recorded alongside it — a strictly better receipt breaking a test that
+    # only cared about one key.
+    context = calls[0]["context"]
+    assert context["standing_authority_token"] == "signed-test-token"
+    assert context.get("action_executor_action_name") == "web_search"
     assert "web_search" in calls[0]["content"]
 
 
