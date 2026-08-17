@@ -8685,6 +8685,38 @@ def _boot_is_still_in_progress(phases: Any) -> bool:
     return (time.time() - last_transition) < _BOOT_TRANSITION_STALL_S
 
 
+def _cortex_is_cold_loading(lane: object) -> bool:
+    """True while the cortex is doing its one-time load for this process.
+
+    The admission budget is the turn's remaining time minus a reserve, and the
+    reserve normally includes 60s held back for producing an answer. During a
+    COLD load that subtraction is backwards: it deducts time for answering from
+    the time needed to become able to answer at all.
+
+    LIVE 2026-08-17, measured four times: the first message after launch died
+    at 15-16s every time. The foreground timeout is ~80s and the reserve is
+    64s, so admission got ~16s — while a 32B cold load needs well over a
+    minute. The turn could not have succeeded at any point during boot, and the
+    person got "the live answer lane could not finish preparing", which reads
+    as a fault rather than as a model still loading.
+
+    A cold load is a one-time wait a person who just launched an app expects to
+    pay. There is no answer to reserve for until the weights are up, so during
+    that window only the response reserve is held back.
+    """
+
+    if not isinstance(lane, dict):
+        return False
+    try:
+        if bool(lane.get("conversation_ready")):
+            return False
+        if bool(lane.get("has_generated_successfully")):
+            return False  # served once already: this is a recovery, not a cold load
+        return float(lane.get("last_ready_at") or 0.0) <= 0.0
+    except (AttributeError, TypeError, ValueError):
+        return False
+
+
 async def _await_foreground_gate(*, budget_s: float) -> Any:
     """Return the inference gate, waiting for it if the runtime is still booting.
 
@@ -17309,8 +17341,12 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 admission_budget = min(
                     180.0,
                     _remaining_foreground_budget(
-                        reserve=_DESKTOP_COGNITIVE_MIN_REQUIRED_BUDGET_S
-                        + _DESKTOP_COGNITIVE_RESPONSE_RESERVE_S
+                        reserve=(
+                            _DESKTOP_COGNITIVE_RESPONSE_RESERVE_S
+                            if _cortex_is_cold_loading(lane)
+                            else _DESKTOP_COGNITIVE_MIN_REQUIRED_BUDGET_S
+                            + _DESKTOP_COGNITIVE_RESPONSE_RESERVE_S
+                        )
                     ),
                 )
                 try:
