@@ -669,6 +669,54 @@ def unsupported_sensory_claims(reply: Any, bundle: EvidenceBundle) -> list[str]:
     return unsupported
 
 
+def excise_unsupported_sensory_claims(reply: Any, bundle: Any = None) -> tuple[str, list[str]]:
+    """Remove the sentences that assert unreadable channels.
+
+    Returns (kept_text, removed_sentences).
+
+    Appending a correction leaves the invention in the answer and argues with
+    it underneath. The person still reads "the sun is shining", and a retraction
+    two lines down does not un-say it — it just makes the reply longer and asks
+    them to decide which half to believe.
+
+    Excision is the behaviour change: the claim is not made. What surrounds it
+    is untouched, because the rest of the answer is usually fine and deleting a
+    good reply over one ungrounded sentence trades one failure for another.
+    """
+
+    text = str(reply or "")
+    if not text.strip():
+        return text, []
+    if bundle is None:
+        bundle = resolve_shared_present()
+    states = {r.channel: r.present for r in bundle.readings}
+
+    def _unsupported(fragment: str) -> bool:
+        for pattern, channels, _subject in _CLAIM_CHANNELS:
+            if not pattern.search(fragment):
+                continue
+            if any(states.get(channel) for channel in channels):
+                continue
+            if not any(channel in states for channel in channels):
+                continue
+            return True
+        return False
+
+    # Split on sentence boundaries but KEEP them, so rejoining cannot fuse two
+    # sentences into one or drop the punctuation of a sentence that stays.
+    parts = re.split(r"(?<=[.!?])(\s+)", text)
+    kept: list[str] = []
+    removed: list[str] = []
+    for index in range(0, len(parts), 2):
+        sentence = parts[index]
+        separator = parts[index + 1] if index + 1 < len(parts) else ""
+        if sentence.strip() and _unsupported(sentence):
+            removed.append(sentence.strip())
+            continue
+        kept.append(sentence + separator)
+    return "".join(kept).strip(), removed
+
+
 def sensory_claim_correction(reply: Any, message: Any = "") -> str:
     """A correction to append when the reply claims senses she has no reading from.
 

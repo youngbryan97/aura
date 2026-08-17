@@ -452,9 +452,13 @@ def test_the_reply_path_applies_the_correction() -> None:
     source = inspect.getsource(chat._stabilize_user_facing_reply)
     assert "_append_sensory_claim_correction" in source
 
-    appended = chat._append_sensory_claim_correction("am I alone?", LIVE_FABRICATION)
-    assert str(appended).startswith("You're still here.")
-    assert "guess, not an observation" in str(appended)
+    # This used to assert the reply STARTED with the fabrication and carried a
+    # disclaimer underneath. Appending a correction is not a fix: the person
+    # still reads the invention, and a retraction below it does not un-say it.
+    # The claim is now removed, so what is asserted is that it is gone.
+    corrected = str(chat._append_sensory_claim_correction("am I alone?", LIVE_FABRICATION))
+    assert not corrected.startswith("You're still here.")
+    assert "I cut" in corrected
 
 
 # ── Her own actions, from the receipts that recorded them ──────────────────

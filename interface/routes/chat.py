@@ -13841,22 +13841,44 @@ def _correct_unsourced_self_metrics(reply_text: object) -> object:
 
 
 def _append_sensory_claim_correction(user_message: object, reply_text: object) -> object:
-    """Append a correction when a reply claims senses that have no reading.
+    """Remove claims about senses that have no reading, and say what was dropped.
 
-    Appended rather than suppressed: the rest of the answer is usually fine,
-    and deleting it would lose a good reply over one ungrounded sentence.
+    This used to APPEND a correction and leave the claim standing. That is not
+    a fix, it is an argument: the person still reads "the sun is shining", and
+    a retraction two lines below does not un-say it — it makes the reply longer
+    and asks them to decide which half to believe.
+
+    So the sentence goes. What surrounds it is untouched, because the rest of
+    the answer is usually fine and deleting a good reply over one ungrounded
+    sentence trades one failure for another. The disclosure that follows names
+    what was removed rather than hinting that something was.
     """
 
     try:
-        from core.introspection.self_evidence import sensory_claim_correction
+        from core.introspection.self_evidence import (
+            excise_unsupported_sensory_claims,
+            sensory_claim_correction,
+        )
 
+        kept, removed = excise_unsupported_sensory_claims(reply_text)
         correction = str(sensory_claim_correction(reply_text, user_message) or "").strip()
+        if removed:
+            dropped = " ".join(removed)[:200]
+            correction = (
+                f"I cut a sentence there — I had written {dropped!r}, and I have "
+                "no camera or microphone, so I could not have known that. "
+                "The rest stands."
+            )
     except _CHAT_RECOVERABLE_ERRORS as exc:
         record_degradation("chat", exc)
         return reply_text
-    if not correction:
+    if not removed:
         return reply_text
-    return f"{str(reply_text or '').rstrip()}\n\n{correction}"
+    if not kept.strip():
+        # The whole reply was the ungrounded claim. There is nothing to keep,
+        # so the absence IS the answer.
+        return correction or str(reply_text)
+    return f"{kept.rstrip()}\n\n{correction}"
 
 
 
