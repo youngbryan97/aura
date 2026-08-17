@@ -4126,18 +4126,43 @@ class InferenceGate:
             return False
         if not observations:
             return False
-        try:
-            mine = str(ProcessIdentity.current().pid)
-        except _INFERENCE_RECOVERABLE_ERRORS:
-            mine = ""
+        # Our own MLX worker is NOT a foreign owner, and matching this
+        # process's pid alone does not establish that.
+        #
+        # LIVE 2026-08-17: the first turn after launch refused at exactly
+        # 15.0s — this cap, to the tenth. model_lane_control builds owner ids
+        # as f"subprocess:{os.getpid()}:{request_id}" from INSIDE the worker,
+        # so Aura's own cortex loader carries the worker's pid and not
+        # aura_main's. An exact-pid test reads that as somebody else holding
+        # the lane, and short-caps the cold-boot warmup the cortex is in the
+        # middle of doing.
+        #
+        # Lineage is the real question: a pid in our own process tree is us.
+        own_pids = InferenceGate._own_process_tree_pids()
         for observation in observations:
             owner_id = str(getattr(observation, "owner_id", "") or "")
             if not owner_id:
                 continue
-            if mine and f":{mine}:" in owner_id:
+            if any(f":{pid}:" in owner_id for pid in own_pids):
                 continue  # our own lease is not a foreign holder
             return True
         return False
+
+    @staticmethod
+    def _own_process_tree_pids() -> frozenset[str]:
+        """This process, its ancestors and its descendants, as pid strings."""
+        pids: set[str] = set()
+        try:
+            pids.add(str(os.getpid()))
+            pids.add(str(os.getppid()))
+            proc = psutil.Process()
+            for parent in proc.parents():
+                pids.add(str(parent.pid))
+            for child in proc.children(recursive=True):
+                pids.add(str(child.pid))
+        except (psutil.Error, *_INFERENCE_RECOVERABLE_ERRORS):
+            pass
+        return frozenset(p for p in pids if p and p != "0")
 
     def _foreground_warmup_timeout(
         self, lane_status: dict[str, Any], primary_timeout: float

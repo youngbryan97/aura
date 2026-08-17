@@ -229,3 +229,57 @@ def test_the_kernel_level_is_a_real_reading_on_this_host() -> None:
     assert kernel_memory_pressure_level() in {
         "normal", "warn", "critical", "unknown",
     }
+
+
+# ── whose lane is it? ────────────────────────────────────────────────────────
+#
+# LIVE 2026-08-17: the first turn after launch refused at exactly 15.0s, this
+# cap to the tenth. model_lane_control builds owner ids as
+# f"subprocess:{os.getpid()}:{request_id}" from INSIDE the worker process, so
+# Aura's own cortex loader carries the worker's pid rather than aura_main's.
+# Matching on this process's pid alone called her own worker a foreign holder
+# and short-capped the cold-boot warmup she was in the middle of.
+
+def test_our_own_worker_subprocess_is_not_a_foreign_owner(monkeypatch) -> None:
+    import os
+
+    child_pid = 999_001
+
+    class _Obs:
+        owner_id = f"subprocess:{child_pid}:load-cortex"
+
+    monkeypatch.setattr(
+        InferenceGate, "_own_process_tree_pids",
+        staticmethod(lambda: frozenset({str(os.getpid()), str(child_pid)})),
+    )
+    monkeypatch.setattr(
+        "core.runtime.model_lane_control.get_model_lane_controller",
+        lambda: type("C", (), {"owner_observations": staticmethod(lambda: [_Obs()])})(),
+    )
+
+    assert InferenceGate._foreign_owner_holds_model_lane() is False
+
+
+def test_a_genuinely_foreign_trainer_is_still_detected(monkeypatch) -> None:
+    """The CP399 training run really did own the lane; that must still count."""
+    import os
+
+    class _Obs:
+        owner_id = "standalone:96317:train-unified-intrinsic:cp399-broad-process-1p5b"
+
+    monkeypatch.setattr(
+        InferenceGate, "_own_process_tree_pids",
+        staticmethod(lambda: frozenset({str(os.getpid())})),
+    )
+    monkeypatch.setattr(
+        "core.runtime.model_lane_control.get_model_lane_controller",
+        lambda: type("C", (), {"owner_observations": staticmethod(lambda: [_Obs()])})(),
+    )
+
+    assert InferenceGate._foreign_owner_holds_model_lane() is True
+
+
+def test_the_process_tree_includes_self() -> None:
+    import os
+
+    assert str(os.getpid()) in InferenceGate._own_process_tree_pids()
