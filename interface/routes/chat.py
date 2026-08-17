@@ -8662,8 +8662,21 @@ def _boot_is_still_in_progress(phases: Any) -> bool:
     try:
         if phases.ready():
             return False
-        if getattr(phases, "last_change", None) is None:
-            return False
+        # NOT `last_change is None`. That field holds a human-readable string
+        # ("organ: starting -> ready") which BootPhases only sets once some
+        # organ has actually transitioned, so it is None during EARLY boot —
+        # exactly the window where a turn most needs to wait.
+        #
+        # LIVE 2026-08-17: the first message typed after launch was answered
+        # with "the live answer lane could not finish preparing", and the
+        # "waiting up to Ns for boot" line was logged ZERO times, because this
+        # predicate returned False before it ever reached the timestamp it
+        # wanted. Ten seconds later the same message served normally.
+        #
+        # The intent — do not wait on machinery that never ran — is carried by
+        # last_transition_at, which BootPhases initialises to started_at and
+        # bumps on every transition. If nothing is running, it is stale, and
+        # the staleness check below already declines to wait.
         last_transition = float(getattr(phases, "last_transition_at", 0.0) or 0.0)
     except _CHAT_RECOVERABLE_ERRORS:
         return False
