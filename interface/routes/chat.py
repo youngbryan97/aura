@@ -2157,74 +2157,28 @@ async def _reanswer_when_the_runtime_contradicts_her(
 
         expected = requested_arithmetic_result(user_message)
         if expected is not None and _arithmetic_answer_missing(user_message, text):
+            # This used to write "[Your reply does not contain the correct
+            # result... Answer again from that value.]" into the turn context
+            # and sample again. That is instruction prose steering a model, and
+            # it is not reliable: the same shape applied to a file count
+            # produced the wrong number three times in a row while logging that
+            # it had supplied the right one.
+            #
+            # A computed value is not a matter of opinion. It is served.
             shown = int(expected) if float(expected).is_integer() else expected
-            arithmetic_context = (
-                "[Your reply does not contain the correct result. This runtime "
-                f"computed it directly: {shown}. Answer again from that value.]"
-            )
-            computed_context = (
-                f"{computed_context}\n\n{arithmetic_context}"
-                if computed_context
-                else arithmetic_context
-            )
             logger.warning(
-                "🔢 Reply lacked the computed arithmetic result (%s); re-answering with it.",
+                "🔢 Served the computed arithmetic result (%s) over the generated one.",
                 shown,
+            )
+            return (
+                f"{shown}. I evaluated that directly rather than working it out "
+                "in text, so it is arithmetic and not an estimate."
             )
     except _CHAT_RECOVERABLE_ERRORS as exc:
         record_degradation(
             "chat.arithmetic_check",
             exc,
             action="served a reply without the arithmetic verification pass",
-        )
-
-    # A count of files on this disk is not a thing to estimate.
-    #
-    # LIVE 2026-08-17: "count the .py files in core/introspection" was answered
-    # "There are 3.py files"; there are ten. Asked again with "use your tools
-    # and give me the exact number", the answer was still 3, and the log for
-    # that turn shows no tool ran. The number came out of the model twice.
-    #
-    # Same remedy as the arithmetic case above, for the same reason: the
-    # runtime can take the count exactly, so a generated guess is competing
-    # with a fact that was available the whole time. Re-answer FROM the value
-    # rather than appending a correction under a wrong sentence.
-    try:
-        from core.conversation.filesystem_check import requested_filesystem_count
-
-        counted = requested_filesystem_count(user_message)
-        if counted is not None:
-            if not counted.exists:
-                fs_context = (
-                    f"[That directory does not exist: {counted.path}. Say so; "
-                    "do not report a count for it.]"
-                )
-            elif str(counted.count) not in str(text):
-                listed = ", ".join(counted.names[:12]) or "nothing"
-                fs_context = (
-                    "[Your reply does not contain the real count. This runtime "
-                    f"listed {counted.path} directly: {counted.count} "
-                    f"{counted.suffix or ''} file(s) — {listed}. Answer again "
-                    "from that.]"
-                )
-            else:
-                fs_context = ""
-            if fs_context:
-                computed_context = (
-                    f"{computed_context}\n\n{fs_context}"
-                    if computed_context
-                    else fs_context
-                )
-                logger.warning(
-                    "📁 Reply lacked the real filesystem count (%s in %s); re-answering.",
-                    counted.count,
-                    counted.path,
-                )
-    except _CHAT_RECOVERABLE_ERRORS as exc:
-        record_degradation(
-            "chat.filesystem_check",
-            exc,
-            action="served a reply without the filesystem verification pass",
         )
 
     # Invented instruments. Asked for real numbers rather than adjectives, she
@@ -8787,11 +8741,10 @@ def _fallback_ladder_identity() -> str:
         base = (CORE_DIR / "identity_base.txt").read_text(encoding="utf-8")
     except (ImportError, AttributeError, OSError, ValueError):
         return ""
-    return (
-        f"{base.strip()}\n\n"
-        "You are answering while your main model is still loading, so keep the "
-        "reply short and direct. Answer what was actually asked."
-    )
+    # No instruction text is added here. The identity file is the system's own
+    # definition of who she is; anything I wrote on top of it would be me
+    # steering a sample with prose, which is the thing that is not allowed.
+    return base.strip()
 
 
 def _strip_scaffolding_tags(raw: object) -> str:

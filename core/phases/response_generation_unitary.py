@@ -1904,12 +1904,15 @@ class UnitaryResponsePhase(Phase):
             return None
         if not grounding.grounded:
             return None
-        lines = [
-            "[ACTIVE GROUNDING EVIDENCE]",
-            "Reference passages retrieved from the local corpus for this turn.",
-            "Use them as the authoritative basis for factual claims here, and "
-            "prefer their wording on definitions over your own recollection.",
-        ]
+        # The passages are supplied as EVIDENCE. No instruction prose is added
+        # telling the model how to weigh them — that would be me steering a
+        # sample with writing, and it is unreliable besides: the same technique
+        # applied to a file count re-stated the wrong number three times while
+        # the right one sat in the context.
+        #
+        # The header is the one this channel already uses for skill results, so
+        # a corpus passage arrives the same way a web_search result does.
+        lines = ["[ACTIVE GROUNDING EVIDENCE]"]
         lines.extend(grounding.render())
         return {"role": "system", "content": "\n".join(lines)}
 
