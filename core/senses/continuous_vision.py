@@ -132,18 +132,36 @@ class ContinuousSensoryBuffer:
 
     @staticmethod
     def _compute_budget():
-        """Dynamic cadence for this always-on but non-foreground sense."""
-        from core.runtime.background_policy import constitutive_compute_budget
+        """Dynamic cadence for this sense: idle courtesy, or task cadence.
 
+        base_hz stays 0.5 and foreground_hz stays 0.1 — while nobody needs to
+        see, staying out of the way of a user-facing turn is right.
+
+        What changes is that "a generation is running" no longer means the
+        same thing in both directions. When a task has claimed perception,
+        this loop is not competing with the foreground turn, it IS the turn's
+        eyes, and clamping it to 0.1Hz meant she went nearly blind at the exact
+        moment she started acting. Anything built on look-act-look was
+        unreachable, silently: one frame every ten seconds, no error, no log.
+
+        Memory pressure, compute pressure, proof runs and failure pressure are
+        untouched and still throttle this loop, because those protect the host
+        rather than arbitrating between two kinds of work.
+        """
+        from core.runtime.background_policy import constitutive_compute_budget
+        from core.runtime.perception_demand import perception_is_demanded
+
+        demanded = perception_is_demanded()
         return constitutive_compute_budget(
             "continuous_sensory_buffer",
-            0.5,
+            2.0 if demanded else 0.5,
             min_hz=0.1,
             foreground_hz=0.1,
             memory_high_hz=0.2,
             memory_critical_hz=0.1,
             compute_pressure_hz=0.1,
             failure_pressure_hz=0.1,
+            serves_foreground=demanded,
         )
 
     def start(self):

@@ -398,6 +398,7 @@ def constitutive_compute_budget(
     compute_pressure_hz: float = 1.0,
     failure_pressure_hz: float = 1.0,
     max_failure_pressure: float = 0.75,
+    serves_foreground: bool = False,
 ) -> ConstitutiveComputeBudget:
     """Return a safe update budget for continuous constitutive loops.
 
@@ -451,8 +452,29 @@ def constitutive_compute_budget(
     foreground_reason = _foreground_activity_reason()
     if foreground_reason:
         foreground_active = True
-        effective = min(effective, _bounded_hz(foreground_hz, lower=floor, upper=base))
-        reason = foreground_reason
+        if serves_foreground:
+            # This loop is not COMPETING with the foreground turn, it is what
+            # the turn is made of.
+            #
+            # The clamp below exists so constitutive machinery cannot steal
+            # cycles from a user-facing generation. Applied to perception that
+            # the generation DEPENDS ON, it does the opposite of its purpose:
+            # continuous_vision passes foreground_hz=0.1, so the instant she
+            # began working on a request her sight dropped to one frame every
+            # ten seconds — she went nearly blind exactly while acting. Any
+            # task needing look-act-look — dragging something, watching a
+            # progress bar, reacting to a game, verifying a click landed — is
+            # unreachable at that cadence, and the cause is invisible because
+            # nothing failed and no error was raised.
+            #
+            # Only THIS clamp is skipped. Memory pressure, compute pressure,
+            # proof runs and failure pressure still apply below, because those
+            # protect the host rather than arbitrating between two kinds of
+            # work.
+            reason = f"{foreground_reason}+serving_foreground"
+        else:
+            effective = min(effective, _bounded_hz(foreground_hz, lower=floor, upper=base))
+            reason = foreground_reason
 
     compute_reason = _read_compute_pressure_reason()
     if compute_reason:
