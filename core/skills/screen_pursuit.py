@@ -60,6 +60,21 @@ class ScreenPursuitInput(BaseModel):
     #: case-insensitively against the reading, as a regular expression when it
     #: is one and as plain text otherwise.
     success_when: str = Field(..., min_length=1, max_length=200)
+    #: Restrict the match to a horizontal band of the screen, top-down, 0..1.
+    #:
+    #: Needed the moment this meets a real page. On play2048.co the word "2048"
+    #: appears in the browser tab, the page heading and a welcome modal — all
+    #: above y=0.15 — while the board tiles sit between y=0.25 and y=0.85. A
+    #: whole-reading match for "2048" therefore succeeds before a single move
+    #: is made, and the loop reports victory on the title.
+    #:
+    #: Nothing here is about 2048. Any page whose chrome repeats the word being
+    #: waited for has the same problem: a build log inside a window titled with
+    #: the branch name, a progress dialog in an app whose name contains
+    #: "complete". The band is how a caller says "in the content, not the
+    #: furniture".
+    success_region_top: float = Field(default=0.0, ge=0.0, le=1.0)
+    success_region_bottom: float = Field(default=1.0, ge=0.0, le=1.0)
     max_cycles: int = Field(default=200, ge=1, le=2000)
     max_seconds: float = Field(default=600.0, ge=1.0, le=3600.0)
     narrate: bool = Field(default=True)
@@ -82,23 +97,64 @@ async def read_screen() -> dict[str, Any]:
     }
 
 
-def goal_reached(observation: dict[str, Any], success_when: str) -> bool:
+def _matches(pattern: str, text: str) -> bool:
+    """Regex when the pattern is one, plain text when it is not."""
+    try:
+        return re.search(pattern, text, re.IGNORECASE) is not None
+    except re.error:
+        return pattern.lower() in text.lower()
+
+
+def goal_reached(
+    observation: dict[str, Any],
+    success_when: str,
+    *,
+    region_top: float = 0.0,
+    region_bottom: float = 1.0,
+) -> bool:
     """Whether this reading shows the goal met.
 
     Tested against what was actually read, not against a belief about what the
     action should have done. That distinction is the reason to look again at
     all: an action that ran is not an action that worked.
+
+    When a band is given, only text whose measured position falls inside it
+    counts. The layout was already being returned by every reading and this
+    function ignored it, so the goal could be satisfied by the browser tab
+    rather than the content — on play2048.co the word "2048" is in the tab, the
+    heading and a welcome modal, and the board is 300 pixels below all three.
+    A predicate that cannot say WHERE is a predicate that reports victory on
+    the furniture.
     """
-    text = str(observation.get("text") or "")
-    if not text:
-        return False
     pattern = str(success_when or "").strip()
     if not pattern:
         return False
-    try:
-        return re.search(pattern, text, re.IGNORECASE) is not None
-    except re.error:
-        return pattern.lower() in text.lower()
+
+    band_is_whole_screen = region_top <= 0.0 and region_bottom >= 1.0
+    if band_is_whole_screen:
+        text = str(observation.get("text") or "")
+        return bool(text) and _matches(pattern, text)
+
+    layout = observation.get("layout") or []
+    if not layout:
+        # A band was asked for and no geometry came back. Refusing is the
+        # honest answer: matching the flat text would silently ignore the
+        # constraint the caller added precisely because it mattered.
+        return False
+    top, bottom = (region_top, region_bottom) if region_top <= region_bottom else (
+        region_bottom,
+        region_top,
+    )
+    for region in layout:
+        try:
+            y = float(region.get("center_y", region.get("y", -1.0)))
+        except (TypeError, ValueError):
+            continue
+        if not (top <= y <= bottom):
+            continue
+        if _matches(pattern, str(region.get("text") or "")):
+            return True
+    return False
 
 
 async def press(key: str) -> bool:
@@ -143,6 +199,8 @@ class ScreenPursuitSkill(BaseSkill):
             max_cycles=params.max_cycles,
             max_seconds=params.max_seconds,
             narrate=params.narrate,
+            region_top=params.success_region_top,
+            region_bottom=params.success_region_bottom,
         )
 
 
@@ -154,6 +212,8 @@ async def pursue_on_screen(
     max_cycles: int = 200,
     max_seconds: float = 600.0,
     narrate: bool = True,
+    region_top: float = 0.0,
+    region_bottom: float = 1.0,
 ) -> dict[str, Any]:
     """Run the loop. Returns the receipt the executor produced.
 
@@ -175,7 +235,12 @@ async def pursue_on_screen(
             return {"ok": False, "text": "", "layout": [], "error": "observe_timeout"}
 
     def satisfied(observation: dict[str, Any]) -> bool:
-        return goal_reached(observation, success_when)
+        return goal_reached(
+            observation,
+            success_when,
+            region_top=region_top,
+            region_bottom=region_bottom,
+        )
 
     async def decide(observation: dict[str, Any]) -> Step | None:
         if policy is None or not observation.get("ok"):
@@ -220,6 +285,7 @@ async def pursue_on_screen(
     result = receipt.to_dict()
     result["moves"] = moves
     result["success_when"] = success_when
+    result["success_region"] = [region_top, region_bottom]
     return result
 
 

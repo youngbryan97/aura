@@ -161,3 +161,77 @@ def test_a_policy_that_raises_does_not_kill_the_run(screen):
     result = _run(success_when="NOPE", policy=broken, max_cycles=10)
 
     assert result["outcome"] == "no_move_available"
+
+
+# ── Position-scoped goals ─────────────────────────────────────────────────
+#
+# Measured on the real play2048.co, 2026-08-18. The word being waited for is
+# all over the furniture:
+#
+#     y=0.043  '2048'              (browser tab)
+#     y=0.137  '= 2048'            (page heading)
+#     y=0.141  'WELCOME TO 2048!'  (welcome modal)
+#     y=0.503  '2'                 (a board tile)
+#     y=0.611  '2'                 (a board tile)
+#
+# A whole-reading match for "2048" therefore succeeds before a single move is
+# made. Nothing about this is 2048-specific: any page whose chrome repeats the
+# word being waited for has it — a build log in a window titled with the
+# branch, a progress dialog in an app whose name contains "complete".
+
+REAL_PAGE = {
+    "text": "2048 = 2048 WELCOME TO 2048! New Game 2 2",
+    "layout": [
+        {"text": "2048", "center_y": 0.043},
+        {"text": "= 2048", "center_y": 0.137},
+        {"text": "WELCOME TO 2048!", "center_y": 0.141},
+        {"text": "New Game", "center_y": 0.148},
+        {"text": "2", "center_y": 0.503},
+        {"text": "2", "center_y": 0.611},
+    ],
+}
+
+BOARD_BAND = {"region_top": 0.25, "region_bottom": 0.85}
+
+
+def test_a_whole_screen_match_declares_victory_on_the_page_title():
+    """The defect, pinned: this is why a band is needed at all."""
+    assert sp.goal_reached(REAL_PAGE, r"\b2048\b") is True
+
+
+def test_scoping_to_the_board_rejects_the_title():
+    assert sp.goal_reached(REAL_PAGE, r"\b2048\b", **BOARD_BAND) is False
+
+
+def test_a_real_tile_inside_the_band_wins():
+    page = {**REAL_PAGE, "layout": REAL_PAGE["layout"] + [{"text": "2048", "center_y": 0.55}]}
+
+    assert sp.goal_reached(page, r"\b2048\b", **BOARD_BAND) is True
+
+
+def test_a_band_without_geometry_refuses_rather_than_ignoring_it():
+    """Falling back to flat text would discard the constraint that mattered."""
+    assert sp.goal_reached({"text": "2048", "layout": []}, r"\b2048\b", **BOARD_BAND) is False
+
+
+def test_an_inverted_band_is_read_as_a_band():
+    page = {**REAL_PAGE, "layout": REAL_PAGE["layout"] + [{"text": "2048", "center_y": 0.55}]}
+
+    assert sp.goal_reached(page, r"\b2048\b", region_top=0.85, region_bottom=0.25) is True
+
+
+def test_the_default_is_still_the_whole_screen():
+    """A caller that does not care about position must not have to say so."""
+    assert sp.goal_reached({"text": "DONE", "layout": []}, "DONE") is True
+
+
+def test_the_band_reaches_the_loop_and_is_reported(screen):
+    """Wiring: a band that the loop ignores is worse than no band."""
+    result = _run(
+        success_when=r"\bDONE\b", policy=_alternating, max_cycles=4, **BOARD_BAND
+    )
+
+    assert result["success_region"] == [0.25, 0.85]
+    # The fake screen returns no layout, so a banded goal can never be met —
+    # which is the honest outcome, not a silent fall back to the flat text.
+    assert result["completed"] is False
