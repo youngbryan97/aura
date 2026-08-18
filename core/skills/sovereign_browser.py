@@ -2,10 +2,24 @@ import asyncio
 import hashlib
 import logging
 import random
+import json
 import re
 import time
 import urllib.parse
 from collections.abc import Mapping
+
+#: A decision round must never take the browser down with it. The loop can
+#: always report a failed round and stop; it can never leave a live lease and a
+#: half-driven page behind because the model call raised.
+_BROWSER_DECISION_ERRORS = (
+    AttributeError,
+    ConnectionError,
+    OSError,
+    RuntimeError,
+    TimeoutError,
+    TypeError,
+    ValueError,
+)
 from typing import Any, Literal, Self
 
 from pydantic import BaseModel, Field, model_validator
@@ -69,13 +83,26 @@ class BrowserAction(BaseModel):
         return self
 
 class BrowserInput(BaseModel):
-    mode: Literal["search", "browse", "interact"] = Field(
+    mode: Literal["search", "browse", "interact", "pursue"] = Field(
         "search",
         description="Browser operation mode.",
     )
     query: str | None = Field(None, description="Search query for 'search' mode.")
     url: str | None = Field(None, description="URL for 'browse' or 'interact' mode.")
     actions: list[BrowserAction] | None = Field(None, description="Sequence of actions for 'interact' mode.")
+    goal: str | None = Field(
+        None,
+        description=(
+            "For 'pursue' mode: what to accomplish on the page, in plain words. "
+            "The loop decides each step from what the page actually shows."
+        ),
+    )
+    max_steps: int = Field(
+        40,
+        ge=1,
+        le=200,
+        description="For 'pursue' mode: how many observe/decide/act rounds before stopping.",
+    )
     deep: bool = Field(False, description="Whether to deep-dive by reading the first non-ad search result.")
     browser_type: Literal["auto", "chromium", "firefox", "webkit"] = "auto"
 
@@ -97,6 +124,10 @@ class BrowserInput(BaseModel):
             self.url = url
         if self.mode == "interact" and not self.actions:
             raise ValueError("interact mode requires at least one action")
+        if self.mode == "pursue":
+            self.goal = str(self.goal or "").strip()
+            if not self.goal:
+                raise ValueError("pursue mode requires a goal")
         return self
 
 class SovereignBrowserSkill(BaseSkill):
@@ -351,6 +382,14 @@ class SovereignBrowserSkill(BaseSkill):
                             action_context=action_context,
                         ),
                         timeout=self.INTERACTION_TIMEOUT,
+                    )
+                elif params.mode == "pursue":
+                    return await self._handle_pursue(
+                        browser,
+                        params.url,
+                        params.goal or "",
+                        params.max_steps,
+                        action_context=action_context,
                     )
                 else:
                     return {"ok": False, "error": f"Unsupported browser mode: {params.mode}"}
@@ -719,6 +758,250 @@ class SovereignBrowserSkill(BaseSkill):
                 else "The browser interaction sequence stopped before every action completed."
             ),
             "error": "" if completed else "browser_interaction_incomplete",
+        }
+
+    #: How many of the page's own words travel with the element list. The
+    #: controls say what can be done; this says what is being asked, and a
+    #: questionnaire is unanswerable without it.
+    PURSUE_TEXT_BUDGET = 1800
+    #: Consecutive rounds that change neither the URL nor the set of controls
+    #: before the loop concedes. Two is enough to distinguish a slow page from
+    #: a wall: the first repeat may be a re-render, the second is a loop.
+    PURSUE_STALL_LIMIT = 2
+
+    @staticmethod
+    def _observation_signature(observation: Mapping[str, Any]) -> str:
+        """What would have to change for progress to have been made."""
+        elements = observation.get("elements") or []
+        marks = "|".join(
+            f"{element.get('role')}:{element.get('name')}:{element.get('checked')}"
+            for element in elements[:60]
+        )
+        return f"{observation.get('url')}#{marks}"
+
+    @staticmethod
+    def _render_observation(observation: Mapping[str, Any]) -> str:
+        """The page as the decision sees it: what it says, and what it offers."""
+        elements = observation.get("elements") or []
+        lines = [
+            f"URL: {observation.get('url')}",
+            f"Title: {observation.get('title')}",
+            "",
+            "PAGE TEXT:",
+            str(observation.get("text") or "")[: SovereignBrowserSkill.PURSUE_TEXT_BUDGET],
+            "",
+            "AVAILABLE CONTROLS:",
+        ]
+        for index, element in enumerate(elements):
+            state = []
+            if element.get("checked") is True:
+                state.append("already selected")
+            if element.get("value"):
+                state.append(f"value={element['value']}")
+            suffix = f" ({', '.join(state)})" if state else ""
+            lines.append(
+                f"[{index}] {element.get('role')} \u2014 {element.get('name')}{suffix}"
+            )
+        return "\n".join(lines)
+
+    async def _decide_next_actions(
+        self, goal: str, observation: Mapping[str, Any], history: list[dict[str, Any]]
+    ) -> dict[str, Any]:
+        """Ask her own reasoning what to do with this page.
+
+        The loop supplies perception and executes the result; the choosing is
+        hers. Nothing here knows what kind of page this is — no questionnaire
+        branch, no site rules — because a loop that recognises page types is a
+        collection of special cases wearing a general name.
+
+        Several actions may come back at once. A page showing six independent
+        questions is six decisions, and asking the model once per control turns
+        a sixty-item form into sixty model calls; batching what is genuinely
+        independent is the difference between minutes and most of an hour.
+        """
+
+        from core.container import ServiceContainer
+
+        router = ServiceContainer.get("llm_router", default=None)
+        generate = getattr(router, "generate", None) if router is not None else None
+        if not callable(generate):
+            return {"error": "llm_router_unavailable"}
+
+        done_so_far = ""
+        if history:
+            recent = history[-3:]
+            done_so_far = "RECENT STEPS:\n" + "\n".join(
+                f"- {entry.get('why', '')[:160]}" for entry in recent
+            )
+
+        prompt = (
+            f"GOAL: {goal}\n\n"
+            f"{self._render_observation(observation)}\n\n"
+            f"{done_so_far}\n\n"
+            "Choose the next actions on this page that advance the goal. Answer "
+            "with JSON only:\n"
+            '{"actions": [{"index": <int>, "type": "click"|"type"|"scroll", '
+            '"value": "<text for type, up/down for scroll>"}], '
+            '"why": "<one sentence, first person, why these>", "done": false}\n'
+            "Set done to true only when the goal is fully accomplished on this "
+            "page. Use the index numbers exactly as listed above."
+        )
+        try:
+            raw = await generate(prompt, max_tokens=400, temperature=0.2)
+        except _BROWSER_DECISION_ERRORS as exc:
+            record_degradation("sovereign_browser.decide", exc)
+            return {"error": f"decision_failed:{type(exc).__name__}"}
+        return self._parse_decision(str(raw or ""))
+
+    @staticmethod
+    def _parse_decision(raw: str) -> dict[str, Any]:
+        """The decision, however the model wrapped it.
+
+        Models put JSON inside prose, inside code fences, or after a preamble.
+        Refusing anything but a bare object turns a correct decision into a
+        failed step, so the object is located rather than demanded.
+        """
+        text = str(raw or "").strip()
+        if not text:
+            return {"error": "empty_decision"}
+        fenced = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
+        candidate = fenced.group(1) if fenced else None
+        if candidate is None:
+            start = text.find("{")
+            end = text.rfind("}")
+            candidate = text[start : end + 1] if start != -1 and end > start else ""
+        if not candidate:
+            return {"error": "no_json_in_decision", "raw": text[:200]}
+        try:
+            parsed = json.loads(candidate)
+        except (json.JSONDecodeError, ValueError):
+            return {"error": "unparsable_decision", "raw": candidate[:200]}
+        if not isinstance(parsed, dict):
+            return {"error": "decision_not_an_object"}
+        actions = parsed.get("actions")
+        parsed["actions"] = actions if isinstance(actions, list) else []
+        return parsed
+
+    async def _handle_pursue(
+        self,
+        browser: PhantomBrowser,
+        url: str | None,
+        goal: str,
+        max_steps: int,
+        *,
+        action_context: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Work a page toward a goal, deciding each round from what it shows.
+
+        `interact` executes a list of actions written in advance, which
+        presumes every selector is known before the first click. That is an
+        open loop, and it cannot carry a flow whose next screen depends on the
+        answer given to the last one.
+
+        This closes it: observe, decide, act, observe again. Execution is
+        delegated to `_handle_interact` unchanged, so the lease, the
+        ActionExecutor receipt, the origin check and the effect verification
+        all still apply exactly as they do to a scripted interaction — the loop
+        adds perception and choice, and takes no authority of its own.
+        """
+
+        if url and not await self._safe_browse(browser, url):
+            return {"ok": False, "error": f"Failed to load start URL: {url}"}
+
+        steps: list[dict[str, Any]] = []
+        stalled = 0
+        last_signature = ""
+        observation: dict[str, Any] = {}
+        completed = False
+
+        for _round in range(max(1, int(max_steps))):
+            observation = await browser.observe(principal="owner")
+            if not observation or not observation.get("elements"):
+                steps.append({"error": "page_not_observable"})
+                break
+
+            signature = self._observation_signature(observation)
+            if signature == last_signature:
+                stalled += 1
+                if stalled >= self.PURSUE_STALL_LIMIT:
+                    steps.append({"error": "no_progress", "url": observation.get("url")})
+                    break
+            else:
+                stalled = 0
+            last_signature = signature
+
+            decision = await self._decide_next_actions(goal, observation, steps)
+            if decision.get("error"):
+                steps.append({"error": decision["error"]})
+                break
+            if decision.get("done") is True and not decision.get("actions"):
+                completed = True
+                steps.append({"why": str(decision.get("why") or ""), "done": True})
+                break
+
+            elements = observation.get("elements") or []
+            planned: list[BrowserAction] = []
+            for item in decision.get("actions") or []:
+                if not isinstance(item, dict):
+                    continue
+                try:
+                    index = int(item.get("index"))
+                except (TypeError, ValueError):
+                    continue
+                if not 0 <= index < len(elements):
+                    continue
+                kind = str(item.get("type") or "click").lower()
+                if kind not in {"click", "type", "scroll"}:
+                    continue
+                selector = str(elements[index].get("selector") or "")
+                if kind == "scroll":
+                    planned.append(BrowserAction(type="scroll", value=str(item.get("value") or "down")))
+                elif not selector:
+                    continue
+                elif kind == "type":
+                    planned.append(
+                        BrowserAction(type="type", selector=selector, value=str(item.get("value") or ""))
+                    )
+                else:
+                    planned.append(BrowserAction(type="click", selector=selector))
+
+            if not planned:
+                steps.append({"error": "no_executable_action", "why": str(decision.get("why") or "")})
+                break
+
+            report = await self._handle_interact(
+                browser, None, planned, action_context=action_context
+            )
+            steps.append(
+                {
+                    "why": str(decision.get("why") or ""),
+                    "chose": [
+                        f"{elements[int(item['index'])].get('name')}"
+                        for item in (decision.get("actions") or [])
+                        if isinstance(item, dict)
+                        and str(item.get("index", "")).lstrip("-").isdigit()
+                        and 0 <= int(item["index"]) < len(elements)
+                    ],
+                    "ok": bool(report.get("ok")),
+                    "url": observation.get("url"),
+                }
+            )
+            if not report.get("ok"):
+                steps[-1]["error"] = str(report.get("error") or "interaction_failed")
+                break
+            if decision.get("done") is True:
+                completed = True
+                break
+
+        final = await browser.observe(principal="owner")
+        return {
+            "ok": completed or bool(steps and not steps[-1].get("error")),
+            "goal": goal,
+            "completed": completed,
+            "steps": steps,
+            "rounds": len(steps),
+            "final_url": (final or observation).get("url", ""),
+            "result_text": str((final or observation).get("text") or "")[:4000],
         }
 
     @staticmethod
