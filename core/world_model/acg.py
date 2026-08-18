@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import time
+from collections import deque
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Union
 
@@ -13,6 +14,30 @@ from core.runtime.service_registry import (
 )
 
 logger = logging.getLogger("WorldModel.ACG")
+
+#: Outcomes that mean "not now" rather than "no".
+#:
+#: The executive can APPROVE a write and the learned ontogeny organ can then
+#: override the outcome to DEFERRED, producing the combined reason
+#: "sync_approved|ontogeny:deferred". This module read approved == False and
+#: dropped the entry — 108 of them in one sampled window.
+#:
+#: A deferral is not a refusal. This graph is how she learns what her own
+#: actions do, so every dropped entry is an action whose outcome she never
+#: gets to generalise from. Worse, the organ deferring is a policy: it will
+#: defer again under the same conditions, so the loss is systematic rather
+#: than random.
+_DEFERRAL_MARKERS = ("defer", "not_now", "capacity_full", "backpressure")
+
+#: Bounded, because a queue that grows while the organ keeps deferring is a
+#: leak wearing a fix's clothes. Oldest evidence is shed first: the newest
+#: outcome is the one most likely to still describe how the world works.
+_PENDING_LIMIT = 256
+
+
+def _is_deferral(reason: str) -> bool:
+    text = str(reason or "").lower()
+    return any(marker in text for marker in _DEFERRAL_MARKERS)
 
 @dataclass
 class CausalLink:
@@ -33,12 +58,48 @@ class ActionConsequenceGraph:
         self.links: List[Dict[str, Any]] = []
         self._last_save = 0.0
         self._dirty = False
+        #: Writes the constitution deferred, kept for a later attempt.
+        self._pending: deque[tuple[str, dict, str, Any, bool]] = deque(
+            maxlen=_PENDING_LIMIT
+        )
+        self._deferred_total = 0
+        self._replayed_total = 0
+        self._replaying = False
         self._load()
+
+    def _replay_pending(self) -> None:
+        """Re-offer held writes. Anything still deferred goes back in the queue.
+
+        Driven from record_outcome rather than a timer: the moment another
+        outcome arrives is the moment the organ is being consulted anyway, so
+        the retry costs no extra wake-up and happens exactly when the answer
+        might have changed.
+        """
+        if not self._pending:
+            return
+        if self._replaying:
+            return
+        held = list(self._pending)
+        self._pending.clear()
+        self._replaying = True
+        try:
+            for action_name, params, context, outcome, success in held:
+                before = len(self._pending)
+                self.record_outcome(
+                    {"tool": action_name, "params": params}, context, outcome, success
+                )
+                if len(self._pending) == before:
+                    self._replayed_total += 1
+        finally:
+            self._replaying = False
 
     def record_outcome(self, action: Union[str, Dict[str, Any]], context: str, outcome: Any, success: bool):
         """Record the result of an action. (Legacy Sync)"""
         action_name = action if isinstance(action, str) else (action.get("tool", "unknown") if hasattr(action, "get") else str(action))
         params = {} if isinstance(action, str) else (action.get("params", {}) if hasattr(action, "get") else {})
+
+        # Anything held from an earlier deferral gets another chance first.
+        self._replay_pending()
 
         try:
             from core.constitution import get_constitutional_core
@@ -58,6 +119,19 @@ class ActionConsequenceGraph:
                 },
             )
             if not approved:
+                if _is_deferral(reason):
+                    # Held, not dropped. Retried the next time anything is
+                    # recorded, which is when the organ's answer may differ.
+                    self._pending.append(
+                        (action_name, dict(params or {}), context, outcome, bool(success))
+                    )
+                    self._deferred_total += 1
+                    logger.info(
+                        "⏸️ ACG write deferred (%s); holding %d for retry.",
+                        reason,
+                        len(self._pending),
+                    )
+                    return
                 logger.warning("🚫 ACG write blocked: %s", reason)
                 return
         except (ImportError, AttributeError, RuntimeError) as exc:
