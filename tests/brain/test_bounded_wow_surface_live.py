@@ -43,6 +43,8 @@ import pytest
 
 from core.brain.llm.semantic_neural_serving import (
     DEFAULT_ACTIVATION_PATH,
+    INTEGRATION_SOURCE_CONTRACTS,
+    _integration_contract_hashes,
     semantic_neural_activation_errors,
     semantic_neural_serving_status,
 )
@@ -55,9 +57,7 @@ def _activation() -> dict:
 
 
 def _cortex_path() -> Path:
-    from core.brain.llm.model_registry import _CORTEX_PATH
-
-    return Path(str(_CORTEX_PATH))
+    return Path(str(_activation()["model_identity"]["path"]))
 
 
 def _drifted() -> list[str]:
@@ -116,12 +116,24 @@ def test_the_bound_inventory_is_intact() -> None:
     assert not missing, f"bound source files are gone: {missing}"
 
 
+def test_the_integration_contract_inventory_is_intact() -> None:
+    """Routine edits may move; load-bearing serving contracts may not."""
+    activation = _activation()
+    expected = _integration_contract_hashes(REPO_ROOT)
+
+    assert activation.get("integration_contract_sha256s") == expected
+    assert set(INTEGRATION_SOURCE_CONTRACTS) == {
+        key.split("::", 1)[0] for key in expected
+    }
+
+
 def test_the_activation_still_carries_its_claim_and_limits() -> None:
     """The seal must keep the adjudicated wording, not a rosier summary."""
     activation = _activation()
 
     assert activation.get("activation_sha256")
     assert activation.get("active_by_default") is True
+    assert activation.get("promotion_mode") == "active"
 
 
 def test_the_serving_status_always_explains_itself() -> None:

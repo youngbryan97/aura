@@ -55,7 +55,7 @@ RUNTIME_FAMILIES = (
     "frontier_scientific_inference",
 )
 RUNTIME_DIFFICULTIES = (1, 2, 3)
-RUNTIME_PACKAGE_ID = "cp568-resident-semantic-neural-shadow"
+RUNTIME_PACKAGE_ID = "cp568-resident-semantic-neural-active-r1"
 VERIFIER_SOURCE_SHA256 = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
 
 
@@ -133,7 +133,7 @@ async def _verify(*, seed: int, tasks_per_difficulty: int) -> dict[str, Any]:
         or tuple(activation_receipt.get("allowed_families") or ()) != RUNTIME_FAMILIES
         or tuple(activation_receipt.get("allowed_surface_profiles") or ())
         != SEMANTIC_SURFACE_PROFILES
-        or activation_receipt.get("promotion_mode") != "shadow"
+        or activation_receipt.get("promotion_mode") != "active"
     ):
         raise RuntimeError("semantic neural serving activated the wrong runtime package")
     client = _ResidentIdentityClient(model_path)
@@ -261,7 +261,7 @@ async def _verify(*, seed: int, tasks_per_difficulty: int) -> dict[str, Any]:
         "rows": rows,
         "claim_boundary": (
             "qualified canonical and less-constrained scientific-surface runtime integration "
-            "on the CP568 shadow activation bound to the CP566 bounded WOW evidence; not "
+            "on the CP568 active requalification bound to the CP566 bounded WOW evidence; not "
             "open-domain, broad reasoning, static fusion, or frontier performance"
         ),
     }

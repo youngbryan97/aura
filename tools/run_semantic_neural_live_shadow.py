@@ -34,8 +34,6 @@ from core.brain.llm.latent_cortex.semantic_surface_adapter import (  # noqa: E40
 )
 from core.brain.llm.semantic_neural_serving import (  # noqa: E402
     DEFAULT_ACTIVATION_PATH,
-    PACKAGE_ID,
-    PROMOTION_MODE,
     semantic_neural_serving_status,
 )
 from core.learning.frontier_process_supervision import (  # noqa: E402
@@ -45,6 +43,10 @@ from core.runtime.atomic_writer import atomic_write_text  # noqa: E402
 from core.runtime.state_ownership import state_root  # noqa: E402
 
 SCHEMA: Final = "aura.semantic_neural_live_shadow.v1"
+# This verifier reopens the historical CP568 shadow campaign. Keep its identity
+# frozen when a later, independently qualified package becomes authoritative.
+PACKAGE_ID: Final = "cp568-resident-semantic-neural-shadow"
+PROMOTION_MODE: Final = "shadow"
 DOMAINS: Final = (
     "coding",
     "calibration",

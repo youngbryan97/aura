@@ -42,9 +42,12 @@ def test_semantic_activation_rejects_resealed_source_or_evidence_drift():
     relative = next(iter(tampered["source_sha256s"]))
     tampered["source_sha256s"][relative] = "0" * 64
     _reseal(tampered)
-    assert "source_drift" in semantic_neural_activation_errors(
-        tampered,
-        verify_live_identity=False,
+    assert any(
+        error.startswith("source_drift:")
+        for error in semantic_neural_activation_errors(
+            tampered,
+            verify_live_identity=False,
+        )
     )
 
     tampered = copy.deepcopy(activation)
@@ -59,7 +62,7 @@ def test_semantic_activation_rejects_resealed_source_or_evidence_drift():
 def test_semantic_activation_rejects_resealed_authority_broadening():
     activation = _activation()
     activation["allowed_surface_profiles"].append("free_form")
-    activation["promotion_mode"] = "active"
+    activation["promotion_mode"] = "unrestricted"
     activation["claim_boundary"] = "general reasoning is authorized"
     _reseal(activation)
 
@@ -70,6 +73,37 @@ def test_semantic_activation_rejects_resealed_authority_broadening():
     assert "allowed_surface_profiles" in errors
     assert "promotion_mode" in errors
     assert "claim_boundary" in errors
+
+
+def test_semantic_activation_rejects_resealed_integration_contract_drift():
+    activation = _activation()
+    key = next(iter(activation["integration_contract_sha256s"]))
+    activation["integration_contract_sha256s"][key] = "0" * 64
+    _reseal(activation)
+
+    assert any(
+        error.startswith("integration_contract_drift:")
+        for error in semantic_neural_activation_errors(
+            activation,
+            verify_live_identity=False,
+        )
+    )
+
+
+def test_active_semantic_activation_requires_runtime_qualification():
+    activation = _activation()
+    activation.pop("runtime_qualification")
+    _reseal(activation)
+
+    assert "runtime_qualification" in semantic_neural_activation_errors(
+        activation,
+        verify_live_identity=False,
+    )
+    assert "runtime_qualification" not in semantic_neural_activation_errors(
+        activation,
+        verify_live_identity=False,
+        require_runtime_qualification=False,
+    )
 
 
 def test_semantic_serving_kill_switch_is_fail_closed(monkeypatch):

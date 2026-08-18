@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
 import os
@@ -11,13 +12,14 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Final
 
-SEMANTIC_NEURAL_SERVING_SCHEMA: Final = "aura.semantic_neural_serving.v1"
+SEMANTIC_NEURAL_SERVING_SCHEMA: Final = "aura.semantic_neural_serving.v2"
 SEMANTIC_NEURAL_SERVING_MODE: Final = "qualified_exact_semantic_v1"
-PACKAGE_ID: Final = "cp568-resident-semantic-neural-shadow"
-PROMOTION_MODE: Final = "shadow"
+PACKAGE_ID: Final = "cp568-resident-semantic-neural-active-r1"
+PROMOTION_MODE: Final = "active"
 REPO_ROOT: Final = Path(__file__).resolve().parents[3]
 DEFAULT_ACTIVATION_PATH: Final = (
-    REPO_ROOT / "artifacts/closeout/latent_cortex/cp568_semantic_neural_shadow/activation.json"
+    REPO_ROOT
+    / "artifacts/closeout/latent_cortex/cp568_semantic_neural_active_r1/activation.json"
 )
 RESIDENT_RESULT_PATH: Final = (
     REPO_ROOT
@@ -47,15 +49,22 @@ MEASURED_SOURCE_FILES: Final = (
 )
 ACTIVATION_SOURCE_FILES: Final = (
     *MEASURED_SOURCE_FILES,
-    "core/brain/foreground_latent_runtime.py",
-    "core/brain/latent_cortex_service.py",
     "core/brain/llm/latent_cortex/persistence.py",
     "core/brain/llm/qualified_recurrent_ingress.py",
-    "core/brain/llm/semantic_neural_shadow.py",
-    "core/brain/llm/semantic_neural_serving.py",
-    "core/learning/systematic_neural_alu_training.py",
-    "core/phases/response_generation_unitary.py",
 )
+# Whole-file hashes remain mandatory for the measured mechanism and its direct
+# loaders. Integration modules change often, so bind their load-bearing AST
+# instead of disabling a proven machine when unrelated code in a large module
+# moves. A contract selector names either a function/method or a specific call.
+INTEGRATION_SOURCE_CONTRACTS: Final = {
+    "core/brain/foreground_latent_runtime.py": (
+        "symbol:run_foreground_latent_episode",
+    ),
+    "core/brain/latent_cortex_service.py": (
+        "symbol:LatentCortexService.qualified_recurrent_reason",
+    ),
+}
+INTEGRATION_SOURCE_FILES: Final = tuple(INTEGRATION_SOURCE_CONTRACTS)
 ALLOWED_FAMILIES: Final = (
     "frontier_calibration",
     "frontier_coding",
@@ -100,6 +109,71 @@ def _file_sha(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _call_name(node: ast.Call) -> str:
+    function = node.func
+    if isinstance(function, ast.Name):
+        return function.id
+    if isinstance(function, ast.Attribute):
+        return function.attr
+    return ""
+
+
+def _symbol_node(tree: ast.Module, qualified_name: str) -> ast.AST:
+    body: list[ast.stmt] = tree.body
+    current: ast.AST | None = None
+    for part in qualified_name.split("."):
+        current = next(
+            (
+                node
+                for node in body
+                if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef))
+                and node.name == part
+            ),
+            None,
+        )
+        if current is None:
+            raise RuntimeError(f"semantic integration symbol is missing: {qualified_name}")
+        body = list(getattr(current, "body", ()))
+    assert current is not None
+    return current
+
+
+def _integration_contract_sha(path: Path, selector: str) -> str:
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    kind, separator, target = selector.partition(":")
+    if not separator or not target:
+        raise RuntimeError(f"semantic integration selector is invalid: {selector}")
+    if kind == "symbol":
+        payload: Any = ast.dump(
+            _symbol_node(tree, target),
+            annotate_fields=True,
+            include_attributes=False,
+        )
+    elif kind == "call":
+        calls = sorted(
+            ast.dump(node, annotate_fields=True, include_attributes=False)
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call) and _call_name(node) == target
+        )
+        if not calls:
+            raise RuntimeError(f"semantic integration call is missing: {target}")
+        payload = calls
+    else:
+        raise RuntimeError(f"semantic integration selector kind is invalid: {kind}")
+    return _sha(payload)
+
+
+def _integration_contract_hashes(repo_root: Path) -> dict[str, str]:
+    return {
+        f"{relative}::{selector}": _integration_contract_sha(
+            repo_root / relative,
+            selector,
+        )
+        for relative, selectors in INTEGRATION_SOURCE_CONTRACTS.items()
+        for selector in selectors
+    }
 
 
 def _read_bounded_json(path: Path, *, maximum_bytes: int) -> tuple[dict[str, Any], bytes]:
@@ -257,6 +331,7 @@ def build_semantic_neural_activation(
     adjudication_path: Path = RESIDENT_ADJUDICATION_PATH,
     resident_manifest_path: Path,
     model_path: Path,
+    runtime_verification_path: Path | None = None,
 ) -> dict[str, Any]:
     """Materialize a source/model/evidence-bound qualified activation."""
 
@@ -282,7 +357,7 @@ def build_semantic_neural_activation(
         or manifest_identity["active_model_path"] != model_identity["path"]
     ):
         raise RuntimeError("semantic serving resident identity differs from evidence")
-    body = {
+    body: dict[str, Any] = {
         "schema": SEMANTIC_NEURAL_SERVING_SCHEMA,
         "package_id": PACKAGE_ID,
         "mode": SEMANTIC_NEURAL_SERVING_MODE,
@@ -293,6 +368,7 @@ def build_semantic_neural_activation(
         "source_sha256s": {
             relative: _file_sha(root / relative) for relative in ACTIVATION_SOURCE_FILES
         },
+        "integration_contract_sha256s": _integration_contract_hashes(root),
         "model_identity": model_identity,
         "resident_manifest_identity": manifest_identity,
         "evidence": {
@@ -322,6 +398,49 @@ def build_semantic_neural_activation(
         },
         "claim_boundary": ACTIVATION_CLAIM_BOUNDARY,
     }
+    if runtime_verification_path is not None:
+        runtime_verification, runtime_raw = _read_bounded_json(
+            runtime_verification_path,
+            maximum_bytes=4 * 1024 * 1024,
+        )
+        candidate_activation_sha256 = _sha(body)
+        runtime_body = {
+            key: value
+            for key, value in runtime_verification.items()
+            if key != "verification_receipt_sha256"
+        }
+        runtime_receipt = runtime_verification.get("activation_receipt")
+        if (
+            runtime_verification.get("verified") is not True
+            or runtime_verification.get("task_count") != 120
+            or runtime_verification.get("exact_count") != 120
+            or runtime_verification.get("lesion_disruption_count") != 120
+            or runtime_verification.get("unsupported_language_refused") is not True
+            or runtime_verification.get("verification_receipt_sha256")
+            != _sha(runtime_body)
+            or not isinstance(runtime_receipt, dict)
+            or runtime_receipt.get("activation_sha256") != candidate_activation_sha256
+            or runtime_receipt.get("package_id") != PACKAGE_ID
+            or runtime_receipt.get("promotion_mode") != PROMOTION_MODE
+        ):
+            raise RuntimeError("semantic runtime qualification is not admissible")
+        body["runtime_qualification"] = {
+            "path": _relative_evidence_path(root, runtime_verification_path),
+            "sha256": hashlib.sha256(runtime_raw).hexdigest(),
+            "verification_receipt_sha256": runtime_verification[
+                "verification_receipt_sha256"
+            ],
+            "candidate_activation_sha256": candidate_activation_sha256,
+            "task_count": runtime_verification["task_count"],
+            "exact_count": runtime_verification["exact_count"],
+            "lesion_disruption_count": runtime_verification[
+                "lesion_disruption_count"
+            ],
+            "unsupported_language_refused": runtime_verification[
+                "unsupported_language_refused"
+            ],
+            "max_latency_ms": runtime_verification["max_latency_ms"],
+        }
     return {**body, "activation_sha256": _sha(body)}
 
 
@@ -331,6 +450,7 @@ def semantic_neural_activation_errors(
     repo_root: Path = REPO_ROOT,
     model_path: Path | None = None,
     verify_live_identity: bool = True,
+    require_runtime_qualification: bool = True,
 ) -> list[str]:
     """Recompute every mutable dependency of a serving activation."""
 
@@ -377,6 +497,59 @@ def semantic_neural_activation_errors(
         )
         if drifted:
             errors.append(f"source_drift:{','.join(drifted)}")
+    contract_hashes = activation.get("integration_contract_sha256s")
+    expected_contracts = _integration_contract_hashes(root)
+    if not isinstance(contract_hashes, dict) or set(contract_hashes) != set(
+        expected_contracts
+    ):
+        errors.append("integration_contract_inventory")
+    else:
+        drifted_contracts = sorted(
+            key
+            for key, expected in expected_contracts.items()
+            if contract_hashes.get(key) != expected
+        )
+        if drifted_contracts:
+            errors.append("integration_contract_drift:" + ",".join(drifted_contracts))
+    runtime_qualification = activation.get("runtime_qualification")
+    if not isinstance(runtime_qualification, dict) and require_runtime_qualification:
+        errors.append("runtime_qualification")
+    elif isinstance(runtime_qualification, dict):
+        try:
+            runtime_path = _resolve_evidence_path(root, runtime_qualification["path"])
+            runtime_verification, runtime_raw = _read_bounded_json(
+                runtime_path,
+                maximum_bytes=4 * 1024 * 1024,
+            )
+            runtime_body = {
+                key: value
+                for key, value in runtime_verification.items()
+                if key != "verification_receipt_sha256"
+            }
+            candidate_body = {
+                key: value for key, value in body.items() if key != "runtime_qualification"
+            }
+            runtime_receipt = runtime_verification.get("activation_receipt")
+            if (
+                hashlib.sha256(runtime_raw).hexdigest()
+                != runtime_qualification.get("sha256")
+                or runtime_verification.get("verification_receipt_sha256")
+                != runtime_qualification.get("verification_receipt_sha256")
+                or runtime_verification.get("verification_receipt_sha256")
+                != _sha(runtime_body)
+                or not isinstance(runtime_receipt, dict)
+                or runtime_receipt.get("activation_sha256") != _sha(candidate_body)
+                or runtime_qualification.get("candidate_activation_sha256")
+                != _sha(candidate_body)
+                or runtime_verification.get("verified") is not True
+                or runtime_verification.get("task_count") != 120
+                or runtime_verification.get("exact_count") != 120
+                or runtime_verification.get("lesion_disruption_count") != 120
+                or runtime_verification.get("unsupported_language_refused") is not True
+            ):
+                errors.append("runtime_qualification_drift")
+        except (KeyError, OSError, RuntimeError, TypeError, ValueError):
+            errors.append("runtime_qualification_invalid")
     evidence = activation.get("evidence")
     if not isinstance(evidence, dict):
         errors.append("evidence")
@@ -461,12 +634,22 @@ def semantic_neural_serving_status(model_path: str | Path) -> dict[str, Any]:
         evidence = activation["evidence"]
         resident_identity = activation["resident_manifest_identity"]
         selected_model = Path(model_path).expanduser().resolve(strict=True)
+        runtime_qualification = activation.get("runtime_qualification")
+        runtime_dependencies = (
+            (
+                _resolve_evidence_path(root, runtime_qualification["path"]),
+            )
+            if isinstance(runtime_qualification, dict)
+            else ()
+        )
         dependencies = (
             DEFAULT_ACTIVATION_PATH,
             *tuple(root / relative for relative in ACTIVATION_SOURCE_FILES),
+            *tuple(root / relative for relative in INTEGRATION_SOURCE_FILES),
             _resolve_evidence_path(root, evidence["result_path"]),
             _resolve_evidence_path(root, evidence["verification_path"]),
             _resolve_evidence_path(root, evidence["adjudication_path"]),
+            *runtime_dependencies,
             Path(resident_identity["path"]),
             selected_model / "config.json",
             selected_model / "model.safetensors.index.json",
@@ -509,6 +692,12 @@ def _cached_semantic_neural_serving_status(
     errors = semantic_neural_activation_errors(
         activation,
         model_path=Path(model_path),
+        require_runtime_qualification=(
+            str(os.getenv("AURA_SEMANTIC_NEURAL_QUALIFICATION_CANDIDATE", "0"))
+            .strip()
+            .lower()
+            not in {"1", "true", "yes", "on"}
+        ),
     )
     if errors:
         return {
@@ -544,6 +733,8 @@ __all__ = [
     "ALLOWED_SURFACE_PROFILES",
     "DEFAULT_ACTIVATION_PATH",
     "EVIDENCE_DOMAINS",
+    "INTEGRATION_SOURCE_CONTRACTS",
+    "INTEGRATION_SOURCE_FILES",
     "PACKAGE_ID",
     "PROMOTION_MODE",
     "RESIDENT_RESULT_PATH",

@@ -15,13 +15,11 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from core.brain.llm.semantic_neural_serving import (  # noqa: E402
-    PACKAGE_ID,
-    PROMOTION_MODE,
-)
 from core.runtime.atomic_writer import atomic_write_text  # noqa: E402
 from tools.run_semantic_neural_live_shadow import (  # noqa: E402
     DOMAINS,
+    PACKAGE_ID,
+    PROMOTION_MODE,
     SCHEMA,
     _canonical_sha,
     _contract_issues,

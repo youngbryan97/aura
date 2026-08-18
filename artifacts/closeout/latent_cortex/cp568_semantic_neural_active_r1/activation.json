@@ -1,0 +1,97 @@
+{
+  "activation_sha256": "b979d08fc868312a0918ee9b614446a5cd18973876f356f6e01d8060fdee6a4f",
+  "active_by_default": true,
+  "allowed_families": [
+    "frontier_calibration",
+    "frontier_coding",
+    "frontier_misleading_premise",
+    "frontier_scientific_inference"
+  ],
+  "allowed_surface_profiles": [
+    "lab_report",
+    "narrative",
+    "compact"
+  ],
+  "claim_boundary": "runtime qualification of a replicated lesion-dependent resident-32B effective reasoning gain over ordinary decode on the frozen four-domain semantic cohort; bounded executable families only, not open-domain general reasoning, static fusion, frontier performance, consciousness evidence, or unrestricted promotion",
+  "evidence": {
+    "adjudication_claim": "replicated lesion-dependent resident-32B effective reasoning gain over ordinary decode on the frozen four-domain semantic cohort",
+    "adjudication_limitations": "bounded executable families; not open-domain general reasoning, static fusion, frontier performance, consciousness evidence, or unrestricted runtime promotion",
+    "adjudication_path": "artifacts/closeout/latent_cortex/cp566_resident_mixed_multidomain_replication/adjudication.json",
+    "adjudication_receipt_sha256": "d1487b144d197291ebdb1d79ac803fc887b4ebd4dae0ec1bf977c9859fb27d1f",
+    "adjudication_sha256": "be89adf1becdfefead798b08a2a2485c418f5c2c5784c939eb7275ac89c2d016",
+    "adjudication_verdict": "BOUNDED_WOW_SIGNAL",
+    "coefficient_lesion_contract_verified": true,
+    "domains": [
+      "coding",
+      "calibration",
+      "misleading_premise",
+      "scientific_inference"
+    ],
+    "gain_count": 44,
+    "independent_exact_by_arm": {
+      "coefficient_lesion": 5,
+      "matched_wire_base": 7,
+      "matched_wrong_state": 0,
+      "ordinary_base": 16,
+      "treatment": 60
+    },
+    "paired_one_sided_exact_p": 5.684341886080802e-14,
+    "regression_count": 0,
+    "result_path": "artifacts/closeout/latent_cortex/cp566_resident_mixed_multidomain_replication/result.json",
+    "result_receipt_sha256": "ddf6bf56c9b3422b7f9e10a4faf5d4173ba410ace7226250588fbf18ab0e5242",
+    "result_sha256": "75ed72493ba5313e961b63efa8839587826385aba1977f9aff52f855b1921b30",
+    "task_count": 60,
+    "verification_path": "artifacts/closeout/latent_cortex/cp566_resident_mixed_multidomain_replication/verification.json",
+    "verification_receipt_sha256": "3d929400db5aeb7c83b66103c14f71a23a68b0d3722629b03b5c38ad37ab2e26",
+    "verification_sha256": "2fbe760ba0fdb8402ed4097eebcb4cc5ecedc7ac26416dbbe8edd0c3ae1ac2f4"
+  },
+  "integration_contract_sha256s": {
+    "core/brain/foreground_latent_runtime.py::symbol:run_foreground_latent_episode": "a10f22ecef4e79d6c0ec8bf15fcc08bfe06028098f6d35d33156c4e7da6f37d3",
+    "core/brain/latent_cortex_service.py::symbol:LatentCortexService.qualified_recurrent_reason": "1e24081b64b57e16964c6988f08b4bbfebcb70a1d6e074329fe17f06dbcb30e5"
+  },
+  "mode": "qualified_exact_semantic_v1",
+  "model_identity": {
+    "config_sha256": "a4054d0840b87c2feabea6fb2014bcd5b672500b2ec4dfec6f63a31d7a6ed785",
+    "path": "/Users/bryan/.aura/live-source/training/fused-model/Aura-32B-crsm-closeout-jul1-20260701-215118",
+    "weights_index_sha256": "8ae48f398d91156dc01a99e58de936e4ddd94c0768f4d0e2e9537170aee60d0b"
+  },
+  "package_id": "cp568-resident-semantic-neural-active-r1",
+  "promotion_mode": "active",
+  "resident_manifest_identity": {
+    "active_model_path": "/Users/bryan/.aura/live-source/training/fused-model/Aura-32B-crsm-closeout-jul1-20260701-215118",
+    "base_model": "/Users/bryan/.aura/live-source/models/Qwen2.5-32B-Instruct-4bit",
+    "fused_at": 1782967900,
+    "path": "/Users/bryan/.aura/live-source/training/fused-model/active.json",
+    "schema_version": 2,
+    "sha256": "05b4a40e57251651b2c31a99390c6babb69fe57862e702112e6ac574c8a6b83f",
+    "tag": "crsm-closeout-jul1"
+  },
+  "runtime_qualification": {
+    "candidate_activation_sha256": "b66826c9e1c8a588b9db3fa6df093282504908f9430366bc2185f0d7c007e660",
+    "exact_count": 120,
+    "lesion_disruption_count": 120,
+    "max_latency_ms": 74.258,
+    "path": "artifacts/closeout/latent_cortex/cp568_semantic_neural_active_r1/runtime_verification.json",
+    "sha256": "d6121e4f813d58010031ee68b39752545f51233386517fd3d5d534cc5c6c654b",
+    "task_count": 120,
+    "unsupported_language_refused": true,
+    "verification_receipt_sha256": "7b441f8fd5d8121e8f3f642fefc36843e37bb1ec0c2c57f9569175ba0e4b095b"
+  },
+  "schema": "aura.semantic_neural_serving.v2",
+  "source_sha256s": {
+    "core/brain/llm/latent_cortex/assets/systematic_neural_alu_v1/manifest.json": "00c9d18cb25f7687eecac7389236d0a40e8ff798b428c7497242638591ec1769",
+    "core/brain/llm/latent_cortex/assets/systematic_neural_alu_v1/weights.safetensors": "059e811c0d9e1fbfd76f1a513636c713962a500f5692d4e914bd96d1372405b7",
+    "core/brain/llm/latent_cortex/frontier_tasks.py": "bef80d1a49ce9d062544dbf29a89d11f018751a85658e1d4ce44b0d7c1020780",
+    "core/brain/llm/latent_cortex/persistence.py": "eab0a16f2fc0791835ef81f1a167bb672e1c5d174eb4c3d2b9fcd8f1b4fe9b0c",
+    "core/brain/llm/latent_cortex/semantic_neural_decode_context.py": "affc4bc3cbf017454b50441e5c8fc7c9494f63bc8c72e0f8605f27c69c582abc",
+    "core/brain/llm/latent_cortex/semantic_surface_adapter.py": "31cd151ea864449795c4fcc8751fe9eccdb771e520efb541709bacf066807b24",
+    "core/brain/llm/latent_cortex/systematic_neural_alu.py": "141a3d16aa891be182b30c38707a3f15c208734574e5af32459a8f25ac105a72",
+    "core/brain/llm/qualified_recurrent_ingress.py": "18744f6433f5561cc233568460350e07023190fee527463651fd26dee3c7b4eb",
+    "core/learning/frontier_process_supervision.py": "f4beb455da1c3cb8e77a3c17afd2a3f5c6cee8d127b60e47c4e99e038d7902bf",
+    "core/learning/public_frontier_action_compiler.py": "32da5f3169ea75003b1aeea0a7fdcb072a9ee138968eae42c0fb75f57f973592",
+    "core/learning/recurrent_action_schema.py": "9e64dff7ac586c62bc3cc519694cd5b579a6fac020ad631ea31a5d7e6e0b0904",
+    "core/learning/recurrent_state_schema.py": "56101d04275a76bc4106b7c7d2365e60d777abc759e8734218885830b7a2b79d",
+    "core/learning/semantic_neural_controls.py": "890305b703704de20d004f69cd2bd9a87cea29c3975c00bab3de5a90e8b3b689",
+    "core/learning/semantic_neural_machine.py": "c3defb6ca618f8617363cc16f8f311111c890eb10b331c6b3dfbec5479e6c382"
+  }
+}

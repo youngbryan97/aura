@@ -37,6 +37,7 @@ def main() -> int:
     parser.add_argument("--verification", type=Path, default=RESIDENT_VERIFICATION_PATH)
     parser.add_argument("--adjudication", type=Path, default=RESIDENT_ADJUDICATION_PATH)
     parser.add_argument("--out", type=Path, default=DEFAULT_ACTIVATION_PATH)
+    parser.add_argument("--runtime-verification", type=Path)
     args = parser.parse_args()
 
     manifest = args.resident_manifest.expanduser().resolve(strict=True)
@@ -54,10 +55,12 @@ def main() -> int:
         adjudication_path=args.adjudication,
         resident_manifest_path=manifest,
         model_path=model,
+        runtime_verification_path=args.runtime_verification,
     )
     errors = semantic_neural_activation_errors(
         activation,
         model_path=model,
+        require_runtime_qualification=args.runtime_verification is not None,
     )
     if errors:
         raise RuntimeError(f"materialized semantic activation is invalid: {errors}")
