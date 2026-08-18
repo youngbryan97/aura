@@ -69,6 +69,48 @@ class Observable:
     read: Callable[[str], Awaitable[str]]
     timeout_s: float = DEFAULT_READ_TIMEOUT_S
 
+    # ── the examples are part of the definition, not of the tests ────────────
+    #
+    # Seven matchers in this codebase were fixed in one session for the same
+    # reason: each was a hand-written regex covering the phrasings its author
+    # imagined, and each met a real question it did not recognise.
+    #
+    #   "what did I just copy?"                    -> clipboard, missed
+    #   "the first THING I said"                   -> transcript, missed
+    #   "are you planning to do anything later?"   -> queued work, missed
+    #   "how many python files LIVE in X"          -> count, missed
+    #   "what does X.md SAY about Y"               -> file read, missed
+    #   "put BUILD-42 on my clipboard"             -> screen, matched wrongly
+    #   "why do you think PEOPLE lie"              -> provenance, matched wrongly
+    #
+    # Every one was found by a person asking, live. Declaring the phrasings
+    # beside the matcher moves that discovery to the test suite: the registry
+    # test below asserts every example matches and every counter-example does
+    # not, so an observable cannot be registered with a matcher nobody probed.
+    #: Questions this observable MUST recognise.
+    examples: tuple[str, ...] = ()
+    #: Questions it must NOT claim — usually neighbours that belong to another
+    #: reading, which is where over-matching does its damage.
+    counter_examples: tuple[str, ...] = ()
+
+    def example_failures(self) -> list[str]:
+        """Examples the matcher gets wrong. Empty means it agrees with itself."""
+
+        failures: list[str] = []
+        for prompt in self.examples:
+            try:
+                if not self.matches(prompt):
+                    failures.append(f"{self.name}: should match {prompt!r}")
+            except Exception as exc:  # noqa: BLE001 - report, never raise
+                failures.append(f"{self.name}: matcher raised on {prompt!r}: {exc}")
+        for prompt in self.counter_examples:
+            try:
+                if self.matches(prompt):
+                    failures.append(f"{self.name}: should NOT match {prompt!r}")
+            except Exception as exc:  # noqa: BLE001
+                failures.append(f"{self.name}: matcher raised on {prompt!r}: {exc}")
+        return failures
+
 
 OBSERVABLES: list[Observable] = []
 

@@ -310,12 +310,76 @@ async def _read_transcript(prompt: str) -> str:
 def install_default_observables() -> None:
     """Register the readings this runtime can take."""
 
+    # Every example below that reads like an odd phrasing IS one: each was a
+    # real question that the matcher beside it did not recognise, or wrongly
+    # claimed, in live use. They are counter-examples for each other as much as
+    # for themselves — the screen matcher wrongly took a clipboard WRITE, and
+    # the recall matcher would happily swallow "the first rule in
+    # CONTRIBUTING.md" if nobody said otherwise.
     for observable in (
-        Observable("clipboard", "## WHAT IS ON THE CLIPBOARD", _matches_clipboard, _read_clipboard),
-        Observable("file", "## FILE YOU WERE ASKED ABOUT", _matches_file, _read_file),
-        Observable("file_count", "## DIRECTORY LISTING YOU WERE ASKED ABOUT", _matches_count, _read_count),
-        Observable("corpus", "## REFERENCE PASSAGES FROM THE LOCAL CORPUS", _matches_corpus, _read_corpus),
-        Observable("clock", "## THE CURRENT LOCAL TIME", _matches_clock, _read_clock),
+        Observable(
+            "clipboard", "## WHAT IS ON THE CLIPBOARD", _matches_clipboard, _read_clipboard,
+            examples=(
+                "what's on my clipboard right now?",
+                "read my clipboard",
+                "what did I just copy?",
+                "check the pasteboard",
+            ),
+            counter_examples=(
+                "put BUILD-42 on my clipboard",
+                "how are you doing",
+                "what is 2 + 2",
+            ),
+        ),
+        Observable(
+            "file", "## FILE YOU WERE ASKED ABOUT", _matches_file, _read_file,
+            examples=(
+                "read the file CONTRIBUTING.md and tell me the first rule",
+                "what does CONTRIBUTING.md say about tests?",
+                "open core/config.py",
+                "tell me about ARCHITECTURE.md",
+            ),
+            counter_examples=(
+                "how are you doing",
+                "read my clipboard",
+                "what did I say first?",
+            ),
+        ),
+        Observable(
+            "file_count", "## DIRECTORY LISTING YOU WERE ASKED ABOUT", _matches_count, _read_count,
+            examples=(
+                "count the .py files in core/introspection and tell me the number",
+                "how many python files live in core/introspection?",
+                "how many files do we have in core/introspection",
+            ),
+            counter_examples=(
+                "how many files are in /etc",
+                "how are you doing",
+                "read CONTRIBUTING.md",
+            ),
+        ),
+        Observable(
+            "corpus", "## REFERENCE PASSAGES FROM THE LOCAL CORPUS", _matches_corpus, _read_corpus,
+            examples=(
+                "explain the difference between correlation and causation",
+                "what is a confounding variable",
+                "who was Ada Lovelace?",
+            ),
+            counter_examples=(
+                "how are you doing right now?",
+                "what did I ask you first today?",
+                "open my notes folder",
+            ),
+        ),
+        Observable(
+            "clock", "## THE CURRENT LOCAL TIME", _matches_clock, _read_clock,
+            examples=("what time is it?", "what's today's date?", "what day is it?"),
+            counter_examples=(
+                "how long have you been running",
+                "how are you doing",
+                "what is 2 + 2",
+            ),
+        ),
         # A screen capture is a real device read and the FIRST one in a process
         # pays initialisation: measured 0.81s warm, past the 2.5s default cold,
         # which is why the first screen question of a session silently returned
@@ -323,16 +387,65 @@ def install_default_observables() -> None:
         Observable(
             "screen", "## WHAT IS ON THE SCREEN", _matches_screen, _read_screen,
             timeout_s=8.0,
+            examples=(
+                "what's on my screen right now?",
+                "what do you see?",
+                "which app is in front?",
+                "what window am I looking at",
+            ),
+            counter_examples=(
+                # A clipboard WRITE, which this matcher once claimed and used
+                # to pull a real desktop action off the executor path.
+                "put BUILD-42 on my clipboard",
+                "create a file called notes.txt on my desktop",
+                "how are you doing",
+            ),
         ),
-        Observable("beliefs", "## WHAT YOU ACTUALLY BELIEVE", _matches_beliefs, _read_beliefs),
         Observable(
-            "queued_work", "## WORK YOU HAVE QUEUED", _matches_queued_work, _read_queued_work
+            "beliefs", "## WHAT YOU ACTUALLY BELIEVE", _matches_beliefs, _read_beliefs,
+            examples=(
+                "what do you currently believe about me?",
+                "what do you think about me?",
+                "tell me your beliefs",
+            ),
+            counter_examples=(
+                "what do you think of that film?",
+                "how are you doing",
+            ),
+        ),
+        Observable(
+            "queued_work", "## WORK YOU HAVE QUEUED", _matches_queued_work, _read_queued_work,
+            examples=(
+                "do you have any scheduled or background work queued right now?",
+                "are you planning to do anything later?",
+                "anything planned?",
+                "what will you be doing next?",
+            ),
+            counter_examples=(
+                "plan a trip to Rome",
+                "how are you doing",
+                "what is 2 + 2",
+            ),
         ),
         Observable(
             "transcript",
             "## WHAT WAS ACTUALLY SAID IN THIS CONVERSATION",
             _matches_transcript,
             _read_transcript,
+            examples=(
+                "what did I ask you two messages ago?",
+                "what was my first question?",
+                "what was the first thing I said to you in this conversation?",
+                "what was the last thing I told you?",
+                "repeat back what I said",
+            ),
+            counter_examples=(
+                # Contains "first" and asks about a file: a recall matcher that
+                # swallowed this would break file reading to fix recall.
+                "what is the first rule in CONTRIBUTING.md",
+                "how are you doing",
+                "what did you read?",
+            ),
         ),
     ):
         register_observable(observable)

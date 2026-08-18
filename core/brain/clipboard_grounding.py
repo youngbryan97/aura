@@ -37,10 +37,24 @@ _ASKS_ABOUT_CLIPBOARD = re.compile(
 )
 
 
-def asks_about_clipboard(text: Any) -> bool:
-    """True when the turn is about clipboard contents."""
+#: Putting something ON the clipboard is a write, not a question about it.
+#: Reading someone's clipboard because they asked you to write to it is both
+#: unnecessary and a small privacy violation.
+_CLIPBOARD_WRITE_RE = re.compile(
+    r"\b(?:put|copy|place|set|write|save)\b[^.?!]{0,60}?\b(?:on|onto|to|in|into)\s+"
+    r"(?:my|the)\s+clip\s?board\b"
+    r"|\bclip\s?board\s+(?:it|that|this)\b",
+    re.IGNORECASE,
+)
 
-    return bool(_ASKS_ABOUT_CLIPBOARD.search(str(text or "")))
+
+def asks_about_clipboard(text: Any) -> bool:
+    """True when the turn is about clipboard CONTENTS, not about writing to it."""
+
+    body = str(text or "")
+    if _CLIPBOARD_WRITE_RE.search(body):
+        return False
+    return bool(_ASKS_ABOUT_CLIPBOARD.search(body))
 
 
 async def clipboard_block(user_prompt: Any, *, timeout_s: float = 2.5) -> str:

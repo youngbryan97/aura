@@ -480,3 +480,46 @@ def test_a_short_conversation_is_not_padded(monkeypatch) -> None:
 
     assert "not shown" not in body
     assert "only thing said" in body
+
+
+# ── the class, not the instances ────────────────────────────────────────────
+#
+# Seven matchers were fixed in one session for the same reason: each was a
+# hand-written regex covering the phrasings its author imagined, and each met a
+# real question it did not recognise.
+#
+#   "what did I just copy?"                    clipboard, missed
+#   "the first THING I said"                   transcript, missed
+#   "are you planning to do anything later?"   queued work, missed
+#   "how many python files LIVE in X"          count, missed
+#   "what does X.md SAY about Y"               file read, missed
+#   "put BUILD-42 on my clipboard"             screen, matched wrongly
+#   "why do you think PEOPLE lie"              provenance, matched wrongly
+#
+# Every one was found by a person asking, live. These two tests move that
+# discovery into the suite: an observable cannot be registered with a matcher
+# nobody probed, and the eighth instance — the clipboard matcher claiming a
+# clipboard WRITE — was caught here rather than in a session.
+
+def test_every_observable_declares_what_it_matches() -> None:
+    """A matcher with no stated phrasings has not been probed by anyone."""
+    undeclared = [o.name for o in OBSERVABLES if not o.examples]
+
+    assert not undeclared, (
+        f"these observables declare no examples: {undeclared}. State the "
+        "questions they must recognise, and the neighbours they must not."
+    )
+
+
+def test_every_observable_declares_what_it_must_not_match() -> None:
+    """Over-matching is where these do their damage: they steal other turns."""
+    undeclared = [o.name for o in OBSERVABLES if not o.counter_examples]
+
+    assert not undeclared, f"these observables declare no counter-examples: {undeclared}"
+
+
+@pytest.mark.parametrize("observable", OBSERVABLES, ids=lambda o: o.name)
+def test_each_matcher_agrees_with_its_own_examples(observable) -> None:
+    failures = observable.example_failures()
+
+    assert not failures, "\n".join(failures)
