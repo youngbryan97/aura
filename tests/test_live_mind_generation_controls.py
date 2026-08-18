@@ -52,7 +52,7 @@ def test_live_mind_generation_controls_convert_snapshot_to_sampling_controls():
     assert controls["temperature"] > 0.58
     assert controls["top_p"] <= 0.94
     assert controls["clean_user_surface_recurrent_loops"] == 2
-    assert controls["clean_user_surface_steering_alpha"] > 0.25
+    assert controls["clean_user_surface_steering_alpha"] == 0.0
 
 
 def test_live_mind_generation_controls_reduce_sampling_under_distress():
@@ -291,7 +291,7 @@ async def test_desktop_quick_reply_passes_live_mind_controls_to_router(monkeypat
     assert router_kwargs["temperature"] > 0.58
     assert router_kwargs["top_p"] <= 0.94
     assert router_kwargs["clean_user_surface_recurrent_loops"] == 2
-    assert router_kwargs["clean_user_surface_steering_alpha"] > 0.25
+    assert router_kwargs["clean_user_surface_steering_alpha"] == 0.0
     assert router_kwargs["clean_user_surface_contract"] is True
     assert router_kwargs["user_surface_completion_floor"] == 512
     assert router_kwargs["user_surface_validation_prompt"] == "What are you attending to?"

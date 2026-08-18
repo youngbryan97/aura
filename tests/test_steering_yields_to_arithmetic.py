@@ -55,12 +55,7 @@ def _ready_context(*, distress: float = 0.1, curiosity: float = 0.7) -> dict:
 def test_steering_stands_down_for_a_determinate_question(question: str) -> None:
     assert _turn_needs_undistorted_computation(question) is True
     controls = _live_mind_generation_controls(_ready_context(), user_message=question)
-    # 0.01 is "off" — the floor of the range every consumer admits. The worker
-    # clamps with max(0.01, …) to keep the hook attached and the
-    # steering-liveness gate satisfied, and the Recursive Latent Cortex refuses
-    # runtime controls below 0.01 outright. A literal 0.0 meant the RLC
-    # declined every determinate turn with invalid_runtime_controls.
-    assert controls["clean_user_surface_steering_alpha"] == 0.01, (
+    assert controls["clean_user_surface_steering_alpha"] == 0.0, (
         "steering must not sit in the path of a computation"
     )
     assert controls["clean_user_surface_recurrent_loops"] == 1
@@ -76,19 +71,16 @@ def test_steering_stands_down_for_a_determinate_question(question: str) -> None:
         "",
     ],
 )
-def test_expressive_turns_keep_their_voice(question: str) -> None:
+def test_expressive_turns_do_not_require_unvalidated_residual_injection(question: str) -> None:
     assert _turn_needs_undistorted_computation(question) is False
     controls = _live_mind_generation_controls(_ready_context(), user_message=question)
-    assert controls["clean_user_surface_steering_alpha"] >= 0.20, (
-        "an ordinary turn must still sound like her"
-    )
+    assert controls["clean_user_surface_steering_alpha"] == 0.0
+    assert controls["temperature"] > 0.0
 
 
-def test_the_old_floor_could_never_stand_down() -> None:
-    """Without a question, the historical clamp still applies — 0.20 is a floor."""
+def test_user_visible_residual_steering_is_neutral_by_default() -> None:
     controls = _live_mind_generation_controls(_ready_context())
-    assert controls["clean_user_surface_steering_alpha"] >= 0.20
-    assert controls["clean_user_surface_steering_alpha"] <= 0.40
+    assert controls["clean_user_surface_steering_alpha"] == 0.0
 
 
 def test_the_predicate_fails_closed_on_junk() -> None:

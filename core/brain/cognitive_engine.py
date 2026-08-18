@@ -674,7 +674,7 @@ def _live_mind_generation_controls(
 
     temperature = 0.58
     top_p = 0.88
-    steering_alpha = 0.25
+    steering_alpha = 0.0
     recurrent_loops = 1
 
     if curiosity >= 0.45:
@@ -686,7 +686,6 @@ def _live_mind_generation_controls(
         recurrent_loops = 2
     if workspace_ignited or integration >= 0.60:
         top_p -= 0.03
-        steering_alpha += 0.05
     if self_presence <= 0.35:
         temperature -= 0.05
         recurrent_loops = 2
@@ -694,33 +693,18 @@ def _live_mind_generation_controls(
         recurrent_loops = 2
     if self_knowing_pressure >= 0.50 or phenomenal_knowing >= 0.60:
         recurrent_loops = max(recurrent_loops, 2)
-        steering_alpha += 0.04
     if second_order_strength >= 0.75:
         temperature -= 0.02
 
     if _turn_needs_undistorted_computation(user_message):
-        # Her voice is not at stake in an arithmetic answer; correctness is.
-        # Steering stands down for this turn — note the floor below is 0.20,
-        # so without this branch it can never stand down at all — and the
-        # recurrent pass drops to one so the answer is read off a clean
-        # forward pass. Everything else about the turn is unchanged.
+        # Determinate computation also uses one clean forward pass. Residual
+        # steering is already neutral for every user-facing decode until it
+        # earns model-specific no-regression authority.
         return {
             "temperature": round(min(temperature, 0.30), 4),
             "top_p": round(min(top_p, 0.90), 4),
             "clean_user_surface_recurrent_loops": 1,
-            # 0.01, not 0.0, and the difference is a whole subsystem.
-            #
-            # The worker treats these as equivalent — _surface_control_alpha
-            # clamps with max(0.01, …) so the hook stays attached and the
-            # steering-liveness gate is satisfied. The Recursive Latent Cortex
-            # does not: its runtime-controls contract admits 0.01 ≤ alpha ≤ 1.0
-            # and refuses anything below. So every determinate turn was
-            # declined with latent_cortex_failure_reason=invalid_runtime_controls
-            # and fell back to an ordinary generation — observed live
-            # 2026-07-26 on every arithmetic and word-problem turn.
-            #
-            # Steering off is the floor of the admitted range, not outside it.
-            "clean_user_surface_steering_alpha": 0.01,
+            "clean_user_surface_steering_alpha": 0.0,
         }
 
     temperature, top_p, recurrent_loops = _apply_functional_i_constraint(
@@ -731,7 +715,7 @@ def _live_mind_generation_controls(
         "temperature": round(max(0.22, min(0.82, temperature)), 4),
         "top_p": round(max(0.72, min(0.94, top_p)), 4),
         "clean_user_surface_recurrent_loops": recurrent_loops,
-        "clean_user_surface_steering_alpha": round(max(0.20, min(0.40, steering_alpha)), 4),
+        "clean_user_surface_steering_alpha": round(max(0.0, min(1.0, steering_alpha)), 4),
     }
 
 
@@ -833,11 +817,9 @@ def _live_mind_controls_bound(
     )
 
 
-#: Steering off. Not 0.0 — the latent cortex refuses alpha below 0.01 and
-#: falls back to an ordinary generation, which would make the lesioned arm
-#: measure "the cortex declined the turn" instead of "the cortex contributed
-#: nothing". See the comment on the determinate-computation branch above.
-_STEERING_OFF = 0.01
+#: Steering off. Zero is admitted end-to-end; an inactive optional modifier
+#: must not be confused with an unavailable cortex or an unavailable voice.
+_STEERING_OFF = 0.0
 
 #: One forward pass: the neutral for recurrent depth.
 _SINGLE_PASS = 1
@@ -4793,7 +4775,7 @@ class CognitiveEngine:
                     influence_channels.LIVE_MIND_STEERING_ALPHA,
                     live_mind_generation_controls.get(
                         "clean_user_surface_steering_alpha",
-                        0.25,
+                        _STEERING_OFF,
                     ),
                     neutral=_STEERING_OFF,
                 ),
@@ -5529,7 +5511,7 @@ class CognitiveEngine:
                 "temperature": 0.0,
                 "top_p": 1.0,
                 "clean_user_surface_recurrent_loops": 1,
-                "clean_user_surface_steering_alpha": 0.01,
+                "clean_user_surface_steering_alpha": 0.0,
             }
             controls_bound = True
             controls_provenance = "structured_floor_neutral_policy"

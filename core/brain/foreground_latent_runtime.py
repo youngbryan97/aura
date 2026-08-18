@@ -645,7 +645,7 @@ async def run_foreground_latent_episode(
             runtime_controls={
                 "clean_user_surface_recurrent_loops": _bounded_int(recurrent_loops, 1, 1, 2),
                 "clean_user_surface_steering_alpha": _bounded_float(
-                    steering_alpha, 0.25, 0.01, 1.0
+                    steering_alpha, 0.0, 0.0, 1.0
                 ),
             },
             timeout_s=latent_timeout,

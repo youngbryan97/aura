@@ -1791,7 +1791,7 @@ class SubstrateSyncThread:
                     surface_override = getattr(self._engine, "_surface_alpha_override", None)
                     if surface_override is not None:
                         try:
-                            new_alpha = min(new_alpha, max(0.01, float(surface_override)))
+                            new_alpha = min(new_alpha, max(0.0, float(surface_override)))
                         except (TypeError, ValueError) as _exc:
                             logger.debug("Suppressed %s in core.consciousness.affective_steering: %s", type(_exc).__name__, _exc)
                     self._engine.telemetry.alpha = new_alpha
@@ -2091,7 +2091,7 @@ class AffectiveSteeringEngine:
         surface_override = getattr(self, "_surface_alpha_override", None)
         if surface_override is not None:
             try:
-                effective_alpha = min(effective_alpha, max(0.01, float(surface_override)))
+                effective_alpha = min(effective_alpha, max(0.0, float(surface_override)))
             except (TypeError, ValueError):
                 effective_alpha = float(alpha)
         for hook in self._hooks:
@@ -2106,7 +2106,7 @@ class AffectiveSteeringEngine:
         if alpha is None:
             self._surface_alpha_override = None
             return
-        self._surface_alpha_override = max(0.01, float(alpha))
+        self._surface_alpha_override = max(0.0, float(alpha))
         for hook in self._hooks:
             hook._alpha = min(
                 float(getattr(hook, "_alpha", self._surface_alpha_override)),

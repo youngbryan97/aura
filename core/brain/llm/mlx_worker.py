@@ -403,32 +403,25 @@ def _expected_empty_warmup_precompile(job: dict[str, Any]) -> bool:
 
 
 def _surface_control_alpha(job: dict[str, Any], current_alpha: Any) -> float:
-    # Strict/structured proof gens get steering driven near-off (kept >0 so the
-    # hook stays attached and the worker-liveness gate is satisfied) — the proof
-    # answer must be unsteered symbolic output. Operator-evidence stays low;
-    # ordinary user-visible prose keeps a moderate clamp.
-    if (
-        job.get("strict_answer_contract", False)
-        or job.get("strict_value_contract", False)
-        or job.get("proof_evaluation_contract", False)
-    ):
-        default_alpha = "0.08"
-    elif job.get("operator_evidence_contract", False):
-        default_alpha = "0.12"
-    else:
-        default_alpha = "0.35"
+    # The only resident-32B live-alpha A/B is explicitly VOID: its steered and
+    # baseline samples were byte-identical while the statistic still passed.
+    # Residual steering therefore has no authority to perturb user-visible
+    # tokens by default. Affect remains causal through attention, sampling,
+    # action value, memory and voice; a future model-specific no-regression
+    # certificate may request a non-zero alpha explicitly.
+    default_alpha = "0.0"
     configured = job.get(
         "clean_user_surface_steering_alpha",
         os.environ.get("AURA_USER_SURFACE_STEERING_ALPHA", default_alpha),
     )
-    requested = max(0.01, min(_safe_float(configured, 0.35), 1.0))
+    requested = max(0.0, min(_safe_float(configured, 0.0), 1.0))
     try:
         current = float(current_alpha)
     except (TypeError, ValueError):
         current = requested
     if current > 0:
         requested = min(requested, current)
-    return max(0.01, requested)
+    return max(0.0, requested)
 
 
 #: How deep the recurrent loop may run on a turn a person is waiting for.
@@ -6107,45 +6100,6 @@ def _mlx_worker_loop(
 
             action = job.get("action")
             if action == "generate":
-                # Gate generation on true latent steering
-                try:
-                    if engine is None or not engine.is_active():
-                        # None is fail-CLOSED: init crashes on failed steering
-                        # attach, so a None engine here means the invariant
-                        # broke — never a license to decode unsteered.
-                        # We must not silently fall back to prompt-driven roleplay.
-                        # If the latent bridge is severed, the system must act severed.
-                        _record_mlx_degradation(
-                            RuntimeError("Affective steering became inactive during generation"),
-                            action="blocked generation because steering liveness failed",
-                            severity="critical",
-                        )
-                        logger.error("🚨 [WORKER] Affective steering is inactive! Gating response.")
-                        ipc_writer.put({
-                            "id": job.get("id"),
-                            "action": "generate",
-                            "status": "error",
-                            "message": "Affective steering is inactive; generation blocked.",
-                            "tokens_used": 0,
-                        })
-                        continue
-                except (RuntimeError, AttributeError, TypeError) as _e:
-                    _record_mlx_degradation(
-                        _e,
-                        action="blocked generation because steering liveness could not be verified",
-                        severity="critical",
-                    )
-                    logger.error("Failed to check steering active state: %s", _e)
-                    ipc_writer.put(
-                        {
-                            "id": job.get("id"),
-                            "action": "generate",
-                            "status": "error",
-                            "message": "Affective steering liveness check failed; generation blocked.",
-                        }
-                    )
-                    continue
-
                 prompt = job.get("prompt")
                 messages = job.get("messages")
                 tools = job.get("tools")
@@ -9253,7 +9207,7 @@ def _mlx_worker_loop(
                                 # A numeric alpha outside the surface-control
                                 # admission range proves the clamp did NOT
                                 # produce this value — reject, don't trust.
-                                or not (0.0 < float(applied_alpha) <= 1.0)
+                                or not (0.0 <= float(applied_alpha) <= 1.0)
                                 or surface_control_state.get("apply_errors")
                             ):
                                 body = {

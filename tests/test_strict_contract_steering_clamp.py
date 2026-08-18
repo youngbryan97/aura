@@ -65,9 +65,9 @@ def test_strict_contract_steering_is_near_off():
     # current_alpha = 5.0 (full bootstrap steering); strict contract must clamp
     # it to near-off (~0.08), well below the value that corrupts proof logits.
     alpha = _surface_control_alpha({"strict_answer_contract": True}, 5.0)
-    assert alpha <= 0.1
+    assert alpha == 0.0
     alpha_v = _surface_control_alpha({"strict_value_contract": True}, 5.0)
-    assert alpha_v <= 0.1
+    assert alpha_v == 0.0
 
 
 def test_strict_value_contract_accepts_the_literal_before_separated_boilerplate():
@@ -159,11 +159,10 @@ def test_strict_value_expected_literal_is_forwarded_to_worker():
     assert 'expected_strict_value="ok"' in dnu_source
 
 
-def test_operator_evidence_and_prose_alphas_unchanged():
-    assert _surface_control_alpha({"operator_evidence_contract": True}, 5.0) <= 0.12 + 1e-9
-    # Ordinary user-visible prose keeps the moderate 0.35 clamp.
+def test_all_user_visible_surface_alphas_are_neutral_without_certificate():
+    assert _surface_control_alpha({"operator_evidence_contract": True}, 5.0) == 0.0
     prose = _surface_control_alpha({"clean_user_surface_contract": True}, 5.0)
-    assert 0.3 <= prose <= 0.35 + 1e-9
+    assert prose == 0.0
 
 
 def test_live_mind_surface_controls_apply_restore_and_emit_receipt(monkeypatch):

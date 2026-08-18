@@ -89,10 +89,9 @@ class TestFailSafeJobClamping:
         )
 
     def test_unmarked_job_gets_prose_tier_alpha(self):
-        # Unmarked jobs clamp at the ordinary user-prose tier, not the
-        # near-off strict tier — internal cognition keeps affective color.
+        # A missing certificate means no residual perturbation on visible text.
         alpha = _surface_control_alpha({}, 5.0)
-        assert 0.2 <= alpha <= 0.4
+        assert alpha == 0.0
 
     def test_strict_tier_remains_near_off(self):
-        assert _surface_control_alpha({"strict_answer_contract": True}, 5.0) <= 0.1
+        assert _surface_control_alpha({"strict_answer_contract": True}, 5.0) == 0.0

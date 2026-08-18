@@ -4503,7 +4503,7 @@ class LatentCortexService:
                 or isinstance(steering_alpha, bool)
                 or not isinstance(steering_alpha, (int, float))
                 or not math.isfinite(float(steering_alpha))
-                or not 0.01 <= float(steering_alpha) <= 1.0
+                or not 0.0 <= float(steering_alpha) <= 1.0
             ):
                 return self._record_failure("invalid_runtime_controls")
         if type(require_full_stack) is not bool:

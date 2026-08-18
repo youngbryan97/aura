@@ -9046,7 +9046,7 @@ class MLXLocalClient:
                 or isinstance(steering_alpha, bool)
                 or not isinstance(steering_alpha, (int, float))
                 or not math.isfinite(float(steering_alpha))
-                or not 0.01 <= float(steering_alpha) <= 1.0
+                or not 0.0 <= float(steering_alpha) <= 1.0
             ):
                 return {**base, "reason": "invalid_runtime_controls"}
         # CP126 9721b1be. These are semantic inputs to the episode, so they

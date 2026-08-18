@@ -946,64 +946,19 @@ def test_worker_init_failure_exits_before_accepting_jobs(monkeypatch):
     assert recent[0].action == "reported initialization error and exited worker loop before accepting jobs"
 
 
-def test_worker_blocks_generation_when_steering_liveness_drops(monkeypatch):
-    from core.brain.llm import mlx_worker
-    from core.runtime.errors import get_degradation_tracker
+def test_optional_steering_cannot_gate_model_generation():
+    import inspect
 
-    tracker = get_degradation_tracker()
-    tracker.reset()
+    from core.brain.llm.mlx_worker import _mlx_worker_loop
 
-    class FakeSteeringEngine:
-        _alpha = 1.0
+    source = inspect.getsource(_mlx_worker_loop)
+    generate_start = source.index('if action == "generate":')
+    prompt_start = source.index('prompt = job.get("prompt")', generate_start)
+    admission = source[generate_start:prompt_start]
 
-        def __init__(self):
-            self.checks = 0
-
-        def attach(self, *_args, **_kwargs):
-            return None
-
-        def is_active(self):
-            self.checks += 1
-            return self.checks == 1
-
-    class FakeTokenizer:
-        @staticmethod
-        def encode(text, add_special_tokens=False):
-            del add_special_tokens
-            return list(range(max(1, len(str(text)) // 4)))
-
-        @staticmethod
-        def decode(tokens, skip_special_tokens=True):
-            del skip_special_tokens
-            return "x" * len(tokens)
-
-    steering_engine = FakeSteeringEngine()
-    queue_factory = _install_worker_fakes(
-        monkeypatch,
-        mlx_worker,
-        load_impl=lambda *_args, **_kwargs: (
-            types.SimpleNamespace(
-                parameters=lambda: {"weight": types.SimpleNamespace(size=1)}
-            ),
-            FakeTokenizer(),
-        ),
-        steering_engine=steering_engine,
-    )
-    requests = queue_factory([{"id": "g1", "action": "generate", "prompt": "hello"}, None])
-    responses = queue_factory()
-
-    mlx_worker._mlx_worker_loop("fake-model", requests, responses)
-
-    assert responses.writes[0]["status"] == "ok"
-    generation_error = responses.writes[1]
-    assert generation_error["id"] == "g1"
-    assert generation_error["action"] == "generate"
-    assert generation_error["status"] == "error"
-    assert "steering" in generation_error["message"].lower()
-    recent = tracker.recent(subsystem="mlx_worker", limit=1)
-    assert recent
-    assert recent[0].severity == "critical"
-    assert recent[0].action == "blocked generation because steering liveness failed"
+    assert "engine.is_active" not in admission
+    assert "generation blocked" not in admission
+    assert "steering liveness" not in admission
 
 
 def test_response_listener_shutdown_awareness():
