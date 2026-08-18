@@ -354,6 +354,24 @@ def looks_like_desktop_objective(user_message: str) -> bool:
     text = normalize_memory_intent_text(user_message).lower()
     if not text:
         return False
+    # Acting on a web page is acting on the world.
+    #
+    # LIVE 2026-08-18: "go take it for real: <url> — work through the whole
+    # thing, answer every question as yourself" classified False here, so it
+    # never reached the execution lane at all; it was treated as a lookup,
+    # fetched, summarised into nothing, and answered "I couldn't get to an
+    # answer I'd stand behind."
+    #
+    # A questionnaire, a checkout and a signup wizard are the same request as
+    # "open Notes and write something": a thing to be DONE, whose result does
+    # not exist until it is done. Reading a page is not, and stays a lookup.
+    try:
+        from core.conversation.page_interaction import asks_to_act_on_a_page
+
+        if asks_to_act_on_a_page(user_message):
+            return True
+    except (ImportError, AttributeError, TypeError, ValueError):
+        pass
     sanitized_text = strip_negated_action_spans(text).lower()
     # An action verb inside REPORTED history is not an instruction.
     #

@@ -78,3 +78,47 @@ def test_the_plan_opens_the_page_in_pursue_mode():
     search_branch = source.index("# 4. Web Search / Search Web")
     assert interaction < search_branch, "acting on a page must be considered before searching"
     assert '"mode": "pursue"' in source
+
+
+class TestTheThreeLinksInTheChain:
+    """One request, three classifiers, and it had to pass all of them.
+
+    Fixing the planner alone changed nothing live, because the turn never
+    reached the planner: the contract had already called it a search, and the
+    desktop-objective test had already called it not-an-action. A capability is
+    reachable only when every gate between the sentence and the skill agrees.
+    """
+
+    ACT = (
+        "ok. go take it for real: https://www.16personalities.com/free-personality-test "
+        "- work through the whole thing, answer every question as yourself"
+    )
+    READ = "read https://example.com/article and summarise it"
+
+    def test_the_classifier_separates_working_from_reading(self):
+        from core.conversation.page_interaction import asks_to_act_on_a_page
+
+        assert asks_to_act_on_a_page(self.ACT) is True
+        assert asks_to_act_on_a_page(self.READ) is False
+
+    def test_a_page_to_work_is_not_a_search(self):
+        """`has_url` alone used to force a search, which cannot serve it."""
+        from interface.routes.chat import _resolve_chat_response_contract
+
+        assert getattr(_resolve_chat_response_contract(self.ACT), "requires_search", None) is False
+
+    def test_reading_a_page_is_still_a_search(self):
+        from interface.routes.chat import _resolve_chat_response_contract
+
+        assert getattr(_resolve_chat_response_contract(self.READ), "requires_search", None) is True
+
+    def test_a_page_to_work_reaches_the_execution_lane(self):
+        from core.runtime.desktop_objective_intent import looks_like_desktop_objective
+
+        assert looks_like_desktop_objective(self.ACT) is True
+        assert looks_like_desktop_objective(self.READ) is False
+
+    def test_ordinary_conversation_is_untouched(self):
+        from core.runtime.desktop_objective_intent import looks_like_desktop_objective
+
+        assert looks_like_desktop_objective("how are you feeling?") is False

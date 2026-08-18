@@ -1210,9 +1210,27 @@ def build_response_contract(
         or requires_self_preservation
         or requires_identity_defense
     )
+    # A page to WORK is not a page to search.
+    #
+    # `has_url` alone forced a search, so "go take it for real: <url> — work
+    # through the whole thing" was fetched and summarised, produced nothing
+    # usable, and ended in "I couldn't get to an answer I'd stand behind."
+    # Search was never going to serve it: a questionnaire's second screen does
+    # not exist until the first is answered, so there is nothing to fetch.
+    #
+    # Same line BrowserAuthority draws one layer down — a read needs no lease,
+    # a click needs one — applied where the request is classified.
+    try:
+        from core.conversation.page_interaction import asks_to_act_on_a_page
+
+        acts_on_a_page = asks_to_act_on_a_page(search_trigger_text)
+    except (ImportError, AttributeError, TypeError, ValueError):
+        acts_on_a_page = False
+
     requires_search = bool(
         is_user_facing
         and not is_embodied_control
+        and not acts_on_a_page
         and (
             explicit_search
             or has_url
