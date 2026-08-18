@@ -73,10 +73,30 @@ def test_recording_a_deferral_on_fail_closed_gate_would_raise(monkeypatch):
     monkeypatch.setattr(
         registry_mod, "get_service_failure_policy", lambda name: "fail-closed"
     )
+    # A GENUINE fault on the same fail-closed subsystem, to show the cascade
+    # this contract exists to keep backpressure out of.
+    #
+    # This used to pass the warmup-deferral string itself and assert it
+    # raised. That became unreachable the moment the classifier learned to
+    # recognise it — which is the very behaviour the rest of this file
+    # asserts — so the test was demanding the cascade it was written to
+    # prevent, and failed on a clean tree. The counterfactual needs an error
+    # the classifier does NOT consider backpressure, or it is asserting that
+    # the fix does not work.
     with pytest.raises(RuntimeError, match="CRITICAL SERVICE FAILURE"):
         record_degradation(
             "inference_gate",
-            RuntimeError("foreground_warmup_deferred:memory_pressure:69%/19GB"),
+            RuntimeError("gate state corrupted: null adapter in the response lane"),
             severity="degraded",
             action="test replay of the July 8 cascade",
         )
+
+    # And the deferral string, on the same subsystem and severity, does not.
+    # The pair is the contract: identical handling, opposite outcomes,
+    # decided only by whether the condition is the machine being busy.
+    record_degradation(
+        "inference_gate",
+        RuntimeError("foreground_warmup_deferred:memory_pressure:69%/19GB"),
+        severity="degraded",
+        action="backpressure must never escalate",
+    )
