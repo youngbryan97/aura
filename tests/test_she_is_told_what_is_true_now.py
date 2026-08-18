@@ -151,7 +151,13 @@ def test_the_gate_injects_both_blocks() -> None:
     src = GATE.read_text(encoding="utf-8")
     assert "from core.brain.present_moment import present_moment_block" in src
     assert "from core.brain.self_state_report import runtime_self_report" in src
-    assert "if asks_about_own_runtime(visible_user_prompt):" in src
+    # The gate narrowed this to asks_about_own_capabilities: this path only
+    # ADDS an instrument reading, so a false positive costs a few prompt lines,
+    # while asks_about_own_runtime also suppresses web search, where a false
+    # positive costs the lookup the person asked for. The predicate changed on
+    # purpose; asserting the old name pinned the test to a decision that was
+    # deliberately reversed.
+    assert "if asks_about_own_capabilities(visible_user_prompt):" in src
 
 
 def test_grounding_survives_prompt_compaction() -> None:
@@ -188,15 +194,23 @@ def test_the_desktop_conversation_lane_is_grounded_too() -> None:
     """
     src = ENGINE.read_text(encoding="utf-8")
     assert "from core.brain.present_moment import present_moment_block" in src
-    assert "from core.runtime.self_state_intent import asks_about_own_runtime" in src
+    # asks_about_own_runtime -> asks_about_own_capabilities, deliberately: this
+    # path only ADDS a reading, so a false positive costs a few prompt lines,
+    # while asks_about_own_runtime also suppresses web search, where a false
+    # positive costs the lookup the person asked for.
+    assert "asks_about_own_capabilities" in src
     assert "from core.brain.self_state_report import runtime_self_report" in src
 
 
 def test_grounding_is_added_before_the_style_contract() -> None:
     """Order matters only in that both must survive to the same prompt."""
     src = ENGINE.read_text(encoding="utf-8")
+    # The style contract is appended as a PERSONA CONTRACT block now; the
+    # assertion pinned an exact f-string that no longer exists, so it failed on
+    # a rename rather than on a regression. What matters is unchanged: the
+    # grounding is assembled before the contract is appended.
     assert src.index("present_moment_block()") < src.index(
-        'system_prompt = f"{system_prompt}\\n{style_contract}"'
+        'system_prompt = f"{system_prompt}\\n[PERSONA CONTRACT]'
     )
 
 

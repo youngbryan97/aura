@@ -428,6 +428,23 @@ def _entry_is_from_the_human(entry: dict) -> bool:
         return False
 
 
+def _process_start_time() -> float | None:
+    """When this runtime started, as a wall-clock timestamp.
+
+    Returns None when it cannot be determined, in which case the time-gap rule
+    stands alone — an unknown boundary must not silently discard history.
+    """
+
+    try:
+        import os
+
+        import psutil
+
+        return float(psutil.Process(os.getpid()).create_time())
+    except Exception:  # noqa: BLE001 - a boundary probe must not break recall
+        return None
+
+
 def _within_current_conversation(history: Any) -> list[dict]:
     """Trailing run of entries with no gap longer than a long silence."""
     entries = [entry for entry in (history or []) if isinstance(entry, dict)]
@@ -436,6 +453,29 @@ def _within_current_conversation(history: Any) -> list[dict]:
     stamped = [entry for entry in entries if _entry_timestamp(entry) is not None]
     if len(stamped) < 2:
         return entries
+    # A RESTART ends a conversation, whatever the clock says.
+    #
+    # LIVE 2026-08-17: "what was the first thing I said to you in this
+    # conversation?" answered "opening-marker-zulu" — the opening turn of a
+    # session two restarts earlier. The boots were minutes apart, so the
+    # 45-minute silence rule saw one unbroken conversation across three
+    # separate runs of the process.
+    #
+    # She was not there in between. Turns from before this process started
+    # belong to a different conversation by the plainest reading of the word,
+    # and answering from them misattributes what the person said in a session
+    # that has ended.
+    boot_at = _process_start_time()
+    if boot_at is not None:
+        after_boot = [
+            entry
+            for entry in entries
+            if (_entry_timestamp(entry) or 0.0) >= boot_at
+        ]
+        if after_boot:
+            entries = after_boot
+        if len(entries) < 2:
+            return entries
     start_index = 0
     for index in range(len(entries) - 1, 0, -1):
         current = _entry_timestamp(entries[index])
