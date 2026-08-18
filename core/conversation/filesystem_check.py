@@ -289,7 +289,7 @@ def requested_file_read(user_message: Any) -> FileRead | None:
                 continue
             return FileRead(
                 path=str(target),
-                text=body[:READ_CHAR_BUDGET],
+                text=_relevant_span(body, text),
                 exists=True,
                 truncated=len(body) > READ_CHAR_BUDGET,
             )
@@ -301,3 +301,61 @@ def requested_file_read(user_message: Any) -> FileRead | None:
     if missing is not None:
         return FileRead(path=missing, text="", exists=False)
     return None
+
+
+#: Words that say nothing about WHICH part of a file is wanted.
+_SPAN_STOPWORDS = frozenset(
+    """
+    a about an and are as at be but by can could do does file for from get has
+    have how i if in into is it its me my of on or say says show tell that the
+    their them then there these they this to two under up us use was what when
+    where which who why will with within would you your read open check look
+    max sentences sentence words line lines please just only more most
+    """.split()
+)
+
+
+def _relevant_span(body: str, question: str) -> str:
+    """The part of the file the question is about, not simply its opening.
+
+    LIVE 2026-08-17: "what does ARCHITECTURE.md say about layering?" returned
+    the first 4,000 characters of a 200KB spec. The word "layering" first
+    appears at line 2263, far outside that window, so she answered from the
+    document's introduction and described the wrong thing with confidence.
+
+    Reading the head of a file answers "what is this file", which is a
+    different question from "what does it say about X". When the question names
+    a topic, the window is centred where the file actually discusses it.
+    """
+
+    if len(body) <= READ_CHAR_BUDGET:
+        return body
+    terms = [
+        w
+        for w in re.findall(r"[A-Za-z][A-Za-z_-]{2,}", str(question or "").lower())
+        if w not in _SPAN_STOPWORDS
+    ]
+    if not terms:
+        return body[:READ_CHAR_BUDGET]
+
+    lowered = body.lower()
+    # Score fixed windows by how many DISTINCT asked-about terms they contain,
+    # tie-broken by total mentions, so a passage that discusses the topic beats
+    # one that name-drops it once.
+    window = READ_CHAR_BUDGET
+    step = max(1, window // 4)
+    best_start, best_distinct, best_hits = 0, 0, 0
+    for start in range(0, max(1, len(body) - window + 1), step):
+        chunk = lowered[start : start + window]
+        distinct = sum(1 for t in terms if t in chunk)
+        if distinct == 0:
+            continue
+        hits = sum(chunk.count(t) for t in terms)
+        if (distinct, hits) > (best_distinct, best_hits):
+            best_start, best_distinct, best_hits = start, distinct, hits
+    if best_distinct == 0:
+        return body[:READ_CHAR_BUDGET]
+    # Start at a line boundary so the excerpt does not open mid-sentence.
+    boundary = body.rfind("\n", max(0, best_start - 200), best_start + 1)
+    start = boundary + 1 if boundary != -1 else best_start
+    return body[start : start + window]
