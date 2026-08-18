@@ -36,6 +36,8 @@ __all__ = [
     "FileRead",
     "FilesystemCount",
     "requested_file_read",
+    "asserted_filesystem_counts",
+    "contradicted_filesystem_claims",
     "requested_filesystem_count",
 ]
 
@@ -576,3 +578,75 @@ def _topic_coverage(body: str, question: str, *, filename: str = "") -> tuple[st
     scored = sorted(((lowered.count(t), t) for t in terms), key=lambda item: item[0])
     count, term = scored[0]
     return term, count
+
+#: A count the PERSON states as fact, rather than asks for.
+#:
+#: LIVE DEFECT, 2026-08-18. Told "earlier you told me core/agency has 61 python
+#: files. just confirming those before i write them down", she answered:
+#:
+#:     "Yes, that's right ... the core/agency directory has exactly 61 Python
+#:      files in it. Feel free to write those down — they're factual
+#:      observations ... that you can trust."
+#:
+#: There are 54, and she had answered 54 correctly earlier in the same
+#: conversation. She contradicted her own measured answer to agree with the
+#: person, then told him to rely on it.
+#:
+#: Everything above this line fires on a QUESTION — "how many files are in X".
+#: An assertion is the same claim with the same answer available, and it is the
+#: more dangerous shape: a question invites a check, a statement invites a nod.
+_ASSERTED_COUNT_RE = re.compile(
+    r"(?P<path1>[\w./\-]+)\s+(?:has|contains|holds)\s+(?:exactly\s+|about\s+|around\s+)?"
+    r"(?P<count1>\d[\d,]*)\s+(?P<kind1>[.\w+]*?)\s*(?:files?|scripts?|modules?)"
+    r"|there\s+(?:are|were)\s+(?:exactly\s+|about\s+|around\s+)?(?P<count2>\d[\d,]*)\s+"
+    r"(?P<kind2>[.\w+]*?)\s*(?:files?|scripts?|modules?)\s+(?:in|inside|under|within)\s+"
+    r"(?:the\s+)?(?P<path2>[\w./\-]+)",
+    re.IGNORECASE,
+)
+
+
+def asserted_filesystem_counts(user_message: Any) -> list[tuple[int, FilesystemCount]]:
+    """Counts the person stated, paired with what the directory actually holds.
+
+    Only claims this module can settle exactly are returned, so a caller may
+    treat a mismatch as a fact rather than a suspicion. Agreeing with a number
+    the runtime can check is not politeness; it is the one failure that makes
+    every other number untrustworthy.
+    """
+    text = " ".join(str(user_message or "").split())
+    if not text:
+        return []
+    found: list[tuple[int, FilesystemCount]] = []
+    for match in _ASSERTED_COUNT_RE.finditer(text):
+        raw_path = match.group("path1") or match.group("path2") or ""
+        raw_count = match.group("count1") or match.group("count2") or ""
+        kind = (match.group("kind1") or match.group("kind2") or "").strip().lower()
+        if not raw_path or not raw_count:
+            continue
+        suffix = _KIND_SUFFIXES.get(kind, "")
+        if kind and not suffix:
+            # An unrecognised qualifier would compare against a different set.
+            continue
+        target = _resolve(raw_path)
+        if target is None or not target.is_dir():
+            continue
+        counted = _count_in(target, suffix)
+        if counted is None or not counted.exists:
+            continue
+        try:
+            claimed = int(raw_count.replace(",", ""))
+        except ValueError:
+            continue
+        found.append((claimed, counted))
+    return found
+
+
+def contradicted_filesystem_claims(
+    user_message: Any,
+) -> list[tuple[int, FilesystemCount]]:
+    """Only the stated counts that are wrong. Empty is the agreeable case."""
+    return [
+        (claimed, counted)
+        for claimed, counted in asserted_filesystem_counts(user_message)
+        if claimed != counted.count
+    ]

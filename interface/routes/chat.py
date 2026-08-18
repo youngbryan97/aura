@@ -14052,12 +14052,53 @@ def _serve_measured_filesystem_count(user_message: object, reply: object) -> obj
 
     text = str(reply or "")
     try:
-        from core.conversation.filesystem_check import requested_filesystem_counts
+        from core.conversation.filesystem_check import (
+            contradicted_filesystem_claims,
+            requested_filesystem_counts,
+        )
 
         counts = requested_filesystem_counts(user_message)
+        contradicted = contradicted_filesystem_claims(user_message)
     except _CHAT_RECOVERABLE_ERRORS as exc:
         record_degradation("chat.filesystem_check", exc)
         return reply
+
+    # A number the person STATED, which the runtime can settle exactly.
+    #
+    # Live 2026-08-18: "earlier you told me core/agency has 61 python files.
+    # just confirming those before i write them down." She replied "Yes, that's
+    # right ... exactly 61 Python files ... Feel free to write those down —
+    # they're factual observations you can trust." There are 54, and she had
+    # answered 54 correctly earlier in the same conversation.
+    #
+    # Every count path here fired on a QUESTION. An assertion is the same claim
+    # with the same answer available, and it is the more dangerous shape: a
+    # question invites a check, a statement invites a nod. Agreeing with a
+    # number the runtime holds is what makes every other number she gives
+    # worthless.
+    if contradicted:
+        corrections = "; ".join(
+            f"{Path(counted.path).name} has {counted.count}"
+            f"{' ' + counted.suffix if counted.suffix else ''} files, not {claimed}"
+            for claimed, counted in contradicted
+        )
+        logger.warning("📁 Corrected a stated count: %s.", corrections)
+        correction = (
+            f"Not quite — {corrections}. I counted the directory just now rather "
+            "than agreeing."
+        )
+        if not counts:
+            # If the draft repeats the wrong figure it cannot be kept beside
+            # the correction: the person would be handed both numbers and no
+            # way to tell which she meant. A reply whose content is the false
+            # confirmation IS the defect, so it goes.
+            repeats_the_claim = any(
+                str(claimed) in text for claimed, _counted in contradicted
+            )
+            if repeats_the_claim or not text:
+                return correction
+            return f"{correction}\n\n{text}".strip()
+
     if not counts:
         return reply
     # Every count that was asked for. Serving only the first answered half of
