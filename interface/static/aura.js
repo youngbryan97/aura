@@ -7955,13 +7955,37 @@ if (rebootBtn) rebootBtn.addEventListener('click', async (e) => {
     e.stopPropagation();
     if (confirm('Reboot Aura? This will restart the server process.')) {
         try {
-            await fetch('/api/reboot', {
+            const res = await fetch('/api/reboot', {
                 method: 'POST',
                 headers: auraDesktopHeaders(),
             });
+            // A refusal is a SUCCESSFUL fetch with ok === false, so it throws
+            // nothing and the catch below never sees it. The response was
+            // dropped entirely: pressing Reboot on a session without owner
+            // authority did nothing, said nothing, and looked identical to a
+            // reboot that was already under way — measured live 2026-08-18,
+            // where /api/reboot answered 401 and the window sat there.
+            //
+            // The one message this handler could show says the request failed
+            // "before it reached the server", which is the only case it
+            // handled. Reaching the server and being refused had no branch.
+            if (!res.ok) {
+                const refused = res.status === 401 || res.status === 403;
+                appendMsg(
+                    'aura',
+                    refused
+                        ? '⚠ Reboot refused — this window is not signed in as the owner.'
+                        : `⚠ Reboot was not accepted (${res.status}).`,
+                    false,
+                    { diagnostic: true },
+                );
+            }
         } catch (e) {
+            // A reboot that IS happening tears the connection down mid-flight,
+            // so a throw here is ambiguous. Say what is known rather than
+            // asserting a failure that may have been a success.
             console.warn('[System] Reboot request failed:', e);
-            appendMsg('aura', '⚠ Reboot request failed before it reached the server.', false, { diagnostic: true });
+            appendMsg('aura', '⚠ The reboot request did not complete — she may be restarting anyway.', false, { diagnostic: true });
         }
     }
 });
