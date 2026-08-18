@@ -127,6 +127,12 @@ def organ_of(path: str) -> str:
     return parts[0]
 
 
+#: Files in the crash directory whose mtime changes on every BOOT, because
+#: arming a fault sink writes a header to them. Their freshness is evidence
+#: that the runtime started, never that it crashed.
+_BOOT_SINK_FILENAMES = frozenset({"faulthandler.log"})
+
+
 @dataclass(frozen=True)
 class SourceBodySnapshot:
     """One awakening's record of the body's source state."""
@@ -663,9 +669,54 @@ class SourceBodyAwareness:
             organs[organ] = organs.get(organ, 0) + 1
         return organs
 
+    #: Recorded shutdown reasons that mean the runtime chose to stop.
+    _CLEAN_SHUTDOWN_REASONS = frozenset(
+        {"checkpoint", "clean", "requested", "graceful", "restart", "reboot", "user"}
+    )
+
+    def _recorded_clean_shutdown(self) -> bool:
+        """Did the previous session record stopping on purpose?
+
+        The runtime already knows how it went down — ShutdownCoordinator logs
+        `clean=True` and the process exits 0 — and it persists the reason. An
+        inference from file mtimes cannot outrank a record of the event itself.
+        """
+        try:
+            from core.continuity import get_continuity
+
+            continuity = get_continuity()
+            if getattr(continuity, "_record", None) is None:
+                continuity.load()
+            reason = str(
+                (continuity.get_obligations() or {}).get("last_shutdown_reason", "")
+                or ""
+            ).strip().lower()
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError, OSError):
+            return False
+        return reason in self._CLEAN_SHUTDOWN_REASONS
+
     def _previous_exit_was_abrupt(self, previous: SourceBodySnapshot | None) -> bool:
-        """Crash evidence newer than the previous awakening means we died."""
+        """Whether the previous session died rather than stopped.
+
+        LIVE DEFECT, 2026-08-18. Every clean restart woke her with "My previous
+        session ended abruptly — crash evidence was found on disk", including
+        restarts where the runtime logged `ShutdownCoordinator: shutdown
+        complete (clean=True ...)` and exited 0.
+
+        The evidence was `faulthandler.log`, which lives in the crash directory
+        and is APPENDED AT BOOT — it carries "===== boot pid=N =====" headers.
+        Arming a fault sink is not a fault. Its mtime is newer than the last
+        awakening on every single boot by construction, so the check could
+        only ever answer "yes", and she believed she had died every time she
+        woke up.
+
+        A recorded shutdown outranks an inferred one. Files are the fallback
+        for the case the record cannot cover: a session that died before it
+        could write one.
+        """
         if previous is None:
+            return False
+        if self._recorded_clean_shutdown():
             return False
         try:
             for crash_dir in self.crash_evidence_dirs:
@@ -673,7 +724,13 @@ class SourceBodyAwareness:
                     continue
                 for entry in crash_dir.iterdir():
                     try:
-                        if entry.is_file() and entry.stat().st_mtime > previous.t:
+                        if not entry.is_file():
+                            continue
+                        if entry.name in _BOOT_SINK_FILENAMES:
+                            # Written when the sink is ARMED, so its freshness
+                            # marks a boot rather than a death.
+                            continue
+                        if entry.stat().st_mtime > previous.t:
                             return True
                     except OSError:
                         continue
