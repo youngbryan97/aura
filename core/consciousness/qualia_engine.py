@@ -59,11 +59,14 @@ and the pipeline's names should not be read as results.
 from __future__ import annotations
 
 import logging
+import threading
 import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence
 
 import numpy as np
+
+from core.runtime.errors import record_degradation
 
 from core.verify.earned_metric import (
     EarnedAxis,
@@ -255,6 +258,64 @@ class ConceptualLayer:
             "dominance": _axis("dominance"),
         }
         self._observations = 0
+        #: One refit at a time; see _refit_off_the_loop.
+        self._refit_in_flight = False
+
+    def _refit_off_the_loop(self) -> None:
+        """Refit the earned axes on a worker, never on the caller's thread.
+
+        LIVE DEFECT, 2026-08-17: the loudest CRITICAL in the runtime — 246
+        "EVENT LOOP STALL DETECTED" at 5.0-7.6s, and 196 "hard event-loop lag
+        exceeded 5.00s". The stall dump names this exact path:
+
+            heartbeat._tick -> qualia_synthesizer.synthesize
+            -> qualia_engine.process -> earned_metric.fit -> earned_metric._ridge
+
+        EarnedAxis.fit solves a ridge regression, and then solves it
+        _AXIS_PERMUTATIONS (200) more times for the permutation null. That is
+        201 numpy solves per axis, run inline, on the heartbeat tick, on the
+        event loop. Multiply by the axes and the stall is not a mystery — it
+        is arithmetic.
+
+        Deferring it is safe and the timing is not load-bearing: nothing reads
+        the result during this call. `value()` reads coefficients under the
+        axis's own lock, `fit()` takes the same lock around the state it
+        copies and does the heavy solve OUTSIDE it, so a refit landing a few
+        hundred milliseconds later is invisible to every reader. Blocking the
+        loop for seconds is not.
+
+        One worker and a skip-if-busy flag, because refits arriving faster
+        than they complete must not queue: the newest fit is the only one
+        worth having, and a backlog of stale ones is how a deferral becomes a
+        second leak.
+        """
+        if self._refit_in_flight:
+            return
+        self._refit_in_flight = True
+
+        def _run() -> None:
+            try:
+                for axis in list(self._axes.values()):
+                    axis.fit()
+            except (ValueError, TypeError, RuntimeError, np.linalg.LinAlgError) as exc:
+                record_degradation(
+                    "qualia_engine.refit",
+                    exc,
+                    severity="info",
+                    action="kept the previous earned-axis fit",
+                )
+            finally:
+                self._refit_in_flight = False
+
+        try:
+            threading.Thread(
+                target=_run, name="QualiaEarnedAxisRefit", daemon=True
+            ).start()
+        except RuntimeError:
+            # Interpreter shutdown or an exhausted thread table. Release the
+            # latch so a later observation can try again rather than wedging
+            # refits off permanently.
+            self._refit_in_flight = False
 
     def process(
         self,
@@ -285,8 +346,7 @@ class ConceptualLayer:
             if fed:
                 self._observations += 1
                 if self._observations % _REFIT_EVERY == 0:
-                    for axis in self._axes.values():
-                        axis.fit()
+                    self._refit_off_the_loop()
 
         readings: Dict[str, float] = {}
         for index, (name, axis) in enumerate(self._axes.items()):
