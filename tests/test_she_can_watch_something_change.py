@@ -267,3 +267,123 @@ def test_an_unaimed_run_is_still_possible(screen):
     _run(policy=_alternating, max_cycles=30)
 
     assert all(app == "" for _key, app in screen["pressed"])
+
+
+# ── Clearing what blocks the content ──────────────────────────────────────
+
+def _blocked_screen(monkeypatch, labels, *, tiles_after_clear=True):
+    """A screen that shows a modal until something dismisses it."""
+    state = {"cleared": False, "pressed": [], "clicks": []}
+
+    async def read():
+        if state["cleared"]:
+            return {"ok": True, "text": "DONE", "layout": [{"text": "DONE", "center_y": 0.5}]}
+        return {
+            "ok": True,
+            "text": "We use cookies " + " ".join(labels),
+            "layout": [
+                {"text": label, "center_x": 0.5, "center_y": 0.8 + i / 100}
+                for i, label in enumerate(labels)
+            ],
+        }
+
+    async def press(key, *, expect_app=""):
+        state["pressed"].append((key, expect_app))
+        if key == "escape":
+            state["cleared"] = True
+        return True
+
+    async def click(x, y, *, expect_app=""):
+        state["clicks"].append((x, y, expect_app))
+        state["cleared"] = True
+        return True
+
+    monkeypatch.setattr(sp, "read_screen", read)
+    monkeypatch.setattr(sp, "press", press)
+    monkeypatch.setattr(sp, "click_normalized", click)
+    return state
+
+
+async def _never(_observation):
+    return None
+
+
+def test_a_consent_banner_is_cleared_by_declining(monkeypatch):
+    """The loop clears blockers before deciding anything else."""
+    state = _blocked_screen(monkeypatch, ["Accept All", "Reject All"])
+
+    result = asyncio.run(
+        sp.pursue_on_screen(
+            goal="get past the banner",
+            success_when="DONE",
+            policy=_never,
+            max_cycles=6,
+            narrate=False,
+            target_app="Google Chrome",
+        )
+    )
+
+    assert state["clicks"], "the banner was never dismissed"
+    assert result["completed"] is True
+
+
+def test_dismissal_clicks_are_aimed_like_every_other_input(monkeypatch):
+    state = _blocked_screen(monkeypatch, ["Accept All", "Reject All"])
+
+    asyncio.run(
+        sp.pursue_on_screen(
+            goal="g", success_when="DONE", policy=_never, max_cycles=6,
+            narrate=False, target_app="Preview",
+        )
+    )
+
+    assert all(app == "Preview" for *_xy, app in state["clicks"])
+
+
+def test_a_modal_with_no_safe_label_is_escaped(monkeypatch):
+    """The real play2048 case: neither dismissive nor accepting controls."""
+    state = _blocked_screen(monkeypatch, ["Play Tutorial", "New Game"])
+
+    asyncio.run(
+        sp.pursue_on_screen(
+            goal="g", success_when="DONE", policy=_never, max_cycles=6,
+            narrate=False, target_app="Google Chrome",
+        )
+    )
+
+    assert any(key == "escape" for key, _app in state["pressed"])
+
+
+def test_a_consent_wall_is_left_for_the_person(monkeypatch):
+    """Acceptance-only must never be clicked away by the loop."""
+    state = _blocked_screen(monkeypatch, ["I Agree"])
+
+    result = asyncio.run(
+        sp.pursue_on_screen(
+            goal="g", success_when="DONE", policy=_never, max_cycles=5,
+            narrate=False, target_app="Google Chrome",
+        )
+    )
+
+    assert state["clicks"] == []
+    assert not any(key == "escape" for key, _app in state["pressed"])
+    assert result["completed"] is False
+
+
+def test_clearing_a_blocker_happens_before_the_policy_is_asked(monkeypatch):
+    """A reading of a dialog is not a reading of the task."""
+    state = _blocked_screen(monkeypatch, ["Accept All", "Reject All"])
+    asked: list[str] = []
+
+    async def policy(observation):
+        asked.append(observation["text"])
+        return None
+
+    asyncio.run(
+        sp.pursue_on_screen(
+            goal="g", success_when="DONE", policy=policy, max_cycles=6,
+            narrate=False, target_app="Google Chrome",
+        )
+    )
+
+    assert all("cookies" not in text for text in asked), asked

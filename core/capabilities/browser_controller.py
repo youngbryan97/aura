@@ -329,6 +329,114 @@ class BrowserController:
         receipt.target = url[:200]
         return receipt
 
+    async def focus_tab(self, match: str) -> AutomationReceipt:
+        """Bring the tab whose title or URL contains `match` to the front.
+
+        The missing half of tab handling. get_open_tabs could enumerate them
+        and open_url could create one, and nothing could return to a tab that
+        already existed — so any task spanning more than one page acted on
+        whatever the person happened to leave in front.
+
+        LIVE, 2026-08-18. A page was opened, read correctly, and the keys meant
+        for it went to a different tab in the same window. Activating the
+        APPLICATION is not selecting the WINDOW, and selecting the window is
+        not selecting the TAB; each of those is a separate thing that has to be
+        true before input means anything, and only the first existed.
+
+        Matching is a case-insensitive substring over both title and URL,
+        because a person naming a tab uses whichever they can see.
+
+        Verified rather than assumed: the receipt reports the tab that ended up
+        in front, so a caller learns that the switch happened rather than that
+        a script ran. That distinction is the whole reason this was worth
+        finding.
+        """
+        from core.capabilities.host_automation import AppleScriptRunner, AutomationReceipt
+
+        wanted = " ".join(str(match or "").split())
+        if not wanted:
+            return AutomationReceipt(
+                action="focus_tab", target="", adapter="applescript",
+                success=False, error="no match text given",
+            )
+        admission = await self._authorize_effect(
+            "browser_controller.focus_tab", {"match": wanted[:200]}
+        )
+        if not admission.approved:
+            return AutomationReceipt(
+                action="focus_tab", target=wanted[:200], adapter="applescript",
+                success=False, error=f"unauthorized: {admission.reason}",
+            )
+
+        browser = self._preferred_browser
+        needle = wanted.lower().replace('"', "")
+        if "chrome" in browser.lower():
+            script = f'''
+                tell application "Google Chrome"
+                    set found to false
+                    repeat with w from 1 to count of windows
+                        set tabCount to count of tabs of window w
+                        repeat with t from 1 to tabCount
+                            set theTab to tab t of window w
+                            set hay to (title of theTab) & " " & (URL of theTab)
+                            if hay contains "{needle}" then
+                                set active tab index of window w to t
+                                set index of window w to 1
+                                activate
+                                set found to true
+                                exit repeat
+                            end if
+                        end repeat
+                        if found then exit repeat
+                    end repeat
+                    if found then
+                        return (title of active tab of front window)
+                    else
+                        return "NOT_FOUND"
+                    end if
+                end tell
+            '''
+        elif "safari" in browser.lower():
+            script = f'''
+                tell application "Safari"
+                    set found to false
+                    repeat with w from 1 to count of windows
+                        repeat with t from 1 to count of tabs of window w
+                            set theTab to tab t of window w
+                            set hay to (name of theTab) & " " & (URL of theTab)
+                            if hay contains "{needle}" then
+                                set current tab of window w to theTab
+                                set index of window w to 1
+                                activate
+                                set found to true
+                                exit repeat
+                            end if
+                        end repeat
+                        if found then exit repeat
+                    end repeat
+                    if found then
+                        return (name of current tab of front window)
+                    else
+                        return "NOT_FOUND"
+                    end if
+                end tell
+            '''
+        else:
+            return AutomationReceipt(
+                action="focus_tab", target=wanted[:200], adapter="applescript",
+                success=False,
+                error=f"focusing a tab is not implemented for {browser!r}",
+            )
+
+        receipt = await AppleScriptRunner.run(script, timeout=12.0)
+        receipt.action = "focus_tab"
+        receipt.target = wanted[:200]
+        landed = str(getattr(receipt, "result", "") or "").strip()
+        if receipt.success and landed == "NOT_FOUND":
+            receipt.success = False
+            receipt.error = f"no open tab matches {wanted!r}"
+        return receipt
+
     async def open_multiple_tabs(self, urls: list[str]) -> list[AutomationReceipt]:
         """Open multiple URLs in separate tabs."""
         from core.capabilities.host_automation import AutomationReceipt

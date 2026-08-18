@@ -162,6 +162,39 @@ def goal_reached(
     return False
 
 
+async def click_normalized(x: float, y: float, *, expect_app: str = "") -> bool:
+    """Click a point given in 0..1 screen coordinates, top-left origin.
+
+    Perception reports positions normalized, and click_at takes pixels. Every
+    caller converting between them is a place to get a screen's height wrong,
+    so the conversion lives here once — and the same focus guard applies, since
+    a click aimed at the wrong window is a click on someone else's document.
+    """
+    from core.capabilities.host_automation import get_host_automation
+
+    host = get_host_automation()
+    if expect_app:
+        refusal = await host._refuse_if_not_frontmost(expect_app, "click_at")
+        if refusal is not None:
+            return False
+    width, height = await _screen_size()
+    if not width or not height:
+        return False
+    receipt = await host.click_at(int(round(x * width)), int(round(y * height)))
+    return bool(getattr(receipt, "success", False))
+
+
+async def _screen_size() -> tuple[int, int]:
+    """Main display size in pixels, or (0, 0) when it cannot be read."""
+    try:
+        from AppKit import NSScreen
+
+        frame = NSScreen.mainScreen().frame()
+        return int(frame.size.width), int(frame.size.height)
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        return (0, 0)
+
+
 async def press(key: str, *, expect_app: str = "") -> bool:
     """Press one of the allowed keys. False if it is not one of them.
 
@@ -256,7 +289,49 @@ async def pursue_on_screen(
             region_bottom=region_bottom,
         )
 
+    async def clear_blocker(observation: dict[str, Any]) -> Step | None:
+        """A Step that clears whatever is covering the content, or None.
+
+        Tried BEFORE the policy on every cycle, because a dialog owning the
+        screen makes every other decision meaningless: the reading is of the
+        dialog, and the keys go to the dialog. Measured live — a page opened,
+        was read correctly, and six moves in a row changed nothing because a
+        modal had focus, with every keystroke reporting success.
+
+        The judgement lives in core/perception/blocking_overlay.py, which
+        dismisses and never agrees: a dialog offering only acceptance is
+        reported as the person's decision and is left alone. This loop
+        inherits that and adds nothing to it.
+        """
+        try:
+            from core.perception.blocking_overlay import assess_overlay
+        except ImportError:
+            return None
+        verdict = assess_overlay(observation)
+        if not verdict.present or verdict.needs_person:
+            return None
+
+        if verdict.suggested_key:
+            key = verdict.suggested_key
+
+            async def press_away() -> bool:
+                return await press(key, expect_app=target_app)
+
+            return Step(name=f"dismiss overlay with {key}", action=press_away)
+
+        if verdict.click_x is not None:
+            label, x, y = verdict.label, verdict.click_x, verdict.click_y
+
+            async def click_away() -> bool:
+                return await click_normalized(x, y, expect_app=target_app)
+
+            return Step(name=f"dismiss overlay via {label!r}", action=click_away)
+        return None
+
     async def decide(observation: dict[str, Any]) -> Step | None:
+        blocker = await clear_blocker(observation)
+        if blocker is not None:
+            return blocker
         if policy is None or not observation.get("ok"):
             return None
         try:
