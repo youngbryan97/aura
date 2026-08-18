@@ -3368,7 +3368,6 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
             // Clicks survive because the recognizer does not delay the primary
             // mouse button and a pan only begins once the pointer actually
             // moves: × and the reply control keep taking plain clicks.
-            installWindowDrag(on: webView)
             observeBubbleMoves(panel)
         }
 
@@ -3741,6 +3740,8 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
                 self.pendingBubbleMoveSequence = nil
                 self.reportBubbleOrigin(panel.frame.origin, sequence: sequence)
             }
+        case "dragStart":
+            beginNativeBubbleDrag()
         case "resize":
             resizeBubblePanel(
                 width: (body["width"] as? Double) ?? 56,
@@ -3758,6 +3759,70 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
     /// CSS pointer-events do not make transparent AppKit window area disappear;
     /// the NSPanel itself can still sit over another app. Resizing the host is
     /// therefore a functional desktop contract, not a visual optimization.
+    /// Drag the bubble with AppKit's own tracking loop.
+    ///
+    /// The companion window is dragged by TopStripPanGestureRecognizer, and
+    /// this window was moved onto it for the sake of having ONE mechanism.
+    /// That was wrong, and the report was "pretty sure this icon in companion
+    /// mode stopped being draggable": the two windows are not the same kind of
+    /// window. The bubble is a .nonactivatingPanel — the whole point of it is
+    /// that clicking never steals focus — and AppKit does not deliver the drag
+    /// to a gesture recognizer on one the way it does on the companion's
+    /// keyable panel. Unifying on the recognizer removed the JS drag, the
+    /// recognizer never fired here, and nothing was left.
+    ///
+    /// trackEvents does not depend on gesture recognition at all. It runs a
+    /// modal loop that receives every drag event wherever the pointer goes,
+    /// and NSEvent.mouseLocation is in global screen coordinates, so the 56x56
+    /// bounds of this web view stop mattering. That is what makes the WHOLE
+    /// button draggable rather than whichever corner the controls do not
+    /// claim.
+    ///
+    /// Click and drag are separated HERE rather than in the page, because once
+    /// this loop starts the page never sees the mouseUp — the loop dequeues
+    /// it. A gesture under the threshold is reported back as a click so
+    /// tapping the bubble still opens the chat.
+    private func beginNativeBubbleDrag() {
+        guard let panel = bubblePanel else { return }
+        let startMouse = NSEvent.mouseLocation
+        let startOrigin = panel.frame.origin
+        var moved = false
+
+        panel.trackEvents(
+            matching: [.leftMouseDragged, .leftMouseUp],
+            timeout: NSEvent.foreverDuration,
+            mode: .eventTracking
+        ) { event, stop in
+            guard let event else {
+                stop.pointee = true
+                return
+            }
+            if event.type == .leftMouseUp {
+                stop.pointee = true
+                return
+            }
+            let now = NSEvent.mouseLocation
+            let dx = now.x - startMouse.x
+            let dy = now.y - startMouse.y
+            // A few pixels of slop so a click with a shaky hand stays a click.
+            if !moved && abs(dx) < 3 && abs(dy) < 3 { return }
+            moved = true
+            let target = NSPoint(x: startOrigin.x + dx, y: startOrigin.y + dy)
+            panel.setFrameOrigin(
+                self.clampToScreen(target, size: panel.frame.size)
+            )
+        }
+
+        if moved {
+            reportBubbleOrigin(panel.frame.origin)
+        } else {
+            bubbleWebView?.evaluateJavaScript(
+                "window.dispatchEvent(new CustomEvent('aura-bubble-click'));",
+                completionHandler: nil
+            )
+        }
+    }
+
     private func resizeBubblePanel(width: Double, height: Double) {
         guard let panel = bubblePanel else { return }
         let target = NSSize(

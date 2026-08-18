@@ -124,21 +124,45 @@ class ScreenPerception:
         if not screenshot_path or not Path(screenshot_path).exists():
             return ""
 
+        # macOS Vision FIRST. It is native, always present on this host, more
+        # accurate than the alternative, and the only one of the two that also
+        # reports where each run of text sat — see
+        # HostAutomationProvider._ocr_image_regions.
+        #
+        # The order used to be reversed, with pytesseract preferred and Vision
+        # as its fallback. pytesseract is an optional third-party install, so
+        # in practice the first branch raised ImportError and Vision ran
+        # anyway — meaning the ordering only ever mattered on a machine where
+        # someone HAD installed it, where it silently downgraded perception.
+        try:
+            text = ScreenPerception._ocr_screenshot_with_macos_vision(screenshot_path)
+            if text and text.strip():
+                return text.strip()
+        except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug("macOS Vision OCR failed for %s: %s", screenshot_path, exc)
+
         try:
             import pytesseract
             from PIL import Image
 
-            img = Image.open(screenshot_path)
-            text = pytesseract.image_to_string(img)
-            return text.strip()
-        except ImportError:
-            pass
+            with Image.open(screenshot_path) as img:
+                return str(pytesseract.image_to_string(img) or "").strip()
+        except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug("pytesseract OCR failed for %s: %s", screenshot_path, exc)
 
-        try:
-            return ScreenPerception._ocr_screenshot_with_macos_vision(screenshot_path).strip()
-        except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
-            logger.debug("macOS Vision OCR failed for %s: %s", screenshot_path, exc)
-            return "[OCR not available — install pytesseract or enable macOS Vision OCR]"
+        # Return NOTHING rather than a sentence about OCR.
+        #
+        # This used to return "[OCR not available — install pytesseract or
+        # enable macOS Vision OCR]", and that string was assigned to
+        # snap.screen_text — the field holding what is ON the screen. Every
+        # consumer downstream reads that field as screen content, so a failed
+        # read presented as a screen that literally says OCR is unavailable.
+        # She could then report it as something she saw.
+        #
+        # screen_text_status exists for precisely this and already says
+        # read / read_empty / not_attempted: "Absence of a reading is not a
+        # reading of absence." The reason belongs there, not in the words.
+        return ""
 
     @staticmethod
     def _ocr_screenshot_with_macos_vision(screenshot_path: str) -> str:
@@ -509,9 +533,13 @@ end tell''',
             record_degradation("screen_perception.ocr", e)
             logger.debug("pytesseract OCR failed: %s", e)
 
-        # Fallback: try macOS shortcuts or textutil
-        # (limited but better than nothing)
-        return "[OCR not available — install pytesseract for screen text extraction]"
+        # Same rule as the sync reader below it: an unreadable screen produces
+        # no words, not a sentence about why. This string was assigned to
+        # snap.screen_text, the field describing what is ON the screen, so a
+        # failed read became a screen that says "[OCR not available]" and could
+        # be reported as something she saw. screen_text_status carries the
+        # reason; screen_text carries only what was read.
+        return ""
 
     def get_status(self) -> dict[str, Any]:
         return {

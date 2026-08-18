@@ -274,6 +274,31 @@
    * control keep taking plain clicks and a tap still opens the chat.
    */
 
+  /*
+   * Hand the gesture to AppKit. The page does not drag the window.
+   *
+   * Three earlier attempts lived here and none could work: `-webkit-app-region:
+   * drag` is an Electron property WKWebView ignores, and mousedown + mousemove
+   * deltas die about 28px in because this view is 56x56 and WebKit only
+   * synthesises mousemove for points inside it.
+   *
+   * The host runs a modal tracking loop instead, in global screen coordinates,
+   * so the whole button drags and the pointer can leave the view. One message,
+   * not one per pixel.
+   *
+   * Every part of the pill is a handle EXCEPT the two controls, which do one
+   * thing each and must keep doing it. Clicks survive because the host only
+   * treats the gesture as a drag once the pointer actually moves; a tap comes
+   * back as `aura-bubble-click`.
+   */
+  pill.addEventListener("mousedown", (event) => {
+    if (event.button !== 0) return;
+    if (event.target.closest("#close, #say")) return;
+    postToHost({ action: "dragStart" });
+  });
+
+  window.addEventListener("aura-bubble-click", openChat);
+
   function postToHost(payload) {
     const bridge = window.webkit?.messageHandlers?.auraBubble;
     if (!bridge) return false;
