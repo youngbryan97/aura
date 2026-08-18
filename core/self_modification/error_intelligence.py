@@ -25,14 +25,46 @@ _SOURCE_ROOT_REALPATH = os.path.realpath(
 )
 
 
+#: Checkouts that live INSIDE the source root and are not her body.
+#:
+#: .claude/worktrees holds other agents' working copies. They pass the
+#: containment check below because they are literally under the source root,
+#: so a traceback through one was accepted as a location in her own code and
+#: self-repair went after it: 178 repair attempts against
+#: worktrees/codex-autonomy-deferral/core/collective/delegator.py alone, 54
+#: more against a codex-wow-cp400 copy, and FileNotFoundError storms for
+#: worktrees that had since been deleted.
+#:
+#: Editing them is wrong twice over. They are someone else's in-flight work,
+#: and they are transient — a fix applied there is discarded with the branch,
+#: so the same "bug" is rediscovered and re-repaired forever while her actual
+#: source keeps the defect.
+_NESTED_CHECKOUT_MARKERS = (
+    f"{os.sep}.claude{os.sep}worktrees{os.sep}",
+    f"{os.sep}dist{os.sep}",
+    f"{os.sep}site-packages{os.sep}",
+    f"{os.sep}.venv{os.sep}",
+)
+
+
+def _is_her_own_source(resolved_path: str) -> bool:
+    """Inside this checkout AND not inside a checkout nested within it."""
+    try:
+        if (
+            os.path.commonpath((_SOURCE_ROOT_REALPATH, resolved_path))
+            != _SOURCE_ROOT_REALPATH
+        ):
+            return False
+    except (OSError, RuntimeError, ValueError):
+        return False
+    return not any(marker in resolved_path for marker in _NESTED_CHECKOUT_MARKERS)
+
+
 def _deepest_aura_traceback_frame(error: BaseException) -> tuple[str | None, int | None]:
     for frame in reversed(tb.extract_tb(getattr(error, "__traceback__", None))):
         try:
             resolved_frame = os.path.realpath(frame.filename)
-            if (
-                os.path.commonpath((_SOURCE_ROOT_REALPATH, resolved_frame))
-                != _SOURCE_ROOT_REALPATH
-            ):
+            if not _is_her_own_source(resolved_frame):
                 continue
         except (OSError, RuntimeError, ValueError):
             continue
