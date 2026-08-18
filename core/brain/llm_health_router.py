@@ -3578,6 +3578,23 @@ class HealthAwareLLMRouter:
                         prefer_tier,
                     )
                     self._last_fallback_warning_at = now
+                # Every endpoint for this tier is unavailable — which is a
+                # DEFERRAL, and was being returned as an empty string with no
+                # record that anything had been deferred at all.
+                #
+                # record_deferral had exactly one caller, and it was not this
+                # one. Downstream take_deferral() therefore found nothing, so
+                # autonomous_task_engine raised "LLM returned empty or None
+                # response" (176 in one sampled window), reported planning as
+                # a FAILURE to the ResilienceEngine, and the engine depleted
+                # and began suppressing task execution outright (81 of those).
+                # A full machine cascaded into a runtime that had decided it
+                # was broken — none of it distinguishable, from any of those
+                # layers, from an engine that genuinely could not answer.
+                record_deferral(
+                    origin=str(origin or "router"),
+                    reason=f"no_endpoint_available_for_tier:{prefer_tier or 'default'}",
+                )
                 available = []
         
         # Apply Mycelial Preference as an ORDERING, never a filter: guidance
