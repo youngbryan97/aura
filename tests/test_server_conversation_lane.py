@@ -11602,6 +11602,10 @@ async def test_truncated_foreground_answer_gets_one_same_worker_continuation(mon
     assert engine.calls[1][1]["desktop_quick_reply_contract"] is True
     assert engine.calls[1][1]["user_surface_continuation_contract"] is True
     assert engine.calls[1][1]["user_surface_continuation_partial"].endswith("from the")
+    assert engine.calls[1][1]["route"] == "desktop_chat_continuation"
+    assert "response_repair_directive" not in engine.calls[1][1]
+    assert "failed_reply_excerpt" not in engine.calls[1][1]
+    assert "failed_reply_reasons" not in engine.calls[1][1]
     assert trace["foreground_model_generation_count"] == 2
     assert trace["completion_retry_count"] == 1
     assert trace["response_path"] == "cognitive_engine_completion_retry"
@@ -11967,9 +11971,60 @@ async def test_continuation_handoff_preserves_long_structured_partial(monkeypatc
 
     assert thought is not None
     call = calls[0]
+    assert len(call["messages"]) == 3
     assert call["messages"][-1] == {"role": "assistant", "content": partial}
     assert call["user_surface_continuation_partial"] == partial
+    assert call["semantic_completion_contract"] is True
     assert "USER-SURFACE CONTINUATION CONTRACT" not in call["messages"][0]["content"]
+
+
+@pytest.mark.asyncio
+async def test_extended_surface_request_gets_semantic_completion_terminal(monkeypatch):
+    from core.brain import cognitive_engine as ce_module
+    from core.brain.cognitive_engine import CognitiveEngine
+    from core.brain.types import ThinkingMode
+
+    calls = []
+
+    class _Router:
+        async def think(self, **kwargs):
+            calls.append(kwargs)
+            return "A complete response."
+
+        def get_last_generation_metadata(self):
+            return {}
+
+    class _Container:
+        @staticmethod
+        def get(name, default=None):
+            return _Router() if name == "llm_router" else default
+
+    monkeypatch.setattr(ce_module, "get_container", lambda: _Container)
+    prompt = (
+        "Explain the algorithm in one complete response. Include: (1) the "
+        "invariant, (2) pseudocode, (3) an example, (4) complexity, and (5) "
+        "a failure case."
+    )
+    context = {
+        "desktop_quick_reply_contract": True,
+        "visible_user_message": prompt,
+        "prompt_shape": {
+            "prefers_extended_answer": True,
+            "requires_single_reply_coverage": True,
+            "question_parts": 5,
+        },
+    }
+
+    thought = await CognitiveEngine()._direct_desktop_quick_reply(
+        prompt,
+        ThinkingMode.FAST,
+        "user",
+        context,
+        timeout_s=60.0,
+    )
+
+    assert thought is not None
+    assert calls[0]["semantic_completion_contract"] is True
 
 
 @pytest.mark.asyncio

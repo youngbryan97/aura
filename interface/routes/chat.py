@@ -6112,15 +6112,31 @@ async def _run_cognitive_engine_chat_turn(
             logger.debug("CognitiveEngine repair retry gate unavailable: %s", exc)
             return None
 
-        repair_directive = _build_cognitive_engine_reply_repair_directive(
-            visible,
-            rejected_reply,
-            reasons,
-        )
+        repair_directive = ""
+        if not completion_only_retry:
+            repair_directive = _build_cognitive_engine_reply_repair_directive(
+                visible,
+                rejected_reply,
+                reasons,
+            )
         retry_context = dict(context)
+        if completion_only_retry:
+            # Typed continuation state replaces prose about why the preceding
+            # segment failed. Strip inherited repair payloads so retries cannot
+            # turn into a critique/regeneration prompt.
+            for repair_key in (
+                "response_repair_directive",
+                "failed_reply_reasons",
+                "failed_reply_excerpt",
+            ):
+                retry_context.pop(repair_key, None)
         retry_context.update(
             {
-                "route": "desktop_chat_repair",
+                "route": (
+                    "desktop_chat_continuation"
+                    if completion_only_retry
+                    else "desktop_chat_repair"
+                ),
                 "source": source,
                 "foreground_request": True,
                 "user_facing": True,
@@ -6132,14 +6148,19 @@ async def _run_cognitive_engine_chat_turn(
                 "allow_deep_handoff": False,
                 "allow_cloud_fallback": False,
                 "original_visible_user_message": visible[:1000],
-                "response_repair_directive": repair_directive,
-                "failed_reply_reasons": tuple(reasons or ()),
-                "failed_reply_excerpt": str(rejected_reply or "")[:1200],
                 "suppress_user_memory_append": True,
                 "require_complete_user_reply": completion_only_retry,
                 "user_surface_completion_retry": completion_only_retry,
             }
         )
+        if not completion_only_retry:
+            retry_context.update(
+                {
+                    "response_repair_directive": repair_directive,
+                    "failed_reply_reasons": tuple(reasons or ()),
+                    "failed_reply_excerpt": str(rejected_reply or "")[:1200],
+                }
+            )
         if completion_only_retry:
             # Continue the valid draft instead of recomputing it under a shorter
             # deadline. The resident model receives the original request and its

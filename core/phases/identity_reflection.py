@@ -67,10 +67,15 @@ class IdentityReflectionPhase(BasePhase):
             if last_msg.get("role") == "assistant":
                 content = last_msg.get("content", "")
                 
-                # Check for "Ghost Aura" patterns or excessive repetition
+                # Length is not an identity violation. Loop detection belongs
+                # to the token sentinel and response-quality telemetry; identity
+                # reflection observes authored speech and never edits it.
                 if len(content) > 5000:
-                    logger.warning("🛡️ CognitiveGuard: Output too long. Potential runaway loop. Truncating.")
-                    last_msg["content"] = content[:500] + "... [Guard Truncated]"
+                    logger.info(
+                        "CognitiveGuard observed long-form assistant output (%d chars); "
+                        "content remains authoritative.",
+                        len(content),
+                    )
                 
                 # Claude's Identity Stability Check:
                 # Ensure the message doesn't claim things that violate the core identity

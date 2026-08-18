@@ -6150,6 +6150,18 @@ def _mlx_worker_loop(
                 messages = job.get("messages")
                 tools = job.get("tools")
                 original_prompt = prompt
+                if job.get("user_surface_continuation_contract", False):
+                    from core.brain.llm.chat_format import (
+                        normalize_chat_continuation_messages,
+                    )
+                    from core.conversation.continuation import continuation_prompt_prefix
+
+                    messages = normalize_chat_continuation_messages(
+                        messages,
+                        continuation_prompt_prefix(
+                            job.get("user_surface_continuation_partial")
+                        ),
+                    )
                 original_messages = messages
                 strict_answer_contract = bool(job.get("strict_answer_contract", False))
                 strict_value_contract = bool(job.get("strict_value_contract", False))

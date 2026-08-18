@@ -4668,6 +4668,18 @@ class CognitiveEngine:
                 "[END RECENT COMPLETED CONVERSATION]"
             )
 
+        # A continuation is the same assistant turn, not a second cognitive
+        # request. Re-introducing history, dynamic advice, runtime telemetry,
+        # and repair directives around the partial changed the problem between
+        # segments and made the continuation prompt larger than the original.
+        # The original request plus the exact assistant prefix is the transport
+        # contract; sampler controls remain causal through router kwargs.
+        if continuation_contract:
+            history_messages = []
+            contract_grounding_blocks = []
+            task_grounding_blocks = []
+            ambient_grounding_blocks = []
+
         router_generation_metadata: dict[str, Any] = {}
         try:
             from core.utils.injected_blocks import stamp_grounding
@@ -4752,8 +4764,14 @@ class CognitiveEngine:
                 ),
                 "capability_inventory_contract": capability_inventory_contract,
                 "clean_user_surface_contract": True,
+                # Multipart and extended requests need a semantic terminal, not
+                # only a token cap. Stop as soon as every measured obligation is
+                # present, before an already complete answer can drift into
+                # self-revision or repeat itself.
                 "semantic_completion_contract": bool(
-                    self_condition_contract_covers_turn or continuation_contract
+                    self_condition_contract_covers_turn
+                    or continuation_contract
+                    or shape_wants_room
                 ),
                 "user_surface_validation_prompt": validation_prompt,
                 "user_surface_sensory_evidence": context.get(

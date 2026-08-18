@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib as _hashlib
 import logging
 import os
-from typing import Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
 logger = logging.getLogger("Aura.ChatFormat")
 
@@ -239,6 +239,38 @@ def render_chat_continuation_template(
     if not rendered.endswith(partial):
         raise ValueError("chat continuation template closed or transformed the assistant prefix")
     return rendered
+
+
+def normalize_chat_continuation_messages(
+    messages: object,
+    assistant_prefix: object,
+) -> list[dict[str, Any]]:
+    """Bind typed continuation state to the transcript reaching the model.
+
+    Retries may rebuild the surrounding messages, but they may not silently
+    turn an open assistant prefix back into a user-ended transcript. Normalize
+    at the worker boundary, after upstream transforms, and never mutate the
+    caller-owned message list.
+    """
+
+    partial = str(assistant_prefix or "")
+    if not partial:
+        raise ValueError("continuation assistant prefix must be non-empty")
+    if not isinstance(messages, (list, tuple)) or not messages:
+        raise ValueError("continuation messages must be a non-empty sequence")
+
+    normalized: list[dict[str, Any]] = []
+    for message in messages:
+        if not isinstance(message, dict):
+            raise ValueError("continuation messages must contain mappings")
+        normalized.append(dict(message))
+
+    if _normalize_role(normalized[-1].get("role")) == "assistant":
+        normalized[-1]["role"] = "assistant"
+        normalized[-1]["content"] = partial
+    else:
+        normalized.append({"role": "assistant", "content": partial})
+    return normalized
 
 
 def thinking_enabled_for_model(model_name: Optional[str]) -> Optional[bool]:
