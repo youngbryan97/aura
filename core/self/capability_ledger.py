@@ -507,6 +507,68 @@ def _soma_reserve_reading() -> dict[str, float]:
     return reading
 
 
+def _substrate_reading() -> dict[str, float]:
+    """The cognitive field's own energy and focus, named so they cannot collide.
+
+    LIVE DEFECT, 2026-08-18. Asked "what's your energy reading right now? one
+    number.", her context held THREE numbers all called energy:
+
+        [Affect: Current Mood: TIRED (Energy: 0.14, Focus: 0.50, ...)]   field
+        Energy: 14.0                                                     field, 0-100
+        [Measured ... interoception=yes (... energy 0.647 ...)]          soma reserve
+
+    The field value and the metabolic reserve are different quantities from
+    different organs, and three renderers published them under one word, in one
+    prompt, differing by more than four times. No answer she could give was
+    right: whichever number she picked, the guard that owns the other one calls
+    it a fabrication. Her mood reads TIRED off the field while the reserve says
+    she is fine.
+
+    That is not something a better-worded instruction can repair. Two
+    measurements that share a name are one measurement as far as anything
+    downstream can tell, so the name is what has to change: the field's
+    quantities are registered here under `substrate_energy` and
+    `substrate_focus`, which makes them checkable by the same contradiction
+    guard that owns `energy`, and makes it impossible for a renderer to emit
+    one while meaning the other.
+
+    Read from `.current`, which is the canonical 0-1 vector. `get_status()`
+    reports the same field as percentages, and mixing the two scales is how
+    "Energy: 14.0" and "Energy: 0.14" ended up in the same runtime.
+    """
+
+    try:
+        from core.container import ServiceContainer
+    except ImportError:
+        return {}
+
+    organ = None
+    for accessor in ("peek", "get"):
+        method = getattr(ServiceContainer, accessor, None)
+        if not callable(method):
+            continue
+        try:
+            organ = method("liquid_substrate", default=None)
+        except _PROBE_ERRORS:
+            organ = None
+        if organ is not None:
+            break
+    if organ is None:
+        return {}
+
+    try:
+        vector = organ.current
+    except _PROBE_ERRORS:
+        return {}
+
+    reading: dict[str, float] = {}
+    for label in ("energy", "focus"):
+        value = getattr(vector, label, None)
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            reading[f"substrate_{label}"] = round(float(value), 3)
+    return reading
+
+
 def _probe_interoception() -> Availability:
     reading: dict[str, Any] = {}
     try:
@@ -537,6 +599,7 @@ def _probe_interoception() -> Availability:
         # instrument line carried them. So free generation answered a question
         # about depletion from dimensions that do not deplete.
         reading.update(_soma_reserve_reading())
+        reading.update(_substrate_reading())
     except _PROBE_ERRORS as exc:
         return Availability(
             name="interoception",
@@ -730,21 +793,53 @@ def self_reading_mentions(reply: str) -> list[tuple[str, str, float, bool]]:
 
     found: list[tuple[str, str, float, bool]] = []
     seen: set[str] = set()
-    for metric, value in measured.items():
-        if not isinstance(value, (int, float)):
-            continue
-        for alias in _reading_aliases(metric):
-            # Either order, but never across a sentence boundary: the number
-            # has to belong to the same clause that named the instrument.
-            pattern = (
-                rf"\b{re.escape(alias)}\b[^.!?\n]{{0,40}}?(\d+(?:\.\d+)?)\s*(%?)"
-                rf"|(\d+(?:\.\d+)?)\s*(%?)[^.!?\n]{{0,20}}?\b{re.escape(alias)}\b"
-            )
+    # Longest alias first, and a span consumed by one alias is closed to the
+    # rest. Without it a short name shadows every compound built on it:
+    # "Substrate energy is 0.14" matched the alias `energy`, so the FIELD's
+    # value was checked against the soma RESERVE and correctly-reported numbers
+    # were flagged as fabrications — the exact confusion this registry exists
+    # to end, reproduced inside the guard that polices it.
+    claimed_spans: list[tuple[int, int]] = []
+    candidates = sorted(
+        (
+            (alias, metric, value)
+            for metric, value in measured.items()
+            if isinstance(value, (int, float))
+            for alias in _reading_aliases(metric)
+        ),
+        key=lambda item: (-len(item[0]), item[0]),
+    )
+    # FORWARD first, for every alias, and only then reverse.
+    #
+    # "Memory pressure 0.717 and cpu pressure 90%." — the reverse form for
+    # `cpu pressure` matches "0.717 and cpu pressure" starting at index 16,
+    # BEFORE the forward form reaches "cpu pressure 90%" at 26. `finditer`
+    # scans left to right, so the reverse alternative stole the number that
+    # belonged to memory pressure and swallowed the real one inside its span.
+    # A name followed by its number is how people write these; the reversed
+    # form is the rarer case and must not outrank it.
+    for forward_pass in (True, False):
+        for alias, metric, value in candidates:
+            # Never across a sentence boundary: the number has to belong to the
+            # same clause that named the instrument.
+            quoted = re.escape(alias)
+            number = r"(\d+(?:\.\d+)?)\s*(%?)"
+            if forward_pass:
+                pattern = rf"\b{quoted}\b[^.!?\n]{{0,40}}?{number}"
+            else:
+                pattern = rf"{number}[^.!?\n]{{0,20}}?\b{quoted}\b"
             for match in re.finditer(pattern, text, re.IGNORECASE):
-                raw = match.group(1) or match.group(3)
+                span = match.span()
+                if any(
+                    max(span[0], start) < min(span[1], end)
+                    for start, end in claimed_spans
+                ):
+                    continue
+                raw = match.group(1)
                 if raw is None:
                     continue
-                percent = (match.group(2) or match.group(4)) == "%"
+                claimed_spans.append(span)
+                percent = match.group(2) == "%"
                 try:
                     claimed = float(raw)
                 except ValueError:

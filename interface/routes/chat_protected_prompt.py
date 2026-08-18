@@ -313,8 +313,16 @@ def _build_protected_foreground_system_prompt(
         _compact_snapshot_line("Curiosity", voice_state.get("curiosity")),
         _compact_snapshot_line("Coherence", voice_state.get("coherence")),
         # The two the header shows and she could not read.
-        _compact_snapshot_line("Energy", voice_state.get("energy")),
-        _compact_snapshot_line("Focus", voice_state.get("focus")),
+        #
+        # Named for the organ that owns them. These come from the liquid
+        # substrate — a cognitive FIELD dimension — and the soma reserve
+        # publishes a different quantity under the same word. Live 2026-08-18
+        # both reached one prompt, this one rendering 14.0 and the affect line
+        # 0.14 (the same field on two scales) beside a reserve of 0.647. Asked
+        # "what's your energy reading? one number", there was no number she
+        # could give that some guard would not call invented.
+        _compact_snapshot_line("Substrate energy", voice_state.get("energy")),
+        _compact_snapshot_line("Substrate focus", voice_state.get("focus")),
         _compact_snapshot_line("Current mode", voice_state.get("current_mode")),
         _compact_snapshot_line("Objective", voice_state.get("current_objective")),
         _compact_snapshot_line("Continuity", continuity_summary, max_chars=260),

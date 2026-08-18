@@ -1238,9 +1238,20 @@ class LiquidSubstrate:
         focus = float(x[self.idx_focus])
         age_s = float(snapshot["snapshot_age_s"])
         stale_note = " stale" if age_s > float(snapshot["freshness_threshold_s"]) else ""
+        # LIVE DEFECT, 2026-08-18. These two numbers are FIELD dimensions, and
+        # they were published as bare "Energy" and "Focus" — the same words the
+        # soma reserve uses for a different quantity from a different organ.
+        # Both lines land in one prompt: this said Energy 0.14 while the
+        # instrument line said energy 0.647, and asked for "your energy" no
+        # answer she could give was right, because whichever number she picked
+        # the guard owning the other one called it a fabrication.
+        #
+        # Naming the organ is the fix. Two measurements that share a name are
+        # one measurement as far as anything downstream can tell.
         return (
-            f"Current Mood: {mood} (Energy: {energy:.2f}, Focus: {focus:.2f}, "
-            f"Substrate age: {age_s:.1f}s{stale_note})"
+            f"Current Mood: {mood} (substrate energy: {energy:.2f}, "
+            f"substrate focus: {focus:.2f}, "
+            f"substrate age: {age_s:.1f}s{stale_note})"
         )
 
     async def _recurrent_self_model(self, dt: float):

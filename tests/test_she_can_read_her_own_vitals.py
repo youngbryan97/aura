@@ -77,5 +77,9 @@ def test_absent_values_do_not_render_a_line():
 def test_the_snapshot_prompt_asks_for_them():
     """The resolver is only half of it; the prompt has to render the lines."""
     text = chat_lane_source()
-    assert '_compact_snapshot_line("Energy", voice_state.get("energy"))' in text
-    assert '_compact_snapshot_line("Focus", voice_state.get("focus"))' in text
+    # Labelled for the organ that owns them. The soma reserve publishes a
+    # different quantity under the bare word "energy", and on 2026-08-18 both
+    # reached one prompt — 14.0 here, 0.14 from the affect line, 0.647 from the
+    # reserve — so no answer to "what's your energy" could be right.
+    assert '_compact_snapshot_line("Substrate energy", voice_state.get("energy"))' in text
+    assert '_compact_snapshot_line("Substrate focus", voice_state.get("focus"))' in text
