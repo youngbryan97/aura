@@ -15540,6 +15540,26 @@ def _apply_recorded_answer(user_message: object, response: Any) -> Any:
         # the real number was tried and produced the wrong number a third time.
         corrected = str(_serve_measured_filesystem_count(user_message, corrected) or corrected)
         corrected = str(_correct_false_capability_denials(corrected) or corrected)
+        # Cut a hallucinated continuation of the transcript.
+        #
+        # LIVE 2026-08-18: "<tool_call> !user yes check it. Read the contents
+        # back to me..." reached the person, appended to a real reply. The
+        # artifact was flagged as repairable and nothing repaired it, so the
+        # draft was served with the model's invention of their next message
+        # still attached.
+        try:
+            from core.conversation.response_reliability import strip_prompt_artifacts
+
+            _cut = strip_prompt_artifacts(corrected)
+            if _cut.strip() and _cut != corrected:
+                logger.warning(
+                    "Cut a prompt artifact from a served reply (%d -> %d chars).",
+                    len(corrected),
+                    len(_cut),
+                )
+                corrected = _cut
+        except _CHAT_RECOVERABLE_ERRORS as _artifact_exc:
+            record_degradation("chat.prompt_artifact_strip", _artifact_exc)
         if corrected == reply:
             return response
         data["response"] = corrected

@@ -78,6 +78,23 @@ _ROLE_OR_PROMPT_ARTIFACT_RE = re.compile(
     r"|(?:\[ACTIVE GROUNDING EVIDENCE\])"
     r"|(?:\[FETCHED PAGE CONTENT\])"
     r"|(?:\[INTERNAL MEMORY RECALL\])"
+    # Tool-call scaffolding and hallucinated turn markers.
+    #
+    # LIVE 2026-08-18, asked to append a line to a file, the reply reached the
+    # person as:
+    #   "Would you like to check the file...?<tool_call> !user yes check it.
+    #    Read the contents back to me. Keep them on screen as you speak..."
+    #
+    # The model had begun writing the CONVERSATION rather than a turn in it —
+    # inventing the person's next message and a tool-call token. Everything
+    # from the first such marker is transcript continuation, not an answer, so
+    # the same cut that handles "user:" and <|im_start|> belongs here.
+    r"|(?:</?tool_call>)"
+    r"|(?:</?function_call>)"
+    r"|(?:</?tool_response>)"
+    r"|(?:!\s*(?:user|assistant|human|system)\b)"
+    r"|(?:<\|(?:start|end)_of_turn\|>)"
+    r"|(?:^\s*###\s*(?:Human|Assistant|User)\b)"
 )
 _BROKEN_LANE_BOILERPLATE_RE = re.compile(
     r"(dropped the heavy reasoning lane|deeper lane recovers|lighter mode|"
@@ -96,6 +113,38 @@ _MODEL_RUNTIME_ARTIFACT_RE = re.compile(
     r"|\bunder elevated load pressure,?\s+i(?:'m| am) channeling\b",
     re.IGNORECASE,
 )
+
+
+def strip_prompt_artifacts(reply_text: Any) -> str:
+    """Cut a reply at the first role/tool marker, keeping what came before.
+
+    A prompt artifact was only ever FLAGGED — assess_user_facing_reply added
+    "prompt_artifact" to the reasons and the draft was served anyway, because
+    the reason is repairable and nothing repaired it.
+
+    LIVE 2026-08-18, asked to append a line to a file:
+
+        "Would you like to check the file or do something else with it?
+         <tool_call> !user yes check it. Read the contents back to me. Keep
+         them on screen as you speak..."
+
+    The model had begun writing the CONVERSATION rather than a turn in it,
+    inventing the person's next message. Everything from the first marker is
+    transcript continuation, so it is cut rather than annotated: the text
+    before it is the reply she actually made.
+
+    Returns "" when the artifact is at the very start, because then there is no
+    reply — only continuation — and the caller must treat that as no answer
+    rather than serving a fragment.
+    """
+
+    text = str(reply_text or "")
+    if not text.strip():
+        return ""
+    match = _ROLE_OR_PROMPT_ARTIFACT_RE.search(text)
+    if match is None:
+        return text
+    return text[: match.start()].rstrip()
 
 
 def repair_runtime_boilerplate(reply_text: Any) -> str:
