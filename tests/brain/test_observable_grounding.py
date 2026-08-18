@@ -283,3 +283,19 @@ def test_a_conversational_turn_does_not_read_the_screen() -> None:
     from core.brain.observable_registry import _matches_screen
 
     assert _matches_screen("how are you doing today?") is False
+
+
+def test_every_registered_observable_is_visible_at_dispatch() -> None:
+    """A hand-written copy of this list drifted the first day it existed.
+
+    screen and beliefs were registered and left out of the survival check, so a
+    screen reading that WAS taken reported as not surviving — and an hour went
+    into hunting a delivery bug that did not exist.
+    """
+    from core.brain.inference_gate import _observable_dispatch_markers
+
+    markers = dict(_observable_dispatch_markers())
+
+    for observable in OBSERVABLES:
+        assert observable.name in markers, observable.name
+        assert markers[observable.name] == observable.header

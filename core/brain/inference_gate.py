@@ -940,6 +940,25 @@ def _flatten_messages_for_local_model(messages: list[dict[str, str]]) -> str:
     return format_chatml_messages(messages)
 
 
+def _observable_dispatch_markers() -> tuple[tuple[str, str], ...]:
+    """(name, header) for every registered observable, for the survival check.
+
+    Derived so that registering a reading also makes its delivery visible. A
+    hand-maintained copy of this list is a second source of truth that goes
+    stale the first time someone adds an observable and forgets it.
+    """
+
+    try:
+        import core.brain.observable_registry  # noqa: F401  (registers)
+        from core.brain.observable_grounding import OBSERVABLES
+
+        return tuple(
+            (observable.name, observable.header) for observable in OBSERVABLES
+        )
+    except Exception:  # noqa: BLE001 - observability must never break a turn
+        return ()
+
+
 class InferenceGate:
     """Isolated inference gateway for Aura's managed local runtime."""
 
@@ -11825,11 +11844,13 @@ class InferenceGate:
                 ("receipts", "## WHAT YOU ACTUALLY JUST DID"),
                 # Grounding that cannot be seen cannot be verified — the file
                 # block spent a day being built into a prompt nobody sent.
-                ("file", "## FILE YOU WERE ASKED ABOUT"),
-                ("clipboard", "## WHAT IS ON THE CLIPBOARD"),
-                ("listing", "## DIRECTORY LISTING YOU WERE ASKED ABOUT"),
-                ("corpus", "## REFERENCE PASSAGES FROM THE LOCAL CORPUS"),
-                ("clock", "## THE CURRENT LOCAL TIME"),
+                #
+                # DERIVED from the registry, never hand-listed. Written out by
+                # hand, this list immediately drifted: screen and beliefs were
+                # registered as observables and left out here, so a screen
+                # reading that WAS taken reported as not surviving, and an hour
+                # went into looking for a delivery bug that did not exist.
+                *_observable_dispatch_markers(),
             )
             if marker in str(system_prompt or "")
             or any(marker in str(msg.get("content", "") or "") for msg in messages)
