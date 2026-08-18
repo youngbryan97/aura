@@ -262,6 +262,49 @@ class ActionAdmission:
     authority: Any
 
 
+#: Domains that change the world outside this process, and therefore create
+#: something to look at.
+_WORLD_CHANGING_DOMAINS = frozenset(
+    {ActionDomain.ENVIRONMENT_ACTION, ActionDomain.EXTERNAL_ACTION}
+)
+
+#: How long acting on the world keeps her watching it.
+#:
+#: The claim is deliberately NOT released when the action returns. Look-act-
+#: look needs the look AFTER the act: a click has to be seen to land, a drag
+#: has to be seen to move, a board has to be seen to change. Releasing on
+#: return would drop perception back to one frame every ten seconds precisely
+#: when the result appears. Letting it expire instead means acting on the
+#: world raises perception for a window around the action and then decays on
+#: its own, with no bookkeeping for a caller to forget.
+ACTION_PERCEPTION_WINDOW_S = 8.0
+
+
+def _hold_perception_for(domain: ActionDomain, action_name: str) -> None:
+    """Keep her eyes open around an action that changes the world.
+
+    Every governed action passes through ActionExecutor.execute, so this is
+    the one place that catches skills which do not exist yet. Wrapping the
+    individual host_automation methods instead would have missed the next one
+    added, and there are five of them already.
+    """
+    if domain not in _WORLD_CHANGING_DOMAINS:
+        return
+    try:
+        from core.runtime.perception_demand import claim_perception
+
+        claim_perception(
+            f"{domain.value}:{action_name}", ttl_s=ACTION_PERCEPTION_WINDOW_S
+        )
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        record_degradation(
+            "action_executor",
+            exc,
+            severity="info",
+            action="acted without raising perception cadence",
+        )
+
+
 class ActionExecutor:
     """Execute, observe, and receipt one consequential action."""
 
@@ -427,6 +470,7 @@ class ActionExecutor:
         domain = _coerce_domain(domain)
         action_name = _coerce_action_name(action_name)
         params = _coerce_params(params)
+        _hold_perception_for(domain, action_name)
         handler_name = _validate_effect_handler(
             domain,
             effect_handler=effect_handler,

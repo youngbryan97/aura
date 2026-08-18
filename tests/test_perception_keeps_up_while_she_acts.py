@@ -155,3 +155,57 @@ def test_the_vision_loop_actually_reads_the_demand(generation_running):
     assert seeing.effective_hz > blind.effective_hz * 5
     # The cadence a look-act-look loop needs at all.
     assert seeing.interval_s <= 1.0
+
+
+def test_acting_on_the_world_raises_perception():
+    """Every governed action passes through one place; that is where this lives."""
+    from core.governance.will import ActionDomain
+    from core.runtime.action_executor import _hold_perception_for
+
+    _hold_perception_for(ActionDomain.ENVIRONMENT_ACTION, "click_at")
+
+    assert perception_is_demanded()
+    assert any("click_at" in reason for reason in active_perception_reasons())
+
+
+def test_thinking_does_not_raise_perception():
+    """Only actions that change the world create something to look at."""
+    from core.governance.will import ActionDomain
+    from core.runtime.action_executor import _hold_perception_for
+
+    for domain in (
+        ActionDomain.MEMORY_WRITE,
+        ActionDomain.REFLECTION,
+        ActionDomain.RESPONSE,
+    ):
+        _hold_perception_for(domain, "some_action")
+
+    assert not perception_is_demanded()
+
+
+def test_the_claim_outlives_the_action():
+    """Look-act-LOOK: the result appears after the call returns.
+
+    Releasing on return would drop her back to one frame per ten seconds
+    exactly when the thing she did becomes visible.
+    """
+    from core.governance.will import ActionDomain
+    from core.runtime.action_executor import (
+        ACTION_PERCEPTION_WINDOW_S,
+        _hold_perception_for,
+    )
+
+    _hold_perception_for(ActionDomain.ENVIRONMENT_ACTION, "type_text")
+
+    assert perception_is_demanded()
+    assert ACTION_PERCEPTION_WINDOW_S >= 2.0
+
+
+def test_the_executor_calls_it_on_every_action():
+    """Wiring: a skill added tomorrow must be covered without being edited."""
+    import inspect
+
+    from core.runtime.action_executor import ActionExecutor
+
+    source = inspect.getsource(ActionExecutor.execute)
+    assert "_hold_perception_for" in source
