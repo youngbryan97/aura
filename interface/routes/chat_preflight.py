@@ -1459,6 +1459,34 @@ def _is_explicit_capability_inventory_request(user_message: str) -> bool:
     if _capability_belongs_elsewhere:
         return False
 
+    # LIVE DEFECT, 2026-08-18. "If I gave you 10 minutes of unsupervised
+    # compute, what would you actually do with it?" was answered in 1.2s with
+    # the whole registry: 74 entries, five category headings, and a closing
+    # note that she was not opening anything. The question was about what she
+    # would CHOOSE, and choice is the one thing an inventory cannot express.
+    #
+    # It matched on "actually do", a marker added for "What can you actually
+    # do on this computer right now?" — where the same two words ask what is
+    # possible. The auxiliary is what separates them: CAN asks the inventory,
+    # WOULD asks the will. So under a hypothetical, the loose verb phrases no
+    # longer stand in for a capability question; naming tools or skills
+    # outright still does, because "if I gave you an hour, which of your tools
+    # would you reach for" really is asking.
+    _hypothetical = re.search(
+        r"\b(?:if\s+(?:i|you|we)\b|suppose\b|imagine\b|were\s+you\s+to\b|"
+        r"what\s+would\s+you\b|hypothetical)",
+        text,
+        flags=re.IGNORECASE,
+    )
+    _names_the_inventory = re.search(
+        r"\b(?:capable|capabilit|abilit|tools?|skills?|wired\s+up|"
+        r"available\s+to\s+you|access\s+to)\b",
+        text,
+        flags=re.IGNORECASE,
+    )
+    if _hypothetical and not _names_the_inventory:
+        return False
+
     if re.search(
         r"\bwhat(?:'s| is| are)?\b[^?]{0,80}?\b(?:you|your|aura|she|her)\b"
         r"|\b(?:you|your|aura|she|her)\b[^?]{0,80}?\b(?:capable|abilit|"
