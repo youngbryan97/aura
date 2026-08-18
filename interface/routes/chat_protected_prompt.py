@@ -334,8 +334,42 @@ def _build_protected_foreground_system_prompt(
         "Prefer continuity, warmth, and directness over internal ceremony."
     )
     if snapshot_block:
-        prompt = f"{prompt}\n\n## SNAPSHOT\n{snapshot_block}"
+        prompt = f"{prompt}\n\n{SNAPSHOT_HEADING}\n{snapshot_block}"
     return prompt
+
+
+#: Heading the volatile state block carries wherever it is placed.
+SNAPSHOT_HEADING = "## SNAPSHOT"
+
+
+def _protected_foreground_prompt_parts(
+    user_message: str,
+    *,
+    lane: dict[str, Any],
+) -> tuple[str, str]:
+    """The stable instructions and the volatile state, kept apart.
+
+    They are joined for callers that want one string, and placed separately in
+    the message list — because WHERE the volatile half sits decides how much of
+    the prompt can be reused between turns.
+
+    Mood, valence, arousal, energy and focus change on every turn. Sitting at
+    the end of the FIRST system message, they preceded the summary, the whole
+    history and the user's turn, so the KV prefix diverged inside the system
+    block and everything after it was recomputed. Measured live 2026-08-18,
+    consistently: "prefix diverges at token 132 (16% of 831 reused)" — five
+    sixths of the prompt re-prefilled every turn on a 32B, which is most of
+    what a person waits through.
+
+    Volatile last is the same rule llm_health_router already records for the
+    system-state header it appends; this applies it across the message list
+    rather than within one message.
+    """
+    full = _build_protected_foreground_system_prompt(user_message, lane=lane)
+    stable, marker, volatile = full.partition(f"\n\n{SNAPSHOT_HEADING}\n")
+    if not marker:
+        return full, ""
+    return stable, volatile
 
 
 async def _build_protected_foreground_messages(
@@ -349,13 +383,22 @@ async def _build_protected_foreground_messages(
         session_id=session_id,
         limit_pairs=8 if bool(route.get("deep_handoff", False)) else 6,
     )
-    system_prompt = _build_protected_foreground_system_prompt(user_message, lane=lane)
+    stable_prompt, volatile_state = _protected_foreground_prompt_parts(
+        user_message, lane=lane
+    )
     summary_message = _build_protected_foreground_summary_message()
     messages = [
-        {"role": "system", "content": system_prompt},
+        {"role": "system", "content": stable_prompt},
     ]
     if summary_message:
         messages.append(summary_message)
     messages.extend(history)
+    # Volatile state goes LAST, immediately before the turn it describes, so
+    # the instructions, the summary and the whole history form one prefix that
+    # survives between turns instead of being invalidated by a changed mood.
+    if volatile_state:
+        messages.append(
+            {"role": "system", "content": f"{SNAPSHOT_HEADING}\n{volatile_state}"}
+        )
     messages.append({"role": "user", "content": user_message})
     return messages
