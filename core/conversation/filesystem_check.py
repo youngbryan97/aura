@@ -239,20 +239,69 @@ def _resolve(path_text: str) -> Path | None:
     return None
 
 
-def requested_filesystem_count(user_message: Any) -> FilesystemCount | None:
-    """The count this message asks for, taken from disk, or None."""
+def requested_filesystem_counts(user_message: Any) -> list[FilesystemCount]:
+    """Every count this message asks for, taken from disk, in the order asked.
 
+    A question can ask for more than one, and asking for two is the natural
+    way to ask. Live 2026-08-18: "how many test files do you have, and how many
+    python files are in core/agency?" was answered "54 .py files" — the second
+    number, exactly right, with the first one silently dropped. Answering half
+    a question and stopping reads as a complete answer, which is worse than
+    saying one of them is unavailable.
+    """
     text = " ".join(str(user_message or "").split())
     if not text:
-        return None
-    match = _COUNT_RE.search(text)
-    if not match:
-        owned = _OWNED_KIND_RE.search(text)
-        if owned:
-            home = _home_for_kind(owned.group("owned"))
-            if home is not None:
-                return _count_in(home, _dominant_suffix(home))
-        return None
+        return []
+    found: list[FilesystemCount] = []
+    seen: set[str] = set()
+    stated_a_place = False
+    for match in _COUNT_RE.finditer(text):
+        stated_a_place = True
+        counted = _count_for_match(match, text)
+        if counted is None:
+            # A named place this cannot answer for — an unrecognised qualifier,
+            # an absolute path — is a deliberate refusal, and the implied-place
+            # shortcut below must not talk over it.
+            continue
+        key = f"{counted.path}|{counted.suffix}"
+        if key in seen:
+            continue
+        seen.add(key)
+        found.append(counted)
+
+    # A question can name one place and imply another in the same breath: "how
+    # many tests do you have, and how many python files are in core/agency".
+    # The loop above only sees the second.
+    #
+    # The implied place is only ever consulted for a clause that named none. An
+    # explicit place wins, including when the answer for it is a refusal —
+    # otherwise "how many config files are in core" quietly becomes a count of
+    # config/, which answers a question nobody asked.
+    owned = _OWNED_KIND_RE.search(text)
+    if owned and (not stated_a_place or found):
+        home = _home_for_kind(owned.group("owned"))
+        if home is not None:
+            single = _count_in(home, _dominant_suffix(home))
+            if single is not None:
+                key = f"{single.path}|{single.suffix}"
+                if key not in seen:
+                    seen.add(key)
+                    found.insert(0, single)
+    return found
+
+
+def requested_filesystem_count(user_message: Any) -> FilesystemCount | None:
+    """The first count this message asks for, or None.
+
+    Kept for callers that only need to know whether a message is a count
+    request at all; ``requested_filesystem_counts`` is what answers one.
+    """
+    counts = requested_filesystem_counts(user_message)
+    return counts[0] if counts else None
+
+
+def _count_for_match(match: "re.Match[str]", text: str) -> FilesystemCount | None:
+    """Resolve and count one ``_COUNT_RE`` match."""
     kind = (match.group("kind") or "").strip().lower()
     suffix = _KIND_SUFFIXES.get(kind, "")
     if kind and not suffix:

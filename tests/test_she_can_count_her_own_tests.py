@@ -107,3 +107,91 @@ def test_the_counts_match_the_shell():
     )
     assert counted is not None
     assert counted.count == int(shell.stdout.strip())
+
+
+# ── a question can ask for more than one count ───────────────────────────
+
+
+def test_two_counts_in_one_question_both_come_back():
+    """Asking for two is the natural way to ask for two.
+
+    LIVE, 2026-08-18: "how many test files do you have, and how many python
+    files are in core/agency?" was answered "54 .py files" — the second
+    number, exactly right, with the first silently dropped. Half an answer
+    reads as a whole one, which is worse than saying a part is unavailable.
+    """
+    from core.conversation.filesystem_check import requested_filesystem_counts
+
+    counts = requested_filesystem_counts(
+        "two numbers, no guessing: how many test files do you have, and how "
+        "many python files are in core/agency?"
+    )
+    assert len(counts) == 2, [c.path for c in counts]
+    by_name = {Path(c.path).name: c for c in counts}
+    assert by_name["tests"].count == _actual("tests", ".py")
+    assert by_name["agency"].count == _actual("core/agency", ".py")
+
+
+def test_the_reply_carries_both_numbers():
+    import interface.routes.chat as chat
+
+    served = chat._serve_measured_filesystem_count(
+        "how many test files do you have, and how many python files are in core/agency?",
+        "I think it's about 40 and 900.",
+    )
+    assert str(_actual("tests", ".py")) in served
+    assert str(_actual("core/agency", ".py")) in served
+
+
+def test_a_single_count_still_lists_the_directory():
+    """The one-count answer showed its work; that must not be lost."""
+    import interface.routes.chat as chat
+
+    served = chat._serve_measured_filesystem_count(
+        "how many python files are in core/agency", "roughly 40"
+    )
+    assert "listed the directory" in served
+    assert "agency_core.py" in served
+
+
+def test_a_reply_that_is_already_right_is_left_alone():
+    import interface.routes.chat as chat
+
+    mine = f"There are {_actual('core/agency', '.py')} python files in core/agency."
+    assert chat._serve_measured_filesystem_count(
+        "how many python files are in core/agency", mine
+    ) == mine
+
+
+def test_a_non_count_question_is_untouched():
+    import interface.routes.chat as chat
+
+    assert chat._serve_measured_filesystem_count("what's the weather", "Sunny.") == "Sunny."
+
+
+def test_a_missing_directory_is_still_reported_when_asked_alongside_others():
+    """`all()` over an empty sequence is True.
+
+    Testing only the EXISTING counts meant a question whose only target was
+    missing short-circuited to "she already has it right" and the report was
+    never reached.
+    """
+    import interface.routes.chat as chat
+
+    served = chat._serve_measured_filesystem_count(
+        "how many files are in core/definitely_not_here", "There are 4 files."
+    )
+    assert "no directory" in str(served).lower()
+
+
+def test_an_explicit_place_beats_an_implied_one():
+    """"how many config files are in core" must not become a count of config/.
+
+    The implied-place shortcut is only for a clause that named no place. A
+    named place this cannot answer for is a deliberate refusal, and the
+    shortcut must not talk over it.
+    """
+    from core.conversation.filesystem_check import requested_filesystem_counts
+
+    assert requested_filesystem_counts("how many config files are in core") == []
+    assert requested_filesystem_counts("how many files are in /etc") == []

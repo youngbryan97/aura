@@ -14052,33 +14052,57 @@ def _serve_measured_filesystem_count(user_message: object, reply: object) -> obj
 
     text = str(reply or "")
     try:
-        from core.conversation.filesystem_check import requested_filesystem_count
+        from core.conversation.filesystem_check import requested_filesystem_counts
 
-        counted = requested_filesystem_count(user_message)
+        counts = requested_filesystem_counts(user_message)
     except _CHAT_RECOVERABLE_ERRORS as exc:
         record_degradation("chat.filesystem_check", exc)
         return reply
-    if counted is None:
+    if not counts:
         return reply
-    if not counted.exists:
-        return (
-            f"There is no directory at {counted.path}, so there is nothing to "
-            "count there."
-        )
-    if str(counted.count) in text:
-        return reply  # she already has it right; leave her wording alone
-    kind = f"{counted.suffix} " if counted.suffix else ""
-    listed = ", ".join(counted.names[:12])
-    more = "" if len(counted.names) <= 12 else f", and {len(counted.names) - 12} more"
+    # Every count that was asked for. Serving only the first answered half of
+    # "how many test files do you have, and how many python files are in
+    # core/agency?" with "54 .py files" — the second number, exactly right, and
+    # the first silently dropped. Half an answer reads as a whole one, which is
+    # worse than saying a part is unavailable.
+    # A missing directory always has to be said; the reply cannot already
+    # contain a count it does not have. Testing only the EXISTING ones made
+    # this an `all()` over an empty sequence, which is True — so a single
+    # missing directory short-circuited to "leave her wording alone" and the
+    # "no directory" report was never reached.
+    present = [counted for counted in counts if counted.exists]
+    if len(present) == len(counts) and all(str(c.count) in text for c in present):
+        return reply  # she already has them right; leave her wording alone
+
+    sentences: list[str] = []
+    for counted in counts:
+        if not counted.exists:
+            sentences.append(
+                f"There is no directory at {counted.path}, so there is nothing "
+                "to count there."
+            )
+            continue
+        kind = f"{counted.suffix} " if counted.suffix else ""
+        where = Path(counted.path).name
+        if len(counts) == 1:
+            listed = ", ".join(counted.names[:12])
+            more = (
+                "" if len(counted.names) <= 12 else f", and {len(counted.names) - 12} more"
+            )
+            sentences.append(
+                f"{counted.count} {kind}files. I listed the directory rather than "
+                f"estimating: {listed}{more}."
+            )
+        else:
+            # With more than one, naming the place matters more than listing
+            # every file — a wall of names buries the second number.
+            sentences.append(f"{where}: {counted.count} {kind}files, counted from disk.")
     logger.warning(
-        "📁 Served the measured count (%s) over the generated one for %s.",
-        counted.count,
-        counted.path,
+        "📁 Served %d measured count(s) over the generated one(s): %s.",
+        len(counts),
+        ", ".join(f"{c.path}={c.count}" for c in counts),
     )
-    return (
-        f"{counted.count} {kind}files. I listed the directory rather than "
-        f"estimating: {listed}{more}."
-    )
+    return " ".join(sentences)
 
 
 def _correct_false_capability_denials(reply: object) -> object:
