@@ -43,10 +43,23 @@ class ArithmeticClaimRepair:
 
 _CLAIM_NUMBER = r"-?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?"
 _CLAIM_ATOM = rf"(?:{_CLAIM_NUMBER}|\(\s*{_CLAIM_NUMBER}\s*\))"
-_CLAIM_TERM = rf"{_CLAIM_ATOM}(?:\s*[-+*/x×]\s*{_CLAIM_ATOM})*"
+#: A unit carried along with a number in written working: "1317 DAYS * 86400
+#: SECONDS/DAY = 113,923,200 SECONDS".
+#:
+#: Without this the pattern matched only bare arithmetic, which is the one form
+#: shown work almost never takes. Measured live 2026-08-18: she reasoned a
+#: duration correctly and then wrote
+#: "1317 days * 86400 seconds/day = 113,923,200 seconds" — the product is
+#: 113,788,800. The same equation written bare WAS caught, so the check was
+#: working and simply never saw the sentence people write.
+#:
+#: Deliberately narrow: one word, optionally over a second ("seconds/day"), no
+#: digits. Anything looser starts joining separate sentences into one equation.
+_CLAIM_UNIT = r"(?:\s*[A-Za-z\u00b5%]+(?:\s*/\s*[A-Za-z\u00b5]+)?)?"
+_CLAIM_TERM = rf"{_CLAIM_ATOM}{_CLAIM_UNIT}(?:\s*[-+*/x×]\s*{_CLAIM_ATOM}{_CLAIM_UNIT})*"
 _CLAIM_FUNCTION = rf"(?:min|max)\(\s*{_CLAIM_TERM}(?:\s*,\s*{_CLAIM_TERM})+\s*\)"
 _ARITHMETIC_CLAIM_RE = re.compile(
-    rf"(?<![\w.])(?P<lhs>{_CLAIM_FUNCTION}|{_CLAIM_ATOM}(?:\s*[-+*/x×]\s*{_CLAIM_ATOM})+)"
+    rf"(?<![\w.])(?P<lhs>{_CLAIM_FUNCTION}|{_CLAIM_ATOM}{_CLAIM_UNIT}(?:\s*[-+*/x×]\s*{_CLAIM_ATOM}{_CLAIM_UNIT})+)"
     rf"\s*=\s*(?P<rhs>{_CLAIM_NUMBER})(?!\d)(?!\.\d)"
 )
 _CLAIM_REFUTATION_BEFORE_RE = re.compile(
@@ -90,7 +103,17 @@ def _format_arithmetic_value(value: float) -> str:
 def _normalize_arithmetic_expression(expr: str) -> str:
     """Normalize numeric spelling without destroying function separators."""
 
-    return re.sub(r"(?<=\d),(?=\d{3}(?:\D|$))", "", expr).replace("x", "*").replace("×", "*")
+    cleaned = re.sub(r"(?<=\d),(?=\d{3}(?:\D|$))", "", expr).replace("×", "*")
+    # "x" between two numbers is multiplication; anywhere else it is a letter
+    # inside a unit, so the blanket replace turned "6 x" into "6 *" and also
+    # mangled any unit containing an x.
+    cleaned = re.sub(r"(?<=\d)\s*x\s*(?=[\d(])", "*", cleaned)
+    # Units are annotation, not arithmetic. min/max are the one alphabetic
+    # construct this evaluator honours, so expressions using them are left
+    # alone rather than being stripped down to their separators.
+    if "min(" not in cleaned and "max(" not in cleaned:
+        cleaned = re.sub(r"[A-Za-z\u00b5%]+(?:\s*/\s*[A-Za-z\u00b5]+)?", " ", cleaned)
+    return cleaned
 
 
 def _safe_arith(expr: str) -> float | None:
