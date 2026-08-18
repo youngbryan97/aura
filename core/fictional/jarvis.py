@@ -87,6 +87,9 @@ class ProactiveAnticipationEngine:
         self._running = False
         self._pending_initiations: asyncio.Queue = None
         self._system_baseline: dict[str, float] = {}
+        #: Last announced magnitude per standing condition, so a fact that
+        #: stays true is stated once rather than every cycle it holds.
+        self._condition_last_value: dict[str, float | None] = {}
         self._unresolved_topics: deque = deque(maxlen=self.MAX_UNRESOLVED_TOPICS)
         self._user_interest_keywords: deque = deque(maxlen=self.MAX_INTEREST_KEYWORDS)
         self._last_user_activity: float = time.time()
@@ -262,7 +265,61 @@ class ProactiveAnticipationEngine:
             return False
         return True
 
-    async def _fire_initiation(self, content: str, priority: str = "low") -> bool:
+    #: How much a continuing condition must move before it is worth saying again.
+    #:
+    #: Percentage points, because every condition guarded this way is measured
+    #: in them. Below this, a repeat carries no information the person does not
+    #: already have.
+    CONDITION_RESTATEMENT_DELTA = 5.0
+
+    def _condition_is_worth_restating(self, key: str, value: float | None) -> bool:
+        """True when a keyed condition is new, materially changed, or re-armed.
+
+        LIVE DEFECT, 2026-08-18. "Disk is 92% full. Worth cleaning up before it
+        causes problems." had been fired 436 times — 265 at 92%, 109 at 93%, 54
+        at 94%, 8 at 99%. Each reading was true when taken, so nothing was
+        wrong with the measurement; the same standing fact was simply
+        re-announced every cycle it remained true.
+
+        The daily budget did not prevent it, because the budget counts
+        initiations and not SUBJECTS: one unchanging condition spent the whole
+        allowance, and everything else she might have raised was crowded out by
+        it. A cap on how often she speaks is not a cap on how often she repeats
+        herself.
+
+        Keyed on the condition rather than the sentence, so rewording does not
+        restart the nagging, and re-armed when the condition clears — the point
+        is to say a thing once while it is true, not to say it once ever.
+        """
+        if not key:
+            return True
+        with self._lock:
+            previous = self._condition_last_value.get(key)
+            if previous is None:
+                self._condition_last_value[key] = value
+                return True
+            if value is None or previous is None:
+                return False
+            if abs(float(value) - float(previous)) < self.CONDITION_RESTATEMENT_DELTA:
+                return False
+            self._condition_last_value[key] = value
+            return True
+
+    def note_condition_cleared(self, key: str) -> None:
+        """The condition no longer holds, so saying it again would be news."""
+        if not key:
+            return
+        with self._lock:
+            self._condition_last_value.pop(key, None)
+
+    async def _fire_initiation(
+        self,
+        content: str,
+        priority: str = "low",
+        *,
+        condition: str = "",
+        value: float | None = None,
+    ) -> bool:
         """Fire a proactive initiation, and spend the budget only if it lands.
 
         The daily cap and the interval clock used to advance the moment the
@@ -274,6 +331,10 @@ class ProactiveAnticipationEngine:
         The budget is reserved before the await, because two cycles can
         overlap, and released when nothing was delivered.
         """
+        # Checked BEFORE the budget: a repeat of something already said must
+        # not consume a slot, which is the whole failure being fixed.
+        if not self._condition_is_worth_restating(condition, value):
+            return False
         if not self._reserve_initiation():
             return False
 
@@ -355,7 +416,9 @@ class ProactiveAnticipationEngine:
             await self._fire_initiation(
                 f"CPU usage is at {state['cpu_percent']:.0f}% — something is running hot. "
                 f"Want me to check what's consuming resources?",
-                priority="medium"
+                priority="medium",
+                condition="cpu_pressure",
+                value=float(state.get("cpu_percent", 0) or 0),
             )
 
         # Memory pressure
@@ -363,14 +426,18 @@ class ProactiveAnticipationEngine:
             await self._fire_initiation(
                 f"Memory is at {state['memory_percent']:.0f}% — we're getting tight. "
                 f"I can help identify what's using it.",
-                priority="medium"
+                priority="medium",
+                condition="memory_pressure",
+                value=float(state.get("memory_percent", 0) or 0),
             )
 
         # Disk near full
         if state.get("disk_percent", 0) > 90:
             await self._fire_initiation(
                 f"Disk is {state['disk_percent']:.0f}% full. Worth cleaning up before it causes problems.",
-                priority="high"
+                priority="high",
+                condition="disk_pressure",
+                value=float(state.get("disk_percent", 0) or 0),
             )
 
     async def _check_unresolved_topics(self):
