@@ -756,6 +756,23 @@ def test_packaged_launcher_repairs_a_lost_window_on_application_activation():
     )[1].split("private func frontPrimaryWindow", 1)[0]
 
 
+def test_packaged_launcher_publishes_real_windows_to_accessibility_and_active_space():
+    swift = (PROJECT_ROOT / "scripts" / "AuraLauncher.swift").read_text(encoding="utf-8")
+
+    publish_body = swift.split("private func publishAccessiblePrimaryWindow", 1)[1].split(
+        "private func frontPrimaryWindow",
+        1,
+    )[0]
+    assert "setAccessibilityElement(true)" in publish_body
+    assert "setAccessibilityRole(.window)" in publish_body
+    assert "setAccessibilitySubrole(.standardWindow)" in publish_body
+    assert "NSApp.setAccessibilityWindows([primary])" in publish_body
+    assert "NSApp.setAccessibilityMainWindow(primary)" in publish_body
+    assert "NSApp.setAccessibilityFocusedWindow(primary)" in publish_body
+    assert "window.collectionBehavior.insert(.moveToActiveSpace)" in swift
+    assert "desktop.collectionBehavior.insert(.moveToActiveSpace)" in swift
+
+
 def test_packaged_launcher_retains_its_weak_app_delegate_for_the_event_loop():
     swift = (PROJECT_ROOT / "scripts" / "AuraLauncher.swift").read_text(encoding="utf-8")
 

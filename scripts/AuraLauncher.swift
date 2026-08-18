@@ -2059,6 +2059,17 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
             || companionPanel?.isVisible == true
     }
 
+    private func publishAccessiblePrimaryWindow(_ primary: NSWindow) {
+        primary.setAccessibilityElement(true)
+        primary.setAccessibilityRole(.window)
+        primary.setAccessibilitySubrole(.standardWindow)
+        primary.setAccessibilityTitle(primary.title)
+        primary.setAccessibilityMain(true)
+        NSApp.setAccessibilityWindows([primary])
+        NSApp.setAccessibilityMainWindow(primary)
+        NSApp.setAccessibilityFocusedWindow(primary)
+    }
+
     /// Restore the one full Aura surface from whatever lifecycle state AppKit
     /// left behind. The runtime owns continuity; windows are disposable views
     /// and must be reconstructible after close, process activation, or a stale
@@ -2077,6 +2088,7 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
         if target.isMiniaturized {
             target.deminiaturize(nil)
         }
+        publishAccessiblePrimaryWindow(target)
         target.makeKeyAndOrderFront(nil)
         target.orderFrontRegardless()
         NSApp.activate(ignoringOtherApps: true)
@@ -2424,6 +2436,8 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
 
         let contentView = LauncherBackgroundView(frame: frame)
         window.contentView = contentView
+        window.collectionBehavior.insert(.moveToActiveSpace)
+        publishAccessiblePrimaryWindow(window)
 
         let contentCard = NSVisualEffectView()
         contentCard.translatesAutoresizingMaskIntoConstraints = false
@@ -3673,6 +3687,7 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
             desktop.contentView = webView
             desktop.isReleasedWhenClosed = false
             desktop.delegate = self
+            desktop.collectionBehavior.insert(.moveToActiveSpace)
             desktopWindow = desktop
             desktopWebView = webView
         }
@@ -3692,6 +3707,9 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
         orderBubbleOut()
         hideCompanionChat(restoringBubble: false)
         postAmbientMode("window")
+        if let desktopWindow {
+            publishAccessiblePrimaryWindow(desktopWindow)
+        }
         desktopWindow?.center()
         desktopWindow?.makeKeyAndOrderFront(nil)
         desktopWindow?.orderFrontRegardless()
