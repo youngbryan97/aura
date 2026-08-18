@@ -1105,7 +1105,15 @@ class ExecutiveAuthority:
 
 
 def get_executive_authority(orchestrator: Any = None) -> ExecutiveAuthority:
-    authority = ServiceContainer.get("executive_authority", default=None)
+    # Both container reads are guarded the same way. This one was bare, so a
+    # registry that raised took the caller down with it — while the identical
+    # read further down was already tolerant. Authority has to remain
+    # obtainable when the registry is unhappy; that is the point of a
+    # fallback construction existing at all.
+    try:
+        authority = ServiceContainer.get("executive_authority", default=None)
+    except (RuntimeError, AttributeError, TypeError, ValueError):
+        authority = None
     if authority and isinstance(authority, ExecutiveAuthority):
         authority.bind(orchestrator)
         return authority
@@ -1116,4 +1124,26 @@ def get_executive_authority(orchestrator: Any = None) -> ExecutiveAuthority:
     except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
         record_degradation('executive_authority', exc)
         logger.debug("ExecutiveAuthority registration skipped: %s", exc)
+
+    # Defer to whatever the container actually holds.
+    #
+    # register_instance does not RAISE when it refuses; after the registry is
+    # locked it logs "Protected core service overwrite blocked" and returns,
+    # so the except above never fired and this handed back the instance the
+    # container had just rejected. 108 of those errors in one sampled window,
+    # and the noise was the small half: every caller that took this path was
+    # deciding executive authority on a throwaway object while the canonical
+    # one sat in the container, so a protected singleton was silently one
+    # instance per call.
+    #
+    # Re-reading is the only way to tell, because refusal is invisible from
+    # here. If the container kept its own, that one is authoritative and the
+    # object built above is discarded.
+    try:
+        registered = ServiceContainer.get("executive_authority", default=None)
+    except (RuntimeError, AttributeError, TypeError, ValueError):
+        registered = None
+    if isinstance(registered, ExecutiveAuthority) and registered is not authority:
+        registered.bind(orchestrator)
+        return registered
     return authority
