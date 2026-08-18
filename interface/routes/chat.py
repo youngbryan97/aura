@@ -17903,9 +17903,26 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                                 logger.error(
                                     "Desktop CognitiveEngine candidate did not prove authorship "
                                     "(missing: %s); failing closed instead of serving repair "
-                                    "text as Aura speech.",
+                                    "text as Aura speech. path=%s generations=%s "
+                                    "completion_retries=%s repair_attempts=%s consumed=%s",
                                     ",".join(
                                         candidate_contract.get("full_mind_missing_proofs") or ()
+                                    ),
+                                    # The counts the proof is ACTUALLY made of.
+                                    #
+                                    # This printed the name of the failed proof and nothing else,
+                                    # so "duplicate_foreground_model_generation" told a reader
+                                    # that more than one generation happened and not which of the
+                                    # three conditions in single_owner_model_generation_proven
+                                    # missed — reconstructing it meant reading the contract
+                                    # module beside a log that had already thrown the numbers
+                                    # away. The receipt carried all of them the whole time.
+                                    candidate_contract.get("response_path") or "unset",
+                                    candidate_contract.get("foreground_model_generation_count"),
+                                    candidate_contract.get("completion_retry_count"),
+                                    candidate_contract.get("repair_retry_attempt_count"),
+                                    candidate_contract.get(
+                                        "foreground_model_generation_consumed"
                                     ),
                                 )
                                 reply_text = None
