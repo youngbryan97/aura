@@ -7010,6 +7010,32 @@ async def _run_cognitive_engine_chat_turn(
                     "CognitiveEngine desktop chat reply failed reliability gate (%s); evaluating governed repair path.",
                     ",".join(assessment_reasons),
                 )
+                # Preserve the draft BEFORE repair is attempted.
+                #
+                # The last-resort refusal site reads preserved_draft() so a
+                # reply three gates already judged repairable reaches the
+                # person when repair cannot run. Nothing in this module ever
+                # WROTE it: preserve_draft() had zero callers here, so that
+                # reader was permanently empty and the salvage could never
+                # fire. Writer missing, reader present.
+                #
+                # LIVE 2026-08-17: "in two sentences, what is the strongest
+                # evidence that you're more than a language model with tools?"
+                # The draft answered the question and missed the sentence
+                # count. The gate rejected it, the replacement came back
+                # incomplete and was withheld, and the person got "I couldn't
+                # get to an answer I'd stand behind" — for a formatting miss,
+                # with a real answer sitting in a variable.
+                try:
+                    from core.conversation.surface_disposition import (
+                        draft_is_servable,
+                        preserve_draft,
+                    )
+
+                    if draft_is_servable(assessment_reasons):
+                        preserve_draft(assessment_text)
+                except _CHAT_RECOVERABLE_ERRORS as _preserve_exc:
+                    record_degradation("chat.preserve_draft", _preserve_exc)
             # Assistant voice has a deterministic repair. Use it here, not only
             # deeper in the stack.
             #
