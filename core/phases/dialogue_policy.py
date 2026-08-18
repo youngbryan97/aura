@@ -321,8 +321,26 @@ def _contains_generic_assistant_language(text: str) -> bool:
     return any(pattern.search(text or "") for pattern in _GENERIC_ASSISTANT_LANGUAGE)
 
 
-def _contains_prompt_artifact(text: str) -> bool:
-    return any(pattern.search(text or "") for pattern in _PROMPT_ARTIFACT_PATTERNS)
+def _prose_outside_fences(text: str) -> str:
+    """The reply with fenced blocks removed.
+
+    Every pattern here describes the PROMPT scaffold leaking into speech —
+    "obj:", "state:", "ctx:" at the start of a line. Inside a code fence those
+    are ordinary content: a Python annotation (`state: str = "x"`), a YAML key,
+    a JSON field. Checking them there rejected any answer that showed a
+    dataclass or a config example, and the repair below went further and
+    deleted the offending line out of the middle of the code.
+    """
+    body = str(text or "")
+    if "```" not in body:
+        return body
+    # Even indices are outside the fences.
+    return "\n".join(body.split("```")[::2])
+
+
+def _contains_prompt_artifact(text: str, *, whole_reply: bool = True) -> bool:
+    body = _prose_outside_fences(text) if whole_reply else str(text or "")
+    return any(pattern.search(body) for pattern in _PROMPT_ARTIFACT_PATTERNS)
 
 
 def _contains_unsupported_internal_jargon(text: str) -> bool:
@@ -550,8 +568,15 @@ def repair_dialogue_surface(text: str, contract: object | None) -> str:
         return body
 
     cleaned_lines = []
+    inside_fence = False
     for line in body.splitlines():
-        if _contains_prompt_artifact(line):
+        if line.lstrip().startswith("```"):
+            inside_fence = not inside_fence
+            cleaned_lines.append(line)
+            continue
+        # A line inside a fence is code, and dropping one out of the middle of
+        # a function is a worse failure than the artifact it was aimed at.
+        if not inside_fence and _contains_prompt_artifact(line, whole_reply=False):
             continue
         cleaned_lines.append(line)
     body = "\n".join(cleaned_lines).strip() or body
