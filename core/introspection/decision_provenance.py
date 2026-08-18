@@ -67,11 +67,32 @@ _MECHANISM_LIMIT = (
 )
 
 
+#: "Why do you think X" where X is the world, not her. Asking her OPINION is
+#: not asking for her causal record, and the two share almost every word.
+_WHY_ABOUT_THE_WORLD = re.compile(
+    r"\bwhy\s+(?:do|does|did|are|is|would|might|can'?t|don'?t)\s+"
+    r"(?:you\s+(?:think|reckon|suppose|believe|imagine)\s+)?"
+    r"(?:people|humans|we|they|someone|anyone|everyone|most|many|some|"
+    r"a\s+person|folks|users|the\s+\w+)\b",
+    re.IGNORECASE,
+)
+
+
 def asks_why_she_did_that(message: Any) -> bool:
     """Whether this turn is asking for an account of her own behaviour."""
 
     text = str(message or "").strip()
     if not text or len(text) > 400:
+        return False
+    # "Why do you think PEOPLE find it hard to admit they were wrong?" matched,
+    # and a casual question about human psychology came back with the runtime's
+    # phase-by-phase provenance dump stapled underneath — "From the runtime's
+    # own record of that turn, not from my impression of it: ...".
+    #
+    # The subject is what separates them. "Why did YOU pick that file" asks for
+    # the record; "why do you think PEOPLE lie" asks for her view, and the
+    # record has nothing to say about it.
+    if _WHY_ABOUT_THE_WORLD.search(text):
         return False
     return bool(_WHY_ABOUT_HERSELF.search(text))
 
