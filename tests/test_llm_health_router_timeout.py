@@ -722,10 +722,35 @@ def test_desktop_background_headroom_defers_brainstem_before_memory_spike(monkey
         tier="local_fast",
     )
 
+    # Pin the KERNEL's own reading. Without this the test asks the host, and
+    # the answer changes what the assertion means.
+    #
+    # A kernel-pressure escape was added 2026-08-17: when the OS reports no
+    # pressure, the derived percentage does not get to veto the small models,
+    # because psutil's macOS accounting counts reclaimable cache as consumed
+    # and was deferring every fallback on a machine with room. That is correct,
+    # and it silently made this test depend on ambient state — on a healthy
+    # host the kernel says "normal", the escape fires, and the deferral this
+    # asserts never happens.
+    #
+    # Both branches are pinned below, because the policy is the pair: the
+    # derived reading defers only when the kernel agrees there is pressure.
+    monkeypatch.setattr(
+        "core.utils.memory_monitor.kernel_memory_pressure_level", lambda: "warn"
+    )
+
     reason = HealthAwareLLMRouter._desktop_background_endpoint_deferral_reason(ep)
 
     assert reason is not None
     assert reason.startswith("desktop_background_headroom:Brainstem:")
+
+    # And the escape itself: same numbers, kernel reporting no pressure, so the
+    # derived percentage must NOT keep the small models out.
+    monkeypatch.setattr(
+        "core.utils.memory_monitor.kernel_memory_pressure_level", lambda: "normal"
+    )
+
+    assert HealthAwareLLMRouter._desktop_background_endpoint_deferral_reason(ep) is None
 
 
 def test_desktop_background_headroom_allows_reflex_with_moderate_headroom(monkeypatch):
