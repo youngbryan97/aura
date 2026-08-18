@@ -11461,48 +11461,26 @@ class InferenceGate:
                 # channel that reaches the worker, which is why it is attached
                 # beside the present-moment and recent-actions readings rather
                 # than anywhere upstream.
-                # What is actually on the clipboard, when the turn asks.
+                # Take every reading this turn asks for.
                 #
-                # LIVE 2026-08-17: "what's on my clipboard right now?" was
-                # answered "I can only work with the information you provide me
-                # during our conversation" while the clipboard held
-                # BUILD-7741-verify. The capability was registered; nothing
-                # read it, so she had nothing to say and said something false
-                # in the same breath as something true.
-                from core.brain.clipboard_grounding import clipboard_block
+                # This was two hand-wired branches — one for the clipboard, one
+                # for a named file — and before them a file COUNT that guessed,
+                # a corpus that was never consulted, and a clock that invented
+                # an ambient light sensor. Same defect each time: the capability
+                # was registered, the reader existed, and nothing took the
+                # reading before the answer was composed, so a model asked about
+                # a fact it did not hold produced something fact-shaped.
+                #
+                # One registry now. An observable is an entry in
+                # observable_registry rather than another branch threaded
+                # through here, which is how the previous four ended up in four
+                # places with four different bugs.
+                import core.brain.observable_registry  # noqa: F401  (registers)
+                from core.brain.observable_grounding import observable_blocks
 
-                _clip = await clipboard_block(visible_user_prompt)
-                if _clip:
-                    task_grounding_blocks.append(_clip)
-
-                from core.conversation.filesystem_check import requested_file_read
-
-                _named = requested_file_read(visible_user_prompt)
-                if _named is not None:
-                    if _named.exists and _named.text.strip():
-                        _suffix = " [truncated]" if _named.truncated else ""
-                        # Say when the file barely covers what was asked.
-                        # Handed an excerpt containing "layering" once, inside
-                        # a path, she described the document's position on
-                        # layering — which it does not have. The count is the
-                        # difference between "here is the part about X" and
-                        # "this file mentions X once, in passing".
-                        _coverage = ""
-                        if _named.barely_covers_topic:
-                            _coverage = (
-                                f"\nCOVERAGE: this file uses the word "
-                                f"'{_named.topic}' {_named.topic_mentions} time(s) "
-                                "in total. It does not discuss the topic."
-                            )
-                        task_grounding_blocks.append(
-                            f"## FILE YOU WERE ASKED ABOUT\n"
-                            f"{_named.path}{_suffix}{_coverage}\n{_named.text}"
-                        )
-                    elif not _named.exists:
-                        task_grounding_blocks.append(
-                            "## FILE YOU WERE ASKED ABOUT\n"
-                            f"No file exists at {_named.path}."
-                        )
+                task_grounding_blocks.extend(
+                    await observable_blocks(visible_user_prompt)
+                )
             except _INFERENCE_RECOVERABLE_ERRORS as _exc:
                 record_degradation(
                     "inference_gate",
@@ -11833,6 +11811,9 @@ class InferenceGate:
                 # block spent a day being built into a prompt nobody sent.
                 ("file", "## FILE YOU WERE ASKED ABOUT"),
                 ("clipboard", "## WHAT IS ON THE CLIPBOARD"),
+                ("listing", "## DIRECTORY LISTING YOU WERE ASKED ABOUT"),
+                ("corpus", "## REFERENCE PASSAGES FROM THE LOCAL CORPUS"),
+                ("clock", "## THE CURRENT LOCAL TIME"),
             )
             if marker in str(system_prompt or "")
             or any(marker in str(msg.get("content", "") or "") for msg in messages)
