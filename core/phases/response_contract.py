@@ -1006,9 +1006,12 @@ def extract_search_query_focus(text: str) -> str:
     if url_match:
         return url_match.group(0)
 
-    quoted = re.search(r"[\"“”']([^\"“”']{1,180})[\"“”']", raw)
+    quoted = re.search(
+        r"[\"“”]([^\"“”]{1,180})[\"“”]|(?<![A-Za-z])'([^']{1,180})'(?![A-Za-z])",
+        raw,
+    )
     if quoted:
-        candidate = " ".join(quoted.group(1).split()).strip(" .?!,:;")
+        candidate = " ".join((quoted.group(1) or quoted.group(2) or "").split()).strip(" .?!,:;")
         if candidate:
             return candidate
 

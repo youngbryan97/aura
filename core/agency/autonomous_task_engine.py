@@ -1713,7 +1713,17 @@ Respond ONLY with a JSON array, no other text:
     def _extract_quoted_text(goal: str) -> str:
         text = str(goal or "")
         for pattern in (
-            r"[\"“”']([^\"“”']{1,400})[\"“”']",
+            # A straight apostrophe delimits a quote only outside a word.
+            # Without the boundary guards, "i'm going to ask ... i'll talk"
+            # opens at the contraction in "i'm" and closes at the one in
+            # "i'll", handing the sentence between them back as a QUOTED
+            # ARGUMENT. Live 2026-08-18: a request to remember a number was
+            # dispatched to a program-reconstruction skill whose target was
+            # "m going to ask you about it later in this conversation, and in
+            # between i". Any English with two contractions produces one, and
+            # so does any possessive.
+            r"[\"“”]([^\"“”]{1,400})[\"“”]",
+            r"(?<![A-Za-z])'([^']{1,400})'(?![A-Za-z])",
             r"\btype\s+exactly\s*:\s*(.+?)(?:,?\s+(?:press|hit|then|and|come back|report)\b|$)",
             r"\b(?:type|write|enter)\s+(.+?)(?:,?\s+(?:press|hit|then|and|come back|report)\b|$)",
         ):

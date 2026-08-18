@@ -79,6 +79,19 @@ _ALLOWED_INTERNAL_IMPORTS = {
     # that attached on zero turns.
     "core.brain.llm.latent_cortex.episodic_neural_readout_contract",
     "core.brain.llm.latent_cortex.verifier_gain_search",
+    # Same argument, one module later again. `symbolic_bridge` recomputes
+    # asserted arithmetic — ast, math, re, and nothing else — so it is exactly
+    # the kind of deterministic grader this closure is allowed to contain.
+    #
+    # It arrived as a new import inside `task_verifiers`, which is one of the
+    # critic source files, so the audit failed transitively and critic identity
+    # stopped being independently provable. The live effect is the one this
+    # file has now recorded twice: the task verifier is revoked on EVERY
+    # episode, so it attaches on zero turns.
+    #
+    # A pure checker being added to the grader is the intended direction of
+    # travel; the declaration is what has to keep up with it.
+    "core.reasoning.symbolic_bridge",
 }
 _FORBIDDEN_IMPORT_ROOTS = {
     "jax",

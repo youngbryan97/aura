@@ -743,7 +743,7 @@ class SovereignBrowserSkill(BaseSkill):
         source_reading = query_requires_source_reading(query)
         quoted = [
             phrase.lower()
-            for phrase in re.findall(r"[\"“”']([^\"“”']{4,200})[\"“”']", str(query or ""))
+            for phrase in re.findall(r"[\"“”]([^\"“”]{4,200})[\"“”]", str(query or ""))
         ]
 
         best_url: str | None = None

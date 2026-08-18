@@ -3200,7 +3200,10 @@ class UnitaryResponsePhase(Phase):
             marker in lowered for marker in ("tell me", "look up", "search", "find", "read", "what")
         ):
             return True
-        return bool(re.search(r"[\"“”'][^\"“”']{4,180}[\"“”']", objective))
+        return bool(
+            re.search(r"[\"“”][^\"“”]{4,180}[\"“”]", objective)
+            or re.search(r"(?<![A-Za-z])'[^']{4,180}'(?![A-Za-z])", objective)
+        )
 
     @classmethod
     def _format_grounded_search_reply(

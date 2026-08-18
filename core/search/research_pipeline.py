@@ -237,7 +237,12 @@ def _query_is_current(query: str) -> bool:
 
 def _quoted_phrases(text: str) -> list[str]:
     phrases: list[str] = []
-    for phrase in re.findall(r"[\"“”']([^\"“”']{4,200})[\"“”']", str(text or "")):
+    # Boundary-guarded: a contraction is not a quotation.
+    for group in re.findall(
+        r"[\"“”]([^\"“”]{4,200})[\"“”]|(?<![A-Za-z])'([^']{4,200})'(?![A-Za-z])",
+        str(text or ""),
+    ):
+        phrase = group[0] or group[1]
         cleaned = _normalize_text(phrase)
         if cleaned and cleaned not in phrases:
             phrases.append(cleaned)
