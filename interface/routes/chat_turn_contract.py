@@ -707,6 +707,25 @@ def _build_live_turn_contract_payload(
     accepted_full_mind_response_paths = {
         "cognitive_engine",
         "cognitive_engine_completion_retry",
+        # A completion retry that ran and then correctly KEPT the original.
+        #
+        # chat.py sets this path when completion_incumbent_preserved is true —
+        # the retry happened, was compared against the incumbent, and the
+        # incumbent won. That is the retry machinery working at its best, and
+        # it was in neither this set nor the single-owner clause below, so the
+        # turn was refused and the person got "I couldn't get to an answer I'd
+        # stand behind" instead of the answer that had already been judged the
+        # better of two.
+        #
+        # Measured live 2026-08-18:
+        #   missing: response_path:cognitive_engine_completion_incumbent,
+        #            duplicate_foreground_model_generation
+        #   path=cognitive_engine_completion_incumbent generations=3
+        #   completion_retries=2 consumed=True
+        # Three generations for one incumbent plus two retries is exactly
+        # 1 + completion_retry_count — the arithmetic already agreed. Only the
+        # name was unrecognised.
+        "cognitive_engine_completion_incumbent",
         "cognitive_engine_repair_retry",
         "cognitive_engine_devocatived",
         "cognitive_engine_desktop_plan",
@@ -754,7 +773,17 @@ def _build_live_turn_contract_payload(
         )
         or (
             live_mind_generation_required
-            and response_path == "cognitive_engine_completion_retry"
+            # Keeping the incumbent is the same OWNERSHIP story as adopting the
+            # retry: one owner generated once, then continued up to
+            # _MAX_USER_SURFACE_CONTINUATIONS times. Which of those answers won
+            # the comparison changes nothing about who authored them, and
+            # naming only the adopt-the-retry outcome meant the better outcome
+            # could not be served.
+            and response_path
+            in {
+                "cognitive_engine_completion_retry",
+                "cognitive_engine_completion_incumbent",
+            }
             and foreground_model_generation_consumed
             and 1 <= completion_retry_count <= _MAX_USER_SURFACE_CONTINUATIONS
             and foreground_model_generation_count == 1 + completion_retry_count
