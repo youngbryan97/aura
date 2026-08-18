@@ -63,7 +63,7 @@ __all__ = [
 # number at all.
 _ARITHMETIC_QUESTION_RE = re.compile(
     r"(?:what(?:'s| is)|calculate|compute|how much is|solve)\s*:?\s*"
-    r"([0-9][0-9\s\.\+\-\*/x×÷\(\)]{2,60})",
+    r"([0-9][0-9\s\.\+\-\*/x×÷\^\(\)]{2,60})",
     re.IGNORECASE,
 )
 ARITHMETIC_NUMBER_RE = re.compile(r"-?\d+(?:\.\d+)?")
@@ -107,7 +107,7 @@ _PREFIX_OPERATION_RES: tuple[tuple[re.Pattern[str], str], ...] = (
 )
 #: A bare expression anywhere in the turn: "2+2", "7919 * 6421".
 _BARE_EXPRESSION_RE = re.compile(
-    r"\d[\d.]*(?:\s*[-+*/]\s*\d[\d.]*)+"
+    r"\d[\d.]*(?:\s*[-+*/^]\s*\d[\d.]*)+"
 )
 #: Only compute when the turn is actually ASKING for a computation. Numbers with
 #: operators between them appear in version strings, dates and ranges, and a
@@ -154,7 +154,24 @@ def _arithmetic_expression_in(text: str) -> str | None:
     for match in _BARE_EXPRESSION_RE.finditer(normalized):
         # Never compute only a valid prefix of an invalid expression.
         remainder = normalized[match.end() :]
-        if re.match(r"\s*[-+*/]", remainder):
+        # Includes the operators this evaluator cannot honour. Without ^ here,
+        # "what is 2 + 2 ^ 3" matched "2 + 2" and answered 4.
+        if re.match(r"\s*[-+*/%!]", remainder):
+            continue
+        # ...nor a valid SUFFIX of one. This looked only forward, so
+        # "compute 2^31 - 1" matched "31 - 1" with the "2^" sitting behind it
+        # unexamined, and returned 30.
+        #
+        # LIVE 2026-08-17 that reached the user as the whole answer: the turn
+        # serves a computed value directly now, so a fragment does not merely
+        # mislead a sample, it IS the reply. An operator this evaluator cannot
+        # honour — exponent, modulo, root — means the expression is not one it
+        # may answer, and refusing costs a fallback while answering costs a
+        # confident wrong number.
+        preceding = normalized[: match.start()]
+        if re.search(r"[%!]\s*$", preceding):
+            continue
+        if re.search(r"[\d.)]\s*$", preceding):
             continue
         candidates.append(match.group(0))
     if not candidates:
@@ -168,6 +185,11 @@ def _evaluate_arithmetic(expression: str) -> ArithmeticResult | None:
         str(expression or "")
         .replace("x", "*").replace("X", "*")
         .replace("×", "*").replace("÷", "/")
+        # "^" is how people write exponentiation outside Python. Refusing it was
+        # the safe answer and not the right one: "compute 2^31 - 1" should
+        # return 2147483647, which is exactly the kind of value a person asks a
+        # machine for rather than working out by hand.
+        .replace("^", "**")
         .strip().rstrip("?.=").strip()
     )
     if not cleaned or not re.fullmatch(r"[0-9\s\.\+\-\*/\(\)]+", cleaned):
@@ -197,6 +219,15 @@ def _evaluate_arithmetic(expression: str) -> ArithmeticResult | None:
                 if right == 0:
                     raise ZeroDivisionError
                 return left / right
+            if isinstance(node.op, ast.Pow):
+                # Bounded so a runaway exponent cannot become this checker's
+                # own problem: 9**9**9 would hang the turn it is meant to
+                # answer. The same limits the dedicated power branch uses.
+                if not isinstance(left, int) or not isinstance(right, int):
+                    raise ValueError("non-integer power")
+                if not (0 <= right <= 64) or abs(left) > 10_000:
+                    raise ValueError("power out of range")
+                return left**right
         raise ValueError("unsupported expression")
 
     try:
@@ -265,9 +296,14 @@ def requested_arithmetic_result(user_message: Any) -> ArithmeticResult | None:
 
     match = _ARITHMETIC_QUESTION_RE.search(text)
     if match:
-        result = _evaluate_arithmetic(match.group(1))
-        if result is not None:
-            return result
+        # The captured character class stops at an unsupported operator, so
+        # "what is 2 + 2 ^ 3" captures "2 + 2 " and evaluates to 4. Whatever
+        # follows the capture decides whether it was the whole expression.
+        _tail = text[match.end() :]
+        if not re.match(r"\s*[-+*/%!0-9]", _tail):
+            result = _evaluate_arithmetic(match.group(1))
+            if result is not None:
+                return result
 
     expression = _arithmetic_expression_in(text)
     if expression is None:

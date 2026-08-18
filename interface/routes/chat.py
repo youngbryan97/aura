@@ -2170,10 +2170,11 @@ async def _reanswer_when_the_runtime_contradicts_her(
                 "🔢 Served the computed arithmetic result (%s) over the generated one.",
                 shown,
             )
-            return (
-                f"{shown}. I evaluated that directly rather than working it out "
-                "in text, so it is arithmetic and not an estimate."
-            )
+            # The bare value. "What is 2 + 2? Just the number." is a request
+            # with a shape, and appending a sentence about how it was computed
+            # ignores it — the point of serving the value is that the value is
+            # the answer.
+            return str(shown)
     except _CHAT_RECOVERABLE_ERRORS as exc:
         record_degradation(
             "chat.arithmetic_check",

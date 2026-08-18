@@ -157,5 +157,13 @@ async def test_runtime_reanswer_passes_computed_arithmetic_evidence(monkeypatch)
         user_message="What is 2 + 2? Just the number.",
     )
 
+    # This used to assert the runtime wrote "computed it directly: 4" into the
+    # turn context and that the model then answered 4. That is instruction
+    # prose steering a sample, and it is unreliable: the same technique applied
+    # to a file count restated the wrong number three times while the right one
+    # sat in the context.
+    #
+    # A computed value is not a matter of opinion, so it is served. The model
+    # is not consulted, which is why nothing was captured.
     assert reply == "4"
-    assert "computed it directly: 4" in captured["effective_user_message"]
+    assert "effective_user_message" not in captured
