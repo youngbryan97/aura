@@ -11461,6 +11461,20 @@ class InferenceGate:
                 # channel that reaches the worker, which is why it is attached
                 # beside the present-moment and recent-actions readings rather
                 # than anywhere upstream.
+                # What is actually on the clipboard, when the turn asks.
+                #
+                # LIVE 2026-08-17: "what's on my clipboard right now?" was
+                # answered "I can only work with the information you provide me
+                # during our conversation" while the clipboard held
+                # BUILD-7741-verify. The capability was registered; nothing
+                # read it, so she had nothing to say and said something false
+                # in the same breath as something true.
+                from core.brain.clipboard_grounding import clipboard_block
+
+                _clip = await clipboard_block(visible_user_prompt)
+                if _clip:
+                    task_grounding_blocks.append(_clip)
+
                 from core.conversation.filesystem_check import requested_file_read
 
                 _named = requested_file_read(visible_user_prompt)
@@ -11818,6 +11832,7 @@ class InferenceGate:
                 # Grounding that cannot be seen cannot be verified — the file
                 # block spent a day being built into a prompt nobody sent.
                 ("file", "## FILE YOU WERE ASKED ABOUT"),
+                ("clipboard", "## WHAT IS ON THE CLIPBOARD"),
             )
             if marker in str(system_prompt or "")
             or any(marker in str(msg.get("content", "") or "") for msg in messages)
