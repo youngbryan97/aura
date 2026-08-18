@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Any, Awaitable, Callable
+from typing import Any, Awaitable, Callable, Sequence
 
 from core.runtime.errors import record_degradation
 from core.runtime.service_registry import get_runtime_service
@@ -39,6 +39,20 @@ ResultSink = Callable[[str, str, str], None]   # (goal, kind, answer)
 class PlannedStep:
     kind: str
     answer: str = ""
+
+
+def _tagged(steps: list[Step], approach: str) -> list[Step]:
+    """Stamp each step with the approach that produced it.
+
+    A replanner needs to know which APPROACH failed, not which step name did.
+    Tagging at the point of planning keeps that fact where it is known, instead
+    of reconstructing it later from a name-to-approach table that would be a
+    second vocabulary drifting from this one.
+    """
+    for step in steps:
+        if not getattr(step, "approach", ""):
+            step.approach = approach
+    return steps
 
 
 class GoalPlanner:
@@ -58,17 +72,34 @@ class GoalPlanner:
         self._deliberate_samples = max(1, int(deliberate_samples))
         self.last = PlannedStep(kind="none")
 
-    async def __call__(self, goal: str) -> list[Step]:
-        return await self.plan(goal)
+    async def __call__(self, goal: str, *, avoid: Sequence[str] = ()) -> list[Step]:
+        return await self.plan(goal, avoid=avoid)
 
-    def classify(self, goal: str) -> str:
+    def classify(self, goal: str, *, avoid: Sequence[str] = ()) -> str:
+        """Which approach fits this goal, skipping any that have already failed.
+
+        ``avoid`` names approaches that were just tried and did not work. A goal
+        classifies the same way every time it is read, so re-planning after a
+        stall produced a byte-identical plan and the pursuit stalled again in
+        exactly the same place — which is why the engine's replan budget was
+        worth nothing even once it was wired.
+
+        Routing past a dead approach is what makes a second attempt a different
+        attempt. The order is a preference ranking, so skipping one falls to the
+        next most direct way of getting the same goal done.
+        """
         g = str(goal or "").strip()
         if not g:
             return "none"
+        blocked = {str(kind).strip().lower() for kind in avoid or ()}
+
+        def _usable(kind: str) -> bool:
+            return kind not in blocked
+
         try:
             from core.brain.tool_augmented_reasoning import looks_computational
 
-            if looks_computational(g):
+            if looks_computational(g) and _usable("computational"):
                 return "computational"
         except (ImportError, RuntimeError):
             pass
@@ -77,34 +108,44 @@ class GoalPlanner:
         try:
             from core.agency.desktop_planner import is_desktop_goal
 
-            if is_desktop_goal(g):
+            if is_desktop_goal(g) and _usable("desktop"):
                 return "desktop"
         except (ImportError, RuntimeError):
             pass
         lower = g.lower()
-        if self._reach is not None and any(w in lower for w in ("fetch ", "http", "webhook", "api ", "look up at ")):
+        if (
+            self._reach is not None
+            and any(w in lower for w in ("fetch ", "http", "webhook", "api ", "look up at "))
+            and _usable("reach")
+        ):
             return "reach"
-        return "reasoning"
+        # Reasoning is the universal fallback: side-effect-free and always
+        # applicable. If even that has been tried and failed, there is no
+        # different attempt left to make, and saying so is better than handing
+        # back the plan that just failed.
+        return "reasoning" if _usable("reasoning") else "none"
 
-    async def plan(self, goal: str) -> list[Step]:
-        kind = self.classify(goal)
+    async def plan(self, goal: str, *, avoid: Sequence[str] = ()) -> list[Step]:
+        kind = self.classify(goal, avoid=avoid)
         if kind == "none":
             return []
         if kind == "computational":
-            return [self._compute_step(goal)]
+            return _tagged([self._compute_step(goal)], kind)
         if kind == "desktop":
             try:
                 from core.agency.desktop_planner import get_desktop_planner
 
                 steps = await get_desktop_planner().plan(goal)
                 if steps:
-                    return steps
+                    return _tagged(steps, kind)
             except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
                 record_degradation("goal_planner", exc)
-            return [self._reason_step(goal)]   # fall back to reasoning if unparseable
+            if "reasoning" in {str(k).strip().lower() for k in avoid or ()}:
+                return []
+            return _tagged([self._reason_step(goal)], "reasoning")   # fall back if unparseable
         if kind == "reach":
-            return [self._reach_step(goal)]
-        return [self._reason_step(goal)]
+            return _tagged([self._reach_step(goal)], kind)
+        return _tagged([self._reason_step(goal)], kind)
 
     # ── sub-planners ──────────────────────────────────────────────────────
 

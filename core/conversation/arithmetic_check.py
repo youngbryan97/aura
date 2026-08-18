@@ -38,6 +38,8 @@ import ast
 import math
 import re
 from decimal import Decimal, InvalidOperation
+
+from core.conversation.computable_math import computable_answer
 from typing import Any
 
 ArithmeticResult = int | float
@@ -261,6 +263,15 @@ _RECTANGLE_AREA_RE = re.compile(
 def requested_arithmetic_result(user_message: Any) -> ArithmeticResult | None:
     """The single correct answer to a computable arithmetic question, if any."""
     text = str(user_message or "")
+
+    # Named functions — factorials, primality, Fibonacci, roots, remainders,
+    # gcd, binomials — are asked first because they are the narrower claim:
+    # "how many digits are in 100 factorial" carries no operator for the
+    # expression parser below, so it used to reach the model, which has no way
+    # to know that the answer is 158.
+    named = computable_answer(text)
+    if named is not None:
+        return named
 
     match = _PERCENT_OF_RE.search(text)
     if match:

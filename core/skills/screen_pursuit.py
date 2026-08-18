@@ -65,6 +65,13 @@ MAX_BLOCKER_ATTEMPTS = 3
 #: timeout expires is wedged, and waiting on it only makes the loop less
 #: responsive.
 OBSERVE_TIMEOUT_S = 8.0
+#: The moves offered when a caller does not name its own. Arrow keys are the
+#: universal keyboard affordance: they mean something on a board, a list, a
+#: map, a carousel, a form. A caller with a richer vocabulary passes its own.
+DEFAULT_MOVES: tuple[str, ...] = ("up", "down", "left", "right")
+#: How many graded attempts travel into the next decision. Enough to notice a
+#: move that stopped working, short enough that old evidence stops steering.
+RECENT_ATTEMPTS = 4
 
 
 class ScreenPursuitInput(BaseModel):
@@ -402,11 +409,50 @@ class ScreenPursuitSkill(BaseSkill):
         )
 
 
+
+def screen_options(keys: Sequence[str] = DEFAULT_MOVES) -> list[Any]:
+    """The moves really available on a screen, each carrying its own test.
+
+    An option states what should be different once it lands, so the check is
+    made by measurement rather than by asking the same faculty that chose.
+    For a keypress the honest claim is narrow: the view is not what it was.
+    A key that changes nothing is a key that did nothing, whatever the
+    keystroke's own receipt said.
+    """
+    from core.agency.deliberate_action import ActionOption, Expectation
+
+    options: list[Any] = []
+    for key in keys:
+        name = str(key).strip().lower()
+        if name not in PRESSABLE_KEYS:
+            continue
+        options.append(
+            ActionOption(
+                name=name,
+                detail=f"press {name}",
+                expectation=Expectation(
+                    changed=True,
+                    describes=f"the view to be different after {name}",
+                ),
+            )
+        )
+    return options
+
+
+def _her_reasoning(stakes: float) -> Any:
+    """Her own judgement, sized to what rides on the move."""
+    from core.agency.her_reasoning import reasoning_for
+
+    return reasoning_for(stakes)
+
+
 async def pursue_on_screen(
     *,
     goal: str,
     success_when: str,
     policy: ObservationPolicy | None = None,
+    think: Any = None,
+    move_keys: Sequence[str] = DEFAULT_MOVES,
     max_cycles: int = 200,
     max_seconds: float = 600.0,
     narrate: bool = True,
@@ -415,18 +461,28 @@ async def pursue_on_screen(
     target_app: str = "",
     expect_page: str = "",
     unblock_with: str = "",
+    stakes: float = 0.5,
 ) -> dict[str, Any]:
     """Run the loop. Returns the receipt the executor produced.
 
-    ``policy`` decides the next move from a reading and returns either a
-    ``{"key": ...}`` intent or None for "nothing worth doing". It is injected
-    rather than imported so the judgement can come from cognition, from a
-    cheap local heuristic, or from a test — the loop does not care, and that
-    is what keeps it general.
+    With neither ``policy`` nor ``think``, the loop decides through her own
+    reasoning: :func:`core.agency.deliberate_action.deliberate` picks from the
+    moves that are really available, predicts what should be different once
+    the move lands, and the next reading checks that prediction. A broken
+    prediction is fed back as evidence, which is what lets a run change its
+    mind rather than repeat a move that does nothing.
+
+    ``policy`` still overrides everything, for a caller that has its own
+    judgement or a test that needs a fixed one. ``think`` replaces only the
+    reasoning, keeping the predict-and-check loop around it.
     """
+    from core.agency.deliberate_action import Attempt, Deliberation, confirm, deliberate
     from core.skills.fluid_executor import FluidExecutor, Step
 
     moves: list[dict[str, Any]] = []
+    history: list[Attempt] = []
+    pending: dict[str, Any] = {"deliberation": None, "before": ""}
+    undecided: dict[str, str] = {"reason": ""}
 
     async def observe() -> dict[str, Any]:
         # Put the target back in front before looking at it.
@@ -643,29 +699,74 @@ async def pursue_on_screen(
         if needs_person["reason"]:
             return None
         blocker_attempts["count"] = 0
-        if policy is None or not observation.get("ok"):
+        if not observation.get("ok"):
             return None
-        try:
-            intent = await policy(observation)
-        except (RuntimeError, TypeError, ValueError, KeyError) as exc:
-            record_degradation(
-                "screen_pursuit",
-                exc,
-                severity="info",
-                action="ended a screen pursuit cycle without a move",
+
+        seen = str(observation.get("text") or "")
+
+        # Grade the last prediction before making another one.
+        #
+        # This is the difference between a loop that acts and one that steers.
+        # The move it just made claimed something would be different; this
+        # reading is the only chance to find out. A prediction that held is
+        # weak evidence the move was understood, and one that broke is strong
+        # evidence it was not — measured live, a run pressed the same key
+        # forty times because nothing ever checked that the board moved.
+        previous = pending["deliberation"]
+        if previous is not None:
+            attempt = confirm(previous, pending["before"], seen)
+            history.append(attempt)
+            if moves:
+                moves[-1]["held"] = attempt.verdict.held
+                moves[-1]["outcome"] = attempt.verdict.why()
+            if narrate and not attempt.verdict.held:
+                await _narrate(f"That did not work — {attempt.verdict.why()}")
+            pending["deliberation"] = None
+
+        if policy is not None:
+            try:
+                intent = await policy(observation)
+            except (RuntimeError, TypeError, ValueError, KeyError) as exc:
+                record_degradation(
+                    "screen_pursuit",
+                    exc,
+                    severity="info",
+                    action="ended a screen pursuit cycle without a move",
+                )
+                return None
+            if not intent:
+                return None
+            key = str(intent.get("key") or "").strip().lower()
+            if key not in PRESSABLE_KEYS:
+                return None
+            because = str(intent.get("because") or "").strip()
+        else:
+            chosen = await deliberate(
+                goal,
+                seen,
+                screen_options(move_keys),
+                think=think or _her_reasoning(stakes),
+                history=history[-RECENT_ATTEMPTS:],
+                stakes=stakes,
+                control_point="screen_pursuit.next_move",
             )
-            return None
-        if not intent:
-            return None
-        key = str(intent.get("key") or "").strip().lower()
-        if key not in PRESSABLE_KEYS:
-            return None
-        because = str(intent.get("because") or "").strip()
+            if not chosen.reached:
+                # Stop rather than press something for no reason. A loop that
+                # keeps acting once its judgement is out of reach is the exact
+                # failure this decision path was built to end.
+                undecided["reason"] = chosen.reason
+                return None
+            key = chosen.chosen.name
+            because = chosen.rationale
+            pending["deliberation"] = chosen
+            pending["before"] = seen
+
         moves.append({"key": key, "because": because, "at": time.time()})
         if narrate:
             # Said out loud, per move, because a loop that acts silently for
             # ten minutes is indistinguishable from one that has hung.
-            await _narrate(f"Board: {key.capitalize()}", because)
+            spoken = pending["deliberation"].narrate() if pending["deliberation"] else because
+            await _narrate(f"Board: {key.capitalize()}", spoken)
 
         async def act() -> bool:
             return await press(key, expect_app=target_app)
@@ -691,6 +792,15 @@ async def pursue_on_screen(
         result["outcome"] = "blocked_by_overlay"
         result["blocked_by"] = blocker_attempts["last"]
     result["moves"] = moves
+    result["attempts"] = [
+        {"option": a.option, "expected": a.expected, "held": a.verdict.held, "why": a.verdict.why()}
+        for a in history
+    ]
+    if undecided["reason"] and not receipt.completed:
+        # Name the judgement, not the budget. "no_move_available" would say
+        # the screen offered nothing; this says she could not decide, and why.
+        result["outcome"] = "cannot_decide"
+        result["cannot_decide"] = undecided["reason"]
     result["success_when"] = success_when
     result["success_region"] = [region_top, region_bottom]
     result["target_app"] = target_app

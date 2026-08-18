@@ -49,6 +49,14 @@ class Step:
     recovery: RecoveryFn | None = None          # run before each retry
     optional: bool = False                      # a failed optional step doesn't abort the run
     backoff_base_s: float = 0.5
+    #: Which approach produced this step ("desktop", "reasoning", "reach", ...).
+    #:
+    #: Set by whoever planned it. A step name says WHAT was tried; this says
+    #: HOW it was arrived at, which is the thing a second attempt needs to
+    #: avoid. Without it a replanner has only the name to go on, and mapping
+    #: names back to approaches means a second vocabulary that drifts from the
+    #: planner's own.
+    approach: str = ""
 
 
 @dataclass
@@ -60,10 +68,14 @@ class StepResult:
     recovered: bool = False
     blocked: bool = False
     detail: str = ""
+    #: Copied from the Step, so a receipt can say which APPROACH failed rather
+    #: than only which step did.
+    approach: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "name": self.name,
+            "approach": self.approach,
             "ok": self.ok,
             "attempts": self.attempts,
             "verified": self.verified,
@@ -210,7 +222,7 @@ class FluidExecutor:
         approved, reason = await self._approved(step)
         if not approved:
             logger.info("🛡️ [Fluid] step '%s' blocked by governance: %s", step.name, reason)
-            return StepResult(step.name, ok=False, blocked=True, detail=f"blocked: {reason}")
+            return StepResult(step.name, ok=False, blocked=True, detail=f"blocked: {reason}", approach=step.approach)
 
         recovered = False
         last_detail = ""
@@ -234,7 +246,7 @@ class FluidExecutor:
             if verified:
                 return StepResult(
                     step.name, ok=True, attempts=attempt, verified=True,
-                    recovered=recovered, detail=detail,
+                    recovered=recovered, detail=detail, approach=step.approach,
                 )
             await self._sleep(step.backoff_base_s * attempt)
 
@@ -242,7 +254,7 @@ class FluidExecutor:
                        step.name, step.max_retries + 1, last_detail)
         return StepResult(
             step.name, ok=False, attempts=step.max_retries + 1, verified=False,
-            recovered=recovered, detail=last_detail,
+            recovered=recovered, detail=last_detail, approach=step.approach,
         )
 
     async def pursue(

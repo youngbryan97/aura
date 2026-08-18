@@ -134,7 +134,13 @@ class ProactiveAgency:
             if engine is None:
                 return None
             self._pursued += 1
-            outcome = await engine.pursue(goal, plan, parallel=parallel, timing_ok=self._timing_ok)
+            outcome = await engine.pursue(
+                goal,
+                plan,
+                parallel=parallel,
+                timing_ok=self._timing_ok,
+                replan=self._replanner(goal, planner, plan),
+            )
             if getattr(outcome, "completed", False):
                 self._completed += 1
                 logger.info("✅ [Proactive] autonomously completed goal: %s", goal[:60])
@@ -143,6 +149,82 @@ class ProactiveAgency:
             return outcome
         finally:
             self._running = False
+
+    @staticmethod
+    def _failed_approaches(receipt: Any) -> set[str]:
+        """Which approaches the last attempt actually tried and did not finish.
+
+        Read from the receipt's steps rather than from the plan, because what
+        matters is what RAN. A step that never got to run is not evidence
+        against the approach it belonged to.
+        """
+        failed: set[str] = set()
+        for step in list(getattr(receipt, "steps", None) or []):
+            if bool(getattr(step, "ok", False)) and not bool(getattr(step, "blocked", False)):
+                continue
+            # The approach is carried on the step itself, stamped by whoever
+            # planned it. Reconstructing it from the step NAME needs a
+            # name-to-approach table, which is a second vocabulary that drifts
+            # from the planner's — measured: a stalled desktop step reported
+            # "desktop_open", matched no approach, and the retry was abandoned
+            # even though a different approach was available.
+            approach = str(getattr(step, "approach", "") or "").strip().lower()
+            if approach:
+                failed.add(approach)
+        return failed
+
+    def _replanner(self, goal: str, planner: Planner, first_plan: Any) -> Callable[[Any], Any]:
+        """A second attempt that is actually a different attempt.
+
+        The engine has carried a replan budget from the start and nothing ever
+        passed a replanner, so `max_replans` was dead: every stall ended the
+        pursuit for good. Supplying one is only half of it — a goal classifies
+        the same way every time it is read, so a naive re-plan hands back the
+        plan that just stalled and it stalls again identically.
+
+        So the failure is fed back structurally: the approaches that ran and did
+        not finish are excluded, and the planner routes to the next most direct
+        way of reaching the same goal. Nothing is phrased into a prompt; the
+        evidence is which steps failed.
+        """
+
+        async def replan(receipt: Any) -> Any:
+            avoid = self._failed_approaches(receipt)
+            try:
+                fresh = await planner(goal, avoid=tuple(sorted(avoid)))
+            except TypeError:
+                # A planner that predates failure-aware routing. Re-planning it
+                # can only reproduce the same plan, so there is nothing to try.
+                return None
+            except (RuntimeError, AttributeError, ValueError) as exc:
+                record_degradation(
+                    "proactive_agency",
+                    exc,
+                    severity="warning",
+                    action="abandoned a stalled pursuit because re-planning failed",
+                    extra={"goal": str(goal)[:120]},
+                )
+                return None
+            if not fresh:
+                return None
+            if self._same_plan(fresh, first_plan):
+                # Running it again would stall in the same place. Stopping is
+                # the honest outcome; a retry that cannot differ is theatre.
+                logger.debug("[Proactive] re-plan matched the stalled plan; not retrying '%s'.", goal[:50])
+                return None
+            return fresh
+
+        return replan
+
+    @staticmethod
+    def _same_plan(left: Any, right: Any) -> bool:
+        def signature(plan: Any) -> tuple[str, ...]:
+            return tuple(
+                str(getattr(step, "name", "") or "").strip().lower()
+                for step in list(plan or [])
+            )
+
+        return signature(left) == signature(right)
 
     def status(self) -> dict[str, Any]:
         return {"pursued": self._pursued, "completed": self._completed, "has_planner": self._planner is not None}
