@@ -82,6 +82,29 @@ _RELATIONAL_PAST_RES: tuple[re.Pattern[str], ...] = (
         r"(?i)\b(?:it\s+was\s+(?:just\s+)?one\s+of\s+those|that\s+(?:night|"
         r"evening|day|time)|back\s+then|the\s+other\s+(?:night|day))\b"
     ),
+    # PRESENT-TENSE attribution. Putting words in someone's mouth does not
+    # require the past tense, and every pattern above is past.
+    #
+    # LIVE DEFECT, 2026-08-18. Asked why a file count had failed, she replied
+    # "But now that you point out the 'your_files' directory exists, something
+    # did feel off about my response." No such directory was ever mentioned,
+    # by anyone. She invented a claim and attributed it to him, in the present
+    # tense, and passed a check built entirely from "you said" and "you told
+    # me".
+    #
+    # Widening is safe because the grounding test downstream does the real
+    # work: a genuine "you point out X" where X is in his message has
+    # overlapping content words and is not flagged. This only decides which
+    # sentences are ATTRIBUTIONS at all.
+    re.compile(
+        # The separator has to admit the contraction: "you're saying" is "you"
+        # + apostrophe, with no space, so a `\s+` after "you" misses it — and
+        # the contraction is the commoner way to write it.
+        r"(?i)\b(?:as\s+)?you\s*(?:['\u2019]\s*re|\s+are)?\s*"
+        r"(?:point(?:ed|ing)?\s+out|not(?:e|ing)|notic(?:e|ing)|mention(?:ing)?|"
+        r"say(?:ing)?|suggest(?:ing)?|observ(?:e|ing)|indicat(?:e|ing)|"
+        r"tell(?:ing)?\s+me|just\s+said)\b"
+    ),
 )
 
 #: Words too common to be evidence of anything. A claim grounded only by
