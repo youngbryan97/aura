@@ -67,8 +67,37 @@ _GENERIC_ASSISTANT_LANGUAGE = (
     ),
     re.compile(r"\bthe aim of being (?:as )?helpful and engaging as possible\b", re.IGNORECASE),
 )
+#: Keys that only ever appear in the compact internal state block. Nobody
+#: writes "narr:" or "prev_obj:" in a reply, so one is enough to condemn a
+#: draft.
+_SCAFFOLD_ONLY_LINE_RE = re.compile(
+    r"(?im)^\s*(?:obj|prev_obj|phenom|narr|pers|usr|ctx|cont)\s*:"
+)
+
+#: Keys that are ALSO ordinary English headings.
+#:
+#: LIVE DEFECT, 2026-08-18. Asked to model out disk growth and show the
+#: numbers, she was answered with "I couldn't get to an answer I'd stand behind
+#: on that one." Nothing had failed to generate: the worker produced a draft,
+#: the surface gate rejected it as a prompt artifact, retried, exhausted its
+#: retries, and the turn ended with no reply at all.
+#:
+#: The draft's offence was writing a structured answer. "History:", "Goals:",
+#: "Mood:" and "State:" at the start of a line are how anyone lays out a model
+#: — and each one, alone, matched the scaffold pattern. So the more carefully
+#: she organised an answer, the more certainly it was destroyed, and the
+#: person got a canned apology instead.
+#:
+#: One such heading is prose. Several together is the internal block, which is
+#: what the guard is actually for.
+_AMBIGUOUS_SCAFFOLD_LINE_RE = re.compile(
+    r"(?im)^\s*(?:state|mood|goals|history|voice|recalled)\s*:"
+)
+
+#: How many ambiguous headings make a run read as the internal block.
+_SCAFFOLD_RUN_MIN = 3
+
 _PROMPT_ARTIFACT_PATTERNS = (
-    re.compile(r"(?im)^\s*(?:obj|prev_obj|state|phenom|mood|goals|history|narr|pers|usr|ctx|voice|recalled|cont)\s*:", re.IGNORECASE),
     re.compile(r"\[ACTIVE GROUNDING EVIDENCE\]", re.IGNORECASE),
     re.compile(r"\[FETCHED PAGE CONTENT\]", re.IGNORECASE),
     re.compile(r"\[INTERNAL MEMORY RECALL\]", re.IGNORECASE),
@@ -340,7 +369,12 @@ def _prose_outside_fences(text: str) -> str:
 
 def _contains_prompt_artifact(text: str, *, whole_reply: bool = True) -> bool:
     body = _prose_outside_fences(text) if whole_reply else str(text or "")
-    return any(pattern.search(body) for pattern in _PROMPT_ARTIFACT_PATTERNS)
+    if any(pattern.search(body) for pattern in _PROMPT_ARTIFACT_PATTERNS):
+        return True
+    if _SCAFFOLD_ONLY_LINE_RE.search(body):
+        return True
+    # A single "History:" is a heading; a stack of them is the state block.
+    return len(_AMBIGUOUS_SCAFFOLD_LINE_RE.findall(body)) >= _SCAFFOLD_RUN_MIN
 
 
 def _contains_unsupported_internal_jargon(text: str) -> bool:
