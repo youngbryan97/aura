@@ -279,11 +279,23 @@ async def _read_transcript(prompt: str) -> str:
         # A named absence. "I have no transcript for this session" is a true
         # answer; an invented exchange is not.
         return "No transcript is available for this conversation yet."
+    # "What was the FIRST thing I told you?" is not answerable from a window of
+    # the most recent turns, and answering it from that window produces a
+    # confident wrong answer rather than a miss. LIVE 2026-08-17: the first
+    # turn was "ok" and she reported "You asked if I was still here."
+    lines: list[str] = []
+    if len(turns) > 8:
+        for position, turn in enumerate(turns[:3], start=1):
+            lines.append(f"turn {position} of this conversation, they said: {turn[:300]}")
+        lines.append(f"... {len(turns) - 11} turn(s) not shown ...")
     recent = turns[-8:]
-    lines = [
-        f"{len(recent) - index} turn(s) ago, they said: {turn[:300]}"
-        for index, turn in enumerate(recent)
-    ]
+    offset = len(turns) - len(recent)
+    for index, turn in enumerate(recent):
+        ago = len(recent) - index
+        lines.append(
+            f"turn {offset + index + 1} ({ago} turn(s) ago), they said: {turn[:300]}"
+        )
+    lines.append(f"({len(turns)} user turn(s) in this conversation.)")
     return "\n".join(lines)
 
 

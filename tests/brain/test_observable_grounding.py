@@ -437,3 +437,42 @@ def test_an_absent_transcript_is_named_not_invented(monkeypatch) -> None:
     from core.brain.observable_registry import _read_transcript
 
     assert "No transcript" in asyncio.run(_read_transcript("what did I ask?"))
+
+
+def test_the_first_turn_is_reachable_in_a_long_conversation(monkeypatch) -> None:
+    """'What was the FIRST thing I told you' is not in a recent-turns window.
+
+    LIVE 2026-08-17: the first turn was "ok" and she answered "You asked if I
+    was still here" — a confident wrong answer rather than a miss, because the
+    window only carried the last eight turns.
+    """
+    import asyncio
+
+    monkeypatch.setattr(
+        "core.conversation.grounded_recall._transcript_user_turns",
+        lambda _exclude: [f"turn {i}" for i in range(1, 16)],
+    )
+
+    from core.brain.observable_registry import _read_transcript
+
+    body = asyncio.run(_read_transcript("what was my first question?"))
+
+    assert "turn 1 of this conversation" in body
+    assert "turn 15" in body
+    assert "15 user turn(s)" in body
+
+
+def test_a_short_conversation_is_not_padded(monkeypatch) -> None:
+    import asyncio
+
+    monkeypatch.setattr(
+        "core.conversation.grounded_recall._transcript_user_turns",
+        lambda _exclude: ["only thing said"],
+    )
+
+    from core.brain.observable_registry import _read_transcript
+
+    body = asyncio.run(_read_transcript("what did I say?"))
+
+    assert "not shown" not in body
+    assert "only thing said" in body
