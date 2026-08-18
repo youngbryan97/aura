@@ -480,12 +480,51 @@ def test_probe_survives_a_generator_that_times_out(registry):
 # ---------------------------------------------------------------------------
 
 
-def _floor(context: dict) -> dict:
+def _floor(context: dict, *, stamp: bool = True) -> dict:
+    """Run the floor over a context, stamped the way a real one would be.
+
+    _live_mind_controls_bound requires is_stamped_runtime_payload: the
+    snapshot has to carry THIS process's mark, because think() accepts an
+    arbitrary context and an unstamped dict reaching it could otherwise take
+    control of temperature, top_p and recurrent depth. That hardening landed
+    after these tests were written, so they handed over a bare dict, could
+    never bind, and failed on a clean tree — while asserting things about
+    binding that the fixture made unreachable.
+
+    Stamping here restores what the tests are actually about. The unstamped
+    case is worth its own assertion rather than being every case by accident,
+    so `stamp=False` keeps it reachable.
+    """
     from core.brain.cognitive_engine import CognitiveEngine
+    from core.utils.injected_blocks import stamp_runtime_payload
+
+    prepared = dict(context)
+    live_mind_context = prepared.get("live_mind_context")
+    if stamp and isinstance(live_mind_context, dict):
+        prepared["live_mind_context"] = stamp_runtime_payload(dict(live_mind_context))
 
     return CognitiveEngine._live_mind_structured_floor_metadata(
-        context, source="regression"
+        prepared, source="regression"
     )
+
+
+def test_an_unstamped_snapshot_can_never_bind_controls():
+    """think() accepts any context; only this process's own may steer it."""
+    metadata = _floor(
+        {
+            "desktop_cognitive_engine_required": True,
+            "live_mind_controls_bound": True,
+            "live_mind_generation_controls": {"temperature": 0.61, "top_p": 0.9},
+            "live_mind_context": {
+                "mind_snapshot_quality": {"ready": True},
+                "mind_snapshot": {"mood": "settled"},
+                "required_subsystems_ok": True,
+            },
+        },
+        stamp=False,
+    )
+
+    assert metadata["live_mind_controls_bound"] is False
 
 
 def test_structured_floor_does_not_fabricate_controls_when_the_mind_is_absent():

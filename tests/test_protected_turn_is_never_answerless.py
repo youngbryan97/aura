@@ -43,7 +43,12 @@ class TestTheRefusalIsProvenanceOnly:
             branch.index("if strict_primary_proof_lane:") :
             branch.index("if strict_primary_proof_lane:") + 600
         ]
-        assert "return None" in refusal, (
+        # The PROPERTY is that this branch refuses rather than answering from
+        # a lower lane. It used to refuse by `return None`, and now refuses
+        # through the named _refuse_generation helper — which is clearer, and
+        # which this assertion did not follow, so it failed on a clean tree
+        # while the behaviour it guards was intact and improved.
+        assert ("return None" in refusal or "_refuse_generation" in refusal), (
             "a proof that names the primary model must not be answered from a "
             "lower lane — that would misreport provenance"
         )

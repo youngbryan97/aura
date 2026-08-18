@@ -165,7 +165,26 @@ class DistillationPipe:
                 or self.teacher_target
             )
             if content:
-                return content, teacher, "local_deep_teacher"
+                # Name the teacher that ANSWERED, not the lane that was asked.
+                #
+                # This returned the constant "local_deep_teacher" whichever
+                # model replied, so a distillation row recorded
+                # teacher="gemini-2.5-pro" beside teacher_source="local_deep
+                # _teacher" — a provenance field that contradicted the very
+                # field next to it. Every row written through this path
+                # carried it, and the dataset is training data: a mislabelled
+                # source is baked into whatever is learned from it.
+                #
+                # teacher_target is the abstract lane ("local_deep"). When the
+                # reply carries a concrete model name instead, the configured
+                # deep teacher is what served it; when nothing came back and
+                # the target string is all there is, it stayed local.
+                source = (
+                    "configured_deep_teacher"
+                    if teacher and teacher != self.teacher_target
+                    else "local_deep_teacher"
+                )
+                return content, teacher, source
         except (OSError, ConnectionError, TimeoutError) as exc:
             _record_distillation_degradation(
                 exc,
