@@ -9663,9 +9663,49 @@ def _strip_user_visible_context_leaks(reply_text: Any) -> str:
         if index >= 0:
             cut_at = min(cut_at, index)
     if cut_at < len(text):
-        return text[:cut_at].strip()
+        kept = text[:cut_at].strip()
+        if kept:
+            return kept
+        # The leak was at position 0, so truncating removed the whole reply.
+        #
+        # LIVE 2026-08-17: "what's on my screen right now?" was served as a
+        # bare "…". The cortex had produced a 172-character answer, the screen
+        # reading had reached it, and this stripper cut from index 0 — the
+        # caller's `or "…"` then turned an authored answer into an ellipsis.
+        # An ellipsis is not an answer; it is the shape of one.
+        #
+        # Cutting from the marker is right when there is text before it. When
+        # there is not, drop the marker LINE and keep the rest, which preserves
+        # the answer while still removing the protocol block.
+        salvaged = _drop_context_leak_lines(text)
+        if salvaged:
+            logger.warning(
+                "Context-leak strip would have emptied a %d-char reply; kept %d "
+                "chars by dropping the marker lines instead.",
+                len(text),
+                len(salvaged),
+            )
+            return salvaged
+        record_degradation(
+            "chat.context_leak_strip",
+            RuntimeError("stripping context leaks emptied a non-empty reply"),
+            action="served nothing rather than a reply that was entirely protocol",
+        )
+        return ""
     cleaned = _USER_VISIBLE_CONTEXT_LEAK_RE.sub("", text).strip()
     return cleaned
+
+
+def _drop_context_leak_lines(text: str) -> str:
+    """Remove only the LINES carrying a protocol marker, keeping the answer."""
+
+    kept: list[str] = []
+    for line in str(text or "").splitlines():
+        lowered = line.lower()
+        if any(marker.lower() in lowered for marker in _USER_VISIBLE_CONTEXT_LEAK_MARKERS):
+            continue
+        kept.append(line)
+    return "\n".join(kept).strip()
 
 
 # Reject raw search-result snippets that occasionally leak through when a
