@@ -155,11 +155,18 @@ _NO_EXECUTION = re.compile(
 )
 _STRUCTURED_COMPUTE = re.compile(
     r"\b(?:calculate|compute|count|evaluate|trace|simulate|predict|checksum|"
-    r"maximize|minimize|optimal|schedule|sequence|posterior|probability|"
-    r"combinator|intervention|constraint|score|winner|median|algorithm)\w*\b",
+    r"maximize|minimize|optimal|schedul|sequence|posterior|probability|"
+    r"combinator|intervention|constraint|score|winner|median|algorithm|"
+    r"shortest[ -]path|graph|vertices?|edges?)\w*\b",
     re.IGNORECASE,
 )
 _STRUCTURED_INPUT = re.compile(r"(?:\[[^\]]+\]|\{[^}]+\}|\b\d+(?:\.\d+)?\b)")
+_STRUCTURED_OUTPUT_REQUEST = re.compile(
+    r"\b(?:worked|step[ -]by[ -]step|walk\s+through|demonstrat\w*|construct\w*|"
+    r"show|give|provide|build)\b.{0,100}\b(?:example|trace|simulation|table|"
+    r"schedule|sequence|execution|run)\b",
+    re.IGNORECASE | re.DOTALL,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -179,10 +186,11 @@ def should_use_executable_reasoning(
 
     Explicit user constraints against execution always win.  The default path
     is intentionally semantic rather than tied to benchmark domain names:
-    math is computational by definition; other domains need both a structured
-    operation and structured input.  A caller may explicitly enable the organ
-    for an already-classified hard task, but cannot override a no-execution
-    instruction.
+    math is computational by definition; other domains need a structured
+    operation plus either supplied structured input or a request to construct a
+    structured output such as a worked trace.  A caller may explicitly enable
+    the organ for an already-classified hard task, but cannot override a
+    no-execution instruction.
     """
 
     text = str(objective or "").strip()
@@ -196,7 +204,10 @@ def should_use_executable_reasoning(
     return bool(
         normalized_type in {"code", "logic", "planning", "factual"}
         and _STRUCTURED_COMPUTE.search(text)
-        and _STRUCTURED_INPUT.search(text)
+        and (
+            _STRUCTURED_INPUT.search(text)
+            or _STRUCTURED_OUTPUT_REQUEST.search(text)
+        )
     )
 
 

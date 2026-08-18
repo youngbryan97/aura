@@ -1469,7 +1469,15 @@ async def test_response_generation_leaves_user_surface_retry_to_route_owner(monk
         lambda: SimpleNamespace(align=lambda text: (text, False, [])),
     )
 
-    async def _force_retry(response, contract, *, retry_generate, state):
+    async def _force_retry(
+        response,
+        contract,
+        *,
+        retry_generate,
+        state,
+        user_message=None,
+    ):
+        assert user_message == "Explain how confusion changes your reasoning."
         assert retry_generate is None
         return response, SimpleNamespace(to_dict=lambda: {"valid": False}), False
 

@@ -774,10 +774,38 @@ class ReasoningAmplifierV2:
         request.context["_cognitive_operation_receipts"] = []
         request.context["_resolved_reasoning_mode"] = mode.value
 
-        # 2. retrieve failure-mode guards from prior reasoning.
+        # Verify the existing cognitive result before spending another model
+        # call.  The incumbent is not an instruction and does not inherit trust:
+        # it faces the same mechanical engines as every generated candidate.
+        # A conclusive pass preserves it; a conclusive failure supplies typed
+        # evidence to the repair/search path; an unchecked result changes
+        # nothing.  This makes amplification sparse rather than reflexive.
+        incumbent_verdict = None
+        if seed_candidates:
+            incumbent_verdict = await self._verify(
+                seed_candidates[0], problem, request.context
+            )
+            request.context["_incumbent_verdict"] = incumbent_verdict
+            if bool(getattr(incumbent_verdict, "checked", False)):
+                if not bool(getattr(incumbent_verdict, "ok", False)):
+                    fallbacks.append("incumbent_refuted")
+                elif self._executable_verdict_is_authoritative(incumbent_verdict):
+                    fallbacks.append("incumbent_verified")
+                else:
+                    fallbacks.append("incumbent_proxy_pass_not_authoritative")
+
+        incumbent_is_clean = bool(
+            incumbent_verdict is not None
+            and getattr(incumbent_verdict, "checked", False)
+            and getattr(incumbent_verdict, "ok", False)
+            and self._executable_verdict_is_authoritative(incumbent_verdict)
+        )
+
+        # 2. retrieve failure-mode guards from prior reasoning.  A mechanically
+        # clean incumbent needs no additional search context.
         guard_text = ""
         guards: list[str] = []
-        if not sealed_evaluation:
+        if not sealed_evaluation and not incumbent_is_clean:
             try:
                 guard_text = self._ensure_memory().as_guard_text(
                     problem.objective, task_type=problem.task_type
@@ -789,7 +817,7 @@ class ReasoningAmplifierV2:
 
         # 2a. procedural memory: condition on PROVEN approaches from similar
         # solved problems (frontier-general P2 — inference-time compounding).
-        if not sealed_evaluation:
+        if not sealed_evaluation and not incumbent_is_clean:
             try:
                 from core.brain.procedural_memory import get_procedural_memory
 
@@ -808,7 +836,7 @@ class ReasoningAmplifierV2:
         # 2b. ReAct grounding — gather REAL evidence (read repo source spans / recall
         # memory) so generation is conditioned on fact and the verifier has something
         # concrete to check. Merged with any caller-supplied evidence.
-        if not request.context.get("skip_evidence"):
+        if not incumbent_is_clean and not request.context.get("skip_evidence"):
             try:
                 gathered = await self._with_deadline(
                     self._ensure_evidence().render_pack(
@@ -823,7 +851,13 @@ class ReasoningAmplifierV2:
                 record_degradation("amplifier_v2_evidence", exc)
 
         # 3-8. produce a synthesized, verified answer per mode.
-        if mode in (ReasoningMode.DEEP, ReasoningMode.EXTREME, ReasoningMode.PROOF):
+        if incumbent_is_clean:
+            answer = seed_candidates[0]
+            agreement = 0.0
+            verdict = incumbent_verdict
+            n_cand = 1
+            strategy = "verified_incumbent"
+        elif mode in (ReasoningMode.DEEP, ReasoningMode.EXTREME, ReasoningMode.PROOF):
             answer, agreement, verdict, n_cand, strategy = await self._deep_path(
                 problem, guard_text, sample_budget, deadline, mode, request.context, fallbacks
             )
@@ -1075,7 +1109,11 @@ class ReasoningAmplifierV2:
         promotion_authority = (
             "independent_executable_consensus"
             if strategy == "independent_executable_consensus"
-            else ("checked_verifier" if verified_pass else "none")
+            else (
+                "preserve_incumbent"
+                if strategy == "verified_incumbent"
+                else ("checked_verifier" if verified_pass else "none")
+            )
         )
         receipt = ReasoningReceipt(
             mode=mode.value,

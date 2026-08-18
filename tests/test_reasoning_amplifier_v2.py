@@ -413,6 +413,36 @@ async def test_seeded_rlc_candidate_is_verified_without_regeneration(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_verified_incumbent_skips_regeneration_even_with_larger_budget(tmp_path):
+    async def generation_must_not_run(_prompt: str, _temperature: float) -> str:
+        raise AssertionError("a verifier-clean incumbent triggered redundant generation")
+
+    amp = _amp_with_verifier(
+        generation_must_not_run,
+        _CheckedPassingVerifier(),
+        tmp_path,
+    )
+    out = await amp.amplify(
+        AmplificationRequest(
+            objective="Explain the verified result",
+            task_type="factual",
+            mode=ReasoningMode.DEEP,
+            sample_budget=5,
+            context={
+                "seed_candidates": ["The mechanically verified result is 42."],
+                "read_only_evaluation": True,
+                "skip_cache": True,
+            },
+        )
+    )
+
+    assert out.answer == "The mechanically verified result is 42."
+    assert out.receipt.strategy_used == "verified_incumbent"
+    assert out.receipt.promotion_authority == "preserve_incumbent"
+    assert "incumbent_verified" in out.receipt.fallbacks_used
+
+
+@pytest.mark.asyncio
 async def test_concurrent_winner_keeps_its_own_generation_metadata(tmp_path):
     invocation = 0
 

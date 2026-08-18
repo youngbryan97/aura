@@ -83,6 +83,14 @@ def test_semantic_admission_is_general_and_honors_no_execution() -> None:
         task_type="code",
         explicitly_enabled=True,
     )
+    assert should_use_executable_reasoning(
+        "Explain a shortest-path algorithm with a worked trace over named vertices.",
+        task_type="factual",
+    )
+    assert should_use_executable_reasoning(
+        "Walk through a scheduling example and show each execution step.",
+        task_type="planning",
+    )
 
 
 def test_strategy_selection_uses_problem_semantics_not_task_ids() -> None:

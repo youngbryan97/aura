@@ -25,6 +25,7 @@ from .logic_engine import LogicTruthEngine
 from .math_engine import MathTruthEngine
 from .planning_engine import PlanningEngine
 from .repo_engine import RepoEvidenceEngine
+from .state_trace_engine import StateTraceTruthEngine
 
 # Map a coarse task_type to the engines that should run. The logic engine is
 # always added on top (deductive sanity applies to any prose).
@@ -48,6 +49,7 @@ class VerifierRegistry:
             CodeTruthEngine(),
             MathTruthEngine(),
             LogicTruthEngine(),
+            StateTraceTruthEngine(),
             RepoEvidenceEngine(),
             CitationEngine(),
             PlanningEngine(),

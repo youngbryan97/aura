@@ -77,6 +77,14 @@ def test_plain_fact_lookup_stays_on_the_low_latency_path():
     assert is_amplifiable("what is the capital of France") is None
 
 
+def test_requested_worked_trace_is_amplifiable_without_numeric_input():
+    text = (
+        "Explain Dijkstra's invariant and give a worked example using vertices "
+        "A, B, C, and D with weighted edges."
+    )
+    assert is_amplifiable(text) == "factual"
+
+
 @pytest.mark.parametrize(
     "text",
     [

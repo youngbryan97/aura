@@ -37,14 +37,21 @@ class LogicTruthEngine:
         arithmetic = audit.get("arithmetic_errors", []) or []
         issues = [f"non-sequitur: {ns.get('conclusion')}" for ns in non_sequiturs]
         issues += [f"arithmetic: {ae.get('claim')}" for ae in arithmetic]
+        checked = bool(audit.get("checked", False))
         ok = not non_sequiturs and not arithmetic
         score = 0.9 if ok else max(0.05, 0.5 - 0.15 * len(issues))
         return VerificationResult(
             domain="logic",
             ok=ok,
-            checked=True,
+            checked=checked,
             score=round(score, 4),
             engine=self.name,
             issues=issues,
-            detail={"non_sequiturs": len(non_sequiturs)},
+            detail={
+                "non_sequiturs": len(non_sequiturs),
+                "checked_inferences": int(audit.get("checked_inferences", 0) or 0),
+                "checked_arithmetic_claims": int(
+                    audit.get("checked_arithmetic_claims", 0) or 0
+                ),
+            },
         )

@@ -278,16 +278,29 @@ class SymbolicBridge:
         errors via numeric evaluation. Returns both findings.
         """
         non_sequiturs: list[dict[str, Any]] = []
+        checked_inferences = 0
         try:
-            from core.reasoning.inference_audit import find_non_sequiturs
+            from core.reasoning.inference_audit import audit_text
 
-            non_sequiturs = [v.to_dict() for v in find_non_sequiturs(text)]
+            inference_verdicts = audit_text(text)
+            checked_inferences = sum(
+                verdict.status in {"valid", "invalid"} for verdict in inference_verdicts
+            )
+            non_sequiturs = [
+                verdict.to_dict()
+                for verdict in inference_verdicts
+                if verdict.is_non_sequitur
+            ]
         except (ImportError, ValueError, RuntimeError, TypeError, AttributeError):
             non_sequiturs = []
-        arithmetic_errors = self.check_arithmetic_claims(text)
+        arithmetic_claims = self.inspect_arithmetic_claims(text)
+        arithmetic_errors = [claim for claim in arithmetic_claims if not claim["valid"]]
         return {
             "non_sequiturs": non_sequiturs,
             "arithmetic_errors": arithmetic_errors,
+            "checked_inferences": checked_inferences,
+            "checked_arithmetic_claims": len(arithmetic_claims),
+            "checked": bool(checked_inferences or arithmetic_claims),
             "clean": not non_sequiturs and not arithmetic_errors,
         }
 
