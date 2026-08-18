@@ -27,6 +27,20 @@ async def _read_clipboard(prompt: str) -> str:
     return block.replace(f"{CLIPBOARD_HEADER}\n", "", 1) if block else ""
 
 
+# ── her own validated claims ─────────────────────────────────────────────────
+
+def _matches_validated_claims(prompt: str) -> bool:
+    from core.brain.validated_claims_grounding import asks_for_own_evidence
+
+    return asks_for_own_evidence(prompt)
+
+
+async def _read_validated_claims(prompt: str) -> str:
+    from core.brain.validated_claims_grounding import validated_claims_block
+
+    return await asyncio.to_thread(validated_claims_block, prompt)
+
+
 # ── a named file ─────────────────────────────────────────────────────────────
 
 def _matches_file(prompt: str) -> bool:
@@ -423,6 +437,28 @@ def install_default_observables() -> None:
             ),
             counter_examples=(
                 "plan a trip to Rome",
+                "how are you doing",
+                "what is 2 + 2",
+            ),
+        ),
+        Observable(
+            "validated_claims",
+            "## WHAT YOU HAVE ACTUALLY MEASURED ABOUT YOURSELF",
+            _matches_validated_claims,
+            _read_validated_claims,
+            examples=(
+                # The live fabrication: this asked for her own numbers and got
+                # a study that does not exist, with sample sizes and a DOI.
+                "which measures, specifically? give me the numbers and the sample sizes",
+                "what is your evidence for that?",
+                "how do you know that?",
+                "what have you actually proven?",
+                "show me the evidence",
+            ),
+            counter_examples=(
+                # Evidence about the WORLD is a different question.
+                "what is the evidence for dark matter?",
+                "show me the data on unemployment",
                 "how are you doing",
                 "what is 2 + 2",
             ),
