@@ -24,20 +24,30 @@ memory is a logic puzzle about two guards). It was *generated* — given a turn
 with almost no content to answer, the model supplied a shared past instead of
 saying it had none.
 
-That is the defect, and it is one defect rather than three: **a past-tense
-claim about the other person, or about a moment together, whose content
-appears nowhere in what they actually said.** Each line above is that, and
-each one licensed the next, because her own fabrication became the context
-for the following turn.
+That is the defect, and it is one defect rather than three: **a claim
+attributed to the other person, or to a moment together, whose content appears
+nowhere in what they actually said.** Each line above is that, and each one
+licensed the next, because her own fabrication became the context for the
+following turn.
 
-The check is deliberately about *novel content in a relational past-tense
-claim*, not about tone or plausibility:
+It was first written as a PAST-TENSE check, because every example above is
+past tense. That framing was too narrow and the gap it left was found live on
+2026-08-18: "now that you point out the 'your_files' directory exists" — a
+directory nobody had ever mentioned, invented, attributed to him in the
+PRESENT tense, and then agreed with. It passed a check built entirely from
+"you said" and "you told me". Putting words in someone's mouth does not
+require the past tense, so the scope is attribution rather than tense.
+
+The check is deliberately about *novel content in a claim attributed to him*,
+not about tone or plausibility:
 
 * "I wrote the note and saved it" — about herself, and true.
 * "You asked me to remember the orca" — about him, and his words are right
   there in the turn.
-* "I thought you had a problem with your eyes" — about him, past tense, and
-  "eyes" appears nowhere.
+* "I thought you had a problem with your eyes" — about him, and "eyes"
+  appears nowhere.
+* "now that you point out the 'your_files' directory" — about him, present
+  tense, and "your_files" appears nowhere.
 
 Grounded recall is unaffected: if the claim's content is in the conversation
 or in what she was given to recall, it passes. What cannot pass is inventing
