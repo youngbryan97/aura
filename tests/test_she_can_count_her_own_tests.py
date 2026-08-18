@@ -39,7 +39,6 @@ def _actual(directory: str, suffix: str) -> int:
         "how many tests do you have?",
         "count the test files",
         "number of test files",
-        "how many specs do you have",
     ],
 )
 def test_her_tests_are_countable_however_it_is_asked(question):
@@ -48,6 +47,30 @@ def test_her_tests_are_countable_however_it_is_asked(question):
     assert counted.exists is True
     assert counted.suffix == ".py"
     assert counted.count == _actual("tests", ".py")
+
+
+@pytest.mark.parametrize(
+    "kind,directory",
+    [
+        ("docs", "docs"),
+        ("benchmarks", "benchmarks"),
+        ("demos", "demos"),
+        ("specs", "specs"),
+    ],
+)
+def test_any_kind_the_repository_actually_has_is_countable(kind, directory):
+    """Derived from the tree, so it is not one word behind every question.
+
+    The first version of this carried a table mapping "test" to tests/ and
+    "doc" to docs/. It answered exactly the two questions someone had thought
+    of, and it was WRONG about a third: it mapped "spec" to tests/.py, while
+    the repository has a specs/ directory full of .md. Looking the directory up
+    instead of asserting it fixed the answer and removed the table.
+    """
+    counted = requested_filesystem_count(f"how many {kind} do you have")
+    assert counted is not None, kind
+    assert counted.exists is True
+    assert Path(counted.path).name == directory
 
 
 def test_her_docs_are_countable_too():

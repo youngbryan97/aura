@@ -27,6 +27,7 @@ Deliberately narrow:
 from __future__ import annotations
 
 import re
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -65,19 +66,54 @@ _COUNT_RE = re.compile(
 #: question answerable rather than ambiguous.
 _OWNED_KIND_RE = re.compile(
     r"\b(?:how\s+many|count(?:\s+the)?|number\s+of)\s+"
-    r"(?P<owned>test|spec|doc(?:umentation)?)s?\s*"
+    r"(?P<owned>[a-z]{3,})\s*"
     r"(?:files?|scripts?|modules?|suites?)?"
     r"(?:\s+(?:do|does|have|has|are|is)\b|\s*\?|\s*$)",
     re.IGNORECASE,
 )
 
-#: Where a kind of file lives, when the question names the kind and not a path.
-_OWNED_KIND_HOMES: dict[str, tuple[str, str]] = {
-    "test": ("tests", ".py"),
-    "spec": ("tests", ".py"),
-    "doc": ("docs", ".md"),
-    "documentation": ("docs", ".md"),
-}
+
+def _home_for_kind(kind: str) -> Path | None:
+    """The directory a kind of file lives in, found rather than declared.
+
+    A table mapping "test" to "tests" and "doc" to "docs" answers exactly the
+    two questions someone thought of, and is one word behind every other one —
+    "how many benchmarks do you have", "how many demos", "how many configs".
+    The repository already states where things live, by having directories with
+    those names, so the answer is looked up on disk instead of asserted here.
+
+    Singular and plural are both tried because English asks either way.
+    """
+    word = str(kind or "").strip().lower()
+    if not word:
+        return None
+    seen: set[str] = set()
+    for name in (word, f"{word}s", word.rstrip("s")):
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        found = _resolve(name)
+        if found is not None and found.is_dir():
+            return found
+    return None
+
+
+def _dominant_suffix(directory: Path) -> str:
+    """The extension that directory is actually made of, or "" if mixed.
+
+    Derived from the contents rather than declared, so "how many tests do you
+    have" counts .py in tests/ and would count .ts in a TypeScript project
+    without anyone editing a table. A directory with no clear majority counts
+    every file, which is the honest reading of "how many X do you have".
+    """
+    try:
+        suffixes = [item.suffix for item in directory.iterdir() if item.is_file() and item.suffix]
+    except OSError:
+        return ""
+    if not suffixes:
+        return ""
+    top, count = Counter(suffixes).most_common(1)[0]
+    return top if count * 2 > len(suffixes) else ""
 
 #: Words that name a language/extension rather than a real suffix.
 _KIND_SUFFIXES = {
@@ -213,8 +249,9 @@ def requested_filesystem_count(user_message: Any) -> FilesystemCount | None:
     if not match:
         owned = _OWNED_KIND_RE.search(text)
         if owned:
-            home, suffix = _OWNED_KIND_HOMES[owned.group("owned").lower().rstrip("s")]
-            return _count_in(_resolve(home), suffix)
+            home = _home_for_kind(owned.group("owned"))
+            if home is not None:
+                return _count_in(home, _dominant_suffix(home))
         return None
     kind = (match.group("kind") or "").strip().lower()
     suffix = _KIND_SUFFIXES.get(kind, "")
