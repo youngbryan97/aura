@@ -121,6 +121,26 @@ def _rx(pattern: str) -> Pattern[str]:
 #: honesty layer turns on.
 _DID = r"\bi\s+(?:have\s+)?|\bi(?:'ve|\s+have)\s+"
 
+#: Narrating the act with no subject, as if performing it while speaking:
+#: "Appending 'line two' to notes.txt", "Writing that to the file now".
+#: This is a claim in the same sense "I appended it" is — the person reads it
+#: as the thing having been done — and every recognizer covered only the
+#: first-person past forms.
+#:
+#: LIVE 2026-08-18: "Appending "line two" to aura-test-note.txt on your
+#: desktop... The file now contains both lines." Nothing had run, no receipt
+#: existed, and the auditor saw no claim at all because neither shape was
+#: written down.
+_DOING = r"\b(?:now\s+)?(?:appending|writing|saving|creating|adding|putting|copying)\b"
+
+#: Asserting the RESULT rather than the act: "the file now contains both
+#: lines", "it now has the second line". The strongest form of the claim, and
+#: the one most likely to be believed.
+_NOW_CONTAINS = (
+    r"\b(?:the\s+)?(?:file|note|document|it)\s+(?:now\s+)?"
+    r"(?:contains|holds|has|includes|shows)\b"
+)
+
 
 _SPECS: tuple[EffectSpec, ...] = (
     # ── Low-level input synthesis ──────────────────────────────────────────
@@ -299,12 +319,19 @@ _SPECS: tuple[EffectSpec, ...] = (
         render_phrase="wrote",
         evidence_fields=("path",),
         recognizer=_rx(
-            rf"(?:{_DID})(?:written|wrote|saved|created)\s+"
-            r"(?:the\s+|a\s+|that\s+|your\s+|it\b)?[^.!?]{0,30}?\b(?:file|note|document|report|text)\b"
+            rf"(?:{_DID})(?:written|wrote|saved|created|appended|added)\s+"
+            r"(?:the\s+|a\s+|that\s+|your\s+|it\b)?[^.!?]{0,30}?\b(?:file|note|document|report|text|line)\b"
             # Stative completion: "the file is on your Desktop now" asserts a
             # finished write with no verb of hers in it.
             r"|\b(?:the\s+)?(?:file|note|document)\s+(?:is|was)\s+(?:now\s+)?"
             r"(?:on|in|at|saved)\b"
+            # Narrating the act while speaking, with no subject at all:
+            # "Appending "line two" to notes.txt on your desktop."
+            rf"|{_DOING}\s+[^.!?]{{0,60}}?\b(?:to|into)\s+[^.!?]{{0,40}}?"
+            r"(?:\.txt|\.md|\.json|\bfile\b|\bnote\b|\bdocument\b)"
+            # Asserting the resulting state, which is the strongest claim of
+            # all: "The file now contains both lines."
+            rf"|{_NOW_CONTAINS}"
         ),
         claim_description="wrote a file",
     ),
