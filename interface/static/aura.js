@@ -3564,7 +3564,29 @@ function plainLanguageThought(text) {
         // no control called FULL has ever been rendered — the expander is
         // labelled SHOW ALL — so the card promised a way to read the numbers
         // and offered none.
-        return `${body.split(/[:|]/)[0].trim()} — internal measurements (SHOW ALL for the numbers).`;
+        // Say WHAT was measured, not merely that measuring happened.
+        //
+        // This returned "<subsystem> — internal measurements (SHOW ALL for
+        // the numbers)", which is a card that costs a line of someone's
+        // attention and returns nothing: the same sentence whatever the
+        // subsystem was doing, repeated all day. Every card that reads well
+        // does so because a hand-written rule exists for its exact shape, so
+        // the general path — the one that catches everything nobody has
+        // written a rule for — was the only one guaranteed to be useless.
+        //
+        // The keys are already language with the underscores taken out, and
+        // the values are the measurement. Rendering them needs no rule per
+        // subsystem, so a line nobody has ever seen still says something.
+        const readable = pairs.slice(0, 3).map((pair) => {
+            const cut = pair.indexOf('=');
+            const key = humanMetric(pair.slice(0, cut)).toLowerCase();
+            const value = pair.slice(cut + 1).replace(/_/g, ' ');
+            return `${key} ${value}`;
+        }).join(', ');
+        const subject = body.split(/[:|]/)[0].trim();
+        return readable
+            ? `${subject} — ${readable}${pairs.length > 3 ? ' (SHOW ALL for the rest)' : '.'}`
+            : `${subject} — internal measurements (SHOW ALL for the numbers).`;
     }
     return body;
 }

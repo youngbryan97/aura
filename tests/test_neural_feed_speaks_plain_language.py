@@ -123,3 +123,35 @@ def test_a_rate_keeps_its_unit():
     """"rising at 860 per hour" is a number wearing a measurement."""
     (rendered,) = _plain(["DRIFT [managed_rss_mb]: rising 860.1/h — watching"])
     assert "860MB" in rendered
+
+
+def test_a_line_nobody_wrote_a_rule_for_still_says_something():
+    """The general path must not be the one guaranteed to be useless.
+
+    Every card that reads well does so because a hand-written rule exists for
+    its exact shape. The fallback that catches everything else returned
+    "<subsystem> — internal measurements (SHOW ALL for the numbers)" — the same
+    sentence whatever was happening, costing a line of attention and returning
+    nothing.
+
+    The keys are already language with the underscores removed and the values
+    are the measurement, so no rule per subsystem is needed.
+    """
+    (rendered,) = _plain(
+        ["Router: admission_state=deferred lane=background reason=headroom_reserved queue_depth=3"]
+    )
+    assert "admission state deferred" in rendered
+    assert "internal measurements" not in rendered
+    assert "_" not in rendered
+
+
+def test_the_generic_path_needs_no_prior_knowledge():
+    """A subsystem invented today reads the same as one from a year ago."""
+    (rendered,) = _plain(["SomeNewSubsystem: widget_count=12 phase=settling drift=0.004"])
+    assert "widget count 12" in rendered
+    assert "phase settling" in rendered
+
+
+def test_ordinary_prose_is_left_alone():
+    (rendered,) = _plain(["A perfectly ordinary sentence about nothing in particular."])
+    assert rendered == "A perfectly ordinary sentence about nothing in particular."
