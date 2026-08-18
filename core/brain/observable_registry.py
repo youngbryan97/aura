@@ -275,9 +275,13 @@ def _matches_transcript(prompt: str) -> bool:
 
 
 async def _read_transcript(prompt: str) -> str:
-    from core.conversation.grounded_recall import _transcript_user_turns
+    # _user_turns cascades live working memory -> transcript; the transcript
+    # singleton alone came back empty in the live runtime while the
+    # conversation was plainly happening, so reading only the last resort
+    # produced "No transcript is available" mid-conversation.
+    from core.conversation.grounded_recall import _user_turns
 
-    turns = await asyncio.to_thread(_transcript_user_turns, "")
+    turns = await asyncio.to_thread(_user_turns, "")
     turns = [str(t).strip() for t in (turns or []) if str(t or "").strip()]
     if not turns:
         # A named absence. "I have no transcript for this session" is a true

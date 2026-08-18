@@ -418,7 +418,7 @@ def test_the_real_turns_are_supplied(monkeypatch) -> None:
     import asyncio
 
     monkeypatch.setattr(
-        "core.conversation.grounded_recall._transcript_user_turns",
+        "core.conversation.grounded_recall._user_turns",
         lambda _exclude: ["first thing I said", "second thing I said"],
     )
 
@@ -435,7 +435,7 @@ def test_an_absent_transcript_is_named_not_invented(monkeypatch) -> None:
     import asyncio
 
     monkeypatch.setattr(
-        "core.conversation.grounded_recall._transcript_user_turns", lambda _exclude: []
+        "core.conversation.grounded_recall._user_turns", lambda _exclude: []
     )
 
     from core.brain.observable_registry import _read_transcript
@@ -453,7 +453,7 @@ def test_the_first_turn_is_reachable_in_a_long_conversation(monkeypatch) -> None
     import asyncio
 
     monkeypatch.setattr(
-        "core.conversation.grounded_recall._transcript_user_turns",
+        "core.conversation.grounded_recall._user_turns",
         lambda _exclude: [f"turn {i}" for i in range(1, 16)],
     )
 
@@ -470,7 +470,7 @@ def test_a_short_conversation_is_not_padded(monkeypatch) -> None:
     import asyncio
 
     monkeypatch.setattr(
-        "core.conversation.grounded_recall._transcript_user_turns",
+        "core.conversation.grounded_recall._user_turns",
         lambda _exclude: ["only thing said"],
     )
 
