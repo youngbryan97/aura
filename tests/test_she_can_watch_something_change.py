@@ -50,9 +50,14 @@ def screen(monkeypatch):
             "error": "",
         }
 
-    async def press(key):
+    async def press(key, *, expect_app=""):
+        # Mirrors the real signature. It gained expect_app when the focus guard
+        # landed, and a one-argument double raised TypeError inside the Step —
+        # so every move "failed" and the loop stalled while the loop itself was
+        # correct. A double that does not track its contract reports the
+        # opposite of the truth.
         state["n"] += 1
-        state["pressed"].append(key)
+        state["pressed"].append((key, expect_app))
         return True
 
     monkeypatch.setattr(sp, "read_screen", read)
@@ -235,3 +240,30 @@ def test_the_band_reaches_the_loop_and_is_reported(screen):
     # The fake screen returns no layout, so a banded goal can never be met —
     # which is the honest outcome, not a silent fall back to the flat text.
     assert result["completed"] is False
+
+
+def test_every_keystroke_is_aimed_at_the_target_app(screen):
+    """A loop that acts on what it sees must aim at the window it looked at.
+
+    Measured live 2026-08-18: a run opened play2048.co in Chrome, read the
+    board correctly, and sent its arrow keys to whatever the person had clicked
+    since — reported as success, with the board untouched. hotkey delivers to
+    whatever is frontmost, so an unaimed keystroke has no address.
+    """
+    _run(policy=_alternating, max_cycles=30, target_app="Google Chrome")
+
+    assert screen["pressed"], "no keys were pressed"
+    assert all(app == "Google Chrome" for _key, app in screen["pressed"]), screen["pressed"]
+
+
+def test_the_target_app_is_reported_on_the_receipt(screen):
+    result = _run(policy=_alternating, max_cycles=30, target_app="Preview")
+
+    assert result["target_app"] == "Preview"
+
+
+def test_an_unaimed_run_is_still_possible(screen):
+    """Not every pursuit drives an app; watching one needs no aim."""
+    _run(policy=_alternating, max_cycles=30)
+
+    assert all(app == "" for _key, app in screen["pressed"])

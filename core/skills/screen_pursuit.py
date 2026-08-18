@@ -75,6 +75,11 @@ class ScreenPursuitInput(BaseModel):
     #: furniture".
     success_region_top: float = Field(default=0.0, ge=0.0, le=1.0)
     success_region_bottom: float = Field(default=1.0, ge=0.0, le=1.0)
+    #: The application this run is driving. Its keystrokes are refused unless
+    #: this application is frontmost at the moment of sending, so a run cannot
+    #: type into whatever the person switched to. Empty means unaimed, which is
+    #: only right when nothing is being driven.
+    target_app: str = Field(default="", max_length=120)
     max_cycles: int = Field(default=200, ge=1, le=2000)
     max_seconds: float = Field(default=600.0, ge=1.0, le=3600.0)
     narrate: bool = Field(default=True)
@@ -157,14 +162,21 @@ def goal_reached(
     return False
 
 
-async def press(key: str) -> bool:
-    """Press one of the allowed keys. False if it is not one of them."""
+async def press(key: str, *, expect_app: str = "") -> bool:
+    """Press one of the allowed keys. False if it is not one of them.
+
+    `expect_app` is passed through to the focus guard. A loop that acts on what
+    it sees must aim its input at the window it was looking at: measured live,
+    a run opened a page in Chrome, read the board correctly, and sent its keys
+    to whatever the person had clicked since — reported as success, with the
+    board untouched.
+    """
     name = str(key or "").strip().lower()
     if name not in PRESSABLE_KEYS:
         return False
     from core.capabilities.host_automation import get_host_automation
 
-    receipt = await get_host_automation().hotkey(name)
+    receipt = await get_host_automation().hotkey(name, expect_app=expect_app)
     return bool(getattr(receipt, "success", False))
 
 
@@ -201,6 +213,7 @@ class ScreenPursuitSkill(BaseSkill):
             narrate=params.narrate,
             region_top=params.success_region_top,
             region_bottom=params.success_region_bottom,
+            target_app=params.target_app,
         )
 
 
@@ -214,6 +227,7 @@ async def pursue_on_screen(
     narrate: bool = True,
     region_top: float = 0.0,
     region_bottom: float = 1.0,
+    target_app: str = "",
 ) -> dict[str, Any]:
     """Run the loop. Returns the receipt the executor produced.
 
@@ -268,7 +282,7 @@ async def pursue_on_screen(
             await _narrate(f"Board: {key.capitalize()}", because)
 
         async def act() -> bool:
-            return await press(key)
+            return await press(key, expect_app=target_app)
 
         return Step(name=f"press {key}", action=act)
 
@@ -286,6 +300,7 @@ async def pursue_on_screen(
     result["moves"] = moves
     result["success_when"] = success_when
     result["success_region"] = [region_top, region_bottom]
+    result["target_app"] = target_app
     return result
 
 

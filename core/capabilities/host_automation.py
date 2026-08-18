@@ -801,12 +801,25 @@ class HostAutomationProvider:
         self._log_receipt(receipt)
         return receipt
 
-    async def type_text(self, text: str, use_clipboard: bool = True) -> AutomationReceipt:
+    async def type_text(
+        self, text: str, use_clipboard: bool = True, *, expect_app: str = ""
+    ) -> AutomationReceipt:
         """Type text into the currently focused application.
 
         For text longer than 50 chars, uses clipboard paste (faster, more reliable).
         For short text, uses keystroke (more natural).
+
+        `expect_app` names the application the text is FOR, and the same focus
+        guard applies as for hotkey. It matters more here: an arrow key sent to
+        the wrong window is noise, while a sentence typed into the wrong window
+        is content in someone's document, chat or terminal. "Currently focused"
+        is a description of where it will land, never a check that it is the
+        right place.
         """
+        refusal = await self._refuse_if_not_frontmost(expect_app, "type_text")
+        if refusal is not None:
+            self._log_receipt(refusal)
+            return refusal
         start = time.time()
         if use_clipboard and len(text) > 50:
             # Clipboard paste method — faster and more reliable
@@ -909,8 +922,73 @@ class HostAutomationProvider:
         self._log_receipt(receipt)
         return receipt
 
-    async def hotkey(self, *keys: str) -> AutomationReceipt:
-        """Press a keyboard shortcut. E.g., hotkey("command", "s")."""
+    async def _refuse_if_not_frontmost(
+        self, expect_app: str, action: str
+    ) -> AutomationReceipt | None:
+        """None when `expect_app` is in front, a refusal receipt when it is not.
+
+        LIVE DEFECT, 2026-08-18. Playing 2048 in a browser: her own browser
+        controller opened play2048.co, her own screen read found the board, and
+        `hotkey("left")` returned success=True while nothing on the board moved.
+        The frontmost application was Claude. The arrow key went there.
+
+        A keystroke has no address. AppleScript delivers it to whatever is in
+        front at that instant, so every keyboard-driven task is silently
+        aimed at whichever window the person last touched — and the receipt
+        says success, because the key WAS delivered. The loop then sees no
+        change and concludes the task failed, which is the wrong lesson from
+        the wrong evidence.
+
+        Perception already knows what is in front. Actuation never asked. This
+        is that question, asked at the moment of the keystroke rather than
+        earlier, because focus can change between deciding and acting.
+
+        Substring match, case-insensitive, because the frontmost reading is
+        "Google Chrome|<page title>" and a caller means the application.
+        """
+        wanted = " ".join(str(expect_app or "").split()).lower()
+        if not wanted:
+            return None
+        context = await self.get_frontmost_window_context()
+        observed = str(getattr(context, "result", "") or "")
+        # Keep the name as the OS spelled it for the message, and compare on a
+        # folded copy. A refusal that says 'claude' when the app is called
+        # Claude reads like a different program.
+        app_as_named = observed.split("|", 1)[0].strip()
+        app = app_as_named.lower()
+        if not getattr(context, "success", False) or not app:
+            # Unable to tell is not permission to fire blind: a keystroke aimed
+            # at an unknown window is exactly what this exists to prevent.
+            return AutomationReceipt(
+                action=action, target=expect_app, adapter="focus_guard",
+                success=False,
+                error=(
+                    "refused: could not read the frontmost window, so the "
+                    "target application could not be confirmed"
+                ),
+            )
+        if wanted in app or app in wanted:
+            return None
+        return AutomationReceipt(
+            action=action, target=expect_app, adapter="focus_guard",
+            success=False,
+            error=(
+                f"refused: {expect_app!r} is not frontmost ({app_as_named!r} is), "
+                f"so the keystroke would have gone to the wrong application"
+            ),
+        )
+
+    async def hotkey(self, *keys: str, expect_app: str = "") -> AutomationReceipt:
+        """Press a keyboard shortcut. E.g., hotkey("command", "s").
+
+        `expect_app` names the application the keystroke is FOR. Given, the
+        press is refused unless that application is frontmost at the moment of
+        sending — see _refuse_if_not_frontmost for the live defect this closes.
+        """
+        refusal = await self._refuse_if_not_frontmost(expect_app, "hotkey")
+        if refusal is not None:
+            self._log_receipt(refusal)
+            return refusal
         modifiers = {
             "command": "command down",
             "cmd": "command down",
