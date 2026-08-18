@@ -11478,9 +11478,25 @@ class InferenceGate:
                 import core.brain.observable_registry  # noqa: F401  (registers)
                 from core.brain.observable_grounding import observable_blocks
 
-                task_grounding_blocks.extend(
-                    await observable_blocks(visible_user_prompt)
-                )
+                _readings = await observable_blocks(visible_user_prompt)
+                if _readings:
+                    task_grounding_blocks.extend(_readings)
+                    logger.info(
+                        "🔭 [GROUNDING] took %d reading(s): %s",
+                        len(_readings),
+                        ",".join(
+                            block.split("\n", 1)[0].removeprefix("## ").lower()
+                            for block in _readings
+                        ),
+                    )
+                else:
+                    # A turn that asked for a reading and got none is invisible
+                    # otherwise, which is how the screen block went missing for
+                    # a whole session while the file block worked.
+                    logger.debug(
+                        "🔭 [GROUNDING] no reading matched prompt=%r",
+                        str(visible_user_prompt)[:120],
+                    )
             except _INFERENCE_RECOVERABLE_ERRORS as _exc:
                 record_degradation(
                     "inference_gate",
