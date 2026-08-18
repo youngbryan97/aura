@@ -12695,6 +12695,25 @@ def _should_collect_desktop_required_search_evidence(
         return False, "", None
     if _chat_preflight._looks_like_desktop_objective(user_message):
         return False, "", None
+    # A file on this disk is not a live-search question.
+    #
+    # LIVE 2026-08-17: "read the file CONTRIBUTING.md and tell me the first
+    # rule it states" resolved to a contract with requires_search=True and was
+    # dispatched to web_search, which failed with an empty error. The turn
+    # ended "I attempted to read the file and it failed", offering to check
+    # whether the file exists — it was in the repo root the whole time, and no
+    # search result could ever have answered the question.
+    #
+    # A filename that RESOLVES inside her roots settles this: the bytes are
+    # local, so the evidence is local.
+    try:
+        from core.conversation.filesystem_check import requested_file_read
+
+        named_file = requested_file_read(user_message)
+    except _CHAT_RECOVERABLE_ERRORS:
+        named_file = None
+    if named_file is not None and named_file.exists:
+        return False, "", None
     contract = _resolve_chat_response_contract(user_message)
     if not contract or not getattr(contract, "requires_search", False):
         return False, "", contract
