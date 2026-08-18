@@ -40,7 +40,6 @@ Both are fixed. The thread publishes rather than injects, over
 substrate and a running event loop both exist.
 """
 
-from core.runtime.errors import record_degradation
 import logging
 import threading
 import time
@@ -49,6 +48,9 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
+
+from core.runtime.errors import record_degradation
+from core.runtime.model_layers import resolve_model_layers
 
 logger = logging.getLogger("Aura.LatentBridge")
 
@@ -327,35 +329,53 @@ class LatentBridge:
         self._readout_hooks: List[LatentReadoutHook] = []
         self._injection_thread: Optional[SubstrateInjectionThread] = None
         self._attached = False
+        self._attachment_error: Optional[str] = None
+        self._layer_path: Optional[str] = None
         #: Shared array to the parent. None means the backward arrow has no
         #: transport and must not pretend otherwise.
         self._channel = channel
 
-    def attach(self, model):
+    def attach(self, model) -> bool:
         """
         Install readout hooks at the same layers as the steering hooks.
         Must be called AFTER AffectiveSteeringEngine.attach().
         """
         if self._attached:
             logger.warning("LatentBridge already attached.")
-            return
+            return True
 
         if not self._steering_engine._model_attached:
-            logger.error("AffectiveSteeringEngine must be attached before LatentBridge.")
-            return
+            self._attachment_error = "steering_engine_not_attached"
+            logger.warning("LatentBridge unavailable: steering engine is not attached.")
+            return False
 
         if not self._steering_engine._library or not self._steering_engine._library.vectors:
-            logger.error("No steering vectors available. Cannot install readout hooks.")
-            return
+            self._attachment_error = "steering_vectors_unavailable"
+            logger.warning("LatentBridge unavailable: no steering vectors are loaded.")
+            return False
 
-        steering_vectors = self._steering_engine._library.vectors
+        layer_view = resolve_model_layers(model)
+        if layer_view is None:
+            self._attachment_error = (
+                "unsupported_model_layer_topology:"
+                f"{type(model).__module__}.{type(model).__qualname__}"
+            )
+            logger.warning("LatentBridge unavailable: %s", self._attachment_error)
+            return False
+
         target_layers = self._steering_engine._model_info.get("target_layers", [])
+        self._layer_path = layer_view.path
 
         for layer_idx in target_layers:
-            if layer_idx >= len(model.model.layers):
+            if not isinstance(layer_idx, int) or layer_idx < 0 or layer_idx >= len(layer_view.layers):
                 continue
 
-            block = model.model.layers[layer_idx]
+            steering_vectors = self._steering_engine._library.get_vectors_for_layer(layer_idx)
+            if not steering_vectors:
+                steering_vectors = self._steering_engine._library.vectors
+            if not steering_vectors:
+                continue
+            block = layer_view.layers[layer_idx]
             hook = LatentReadoutHook(
                 block=block,
                 layer_idx=layer_idx,
@@ -364,11 +384,21 @@ class LatentBridge:
             hook.install()
             self._readout_hooks.append(hook)
 
-        self._attached = True
+        self._attached = bool(self._readout_hooks)
+        if not self._attached:
+            self._attachment_error = "no_compatible_target_layers"
+            logger.warning(
+                "LatentBridge unavailable: no hooks installed for target layers %s via %s.",
+                target_layers,
+                layer_view.path,
+            )
+            return False
+        self._attachment_error = None
         logger.info(
-            "✅ LatentBridge attached: %d readout hooks at layers %s",
-            len(self._readout_hooks), target_layers
+            "✅ LatentBridge attached: %d readout hooks at layers %s via %s",
+            len(self._readout_hooks), target_layers, layer_view.path,
         )
+        return True
 
     def start_substrate_sync(self, channel: Any = None):
         """Start publishing readouts toward the substrate.
@@ -422,15 +452,19 @@ class LatentBridge:
         How well-aligned are the substrate's injections and the model's readouts?
         High coherence = model's representations match what the substrate is expressing.
         """
-        if not self._steering_engine._hooks or not self._readout_hooks:
+        steering_hooks = list(getattr(self._steering_engine, "_hooks", None) or [])
+        if not steering_hooks or not self._readout_hooks:
             return 0.0
 
-        steering_hook = self._steering_engine._hooks[0]
-        if steering_hook._substrate_x is None:
+        steering_hook = steering_hooks[0]
+        if getattr(steering_hook, "_substrate_x", None) is None:
             return 0.0
 
         substrate_x = steering_hook._substrate_x
-        steering_vectors = self._steering_engine._library.vectors
+        library = getattr(self._steering_engine, "_library", None)
+        steering_vectors = getattr(library, "vectors", None) or {}
+        if not steering_vectors:
+            return 0.0
         readouts = self.get_current_affective_readout()
 
         forward_vals = []
@@ -458,14 +492,15 @@ class LatentBridge:
         if not self._attached:
             return "LatentBridge not attached."
 
-        steering_hook = (self._steering_engine._hooks[0]
-                         if self._steering_engine._hooks else None)
-        if not steering_hook or steering_hook._substrate_x is None:
+        steering_hooks = list(getattr(self._steering_engine, "_hooks", None) or [])
+        steering_hook = steering_hooks[0] if steering_hooks else None
+        if not steering_hook or getattr(steering_hook, "_substrate_x", None) is None:
             return "Substrate not connected."
 
         substrate_x = steering_hook._substrate_x
         readouts = self.get_current_affective_readout()
-        vectors = self._steering_engine._library.vectors
+        library = getattr(self._steering_engine, "_library", None)
+        vectors = getattr(library, "vectors", None) or {}
 
         lines = ["Current latent coupling (substrate ↔ model representations):"]
         for key, sv in vectors.items():
@@ -485,6 +520,8 @@ class LatentBridge:
     def get_status(self) -> Dict[str, Any]:
         return {
             "attached": self._attached,
+            "attachment_error": self._attachment_error,
+            "layer_path": self._layer_path,
             "hooks": len(self._readout_hooks),
             "injection_thread": (
                 self._injection_thread.get_diagnostics()
@@ -522,8 +559,18 @@ def attach_latent_bridge(model, channel: Any = None) -> Optional[LatentBridge]:
         logger.error("AffectiveSteeringEngine must be attached before LatentBridge.")
         return None
 
-    _bridge_instance = LatentBridge(engine, channel=channel)
-    _bridge_instance.attach(model)
+    bridge = LatentBridge(engine, channel=channel)
+    if not bridge.attach(model):
+        error = bridge.get_status().get("attachment_error") or "attach_declined"
+        record_degradation(
+            "latent_bridge",
+            RuntimeError(str(error)),
+            severity="warning",
+            action="continued inference without optional latent readout feedback",
+        )
+        _bridge_instance = None
+        return None
+    _bridge_instance = bridge
 
     try:
         from core.container import ServiceContainer

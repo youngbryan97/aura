@@ -114,6 +114,7 @@ import numpy as np
 
 from core.consciousness.caa import ProductionCAA, RegisteredVector, VectorProvenance, VectorRegistry
 from core.runtime.errors import FallbackClassification, record_degradation
+from core.runtime.model_layers import resolve_model_layers
 from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.AffectiveSteering")
@@ -977,12 +978,8 @@ class SteeringVectorLibrary:
 
     def _get_model_layers(self, model) -> list[Any] | None:
         """Helper to find the layers list in various MLX model structures."""
-        # Standard mlx-lm structure: model.model.layers
-        # But some versions (e.g. Qwen, Phi) use model.layers directly
-        layers = getattr(model, "layers", None)
-        if not layers and hasattr(model, "model"):
-            layers = getattr(model.model, "layers", None)
-        return layers
+        view = resolve_model_layers(model)
+        return view.layers if view is not None else None
 
     @property
     def vectors(self) -> dict[str, SteeringVector]:
@@ -2373,10 +2370,8 @@ class AffectiveSteeringEngine:
             return 0, 0
     def _discover_model_layers(self, model) -> list[Any] | None:
         """Helper to find the layers list in various MLX model structures."""
-        layers = getattr(model, "layers", None)
-        if not layers and hasattr(model, "model"):
-            layers = getattr(model.model, "layers", None)
-        return layers
+        view = resolve_model_layers(model)
+        return view.layers if view is not None else None
 
     def _compute_target_layers(self, n_layers: int) -> list[int]:
         """

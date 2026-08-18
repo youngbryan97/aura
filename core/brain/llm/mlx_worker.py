@@ -35,6 +35,7 @@ from core.runtime.desktop_boot_safety import compute_mlx_cache_limit, compute_ml
 from core.runtime.errors import record_degradation
 from core.runtime.flags import FlagKind as _FlagKind
 from core.runtime.flags import declare as _declare_flag
+from core.runtime.model_layers import resolve_model_layers
 from core.runtime.state_ownership import shared_asset_root, state_root
 
 from .model_registry import resolve_personality_adapter
@@ -575,13 +576,14 @@ def _apply_surface_generation_controls(
         return {"enabled": False}
 
     state: dict[str, Any] = {"enabled": True, "apply_errors": []}
+    alpha = _surface_control_alpha(job, getattr(engine, "_alpha", None))
+    state["surface_alpha_requested"] = alpha
 
     if engine is not None:
         state["engine"] = engine
         state["surface_alpha_override_before"] = getattr(engine, "_surface_alpha_override", None)
         hooks = list(getattr(engine, "_hooks", []) or [])
         state["hook_alphas_before"] = [(hook, getattr(hook, "_alpha", None)) for hook in hooks]
-        alpha = _surface_control_alpha(job, getattr(engine, "_alpha", None))
         try:
             if hasattr(engine, "set_surface_alpha_override"):
                 engine.set_surface_alpha_override(alpha)
@@ -597,8 +599,16 @@ def _apply_surface_generation_controls(
                 severity="error",
             )
             logger.warning("Surface steering clamp failed: %s", exc)
+    elif alpha == 0.0:
+        # A missing optional steering engine is exactly equivalent to a zero
+        # steering request.  Treating this as an unapplied control made the
+        # neutral, user-visible path depend on the embellishment it disabled.
+        state["surface_alpha_applied"] = 0.0
+    else:
+        state["apply_errors"].append("steering_unavailable")
 
-    inner = getattr(model, "model", None)
+    layer_view = resolve_model_layers(model)
+    inner = layer_view.owner if layer_view is not None else None
     if inner is not None and getattr(inner, "_recurrent_depth_config", None):
         state["recurrent_inner"] = inner
         state["had_recurrent_runtime_loops"] = hasattr(inner, "_recurrent_depth_runtime_loops")
@@ -5475,9 +5485,10 @@ def _attach_affective_steering(
 ) -> tuple[Any, bool]:
     """The forward arrow: substrate state into the residual stream.
 
-    Fatal on failure, deliberately. Unsteered inference is Aura answering
-    without her own state reaching the model, and the worker crashes rather
-    than serve that — the liveness gate is the point, not a nicety.
+    Steering is optional neural tissue, not the owner of response availability.
+    Attachment failures are observable degradations, but the resident model
+    remains authoritative and available.  A zero alpha is an intentional
+    neutral mode, not a failed liveness condition.
 
     Also hands the Φ residual ring to each hook. Without it the hooks fall
     back to an in-process PhiCore lookup that is ALWAYS False here — this is
@@ -5501,6 +5512,10 @@ def _attach_affective_steering(
                 except (AttributeError, TypeError):
                     continue
         active = engine.is_active()
+        available = bool(
+            getattr(engine, "_model_attached", False)
+            and (getattr(engine, "_hooks", None) or [])
+        )
 
         if steering_active_flag is not None:
             steering_active_flag.value = active
@@ -5513,28 +5528,37 @@ def _attach_affective_steering(
             )
             return engine, True
 
-        logger.error(
-            "FATAL: Steering Engine attached but NOT ACTIVE — vectors may be missing."
-        )
-        _record_mlx_degradation(
-            RuntimeError("Steering attached but inactive"),
-            severity="critical",
-            action="crashed worker to prevent unsteered inference",
-        )
-        raise RuntimeError("Steering liveness gate failed: Engine inactive")
-    except (ImportError, AttributeError, RuntimeError) as exc:
+        if available:
+            logger.info(
+                "Affective Steering Engine attached in neutral mode "
+                "(alpha=%.3f, hooks=%d).",
+                float(getattr(engine, "_alpha", 0.0) or 0.0),
+                len(getattr(engine, "_hooks", []) or []),
+            )
+            return engine, False
+
+        exc = RuntimeError("affective_steering_attach_unavailable")
         record_degradation(
             "affective_steering",
             exc,
-            severity="critical",
-            action="crashed MLX worker to prevent unsteered inference",
+            severity="warning",
+            action="continued resident-model inference without optional steering tissue",
         )
-        logger.error(
-            "FATAL: Affective steering failed to attach. Cannot run sovereign "
-            "inference unsteered. %s",
+        logger.warning(
+            "Affective steering did not attach; resident-model inference remains available."
+        )
+        return None, False
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        if steering_active_flag is not None:
+            steering_active_flag.value = False
+        record_degradation(
+            "affective_steering",
             exc,
+            severity="warning",
+            action="continued resident-model inference after optional steering attach failed",
         )
-        raise RuntimeError(f"Steering liveness gate failed: {exc}") from exc
+        logger.warning("Affective steering attach failed; continuing without it: %s", exc)
+        return None, False
 
 
 def _attach_latent_bridge(model: Any, latent_readout_mem: Any) -> Any:
@@ -5551,10 +5575,9 @@ def _attach_latent_bridge(model: Any, latent_readout_mem: Any) -> Any:
     Both are fixed; the transport is
     :mod:`core.consciousness.latent_readout_channel`.
 
-    Unlike steering, a failure here is not fatal. Unsteered inference is a
-    governance problem — the substrate must reach the model, so the worker
-    crashes rather than serve without it. A missing backward arrow costs a
-    feedback loop, and answering without it beats not answering.
+    Like forward steering, a failure here is not fatal.  Both directions are
+    measured tissue around the resident model; either may report unavailable,
+    but neither owns whether a correct base-model answer reaches the user.
     """
     if latent_readout_mem is None:
         logger.warning(
@@ -5800,7 +5823,7 @@ def _mlx_worker_loop(
         engine, _steering_active = _attach_affective_steering(
             model, tokenizer, substrate_mem, phi_residual_mem, steering_active_flag
         )
-        if _steering_active:
+        if engine is not None and getattr(engine, "_model_attached", False):
             _attach_latent_bridge(model, latent_readout_mem)
 
         # Write steering liveness to shared state so parent can query it
@@ -8326,43 +8349,6 @@ def _mlx_worker_loop(
                         _clear_mlx_cache(mx)
 
             elif action == "stream":
-                try:
-                    if engine is None or not engine.is_active():
-                        # None is fail-CLOSED: init crashes on failed steering
-                        # attach, so a None engine here means the invariant
-                        # broke — never a license to decode unsteered.
-                        _record_mlx_degradation(
-                            RuntimeError("Affective steering became inactive during streaming"),
-                            action="blocked stream because steering liveness failed",
-                            severity="critical",
-                        )
-                        logger.error("🚨 [WORKER] Affective steering is inactive! Gating stream.")
-                        ipc_writer.put(
-                            {
-                                "id": job.get("id"),
-                                "action": "stream",
-                                "status": "error",
-                                "message": "Affective steering is inactive; stream blocked.",
-                            }
-                        )
-                        continue
-                except (RuntimeError, AttributeError, TypeError) as _e:
-                    _record_mlx_degradation(
-                        _e,
-                        action="blocked stream because steering liveness could not be verified",
-                        severity="critical",
-                    )
-                    logger.error("Failed to check steering active state before stream: %s", _e)
-                    ipc_writer.put(
-                        {
-                            "id": job.get("id"),
-                            "action": "stream",
-                            "status": "error",
-                            "message": "Affective steering liveness check failed; stream blocked.",
-                        }
-                    )
-                    continue
-
                 prompt = job.get("prompt")
                 # Typed finite-range admission: streaming controls previously
                 # flowed unvalidated from IPC into sampler construction.
@@ -9201,8 +9187,7 @@ def _mlx_worker_loop(
                                 "surface_alpha_applied"
                             )
                             if job.get("runtime_controls") is not None and (
-                                not _steering_active
-                                or isinstance(applied_alpha, bool)
+                                isinstance(applied_alpha, bool)
                                 or not isinstance(applied_alpha, (int, float))
                                 # A numeric alpha outside the surface-control
                                 # admission range proves the clamp did NOT

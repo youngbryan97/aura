@@ -194,16 +194,20 @@ class TestBothEndsAreWired:
         )
         assert "record_degradation" in code, "a silent failure here is invisible"
 
-    def test_the_forward_arrow_still_is_fatal(self):
-        """The asymmetry is deliberate and worth pinning.
-
-        Steering failing means the substrate does not reach the model — Aura
-        answering as a bare LLM. That crashes the worker on purpose.
-        """
+    def test_the_forward_arrow_cannot_take_inference_down(self):
+        """Optional tissue reports unavailable; it does not own speech."""
         from core.brain.llm.mlx_worker import _attach_affective_steering
 
         code = _executable_source(_attach_affective_steering)
-        assert "raise RuntimeError" in code
+        assert "raise RuntimeError" not in code
+        assert "record_degradation" in code
+
+    def test_streaming_does_not_depend_on_optional_steering_liveness(self):
+        source = (ROOT / "core" / "brain" / "llm" / "mlx_worker.py").read_text(
+            encoding="utf-8"
+        )
+        assert "Affective steering is inactive; stream blocked." not in source
+        assert "blocked stream because steering liveness" not in source
 
     def test_the_parent_injects_on_the_generation_path(self):
         from core.brain.llm.mlx_client import MLXLocalClient

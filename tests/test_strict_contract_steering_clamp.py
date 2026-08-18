@@ -184,6 +184,7 @@ def test_live_mind_surface_controls_apply_restore_and_emit_receipt(monkeypatch):
         _recurrent_depth_config = {"enabled": True}
 
         def __init__(self):
+            self.layers = [object()]
             self._recurrent_depth_runtime_loops = 4
 
     class FakeModel:

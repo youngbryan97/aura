@@ -44,6 +44,7 @@ import logging
 import os
 
 from core.runtime.errors import record_degradation
+from core.runtime.model_layers import resolve_model_layers
 
 logger = logging.getLogger("Aura.RecurrentDepth")
 
@@ -309,7 +310,7 @@ def apply_recurrent_depth(
     every inference call runs the recurrent block n_loops times.
 
     Args:
-        model: The MLX model object (must have model.model.layers)
+        model: A supported MLX model or wrapper exposing transformer layers.
         n_loops: Number of times to run the recurrent block (1 = standard)
         prelude_frac: Fraction of layers for prelude (default 20%)
         coda_frac: Fraction of layers for coda (default 20%)
@@ -326,16 +327,13 @@ def apply_recurrent_depth(
         logger.warning("mlx not available — recurrent depth not applied")
         return False
 
-    # ── Locate the inner model ───────────────────────────────────────
-    inner = getattr(model, "model", None)
-    if inner is None:
-        logger.warning("Model has no .model attribute — cannot apply recurrent depth")
+    # ── Locate the transformer owner through the shared topology contract ──
+    layer_view = resolve_model_layers(model)
+    if layer_view is None:
+        logger.warning("Unsupported model layer topology — cannot apply recurrent depth")
         return False
-
-    layers = getattr(inner, "layers", None)
-    if layers is None or not isinstance(layers, list):
-        logger.warning("Model has no .layers list — cannot apply recurrent depth")
-        return False
+    inner = layer_view.owner
+    layers = layer_view.layers
 
     num_layers = len(layers)
     if num_layers < 4:
@@ -498,9 +496,10 @@ def apply_recurrent_depth(
 
 def remove_recurrent_depth(model) -> bool:
     """Remove the recurrent depth patch, restoring standard forward pass."""
-    inner = getattr(model, "model", None)
-    if inner is None:
+    layer_view = resolve_model_layers(model)
+    if layer_view is None:
         return False
+    inner = layer_view.owner
 
     if not (
         hasattr(inner, "_recurrent_depth_original_class")
@@ -517,9 +516,10 @@ def remove_recurrent_depth(model) -> bool:
 
 def get_recurrent_config(model) -> dict | None:
     """Get the current recurrent depth configuration, or None if not patched."""
-    inner = getattr(model, "model", None)
-    if inner is None:
+    layer_view = resolve_model_layers(model)
+    if layer_view is None:
         return None
+    inner = layer_view.owner
     return getattr(inner, "_recurrent_depth_config", None)
 
 
@@ -539,15 +539,10 @@ def resolve_loops_for_model(model) -> int:
         return _validate_configured_loop_count(n, source="AURA_RECURRENT_LOOPS")
 
     # Auto-detect based on model size
-    inner = getattr(model, "model", None)
-    if inner is None:
+    layer_view = resolve_model_layers(model)
+    if layer_view is None:
         return 1
-
-    layers = getattr(inner, "layers", None)
-    if layers is None:
-        return 1
-
-    num_layers = len(layers)
+    num_layers = len(layer_view.layers)
     size_override = _model_size_loop_env(num_layers)
     if size_override is not None:
         env_name, raw_loops = size_override
@@ -571,8 +566,8 @@ def apply_for_model(model) -> bool:
     n_loops = resolve_loops_for_model(model)
 
     if n_loops <= 1:
-        inner = getattr(model, "model", None)
-        num_layers = len(getattr(inner, "layers", [])) if inner else 0
+        layer_view = resolve_model_layers(model)
+        num_layers = len(layer_view.layers) if layer_view is not None else 0
         logger.info(
             "Recurrent depth: standard pass for %d-layer model (n_loops=%d)",
             num_layers, n_loops,
@@ -580,8 +575,8 @@ def apply_for_model(model) -> bool:
         return False
 
     # Get other params from env or defaults
-    inner = getattr(model, "model", None)
-    num_layers = len(getattr(inner, "layers", [])) if inner else 64
+    layer_view = resolve_model_layers(model)
+    num_layers = len(layer_view.layers) if layer_view is not None else 64
     defaults = _get_model_profile_defaults(num_layers)
 
     prelude_frac = _parse_fraction(
