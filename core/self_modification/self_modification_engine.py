@@ -417,10 +417,26 @@ class AutonomousSelfModificationEngine:
         )
 
         if not success:
-            logger.warning(
-                "Fix generation or sandbox testing failed: %s",
-                test_results.get("error") or "Unknown error",
-            )
+            reason = str(test_results.get("error") or "Unknown error")
+            # A veto is a DECISION, not a malfunction.
+            #
+            # The Growth Ladder is Aura's own consent gate on modifying her
+            # source; when it declines, repair_bug returns
+            # {"error": "Vetoed by entity"} and this reported it as "Fix
+            # generation or sandbox testing failed" — 99 warnings in one
+            # sampled window describing her consent mechanism working exactly
+            # as designed. Nothing generated a bad fix and no sandbox failed;
+            # she said no.
+            #
+            # Reported as failure it is worse than noise: it makes a healthy refusal
+            # look like a broken repair pipeline, so the honest signal that
+            # the pipeline IS broken has nowhere left to stand out.
+            if "veto" in reason.lower():
+                logger.info(
+                    "🛡️ Autonomous repair declined by the Growth Ladder: %s", reason
+                )
+                return None
+            logger.warning("Fix generation or sandbox testing failed: %s", reason)
             return None
 
         # Issue 96: Deep Validation via Branching Futures
