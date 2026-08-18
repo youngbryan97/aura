@@ -131,6 +131,36 @@ def is_instruction_shaped_goal(value: Any) -> bool:
     return bool(_INSTRUCTION_OPENER_RE.search(text))
 
 
+#: A record of work that is FINISHED, filed as work that is outstanding.
+#:
+#: LIVE, 2026-08-18: "Swarm internal monologue step completed" sat in
+#: active_goal_details, and every obligation in that list holds the autonomy
+#: gates shut. A sentence whose own subject is its completion cannot be a thing
+#: still to do — it is a receipt, and receipts were being counted as debts.
+#:
+#: Matched on the grammatical form: a goal ENDING in a completion word, or
+#: naming a settled outcome. "Complete the migration" is an imperative and
+#: keeps its place; "migration completed" is a note about the past.
+_COMPLETION_RECORD_RE = re.compile(
+    r"\b(?:completed|complete|finished|done|succeeded|resolved|closed|"
+    r"approved|applied|committed|delivered|passed)\s*[.!]?\s*$"
+    r"|\b(?:step|pass|run|cycle|task|phase)\s+(?:completed|finished|done)\b"
+    r"|:\s*(?:sync_)?approved\s*$",
+    re.IGNORECASE,
+)
+
+
+def is_completion_record(value: Any) -> bool:
+    """True when the text records work already finished."""
+    text = normalize_goal_text(value)
+    if not text:
+        return False
+    # An imperative that STARTS with the verb is still a thing to do.
+    if re.match(r"^\s*(?:complete|finish|close|resolve|approve)\b", text, re.IGNORECASE):
+        return False
+    return bool(_COMPLETION_RECORD_RE.search(text))
+
+
 def is_prompt_shaped_goal(value: Any) -> bool:
     text = normalize_goal_text(value)
     if not text:
@@ -153,6 +183,8 @@ def is_stale_or_prompt_scaffold_goal(value: Any) -> bool:
         return False
     lowered = text.casefold()
     if any(marker in lowered for marker in _STALE_OR_RECEIPT_MARKERS):
+        return True
+    if is_completion_record(text):
         return True
     return is_prompt_shaped_goal(text)
 
