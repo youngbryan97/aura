@@ -357,19 +357,32 @@ def test_the_path_wall_check_stays_non_proof():
 
 
 def test_corruption_is_refused_in_every_mode():
-    source = inspect.getsource(worker)
-    tree = ast.parse(source)
+    """A corrupted sample is thrown away whether or not it is a proof answer.
 
-    for node in ast.walk(tree):
-        if not (
-            isinstance(node, ast.FunctionDef)
-            and node.name == "_sanitize_telemetry_leakage"
-        ):
-            continue
-        rendered = ast.get_source_segment(source, node) or ""
-        assert "if _contains_corrupted_language(text):" in rendered
-        return
-    raise AssertionError("the sanitizer was not found")
+    This used to read the SOURCE of `_sanitize_telemetry_leakage` and require
+    the literal line `if _contains_corrupted_language(text):` inside it. The
+    check then moved into `_telemetry_sanitization_failure_reasons`, with the
+    old name kept as a delegating adapter — behaviour identical, wording gone,
+    and the test failed with nothing wrong.
+
+    A test pinned to where a check is WRITTEN fails on every refactor that
+    keeps the guarantee, which teaches the reader to ignore it. So it asserts
+    the guarantee instead: corrupted output does not survive, in either mode.
+    """
+    corrupted = "asdkjfh qwlekjr zxcvmn"
+    assert worker._contains_corrupted_language(corrupted), (
+        "the sample no longer reads as corrupted, so this proves nothing"
+    )
+
+    for is_proof in (True, False):
+        assert worker._sanitize_telemetry_leakage(corrupted, is_proof=is_proof) is None
+        assert "corrupted_language" in worker._telemetry_sanitization_failure_reasons(
+            corrupted, is_proof=is_proof
+        )
+
+    # And clean prose is not swept up by the same rule.
+    clean = "Hello, this is a normal sentence."
+    assert worker._sanitize_telemetry_leakage(clean, is_proof=False) == clean
 
 
 # ─────────────────────────── a role label inside an exact value

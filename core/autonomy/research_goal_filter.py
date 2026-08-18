@@ -84,6 +84,53 @@ def normalize_goal_text(value: Any) -> str:
     return " ".join(text.split()).strip(" -:;,.?!")
 
 
+#: A goal she chose is ABOUT THE WORLD. One that addresses her in the second
+#: person, or instructs her to produce output over some supplied text, is a
+#: fragment of a prompt that got promoted into volitional state.
+#:
+#: LIVE DEFECT, 2026-08-18. The integrity monitor reported 22 cognitive_engine
+#: degradations in 30 minutes, all of one shape:
+#:
+#:     objective repeatedly unresolved: You are writing Aura
+#:     objective repeatedly unresolved: Summarize the follow
+#:
+#: Both are clipped system instructions. They can never be resolved, because
+#: there is no "the following" in an objective and no task in "you are" — so
+#: they generate sustained objective friction forever.
+#:
+#: The marker list above could not catch them and structurally cannot: it needs
+#: TWO markers, or one plus 500+ characters, and truncation is exactly what
+#: removes both. A clipped prompt is short and carries few markers, so the
+#: shorter and more mangled the fragment, the more certainly it slipped
+#: through. An enumeration of phrasings is always one phrasing behind; this
+#: matches the GRAMMATICAL FORM of an instruction addressed to a model, which
+#: does not vary with topic or length.
+_INSTRUCTION_OPENER_RE = re.compile(
+    r"^\s*(?:"
+    # Addressed to her: "You are writing Aura", "Your task is ..."
+    r"you\s+(?:are|will|shall|should|must|can|may|have\s+to|need\s+to)\b"
+    r"|your\s+(?:task|job|role|goal|instruction|instructions|response|reply|output)\b"
+    # Told to operate on supplied text: "Summarize the following ..."
+    # `follow` bare catches the clipped form; the lookahead keeps a real goal
+    # about "the follow-up notes" from being mistaken for one.
+    r"|(?:summari[sz]e|rewrite|paraphrase|translate|classify|extract|list|"
+    r"generate|produce|output|respond\s+to|reply\s+to|answer|continue|"
+    r"complete|format|analyz|analys)\w*\s+the\s+"
+    r"(?:follow(?:ing)?(?!-)|above|below|text|passage|conversation|transcript)\b"
+    r"|(?:given|based\s+on|using)\s+the\s+(?:follow(?:ing)?(?!-)|above|below)\b"
+    r")",
+    re.IGNORECASE,
+)
+
+
+def is_instruction_shaped_goal(value: Any) -> bool:
+    """True when the text is an instruction to a model, not a goal of her own."""
+    text = normalize_goal_text(value)
+    if not text:
+        return False
+    return bool(_INSTRUCTION_OPENER_RE.search(text))
+
+
 def is_prompt_shaped_goal(value: Any) -> bool:
     text = normalize_goal_text(value)
     if not text:
@@ -93,6 +140,9 @@ def is_prompt_shaped_goal(value: Any) -> bool:
     if marker_hits >= 2:
         return True
     if len(text) > 500 and marker_hits >= 1:
+        return True
+    # Independent of length and marker count: truncation defeats both.
+    if is_instruction_shaped_goal(text):
         return True
     return bool(re.search(r"\btask:\s*\d+\.\s", lowered))
 
