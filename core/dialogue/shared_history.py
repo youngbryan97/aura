@@ -110,10 +110,22 @@ _RELATIONAL_PAST_RES: tuple[re.Pattern[str], ...] = (
         # The separator has to admit the contraction: "you're saying" is "you"
         # + apostrophe, with no space, so a `\s+` after "you" misses it — and
         # the contraction is the commoner way to write it.
-        r"(?i)\b(?:as\s+)?you\s*(?:['\u2019]\s*re|\s+are)?\s*"
-        r"(?:point(?:ed|ing)?\s+out|not(?:e|ing)|notic(?:e|ing)|mention(?:ing)?|"
-        r"say(?:ing)?|suggest(?:ing)?|observ(?:e|ing)|indicat(?:e|ing)|"
-        r"tell(?:ing)?\s+me|just\s+said)\b"
+        # A speech-act verb is a closed grammatical CLASS, not a phrase list.
+        # The first version of this named six verbs, which is the same mistake
+        # the past-tense scope was: correct for the example in hand and one
+        # wording behind the next one. This is the class — the verbs English
+        # uses to attribute a proposition to a speaker — with the inflections
+        # generated rather than spelled out.
+        r"(?i)\b(?:as\s+)?you\s*(?:['\u2019]\s*(?:re|ve)|\s+(?:are|have|just|also))?\s*"
+        r"(?:point(?:ed|ing)?\s+out|"
+        r"(?:sa(?:y|ys|id|ying)|tell|tells|told|telling|mention|mentions|mentioned|"
+        r"mentioning|not(?:e|es|ed|ing)|notic(?:e|es|ed|ing)|observ(?:e|es|ed|ing)|"
+        r"remark(?:s|ed|ing)?|state(?:s|d)?|stating|claim(?:s|ed|ing)?|"
+        r"argu(?:e|es|ed|ing)|suggest(?:s|ed|ing)?|impl(?:y|ies|ied|ying)|"
+        r"indicat(?:e|es|ed|ing)|describ(?:e|es|ed|ing)|report(?:s|ed|ing)?|"
+        r"explain(?:s|ed|ing)?|insist(?:s|ed|ing)?|admit(?:s|ted|ting)?|"
+        r"confirm(?:s|ed|ing)?|acknowledg(?:e|es|ed|ing)|point(?:s)?\s+out)"
+        r"(?:\s+me)?)\b"
     ),
 )
 

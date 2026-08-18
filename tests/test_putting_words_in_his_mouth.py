@@ -58,6 +58,21 @@ def test_a_genuine_attribution_is_not_flagged():
 @pytest.mark.parametrize(
     "phrasing",
     [
+        # A speech-act verb is a closed grammatical CLASS. Naming six of them
+        # was the same mistake the past-tense scope was: right for the example
+        # in hand, one wording behind the next one.
+        "you note that the deployment already shipped",
+        "you claim the deployment already shipped",
+        "you argued the deployment already shipped",
+        "you imply the deployment already shipped",
+        "you described the deployment as already shipped",
+        "you reported the deployment already shipped",
+        "you insist the deployment already shipped",
+        "you admitted the deployment already shipped",
+        "you confirm the deployment already shipped",
+        "you acknowledged the deployment already shipped",
+        "you state the deployment already shipped",
+        "you've mentioned the deployment already shipped",
         "you point out that the deployment already shipped",
         "you note that the deployment already shipped",
         "you're saying the deployment already shipped",
