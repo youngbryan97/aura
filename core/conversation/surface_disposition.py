@@ -264,7 +264,7 @@ def repair_is_an_improvement(
         replacement_reasons = set(assess_user_facing_reply(question, replacement).reasons)
     except (RuntimeError, TypeError, ValueError):
         return False
-    if replacement_reasons - original_reasons:
+    if (replacement_reasons - original_reasons) - ADVISORY_ONLY_REASONS:
         return False
     if replacement_reasons & UNSPEAKABLE_REASONS:
         return False
@@ -272,9 +272,43 @@ def repair_is_an_improvement(
     unresolved = _reason_set(targeted) & replacement_reasons
     if unresolved:
         return False
+
+    # A response transform is a transaction over the user's request, not a
+    # free-standing style rewrite.  The aggregate assessor deliberately emits
+    # one coarse ``unanswered_question_part`` reason, so comparing reason sets
+    # alone cannot distinguish "still missing the same part" from "dropped a
+    # different part".  Compare the actual request obligations as well.  This
+    # is what prevents a voice shaper or dialogue cleaner from exchanging a
+    # five-edge worked example for a three-edge one while both surfaces carry
+    # the same coarse quality label.
+    if str(question or "").strip():
+        try:
+            from core.conversation.request_coverage import unanswered_question_parts
+            from core.runtime.structured_input import analyze_prompt_shape
+
+            request_contract = analyze_prompt_shape(str(question))
+            original_missing = set(
+                unanswered_question_parts(original, request_contract)
+            )
+            replacement_missing = set(
+                unanswered_question_parts(replacement, request_contract)
+            )
+            if replacement_missing - original_missing:
+                return False
+        except (ImportError, RuntimeError, TypeError, ValueError):
+            return False
     # Losing a third of the answer is a downgrade even when it silences a
     # complaint — unless the complaint was that the answer must be shorter.
     if len(replacement.split()) * 3 < len(original.split()) * 2:
+        # Removing positively identified unspeakable material is allowed to
+        # be large.  The semantic-coverage check above still prevents the
+        # sanitizer from taking requested content with it.
+        cleared_unspeakable = bool(
+            (original_reasons & UNSPEAKABLE_REASONS)
+            - replacement_reasons
+        )
+        if cleared_unspeakable:
+            return True
         return bool(
             original_reasons
             and original_reasons - replacement_reasons

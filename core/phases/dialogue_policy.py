@@ -762,14 +762,46 @@ async def enforce_dialogue_contract(
     *,
     retry_generate: Callable[[str], Awaitable[str]] | None = None,
     state: object | None = None,
+    user_message: str = "",
 ) -> tuple[str, DialogueValidation, bool]:
+    question = str(user_message or "").strip() or " ".join(
+        str(part or "").strip()
+        for part in tuple(getattr(contract, "question_segments", ()) or ())
+        if str(part or "").strip()
+    )
+    try:
+        from core.conversation.surface_disposition import repair_is_an_improvement
+    except (ImportError, RuntimeError, TypeError, ValueError):
+        repair_is_an_improvement = None
+
+    def _improves(
+        incumbent: str,
+        candidate: str,
+        targeted: object = (),
+    ) -> bool:
+        if repair_is_an_improvement is not None:
+            return repair_is_an_improvement(
+                incumbent,
+                candidate,
+                question,
+                targeted=targeted,
+            )
+        return bool(candidate) and len(candidate.split()) >= len(
+            str(incumbent or "").split()
+        )
+
     validation = validate_dialogue_response(text, contract, state)
     if validation.ok:
         return text, validation, False
 
     repaired = repair_dialogue_surface(text, contract)
     repaired_validation = validate_dialogue_response(repaired, contract, state)
-    if repaired_validation.ok:
+    deterministic_repair_improves = _improves(
+        text,
+        repaired,
+        validation.violations,
+    )
+    if repaired_validation.ok and deterministic_repair_improves:
         return repaired, repaired_validation, False
 
     # Self-claim contradictions are grounded facts, not a creative-writing
@@ -781,10 +813,18 @@ async def enforce_dialogue_contract(
 
             grounded = repair_self_claim_surface(repaired)
             grounded_validation = validate_dialogue_response(grounded, contract, state)
-            if grounded and grounded_validation.ok:
+            if (
+                grounded
+                and grounded_validation.ok
+                and _improves(text, grounded, validation.violations)
+            ):
                 return grounded, grounded_validation, False
         except (ImportError, RuntimeError, TypeError, ValueError) as exc:
             logger.debug("Deterministic self-claim repair unavailable: %s", exc)
+
+    if not deterministic_repair_improves:
+        repaired = text
+        repaired_validation = validation
 
     if retry_generate is None:
         return repaired, repaired_validation, False
@@ -797,27 +837,13 @@ async def enforce_dialogue_contract(
     retry_block = build_dialogue_repair_block(contract, validation, text)
     retried = str(await retry_generate(retry_block) or "").strip()
     retried_validation = validate_dialogue_response(retried, contract, state)
-    question = " ".join(
-        str(part or "").strip()
-        for part in tuple(getattr(contract, "question_segments", ()) or ())
-        if str(part or "").strip()
-    )
     incumbent = repaired or text
-    try:
-        from core.conversation.surface_disposition import repair_is_an_improvement
-    except (ImportError, RuntimeError, TypeError, ValueError):
-        repair_is_an_improvement = None
 
     def _improves_incumbent(candidate: str) -> bool:
-        if repair_is_an_improvement is not None:
-            return repair_is_an_improvement(
-                incumbent,
-                candidate,
-                question,
-                targeted=repaired_validation.violations,
-            )
-        return bool(candidate) and len(candidate.split()) >= len(
-            str(incumbent or "").split()
+        return _improves(
+            incumbent,
+            candidate,
+            repaired_validation.violations,
         )
 
     retry_improves_incumbent = _improves_incumbent(retried)
@@ -842,13 +868,7 @@ async def enforce_dialogue_contract(
             if not grounded:
                 continue
             grounded_validation = validate_dialogue_response(grounded, contract, state)
-            from_retry = candidate == retried_repaired and candidate not in {
-                repaired,
-                text,
-            }
-            if grounded_validation.ok and (
-                not from_retry or _improves_incumbent(grounded)
-            ):
+            if grounded_validation.ok and _improves_incumbent(grounded):
                 return grounded, grounded_validation, True
     except (ImportError, RuntimeError, TypeError, ValueError) as exc:
         logger.debug("Self-claim surface repair unavailable: %s", exc)

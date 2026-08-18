@@ -2116,7 +2116,8 @@ class UnitaryResponsePhase(Phase):
 
     @staticmethod
     def _shape_user_facing_response(text: str, user_message: str = "") -> str:
-        shaped = str(text or "").strip()
+        authored = str(text or "").strip()
+        shaped = authored
         if not shaped:
             return shaped
         shaped = re.sub(r"^\s*[.。]\s+(?=[A-Z0-9\"'“‘])", "", shaped).strip()
@@ -2157,6 +2158,26 @@ class UnitaryResponsePhase(Phase):
                 exc, "UnitaryResponse: final user-facing stabilization skipped: %s"
             )
         shaped = re.sub(r"^\s*[.。]\s+(?=[A-Z0-9\"'“‘])", "", shaped).strip()
+        if shaped != authored:
+            try:
+                from core.conversation.surface_disposition import repair_is_an_improvement
+
+                if not repair_is_an_improvement(authored, shaped, user_message):
+                    logger.warning(
+                        "UnitaryResponse rejected a post-generation transform that lost request semantics "
+                        "(before_len=%d after_len=%d).",
+                        len(authored),
+                        len(shaped),
+                    )
+                    return authored
+            except (ImportError, RuntimeError, TypeError, ValueError) as exc:
+                _record_response_degradation(
+                    exc,
+                    "UnitaryResponse: semantic transform admission failed: %s",
+                    action="preserved the model-authored user-facing response",
+                    severity="error",
+                )
+                return authored
         return shaped
 
     async def _apply_deep_honesty(self, text: str) -> str:
@@ -7023,6 +7044,7 @@ class UnitaryResponsePhase(Phase):
                         else None
                     ),
                     state=new_state,
+                    user_message=objective,
                 )
                 if is_user_facing and dialogue_retried and pre_dialogue_response:
                     try:

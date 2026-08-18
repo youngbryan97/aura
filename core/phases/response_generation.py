@@ -2946,6 +2946,7 @@ class ResponseGenerationPhase(BasePhase):
                     else None
                 ),
                 state=state,
+                user_message=user_surface_validation_prompt,
             )
             state.response_modifiers["dialogue_validation"] = dialogue_validation.to_dict()
             append_text_mutation(
@@ -3022,7 +3023,10 @@ class ResponseGenerationPhase(BasePhase):
             ):
                 try:
                     pre_voice_shape = cleaned_response
-                    shaped = _sve.shape_response(cleaned_response)
+                    shaped = _sve.shape_response(
+                        cleaned_response,
+                        preserve_semantic_content=not is_background,
+                    )
                     if isinstance(shaped, list):
                         # A request has one transactional response. Splitting that
                         # response into delayed OutputGate emissions made the HTTP
