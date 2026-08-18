@@ -203,6 +203,40 @@ def asked_to_act_in_a_capability_domain(text: str) -> bool:
     return bool(_CAPABILITY_DOMAIN_RE.search(candidate))
 
 
+#: A claim ABOUT her state, rather than a question about it.
+#:
+#: LIVE DEFECT, 2026-08-18. "you've been running about 20 minutes this session
+#: ... right?" — she agreed. The true uptime was 63 minutes, and it sits in her
+#: own health payload.
+#:
+#: Asking attaches her instrument reading; asserting did not. That is the wrong
+#: way round: a question invites a check and a statement invites a nod, so the
+#: turn where agreement is most costly was the one turn with no reading
+#: attached. The same asymmetry was measured the same day on file counts —
+#: "core/agency has 61 python files" drew "yes, exactly 61" against a measured
+#: 54 she had given correctly minutes earlier.
+#:
+#: Matched on the SHAPE of a second-person claim about her own state, so it
+#: does not depend on which nouns anyone thought to list.
+_STATE_ASSERTION_RE = re.compile(
+    r"\byou(?:'?ve|\s+have)?\s+(?:been\s+)?"
+    r"(?:running|up|awake|online|alive|going|live)\b"
+    r"|\byou(?:'?re|\s+are|\s+were|\s+was)\s+(?:only\s+|about\s+|around\s+)?"
+    r"(?:\d|a\s+few|some)\b"
+    r"|\byour\s+(?:uptime|session|memory|energy|focus|mood)\s+(?:is|was|has)\b"
+    r"|\bwe(?:'?ve|\s+have)\s+(?:exchanged|sent|had)\s+(?:about\s+|around\s+|maybe\s+)?\d",
+    re.IGNORECASE,
+)
+
+
+def asserts_something_about_her_state(text: str) -> bool:
+    """True when the turn STATES a fact about her rather than asking one."""
+    candidate = str(text or "")
+    if not candidate.strip():
+        return False
+    return bool(_STATE_ASSERTION_RE.search(candidate))
+
+
 def asks_about_own_runtime(text: str) -> bool:
     """True when the honest answer is a local reading, not a web page.
 
@@ -241,6 +275,10 @@ def asks_about_own_capabilities(text: str) -> bool:
     # for the live case that reached the person.
     if asked_to_act_in_a_capability_domain(candidate):
         return True
+    # A claim about her state needs the reading at least as much as a question
+    # does — more, because agreeing costs more than not knowing.
+    if asserts_something_about_her_state(candidate):
+        return True
     if not _SECOND_PERSON_RE.search(candidate):
         return False
     return any(pattern.search(candidate) for pattern in _ABILITY_QUESTION_PATTERNS)
@@ -248,6 +286,7 @@ def asks_about_own_capabilities(text: str) -> bool:
 
 __all__ = [
     "asked_to_act_in_a_capability_domain",
+    "asserts_something_about_her_state",
     "asks_about_own_capabilities",
     "asks_about_own_runtime",
 ]
