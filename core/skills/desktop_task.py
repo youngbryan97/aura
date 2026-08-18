@@ -5649,9 +5649,96 @@ class DesktopTaskSkill(BaseSkill):
         payload["pointing_refused_because"] = "" if result.shown else result.reason
         return payload
 
+    async def _delegate_page_objective(
+        self, params: Any, context: dict[str, Any]
+    ) -> dict[str, Any] | None:
+        """Hand a web-page objective to the browser, or return None.
+
+        Returns None for everything else, so the GUI lane is untouched by
+        objectives that are genuinely about the desktop.
+        """
+
+        objective = str(getattr(params, "objective", "") or "")
+        try:
+            from core.conversation.page_interaction import page_interaction_target
+
+            url = page_interaction_target(objective)
+        except (ImportError, AttributeError, TypeError, ValueError):
+            return None
+        if not url:
+            return None
+
+        try:
+            from core.skills.sovereign_browser import BrowserInput, SovereignBrowserSkill
+        except ImportError as exc:
+            record_degradation(
+                "desktop_task.page_objective",
+                exc,
+                action="left the page objective with the GUI lane because the browser skill is unavailable",
+                severity="warning",
+            )
+            return None
+
+        logger.info(
+            "🌐 Desktop objective names a page to work through (%s); delegating to the browser body.",
+            url,
+        )
+        try:
+            report = await SovereignBrowserSkill().execute(
+                BrowserInput(mode="pursue", url=url, goal=objective),
+                dict(context or {}),
+            )
+        except _DESKTOP_TASK_RECOVERABLE_ERRORS as exc:
+            record_degradation("desktop_task.page_objective", exc, severity="warning")
+            return {
+                "ok": False,
+                "status": "page_objective_failed",
+                "error": f"{type(exc).__name__}: {exc}",
+                "objective": objective,
+            }
+
+        steps = list(report.get("steps") or [])
+        return {
+            "ok": bool(report.get("ok")),
+            "status": "page_objective_completed" if report.get("completed") else "page_objective_partial",
+            "objective": objective,
+            "url": report.get("final_url") or url,
+            "requested_steps": len(steps),
+            "completed_steps": sum(1 for step in steps if step.get("ok")),
+            # Her own narration of each choice, kept as the observable record
+            # of what was done rather than a step count.
+            "narration": [
+                {"asked": step.get("asked", ""), "chose": step.get("chose", []), "why": step.get("why", "")}
+                for step in steps
+                if step.get("chose")
+            ],
+            "result_text": report.get("result_text", ""),
+        }
+
     async def execute(self, params: Any, context: dict[str, Any]) -> dict[str, Any]:
         if isinstance(params, dict):
             params = DesktopTaskParams(**params)
+
+        # A web page has its own body, and it is not this one.
+        #
+        # This lane acts on the world through the GUI: coordinates, apps,
+        # keystrokes. Its whole action vocabulary — open_url, click, type — is
+        # about a screen. Asked to work THROUGH a page, the step deriver
+        # returned `read_screen_text`, nothing executed, and the turn fell back
+        # to generation, which answered "The website you provided does not
+        # exist, and the URL is invalid" about a page it had never opened, then
+        # offered to simulate the test from memory instead. Measured live
+        # 2026-08-18.
+        #
+        # The browser skill is the right body for that: real selectors instead
+        # of coordinates, its own lease and origin checks, and a loop that can
+        # re-read the page after every action. So this lane delegates rather
+        # than approximating, which is also why the delegation lives here and
+        # not in the deriver — the objective goes across whole, not as a
+        # sequence of GUI steps guessed in advance.
+        delegated = await self._delegate_page_objective(params, context)
+        if delegated is not None:
+            return delegated
 
         try:
             from core.container import ServiceContainer

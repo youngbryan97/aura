@@ -122,3 +122,93 @@ class TestTheThreeLinksInTheChain:
         from core.runtime.desktop_objective_intent import looks_like_desktop_objective
 
         assert looks_like_desktop_objective("how are you feeling?") is False
+
+
+class TestTheDesktopLaneDelegatesPagesToTheBrowser:
+    """The GUI body cannot work a web page, and stopped pretending to.
+
+    This lane acts through coordinates, apps and keystrokes; its whole action
+    vocabulary is about a screen. Asked to work THROUGH a page, the step
+    deriver returned `read_screen_text`, nothing executed, and the turn fell
+    back to generation — which answered "The website you provided does not
+    exist, and the URL is invalid" about a page it had never opened, and
+    offered to simulate the test from memory instead.
+    """
+
+    def test_a_gui_objective_stays_with_the_gui_lane(self):
+        import asyncio
+
+        from core.skills.desktop_task import DesktopTaskParams, DesktopTaskSkill
+
+        result = asyncio.run(
+            DesktopTaskSkill()._delegate_page_objective(
+                DesktopTaskParams(objective="open the notes app and write a note"), {}
+            )
+        )
+        assert result is None
+
+    def test_a_page_objective_is_handed_to_the_browser_whole(self, monkeypatch):
+        """The objective crosses intact, not as GUI steps guessed in advance."""
+        import asyncio
+
+        from core.skills import sovereign_browser as sb
+        from core.skills.desktop_task import DesktopTaskParams, DesktopTaskSkill
+
+        seen = {}
+
+        class _Stub:
+            async def execute(self, params, context):
+                seen["mode"] = params.mode
+                seen["url"] = params.url
+                seen["goal"] = params.goal
+                return {
+                    "ok": True,
+                    "completed": True,
+                    "final_url": params.url,
+                    "result_text": "Your personality type is Architect (INTJ-A)",
+                    "steps": [
+                        {"asked": "You regularly make new friends.", "chose": ["I disagree"], "why": "that is truer of me", "ok": True}
+                    ],
+                }
+
+        monkeypatch.setattr(sb, "SovereignBrowserSkill", _Stub)
+        objective = "take the test at https://example.com/quiz and tell me the result"
+        result = asyncio.run(
+            DesktopTaskSkill()._delegate_page_objective(DesktopTaskParams(objective=objective), {})
+        )
+
+        assert seen["mode"] == "pursue"
+        assert seen["url"] == "https://example.com/quiz"
+        assert seen["goal"] == objective, "the goal must cross whole, not as a query"
+        assert result["ok"] is True
+        assert "Architect" in result["result_text"]
+
+    def test_her_narration_survives_as_the_record(self, monkeypatch):
+        """A step count is what the machine did; the answer is what she chose."""
+        import asyncio
+
+        from core.skills import sovereign_browser as sb
+        from core.skills.desktop_task import DesktopTaskParams, DesktopTaskSkill
+
+        class _Stub:
+            async def execute(self, params, context):
+                return {
+                    "ok": True,
+                    "completed": True,
+                    "final_url": params.url,
+                    "result_text": "done",
+                    "steps": [
+                        {"asked": "You regularly make new friends.", "chose": ["I disagree"], "why": "solitude suits me", "ok": True},
+                        {"asked": "", "chose": [], "why": "advancing", "ok": True},
+                    ],
+                }
+
+        monkeypatch.setattr(sb, "SovereignBrowserSkill", _Stub)
+        result = asyncio.run(
+            DesktopTaskSkill()._delegate_page_objective(
+                DesktopTaskParams(objective="complete https://example.com/quiz"), {}
+            )
+        )
+        assert result["narration"] == [
+            {"asked": "You regularly make new friends.", "chose": ["I disagree"], "why": "solitude suits me"}
+        ]
