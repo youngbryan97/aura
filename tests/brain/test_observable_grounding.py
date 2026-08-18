@@ -395,6 +395,10 @@ def test_an_empty_queue_says_so_rather_than_nothing(monkeypatch) -> None:
         "repeat back what I said",
         "what did I just ask",
         "earlier I asked about the parser, what was it?",
+        # LIVE: this exact phrasing matched nothing, and the turn was answered
+        # "that would be a paradox, I'll assume you meant something else".
+        "what was the first thing I said to you in this conversation?",
+        "what was the last thing I told you?",
     ],
 )
 def test_recall_questions_are_recognised(prompt: str) -> None:

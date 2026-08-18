@@ -261,6 +261,10 @@ _ASKS_TRANSCRIPT_RECALL = re.compile(
     r"|\bearlier\s+(?:i|you|we)\s+(?:asked|said|mentioned)\b"
     r"|\bmy\s+(?:first|last|previous)\s+(?:question|message)\b"
     r"|\bwhat\s+was\s+my\s+(?:first|last|previous)\b"
+    # "what was the first THING I said to you" — the phrasing a person
+    # actually uses, and the one the first pattern missed.
+    r"|\b(?:first|last|earliest|previous)\s+thing\s+(?:i|you|we)\s+(?:said|asked|told|mentioned)\b"
+    r"|\bwhat\s+did\s+(?:i|you|we)\s+(?:say|ask)\s+(?:first|last)\b"
     r"|\brepeat\s+(?:back\s+)?what\s+i\s+said\b",
     re.IGNORECASE,
 )
