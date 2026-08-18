@@ -1614,11 +1614,34 @@ async def websocket_endpoint(ws: WebSocket):
                                     }))
                                     return
 
+                                _authored_reply = str(reply or "")
                                 reply = await chat_routes._stabilize_user_facing_reply(
                                     user_content,
                                     reply,
                                 )
-                                reply = chat_routes._strip_user_visible_context_leaks(reply) or "…"
+                                reply = chat_routes._strip_user_visible_context_leaks(reply)
+                                if not str(reply or "").strip() and _authored_reply.strip():
+                                    # Never hand back an ellipsis for an answer
+                                    # she actually wrote.
+                                    #
+                                    # LIVE 2026-08-17: "what's on my screen
+                                    # right now?" was served as a bare "…" with
+                                    # a 172-character cortex reply in hand and
+                                    # the screen reading delivered. Whatever
+                                    # emptied it — stabilisation or leak
+                                    # stripping — the person got the shape of
+                                    # an answer instead of the answer.
+                                    salvaged = chat_routes._strip_user_visible_context_leaks(
+                                        _authored_reply
+                                    )
+                                    if salvaged.strip():
+                                        logger.warning(
+                                            "Reply post-processing emptied a %d-char authored "
+                                            "answer; served the authored text instead.",
+                                            len(_authored_reply),
+                                        )
+                                        reply = salvaged
+                                reply = str(reply or "").strip() or "…"
                                 reply_status = (
                                     chat_routes._desktop_required_bounded_reply_status(
                                         user_content,
