@@ -11467,9 +11467,22 @@ class InferenceGate:
                 if _named is not None:
                     if _named.exists and _named.text.strip():
                         _suffix = " [truncated]" if _named.truncated else ""
+                        # Say when the file barely covers what was asked.
+                        # Handed an excerpt containing "layering" once, inside
+                        # a path, she described the document's position on
+                        # layering — which it does not have. The count is the
+                        # difference between "here is the part about X" and
+                        # "this file mentions X once, in passing".
+                        _coverage = ""
+                        if _named.barely_covers_topic:
+                            _coverage = (
+                                f"\nCOVERAGE: this file uses the word "
+                                f"'{_named.topic}' {_named.topic_mentions} time(s) "
+                                "in total. It does not discuss the topic."
+                            )
                         task_grounding_blocks.append(
                             f"## FILE YOU WERE ASKED ABOUT\n"
-                            f"{_named.path}{_suffix}\n{_named.text}"
+                            f"{_named.path}{_suffix}{_coverage}\n{_named.text}"
                         )
                     elif not _named.exists:
                         task_grounding_blocks.append(

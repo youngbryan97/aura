@@ -84,3 +84,43 @@ def test_a_term_absent_from_the_file_falls_back_to_the_head() -> None:
     body = "A" * (READ_CHAR_BUDGET * 3)
 
     assert _relevant_span(body, "quetzalcoatlus") == body[:READ_CHAR_BUDGET]
+
+
+# ── a file that mentions a topic once does not discuss it ───────────────────
+#
+# LIVE 2026-08-17: asked what ARCHITECTURE.md says about layering, she answered
+# that layering "is a shaping constraint in the foreground". The file uses the
+# word exactly once, inside the path `tools/check_layering.py`. Handed an
+# excerpt containing the term, she wrote a description of a position the
+# document does not hold.
+
+def test_a_single_passing_mention_is_reported_as_barely_covered() -> None:
+    read = requested_file_read("what does ARCHITECTURE.md say about layering?")
+
+    assert read is not None
+    assert read.topic == "layering"
+    assert read.topic_mentions == 1
+    assert read.barely_covers_topic is True
+
+
+def test_a_topic_the_file_really_discusses_is_not_flagged() -> None:
+    read = requested_file_read("what does CONTRIBUTING.md say about tests?")
+
+    assert read is not None
+    assert read.barely_covers_topic is False
+
+
+def test_asking_for_the_file_itself_has_no_topic() -> None:
+    read = requested_file_read("open ARCHITECTURE.md")
+
+    assert read is not None
+    assert read.topic == ""
+    assert read.barely_covers_topic is False
+
+
+def test_the_filename_is_not_treated_as_the_topic() -> None:
+    """'architecture' occurs throughout an architecture spec and outvoted the ask."""
+    read = requested_file_read("what does ARCHITECTURE.md say about layering?")
+
+    assert read is not None
+    assert read.topic != "architecture"

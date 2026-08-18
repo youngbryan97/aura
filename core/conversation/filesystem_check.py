@@ -203,6 +203,14 @@ class FileRead:
     text: str
     exists: bool
     truncated: bool = False
+    #: The topic the question asked about, and how often the WHOLE file uses
+    #: it. A file that mentions a subject once, in a path, does not discuss it.
+    topic: str = ""
+    topic_mentions: int = 0
+
+    @property
+    def barely_covers_topic(self) -> bool:
+        return bool(self.topic) and self.topic_mentions <= 1
 
 
 #: Anything shaped like a path with a real extension. No verb, no vocabulary.
@@ -287,11 +295,14 @@ def requested_file_read(user_message: Any) -> FileRead | None:
                 body = target.read_text(encoding="utf-8", errors="replace")
             except OSError:
                 continue
+            topic, mentions = _topic_coverage(body, text, filename=candidate)
             return FileRead(
                 path=str(target),
-                text=_relevant_span(body, text),
+                text=_relevant_span(body, text, filename=candidate),
                 exists=True,
                 truncated=len(body) > READ_CHAR_BUDGET,
+                topic=topic,
+                topic_mentions=mentions,
             )
         # Named something file-shaped that is not there. Remember the first
         # one so a missing file is REPORTED rather than silently ignored,
@@ -315,7 +326,7 @@ _SPAN_STOPWORDS = frozenset(
 )
 
 
-def _relevant_span(body: str, question: str) -> str:
+def _relevant_span(body: str, question: str, *, filename: str = "") -> str:
     """The part of the file the question is about, not simply its opening.
 
     LIVE 2026-08-17: "what does ARCHITECTURE.md say about layering?" returned
@@ -330,10 +341,19 @@ def _relevant_span(body: str, question: str) -> str:
 
     if len(body) <= READ_CHAR_BUDGET:
         return body
+    # The FILENAME is not a search term. "what does ARCHITECTURE.md say about
+    # layering" carries the word "architecture", which occurs throughout an
+    # architecture spec, so the filename outvoted the actual topic and the
+    # window landed on a path list that merely name-drops check_layering.py.
+    # The name identifies the file; it says nothing about which part is wanted.
+    name_terms = {
+        w
+        for w in re.findall(r"[A-Za-z][A-Za-z_-]{2,}", str(filename or "").lower())
+    }
     terms = [
         w
         for w in re.findall(r"[A-Za-z][A-Za-z_-]{2,}", str(question or "").lower())
-        if w not in _SPAN_STOPWORDS
+        if w not in _SPAN_STOPWORDS and w not in name_terms
     ]
     if not terms:
         return body[:READ_CHAR_BUDGET]
@@ -359,3 +379,35 @@ def _relevant_span(body: str, question: str) -> str:
     boundary = body.rfind("\n", max(0, best_start - 200), best_start + 1)
     start = boundary + 1 if boundary != -1 else best_start
     return body[start : start + window]
+
+
+def _topic_coverage(body: str, question: str, *, filename: str = "") -> tuple[str, int]:
+    """The topic asked about and how often the whole file uses it.
+
+    LIVE 2026-08-17: asked what ARCHITECTURE.md says about layering, she
+    described "a shaping constraint in the foreground". The file uses the word
+    exactly once, inside the path `tools/check_layering.py`. Handed a passage
+    containing the term, she wrote a description of a subject the document does
+    not cover.
+
+    Counting is the difference between "here is the part about X" and "this
+    file barely mentions X". Both are useful; only one of them is true here,
+    and the reader cannot tell them apart from an excerpt alone.
+    """
+
+    name_terms = {
+        w for w in re.findall(r"[A-Za-z][A-Za-z_-]{2,}", str(filename or "").lower())
+    }
+    terms = [
+        w
+        for w in re.findall(r"[A-Za-z][A-Za-z_-]{2,}", str(question or "").lower())
+        if w not in _SPAN_STOPWORDS and w not in name_terms
+    ]
+    if not terms:
+        return "", 0
+    lowered = str(body or "").lower()
+    # The rarest asked-about term is the most specific one, and specificity is
+    # what "about X" means.
+    scored = sorted(((lowered.count(t), t) for t in terms), key=lambda item: item[0])
+    count, term = scored[0]
+    return term, count
