@@ -21,12 +21,16 @@ class ModelLayerView:
 
 
 _LAYER_PATHS: tuple[tuple[str, ...], ...] = (
-    ("layers",),
+    # Prefer nested forward owners over convenience properties on an outer
+    # language-model wrapper.  Qwen's top-level ``Model.layers`` forwards to
+    # ``Model.model.layers``, but only the nested owner has ``embed_tokens``
+    # and ``norm`` and can safely receive a forward-pass patch.
     ("model", "layers"),
-    ("transformer", "layers"),
     ("model", "transformer", "layers"),
-    ("language_model", "layers"),
     ("language_model", "model", "layers"),
+    ("language_model", "layers"),
+    ("transformer", "layers"),
+    ("layers",),
 )
 
 

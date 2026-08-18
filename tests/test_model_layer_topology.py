@@ -30,6 +30,25 @@ def test_wrapped_model_layers_resolve_the_forward_owner():
     assert view.path == "model.layers"
 
 
+def test_forwarding_layers_property_does_not_hide_the_true_forward_owner():
+    inner = SimpleNamespace(layers=_layers(), embed_tokens=object(), norm=object())
+
+    class Wrapper:
+        model = inner
+
+        @property
+        def layers(self):
+            return self.model.layers
+
+    model = Wrapper()
+
+    view = require_model_layers(model)
+
+    assert view.owner is inner
+    assert view.layers is inner.layers
+    assert view.path == "model.layers"
+
+
 def test_transformer_backed_layout_is_supported_without_recursive_guessing():
     transformer = SimpleNamespace(layers=_layers())
     model = SimpleNamespace(transformer=transformer, vision_tower=SimpleNamespace(layers=_layers(9)))
