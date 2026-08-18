@@ -39,6 +39,26 @@ def test_coordinated_imperatives_without_question_mark_are_multipart() -> None:
     assert shape.to_dict()["imperative_parts"] == 4
 
 
+def test_comma_coordinated_imperatives_retain_each_obligation_text() -> None:
+    prompt = (
+        "ChatGPT here. In one complete response, explain Dijkstra's invariant, "
+        "give a worked example using vertices A, B, C, D and at least five "
+        "weighted edges, state the binary-heap time complexity, and name the "
+        "correct alternative when negative edge weights are present."
+    )
+
+    shape = analyze_prompt_shape(prompt)
+
+    assert shape.question_parts == 4
+    assert shape.requires_single_reply_coverage is True
+    assert shape.question_segments == (
+        "explain Dijkstra's invariant",
+        "give a worked example using vertices A, B, C, D and at least five weighted edges",
+        "state the binary-heap time complexity",
+        "name the correct alternative when negative edge weights are present",
+    )
+
+
 def test_coordinated_nouns_do_not_create_fake_imperative_parts() -> None:
     shape = analyze_prompt_shape("Compare optimistic and pessimistic locking.")
 

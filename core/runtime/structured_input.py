@@ -38,10 +38,12 @@ _DIRECTIVE_LINE_RE = re.compile(
 
 _COORDINATED_DIRECTIVE_RE = re.compile(
     r"(?:^|[,;:]\s*(?:and\s+)?|[.!?]\s+|\b(?:and|then|also|next|finally)\s+)"
-    r"(?:please\s+)?(?:"
-    r"answer|build|calculate|choose|compare|contrast|debug|derive|describe|design|"
-    r"diagnose|enumerate|evaluate|explain|fix|give|identify|implement|justify|list|"
-    r"name|plan|prove|recommend|review|select|show|summarize|tell|test|trace|validate|verify"
+    r"(?:please\s+)?(?P<directive>"
+    r"answer|analyze|build|calculate|choose|compare|contrast|create|debug|define|"
+    r"derive|describe|design|diagnose|discuss|download|enumerate|evaluate|explain|"
+    r"export|find|fix|give|identify|implement|inspect|justify|list|name|open|outline|"
+    r"plan|prove|provide|read|recommend|remember|report|review|save|select|set|show|"
+    r"state|summarize|tell|test|trace|validate|verify|write"
     r")\b",
     re.IGNORECASE | re.MULTILINE,
 )
@@ -412,6 +414,33 @@ def _inline_numbered_segments(text: str) -> tuple[str, ...]:
     return tuple(segments)
 
 
+def _coordinated_directive_segments(text: str) -> tuple[str, ...]:
+    """Split one sentence that carries several independently requested acts.
+
+    People normally write ``explain X, give Y, state Z, and name W`` rather
+    than numbering those obligations.  Counting the directive verbs already
+    made that sentence *look* multipart, but the actual obligation text was
+    discarded, leaving the completion verifier with nothing to check.  Keep
+    each verb phrase as a first-class segment.  A single directive remains a
+    normal sentence so noun coordination (``compare X and Y``) is untouched.
+    """
+
+    raw = str(text or "").strip()
+    matches = tuple(_COORDINATED_DIRECTIVE_RE.finditer(raw))
+    if len(matches) < 2:
+        return ()
+
+    segments: list[str] = []
+    for index, match in enumerate(matches):
+        start = match.start("directive")
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(raw)
+        segment = raw[start:end].strip(" \t\r\n,;:.!?")
+        if not segment:
+            return ()
+        segments.append(segment)
+    return tuple(segments)
+
+
 def _question_segments(text: str) -> tuple[str, ...]:
     """The individual asks in an utterance, as text.
 
@@ -440,14 +469,16 @@ def _question_segments(text: str) -> tuple[str, ...]:
     if not raw:
         return ()
     segments = [part.strip() for part in _ASK_SPLIT_RE.split(raw) if part.strip()]
-    sentence_asks = tuple(
-        part
-        for part in segments
-        if part.endswith("?") or _DIRECTIVE_LINE_RE.match(part)
-    )
+    sentence_asks: list[str] = []
+    for part in segments:
+        coordinated = _coordinated_directive_segments(part)
+        if coordinated:
+            sentence_asks.extend(coordinated)
+        elif part.endswith("?") or _DIRECTIVE_LINE_RE.match(part):
+            sentence_asks.append(part)
     inline_obligations = _inline_numbered_segments(raw)
     if not inline_obligations:
-        return sentence_asks
+        return tuple(sentence_asks)
 
     # The sentence containing the inline list is a container for the same
     # obligations, not an additional request. Keep unrelated asks before it,

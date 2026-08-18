@@ -209,6 +209,27 @@ def test_both_sides_and_correct_alternative_need_independent_witnesses():
     assert not _unanswered_question_parts(complete, _Contract(shape))
 
 
+def test_natural_comma_list_cannot_commit_after_only_the_worked_example():
+    user = (
+        "ChatGPT here. In one complete response, explain Dijkstra's invariant, "
+        "give a worked example using vertices A, B, C, D and at least five "
+        "weighted edges, state the binary-heap time complexity, and name the "
+        "correct alternative when negative edge weights are present."
+    )
+    live_incomplete_reply = (
+        "Dijkstra's invariant finalizes the nearest unsettled distance. "
+        "For example, use A -> B: 2, A -> C: 4, B -> C: 1, "
+        "B -> D: 5, and C -> D: 8. Select A first and relax its edges."
+    )
+    shape = analyze_prompt_shape(user)
+
+    missed = _unanswered_question_parts(live_incomplete_reply, _Contract(shape))
+
+    assert len(missed) == 2
+    assert any("time complexity" in segment for segment in missed)
+    assert any("alternative" in segment for segment in missed)
+
+
 def test_one_shared_content_word_counts_as_engaged():
     """Catches the half ignored outright, not the half answered briefly.
 

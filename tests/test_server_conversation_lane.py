@@ -11647,7 +11647,8 @@ async def test_route_level_truncated_draft_enters_same_worker_continuation(monke
             return SimpleNamespace(
                 content=(
                     " dictionary, records each position tied for the maximum, "
-                    "and returns those positions."
+                    "and returns those positions. The final result is the full "
+                    "set of positions tied for that maximum."
                 ),
                 metadata=metadata,
             )
@@ -11681,7 +11682,7 @@ async def test_route_level_truncated_draft_enters_same_worker_continuation(monke
     )
 
     partial = (
-        "The function updates each balance and removes names whose balance "
+        "The code updates each balance and removes names whose balance "
         "reaches zero from the"
     )
     reply = await chat_routes._run_cognitive_engine_chat_turn(
@@ -11698,7 +11699,7 @@ async def test_route_level_truncated_draft_enters_same_worker_continuation(monke
     )
 
     assert reply is not None
-    assert reply.endswith("positions.")
+    assert reply.endswith("positions tied for that maximum.")
     assert len(engine.calls) == 1
     assert engine.calls[0][0] == "Explain what this code does and give the final result."
     assert engine.calls[0][1]["user_surface_continuation_contract"] is True

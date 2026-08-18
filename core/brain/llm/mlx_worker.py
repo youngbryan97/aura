@@ -1165,21 +1165,14 @@ def _build_semantic_completion_eos_guard(
                 state["complete"] = False
         if state["complete"]:
             return logits
-        # A natural EOS after a substantial, syntactically closed, clean prefix
-        # is a composable checkpoint, not corruption.  Let the model end this
-        # segment and let the owning surface verifier append only the missing
-        # obligations.  Permanently masking EOS here forced correct prefixes to
-        # repeat until TokenSentinel discarded them and restarted from token 0.
-        checkpoint = str(state.get("generated_text") or "").rstrip()
-        if (
-            generated_count >= 64
-            and top_token in eos_ids
-            and len(checkpoint) >= 160
-            and len(checkpoint.split()) >= 30
-            and checkpoint.endswith((".", "!", "?", '"', "'", "”", "’", ")", "]"))
-            and not _surface_quality_failure_reasons(job, checkpoint)
-        ):
-            return logits
+        # EOS is a transaction commit for the visible answer, not a segment
+        # delimiter.  An earlier escape hatch admitted a clean-looking prefix
+        # and relied on the route to notice and append missing obligations.
+        # When the request parser retained only a count (not the asks), a live
+        # four-part answer committed after part one.  Keep EOS unavailable until
+        # the shared typed coverage contract is complete.  Genuine deadline,
+        # cancellation and sentinel interruptions still return their explicit
+        # stop receipts and use the bounded same-owner continuation path.
         mask = tensor_ops.zeros_like(logits)
         for token_id in eos_ids:
             try:
