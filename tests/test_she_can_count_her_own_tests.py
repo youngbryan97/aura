@@ -195,3 +195,46 @@ def test_an_explicit_place_beats_an_implied_one():
 
     assert requested_filesystem_counts("how many config files are in core") == []
     assert requested_filesystem_counts("how many files are in /etc") == []
+
+
+def test_two_implied_places_in_one_question_both_come_back():
+    """"how many test files do you have, and how many docs?" is two counts.
+
+    Neither clause names a path, and the implied-place lookup ran once, so the
+    docs count was silently dropped — measured live 2026-08-18.
+    """
+    from core.conversation.filesystem_check import requested_filesystem_counts
+
+    counts = requested_filesystem_counts(
+        "how many test files do you have, and how many docs? just the numbers."
+    )
+    names = {Path(c.path).name for c in counts}
+    assert {"tests", "docs"} <= names, names
+
+
+def test_just_the_numbers_suppresses_the_file_listing():
+    """An instruction about the answer's shape is part of the question.
+
+    Asked for "just the numbers", the reply opened with a dozen test filenames.
+    """
+    import interface.routes.chat as chat
+
+    served = str(
+        chat._serve_measured_filesystem_count(
+            "how many tests do you have? just the number.", "about 40"
+        )
+    )
+    assert "listed the directory" not in served
+    assert "conftest.py" not in served
+    assert str(_actual("tests", ".py")) in served
+
+
+def test_an_ordinary_count_still_shows_its_working():
+    import interface.routes.chat as chat
+
+    served = str(
+        chat._serve_measured_filesystem_count(
+            "how many python files are in core/agency", "about 40"
+        )
+    )
+    assert "listed the directory" in served

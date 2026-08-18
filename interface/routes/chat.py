@@ -14034,6 +14034,16 @@ def _flag_unstable_choice_commitment(user_message: object, reply_text: object) -
 _SELF_METRIC_CORRECTION_MARK = "the instrument does not exist"
 
 
+def _brevity_requested(user_message: object) -> bool:
+    """Whether the person asked for the answer without the working."""
+    try:
+        from core.conversation.surface_disposition import requests_a_brief_answer
+
+        return requests_a_brief_answer(user_message)
+    except _CHAT_RECOVERABLE_ERRORS:
+        return False
+
+
 def _serve_measured_filesystem_count(user_message: object, reply: object) -> object:
     """Replace a contradicted file count with the one the runtime took.
 
@@ -14125,7 +14135,11 @@ def _serve_measured_filesystem_count(user_message: object, reply: object) -> obj
             continue
         kind = f"{counted.suffix} " if counted.suffix else ""
         where = Path(counted.path).name
-        if len(counts) == 1:
+        # "just the numbers" is an instruction about the answer's shape, and
+        # listing twelve filenames under it answers a question that was not
+        # asked. Measured live 2026-08-18: asked for two counts and "just the
+        # numbers", the reply opened with a dozen test filenames.
+        if len(counts) == 1 and not _brevity_requested(user_message):
             listed = ", ".join(counted.names[:12])
             more = (
                 "" if len(counted.names) <= 12 else f", and {len(counted.names) - 12} more"

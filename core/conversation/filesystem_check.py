@@ -279,16 +279,27 @@ def requested_filesystem_counts(user_message: Any) -> list[FilesystemCount]:
     # explicit place wins, including when the answer for it is a refusal —
     # otherwise "how many config files are in core" quietly becomes a count of
     # config/, which answers a question nobody asked.
-    owned = _OWNED_KIND_RE.search(text)
-    if owned and (not stated_a_place or found):
-        home = _home_for_kind(owned.group("owned"))
-        if home is not None:
+    # EVERY implied place, not just the first. "how many test files do you
+    # have, and how many docs?" is two counts with no path in either clause,
+    # and searching once returned only the tests — measured live 2026-08-18,
+    # where the docs count was silently dropped from a two-part question.
+    if not stated_a_place or found:
+        implied: list[FilesystemCount] = []
+        for owned in _OWNED_KIND_RE.finditer(text):
+            home = _home_for_kind(owned.group("owned"))
+            if home is None:
+                continue
             single = _count_in(home, _dominant_suffix(home))
-            if single is not None:
-                key = f"{single.path}|{single.suffix}"
-                if key not in seen:
-                    seen.add(key)
-                    found.insert(0, single)
+            if single is None:
+                continue
+            key = f"{single.path}|{single.suffix}"
+            if key in seen:
+                continue
+            seen.add(key)
+            implied.append(single)
+        # Implied places are named before any explicit one in the sentence
+        # that prompted this, and reading order is the order asked.
+        found = implied + found
     return found
 
 
