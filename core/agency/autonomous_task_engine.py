@@ -2096,6 +2096,51 @@ Respond ONLY with a JSON array, no other text:
             for marker in ("remember", "memory", "store for later", "future recall")
         )
 
+    #: A page named outright. The planner needs to know not just that a URL is
+    #: present but WHERE it starts, because that is the page to open.
+    _EXPLICIT_URL_RE = re.compile(r"https?://[^\s<>\"')\]]+", re.IGNORECASE)
+
+    #: Verbs that change something on the far side of a page rather than read
+    #: it. This is the distinction BrowserAuthority already draws — a read
+    #: needs no lease, a click "changes state on the far side and needs a
+    #: lease" — applied one layer up, at the point where a plan is chosen.
+    #:
+    #: LIVE DEFECT, 2026-08-18. "go take it for real:
+    #: https://www.16personalities.com/free-personality-test — work through the
+    #: whole thing, answer every question as yourself" was planned as
+    #: `web_search`, which fetched the page, synthesised nothing usable, and
+    #: ended the turn in "I couldn't get to an answer I'd stand behind."
+    #:
+    #: The interaction capability existed by then; nothing could route to it.
+    #: A capability that cannot be reached is indistinguishable from one that
+    #: was never built, and the planner offered only two readings of a URL:
+    #: search for it, or search with it.
+    _PAGE_INTERACTION_VERB_RE = re.compile(
+        r"\b(?:take|complete|finish|fill(?:\s+(?:in|out))?|answer|submit|apply|"
+        r"sign\s*(?:up|in)|log\s*in|register|book|order|buy|checkout|vote|rate|"
+        r"review|post|comment|subscribe|unsubscribe|click|select|choose|toggle|"
+        r"enable|disable|configure|set\s+up|walk\s+through|work\s+through|"
+        r"go\s+through|play|solve|do)\b",
+        re.IGNORECASE,
+    )
+
+    @classmethod
+    def _page_interaction_target(cls, goal: str) -> str:
+        """The page this goal wants ACTED ON, or "" if it only wants reading.
+
+        Retrieval phrasings — read it, summarise it, what does it say — keep
+        going to search, which is the right tool for them. What this recovers
+        is the case search cannot serve at all: a page whose next screen
+        depends on what you do to the current one.
+        """
+        text = str(goal or "")
+        match = cls._EXPLICIT_URL_RE.search(text)
+        if not match:
+            return ""
+        if not cls._PAGE_INTERACTION_VERB_RE.search(text):
+            return ""
+        return match.group(0).rstrip(".,;:!?")
+
     @staticmethod
     def _extract_search_query(goal: str) -> str:
         text = " ".join(str(goal or "").split())
@@ -2354,6 +2399,34 @@ Respond ONLY with a JSON array, no other text:
                     trace_id="",
                     context=dict(context or {}),
                 )
+
+        # 3b. A page that must be ACTED ON, not read.
+        #
+        # Placed before both search branches on purpose: once a goal has been
+        # turned into a query, the fact that it named a page to work through is
+        # gone, and every phrasing of "do this on that page" collapses into
+        # "find that page".
+        interaction_url = self._page_interaction_target(goal)
+        if interaction_url and "sovereign_browser" in matched_skills:
+            return TaskPlan(
+                plan_id=plan_id,
+                goal=goal,
+                steps=[
+                    TaskStep(
+                        step_id=f"{plan_id}_s0",
+                        description=f"Work through {interaction_url} until the goal is met.",
+                        tool="sovereign_browser",
+                        args={
+                            "mode": "pursue",
+                            "url": interaction_url,
+                            "goal": goal,
+                        },
+                        success_criterion="response is non-empty",
+                    )
+                ],
+                trace_id="",
+                context=dict(context or {}),
+            )
 
         # 4. Web Search / Search Web
         if "web_search" in matched_skills or "search_web" in matched_skills:
