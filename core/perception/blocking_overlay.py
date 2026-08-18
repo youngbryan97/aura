@@ -53,7 +53,18 @@ DISMISSIVE_LABELS: tuple[tuple[str, int], ...] = (
     (r"^\s*cancel\s*$", 70),
     (r"^\s*(?:got\s*it|ok(?:ay)?)\s*$", 60),
     (r"^\s*continue\s*without\s*$", 60),
-    (r"^\s*[x✕✖×⨯]\s*$", 50),
+    # A bare "X" is deliberately NOT here.
+    #
+    # It was, at low confidence, and it did real damage: driving a page, the
+    # detector found an "X" and clicked it, and the browser ended up on
+    # x.com — the glyph it matched was a tab label, not a close button. One
+    # character carries no evidence of what it closes. It is a close control,
+    # a tab-close, a delete control, a clear-field control, and a company
+    # logo, and the wrong guess navigates away from the task or destroys a row
+    # of someone's data.
+    #
+    # Nothing is lost by refusing it: a dialog whose only exit is a glyph is
+    # exactly the case Escape exists for, and Escape cannot close a tab.
 )
 
 #: Labels that AGREE to something. Never clicked, at any confidence.
@@ -77,6 +88,16 @@ ACCEPTING_LABELS: tuple[str, ...] = (
 
 #: Words that suggest the thing on screen is an overlay at all, rather than
 #: page content that happens to contain a button.
+#: Fraction of the window occupied by its own toolbar/tab strip. Text above
+#: this is furniture, not content, and a modal blocking the content is in the
+#: content.
+CHROME_STRIP_HEIGHT = 0.12
+
+#: How many independent hints justify pressing Escape when nothing on screen
+#: is safe to click by name. One word is a mention; several together are a
+#: dialog. A single hint sent a loop into forty Escape presses.
+MIN_HINTS_FOR_BARE_ESCAPE = 2
+
 OVERLAY_HINTS: tuple[str, ...] = (
     r"\bcookies?\b",
     r"\bconsent\b",
@@ -133,6 +154,14 @@ class OverlayVerdict:
         }
 
 
+def _region_y(region: dict[str, Any]) -> float | None:
+    """Vertical centre of a text run, or None when it has no geometry."""
+    try:
+        return float(region.get("center_y", region.get("y")))
+    except (TypeError, ValueError):
+        return None
+
+
 def _is_accepting(text: str) -> bool:
     lowered = str(text or "").strip().lower()
     return any(re.search(pattern, lowered) for pattern in ACCEPTING_LABELS)
@@ -160,9 +189,26 @@ def assess_overlay(observation: dict[str, Any]) -> OverlayVerdict:
     if not text and not layout:
         return OverlayVerdict()
 
+    # Hints are counted from POSITIONED text, and the top strip is ignored.
+    #
+    # A window's own furniture is full of these words. Chrome carries an
+    # "Install" button in its toolbar, and \binstall\b is a hint — so on the
+    # first scoped run every single reading looked like a modal, the loop
+    # pressed Escape forty times instead of playing, and made no moves at all.
+    # That is the false positive this module's own tests warn about: dismissing
+    # something the person wanted.
+    #
+    # Chrome and toolbars live at the top edge; a modal that is blocking the
+    # content is IN the content. Ignoring the top strip is what separates them
+    # without knowing anything about either application.
     lowered = text.lower()
+    body_text = " ".join(
+        str(region.get("text") or "")
+        for region in layout
+        if _region_y(region) is None or _region_y(region) >= CHROME_STRIP_HEIGHT
+    ).lower() or lowered
     hints = tuple(
-        pattern for pattern in OVERLAY_HINTS if re.search(pattern, lowered)
+        pattern for pattern in OVERLAY_HINTS if re.search(pattern, body_text)
     )
 
     best_score = 0
@@ -195,7 +241,7 @@ def assess_overlay(observation: dict[str, Any]) -> OverlayVerdict:
                 reasons=hints or ("dismissive_control_present",),
             )
 
-    if best is None and hints and not accepting_seen:
+    if best is None and len(hints) >= MIN_HINTS_FOR_BARE_ESCAPE and not accepting_seen:
         # Something is in the way and nothing on it is safe to click by name.
         # Escape is the answer that needs no label: it closes without agreeing.
         return OverlayVerdict(
@@ -219,11 +265,17 @@ def assess_overlay(observation: dict[str, Any]) -> OverlayVerdict:
             reasons=hints or ("accepting_controls_only",),
         )
 
-    return OverlayVerdict(present=bool(hints), reasons=hints)
+    # Hints with nothing to act on are not an obstacle worth reporting: a page
+    # that merely MENTIONS cookies is a page, not a cookie wall.
+    return OverlayVerdict(
+        present=len(hints) >= MIN_HINTS_FOR_BARE_ESCAPE, reasons=hints
+    )
 
 
 __all__ = [
     "ACCEPTING_LABELS",
+    "CHROME_STRIP_HEIGHT",
+    "MIN_HINTS_FOR_BARE_ESCAPE",
     "DISMISSIVE_LABELS",
     "OVERLAY_HINTS",
     "OverlayVerdict",

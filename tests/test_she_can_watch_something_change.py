@@ -41,7 +41,7 @@ def screen(monkeypatch):
     """A screen that only changes when a key is pressed."""
     state = {"n": 0, "pressed": [], "saw_demand": False}
 
-    async def read():
+    async def read(app_name=""):
         state["saw_demand"] = state["saw_demand"] or perception_is_demanded()
         return {
             "ok": True,
@@ -141,7 +141,7 @@ def test_a_malformed_success_pattern_falls_back_to_plain_text():
 
 
 def test_a_wedged_capture_ends_the_cycle_rather_than_acting_blind(monkeypatch):
-    async def hang():
+    async def hang(app_name=""):
         await asyncio.sleep(30)
 
     monkeypatch.setattr(sp, "read_screen", hang)
@@ -275,7 +275,7 @@ def _blocked_screen(monkeypatch, labels, *, tiles_after_clear=True):
     """A screen that shows a modal until something dismisses it."""
     state = {"cleared": False, "pressed": [], "clicks": []}
 
-    async def read():
+    async def read(app_name=""):
         if state["cleared"]:
             return {"ok": True, "text": "DONE", "layout": [{"text": "DONE", "center_y": 0.5}]}
         return {
@@ -293,8 +293,13 @@ def _blocked_screen(monkeypatch, labels, *, tiles_after_clear=True):
             state["cleared"] = True
         return True
 
-    async def click(x, y, *, expect_app=""):
-        state["clicks"].append((x, y, expect_app))
+    async def click(x, y, *, expect_app="", bounds=None):
+        # Mirrors click_normalized, which gained `bounds` when perception was
+        # scoped to a window and 0..1 stopped meaning "of the display". A
+        # double that lags the signature raises inside the Step, so the action
+        # "fails" and the loop looks broken while it is correct — the fourth
+        # time that happened today.
+        state["clicks"].append((x, y, expect_app, tuple(bounds or ())))
         state["cleared"] = True
         return True
 
@@ -337,12 +342,21 @@ def test_dismissal_clicks_are_aimed_like_every_other_input(monkeypatch):
         )
     )
 
-    assert all(app == "Preview" for *_xy, app in state["clicks"])
+    assert all(app == "Preview" for _x, _y, app, _bounds in state["clicks"])
 
 
 def test_a_modal_with_no_safe_label_is_escaped(monkeypatch):
-    """The real play2048 case: neither dismissive nor accepting controls."""
-    state = _blocked_screen(monkeypatch, ["Play Tutorial", "New Game"])
+    """The real play2048 case: neither dismissive nor accepting controls.
+
+    The modal's own prose is POSITIONED, as it is in a real reading — hints are
+    counted from placed text so that an app's toolbar cannot masquerade as a
+    dialog, and a fixture that puts the prose only in the flat string is
+    describing a screen that does not occur.
+    """
+    state = _blocked_screen(
+        monkeypatch,
+        ["WELCOME TO THIS", "Would you like a tutorial?", "Play Tutorial", "New Game"],
+    )
 
     asyncio.run(
         sp.pursue_on_screen(
@@ -387,3 +401,61 @@ def test_clearing_a_blocker_happens_before_the_policy_is_asked(monkeypatch):
     )
 
     assert all("cookies" not in text for text in asked), asked
+
+
+def test_a_blocker_that_will_not_clear_is_reported_not_repeated(monkeypatch):
+    """A dismissal that does not work must not be tried forever.
+
+    Measured live: play2048.co's welcome modal ignores Escape. The Step
+    succeeded every cycle — the key WAS pressed — so the loop counted verified
+    progress and spent forty cycles pressing Escape, making zero moves. A
+    dismissal Step's success means the action ran, which is exactly the
+    distinction this loop exists to enforce and which the blocker path was
+    itself exempt from.
+    """
+    state = {"pressed": []}
+
+    async def read(app_name=""):
+        return {
+            "ok": True,
+            "text": "welcome tutorial would you like",
+            "layout": [
+                {"text": "WELCOME", "center_y": 0.30},
+                {"text": "Would you like a tutorial?", "center_y": 0.35},
+                {"text": "Play Tutorial", "center_y": 0.40},
+            ],
+        }
+
+    async def press(key, *, expect_app=""):
+        state["pressed"].append(key)
+        return True  # succeeds, and changes nothing — the live case
+
+    monkeypatch.setattr(sp, "read_screen", read)
+    monkeypatch.setattr(sp, "press", press)
+
+    result = asyncio.run(
+        sp.pursue_on_screen(
+            goal="play", success_when="NEVER", policy=_alternating,
+            max_cycles=40, narrate=False, target_app="Google Chrome",
+        )
+    )
+
+    assert result["outcome"] == "blocked_by_overlay"
+    assert result["blocked_by"], "the obstacle must be named"
+    assert len(state["pressed"]) <= sp.MAX_BLOCKER_ATTEMPTS + 1, state["pressed"]
+    assert result["cycles"] < 40, "it must stop early rather than burn the budget"
+
+
+def test_a_blocker_that_clears_does_not_count_against_the_budget(monkeypatch):
+    """Attempts reset once the way is clear, so a later dialog gets its own tries."""
+    state = _blocked_screen(monkeypatch, ["Accept All", "Reject All"])
+
+    result = asyncio.run(
+        sp.pursue_on_screen(
+            goal="g", success_when="DONE", policy=_never, max_cycles=8,
+            narrate=False, target_app="Google Chrome",
+        )
+    )
+
+    assert result["completed"] is True
+    assert result.get("blocked_by", "") == ""

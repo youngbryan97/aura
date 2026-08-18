@@ -329,6 +329,52 @@ class BrowserController:
         receipt.target = url[:200]
         return receipt
 
+    async def current_page(self) -> dict[str, str]:
+        """The URL and title of the page in front, or empty strings.
+
+        The question nothing could ask. She could open a page, focus a tab and
+        read pixels off it, and had no way to say WHICH page she was looking
+        at — so a navigation was invisible.
+
+        LIVE, 2026-08-18: a dismissal click landed on a tab label instead of a
+        close button, the browser went to a different site, and the loop
+        carried on reading and acting as though nothing had happened. Every
+        layer was working; none of them knew where they were. A task driving a
+        page needs identity as much as it needs pixels, because "is this still
+        the thing I was working on" is unanswerable from appearance alone —
+        two pages can look alike, and the same page can look different.
+
+        Read-only, so it takes no authorization: knowing where you are is not
+        an effect on the world.
+        """
+        from core.capabilities.host_automation import AppleScriptRunner
+
+        browser = self._preferred_browser
+        if "chrome" in browser.lower():
+            script = (
+                'tell application "Google Chrome" to return '
+                "(URL of active tab of front window) & \"\\n\" & "
+                "(title of active tab of front window)"
+            )
+        elif "safari" in browser.lower():
+            script = (
+                'tell application "Safari" to return '
+                "(URL of current tab of front window) & \"\\n\" & "
+                "(name of current tab of front window)"
+            )
+        else:
+            return {"url": "", "title": "", "error": f"unsupported browser {browser!r}"}
+
+        receipt = await AppleScriptRunner.run(script, timeout=8.0)
+        if not getattr(receipt, "success", False):
+            return {"url": "", "title": "", "error": str(getattr(receipt, "error", ""))}
+        parts = str(getattr(receipt, "result", "") or "").split("\n", 1)
+        return {
+            "url": parts[0].strip(),
+            "title": (parts[1].strip() if len(parts) > 1 else ""),
+            "error": "",
+        }
+
     async def focus_tab(self, match: str) -> AutomationReceipt:
         """Bring the tab whose title or URL contains `match` to the front.
 

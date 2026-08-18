@@ -30,7 +30,7 @@ import asyncio
 import logging
 import re
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -46,6 +46,19 @@ PRESSABLE_KEYS = (
     "up", "down", "left", "right",
     "return", "enter", "tab", "space", "escape",
 )
+
+#: How many times a blocker may be attacked before the run reports it.
+#:
+#: A dismissal Step succeeds when the KEY WAS PRESSED, not when the overlay
+#: went away — the same "an action that ran is not an action that worked"
+#: distinction the loop exists to enforce, which the blocker path was itself
+#: exempt from. Measured live: a page modal that ignores Escape produced forty
+#: cycles of Escape and zero moves, each one reported as verified progress.
+#:
+#: After this many attempts the loop stops trying and says what is in the way.
+#: Deciding what ELSE to do about an unknown dialog is cognition's job, not a
+#: loop's: the honest end is a named obstacle, never a spin.
+MAX_BLOCKER_ATTEMPTS = 3
 
 #: How long a single observation may take before the cycle is abandoned. A
 #: screen read finishes well inside this. A capture still running when the
@@ -75,6 +88,18 @@ class ScreenPursuitInput(BaseModel):
     #: furniture".
     success_region_top: float = Field(default=0.0, ge=0.0, le=1.0)
     success_region_bottom: float = Field(default=1.0, ge=0.0, le=1.0)
+    #: A control this task may click when something is blocking it and nothing
+    #: generic is safe to press — "New Game", "Start", "Continue". The loop
+    #: never infers this; the caller declares it.
+    unblock_with: str = Field(default="", max_length=80)
+    #: A URL or title fragment identifying the page this run is about.
+    #:
+    #: Checked every cycle and restored by tab when it drifts. Without it a
+    #: run cannot tell that the browser moved: a stray click sent one to a
+    #: different site and it carried on reading and acting there, because
+    #: appearance alone cannot answer "is this still the thing I was working
+    #: on" — two pages can look alike and one page can change.
+    expect_page: str = Field(default="", max_length=200)
     #: The application this run is driving. Its keystrokes are refused unless
     #: this application is frontmost at the moment of sending, so a run cannot
     #: type into whatever the person switched to. Empty means unaimed, which is
@@ -88,16 +113,64 @@ class ScreenPursuitInput(BaseModel):
 ObservationPolicy = Callable[[dict[str, Any]], Awaitable[dict[str, Any] | None]]
 
 
-async def read_screen() -> dict[str, Any]:
-    """One reading: the words, and where they were."""
+async def window_bounds(app_name: str) -> tuple[int, int, int, int] | None:
+    """The front window rectangle of `app_name` in pixels, or None."""
+    if not app_name:
+        return None
     from core.capabilities.host_automation import get_host_automation
 
-    receipt = await get_host_automation().get_screen_text(retain_screenshot=False)
+    script = (
+        f'tell application "System Events" to tell process {app_name!r} '
+        "to get {position, size} of front window"
+    ).replace("'", '"')
+    try:
+        receipt = await get_host_automation().execute_applescript(script)
+    except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
+        return None
+    if not getattr(receipt, "success", False):
+        return None
+    numbers = re.findall(r"-?\d+", str(getattr(receipt, "result", "") or ""))
+    if len(numbers) < 4:
+        return None
+    x, y, width, height = (int(value) for value in numbers[:4])
+    if width <= 0 or height <= 0:
+        return None
+    return (x, y, width, height)
+
+
+async def read_screen(app_name: str = "") -> dict[str, Any]:
+    """One reading: the words, and where they were.
+
+    Scoped to `app_name`'s window when one is given, and this is not an
+    optimisation.
+
+    A full-screen reading is a reading of the DESKTOP, and a loop driving one
+    application then sees every other application's text as if it belonged to
+    the task. Measured live: a run driving a browser detected an "overlay" in
+    another app's window, clicked at those screen coordinates, and pulled focus
+    away from the thing it was driving — after which every keystroke was
+    correctly refused and every reading described the wrong window. The loop
+    had no way to notice, because to it the desktop and the task looked the
+    same.
+
+    Positions stay normalized 0..1, now against the WINDOW rather than the
+    screen, so a caller's region band means "part of the thing I am driving"
+    instead of "part of the display it happens to sit on" — which is what makes
+    a band portable across window sizes and monitors.
+    """
+    from core.capabilities.host_automation import get_host_automation
+
+    bounds = await window_bounds(app_name) if app_name else None
+    receipt = await get_host_automation().get_screen_text(
+        region=bounds, retain_screenshot=False
+    )
     return {
         "ok": bool(getattr(receipt, "success", False)),
         "text": str(getattr(receipt, "result", "") or ""),
         "layout": list(getattr(receipt, "layout", []) or []),
         "error": str(getattr(receipt, "error", "") or ""),
+        "scoped_to": app_name if bounds else "",
+        "bounds": list(bounds) if bounds else [],
         "at": time.time(),
     }
 
@@ -162,13 +235,83 @@ def goal_reached(
     return False
 
 
-async def click_normalized(x: float, y: float, *, expect_app: str = "") -> bool:
-    """Click a point given in 0..1 screen coordinates, top-left origin.
+async def current_page_identity() -> dict[str, str]:
+    """Where the browser is right now, or empty strings. Never raises."""
+    try:
+        from core.capabilities.browser_controller import get_browser_controller
 
-    Perception reports positions normalized, and click_at takes pixels. Every
-    caller converting between them is a place to get a screen's height wrong,
-    so the conversion lives here once — and the same focus guard applies, since
-    a click aimed at the wrong window is a click on someone else's document.
+        return await get_browser_controller().current_page()
+    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
+        return {"url": "", "title": "", "error": "unavailable"}
+
+
+async def _ensure_page(expect_page: str) -> bool:
+    """True when the browser is on `expect_page`, restoring it if it can.
+
+    Identity, not appearance. A loop that only reads pixels cannot tell that
+    the page changed under it — measured live, a stray click navigated the
+    browser to a different site and the run kept reading and acting for
+    cycles, every layer working and none of them knowing where they were.
+
+    Restores by tab rather than by reload, because a task's page usually still
+    exists in another tab and reloading would throw away whatever progress the
+    task had made on it.
+    """
+    if not expect_page:
+        return True
+    wanted = expect_page.strip().lower()
+    page = await current_page_identity()
+    here = f"{page.get('url', '')} {page.get('title', '')}".lower()
+    if wanted in here:
+        return True
+    try:
+        from core.capabilities.browser_controller import get_browser_controller
+
+        receipt = await get_browser_controller().focus_tab(expect_page)
+    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
+        return False
+    if not getattr(receipt, "success", False):
+        return False
+    page = await current_page_identity()
+    here = f"{page.get('url', '')} {page.get('title', '')}".lower()
+    return wanted in here
+
+
+async def _ensure_frontmost(app_name: str) -> bool:
+    """Bring `app_name` forward if it is not already. True when it is."""
+    from core.capabilities.host_automation import get_host_automation
+
+    host = get_host_automation()
+    context = await host.get_frontmost_window_context()
+    observed = str(getattr(context, "result", "") or "").split("|", 1)[0].strip().lower()
+    wanted = app_name.strip().lower()
+    if observed and (wanted in observed or observed in wanted):
+        return True
+    receipt = await host.launch_app(app_name)
+    return bool(getattr(receipt, "success", False))
+
+
+async def click_normalized(
+    x: float,
+    y: float,
+    *,
+    expect_app: str = "",
+    bounds: Sequence[int] | None = None,
+) -> bool:
+    """Click a point given in 0..1 coordinates, top-left origin.
+
+    `bounds` is the rectangle those coordinates are normalized AGAINST — the
+    window when the reading was scoped to one, the whole display otherwise.
+
+    Passing it is not optional bookkeeping. Scoping perception to a window
+    changed what 0..1 means, and this converter still assumed the display, so
+    every dismissal click landed hundreds of pixels from its target: the loop
+    saw the dialog, decided correctly to close it, clicked somewhere else, and
+    tried again for forty cycles. Two halves of one system disagreeing about a
+    coordinate frame is silent by construction — both look right in isolation.
+
+    The same focus guard applies as for keystrokes, because a click at the
+    wrong window is a click on someone else's document.
     """
     from core.capabilities.host_automation import get_host_automation
 
@@ -177,10 +320,17 @@ async def click_normalized(x: float, y: float, *, expect_app: str = "") -> bool:
         refusal = await host._refuse_if_not_frontmost(expect_app, "click_at")
         if refusal is not None:
             return False
-    width, height = await _screen_size()
+
+    if bounds and len(bounds) >= 4:
+        left, top, width, height = (int(value) for value in bounds[:4])
+    else:
+        left, top = 0, 0
+        width, height = await _screen_size()
     if not width or not height:
         return False
-    receipt = await host.click_at(int(round(x * width)), int(round(y * height)))
+    receipt = await host.click_at(
+        int(round(left + x * width)), int(round(top + y * height))
+    )
     return bool(getattr(receipt, "success", False))
 
 
@@ -247,6 +397,8 @@ class ScreenPursuitSkill(BaseSkill):
             region_top=params.success_region_top,
             region_bottom=params.success_region_bottom,
             target_app=params.target_app,
+            expect_page=params.expect_page,
+            unblock_with=params.unblock_with,
         )
 
 
@@ -261,6 +413,8 @@ async def pursue_on_screen(
     region_top: float = 0.0,
     region_bottom: float = 1.0,
     target_app: str = "",
+    expect_page: str = "",
+    unblock_with: str = "",
 ) -> dict[str, Any]:
     """Run the loop. Returns the receipt the executor produced.
 
@@ -275,8 +429,57 @@ async def pursue_on_screen(
     moves: list[dict[str, Any]] = []
 
     async def observe() -> dict[str, Any]:
+        # Put the target back in front before looking at it.
+        #
+        # Over a long run focus wanders: a notification, a click that lands
+        # outside the window, the person switching away. Without this the loop
+        # refuses every keystroke for the rest of the run and reads whatever
+        # replaced its target — technically correct and completely stuck. A
+        # task that is meant to last minutes has to be able to recover the
+        # conditions it needs rather than only detect that they are gone.
+        if target_app:
+            try:
+                await _ensure_frontmost(target_app)
+                # Anchor to the page this run STARTED on when the caller did
+                # not name one.
+                #
+                # Otherwise a run is bound to an application and nothing more,
+                # and an application is not a context: the browser holds the
+                # task's page and a dozen others. A run that only knows "Google
+                # Chrome" will send its keys to whatever tab is in front, so
+                # arrow keys meant for a game land on a video, a form, or
+                # someone's mail — each keystroke legitimately delivered to the
+                # wrong world. Measured live: a stray click moved the browser to
+                # a different site and the loop kept acting there.
+                #
+                # Anchoring on the first cycle means a caller never has to
+                # remember, and drift is always detectable rather than only
+                # detectable when someone thought to declare an expectation.
+                if not anchor["page"]:
+                    page = await current_page_identity()
+                    anchor["page"] = str(
+                        expect_page or page.get("url") or page.get("title") or ""
+                    ).strip()
+                if anchor["page"] and not await _ensure_page(anchor["page"]):
+                    # The page this run is about is no longer in front and
+                    # could not be brought back. Reading on would be reading
+                    # someone else's page.
+                    lost_page["value"] = True
+                    return {
+                        "ok": False, "text": "", "layout": [],
+                        "error": "navigated_away", "at": time.time(),
+                    }
+            except (OSError, RuntimeError, TypeError, ValueError) as exc:
+                record_degradation(
+                    "screen_pursuit",
+                    exc,
+                    severity="info",
+                    action="continued a pursuit without refocusing the target window",
+                )
         try:
-            return await asyncio.wait_for(read_screen(), timeout=OBSERVE_TIMEOUT_S)
+            return await asyncio.wait_for(
+                read_screen(target_app), timeout=OBSERVE_TIMEOUT_S
+            )
         except (TimeoutError, asyncio.TimeoutError):
             # A wedged capture is not a reason to keep acting blind.
             return {"ok": False, "text": "", "layout": [], "error": "observe_timeout"}
@@ -311,6 +514,39 @@ async def pursue_on_screen(
         if not verdict.present or verdict.needs_person:
             return None
 
+        # A caller may declare its OWN way forward.
+        #
+        # The detector deliberately refuses to guess at unlabelled controls,
+        # because clicking an unknown thing on someone's screen is how a tab
+        # gets closed or a row deleted. But a task usually knows its own
+        # affordance — "New Game", "Start", "Continue", "Begin" — and that
+        # knowledge belongs to whoever set the goal, not to a generic reader.
+        #
+        # Declared rather than inferred: the loop still never guesses, it just
+        # accepts an instruction. Matched case-insensitively against the placed
+        # text, and only when something is genuinely in the way.
+        if unblock_with:
+            wanted = unblock_with.strip().lower()
+            for region in observation.get("layout") or []:
+                label = str(region.get("text") or "").strip()
+                if wanted not in label.lower():
+                    continue
+                try:
+                    ux = float(region.get("center_x", region.get("x")))
+                    uy = float(region.get("center_y", region.get("y")))
+                except (TypeError, ValueError):
+                    continue
+                frame = list(observation.get("bounds") or [])
+
+                async def click_declared() -> bool:
+                    return await click_normalized(
+                        ux, uy, expect_app=target_app, bounds=frame
+                    )
+
+                return Step(
+                    name=f"clear the way with {label!r}", action=click_declared
+                )
+
         if verdict.suggested_key:
             key = verdict.suggested_key
 
@@ -322,16 +558,35 @@ async def pursue_on_screen(
         if verdict.click_x is not None:
             label, x, y = verdict.label, verdict.click_x, verdict.click_y
 
+            frame = list(observation.get("bounds") or [])
+
             async def click_away() -> bool:
-                return await click_normalized(x, y, expect_app=target_app)
+                return await click_normalized(
+                    x, y, expect_app=target_app, bounds=frame
+                )
 
             return Step(name=f"dismiss overlay via {label!r}", action=click_away)
         return None
 
+    blocker_attempts = {"count": 0, "last": ""}
+    lost_page = {"value": False}
+    #: The page this run belongs to, learned on the first cycle when the caller
+    #: did not name one.
+    anchor: dict[str, str] = {"page": expect_page.strip()}
+
     async def decide(observation: dict[str, Any]) -> Step | None:
         blocker = await clear_blocker(observation)
         if blocker is not None:
+            # Verified, not assumed. A blocker still present after the previous
+            # attempt means that attempt did not work, whatever its receipt
+            # said.
+            if blocker_attempts["count"] >= MAX_BLOCKER_ATTEMPTS:
+                blocker_attempts["last"] = blocker.name
+                return None
+            blocker_attempts["count"] += 1
+            blocker_attempts["last"] = blocker.name
             return blocker
+        blocker_attempts["count"] = 0
         if policy is None or not observation.get("ok"):
             return None
         try:
@@ -372,10 +627,23 @@ async def pursue_on_screen(
         perception_reason=f"pursuing on screen: {goal[:60]}",
     )
     result = receipt.to_dict()
+    if blocker_attempts["count"] >= MAX_BLOCKER_ATTEMPTS and not receipt.completed:
+        # Say what stopped it. "out_of_cycles" describes the budget running
+        # out; this describes the reason, which is the part a caller can act
+        # on — by dismissing it themselves, or by deciding the dialog is the
+        # task.
+        result["outcome"] = "blocked_by_overlay"
+        result["blocked_by"] = blocker_attempts["last"]
     result["moves"] = moves
     result["success_when"] = success_when
     result["success_region"] = [region_top, region_bottom]
     result["target_app"] = target_app
+    result["expect_page"] = expect_page
+    result["anchored_to"] = anchor["page"]
+    if lost_page["value"] and not receipt.completed:
+        # Name it. "no_move_available" would describe the symptom of reading a
+        # page that is not the task's, and hide that the browser had moved.
+        result["outcome"] = "navigated_away"
     return result
 
 

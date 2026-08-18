@@ -159,3 +159,114 @@ def test_a_long_string_is_not_treated_as_a_button():
     )
 
     assert verdict.click_x is None
+
+
+# ── Not everything that says "install" is a dialog ────────────────────────
+
+def test_an_apps_own_toolbar_is_not_an_overlay():
+    """The regression that made a loop press Escape forty times.
+
+    Chrome carries an "Install" button in its toolbar and \\binstall\\b is a
+    hint, so on the first window-scoped run every reading looked like a modal:
+    the loop dismissed instead of playing and made no moves at all. A window's
+    furniture is full of these words; a dialog blocking the content is IN the
+    content.
+    """
+    verdict = assess_overlay(
+        {
+            "text": "Install 2048 Play the Free Online Game 2 4 8",
+            "layout": [
+                {"text": "C Install", "center_x": 0.67, "center_y": 0.079},
+                {"text": "2048", "center_x": 0.84, "center_y": 0.043},
+                {"text": "2", "center_x": 0.40, "center_y": 0.50},
+                {"text": "4", "center_x": 0.50, "center_y": 0.60},
+            ],
+        }
+    )
+
+    assert verdict.present is False
+    assert verdict.suggested_key == ""
+
+
+def test_a_single_mention_is_not_a_dialog():
+    """A page that mentions cookies is a page, not a cookie wall."""
+    verdict = assess_overlay(
+        {
+            "text": "an article about cookies",
+            "layout": [{"text": "Cookies and cream recipes", "center_y": 0.5}],
+        }
+    )
+
+    assert verdict.present is False
+
+
+def test_a_modal_in_the_content_area_is_still_caught():
+    """Ignoring the top strip must not blind it to real dialogs."""
+    verdict = assess_overlay(
+        {
+            "text": "welcome tutorial",
+            "layout": [
+                {"text": "WELCOME TO 2048!", "center_x": 0.46, "center_y": 0.30},
+                {"text": "Would you like to learn how to play?", "center_x": 0.46, "center_y": 0.34},
+                {"text": "Play Tutorial", "center_x": 0.55, "center_y": 0.38},
+            ],
+        }
+    )
+
+    assert verdict.present is True
+    assert verdict.suggested_key == "escape"
+
+
+def test_a_labelled_dismissal_needs_no_hint_quorum():
+    """An explicit "No thanks" is evidence on its own."""
+    verdict = assess_overlay(
+        {
+            "text": "join our list",
+            "layout": [{"text": "No thanks", "center_x": 0.5, "center_y": 0.7}],
+        }
+    )
+
+    assert verdict.label == "No thanks"
+
+
+@pytest.mark.parametrize("glyph", ["X", "✕", "×", "⨯", "x"])
+def test_a_bare_glyph_is_never_clicked(glyph):
+    """It was, at low confidence, and it navigated away from the task.
+
+    Driving a page, the detector found an "X" and clicked it; the browser ended
+    up on x.com, because the glyph it matched was a tab label. One character
+    carries no evidence of what it closes — it is a close control, a tab-close,
+    a delete control, a clear-field control and a company logo, and the wrong
+    guess destroys work or leaves the task entirely.
+
+    Nothing is lost by refusing: a dialog whose only exit is a glyph is exactly
+    what Escape is for, and Escape cannot close a tab.
+    """
+    verdict = assess_overlay(
+        {
+            "text": "subscribe notifications",
+            "layout": [
+                {"text": glyph, "center_x": 0.9, "center_y": 0.3},
+                {"text": "Subscribe", "center_x": 0.5, "center_y": 0.4},
+                {"text": "Notifications", "center_x": 0.5, "center_y": 0.5},
+            ],
+        }
+    )
+
+    assert verdict.click_x is None, f"{glyph!r} must never be a click target"
+
+
+def test_a_dialog_whose_only_exit_is_a_glyph_falls_to_escape():
+    verdict = assess_overlay(
+        {
+            "text": "welcome tutorial",
+            "layout": [
+                {"text": "WELCOME", "center_y": 0.30},
+                {"text": "Would you like a tutorial?", "center_y": 0.35},
+                {"text": "X", "center_y": 0.28},
+            ],
+        }
+    )
+
+    assert verdict.suggested_key == "escape"
+    assert verdict.click_x is None
