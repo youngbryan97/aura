@@ -974,6 +974,22 @@ def _background_error_is_quiet(error: str) -> bool:
         "foreground_quiet_window",
         "client_returned_no_text",
         "cancelled_unhealthy",
+        # The model lane REFUSED to start a worker. That is admission control
+        # doing its job, not an endpoint being unreliable.
+        #
+        # It arrives from _ModelLoadAdmissionDeniedError, raised when the lane
+        # controller cancels a spawn because the host has no room — the same
+        # condition that produces background_deferred:memory_pressure two
+        # lines down, reached by a different route. Counted as an endpoint
+        # failure it opened the circuit breaker on a perfectly healthy
+        # Brainstem: 128 "Circuit OPEN for Brainstem after N failures" and 128
+        # "failed validation" in one sampled window, on a machine that was
+        # simply full. Tripping a breaker for backpressure then keeps the
+        # endpoint out AFTER the memory frees up.
+        #
+        # worker_died_during_generation is deliberately NOT here. A worker
+        # that started and then died is a real event and stays loud.
+        "candidate_worker_not_ready",
         "background_deferred:memory_pressure",
         "background_deferred:cortex_startup_quiet",
         "background_deferred:foreground_quiet_window",
