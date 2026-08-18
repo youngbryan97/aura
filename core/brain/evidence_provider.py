@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import re
 import shutil
 from dataclasses import dataclass
@@ -64,7 +65,13 @@ _SKIP_DIRS = {".venv", "__pycache__", "node_modules", ".git", "archive", "dev_ar
               # Generated evidence bundles, not source. Aura citing her own
               # past output as evidence for a claim about her source is a
               # circularity nobody asked for.
-              "artifacts"}
+              "artifacts",
+              # Self-modification working copies: .aura_architect holds
+              # `candidate/core/...` and `original/core/...` snapshots of real
+              # modules. Citing one is citing a version of herself that was
+              # considered and not adopted, at a line number that looks
+              # authentic.
+              ".aura_architect"}
 
 #: A hit scoring at least this much is admitted no matter how full the
 #: candidate bucket is: it means the file is named after the symbol, or the
@@ -72,6 +79,18 @@ _SKIP_DIRS = {".venv", "__pycache__", "node_modules", ".git", "archive", "dev_ar
 #: without this, asking about SubprocessGateway filled up on aura_main.py and
 #: interface/server.py and never reached core/runtime/subprocess_gateway.py.
 _STRONG_EVIDENCE_SCORE = 5.0
+
+#: Files opened per repo search. Listing paths is cheap and reading them is
+#: not, so this bounds the reads while `_search_order` decides which ones.
+_MAX_FILES_READ = 4000
+
+
+@dataclass(frozen=True)
+class ReferenceEvidence:
+    """Corpus spans, and whether the corpus could be read at all."""
+
+    spans: list[EvidenceSpan]
+    retrieval_failed: bool
 
 
 @dataclass
@@ -82,6 +101,29 @@ class EvidenceSpan:
 
     def render(self) -> str:
         return f"{self.ref}: {self.text}" if self.ref else self.text
+
+
+def snake_case(term: str) -> str:
+    """SubprocessGateway -> subprocess_gateway, so the file named after a
+    symbol can be recognised as its home."""
+    return re.sub(r"(?<!^)(?=[A-Z])", "_", str(term or "")).lower().strip("_")
+
+
+def _filename_candidates(objective: str) -> set[str]:
+    """Filenames the question itself spells out.
+
+    A module is often named for the WORDS someone used rather than for any one
+    of them: "how does the file write gateway work" points at
+    core/runtime/file_write_gateway.py. Salient-term ranking drops "file" as
+    too common, so the name could not be reassembled from the ranked terms —
+    it has to come from the run of words as spoken.
+    """
+    words = [w.lower() for w in re.findall(r"[A-Za-z][A-Za-z0-9]+", str(objective or ""))]
+    out: set[str] = set()
+    for width in range(2, 5):
+        for start in range(len(words) - width + 1):
+            out.add("_".join(words[start : start + width]))
+    return out
 
 
 def _salient_terms(objective: str, *, limit: int = 6) -> list[str]:
@@ -212,11 +254,32 @@ class EvidenceProvider:
         *,
         limit: int = 4,
     ) -> list[EvidenceSpan]:
-        """Read topic evidence from the offline corpus within chat latency bounds."""
+        """Read topic evidence from the offline corpus within chat latency bounds.
+
+        The spans only. Callers that must tell a BROKEN corpus from an empty
+        one want `reference_evidence_result` instead.
+        """
+
+        return (await self.reference_evidence_result(objective, limit=limit)).spans
+
+    async def reference_evidence_result(
+        self,
+        objective: str,
+        *,
+        limit: int = 4,
+    ) -> ReferenceEvidence:
+        """The same read, with retrieval failure kept separate from absence.
+
+        Returning a bare list made the two identical to every caller. A corpus
+        that raised and a corpus that held nothing both arrived as `[]`, so the
+        citation verifier reported "unconfirmed by local corpus" — an
+        epistemic claim about the world — when the truth was that the corpus
+        had not been read at all.
+        """
 
         queries = reference_query_candidates(objective)
         if not queries:
-            return []
+            return ReferenceEvidence(spans=[], retrieval_failed=False)
         try:
             from core.knowledge.local_corpus import (
                 CONVERSATION_SEARCH_DEADLINE_S,
@@ -242,7 +305,7 @@ class EvidenceProvider:
                 severity="warning",
                 action="continued factual reasoning without offline reference evidence",
             )
-            return []
+            return ReferenceEvidence(spans=[], retrieval_failed=True)
 
         query_terms = {
             term.lower().replace("’", "'").removesuffix("'s")
@@ -280,15 +343,18 @@ class EvidenceProvider:
                     continue
                 seen.add(key)
                 ordered.append(hit)
-        return [
-            EvidenceSpan(
-                "reference",
-                f"{hit.source}:{hit.title}",
-                str(hit.snippet or "")[:1_200],
-            )
-            for hit in ordered[:limit]
-            if str(hit.snippet or "").strip()
-        ]
+        return ReferenceEvidence(
+            spans=[
+                EvidenceSpan(
+                    "reference",
+                    f"{hit.source}:{hit.title}",
+                    str(hit.snippet or "")[:1_200],
+                )
+                for hit in ordered[:limit]
+                if str(hit.snippet or "").strip()
+            ],
+            retrieval_failed=False,
+        )
 
     async def render_pack(self, objective: str, *, task_type: str, limit: int = 6) -> list[str]:
         return [s.render() for s in await self.gather(objective, task_type=task_type, limit=limit)]
@@ -305,7 +371,7 @@ class EvidenceProvider:
             return spans[:limit]
         try:
             hits = await self._ripgrep(terms, limit=limit) if shutil.which("rg") else await asyncio.to_thread(
-                self._inprocess_search, terms, limit
+                self._inprocess_search, terms, limit, _filename_candidates(objective)
             )
             spans.extend(hits)
         except (OSError, RuntimeError, ValueError, TypeError) as exc:
@@ -400,7 +466,70 @@ class EvidenceProvider:
                         return spans
         return spans
 
-    def _inprocess_search(self, terms: list[str], limit: int) -> list[EvidenceSpan]:
+    def _search_order(
+        self,
+        needles: list[str],
+        snake: dict[str, str],
+        filename_candidates: set[str] | None = None,
+    ) -> list[Path]:
+        """Which files are worth spending the read budget on, best first.
+
+        The budget used to be spent in directory-walk order, and the walk is
+        longer than the budget: 6,299 scannable files against 4,000 reads, with
+        core/runtime/subprocess_gateway.py at position 4,152. Asked where
+        SubprocessGateway lives, the answer could only ever be incidental
+        mentions in aura_main and interface/server, because the file named
+        after the symbol was never opened — and a third of the repository was
+        unreachable as evidence for the same reason, silently, whatever was
+        asked.
+
+        Listing paths is cheap; reading them is not. So the order is decided
+        first — the file named after the symbol, then implementation, then
+        tooling, then tests — and the budget bounds the reads.
+        """
+        specific = set(filename_candidates or ())
+        wanted = {n.lower() for n in needles} | set(snake.values()) | specific
+        scored: list[tuple[int, str, Path]] = []
+        # Prune while walking, not after. rglob yields every path under
+        # .venv, node_modules and the worktree copies and leaves the caller to
+        # discard them, which cost 1.9s per lookup — more than reading the
+        # files. os.walk can be told not to descend at all.
+        for dirpath, dirnames, filenames in os.walk(self._root):
+            dirnames[:] = [d for d in dirnames if d not in _SKIP_DIRS]
+            here = Path(dirpath)
+            parts = set(here.parts)
+            for filename in filenames:
+                if not filename.endswith(".py"):
+                    continue
+                py = here / filename
+                stem = py.stem.lower()
+                # These buckets are the READ order, and the scoring below
+                # is the RANK. They have to agree: with both named-after
+                # kinds in one bucket, path order decided which was opened
+                # first, and stopping on "enough strong hits" could stop
+                # before the better file — core/consciousness/contract.py
+                # answered "how does the health contract work" while
+                # core/runtime/health_contract.py went unread.
+                if stem in specific:
+                    bucket = 0
+                elif stem in wanted:
+                    bucket = 1
+                elif parts & {"tests", "test"} or stem.startswith("test_"):
+                    bucket = 4
+                elif parts & {"tools", "scripts", "training"}:
+                    bucket = 3
+                else:
+                    bucket = 2
+                scored.append((bucket, str(py), py))
+        scored.sort()
+        return [py for _bucket, _key, py in scored]
+
+    def _inprocess_search(
+        self,
+        terms: list[str],
+        limit: int,
+        filename_candidates: set[str] | None = None,
+    ) -> list[EvidenceSpan]:
         """Priority scan: collect hits for the most specific term first.
 
         Mirrors the ripgrep priority so the defining file of the lead identifier
@@ -416,9 +545,7 @@ class EvidenceProvider:
         def_re = {t: _re.compile(rf"\b(?:def|class)\s+{_re.escape(t)}\b") for t in needles}
         # SubprocessGateway -> subprocess_gateway, so a file named after the
         # symbol can be recognised as its home.
-        snake = {
-            t: _re.sub(r"(?<!^)(?=[A-Z])", "_", t).lower().strip("_") for t in needles
-        }
+        snake = {t: snake_case(t) for t in needles}
         # (score, term_rank, tie) -> span. Candidates are SCORED and sorted
         # rather than taken in walk order: the previous version filled a small
         # per-term bucket first-come-first-served, so six test files could
@@ -431,11 +558,15 @@ class EvidenceProvider:
         counts = {t: 0 for t in needles}
         scanned = 0
         tie = 0
-        for py in self._root.rglob("*.py"):
-            if scanned >= 4000:
+        strong = 0
+        for py in self._search_order(needles, snake, filename_candidates):
+            if scanned >= _MAX_FILES_READ:
                 break
-            if set(py.parts) & _SKIP_DIRS:
-                continue
+            # The order puts the file named after the symbol first, so once
+            # enough hits that strong exist, nothing later can outrank them and
+            # the remaining reads are latency spent for no change in answer.
+            if strong >= limit:
+                break
             scanned += 1
             try:
                 rel = py.relative_to(self._root)
@@ -460,7 +591,18 @@ class EvidenceProvider:
                         score = path_score
                         if def_re[t].search(ln):
                             score += 4.0
-                        if stem == snake[t] or stem == t.lower():
+                        # The ordering and the scoring have to agree about
+                        # what "the file named after this" means, or the right
+                        # file is opened first and then outscored by an
+                        # incidental mention elsewhere.
+                        if stem in (filename_candidates or ()):
+                            # A stem matching several of the asked words is a
+                            # more specific claim than one matching a single
+                            # common term: "how does the health contract work"
+                            # named core/consciousness/contract.py ahead of
+                            # core/runtime/health_contract.py on a tie.
+                            score += 6.0
+                        elif stem == snake[t] or stem == t.lower():
                             score += 5.0
                         # A cap that admits candidates in walk order still lets
                         # early files crowd out the answer: with the cap alone,
@@ -474,6 +616,8 @@ class EvidenceProvider:
                             break
                         counts[t] += 1
                         tie += 1
+                        if score >= _STRONG_EVIDENCE_SCORE:
+                            strong += 1
                         candidates.append(
                             (
                                 -score,

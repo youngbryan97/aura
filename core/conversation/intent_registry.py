@@ -21,8 +21,31 @@ def _install() -> None:
     from core.knowledge.corpus_grounding import is_corpus_groundable
     from core.knowledge.knowledge_gap import detect_knowledge_gap
     from core.runtime.self_state_intent import asks_about_own_capabilities
+    from core.skills.file_modification_intent import requested_file_modification
 
     for matcher in (
+        IntentMatcher(
+            name="requested_file_modification",
+            predicate=requested_file_modification,
+            where="core/skills/file_modification_intent.py",
+            examples=(
+                # The live miss: this planned an overwrite of a file that
+                # already held a line the user wanted kept.
+                'append a line saying "line two" to aura-test-note.txt',
+                'add the line "line two" to the end of notes.txt',
+                "add a note to the bottom of my todo.md",
+                "put a header at the top of readme.md",
+                "stick a footer onto the end of report.md",
+            ),
+            counter_examples=(
+                # Creating and replacing must NOT read as adding, or a new
+                # file inherits whatever a stale file of that name held.
+                "create a file called aura-test-note.txt containing hello",
+                "write a haiku to a file called poem.txt",
+                "overwrite notes.txt with the new list",
+                "save the summary as summary.md",
+            ),
+        ),
         IntentMatcher(
             name="asks_why_she_did_that",
             predicate=asks_why_she_did_that,

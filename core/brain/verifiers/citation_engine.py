@@ -271,11 +271,17 @@ class CitationEngine:
         try:
             from core.brain.evidence_provider import get_evidence_provider
 
-            spans = await asyncio.wait_for(
-                get_evidence_provider().reference_evidence(query, limit=4),
+            result = await asyncio.wait_for(
+                get_evidence_provider().reference_evidence_result(query, limit=4),
                 timeout=1.0,
             )
-            return [span.render()[:_MAX_EVIDENCE_CHARS] for span in spans], False
+            # The provider degrades gracefully, so a corpus that RAISED comes
+            # back as an ordinary empty result. Taking that as "nothing known"
+            # let a broken corpus be reported as the world's silence.
+            return (
+                [span.render()[:_MAX_EVIDENCE_CHARS] for span in result.spans],
+                result.retrieval_failed,
+            )
         except (ImportError, AttributeError, RuntimeError, OSError, ValueError, TypeError, TimeoutError) as exc:
             record_degradation(
                 "citation_engine", exc, severity="warning",

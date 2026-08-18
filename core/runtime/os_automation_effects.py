@@ -119,9 +119,14 @@ _HOME_ANCHORS = {
 }
 _FILENAME_RE = re.compile(r"(?<![\w./~-])([\w-][\w.-]{0,60}\.[A-Za-z0-9]{1,8})(?![\w])")
 _EXPLICIT_PATH_RE = re.compile(r"(?<![\w])((?:~|/)[\w./-]*[\w.])")
+# Every verb here is one that gives a sentence a file to point at. The
+# modification verbs were missing, so "add the line X to the end of notes.txt"
+# named no path at all and the objective fell through to a generic summary
+# folder — the file the request was entirely about was never located.
 _FILE_INTENT_RE = re.compile(
     r"\b(?:file|folder|script|program|app|document|note|report|save|write|create|"
-    r"place|put|generate|build|export|drop)\b",
+    r"place|put|generate|build|export|drop|"
+    r"append|prepend|add|attach|insert|edit|update|modify|amend)\b",
     re.IGNORECASE,
 )
 _FILE_CONTENT_INTENT_RE = re.compile(

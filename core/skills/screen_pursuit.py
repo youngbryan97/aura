@@ -48,8 +48,9 @@ PRESSABLE_KEYS = (
 )
 
 #: How long a single observation may take before the cycle is abandoned. A
-#: screen read is ~1-2s; anything far past that means the capture is wedged
-#: and waiting longer only makes the loop less responsive.
+#: screen read finishes well inside this. A capture still running when the
+#: timeout expires is wedged, and waiting on it only makes the loop less
+#: responsive.
 OBSERVE_TIMEOUT_S = 8.0
 
 

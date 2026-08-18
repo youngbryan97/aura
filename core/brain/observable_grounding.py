@@ -53,7 +53,7 @@ __all__ = [
 ]
 
 #: No single reading may hold the turn. Measured against the slowest reader in
-#: the set (a corpus search over ~7M pages answers in 8-80ms).
+#: the set (over 6.5M pages, the slowest of six cold lookups took 243ms).
 DEFAULT_READ_TIMEOUT_S = 2.5
 
 

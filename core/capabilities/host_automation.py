@@ -1576,9 +1576,9 @@ class HostAutomationProvider:
             # Read the layout in the SAME pass. Vision computes the position of
             # every text run whether or not anyone asks, so taking it here
             # costs one more traversal of a result set already in memory —
-            # against a second full screenshot and a second OCR, which at
-            # ~1-2s each is the difference between a loop that can watch
-            # something change and one that cannot.
+            # against a second full screenshot and a second OCR, which is
+            # the difference between a loop that can watch something
+            # change and one that cannot.
             regions = await asyncio.to_thread(self._ocr_image_regions, str(ss.result))
         except _HOST_AUTOMATION_ERRORS as e:
             ocr_error = str(e)
@@ -1597,8 +1597,8 @@ class HostAutomationProvider:
                 # refusal reads "permission_model_blocked: Modality
                 # 'file_delete' is disabled", and that rule is correct: Aura
                 # may not delete a person's files, and file_delete is
-                # deliberately ungrantable. This is not that. It is the file
-                # she created herself, seconds ago, under her own state root,
+                # deliberately ungrantable. This file is one she created
+                # herself, seconds ago, under her own state root,
                 # explicitly as ephemeral — and leaving it there is the privacy
                 # harm the rule exists to prevent, not a way of avoiding one.
                 with local_internal_governed_scope(

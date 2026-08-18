@@ -21,7 +21,6 @@
       "core/brain/llm/mlx_worker.py": 3,
       "core/brain/llm_health_router.py": 1,
       "core/brain/semantic_memory.py": 1,
-      "core/capabilities/host_automation.py": 1,
       "core/consciousness/affective_steering.py": 5,
       "core/consciousness/criticality_regulator.py": 1,
       "core/consciousness/crsm_loop_monitor.py": 1,
@@ -56,7 +55,7 @@
       "tools/proof/run_rsi_challenge_proof.py": 1,
       "tools/run_rlc_reconciliation_sweep.py": 1
     },
-    "total": 77
+    "total": 76
   },
   "front": {
     "per_file": {

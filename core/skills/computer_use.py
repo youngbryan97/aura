@@ -1932,9 +1932,28 @@ end tell
         path = self._resolve_allowed_desktop_path(payload.get("path"))
         content = str(payload.get("content") or "")
         overwrite = bool(payload.get("overwrite", False))
+        append = bool(payload.get("append", False))
+        prepend = bool(payload.get("prepend", False))
         requested = path
-        if path.exists() and not overwrite:
+        # Adding to a file is not writing a file. Asked to append one line to
+        # a note, the planner emitted a plain overwrite and the reply said
+        # "the file now contains both lines" — the prior line would have been
+        # destroyed. Appending preserves what is there, and the verification
+        # below hashes the WHOLE resulting file, so a truthful receipt is only
+        # possible when the earlier content actually survived.
+        prior = ""
+        if (append or prepend) and path.is_file():
+            prior = path.read_text(encoding="utf-8", errors="replace")
+        elif path.exists() and not overwrite:
             path = self._versioned_path(path)
+        if prepend:
+            if content and not content.endswith("\n") and not prior.startswith("\n"):
+                content += "\n"
+            content = content + prior
+        else:
+            if prior and not prior.endswith("\n") and not content.startswith("\n"):
+                prior += "\n"
+            content = prior + content
         atomic_write_text(path, content, encoding="utf-8")
         expected_digest = hashlib.sha256(content.encode("utf-8")).hexdigest()
         actual_digest = self._file_sha256(path)
@@ -1945,6 +1964,8 @@ end tell
             "path": str(path),
             "requested_path": str(requested),
             "versioned": path != requested,
+            "appended": bool(prior),
+            "preserved_bytes": len(prior.encode("utf-8")),
             "bytes": path.stat().st_size,
             "sha256": actual_digest,
             "effect_verified": verified,

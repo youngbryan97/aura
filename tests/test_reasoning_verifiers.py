@@ -212,17 +212,40 @@ async def test_registry_always_runs_logic():
 
 
 class _FakeCorpusStore:
+    """Stands in for LocalCorpusStore. Its signature is checked below.
+
+    It drifted once: the real `search` grew a `deadline_s` parameter and hits
+    gained `source`, so every call through this double raised and was caught
+    as a retrieval failure. The tests then exercised the empty-corpus path
+    while claiming to prove self-fetch.
+    """
+
     def __init__(self, hits):
         self._hits = hits
 
-    def search(self, query, limit=5):
+    def search(self, query, limit=5, *, deadline_s=None):
         return self._hits[:limit]
 
 
 class _FakeHit:
-    def __init__(self, title, snippet):
+    def __init__(self, title, snippet, source="corpus"):
         self.title = title
         self.snippet = snippet
+        self.source = source
+
+
+def test_the_corpus_double_still_matches_the_real_store():
+    """A double that no longer fits its subject proves nothing."""
+    import inspect
+
+    from core.knowledge.local_corpus import LocalCorpusStore
+
+    real = inspect.signature(LocalCorpusStore.search).parameters
+    fake = inspect.signature(_FakeCorpusStore.search).parameters
+
+    missing = [name for name in real if name not in fake]
+
+    assert not missing, f"_FakeCorpusStore.search is missing {missing}"
 
 
 @pytest.mark.asyncio

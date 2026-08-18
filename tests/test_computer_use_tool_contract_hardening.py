@@ -69,6 +69,20 @@ async def test_computer_use_default_screenshot_fails_honestly_without_backend(mo
     monkeypatch.setattr(pyautogui_runtime, "get_pyautogui", unavailable_pyautogui)
     monkeypatch.setattr(module, "record_degradation", lambda *args, **kwargs: records.append((args, kwargs)))
 
+    # The screen-capture privacy gate is fail-closed and runs BEFORE any
+    # backend is tried, so with no readable frontmost window this refuses on
+    # privacy and never reaches the backend this test is about. Give it a
+    # window it is allowed to capture; the gate still runs.
+    import core.security.screen_capture_policy as policy
+
+    monkeypatch.setattr(
+        policy,
+        "evaluate_screen_capture_admission",
+        lambda **_kw: policy.ScreenCaptureAdmission(
+            allowed=True, reason=None, authority="test"
+        ),
+    )
+
     skill = module.ComputerUseSkill()
 
     with pytest.raises(RuntimeError, match="screen capture unavailable"):

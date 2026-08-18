@@ -50,7 +50,8 @@ __all__ = [
 ]
 
 #: Tight on purpose. A reference lookup that does not answer fast is not worth
-#: a conversational turn's latency; a real topic answers in 8-80ms.
+#: a conversational turn's latency. Measured cold over 6.5M pages, the
+#: slowest of six fresh-process lookups took 243ms.
 SEARCH_DEADLINE_S = 0.35
 
 #: How many passages to carry. More than a few crowds out the live context.
@@ -174,7 +175,14 @@ def corpus_grounding_for(
 
             store = LocalCorpusStore()
         topical = _topical_query(query) or query
-        hits = store.search(topical, limit=max(1, int(limit)), deadline_s=deadline_s)
+        # Ask for more than will be carried. The pool used to equal the limit,
+        # so the three passages kept were simply the three BM25 returned, in
+        # its order: "when did the berlin wall fall" grounded on "The Berlin
+        # Wall (video game)" because that row happened to rank first. Ranking
+        # needs candidates to rank, and the relevance filter below discards
+        # some of them, so the pool has to be larger than the answer.
+        pool = max(1, int(limit)) * _CANDIDATE_POOL_FACTOR
+        hits = store.search(topical, limit=pool, deadline_s=deadline_s)
     except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
         return CorpusGrounding(query=query, passages=())
     passages: list[tuple[str, str]] = []
@@ -186,7 +194,61 @@ def corpus_grounding_for(
         if not _is_relevant(topical, title, text):
             continue
         passages.append((title, text))
-    return CorpusGrounding(query=query, passages=tuple(passages))
+    passages.sort(key=lambda p: _title_distance(topical, p[0]))
+    return CorpusGrounding(
+        query=query, passages=tuple(passages[: max(1, int(limit))])
+    )
+
+
+#: Candidates fetched per passage carried. Ranking cannot improve on an
+#: ordering it is handed whole, so the pool must exceed the answer; four
+#: leaves room for the relevance filter to reject most of a page of hits.
+_CANDIDATE_POOL_FACTOR = 4
+
+#: English function words, which carry no subject matter in a page title.
+_FUNCTION_WORDS = frozenset(
+    "a an the of in on at to for from and or with by as is are was were".split()
+)
+
+_DISAMBIGUATED_RE = re.compile(r"\s*\([^)]*\)\s*$")
+_AGGREGATE_TITLE_RE = re.compile(
+    r"^(?:list of|index of|outline of|timeline of|glossary of|"
+    r"comparison of|history of)\b",
+    re.IGNORECASE,
+)
+
+
+def _title_distance(query: str, title: str) -> tuple[int, int, int]:
+    """How far a page title sits from the subject that was asked about.
+
+    BM25 ranks by term statistics, which puts "The Berlin Wall (video game)"
+    and "Ada Lovelace Award" above the articles a person meant. Both are real
+    pages about something adjacent, and the filter above cannot tell them
+    apart because they genuinely carry the asked-about words.
+
+    What separates them is the TITLE: an encyclopaedia names its main article
+    after the subject and everything else after the subject plus a qualifier.
+    So a title is ordered by how much it adds to what was asked, aggregates
+    and parenthetical variants last. Sorted, not filtered — a qualified page
+    is still the best grounding available when nothing plainer exists.
+    """
+    bare = _DISAMBIGUATED_RE.sub("", str(title or "")).strip()
+    lowered = bare.lower()
+    asked = " ".join(str(query or "").lower().split())
+    qualified = int(bool(_DISAMBIGUATED_RE.search(str(title or ""))))
+    aggregate = int(bool(_AGGREGATE_TITLE_RE.match(lowered)))
+    asked_terms = set(re.findall(r"[a-z0-9]+", asked))
+    if lowered == asked or set(re.findall(r"[a-z0-9]+", lowered)) == asked_terms:
+        return (0, aggregate, qualified)
+    # Function words are not added subject matter. Counting them ranked
+    # "Beloved Berlin Wall" above "Fall of the Berlin Wall", because "of" and
+    # "the" scored as two extra topics.
+    extra = len([
+        t
+        for t in re.findall(r"[a-z0-9]+", lowered)
+        if t not in asked_terms and t not in _FUNCTION_WORDS
+    ])
+    return (1 + extra, aggregate, qualified)
 
 
 def _is_relevant(query: str, title: str, text: str) -> bool:
@@ -217,5 +279,13 @@ def _is_relevant(query: str, title: str, text: str) -> bool:
     # missing "web" and "framework", which are the two words that said WHICH
     # Django. The discriminating terms are usually the ones a wrong-sense hit
     # lacks, so the bar has to sit above half.
-    needed = max(2, -(-len(terms) * 3 // 5))
+    #
+    # The floor cannot exceed what the query HAS. "what is a semiconductor"
+    # reduces to the single term "semiconductor", so a floor of two demanded a
+    # match this query could never supply: three good hits arrived, all three
+    # were discarded, and the offline corpus answered nothing at all for every
+    # one-word subject — semiconductor, photosynthesis, gravity. When a query
+    # carries one term, that term IS the subject rather than an incidental
+    # word, so requiring it is already the strictest bar available.
+    needed = min(len(terms), max(2, -(-len(terms) * 3 // 5)))
     return matched >= needed

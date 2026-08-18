@@ -33,6 +33,7 @@ from core.runtime.desktop_task_contract import (
 from core.runtime.errors import record_degradation
 from core.runtime.os_automation_effects import canonical_app_target, extract_target_paths
 from core.skills.base_skill import BaseSkill
+from core.skills.file_modification_intent import requested_file_modification
 from core.skills.os_affordances import detect_os_settings, get_affordance
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
@@ -201,6 +202,18 @@ class DesktopTaskParams(BaseModel):
 #: request. Matching markers inside a path is how "live-source" made a
 #: directory listing into a research assignment.
 _PATHS_IN_TEXT_RE = re.compile(r"(?<![\w/])~?/[\w.\-]+(?:/[\w.\-]+)*/?")
+
+
+def _without_filenames(text: str) -> str:
+    """The text with filename tokens blanked, for matching names that are apps.
+
+    "notes.txt", "pages.md", "preview.pdf" each contain an installed app name,
+    and matching one as an app sends a file edit into an application that
+    never touches the file. Blanking the token rather than banning the name
+    keeps "open preview.pdf in Preview" naming both: the filename stops
+    claiming the app, the app still does.
+    """
+    return re.sub(r"\b[\w-]+\.[A-Za-z0-9]{1,6}\b", " ", str(text or ""))
 
 
 class DesktopTaskSkill(BaseSkill):
@@ -911,8 +924,15 @@ class DesktopTaskSkill(BaseSkill):
         # Word-boundary matching: the bare substring scan opened
         # Microsoft Word because the objective said "in your own words"
         # — a fatal launch on Macs without Word. Apps must be NAMED.
+        #
+        # A word boundary is not enough on its own, because "." is one:
+        # "add a line to the end of notes.txt" matched \bnotes\b and routed a
+        # file edit into the Notes app, where the file on disk was never
+        # touched. A name carrying a file extension is a FILENAME — same
+        # failure as "in your own words", one punctuation mark along.
+        named = _without_filenames(text)
         for marker, app in app_markers.items():
-            if re.search(rf"\b{re.escape(marker)}\b", text) and app not in apps:
+            if re.search(rf"\b{re.escape(marker)}\b", named) and app not in apps:
                 if marker == "browser" and "chrome" in text:
                     continue
                 apps.append(app)
@@ -947,7 +967,7 @@ class DesktopTaskSkill(BaseSkill):
                     rf"in|into|inside|with|via|from)\s+"
                     rf"(?:up\s+)?(?:my\s+|the\s+|a\s+)?"
                     rf"{re.escape(lowered_name)}\b",
-                    text,
+                    named,
                 ):
                     apps.append(name)
         except _DESKTOP_TASK_RECOVERABLE_ERRORS as exc:
@@ -4192,6 +4212,31 @@ class DesktopTaskSkill(BaseSkill):
                     ),
                 ]
             body = self._inline_sentence_for(text) or self._document_body(text, context)
+            # ADD to a file and REPLACE a file are the same path apart from the
+            # verb, and collapsing them destroys the earlier content. See
+            # core/skills/file_modification_intent.py.
+            modification = requested_file_modification(text)
+            if modification is not None:
+                payload = {"path": named_paths[0], "content": body}
+                if modification.mode == "append":
+                    payload["append"] = True
+                else:
+                    payload["prepend"] = True
+                return [
+                    DesktopTaskStep(
+                        action="write_text_file",
+                        target=json.dumps(payload),
+                        reason=(
+                            f"The request adds to an existing file "
+                            f"({modification.mode}); its content must survive."
+                        ),
+                        expect=(
+                            f"{named_paths[0]} keeps what it held and now also "
+                            "carries the requested line."
+                        ),
+                        critical=True,
+                    ),
+                ]
             return [
                 DesktopTaskStep(
                     action="write_text_file",
