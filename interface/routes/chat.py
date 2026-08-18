@@ -13346,6 +13346,23 @@ def _is_screen_perception_objective(user_message: str) -> bool:
         return False
 
 
+def _asks_what_is_on_the_screen(user_message: str) -> bool:
+    """A screen QUESTION, as distinct from any objective mentioning a screen.
+
+    _is_screen_perception_objective also matches "put BUILD-42 on my clipboard"
+    — a write, not a question — so using it here blocked a real desktop action
+    from the executor path it belongs on. The registry's matcher is
+    question-shaped and was already carrying this judgement.
+    """
+
+    try:
+        from core.brain.observable_registry import _matches_screen
+
+        return bool(_matches_screen(str(user_message or "")))
+    except (ImportError, AttributeError, TypeError, ValueError):
+        return False
+
+
 def _screen_perception_needs_her_answer(user_message: str) -> bool:
     """A screen question that a description cannot answer.
 
@@ -13377,6 +13394,24 @@ def _desktop_objective_self_sufficient_without_cognitive_text(user_message: str)
     if _chat_capability_inventory._looks_like_program_dna_execution_request(user_message):
         return False
     if not _chat_preflight._looks_like_desktop_objective(user_message):
+        return False
+    if _asks_what_is_on_the_screen(user_message):
+        # A screen question is never answered by a PROMISE to look.
+        #
+        # The self-sufficient path returns "I will execute this through the
+        # governed desktop_task lane and report only receipt-verified effects"
+        # without invoking the engine. For "what's on my screen right now?"
+        # that placeholder was then refused by the authorship gate — it is not
+        # her answer, because it is not an answer — and the turn failed closed
+        # with "I couldn't get to an answer I'd stand behind on that one",
+        # measured live 2026-08-17.
+        #
+        # The narrower predicate below admitted only questions a description
+        # cannot answer ("what was that repo you saw?"), on the reasoning that
+        # a plain "what's on my screen" IS served by the reading. That is true,
+        # and it is served by the reading arriving as grounding — which now
+        # happens through the observable registry — not by a sentence about
+        # what the executor intends to do.
         return False
     if _screen_perception_needs_her_answer(user_message):
         # A specific question about the screen is not self-sufficient: the
