@@ -134,7 +134,57 @@ def is_unresearchable_goal(value: Any) -> bool:
         return True
     if is_desktop_action_goal(text):
         return True
+    if is_runtime_status_goal(text):
+        return True
     return False
+
+
+#: Her own current state, written as a sentence. These are UI activity labels
+#: and status lines, not subjects.
+_RUNTIME_STATUS_SUBJECTS = (
+    "aura", "the runtime", "the system", "the engine", "the cortex",
+    "the model", "the desktop", "she", "i",
+)
+_RUNTIME_STATUS_STATES = (
+    "idle", "typing", "thinking", "searching", "generating", "executing",
+    "analyzing", "analysing", "managing", "interacting", "checking",
+    "warming", "warming up", "loading", "booting", "starting", "sleeping",
+    "dreaming", "listening", "speaking", "waiting", "ready", "online",
+    "offline", "busy", "running", "shutting down", "recovering",
+)
+_RUNTIME_STATUS_RE = re.compile(
+    r"^\s*(?:%s)\s+(?:is|was|are|were|'s)\s+(?:currently\s+|now\s+)?(?:%s)\b"
+    % (
+        "|".join(re.escape(subject) for subject in _RUNTIME_STATUS_SUBJECTS),
+        "|".join(re.escape(state) for state in _RUNTIME_STATUS_STATES),
+    ),
+    re.IGNORECASE,
+)
+
+
+def is_runtime_status_goal(value: Any) -> bool:
+    """True when the text is her own status rather than a subject.
+
+    LIVE 2026-08-17, from the neural stream:
+
+        [SubjectiveChoice] Chose 'Deconstruct and comprehensively research:
+        Aura is idle' because preference alignment 0.00 and drive alignment
+        0.49 produced final score 0.27.
+
+    "Aura is idle." is a UI activity label. It reached the knowledge graph as a
+    sparse node, was drawn as a research topic, and became a durable goal that
+    set her focus and spawned a research shard — to investigate a fact she
+    already holds, about herself, that a status field answers exactly.
+
+    The filter already refused stale receipts, prompt scaffolds and desktop
+    actions. Her own state is the same category of thing: something the runtime
+    KNOWS, so researching it is not curiosity but a loop.
+    """
+
+    text = normalize_goal_text(value)
+    if not text:
+        return False
+    return bool(_RUNTIME_STATUS_RE.search(text))
 
 
 #: Words a research topic cannot end on — the phrase was still going.
