@@ -186,6 +186,8 @@ def test_mlx_surface_receipt_reports_contract_tokens_and_repair():
         },
         {
             "enabled": True,
+            "generation_stop_reason": "configured_stop",
+            "generation_configured_stop_sequence": "<|im_start|>",
             "instruction_shape_repair_applied": True,
             "surface_quality_gate_enabled": True,
             "surface_quality_gate_passed": True,
@@ -203,6 +205,8 @@ def test_mlx_surface_receipt_reports_contract_tokens_and_repair():
     receipt = client.get_last_surface_control_receipt()
     assert receipt["generation_max_tokens"] == 48
     assert receipt["generated_tokens"] == 11
+    assert receipt["generation_stop_reason"] == "configured_stop"
+    assert receipt["generation_configured_stop_sequence"] == "<|im_start|>"
     assert receipt["instruction_shape_repair_applied"] is True
     assert receipt["requested_output_contract"]["kind"] == "sentence_count"
 

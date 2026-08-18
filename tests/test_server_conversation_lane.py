@@ -11584,8 +11584,8 @@ async def test_truncated_foreground_answer_gets_one_same_worker_continuation(mon
     )
 
     reply = await chat_routes._run_cognitive_engine_chat_turn(
-        "Explain what this code does and give the final result.",
-        visible_user_message="Explain what this code does and give the final result.",
+        "Explain what this code does.",
+        visible_user_message="Explain what this code does.",
         origin="user",
         timeout_s=60.0,
         lane={"conversation_ready": True, "state": "ready", "foreground_endpoint": "Cortex"},
@@ -11598,7 +11598,7 @@ async def test_truncated_foreground_answer_gets_one_same_worker_continuation(mon
     assert reply.endswith("peak.")
     assert len(engine.calls) == 2
     assert engine.calls[1][1]["user_surface_completion_retry"] is True
-    assert engine.calls[1][0] == "Explain what this code does and give the final result."
+    assert engine.calls[1][0] == "Explain what this code does."
     assert engine.calls[1][1]["desktop_quick_reply_contract"] is True
     assert engine.calls[1][1]["user_surface_continuation_contract"] is True
     assert engine.calls[1][1]["user_surface_continuation_partial"].endswith("from the")
@@ -11812,10 +11812,94 @@ async def test_truncated_completion_replacement_cannot_become_authoritative(monk
         turn_trace=trace,
     )
 
-    assert reply is None
+    assert reply is not None
+    assert reply.endswith("where active balances reach the")
     assert engine.calls == 3
     assert trace["completion_retry_count"] == 2
     assert trace["foreground_model_generation_count"] == 3
+    assert trace["completion_incumbent_preserved"] is True
+    assert trace["completion_retry_exhausted"] is True
+    assert trace["response_path"] == "cognitive_engine_completion_incumbent"
+
+
+@pytest.mark.asyncio
+async def test_empty_completion_cannot_erase_a_valid_incumbent(monkeypatch):
+    from core.providers import engine_connection_pool as pool_module
+    from interface.routes import chat as chat_routes
+
+    first_metadata = _bound_live_mind_controls_metadata()
+    first_metadata.update(
+        {
+            "reply_generation_incomplete": True,
+            "reply_generation_stop_reason": "configured_stop",
+            "reply_generation_failure_reasons": ["unanswered_question_part"],
+        }
+    )
+    second_metadata = _bound_live_mind_controls_metadata()
+
+    class _FakeCognitiveEngine:
+        def __init__(self):
+            self.calls = 0
+
+        async def think(self, *_args, **_kwargs):
+            self.calls += 1
+            if self.calls == 1:
+                return SimpleNamespace(
+                    content=(
+                        "Dijkstra's invariant finalizes the unsettled vertex with "
+                        "minimum tentative distance when all edges are nonnegative."
+                    ),
+                    metadata=first_metadata,
+                )
+            return SimpleNamespace(content="", metadata=second_metadata)
+
+    class _Pool:
+        async def acquire_engine_connection(self, *_args, **_kwargs):
+            return None
+
+        async def execute_with_retry(self, _name, operation, **_kwargs):
+            return await operation()
+
+    engine = _FakeCognitiveEngine()
+    trace = {}
+    monkeypatch.setattr(pool_module, "get_engine_connection_pool", lambda: _Pool())
+    monkeypatch.setattr(
+        chat_routes,
+        "_desktop_secondary_model_repair_allowed",
+        lambda **_kwargs: (True, "completion_retry_ready"),
+    )
+    monkeypatch.setattr(
+        chat_routes,
+        "_gather_recent_user_messages_for_relevance",
+        AsyncCallFixture(return_value=[]),
+    )
+    monkeypatch.setattr(
+        chat_routes.ServiceContainer,
+        "get",
+        staticmethod(
+            lambda name, default=None: engine if name == "cognitive_engine" else default
+        ),
+    )
+
+    reply = await chat_routes._run_cognitive_engine_chat_turn(
+        "Explain Dijkstra and include a worked example.",
+        visible_user_message="Explain Dijkstra and include a worked example.",
+        origin="user",
+        timeout_s=60.0,
+        lane={"conversation_ready": True, "state": "ready", "foreground_endpoint": "Cortex"},
+        source="desktop_ui",
+        require_engine=True,
+        turn_trace=trace,
+    )
+
+    assert reply == (
+        "Dijkstra's invariant finalizes the unsettled vertex with minimum "
+        "tentative distance when all edges are nonnegative."
+    )
+    assert engine.calls == 2
+    assert trace["completion_incumbent_preserved"] is True
+    assert trace["completion_retry_failure_reason"] == "continuation_empty"
+    assert trace["response_path"] == "cognitive_engine_completion_incumbent"
 
 
 @pytest.mark.asyncio

@@ -50902,3 +50902,26 @@ complete conversation-lane suite passes `316/316`; canonical smoke passes
 a clean installed-app rebuild followed by repeated long foreground replies on
 the live resident lane, with end-to-end latency, stop receipts, neural-stream
 warnings and terminal errors observed before the CP569 shadow campaign resumes.
+
+## Checkpoint 2026-08-18-811: Make Foreground Completion Append-Only
+
+The live resident lane produced a valid `2,130`-character Dijkstra draft, found
+that one requested part remained open, and started a same-owner continuation.
+The continuation returned no visible text and the route discarded the valid
+incumbent before serving an infrastructure apology. A repair attempt may now
+extend authored text, but timeout, admission refusal, empty output, a failure
+envelope or an incomplete final extension cannot erase the newest valid
+incumbent. The turn trace records preservation and keeps the CognitiveEngine
+reply authoritative instead of misclassifying it as a model failure.
+
+The semantic completion controller now owns both exact ChatML message-boundary
+tokens, not only the tokenizer's advertised EOS. The worker also carries the
+exact configured stop sequence through its signed surface receipt. This makes a
+premature next-turn boundary mechanically suppressible and leaves enough
+evidence to distinguish protocol termination from role drift on the live path.
+
+Focused completion and receipt contracts pass `30/30`; the expanded focused
+set passes `29/29`; canonical smoke passes `113/113`; compile and Ruff pass.
+This checkpoint does not claim the live answer is complete. The next gate is an
+installed-app rebuild and a real desktop-path compound answer whose visible
+response, stop receipt, terminal stream and neural stream are all inspected.

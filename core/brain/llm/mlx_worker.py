@@ -773,6 +773,9 @@ def _surface_generation_control_receipt(
         "semantic_output_token_cap": job.get("semantic_output_token_cap"),
         "hard_output_token_ceiling": job.get("hard_output_token_ceiling"),
         "generation_stop_reason": state.get("generation_stop_reason"),
+        "generation_configured_stop_sequence": state.get(
+            "generation_configured_stop_sequence"
+        ),
         "instruction_shape_repair_applied": bool(
             state.get("instruction_shape_repair_applied", False)
         ),
@@ -1092,8 +1095,15 @@ def _loop_abort_prefix_is_servable(
     return not _surface_quality_failure_reasons(job, body)
 
 
-def _semantic_completion_eos_ids(tokenizer: Any) -> tuple[int, ...]:
-    """Return every EOS id the active tokenizer exposes."""
+def _semantic_completion_terminal_ids(tokenizer: Any) -> tuple[int, ...]:
+    """Return every token that can commit the current assistant message.
+
+    Qwen tokenizers do not consistently expose ``<|im_end|>`` through
+    ``eos_token_id``. The streaming loop still treats that protocol token as a
+    configured stop, so an incomplete compound answer could bypass the
+    semantic completion controller and commit early. Bind both tokenizer EOS
+    ids and exact, single-token assistant terminators to the same controller.
+    """
 
     raw_ids = getattr(tokenizer, "eos_token_ids", None)
     if raw_ids is None:
@@ -1104,15 +1114,41 @@ def _semantic_completion_eos_ids(tokenizer: Any) -> tuple[int, ...]:
         candidates = tuple(raw_ids or ())
     except TypeError:
         candidates = ()
-    return tuple(
-        sorted(
-            {
-                int(token_id)
-                for token_id in candidates
-                if isinstance(token_id, int) and int(token_id) >= 0
-            }
-        )
-    )
+    terminal_ids = {
+        int(token_id)
+        for token_id in candidates
+        if isinstance(token_id, int) and int(token_id) >= 0
+    }
+    for token_text in ("<|im_end|>", "<|im_start|>"):
+        token_id: Any = None
+        convert = getattr(tokenizer, "convert_tokens_to_ids", None)
+        if callable(convert):
+            try:
+                token_id = convert(token_text)
+            except (AttributeError, KeyError, RuntimeError, TypeError, ValueError):
+                token_id = None
+        if not isinstance(token_id, int) or token_id < 0:
+            encode = getattr(tokenizer, "encode", None)
+            if callable(encode):
+                try:
+                    encoded = encode(token_text, add_special_tokens=False)
+                except TypeError:
+                    encoded = encode(token_text)
+                except (AttributeError, KeyError, RuntimeError, ValueError):
+                    encoded = ()
+                if isinstance(encoded, (list, tuple)) and len(encoded) == 1:
+                    token_id = encoded[0]
+        if not isinstance(token_id, int) or token_id < 0:
+            continue
+        decode = getattr(tokenizer, "decode", None)
+        if callable(decode):
+            try:
+                if str(decode([token_id]) or "") != token_text:
+                    continue
+            except (AttributeError, KeyError, RuntimeError, TypeError, ValueError):
+                continue
+        terminal_ids.add(token_id)
+    return tuple(sorted(terminal_ids))
 
 
 def _build_semantic_completion_eos_guard(
@@ -1132,8 +1168,8 @@ def _build_semantic_completion_eos_guard(
 
     if not bool(job.get("semantic_completion_contract", False)):
         return None
-    eos_ids = _semantic_completion_eos_ids(tokenizer)
-    if not eos_ids:
+    terminal_ids = _semantic_completion_terminal_ids(tokenizer)
+    if not terminal_ids:
         return None
     prompt_tokens = max(0, int(prompt_token_count))
     state: dict[str, Any] = {
@@ -1149,7 +1185,7 @@ def _build_semantic_completion_eos_guard(
         except (AttributeError, IndexError, RuntimeError, TypeError, ValueError):
             top_token = -1
         bucket = generated_count // 8
-        natural_eos = top_token in eos_ids
+        natural_eos = top_token in terminal_ids
         if generated_count >= 8 and (bucket != state["bucket"] or natural_eos):
             state["bucket"] = bucket
             try:
@@ -1174,7 +1210,7 @@ def _build_semantic_completion_eos_guard(
         # cancellation and sentinel interruptions still return their explicit
         # stop receipts and use the bounded same-owner continuation path.
         mask = tensor_ops.zeros_like(logits)
-        for token_id in eos_ids:
+        for token_id in terminal_ids:
             try:
                 mask[:, token_id] = -float("inf")
             except (IndexError, TypeError, ValueError):
@@ -6586,6 +6622,7 @@ def _mlx_worker_loop(
                                     sentinel_ontology_aborted = False
                                     role_continuation_hit = False
                                     configured_stop_hit = False
+                                    configured_stop_sequence = ""
                                     hard_token_limit_hit = False
                                     semantic_contract_satisfied = False
                                     job_seq = _safe_int(job.get("seq"), 0)
@@ -7009,6 +7046,7 @@ def _mlx_worker_loop(
                                                 if s in current_response:
                                                     current_response = current_response.split(s)[0]
                                                     configured_stop_hit = True
+                                                    configured_stop_sequence = s
                                                     break
                                             break
 
@@ -7099,6 +7137,7 @@ def _mlx_worker_loop(
                                             if stop_index >= 0:
                                                 current_response = current_response[:stop_index]
                                                 configured_stop_hit = True
+                                                configured_stop_sequence = stop
                                                 stop_hit = True
                                                 break
                                         if stop_hit:
@@ -8146,6 +8185,9 @@ def _mlx_worker_loop(
                         ),
                     )
                     surface_control_state["generation_stop_reason"] = generation_stop_reason
+                    surface_control_state["generation_configured_stop_sequence"] = (
+                        configured_stop_sequence
+                    )
                     generate_payload: dict[str, Any] = {
                         "id": job.get("id"),
                         "action": "generate",
@@ -8176,6 +8218,7 @@ def _mlx_worker_loop(
                         "soft_cancelled": bool(soft_cancelled),
                         "deadline_exceeded": bool(deadline_hit),
                         "generation_stop_reason": generation_stop_reason,
+                        "generation_configured_stop_sequence": configured_stop_sequence,
                         "speculative": {
                             "enabled": bool(use_speculative),
                             "draft_tokens_accepted": int(draft_accepted_tokens),

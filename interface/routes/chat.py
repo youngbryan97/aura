@@ -6053,13 +6053,41 @@ async def _run_cognitive_engine_chat_turn(
             rejected_reply,
             normalized_reasons,
         )
+
+        def _retain_completion_incumbent(
+            failure_reason: str,
+            candidate: str | None = None,
+        ) -> str | None:
+            """Keep model-authored progress when append-only completion fails."""
+
+            incumbent = str(candidate if candidate is not None else rejected_reply or "").strip()
+            if not completion_only_retry or not incumbent:
+                return None
+            if turn_trace is not None:
+                turn_trace.update(
+                    {
+                        "completion_incumbent_preserved": True,
+                        "completion_retry_exhausted": True,
+                        "completion_retry_failure_reason": str(failure_reason or "unknown")[:240],
+                        "completion_incumbent_chars": len(incumbent),
+                    }
+                )
+            logger.warning(
+                "CognitiveEngine completion could not extend the %d-character "
+                "incumbent (%s); retaining authored progress instead of "
+                "replacing it with an infrastructure failure.",
+                len(incumbent),
+                failure_reason,
+            )
+            return incumbent
+
         if completion_only_retry and completion_attempt >= _MAX_USER_SURFACE_CONTINUATIONS:
             logger.warning(
                 "CognitiveEngine exhausted %d bounded continuation attempts; "
                 "withholding the incomplete answer.",
                 _MAX_USER_SURFACE_CONTINUATIONS,
             )
-            return None
+            return _retain_completion_incumbent("continuation_attempt_limit")
         if require_engine:
             if bool(
                 turn_trace
@@ -6096,7 +6124,9 @@ async def _run_cognitive_engine_chat_turn(
                     "live desktop turns stay bounded to one foreground generation by default.",
                     block_reason,
                 )
-                return None
+                return _retain_completion_incumbent(
+                    f"continuation_admission_denied:{block_reason}"
+                )
             if turn_trace is not None and not completion_only_retry:
                 turn_trace["repair_retry_attempt_count"] = (
                     int(turn_trace.get("repair_retry_attempt_count") or 0) + 1
@@ -6110,7 +6140,9 @@ async def _run_cognitive_engine_chat_turn(
         except _CHAT_RECOVERABLE_ERRORS as exc:
             record_degradation("chat", exc)
             logger.debug("CognitiveEngine repair retry gate unavailable: %s", exc)
-            return None
+            return _retain_completion_incumbent(
+                f"continuation_reliability_unavailable:{type(exc).__name__}"
+            )
 
         repair_directive = ""
         if not completion_only_retry:
@@ -6215,13 +6247,15 @@ async def _run_cognitive_engine_chat_turn(
                 repair_timeout,
                 no_reply_action,
             )
-            return None
+            return _retain_completion_incumbent("continuation_timeout")
         except _CHAT_RECOVERABLE_ERRORS as exc:
             record_degradation("chat", exc)
             logger.warning(
                 "CognitiveEngine desktop chat repair retry failed; %s: %s", no_reply_action, exc
             )
-            return None
+            return _retain_completion_incumbent(
+                f"continuation_exception:{type(exc).__name__}"
+            )
 
         retry_metadata = getattr(repair_thought, "metadata", None)
         if not isinstance(retry_metadata, dict) and isinstance(repair_thought, dict):
@@ -6244,9 +6278,7 @@ async def _run_cognitive_engine_chat_turn(
             logger.warning(
                 "CognitiveEngine desktop chat repair retry produced no user-facing text."
             )
-            return None
-        if completion_only_retry:
-            retry_text = _merge_reply_continuation(rejected_reply, retry_text)
+            return _retain_completion_incumbent("continuation_empty")
         if bool(
             retry_metadata.get("desktop_cognitive_engine_failure")
         ) or is_cognitive_engine_failure_envelope(retry_text):
@@ -6254,7 +6286,9 @@ async def _run_cognitive_engine_chat_turn(
                 "CognitiveEngine desktop chat repair retry produced a failure envelope; %s.",
                 no_reply_action,
             )
-            return None
+            return _retain_completion_incumbent("continuation_failure_envelope")
+        if completion_only_retry:
+            retry_text = _merge_reply_continuation(rejected_reply, retry_text)
         retry_projection_trace: dict[str, Any] = {"live_mind_surface_control_receipt": {}}
         if self_condition_contract and self_condition_contract_covers_turn:
             retry_text = _project_self_condition_claims(
@@ -6344,7 +6378,10 @@ async def _run_cognitive_engine_chat_turn(
                 retry_stop_reason or "unknown",
                 ",".join(sorted(retry_failure_reasons)) or "unknown",
             )
-            return None
+            return _retain_completion_incumbent(
+                "continuation_remained_incomplete",
+                retry_text,
+            )
 
         def _accept_retry_text(
             final_text: Any,
@@ -6532,10 +6569,17 @@ async def _run_cognitive_engine_chat_turn(
             tuple(continuation_reasons or ("truncated_tail",)),
         )
         if continued:
+            preserved_incumbent = bool(
+                turn_trace and turn_trace.get("completion_incumbent_preserved")
+            )
             _mark_turn_trace(
                 cognitive_engine_reply_accepted=True,
                 cognitive_engine_reply_failed=False,
-                response_path="cognitive_engine_completion_retry",
+                response_path=(
+                    "cognitive_engine_completion_incumbent"
+                    if preserved_incumbent
+                    else "cognitive_engine_completion_retry"
+                ),
             )
             return continued
         _mark_turn_trace(
@@ -6825,10 +6869,17 @@ async def _run_cognitive_engine_chat_turn(
         )
         retry_reply = await _attempt_repair_retry(text, incomplete_reasons)
         if retry_reply:
+            preserved_incumbent = bool(
+                turn_trace and turn_trace.get("completion_incumbent_preserved")
+            )
             _mark_turn_trace(
                 cognitive_engine_reply_accepted=True,
                 cognitive_engine_reply_failed=False,
-                response_path="cognitive_engine_completion_retry",
+                response_path=(
+                    "cognitive_engine_completion_incumbent"
+                    if preserved_incumbent
+                    else "cognitive_engine_completion_retry"
+                ),
             )
             return retry_reply
         _mark_turn_trace(
