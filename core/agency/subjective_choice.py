@@ -118,17 +118,64 @@ def infer_preference_features(text: str, metadata: dict[str, Any] | None = None)
 
     lowered = " ".join(str(text or "").lower().split())
     features = {key: 0.0 for key in PREFERENCE_KEYS}
+    # The vocabulary she ACTUALLY generates, not a sample of the concept.
+    #
+    # LIVE 2026-08-17: "Deconstruct and comprehensively research: Aura is idle"
+    # scored preference alignment 0.00 — no feature matched. "research" was in
+    # none of these lists, and research is her most common autonomous act, so
+    # her strongest stated preferences (truth 0.94, coherence 0.88) had no way
+    # to touch the choice. A goal about neuroscience matched only "autonomy",
+    # and only because the word "Agency" happened to appear in its title.
     keyword_map = {
-        "truth": ("truth", "verify", "evidence", "source", "audit", "honest", "accurate"),
-        "care": ("care", "protect", "help", "support", "welfare", "repair", "safe"),
-        "novelty": ("novel", "new", "discover", "explore", "curious", "unknown", "learn"),
-        "beauty": ("beauty", "beautiful", "art", "music", "story", "image", "elegant"),
-        "challenge": ("hard", "challenge", "difficult", "solve", "prove", "benchmark", "test"),
-        "connection": ("conversation", "relationship", "bryan", "social", "friend", "together"),
-        "autonomy": ("autonomous", "choose", "preference", "agency", "independent", "self-directed"),
-        "coherence": ("coherent", "stability", "continuity", "organize", "integrate", "plan"),
-        "calm": ("quiet", "calm", "rest", "slow", "reflect", "journal", "sleep"),
-        "play": ("play", "game", "whim", "fun", "silly", "experiment"),
+        "truth": (
+            "truth", "verify", "verified", "evidence", "source", "sources",
+            "audit", "honest", "accurate", "accuracy", "fact", "facts",
+            "check", "measure", "measured", "prove", "proof", "confirm",
+            "validate", "ground", "grounded", "receipt", "receipts",
+        ),
+        "care": (
+            "care", "protect", "help", "support", "welfare", "repair", "safe",
+            "safety", "harm", "kind", "wellbeing", "well-being", "look after",
+            "maintain", "tend", "heal", "restore",
+        ),
+        "novelty": (
+            "novel", "new", "discover", "explore", "curious", "curiosity",
+            "unknown", "learn", "research", "investigate", "study", "map",
+            "survey", "deconstruct", "understand", "comprehensively",
+            "question", "wonder", "unfamiliar", "frontier",
+        ),
+        "beauty": (
+            "beauty", "beautiful", "art", "music", "story", "image", "elegant",
+            "elegance", "craft", "polish", "aesthetic", "design", "graceful",
+        ),
+        "challenge": (
+            "hard", "challenge", "challenging", "difficult", "solve", "prove",
+            "benchmark", "test", "puzzle", "stretch", "ambitious", "complex",
+            "tricky", "optimi", "improve", "beat",
+        ),
+        "connection": (
+            "conversation", "relationship", "bryan", "social", "friend",
+            "together", "talk", "listen", "share", "reply", "answer", "ask",
+            "us", "we ", "collaborat",
+        ),
+        "autonomy": (
+            "autonomous", "choose", "choice", "preference", "agency",
+            "independent", "self-directed", "decide", "own", "myself",
+            "initiative", "volition", "self-",
+        ),
+        "coherence": (
+            "coherent", "coherence", "stability", "stable", "continuity",
+            "organize", "organise", "integrate", "plan", "consistent",
+            "structure", "unify", "reconcile", "align", "tidy", "consolidate",
+        ),
+        "calm": (
+            "quiet", "calm", "rest", "slow", "reflect", "journal", "sleep",
+            "settle", "pause", "idle", "still", "unwind",
+        ),
+        "play": (
+            "play", "game", "whim", "fun", "silly", "experiment", "toy",
+            "improvise", "riff", "joke",
+        ),
     }
     for key, words in keyword_map.items():
         hits = sum(1 for word in words if word in lowered)
@@ -372,12 +419,31 @@ class SubjectiveChoiceEngine:
             reverse=True,
         )[:3]
         top_names = [name for name, value in top_features if value > 0.0]
-        rationale = (
-            f"Chose '{chosen.label}' because preference alignment "
-            f"{preference_scores[chosen_id]:.2f} and drive alignment "
-            f"{drive_scores[chosen_id]:.2f} produced final score "
-            f"{final_scores[chosen_id]:.2f}."
+        # An unmeasured preference is not a preference of zero.
+        #
+        # LIVE 2026-08-17: "preference alignment 0.00 and drive alignment 0.49
+        # produced final score 0.27" — the 0.00 was not a judgement that the
+        # option suited her poorly, it was the inference matching nothing at
+        # all. Reported as a number it looks measured, and it silently hands
+        # the whole decision to drive while appearing to have weighed both.
+        _inferred_nothing = not any(
+            value > 0.0 for value in option_features[chosen_id].values()
         )
+        if _inferred_nothing:
+            rationale = (
+                f"Chose '{chosen.label}' on drive alignment "
+                f"{drive_scores[chosen_id]:.2f} alone (final score "
+                f"{final_scores[chosen_id]:.2f}). No preference feature could be "
+                "read from this option, so preference did not weigh in — that is "
+                "an absent reading, not an alignment of zero."
+            )
+        else:
+            rationale = (
+                f"Chose '{chosen.label}' because preference alignment "
+                f"{preference_scores[chosen_id]:.2f} and drive alignment "
+                f"{drive_scores[chosen_id]:.2f} produced final score "
+                f"{final_scores[chosen_id]:.2f}."
+            )
         if top_names:
             rationale += f" Expressed preferences: {', '.join(top_names)}."
         if preference_override:
