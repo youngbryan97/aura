@@ -5668,15 +5668,23 @@ class DesktopTaskSkill(BaseSkill):
         if not url:
             return None
 
+        # Through the governed executor, never the skill object directly.
+        #
+        # A direct `SovereignBrowserSkill().execute(...)` reached the browser
+        # without the scoped authority the domain requires, and the will
+        # refused it on arrival: "WILL REFUSED: desktop_ui/network_call --
+        # denied_by_default: network_call requires validated scoped authority".
+        # Correct refusal — the grant is what makes the lease, the receipt and
+        # the origin check mean anything, and a delegation that skips it is
+        # asking the browser to act on nobody's authority.
         try:
-            from core.skills.sovereign_browser import BrowserInput, SovereignBrowserSkill
-        except ImportError as exc:
-            record_degradation(
-                "desktop_task.page_objective",
-                exc,
-                action="left the page objective with the GUI lane because the browser skill is unavailable",
-                severity="warning",
-            )
+            from core.container import ServiceContainer
+
+            capability_engine = ServiceContainer.get("capability_engine", default=None)
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            record_degradation("desktop_task.page_objective", exc, severity="warning")
+            return None
+        if capability_engine is None or not hasattr(capability_engine, "execute"):
             return None
 
         logger.info(
@@ -5684,10 +5692,12 @@ class DesktopTaskSkill(BaseSkill):
             url,
         )
         try:
-            report = await SovereignBrowserSkill().execute(
-                BrowserInput(mode="pursue", url=url, goal=objective),
-                dict(context or {}),
+            report = await capability_engine.execute(
+                "sovereign_browser",
+                {"mode": "pursue", "url": url, "goal": objective},
+                context=dict(context or {}),
             )
+            report = report if isinstance(report, dict) else {}
         except _DESKTOP_TASK_RECOVERABLE_ERRORS as exc:
             record_degradation("desktop_task.page_objective", exc, severity="warning")
             return {

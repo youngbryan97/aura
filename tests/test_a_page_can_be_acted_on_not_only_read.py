@@ -148,35 +148,49 @@ class TestTheDesktopLaneDelegatesPagesToTheBrowser:
         assert result is None
 
     def test_a_page_objective_is_handed_to_the_browser_whole(self, monkeypatch):
-        """The objective crosses intact, not as GUI steps guessed in advance."""
+        """The objective crosses intact, through the governed executor.
+
+        Calling the skill object directly reached the browser on nobody's
+        authority and the will refused it: "denied_by_default: network_call
+        requires validated scoped authority". The grant is what makes the
+        lease, the receipt and the origin check mean anything.
+        """
         import asyncio
 
-        from core.skills import sovereign_browser as sb
         from core.skills.desktop_task import DesktopTaskParams, DesktopTaskSkill
 
         seen = {}
 
-        class _Stub:
-            async def execute(self, params, context):
-                seen["mode"] = params.mode
-                seen["url"] = params.url
-                seen["goal"] = params.goal
+        class _Engine:
+            async def execute(self, skill, params, context=None):
+                seen.update({"skill": skill, **params})
                 return {
                     "ok": True,
                     "completed": True,
-                    "final_url": params.url,
+                    "final_url": params["url"],
                     "result_text": "Your personality type is Architect (INTJ-A)",
                     "steps": [
-                        {"asked": "You regularly make new friends.", "chose": ["I disagree"], "why": "that is truer of me", "ok": True}
+                        {
+                            "asked": "You regularly make new friends.",
+                            "chose": ["I disagree"],
+                            "why": "that is truer of me",
+                            "ok": True,
+                        }
                     ],
                 }
 
-        monkeypatch.setattr(sb, "SovereignBrowserSkill", _Stub)
+        import core.container as container
+
+        monkeypatch.setattr(
+            container.ServiceContainer, "get",
+            staticmethod(lambda name, default=None: _Engine() if name == "capability_engine" else default),
+        )
         objective = "take the test at https://example.com/quiz and tell me the result"
         result = asyncio.run(
             DesktopTaskSkill()._delegate_page_objective(DesktopTaskParams(objective=objective), {})
         )
 
+        assert seen["skill"] == "sovereign_browser", "must go through the governed executor"
         assert seen["mode"] == "pursue"
         assert seen["url"] == "https://example.com/quiz"
         assert seen["goal"] == objective, "the goal must cross whole, not as a query"
@@ -187,15 +201,14 @@ class TestTheDesktopLaneDelegatesPagesToTheBrowser:
         """A step count is what the machine did; the answer is what she chose."""
         import asyncio
 
-        from core.skills import sovereign_browser as sb
         from core.skills.desktop_task import DesktopTaskParams, DesktopTaskSkill
 
-        class _Stub:
-            async def execute(self, params, context):
+        class _Engine:
+            async def execute(self, skill, params, context=None):
                 return {
                     "ok": True,
                     "completed": True,
-                    "final_url": params.url,
+                    "final_url": params["url"],
                     "result_text": "done",
                     "steps": [
                         {"asked": "You regularly make new friends.", "chose": ["I disagree"], "why": "solitude suits me", "ok": True},
@@ -203,7 +216,12 @@ class TestTheDesktopLaneDelegatesPagesToTheBrowser:
                     ],
                 }
 
-        monkeypatch.setattr(sb, "SovereignBrowserSkill", _Stub)
+        import core.container as container
+
+        monkeypatch.setattr(
+            container.ServiceContainer, "get",
+            staticmethod(lambda name, default=None: _Engine() if name == "capability_engine" else default),
+        )
         result = asyncio.run(
             DesktopTaskSkill()._delegate_page_objective(
                 DesktopTaskParams(objective="complete https://example.com/quiz"), {}
