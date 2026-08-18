@@ -729,13 +729,40 @@ def test_packaged_launcher_reopens_primary_desktop_without_resurrecting_monitor(
         1,
     )[0]
 
+    assert "desktopWindow == nil && runtimeLockIndicatesLiveProcess()" in primary_body
+    assert "openNativeDesktopWindow()" in primary_body
     assert "desktopWindow ?? window" in primary_body
+    assert "target.isMiniaturized" in primary_body
+    assert "target.deminiaturize" in primary_body
     assert "target.makeKeyAndOrderFront" in primary_body
     assert "frontPrimaryWindow()" in reopen_body
     assert "window.makeKeyAndOrderFront" not in reopen_body
     assert "showPrimaryWindowNotification" in swift
     assert "handleShowPrimaryWindowNotification" in swift
     assert "DistributedNotificationCenter.default().postNotificationName" in swift
+
+
+def test_packaged_launcher_repairs_a_lost_window_on_application_activation():
+    swift = (PROJECT_ROOT / "scripts" / "AuraLauncher.swift").read_text(encoding="utf-8")
+
+    active_body = swift.split("func applicationDidBecomeActive", 1)[1].split(
+        "func applicationShouldTerminateAfterLastWindowClosed",
+        1,
+    )[0]
+    assert "visibleInteractiveSurfaceExists" in active_body
+    assert "frontPrimaryWindow()" in active_body
+    assert "bubblePanel?.isVisible" not in swift.split(
+        "private func visibleInteractiveSurfaceExists", 1
+    )[1].split("private func frontPrimaryWindow", 1)[0]
+
+
+def test_packaged_launcher_retains_its_weak_app_delegate_for_the_event_loop():
+    swift = (PROJECT_ROOT / "scripts" / "AuraLauncher.swift").read_text(encoding="utf-8")
+
+    main_body = swift.split("let app = NSApplication.shared", 1)[1]
+    assert "app.delegate = delegate" in main_body
+    assert "withExtendedLifetime(delegate)" in main_body
+    assert main_body.index("withExtendedLifetime(delegate)") < main_body.index("app.run()")
 
 
 def test_packaged_launcher_readiness_is_single_window_handoff():

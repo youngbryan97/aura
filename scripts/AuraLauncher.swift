@@ -2053,10 +2053,29 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
         }
     }
 
+    private func visibleInteractiveSurfaceExists() -> Bool {
+        desktopWindow?.isVisible == true
+            || window?.isVisible == true
+            || companionPanel?.isVisible == true
+    }
+
+    /// Restore the one full Aura surface from whatever lifecycle state AppKit
+    /// left behind. The runtime owns continuity; windows are disposable views
+    /// and must be reconstructible after close, process activation, or a stale
+    /// retained-window reference.
     @discardableResult
     private func frontPrimaryWindow() -> Bool {
+        if desktopWindow == nil && runtimeLockIndicatesLiveProcess() {
+            openNativeDesktopWindow()
+            return desktopWindow?.isVisible == true
+        }
+
         guard let target = desktopWindow ?? window else {
+            NSLog("Aura launcher could not restore a primary window: no retained surface")
             return false
+        }
+        if target.isMiniaturized {
+            target.deminiaturize(nil)
         }
         target.makeKeyAndOrderFront(nil)
         target.orderFrontRegardless()
@@ -2075,6 +2094,14 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        frontPrimaryWindow()
+    }
+
+    func applicationDidBecomeActive(_ notification: Notification) {
+        // A bubble click activates only after the restrained companion panel is
+        // visible. A Dock/app activation with no interactive surface means the
+        // window lifecycle was lost and should be repaired immediately.
+        guard !visibleInteractiveSurfaceExists() else { return }
         frontPrimaryWindow()
     }
 
@@ -4553,5 +4580,10 @@ if let bridgeIndex = CommandLine.arguments.firstIndex(of: nativeBridgeFlag) {
     let delegate = AuraLauncherDelegate()
     app.delegate = delegate
     app.setActivationPolicy(.regular)
-    app.run()
+    // NSApplication.delegate is weak. Keep the owner alive for the complete
+    // event loop so reopen observers, health timers, and window references do
+    // not disappear after launch initialization.
+    withExtendedLifetime(delegate) {
+        app.run()
+    }
 }
