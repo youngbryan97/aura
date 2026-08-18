@@ -202,6 +202,48 @@ async def _read_beliefs(_prompt: str) -> str:
     return "\n".join(lines)
 
 
+# ── work she has queued ──────────────────────────────────────────────────────
+#
+# "do you have any scheduled or background work queued right now?" was answered
+# "No, my foreground queue is empty. I'm not tracking any background
+# maintenance tasks at the moment either." She had biological_sleep and
+# dlq_recovery deferred in the dream coordinator at that moment, nine queue
+# events in that boot alone.
+#
+# This is awareness of her own non-immediate actions, and she has a status()
+# that answers it exactly.
+
+_ASKS_QUEUED_WORK = re.compile(
+    r"\b(?:queued|scheduled|pending|background)\s+(?:work|task|tasks|job|jobs|maintenance)\b"
+    r"|\bwhat(?:'s| is)\s+(?:in\s+)?your\s+queue\b"
+    r"|\banything\s+(?:queued|scheduled|pending|planned)\b"
+    # "are you planning to do anything later?" is the same question in the
+    # phrasing a person actually uses, and the first pattern missed it.
+    r"|\bplan(?:ning|s)?\s+to\s+do\s+(?:anything|something|any\s+work)?\s*later\b"
+    r"|\bwhat\s+(?:are\s+you|will\s+you)\s+(?:be\s+)?do(?:ing)?\s+(?:later|next|after)\b"
+    r"|\bwaiting\s+to\s+run\b",
+    re.IGNORECASE,
+)
+
+
+def _matches_queued_work(prompt: str) -> bool:
+    return bool(_ASKS_QUEUED_WORK.search(prompt))
+
+
+async def _read_queued_work(_prompt: str) -> str:
+    from core.maintenance.dream_coordinator import get_dream_coordinator
+
+    status = await asyncio.to_thread(get_dream_coordinator().status)
+    pending = dict(status.get("pending") or {})
+    if not pending:
+        return "Nothing is deferred in the maintenance coordinator."
+    lines = []
+    for name, detail in list(pending.items())[:12]:
+        reason = str(dict(detail or {}).get("reason") or "").strip()
+        lines.append(f"- {name}" + (f" (waiting on: {reason})" if reason else ""))
+    return "Deferred maintenance work:\n" + "\n".join(lines)
+
+
 def install_default_observables() -> None:
     """Register the readings this runtime can take."""
 
@@ -220,6 +262,9 @@ def install_default_observables() -> None:
             timeout_s=8.0,
         ),
         Observable("beliefs", "## WHAT YOU ACTUALLY BELIEVE", _matches_beliefs, _read_beliefs),
+        Observable(
+            "queued_work", "## WORK YOU HAVE QUEUED", _matches_queued_work, _read_queued_work
+        ),
     ):
         register_observable(observable)
 

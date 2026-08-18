@@ -299,3 +299,80 @@ def test_every_registered_observable_is_visible_at_dispatch() -> None:
     for observable in OBSERVABLES:
         assert observable.name in markers, observable.name
         assert markers[observable.name] == observable.header
+
+
+# ── awareness of her own non-immediate work ─────────────────────────────────
+#
+# "do you have any scheduled or background work queued right now?" was answered
+# "No, my foreground queue is empty. I'm not tracking any background
+# maintenance tasks at the moment either." She had biological_sleep and
+# dlq_recovery deferred in the dream coordinator at that moment — nine queue
+# events in that boot alone — and a status() that answers the question exactly.
+
+@pytest.mark.parametrize(
+    "prompt",
+    [
+        "do you have any scheduled or background work queued right now?",
+        "are you planning to do anything later?",
+        "anything planned?",
+        "what will you be doing next?",
+        "what's in your queue?",
+    ],
+)
+def test_queued_work_questions_are_recognised(prompt: str) -> None:
+    from core.brain.observable_registry import _matches_queued_work
+
+    assert _matches_queued_work(prompt) is True
+
+
+@pytest.mark.parametrize(
+    "prompt",
+    ["how are you", "plan a trip to Rome", "what is 2 + 2"],
+)
+def test_unrelated_turns_do_not_read_the_queue(prompt: str) -> None:
+    from core.brain.observable_registry import _matches_queued_work
+
+    assert _matches_queued_work(prompt) is False
+
+
+def test_deferred_work_is_reported(monkeypatch) -> None:
+    import asyncio
+
+    class _Coordinator:
+        @staticmethod
+        def status():
+            return {
+                "pending": {
+                    "biological_sleep": {"reason": "foreground_quiet_window"},
+                    "dlq_recovery": {"reason": "foreground_chat_active"},
+                }
+            }
+
+    monkeypatch.setattr(
+        "core.maintenance.dream_coordinator.get_dream_coordinator", lambda: _Coordinator()
+    )
+
+    from core.brain.observable_registry import _read_queued_work
+
+    body = asyncio.run(_read_queued_work("anything queued?"))
+
+    assert "biological_sleep" in body
+    assert "dlq_recovery" in body
+    assert "foreground_quiet_window" in body
+
+
+def test_an_empty_queue_says_so_rather_than_nothing(monkeypatch) -> None:
+    import asyncio
+
+    class _Coordinator:
+        @staticmethod
+        def status():
+            return {"pending": {}}
+
+    monkeypatch.setattr(
+        "core.maintenance.dream_coordinator.get_dream_coordinator", lambda: _Coordinator()
+    )
+
+    from core.brain.observable_registry import _read_queued_work
+
+    assert "Nothing is deferred" in asyncio.run(_read_queued_work("anything queued?"))
