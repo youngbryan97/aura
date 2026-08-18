@@ -22,6 +22,7 @@ testable and wires to the real subsystems in production.
 from __future__ import annotations
 
 import asyncio
+import inspect
 import logging
 import time
 from collections.abc import Mapping
@@ -80,6 +81,12 @@ class ExecutionReceipt:
     verified_progress: int = 0
     stalled: bool = False
     elapsed_s: float = 0.0
+    #: Why a goal-directed run ended. "" for a plan-shaped run, which ends
+    #: when its list does.
+    outcome: str = ""
+    #: Iterations of the perceive-decide-act cycle, which is not the same as
+    #: len(steps): a cycle can decide to do nothing and still be a cycle.
+    cycles: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -88,6 +95,8 @@ class ExecutionReceipt:
             "verified_progress": self.verified_progress,
             "stalled": self.stalled,
             "elapsed_s": round(self.elapsed_s, 3),
+            "outcome": self.outcome,
+            "cycles": self.cycles,
             "steps": [s.to_dict() for s in self.steps],
         }
 
@@ -235,6 +244,128 @@ class FluidExecutor:
             step.name, ok=False, attempts=step.max_retries + 1, verified=False,
             recovered=recovered, detail=last_detail,
         )
+
+    async def pursue(
+        self,
+        goal: str,
+        *,
+        observe: Callable[[], Awaitable[Any]],
+        decide: Callable[[Any], Awaitable[Step | None]],
+        is_satisfied: Callable[[Any], Awaitable[bool]] | Callable[[Any], bool],
+        max_cycles: int = 200,
+        max_seconds: float = 600.0,
+        perception_reason: str = "",
+    ) -> ExecutionReceipt:
+        """Pursue a goal by looking, deciding, acting and looking again.
+
+        ``run`` executes a list someone wrote in advance. That is the right
+        shape when the steps are known — open this app, click that button —
+        and the wrong shape for anything whose next move depends on what just
+        happened. A board that changes, a page that loads at its own pace, a
+        drag that has to be corrected mid-flight: none of them can be written
+        down as a list beforehand, so none of them were reachable through the
+        executor even though every part needed to reach them already existed.
+
+        This is the same loop with the plan removed. Everything it runs still
+        goes through run_step, so governance, effect verification, recovery
+        and receipts are unchanged — the only new thing is that ``decide``
+        gets to see the world before choosing, and the run ends on a PREDICATE
+        rather than on running out of list.
+
+        Bounded three ways, because a loop with a goal and no bound is how a
+        process eats a machine: cycles, wall-clock, and the same stall
+        detection ``run`` uses. ``decide`` returning None means "nothing worth
+        doing from here", which counts as a cycle without progress and stalls
+        out honestly rather than spinning.
+
+        Perception is held open for the whole run. A loop that acts on what it
+        sees is exactly the case where sight was being throttled to one frame
+        every ten seconds — see core/runtime/perception_demand.py.
+        """
+        started = time.monotonic()
+        receipt = ExecutionReceipt(goal=goal, completed=False)
+        consecutive_no_progress = 0
+        cycles = max(1, int(max_cycles))
+        deadline = started + max(0.1, float(max_seconds))
+
+        token = None
+        try:
+            from core.runtime.perception_demand import (
+                claim_perception,
+                release_perception,
+                renew_perception,
+            )
+
+            token = claim_perception(perception_reason or f"pursuing: {goal}")
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation(
+                "fluid_executor",
+                exc,
+                severity="info",
+                action="pursued a goal without raising perception cadence",
+            )
+            renew_perception = release_perception = None  # type: ignore[assignment]
+
+        try:
+            for _ in range(cycles):
+                receipt.cycles += 1
+                if time.monotonic() >= deadline:
+                    receipt.outcome = "out_of_time"
+                    break
+                if token is not None and renew_perception is not None:
+                    renew_perception(token)
+
+                observation = await observe()
+
+                satisfied = is_satisfied(observation)
+                if inspect.isawaitable(satisfied):
+                    satisfied = await satisfied
+                if satisfied:
+                    receipt.completed = True
+                    receipt.outcome = "goal_reached"
+                    break
+
+                step = await decide(observation)
+                if step is None:
+                    consecutive_no_progress += 1
+                    if consecutive_no_progress >= self.stall_window:
+                        receipt.stalled = True
+                        receipt.outcome = "no_move_available"
+                        break
+                    continue
+
+                result = await self.run_step(step)
+                receipt.steps.append(result)
+                if result.ok:
+                    receipt.verified_progress += 1
+                    consecutive_no_progress = 0
+                    continue
+                if result.blocked:
+                    receipt.outcome = "blocked_by_governance"
+                    logger.info(
+                        "🛡️ [Fluid] pursuit of '%s' halted: step blocked by governance.",
+                        goal,
+                    )
+                    break
+                consecutive_no_progress += 1
+                if consecutive_no_progress >= self.stall_window:
+                    receipt.stalled = True
+                    receipt.outcome = "stalled"
+                    logger.warning(
+                        "🌀 [Fluid] pursuit of '%s' stalled after %d cycles with no "
+                        "verified progress.",
+                        goal,
+                        consecutive_no_progress,
+                    )
+                    break
+            else:
+                receipt.outcome = "out_of_cycles"
+        finally:
+            if token is not None and release_perception is not None:
+                release_perception(token)
+
+        receipt.elapsed_s = time.monotonic() - started
+        return receipt
 
     async def run(self, goal: str, steps: list[Step]) -> ExecutionReceipt:
         """Execute a sequence, aborting on a stall, returning a full receipt."""
