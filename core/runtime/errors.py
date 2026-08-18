@@ -862,10 +862,27 @@ def record_degradation(
     # FMEA system has live occurrence data for RPN recalculation.
     try:
         from core.resilience.fault_taxonomy import FaultSeverity, get_fault_registry
+        # "info" was missing, so it fell to the MARGINAL default below and a
+        # deliberate de-escalation was silently undone.
+        #
+        # turn_outcome records an empty cognitive cycle at severity="info" on
+        # purpose, with a comment explaining that recording it any higher once
+        # produced 231 CRITICAL SERVICE FAILUREs and took long-term memory
+        # consolidation down with them. record_degradation honoured that. The
+        # fault registry did not: an unmapped severity became MARGINAL, so the
+        # same event that was carefully classified as ordinary reappeared as
+        # "FAULT RUNTIME-COGNITIVE_ENGINE [MARGINAL]" — 916 of them in the
+        # window I sampled, plus 391 of its sibling. Every info-severity
+        # degradation anywhere in the runtime had the same fate.
+        #
+        # A severity nobody recognises should still be MARGINAL: an unknown is
+        # not evidence of harmlessness. A severity that IS recognised, and
+        # says ordinary, has to be allowed to say it.
         _sev_map = {
             "critical": FaultSeverity.CRITICAL,
             "degraded": FaultSeverity.MARGINAL,
             "warning": FaultSeverity.MARGINAL,
+            "info": FaultSeverity.NEGLIGIBLE,
             "debug": FaultSeverity.NEGLIGIBLE,
         }
         get_fault_registry().record_fault(
