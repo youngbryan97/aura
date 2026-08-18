@@ -434,23 +434,80 @@ class MemoryConsolidationPhase(BasePhase):
                 # Always keep last 4 messages (current conversation turn)
                 tail = wm[-4:]
                 older = wm[:-4]
-                # From older, prefer user messages AND large content messages
-                keep_older = [
-                    m for m in older
-                    if isinstance(m, dict) and (
-                        m.get("role") == "user"
-                        or len(str(m.get("content", ""))) > 2000
-                    )
-                ]
-                remaining = max_working_memory - len(tail) - len(keep_older)
+                # Choose what to keep by INDEX, then emit in the order it
+                # happened.
+                #
+                # This selected the same messages and concatenated them as
+                # `kept_user_and_large + kept_recent_non_user + tail`, which is
+                # not a conversation. On a plain alternating exchange of 18
+                # turns it produced:
+                #
+                #   U1 U2 U3 ... U16  A7 A8 ... A16  U17 A17 U18 A18
+                #
+                # Sixteen consecutive user messages, then ten consecutive
+                # replies. Every answer was torn away from the question it
+                # answered, and A1-A6 were dropped outright. What she reasoned
+                # over was a transcript that never happened — answers appearing
+                # to respond to whichever question happened to precede them
+                # after the shuffle.
+                #
+                # Reordering also reshapes the KV prefix on every trim, so the
+                # prompt cache could never reuse more than the system block:
+                # measured live, "prefix diverges at token 226 (9% of 2561
+                # reused)".
+                # Kept as EXCHANGES, not as loose messages.
+                #
+                # Preferring user turns on their own kept questions and dropped
+                # the answers, so the retained history contained runs of seven
+                # consecutive user messages — a conversation in which she was
+                # asked seven things and replied to none. She then reasons over
+                # her own unanswered questions, which is its own invitation to
+                # invent what was said.
+                #
+                # A question and the reply it drew are one unit of context, so
+                # they are kept or dropped together.
+                priority: list[int] = []
+                for index, message in enumerate(older):
+                    if not isinstance(message, dict):
+                        continue
+                    is_user = message.get("role") == "user"
+                    is_large = len(str(message.get("content", ""))) > 2000
+                    if not (is_user or is_large):
+                        continue
+                    priority.append(index)
+                    if is_user:
+                        answer = index + 1
+                        if (
+                            answer < len(older)
+                            and isinstance(older[answer], dict)
+                            and older[answer].get("role") == "assistant"
+                        ):
+                            priority.append(answer)
+                # Sorted and de-duplicated: an answer can be reached both as a
+                # large message and as its question's partner.
+                priority = sorted(dict.fromkeys(priority))
+                # The priority set alone can exceed the budget: a long
+                # conversation is mostly user turns, so `remaining` went
+                # NEGATIVE and every one of them was kept regardless. Forty
+                # turns produced 42 retained messages against a limit of 30 —
+                # the trim did nothing exactly when it was needed most, and the
+                # context it was protecting kept growing.
+                budget_for_older = max(0, max_working_memory - len(tail))
+                if len(priority) > budget_for_older:
+                    priority = priority[-budget_for_older:]
+                keep_indices = set(priority)
+                remaining = budget_for_older - len(keep_indices)
                 if remaining > 0:
-                    non_user = [
-                        m for m in older
-                        if isinstance(m, dict) and m.get("role") != "user"
-                        and len(str(m.get("content", ""))) <= 2000
+                    fill = [
+                        index
+                        for index, message in enumerate(older)
+                        if isinstance(message, dict)
+                        and index not in keep_indices
+                        and message.get("role") != "user"
+                        and len(str(message.get("content", ""))) <= 2000
                     ]
-                    keep_older.extend(non_user[-remaining:])
-                wm = keep_older + tail
+                    keep_indices.update(fill[-remaining:])
+                wm = [older[index] for index in sorted(keep_indices)] + tail
                 logger.info("🧹 Context trim pass 2: %d messages retained", len(wm))
 
             new_state.cognition.working_memory = wm
