@@ -55,6 +55,10 @@ SKILL_EFFECT_SCOPES: dict[str, str] = {
     "coding_skill": "pure_compute",
     "cognitive_trainer": "state_mutation",
     "computer_use": "foreground_desktop_control",
+    # Presses keys on the foreground desktop over many cycles, so it carries
+    # the same authority as a single computer_use action rather than a
+    # gentler one for being a loop.
+    "pursue_on_screen": "foreground_desktop_control",
     "curiosity": "state_mutation",
     "delegate_shard": "external_io",
     "deploy_ghost_probe": "external_io",
