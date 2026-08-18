@@ -12166,17 +12166,46 @@ class InferenceGate:
                         )
                     )
                     if primary_surface_quality_rejected and desktop_cognitive_engine_contract:
+                        # Say WHICH quality check rejected the text.
+                        #
+                        # This refusal is the last step before the person gets
+                        # "I couldn't get to an answer I'd stand behind", and it
+                        # logged only that retries were exhausted. The reasons
+                        # were computed by _surface_quality_failure_reasons,
+                        # carried on the receipt as surface_quality_gate_reasons,
+                        # and written down nowhere: that key appears ZERO times
+                        # in a 20,000-record log full of these refusals.
+                        #
+                        # So the one canned reply that must never be reachable
+                        # was also the least diagnosable thing in the runtime —
+                        # every occurrence said a gate had said no, and nothing
+                        # said what it objected to. The gate keeps only
+                        # INTEGRITY failures (leaks, corruption, prompt
+                        # artefacts, text that is not language), so the reason
+                        # is exactly what distinguishes a model producing
+                        # garbage from a gate that is too strict, and those want
+                        # opposite fixes.
+                        _quality_reasons = tuple(
+                            primary_surface_receipt.get("surface_quality_gate_reasons")
+                            or ()
+                        )
                         logger.warning(
                             "🧠 %s exhausted its worker-owned semantic quality retries; "
-                            "preserving the lane and refusing a duplicate inference-gate retry.",
+                            "preserving the lane and refusing a duplicate inference-gate "
+                            "retry. rejected_for=%s",
                             local_label,
+                            ",".join(str(reason) for reason in _quality_reasons)
+                            or "no_reasons_reported",
                         )
                         return self._refuse_generation(
                             self.REFUSAL_EXHAUSTED,
                             "worker_semantic_quality_retries_exhausted",
                             context=context,
                             origin=origin,
-                            detail={"lane": local_label},
+                            detail={
+                                "lane": local_label,
+                                "surface_quality_gate_reasons": list(_quality_reasons),
+                            },
                         )
                     if health_probe:
                         logger.warning(
