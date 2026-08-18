@@ -45,6 +45,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass, replace
 from typing import Any
 
+from core.conversation.word_markers import names_any
 from core.brain.llm.latent_cortex.output_quality import (
     evaluate_facet_coverage,
     request_facets,
@@ -4354,7 +4355,9 @@ def is_practical_diagnostic_turn(user_message: Any) -> bool:
     text = _normalize(user_message)
     if not text:
         return False
-    return any(marker in text for marker in _PRACTICAL_DIAGNOSTIC_MARKERS)
+    # "gui" is inside "distinguish": "how do you distinguish a real memory
+    # from a confabulated one" was answered as a practical GUI diagnostic.
+    return names_any(text, _PRACTICAL_DIAGNOSTIC_MARKERS)
 
 
 def is_operational_status_turn(user_message: Any) -> bool:

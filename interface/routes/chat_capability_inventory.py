@@ -763,6 +763,22 @@ _WEB_INTERLOCUTOR_TARGETS = {
 }
 
 
+def _names_marker(clause: str, markers: tuple[str, ...]) -> bool:
+    """Does the clause use one of these markers as a WORD?
+
+    Substring containment matched "test" inside "latest": asked to "search the
+    web and tell me what the latest Claude model is", Aura opened a browser and
+    tried to hold an eight-turn conversation with Claude, then reported
+    `no_visible_editable_field` instead of searching. Same shape as "in your
+    own words" launching Microsoft Word, and as notes.txt opening the Notes
+    app — a marker that is a fragment of an ordinary word will eventually meet
+    that word.
+    """
+    return any(
+        re.search(rf"\b{re.escape(marker)}\b", clause) for marker in markers
+    )
+
+
 def _looks_like_web_interlocutor_execution_request(user_message: str) -> bool:
     lowered = str(user_message or "").lower()
     # A caller may identify itself before asking Aura to do unrelated work.
@@ -837,8 +853,7 @@ def _looks_like_web_interlocutor_execution_request(user_message: str) -> bool:
         return False
     actionable_clauses = mood.actionable_clauses or (lowered,)
     if not any(
-        any(target in clause for target in target_markers)
-        and any(action in clause for action in action_markers)
+        _names_marker(clause, target_markers) and _names_marker(clause, action_markers)
         for clause in actionable_clauses
     ):
         return False

@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+from core.conversation.word_markers import names_any
 from core.runtime.errors import record_degradation
 from core.runtime.network_gateway import get_network_gateway
 from core.runtime.state_ownership import state_root
@@ -215,10 +216,12 @@ def _now() -> float:
 
 
 def _freshness_window(query: str) -> int:
+    # Word boundaries, not containment: "now" sits inside "know", so "i dont
+    # know what to do next" was treated as a question about the last hour.
     lowered = str(query or "").lower()
-    if any(term in lowered for term in _CURRENTNESS_TERMS):
+    if names_any(lowered, _CURRENTNESS_TERMS):
         return 60 * 60
-    if any(term in lowered for term in {"version", "release", "pricing"}):
+    if names_any(lowered, ("version", "release", "pricing")):
         return 6 * 60 * 60
     return 14 * 24 * 60 * 60
 
@@ -229,8 +232,7 @@ def freshness_window_for_query(query: str) -> int:
 
 
 def _query_is_current(query: str) -> bool:
-    lowered = str(query or "").lower()
-    return any(term in lowered for term in _CURRENTNESS_TERMS)
+    return names_any(query, _CURRENTNESS_TERMS)
 
 
 def _quoted_phrases(text: str) -> list[str]:
