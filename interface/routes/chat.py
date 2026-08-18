@@ -12050,6 +12050,34 @@ async def _stabilize_user_facing_reply(
                 len(text),
             )
     if search_turn:
+        # Before the canned line, ask whether the runtime already HOLDS the
+        # answer.
+        #
+        # LIVE 2026-08-17: "prove to me you actually read that file and didn't
+        # just pattern-match the answer" returned "I don't have a clean
+        # grounded answer on that yet" — while the receipt for reading that
+        # file was on disk. The proof she was asked for was the one thing she
+        # could have produced.
+        #
+        # This is a reading, not a rescue: concise_past_action_answer returns
+        # text only when receipts actually cover the question, so it cannot
+        # describe an action she did not take. When they do not, the honest
+        # sentence below still stands.
+        try:
+            from core.introspection.self_evidence import concise_past_action_answer
+
+            from_receipts = str(concise_past_action_answer(user_message) or "").strip()
+        except _CHAT_RECOVERABLE_ERRORS as _receipt_exc:
+            record_degradation("chat.past_action_answer", _receipt_exc)
+            from_receipts = ""
+        if from_receipts:
+            logger.info(
+                "Answered a search-classified turn from receipts (%d chars) "
+                "rather than the ungrounded fallback.",
+                len(from_receipts),
+            )
+            _record_recent_response(from_receipts, user_message)
+            return from_receipts
         safe = "I don't have a clean grounded answer on that yet. I need to stick to the source instead of guessing."
         _record_recent_response(safe, user_message)
         return safe
