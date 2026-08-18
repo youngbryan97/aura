@@ -117,6 +117,91 @@ async def _read_clock(_prompt: str) -> str:
     return now.strftime("%A %d %B %Y, %H:%M:%S %Z")
 
 
+# ── the screen ───────────────────────────────────────────────────────────────
+#
+# "what's on my screen right now?" was answered "I couldn't get to an answer
+# I'd stand behind on that one." Screen capture was permitted and working; it
+# simply was not taken. A reading that comes back thin is still a reading, and
+# "the frontmost window is X and no text is readable from it" is an answer.
+
+_ASKS_SCREEN = re.compile(
+    r"\b(?:my|the)\s+screen\b|\bon\s+screen\b|\bwhat\s+(?:am\s+i|are\s+you)\s+looking\s+at\b"
+    r"|\bwhat\s+do\s+you\s+see\b|\bwhat'?s\s+(?:up\s+)?on\s+(?:my|the)\s+display\b"
+    r"|\bwhat\s+window\b|\bwhich\s+app\b",
+    re.IGNORECASE,
+)
+
+
+def _matches_screen(prompt: str) -> bool:
+    return bool(_ASKS_SCREEN.search(prompt))
+
+
+async def _read_screen(_prompt: str) -> str:
+    from core.perception.screen_perception import get_screen_perception
+
+    snapshot = await get_screen_perception().capture(save_screenshot=False)
+    if getattr(snapshot, "capture_denied", False):
+        return "Screen capture was refused for this turn."
+    app = str(getattr(snapshot, "active_app", "") or "").strip()
+    text = str(getattr(snapshot, "text", "") or "").strip()
+    if not text:
+        text = str(getattr(snapshot, "accessibility_text", "") or "").strip()
+    focused = " / ".join(
+        part
+        for part in (
+            str(getattr(snapshot, "focused_role", "") or "").strip(),
+            str(getattr(snapshot, "focused_name", "") or "").strip(),
+        )
+        if part
+    )
+    lines = [f"Frontmost application: {app or 'unknown'}"]
+    if focused:
+        lines.append(f"Focused element: {focused}")
+    if text:
+        lines.append(text[:2000])
+    else:
+        # An absent reading, named. This is what stops "the room is silent and
+        # the light is unchanged" from being invented to fill the gap.
+        lines.append(
+            "No readable text was available from this window "
+            "(the accessibility layer returned nothing)."
+        )
+    return "\n".join(lines)
+
+
+# ── what she actually believes ───────────────────────────────────────────────
+#
+# "what do you currently believe about me?" was answered from the model. She
+# has a belief graph; the beliefs in it are the answer to that question.
+
+_ASKS_BELIEFS = re.compile(
+    r"\bwhat\s+do\s+you\s+(?:currently\s+)?(?:believe|think)\s+about\b"
+    r"|\byour\s+beliefs?\b|\bwhat\s+have\s+you\s+concluded\b",
+    re.IGNORECASE,
+)
+
+
+def _matches_beliefs(prompt: str) -> bool:
+    return bool(_ASKS_BELIEFS.search(prompt))
+
+
+async def _read_beliefs(_prompt: str) -> str:
+    from core.container import ServiceContainer
+
+    graph = ServiceContainer.get("belief_graph", default=None) or ServiceContainer.get(
+        "world_model", default=None
+    )
+    if graph is None or not hasattr(graph, "get_beliefs"):
+        return ""
+    beliefs = await asyncio.to_thread(graph.get_beliefs)
+    if not beliefs:
+        return "The belief store holds no entries."
+    lines = []
+    for key, value in list(dict(beliefs).items())[:20]:
+        lines.append(f"- {key}: {str(value)[:160]}")
+    return "\n".join(lines)
+
+
 def install_default_observables() -> None:
     """Register the readings this runtime can take."""
 
@@ -126,6 +211,15 @@ def install_default_observables() -> None:
         Observable("file_count", "## DIRECTORY LISTING YOU WERE ASKED ABOUT", _matches_count, _read_count),
         Observable("corpus", "## REFERENCE PASSAGES FROM THE LOCAL CORPUS", _matches_corpus, _read_corpus),
         Observable("clock", "## THE CURRENT LOCAL TIME", _matches_clock, _read_clock),
+        # A screen capture is a real device read and the FIRST one in a process
+        # pays initialisation: measured 0.81s warm, past the 2.5s default cold,
+        # which is why the first screen question of a session silently returned
+        # no block at all.
+        Observable(
+            "screen", "## WHAT IS ON THE SCREEN", _matches_screen, _read_screen,
+            timeout_s=8.0,
+        ),
+        Observable("beliefs", "## WHAT YOU ACTUALLY BELIEVE", _matches_beliefs, _read_beliefs),
     ):
         register_observable(observable)
 

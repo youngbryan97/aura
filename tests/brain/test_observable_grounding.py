@@ -166,3 +166,120 @@ def test_registering_the_same_name_replaces_rather_than_duplicates() -> None:
         assert "second" in dup[0]
     finally:
         OBSERVABLES[:] = [o for o in OBSERVABLES if o.name != "test_dup"]
+
+
+# ── screen and beliefs, the next two of the forty-three ─────────────────────
+#
+# "what's on my screen right now?" was answered "I couldn't get to an answer
+# I'd stand behind on that one" while screen capture was permitted and working.
+# "what do you currently believe about me?" was answered from the model while a
+# belief graph sat unread.
+
+def test_screen_questions_reach_the_screen_reader() -> None:
+    blocks = _blocks("what's on my screen right now?")
+
+    assert any(block.startswith("## WHAT IS ON THE SCREEN") for block in blocks)
+
+
+@pytest.mark.parametrize(
+    "prompt",
+    [
+        "what's on my screen right now?",
+        "what do you see?",
+        "which app is in front?",
+        "what window am I looking at",
+    ],
+)
+def test_screen_phrasings_are_recognised(prompt: str) -> None:
+    from core.brain.observable_registry import _matches_screen
+
+    assert _matches_screen(prompt) is True
+
+
+def test_the_screen_reading_is_always_definite() -> None:
+    """Named app, named absence, or named refusal — never silence.
+
+    Screen capture admission legitimately refuses in some contexts (it does
+    under pytest), and a refusal IS the answer to "what is on my screen". What
+    must never happen is the empty block that let "I couldn't get to an answer
+    I'd stand behind" stand in for a reading nobody took.
+    """
+    import asyncio
+
+    from core.brain.observable_registry import _read_screen
+
+    body = asyncio.run(_read_screen("what is on my screen"))
+
+    assert body.strip()
+    assert (
+        "Frontmost application:" in body
+        or "refused" in body.lower()
+    ), body
+
+
+def test_an_unreadable_window_names_the_absence(monkeypatch) -> None:
+    """This is what stops 'the room is silent, the light unchanged' appearing."""
+    import asyncio
+
+    class _Snapshot:
+        capture_denied = False
+        active_app = "Safari"
+        text = ""
+        accessibility_text = ""
+        focused_role = ""
+        focused_name = ""
+
+    class _Perception:
+        async def capture(self, save_screenshot=False):
+            return _Snapshot()
+
+    monkeypatch.setattr(
+        "core.perception.screen_perception.get_screen_perception", lambda: _Perception()
+    )
+
+    from core.brain.observable_registry import _read_screen
+
+    body = asyncio.run(_read_screen("what is on my screen"))
+
+    assert "Safari" in body
+    assert "No readable text" in body
+
+
+def test_a_refused_capture_is_reported_as_refused(monkeypatch) -> None:
+    import asyncio
+
+    class _Snapshot:
+        capture_denied = True
+
+    class _Perception:
+        async def capture(self, save_screenshot=False):
+            return _Snapshot()
+
+    monkeypatch.setattr(
+        "core.perception.screen_perception.get_screen_perception", lambda: _Perception()
+    )
+
+    from core.brain.observable_registry import _read_screen
+
+    assert "refused" in asyncio.run(_read_screen("what is on my screen")).lower()
+
+
+@pytest.mark.parametrize(
+    "prompt",
+    [
+        "what do you currently believe about me?",
+        "what do you think about me?",
+        "tell me your beliefs",
+    ],
+)
+def test_belief_questions_are_recognised(prompt: str) -> None:
+    from core.brain.observable_registry import _matches_beliefs
+
+    assert _matches_beliefs(prompt) is True
+
+
+def test_a_conversational_turn_does_not_read_the_screen() -> None:
+    """Screen capture is privacy-relevant; it is never ambient."""
+    from core.brain.observable_registry import _matches_screen
+
+    assert _matches_screen("how are you doing today?") is False
