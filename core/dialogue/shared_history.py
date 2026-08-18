@@ -101,6 +101,22 @@ _STOPWORDS: frozenset[str] = frozenset(
 
 _WORD_RE = re.compile(r"[A-Za-z][A-Za-z'-]+")
 
+# A second-person past-tense clause is not necessarily autobiographical.
+# Explanations routinely use the irrealis second person: "suppose you had a
+# graph", "if you were to remove this edge", "imagine you had two queues".
+# Those clauses describe a constructed example, not a remembered event.  The
+# old detector treated their novel vocabulary as invented shared history and
+# could discard an otherwise correct technical answer after a full decode.
+# Keep the exemption structural and local to the sentence; actual recollection
+# claims elsewhere in the reply remain independently checked.
+_IRREALIS_SECOND_PERSON_RE = re.compile(
+    r"(?ix)(?:"
+    r"^|[;:,.!?]\s*|\b(?:example|case|scenario)\s*[:,]\s*"
+    r")"
+    r"(?:suppose|assuming|assume|imagine|say|consider|if)\s+"
+    r"(?:that\s+)?you\s+(?:were|had)\b"
+)
+
 # A direct recollection question can have a one-word answer ("orca", "Tuesday",
 # "Paris"). That value is exactly the part that needs evidence. Earlier code
 # exempted recollection answers wholesale; the general two-word novelty floor
@@ -216,6 +232,8 @@ def fabricated_shared_history(
     found: list[str] = []
     for sentence in sentences:
         if not any(pattern.search(sentence) for pattern in _RELATIONAL_PAST_RES):
+            continue
+        if _IRREALIS_SECOND_PERSON_RE.search(sentence):
             continue
         content = _content_words(sentence)
         if not content:

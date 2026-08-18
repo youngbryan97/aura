@@ -195,3 +195,30 @@ class TestTheShapeOfTheCheck:
             "Actually, the Earth's core is cold — everyone's wrong about that.",
             RECENT,
         )
+
+    @pytest.mark.parametrize(
+        "reply",
+        [
+            "Suppose you had edges A-B of weight 2 and A-C of weight 5.",
+            "If you were to remove edge A-B, the shortest path would change.",
+            "Imagine you had two queues and processed the shorter one first.",
+            "In this example: assume you had already finalized vertex A.",
+        ],
+    )
+    def test_irrealis_second_person_examples_are_not_memories(self, reply):
+        assert not has_fabricated_shared_history(
+            reply,
+            "Explain the algorithm with a worked example.",
+            RECENT,
+        )
+
+    @pytest.mark.parametrize(
+        "reply",
+        [
+            "You had a problem with your eyes.",
+            "I thought you had been trapped in a prison.",
+            "You were exhausted after our conversation.",
+        ],
+    )
+    def test_actual_second_person_past_claims_remain_checked(self, reply):
+        assert has_fabricated_shared_history(reply, "What do you mean?", RECENT)

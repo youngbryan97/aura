@@ -2869,6 +2869,7 @@ def _apply_memory_pressure_generation_controls(
         effective_cap,
         default_max_tokens,
     )
+    token_budget_was_capped = int(options["max_tokens"]) < requested_max_tokens
     if (
         clean_user_surface
         or "clean_user_surface_recurrent_loops" in options
@@ -2887,7 +2888,7 @@ def _apply_memory_pressure_generation_controls(
             requested_loops > 1
             and (
                 pressure_cap < 192
-                or completion_floor <= 0
+                or (token_budget_was_capped and completion_floor <= 0)
                 or int(options["max_tokens"]) < completion_floor
             )
         )
