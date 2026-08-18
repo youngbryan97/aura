@@ -1979,6 +1979,9 @@ class UnitaryResponsePhase(Phase):
                     len(built.get("content", "")),
                 )
                 return built
+            logger.debug(
+                "📄 [GROUNDING] no named file in objective=%r", str(objective)[:120]
+            )
             return cls._build_corpus_grounding_message(objective)
 
         modifiers = dict(getattr(state, "response_modifiers", {}) or {})
