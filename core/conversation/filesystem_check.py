@@ -54,6 +54,31 @@ _COUNT_RE = re.compile(
     re.IGNORECASE,
 )
 
+#: "how many test files do you have", "how many tests are there"
+#:
+#: A question with no "in <path>" clause at all. The counting pattern above
+#: needs a preposition and a path, so this shape reached nothing and she was
+#: left to guess — measured live 2026-08-18, against a real answer of 2444.
+#:
+#: It is a fair question with a determinate answer, and the place is implied by
+#: the kind: her tests live in tests/. Naming that here is what makes the
+#: question answerable rather than ambiguous.
+_OWNED_KIND_RE = re.compile(
+    r"\b(?:how\s+many|count(?:\s+the)?|number\s+of)\s+"
+    r"(?P<owned>test|spec|doc(?:umentation)?)s?\s*"
+    r"(?:files?|scripts?|modules?|suites?)?"
+    r"(?:\s+(?:do|does|have|has|are|is)\b|\s*\?|\s*$)",
+    re.IGNORECASE,
+)
+
+#: Where a kind of file lives, when the question names the kind and not a path.
+_OWNED_KIND_HOMES: dict[str, tuple[str, str]] = {
+    "test": ("tests", ".py"),
+    "spec": ("tests", ".py"),
+    "doc": ("docs", ".md"),
+    "documentation": ("docs", ".md"),
+}
+
 #: Words that name a language/extension rather than a real suffix.
 _KIND_SUFFIXES = {
     "python": ".py",
@@ -186,6 +211,10 @@ def requested_filesystem_count(user_message: Any) -> FilesystemCount | None:
         return None
     match = _COUNT_RE.search(text)
     if not match:
+        owned = _OWNED_KIND_RE.search(text)
+        if owned:
+            home, suffix = _OWNED_KIND_HOMES[owned.group("owned").lower().rstrip("s")]
+            return _count_in(_resolve(home), suffix)
         return None
     kind = (match.group("kind") or "").strip().lower()
     suffix = _KIND_SUFFIXES.get(kind, "")
@@ -197,6 +226,13 @@ def requested_filesystem_count(user_message: Any) -> FilesystemCount | None:
     if target is None and _OWN_SOURCE_RE.search(text):
         roots = _allowed_roots()
         target = roots[0] if roots else None
+    if target is None:
+        return None
+    return _count_in(target, suffix)
+
+
+def _count_in(target: Path | None, suffix: str) -> FilesystemCount | None:
+    """Count files of ``suffix`` directly inside ``target``."""
     if target is None:
         return None
     if not target.is_dir():
