@@ -64,3 +64,49 @@ def test_the_admission_denial_and_the_deferral_agree():
     assert _background_error_is_quiet(
         "candidate_worker_not_ready"
     ) == _background_error_is_quiet("background_deferred:memory_pressure")
+
+
+@pytest.mark.parametrize(
+    "backpressure",
+    [
+        "candidate_worker_not_ready",
+        "background_deferred:memory_pressure",
+        "desktop_background_headroom:Brainstem:68%",
+        "queued for admission",
+    ],
+)
+def test_a_swarm_shard_that_never_ran_is_deferred_not_broken(backpressure):
+    """The same judgement, at the other end of the system.
+
+    A shard deferred by admission produced nothing because it never ran.
+    Raising "Swarm cognitive engine returned empty output" for it — 66 times
+    in one sampled window — describes a full machine as a broken engine.
+    """
+    from types import SimpleNamespace
+
+    from core.collective.delegator import _deferred_generation_reason
+
+    assert _deferred_generation_reason(SimpleNamespace(error=backpressure))
+
+
+@pytest.mark.parametrize(
+    "real_fault", ["worker_died_during_generation", "model produced garbage"]
+)
+def test_a_shard_that_ran_and_failed_still_raises(real_fault):
+    """A worker that started and then died produced nothing for a real reason."""
+    from types import SimpleNamespace
+
+    from core.collective.delegator import _deferred_generation_reason
+
+    assert not _deferred_generation_reason(SimpleNamespace(error=real_fault))
+
+
+def test_both_ends_of_the_system_agree_about_backpressure():
+    """The router and the swarm must not classify one condition two ways."""
+    from types import SimpleNamespace
+
+    from core.collective.delegator import _deferred_generation_reason
+
+    for condition in ("candidate_worker_not_ready", "background_deferred:memory_pressure"):
+        assert _background_error_is_quiet(condition)
+        assert _deferred_generation_reason(SimpleNamespace(error=condition))

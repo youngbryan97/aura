@@ -68,6 +68,19 @@ _GENERATION_DEFERRAL_MARKERS = (
     "warmup",
     "resource_busy",
     "foreground_priority",
+    # The model lane refusing to START a worker for want of room.
+    #
+    # candidate_worker_not_ready comes from _ModelLoadAdmissionDeniedError and
+    # is the same machine state as background_deferred:memory_pressure, which
+    # "deferred" above already catches — admission control working, reached by
+    # a different name. Missing it here meant a shard that never ran raised
+    # "Swarm cognitive engine returned empty output", 66 times in one sampled
+    # window, describing a full machine as a broken engine.
+    #
+    # worker_died_during_generation is deliberately absent: a worker that
+    # started and then died produced nothing for a real reason, and that still
+    # raises.
+    "not_ready",
 )
 
 
