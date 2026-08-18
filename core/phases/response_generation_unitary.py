@@ -7472,6 +7472,29 @@ class UnitaryResponsePhase(Phase):
                         severity="warning",
                     )
 
+            if is_user_facing and response_text:
+                try:
+                    from core.reasoning.symbolic_bridge import SymbolicBridge
+
+                    response_text, exact_repairs = SymbolicBridge().repair_arithmetic_claims(
+                        response_text
+                    )
+                    if exact_repairs:
+                        new_state.response_modifiers["exact_claim_repairs"] = [
+                            repair.to_dict() for repair in exact_repairs
+                        ]
+                        logger.warning(
+                            "Exact claim verifier corrected %d model-authored arithmetic assertion(s) before commit.",
+                            len(exact_repairs),
+                        )
+                except (ImportError, RuntimeError, TypeError, ValueError) as exact_exc:
+                    _record_response_degradation(
+                        exact_exc,
+                        "UnitaryResponse exact-claim repair failed: %s",
+                        action="left the candidate for the final reliability verifier",
+                        severity="warning",
+                    )
+
             return self._commit_response(new_state, response_text, thought=extracted_thought)
 
         except TimeoutError:

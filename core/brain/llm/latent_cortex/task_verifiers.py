@@ -50,12 +50,6 @@ logger = logging.getLogger("Aura.LatentCortex.TaskVerifiers")
 
 TASK_VERIFIER_SCHEMA = "aura.latent_task_verifier.v4"
 
-# The trailing guard rejects decimal continuations ("= 40.5") without
-# rejecting sentence-final claims ("= 40."). The leading guard keeps the
-# first operand from starting mid-number or mid-decimal.
-_ARITH_CLAIM_RE = re.compile(
-    r"(?<![\d.])(-?\d{1,12})\s*([+\-*/x×])\s*(-?\d{1,12})\s*=\s*(-?\d{1,12})(?!\d)(?!\.\d)"
-)
 _FENCE_RE = re.compile(r"```([a-zA-Z0-9_+-]*)\n(.*?)```", re.DOTALL)
 _WORD_RE = re.compile(r"[^\W\d_]{4,}", re.UNICODE)
 _ANSWER_FACET_HINTS = {
@@ -79,31 +73,24 @@ _ANSWER_FACET_HINTS = {
 
 def check_arithmetic_claims(text: str) -> dict[str, Any]:
     """Recompute every explicit arithmetic claim in the candidate."""
-    checked = passed = 0
-    failures: list[str] = []
-    for match in _ARITH_CLAIM_RE.finditer(text or ""):
-        a, op, b, claimed = match.groups()
-        try:
-            a_v, b_v, claimed_v = int(a), int(b), int(claimed)
-        except ValueError:
-            continue
-        if op in {"x", "×"}:
-            op = "*"
-        if op == "/":
-            if b_v == 0 or a_v % b_v != 0:
-                continue  # non-integer division claims are not judged here
-            actual = a_v // b_v
-        elif op == "+":
-            actual = a_v + b_v
-        elif op == "-":
-            actual = a_v - b_v
-        else:
-            actual = a_v * b_v
-        checked += 1
-        if actual == claimed_v:
-            passed += 1
-        elif len(failures) < 8:
-            failures.append(f"{a_v}{op}{b_v}={claimed_v} (actual {actual})")
+    from core.reasoning.symbolic_bridge import SymbolicBridge
+
+    source = str(text or "")
+    observations = [
+        observation
+        for observation in SymbolicBridge().inspect_arithmetic_claims(source)
+        if not (
+            "/" in str(observation["claim"])
+            and not float(observation["correct"]).is_integer()
+        )
+    ]
+    errors = [observation for observation in observations if not observation["valid"]]
+    checked = len(observations)
+    passed = checked - len(errors)
+    failures = [
+        f"{re.sub(r'\s+', '', str(error['claim']))} (actual {error['replacement']})"
+        for error in errors[:8]
+    ]
     return {
         "checked": checked,
         "passed": passed,

@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import ast
+import math
+import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -15,6 +17,80 @@ class SymbolicResult:
 
     def to_dict(self) -> dict[str, Any]:
         return {"ok": self.ok, "engine": self.engine, "result": str(self.result), "proof_trace": self.proof_trace}
+
+
+@dataclass(frozen=True)
+class ArithmeticClaimRepair:
+    """One exact, span-bound correction made to model-authored arithmetic."""
+
+    claim: str
+    stated: float
+    correct: float
+    start: int
+    end: int
+    replacement: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "claim": self.claim,
+            "stated": self.stated,
+            "correct": self.correct,
+            "start": self.start,
+            "end": self.end,
+            "replacement": self.replacement,
+        }
+
+
+_CLAIM_NUMBER = r"-?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?"
+_CLAIM_ATOM = rf"(?:{_CLAIM_NUMBER}|\(\s*{_CLAIM_NUMBER}\s*\))"
+_CLAIM_TERM = rf"{_CLAIM_ATOM}(?:\s*[-+*/x×]\s*{_CLAIM_ATOM})*"
+_CLAIM_FUNCTION = rf"(?:min|max)\(\s*{_CLAIM_TERM}(?:\s*,\s*{_CLAIM_TERM})+\s*\)"
+_ARITHMETIC_CLAIM_RE = re.compile(
+    rf"(?<![\w.])(?P<lhs>{_CLAIM_FUNCTION}|{_CLAIM_ATOM}(?:\s*[-+*/x×]\s*{_CLAIM_ATOM})+)"
+    rf"\s*=\s*(?P<rhs>{_CLAIM_NUMBER})(?!\d)(?!\.\d)"
+)
+_CLAIM_REFUTATION_BEFORE_RE = re.compile(
+    r"(?:false|incorrect|wrong|invalid|counterexample|mistake)(?:\s+(?:claim|equation|result))?"
+    r"\s*[:;,\-—]*\s*$",
+    re.IGNORECASE,
+)
+_CLAIM_REFUTATION_AFTER_RE = re.compile(
+    r"^\s*(?:(?:is|was|would\s+be|looks?)\s+)?"
+    r"(?:false|incorrect|wrong|invalid|a\s+mistake|not\s+correct)\b",
+    re.IGNORECASE,
+)
+
+
+def _claim_is_refuted(text: str, start: int, end: int) -> bool:
+    """Return True when prose presents an equation as an error, not a fact."""
+
+    before = text[max(0, start - 80) : start]
+    after = text[end : min(len(text), end + 80)]
+    if _CLAIM_REFUTATION_BEFORE_RE.search(before):
+        return True
+    if _CLAIM_REFUTATION_AFTER_RE.search(after):
+        return True
+    # Do not rewrite quoted evidence. The enclosing speaker may be the subject
+    # of the correction, and changing the quote would falsify the record.
+    for quote in ('"', "“", "‘"):
+        closing = {'“': '”', '‘': '’'}.get(quote, quote)
+        open_at = text.rfind(quote, 0, start)
+        close_at = text.find(closing, end)
+        if open_at >= 0 and close_at >= 0 and "\n" not in text[open_at:close_at]:
+            return True
+    return False
+
+
+def _format_arithmetic_value(value: float) -> str:
+    if math.isfinite(value) and value.is_integer():
+        return str(int(value))
+    return format(value, ".15g")
+
+
+def _normalize_arithmetic_expression(expr: str) -> str:
+    """Normalize numeric spelling without destroying function separators."""
+
+    return re.sub(r"(?<=\d),(?=\d{3}(?:\D|$))", "", expr).replace("x", "*").replace("×", "*")
 
 
 def _safe_arith(expr: str) -> float | None:
@@ -46,6 +122,15 @@ def _safe_arith(expr: str) -> float | None:
                 return a ** b
             if isinstance(node.op, ast.Mod):
                 return a % b if b != 0 else float("nan")
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id in {"min", "max"}
+            and not node.keywords
+            and 2 <= len(node.args) <= 8
+        ):
+            values = [ev(argument) for argument in node.args]
+            return min(values) if node.func.id == "min" else max(values)
         raise ValueError("unsupported expression")
 
     try:
@@ -115,34 +200,75 @@ class SymbolicBridge:
         except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
             return SymbolicResult(False, "python_ast", repr(exc), "solver_error")
 
-    def check_arithmetic_claims(self, text: str) -> list[dict[str, Any]]:
-        """Verify numeric ``expr = value`` claims in text; return the wrong ones.
+    def inspect_arithmetic_claims(self, text: str) -> list[dict[str, Any]]:
+        """Recompute asserted numeric equalities and return typed observations.
 
         Conservative: only evaluates pure-numeric arithmetic (no variables), so it
         never mis-flags algebra or rhetorical "=" usage. Catches a confidently
         stated calculation error in Aura's own reasoning.
         """
-        import re as _re
-
-        errors: list[dict[str, Any]] = []
-        # "<arithmetic> = <number>" with at least one operator on the left.
-        pattern = _re.compile(r"(?<![\w.])((?:\d[\d,]*(?:\.\d+)?\s*[-+*/]\s*)+\d[\d,]*(?:\.\d+)?)\s*=\s*(-?\d[\d,]*(?:\.\d+)?)")
-        for m in pattern.finditer(str(text or "")):
-            lhs_raw, rhs_raw = m.group(1), m.group(2)
-            lhs_val = _safe_arith(lhs_raw.replace(",", ""))
+        observations: list[dict[str, Any]] = []
+        source = str(text or "")
+        for m in _ARITHMETIC_CLAIM_RE.finditer(source):
+            if _claim_is_refuted(source, m.start(), m.end()):
+                continue
+            lhs_raw, rhs_raw = m.group("lhs"), m.group("rhs")
+            lhs_val = _safe_arith(_normalize_arithmetic_expression(lhs_raw))
             if lhs_val is None:
                 continue
             try:
                 rhs_val = float(rhs_raw.replace(",", ""))
             except ValueError:
                 continue
-            if abs(lhs_val - rhs_val) > 1e-6 * max(1.0, abs(rhs_val)):
-                errors.append({
+            correct = abs(lhs_val - rhs_val) <= 1e-6 * max(1.0, abs(rhs_val))
+            observations.append(
+                {
                     "claim": m.group(0).strip(),
                     "stated": rhs_val,
                     "correct": lhs_val,
-                })
-        return errors
+                    "valid": correct,
+                    "start": m.start("rhs"),
+                    "end": m.end("rhs"),
+                    "replacement": _format_arithmetic_value(lhs_val),
+                }
+            )
+        return observations
+
+    def check_arithmetic_claims(self, text: str) -> list[dict[str, Any]]:
+        """Verify numeric ``expr = value`` claims in text; return the wrong ones."""
+
+        return [
+            observation
+            for observation in self.inspect_arithmetic_claims(text)
+            if not bool(observation["valid"])
+        ]
+
+    def repair_arithmetic_claims(self, text: str) -> tuple[str, list[ArithmeticClaimRepair]]:
+        """Correct provably false numeric equalities without regenerating prose.
+
+        Only the asserted right-hand numeric span changes. Quoted equations and
+        equations explicitly described as false remain verbatim. The operation
+        is deterministic and idempotent, so it can run at more than one response
+        boundary without accumulating mutations.
+        """
+
+        source = str(text or "")
+        errors = self.check_arithmetic_claims(source)
+        repairs = [
+            ArithmeticClaimRepair(
+                claim=str(error["claim"]),
+                stated=float(error["stated"]),
+                correct=float(error["correct"]),
+                start=int(error["start"]),
+                end=int(error["end"]),
+                replacement=str(error["replacement"]),
+            )
+            for error in errors
+        ]
+        repaired = source
+        for repair in reversed(repairs):
+            repaired = repaired[: repair.start] + repair.replacement + repaired[repair.end :]
+        return repaired, repairs
 
     def audit_reasoning(self, text: str) -> dict[str, Any]:
         """Active-reasoning gateway: route logic to the prover, arithmetic to sympy.

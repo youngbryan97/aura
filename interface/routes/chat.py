@@ -16735,6 +16735,19 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
         async def _finalize_fastpath(reply_text: str, status: str = "ok"):
             nonlocal pending_exchange_id
             final_text = str(reply_text or "…").strip() or "…"
+            try:
+                from core.reasoning.symbolic_bridge import SymbolicBridge
+
+                final_text, exact_repairs = SymbolicBridge().repair_arithmetic_claims(
+                    final_text
+                )
+                if exact_repairs:
+                    logger.warning(
+                        "Exact claim verifier corrected %d fast-path arithmetic assertion(s) before commit.",
+                        len(exact_repairs),
+                    )
+            except _CHAT_RECOVERABLE_ERRORS as exact_exc:
+                record_degradation("chat.exact_claim_repair", exact_exc)
             # A question with ONE right answer gets checked here, whatever lane
             # produced the text. Run 7 served these for arithmetic turns:
             #   'Get bit by Anaconda. Spend extra time roaming around…'

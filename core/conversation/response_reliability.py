@@ -8001,6 +8001,15 @@ def _assess_user_facing_reply(
     # the number is absent or wrong.
     if _arithmetic_answer_missing(user_message or _original_user_message, raw):
         reasons.append("arithmetic_answer_missing")
+    try:
+        from core.reasoning.symbolic_bridge import SymbolicBridge
+
+        if SymbolicBridge().check_arithmetic_claims(raw):
+            reasons.append("false_checkable_arithmetic_claim")
+    except (ImportError, RuntimeError, TypeError, ValueError):
+        # A verifier outage is not evidence that the prose is false. The
+        # response transaction records subsystem failures separately.
+        pass
     if _has_low_signal_acknowledgement_placeholder(user_message, raw):
         reasons.append("low_signal_acknowledgement_placeholder")
     if _has_ungrounded_self_cause_claim(user_message, raw):
@@ -8177,6 +8186,7 @@ def _assess_user_facing_reply(
         # A wrong or absent number served as an arithmetic answer is not a
         # style nit — it is a false statement with a checkable truth value.
         "arithmetic_answer_missing",
+        "false_checkable_arithmetic_claim",
         "unanswered_question_part",
     }
     retryable_reasons = hard_reasons | {
@@ -8222,6 +8232,7 @@ def _assess_user_facing_reply(
         "prompt_echo_contamination",
         "protocol_artifact_leakage",
         "arithmetic_answer_missing",
+        "false_checkable_arithmetic_claim",
         "unanswered_question_part",
     }
     if not request_is_knowable:
