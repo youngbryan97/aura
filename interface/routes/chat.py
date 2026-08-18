@@ -7599,16 +7599,31 @@ async def _run_cognitive_engine_chat_turn(
             text,
             expected_recall_reply,
         ):
+            # The runtime just BUILT the correct answer. Serve it.
+            #
+            # expected_recall_reply is composed from the conversation's own
+            # turns — it is a reading of what was said, not model prose
+            # substituted for model prose, so serving it cannot invent an
+            # exchange. Refusing here threw away a correct answer the runtime
+            # was holding and returned "I couldn't get to an answer I'd stand
+            # behind on that one" (LIVE 2026-08-17, "what was the first thing I
+            # said to you in this conversation?").
+            #
+            # The same lesson is written three other places in this file: a
+            # computed arithmetic result, a measured file count, and a
+            # receipt-backed past action all beat an apology. What was refused
+            # here is the same category — the transcript is the source, and it
+            # was already read.
             logger.warning(
-                "CognitiveEngine desktop chat missed the required conversation recall contract; "
-                "refusing bounded recall substitution on a required live full-mind turn."
+                "CognitiveEngine desktop chat missed the required conversation recall "
+                "contract; serving the transcript-composed recall instead of refusing."
             )
             _mark_turn_trace(
                 cognitive_engine_reply_accepted=False,
-                bounded_contract_used=False,
-                response_path="cognitive_engine_recall_contract_failed",
+                bounded_contract_used=True,
+                response_path="conversation_recall_from_transcript",
             )
-            return None
+            return expected_recall_reply
         if _context_challenge_reply_is_inadequate(visible, text):
             if context_challenge_context and _context_challenge_repair_has_evidence(
                 context_challenge_context
