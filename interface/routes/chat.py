@@ -18516,6 +18516,33 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 _semantic_user_message,
                 _live_turn_trace.get("turn_id") or _live_turn_trace.get("idempotency_key") or "",
             )
+            # A recall question the model could not answer at all.
+            #
+            # LIVE 2026-08-17: "what was the first thing I said to you in this
+            # conversation?" produced "compact desktop generation returned no
+            # usable text", three attempts running, and the person got the
+            # apology. The transcript was read and delivered that same turn,
+            # and the route can compose the answer from it directly.
+            #
+            # The recall contract already serves this when a draft exists to
+            # compare against; with no draft at all, nothing reached it. Same
+            # answer, one branch earlier.
+            if not salvaged_no_reply:
+                try:
+                    composed_recall = await _chat_memory_state._build_conversation_recall_reply(
+                        _semantic_user_message,
+                        session_id=_chat_session_id,
+                    )
+                except _CHAT_RECOVERABLE_ERRORS as _recall_exc:
+                    record_degradation("chat.conversation_recall", _recall_exc)
+                    composed_recall = ""
+                if composed_recall:
+                    logger.warning(
+                        "Serving the transcript-composed recall (%d chars) rather than "
+                        "refusing: generation produced no usable text.",
+                        len(composed_recall),
+                    )
+                    salvaged_no_reply = composed_recall
             # A refusal is not an answer to an instruction she can carry out.
             #
             # Live 2026-07-28: "Open the Notes app and write a new note with

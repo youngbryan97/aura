@@ -41,3 +41,35 @@ def test_the_served_path_is_named_in_the_trace() -> None:
     source = inspect.getsource(chat)
 
     assert 'response_path="conversation_recall_from_transcript"' in source
+
+
+def test_a_recall_question_with_no_draft_at_all_still_gets_the_answer() -> None:
+    """Generation returning nothing is the case the contract could not reach.
+
+    LIVE 2026-08-17: "what was the first thing I said to you in this
+    conversation?" produced "compact desktop generation returned no usable
+    text" three attempts running. The recall contract compares a draft against
+    the composed answer, so with no draft it never ran, and the person got the
+    apology while the transcript sat read and delivered in the same turn.
+    """
+    from interface.routes import chat
+
+    source = inspect.getsource(chat)
+    marker = "Serving the transcript-composed recall"
+
+    assert marker in source
+    index = source.find(marker)
+    tail = source[index : index + 500]
+
+    assert "salvaged_no_reply = composed_recall" in tail
+
+
+def test_the_composed_recall_is_only_used_when_nothing_was_salvaged() -> None:
+    """A real draft still wins; this is a floor, not an override."""
+    from interface.routes import chat
+
+    source = inspect.getsource(chat)
+    index = source.find("if not salvaged_no_reply:")
+
+    assert index != -1
+    assert "_build_conversation_recall_reply" in source[index : index + 600]
