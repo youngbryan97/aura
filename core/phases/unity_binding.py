@@ -59,6 +59,14 @@ register_contract(
             "affect.arousal",
         ),
         writes=(
+            # Written by the unity delegate at core/unity/runtime.py:732, on a
+            # path tools/observe_phase_writes.py cannot exercise without a
+            # model — so the measurement below reported six fields and the
+            # receipt check found a seventh the first time the real branch
+            # ran, several hundred times over. That is the check working, and
+            # the omission is read out of the code exactly as the tool's own
+            # documentation says an unexercised branch must be.
+            "cognition.coherence_score",
             "cognition.fragmentation_score",
             "cognition.mind_moment",
             "cognition.phenomenal_state",

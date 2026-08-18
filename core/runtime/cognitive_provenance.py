@@ -352,7 +352,11 @@ class _Transformation:
             observed = diff_digests(self._before, after)
             if contract is not None:
                 declared_set = set(declared)
-                undeclared = tuple(path for path in observed if path not in declared_set)
+                undeclared = tuple(
+                    path
+                    for path in observed
+                    if path not in declared_set and not _is_derived_field(path)
+                )
         receipt = TransformationReceipt(
             transform=self._name,
             contract_hash=contract.content_hash if contract else "",
@@ -404,6 +408,33 @@ def note_branch(branch: str, **criteria: Any) -> None:
     if active is None:
         return
     active.note_branch(branch, **criteria)
+
+
+#: State that the STATE maintains about itself, which no transform declares
+#: because no transform decides it.
+#:
+#: `health` is refreshed by AuraState._refresh_cognitive_health, which runs
+#: from working-memory compaction — housekeeping that fires inside whichever
+#: phase happened to push memory over the threshold. So it surfaced as an
+#: undeclared write by ConsciousnessPhase, CognitiveIntegrationPhase and
+#: ProprioceptiveLoop alike, several hundred times, attributing to a phase a
+#: field it never touched.
+#:
+#: Declaring it in each of those contracts would have silenced the warning by
+#: recording something false: they do not write it, and a later reader would
+#: have concluded these phases decide her health. Excluding derived state is
+#: the honest version — the diff measures what a TRANSFORM did, and this is
+#: not a transform's doing.
+_DERIVED_STATE_PREFIXES = ("health",)
+
+
+def _is_derived_field(path: str) -> bool:
+    """Whether a changed field is state housekeeping rather than a phase's work."""
+    text = str(path or "")
+    return any(
+        text == prefix or text.startswith(f"{prefix}.")
+        for prefix in _DERIVED_STATE_PREFIXES
+    )
 
 
 def _report_violation(transform: str, undeclared: tuple[str, ...]) -> None:

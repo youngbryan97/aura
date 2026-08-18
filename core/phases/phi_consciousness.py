@@ -736,7 +736,17 @@ register_contract(
             "it, so downstream gates scale with measured integration."
         ),
         reads=("cognition.phenomenal_state", "affect.valence", "affect.arousal"),
-        writes=("phi", "response_modifiers", "transition_cause"),
+        writes=(
+            # Line 341 assigns new_state.cognition.phenomenal_state, and the
+            # contract listed that field only as a READ. The write happens on
+            # the branch that generates a phenomenal state through the model,
+            # which tools/observe_phase_writes.py cannot reach, so measurement
+            # saw three fields and the live receipt found the fourth.
+            "cognition.phenomenal_state",
+            "phi",
+            "response_modifiers",
+            "transition_cause",
+        ),
         preconditions=("state carries a cognition block",),
         branches=(
             BranchSpec(
