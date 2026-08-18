@@ -11446,6 +11446,36 @@ class InferenceGate:
                     _instruments = runtime_self_report()
                     if _instruments:
                         ambient_grounding_blocks.append(_instruments)
+
+                # A file she was asked about, read off the disk.
+                #
+                # LIVE 2026-08-17: "read the file CONTRIBUTING.md and tell me
+                # the first rule it states" was answered "I tried to read the
+                # file and failed" — an attempt that never happened. No skill
+                # ran, no error occurred; she narrated a failure.
+                #
+                # The read was wired into the phase pipeline's grounding
+                # channel, which desktop chat does not use: chat arrives here
+                # with prebuilt messages (mode=compact_foreground_prebuilt), so
+                # the block was built into a prompt nobody sent. THIS is the
+                # channel that reaches the worker, which is why it is attached
+                # beside the present-moment and recent-actions readings rather
+                # than anywhere upstream.
+                from core.conversation.filesystem_check import requested_file_read
+
+                _named = requested_file_read(visible_user_prompt)
+                if _named is not None:
+                    if _named.exists and _named.text.strip():
+                        _suffix = " [truncated]" if _named.truncated else ""
+                        task_grounding_blocks.append(
+                            f"## FILE YOU WERE ASKED ABOUT\n"
+                            f"{_named.path}{_suffix}\n{_named.text}"
+                        )
+                    elif not _named.exists:
+                        task_grounding_blocks.append(
+                            "## FILE YOU WERE ASKED ABOUT\n"
+                            f"No file exists at {_named.path}."
+                        )
             except _INFERENCE_RECOVERABLE_ERRORS as _exc:
                 record_degradation(
                     "inference_gate",
@@ -11772,6 +11802,9 @@ class InferenceGate:
                 ("present", "## PRESENT MOMENT"),
                 ("instruments", "## YOUR OWN INSTRUMENTS"),
                 ("receipts", "## WHAT YOU ACTUALLY JUST DID"),
+                # Grounding that cannot be seen cannot be verified — the file
+                # block spent a day being built into a prompt nobody sent.
+                ("file", "## FILE YOU WERE ASKED ABOUT"),
             )
             if marker in str(system_prompt or "")
             or any(marker in str(msg.get("content", "") or "") for msg in messages)
