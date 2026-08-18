@@ -101,7 +101,17 @@ class ProblemRepresentation:
         }
 
 
-_CODE_HINT = re.compile(r"\b(code|function|bug|patch|compile|traceback|stack ?trace|def |class |import )\b", re.I)
+# Naming a language is naming code. Without these, "how would you reverse a
+# string in python?" matched only "how would you" and classified as PLANNING,
+# so a code question asked the ordinary way never reached the code verifier
+# and was answered without anything running it.
+_CODE_HINT = re.compile(
+    r"\b(code|function|bug|patch|compile|traceback|stack ?trace|def |class |import |"
+    r"python|javascript|typescript|rust|golang|java|kotlin|swift|ruby|perl|scala|"
+    r"c\+\+|c#|sql|bash|shell script|regex|regular expression|"
+    r"script|method|algorithm|docstring|unit test|api call)\b",
+    re.I,
+)
 _MATH_HINT = re.compile(
     r"\b(calculate|compute|how many|sum|product|equation|solve|factorial|prime|"
     r"to the power of|raised to|power of|mod(?:ulo)?|gcd|greatest common divisor|"
@@ -115,7 +125,19 @@ _PLAN_HINT = re.compile(
     r"resource allocation|execution order|horizon)\b",
     re.I,
 )
-_FACT_HINT = re.compile(r"\b(what is|who is|when did|define|explain|fact|true that)\b", re.I)
+# Checked last, so widening it only rescues turns that were falling through to
+# "generic" — where no verifier plan applies at all. "Who wrote Hamlet?" is as
+# factual a question as "who is Hamlet's author", and only the second one was
+# recognised.
+_FACT_HINT = re.compile(
+    r"\b(what is|what are|what was|what were|who is|who was|who are|"
+    r"who (?:wrote|made|created|invented|discovered|founded|built|painted|"
+    r"composed|directed|designed|won)|"
+    r"when (?:did|was|were|is)|where (?:is|was|did|are)|"
+    r"which (?:year|country|city|company|language|element)|"
+    r"define|explain|fact|true that)\b",
+    re.I,
+)
 _LOGIC_HINT = re.compile(
     r"\b(causal|counterfactual|intervention|premise|claim|deduce|infer|"
     r"constraint|actual winner|highest score)\w*\b",

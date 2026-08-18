@@ -41,6 +41,56 @@ def extract_code_blocks(text: str) -> list[str]:
     return []
 
 
+_DOCTEST_RE = re.compile(r"^\s*>>> ", re.MULTILINE)
+
+
+def has_doctest_examples(code: str) -> bool:
+    """True when the block states what it does, in runnable form.
+
+    A doctest is the most common way a Python answer says what its code
+    returns, and it is exactly the executable self-claim this engine exists to
+    adjudicate — the same standing as a module-level assert. Skipping them
+    meant an answer whose own examples were WRONG still scored as verified,
+    because "compiles clean" was the whole check.
+    """
+    return bool(_DOCTEST_RE.search(str(code or "")))
+
+
+def doctest_harness(code: str) -> str:
+    """The block, plus the two lines that run its own examples.
+
+    Appended rather than executed here so the sandbox stays the only place
+    candidate code ever runs.
+    """
+    # doctest.testmod() tests the module named __main__ — whatever happens to
+    # be running the code, which is not the candidate — and DocTestFinder
+    # additionally skips any object whose __module__ does not match. Both make
+    # a wrong example count as zero examples and pass. The finder is given the
+    # objects themselves instead.
+    return (
+        f"{code.rstrip()}\n\n"
+        "import doctest as _aura_doctest\n"
+        "_aura_finder = _aura_doctest.DocTestFinder()\n"
+        "_aura_runner = _aura_doctest.DocTestRunner(verbose=False)\n"
+        "_aura_globals = dict(globals())\n"
+        "for _aura_name, _aura_obj in list(_aura_globals.items()):\n"
+        "    if _aura_name.startswith('_aura'):\n"
+        "        continue\n"
+        "    if not (callable(_aura_obj) or isinstance(_aura_obj, type)):\n"
+        "        continue\n"
+        "    if not getattr(_aura_obj, '__doc__', None):\n"
+        "        continue\n"
+        "    for _aura_test in _aura_finder.find(\n"
+        "        _aura_obj, name=_aura_name, globs=dict(_aura_globals)\n"
+        "    ):\n"
+        "        _aura_runner.run(_aura_test)\n"
+        "assert _aura_runner.failures == 0, (\n"
+        '    f"{_aura_runner.failures} of {_aura_runner.tries} "\n'
+        '    "doctest examples failed"\n'
+        ")\n"
+    )
+
+
 def has_module_level_asserts(code: str) -> bool:
     """True when the block contains asserts that would EXECUTE on a plain run:
     statements at module level (including inside module-level if/try/loop
@@ -138,16 +188,21 @@ class CodeTruthEngine:
 
             # Executable self-claims (module-level asserts) demand execution:
             # "compiles clean" is not a verdict on what the block CLAIMS.
-            if report.syntax_ok and report.ok and not report.warnings \
-                    and has_module_level_asserts(block):
-                outcome, issue = await self._execute_claims(idx, block)
-                if outcome == "pass":
-                    executed_ok += 1
-                    evidence.append(f"block#{idx}: module-level asserts passed in sandbox")
-                elif outcome == "fail":
-                    issues.append(issue or f"block#{idx}: runtime failure")
-                else:  # "unavailable"
-                    unverified_claims += 1
+            if report.syntax_ok and report.ok and not report.warnings:
+                runnable, claim = "", ""
+                if has_module_level_asserts(block):
+                    runnable, claim = block, "module-level asserts"
+                elif has_doctest_examples(block):
+                    runnable, claim = doctest_harness(block), "doctest examples"
+                if runnable:
+                    outcome, issue = await self._execute_claims(idx, runnable)
+                    if outcome == "pass":
+                        executed_ok += 1
+                        evidence.append(f"block#{idx}: {claim} passed in sandbox")
+                    elif outcome == "fail":
+                        issues.append(issue or f"block#{idx}: runtime failure")
+                    else:  # "unavailable"
+                        unverified_claims += 1
 
         hard_fail_markers = ("syntax", "compile", "unsafe", "runtime failure")
         ok = not any(any(m in i for m in hard_fail_markers) for i in issues)
