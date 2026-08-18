@@ -92,6 +92,40 @@ class FilesystemCount:
         return self.exists
 
 
+#: Words that stand in for a place instead of naming one.
+#:
+#: LIVE DEFECT, 2026-08-18. "count how many files are in your own source tree"
+#: captured "your" as the path and answered "There is no directory at
+#: /Users/bryan/.aura/live-source/your, so there is nothing to count there."
+#:
+#: The path group is `[\w./\-]+`, which a pronoun satisfies perfectly, so
+#: nothing downstream could tell the difference: a question about her own code
+#: became a confident fact about a directory nobody had mentioned. "my
+#: downloads" and "our repo" fail identically.
+#:
+#: A pronoun is a REFERENCE. Either it resolves to somewhere real or the
+#: question is not one this can answer; inventing a directory from it is the
+#: one outcome that must not happen.
+_PRONOUN_PLACEHOLDERS = frozenset(
+    {
+        "your", "yours", "my", "mine", "our", "ours", "its", "their", "theirs",
+        "his", "her", "hers", "this", "that", "these", "those", "the", "a", "an",
+    }
+)
+
+#: What she means by her own code, and where it actually is.
+#:
+#: "your source tree" IS answerable — she has one, and it is the root this
+#: module already trusts. Declining it would trade a wrong answer for a
+#: needless one.
+_OWN_SOURCE_RE = re.compile(
+    r"\b(?:your|its|her|his|their|the)\s+(?:own\s+)?"
+    r"(?:source(?:\s+(?:tree|code|dir(?:ectory)?|repo(?:sitory)?))?"
+    r"|code\s?base|repo(?:sitory)?)\b",
+    re.IGNORECASE,
+)
+
+
 def _allowed_roots() -> list[Path]:
     roots: list[Path] = []
     try:
@@ -112,6 +146,12 @@ def _resolve(path_text: str) -> Path | None:
 
     candidate = str(path_text or "").strip().strip(".,;:'\"").rstrip("/")
     if not candidate:
+        return None
+    # A pronoun names no directory, and the tail of this function invents one
+    # from whatever it is handed so the caller can report it missing. Saying
+    # "/.../your does not exist" is a confident statement about a path the
+    # person never mentioned.
+    if candidate.lower() in _PRONOUN_PLACEHOLDERS:
         return None
     # An absolute path silently escapes the root check, because pathlib treats
     # `root / "/etc"` as `/etc`. "How many files are in /etc" is not a question
@@ -154,6 +194,9 @@ def requested_filesystem_count(user_message: Any) -> FilesystemCount | None:
         # become "all files", which answers a different question.
         return None
     target = _resolve(match.group("path"))
+    if target is None and _OWN_SOURCE_RE.search(text):
+        roots = _allowed_roots()
+        target = roots[0] if roots else None
     if target is None:
         return None
     if not target.is_dir():
