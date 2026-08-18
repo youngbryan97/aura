@@ -331,11 +331,40 @@ class AuraNow:
         prediction = packet["prediction"]
         ownership = packet["ownership"]
         boundary = packet["report_boundary"]
+        self_model = packet["self"]
+        will = packet["will"]
+        # AUDITED 2026-08-18: 57 of this packet's 75 leaf fields were computed
+        # every tick and rendered nowhere. Among them were the ones that BIND a
+        # decision rather than describe the weather: who she is, how stable
+        # that is, what she has already committed to, what is driving her, and
+        # how much refusal pressure she is under.
+        #
+        # `self_model.commitments` is the sharpest case. A commitment that is
+        # measured and never spoken cannot hold over — she can take a position
+        # in one breath and answer against it in the next with nothing in the
+        # runtime able to notice, because the thing that knows was never asked.
+        #
+        # Only the binding fields are added. The rest of the 57 are telemetry —
+        # per-channel pressures, competing coalitions, prediction vectors — and
+        # this block rides every turn, so what earns a line here is what would
+        # change an answer, not what is merely true.
+        commitments = ", ".join(str(item) for item in (self_model.get("commitments") or ()))[:220]
+        why_attending = ", ".join(str(item) for item in (attention.get("why_selected") or ()))[:160]
         return (
             "## AURA NOW (STATE-GROUNDED)\n"
-            f"- Focus: {attention['focal_object'] or 'none'}\n"
+            f"- Identity: {self_model.get('identity_name') or 'Aura'} "
+            f"(stability={self_model.get('identity_stability', 1.0):.2f}, "
+            f"continuity_risk={self_model.get('continuity_risk', 0.0):.2f})\n"
+            + (f"- Standing commitments: {commitments}\n" if commitments else "")
+            + f"- Focus: {attention['focal_object'] or 'none'}"
+            + (f" (because {why_attending})" if why_attending else "")
+            + "\n"
             f"- Affect controls: valence={affect['valence']:+.2f}, arousal={affect['arousal']:.2f}, "
-            f"distress={affect['distress']:.2f}, curiosity={affect['curiosity']:.2f}, free_energy={affect['free_energy']:.2f}\n"
+            f"distress={affect['distress']:.2f}, curiosity={affect['curiosity']:.2f}, "
+            f"care={affect.get('care', 0.0):.2f}, free_energy={affect['free_energy']:.2f}\n"
+            f"- Dominant drive: {affect.get('dominant_drive') or 'unknown'}\n"
+            f"- Will: assertiveness={will.get('assertiveness', 0.5):.2f}, "
+            f"refusal_pressure={will.get('refusal_pressure', 0.0):.2f}\n"
             f"- Ownership: {ownership['attribution']} "
             f"(agency={ownership['agency_confidence']:.2f}, mineness={ownership['mineness']:.2f})\n"
             f"- Prediction: free_energy={prediction['free_energy']:.2f}, controllability={prediction['controllability']:.2f}\n"

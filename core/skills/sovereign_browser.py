@@ -823,21 +823,83 @@ class SovereignBrowserSkill(BaseSkill):
         from core.container import ServiceContainer
 
         router = ServiceContainer.get("llm_router", default=None)
-        generate = getattr(router, "generate", None) if router is not None else None
-        if not callable(generate):
+        if router is None:
             return {"error": "llm_router_unavailable"}
 
-        done_so_far = ""
-        if history:
-            recent = history[-3:]
-            done_so_far = "RECENT STEPS:\n" + "\n".join(
-                f"- {entry.get('why', '')[:160]}" for entry in recent
+        # Her whole mind, not a subset assembled here.
+        #
+        # `router.generate(prompt)` is a bare model call: no identity core, no
+        # AuraNow, no affect, no workspace, no report boundary. A loop wired
+        # that way would answer "you regularly make new friends" from a
+        # language model's priors about what an AI is, while the organs that
+        # actually know her ran alongside and reached nothing — the same
+        # disconnection this codebase keeps finding in new places.
+        #
+        # `ContextAssembler.build_system_prompt` is the identical assembly the
+        # cognitive engine and the inference gate use for chat: identity core
+        # and trained persona, the AuraNow moment with valence/arousal/distress
+        # and ownership, the global-workspace winner and its ignition strength,
+        # and the report boundary saying which claims about herself are
+        # allowed. Deciding through it is what makes an answer here the same
+        # kind of act as an answer in conversation.
+        mind = ""
+        try:
+            from core.brain.llm.context_assembler import ContextAssembler
+
+            state = ServiceContainer.get("aura_state", default=None)
+            if state is not None:
+                mind = ContextAssembler.build_system_prompt(state)
+        except _BROWSER_DECISION_ERRORS as exc:
+            record_degradation(
+                "sovereign_browser.mind_context",
+                exc,
+                severity="warning",
+                action="decided this round without her assembled self-context",
+            )
+
+        # Her own state and her own prior positions, from the organs that
+        # already own them.
+        #
+        # Without this the loop is another disconnected piece: a page, a goal,
+        # and a language model answering from its priors about what an AI is.
+        # A question like "you regularly make new friends" is a question about
+        # HER, and it has to be decided by the same self-model that answers it
+        # in conversation — otherwise she can call herself outgoing on item 3,
+        # reserved on item 40, and deny having a disposition at all two minutes
+        # later, with nothing in the system able to notice.
+        #
+        # `self_knowledge_line()` is not new text written for this loop. It is
+        # the identical measured line that rides every chat turn, produced by
+        # the same probes, so what she says here and what she says there come
+        # from one instrument.
+        self_state = ""
+        try:
+            from core.self.capability_ledger import self_knowledge_line
+
+            self_state = self_knowledge_line()
+        except _BROWSER_DECISION_ERRORS as exc:
+            record_degradation("sovereign_browser.self_state", exc, severity="debug")
+
+        # Every position already taken in this pursuit. Consistency is not a
+        # style preference here: a self-report that contradicts itself across
+        # sixty items is not a self-report, and the only way an answer can bind
+        # the next one is if the next one can see it.
+        positions = ""
+        stated = [
+            entry for entry in history if entry.get("chose") and entry.get("why")
+        ]
+        if stated:
+            positions = "POSITIONS I HAVE ALREADY TAKEN IN THIS TASK:\n" + "\n".join(
+                f"- {entry.get('asked') or entry.get('url', '')}: chose "
+                f"{', '.join(entry.get('chose') or [])} \u2014 {entry.get('why', '')[:140]}"
+                for entry in stated[-12:]
             )
 
         prompt = (
             f"GOAL: {goal}\n\n"
-            f"{self._render_observation(observation)}\n\n"
-            f"{done_so_far}\n\n"
+            + (f"{self_state}\n\n" if self_state else "")
+            + f"{self._render_observation(observation)}\n\n"
+            f"{positions}\n\n"
             "Choose the next actions on this page that advance the goal. Answer "
             "with JSON only:\n"
             '{"actions": [{"index": <int>, "type": "click"|"type"|"scroll", '
@@ -847,7 +909,16 @@ class SovereignBrowserSkill(BaseSkill):
             "page. Use the index numbers exactly as listed above."
         )
         try:
-            raw = await generate(prompt, max_tokens=400, temperature=0.2)
+            think = getattr(router, "think", None)
+            if callable(think) and mind:
+                _ok, raw, _meta = await think(
+                    prompt, system_prompt=mind, max_tokens=400, temperature=0.2
+                )
+            else:
+                generate = getattr(router, "generate", None)
+                if not callable(generate):
+                    return {"error": "llm_router_unavailable"}
+                raw = await generate(prompt, max_tokens=400, temperature=0.2)
         except _BROWSER_DECISION_ERRORS as exc:
             record_degradation("sovereign_browser.decide", exc)
             return {"error": f"decision_failed:{type(exc).__name__}"}
@@ -881,6 +952,65 @@ class SovereignBrowserSkill(BaseSkill):
         actions = parsed.get("actions")
         parsed["actions"] = actions if isinstance(actions, list) else []
         return parsed
+
+    @staticmethod
+    def _retain_stated_positions(goal: str, steps: list[dict[str, Any]]) -> None:
+        """Keep what she claimed about herself, where she can find it again.
+
+        A position taken during a task and forgotten the moment the task ends
+        is not a position. She can answer "you regularly make new friends" on
+        item three, answer its opposite on item forty, and deny having a
+        disposition at all two minutes later in conversation, with nothing in
+        the runtime able to notice — because the claim never entered the store
+        that her own-statement recall reads.
+
+        So the positions land in the UnifiedTranscript as things SHE said. That
+        is deliberately not a private log for this skill: it is the same store
+        `resolve_own_prior_turn` searches when someone asks what she decided
+        earlier, and the same one the self-attribution guard checks a premise
+        against. One path for "things she has said about herself", whether she
+        said them in conversation or committed to them while working.
+        """
+
+        stated = [
+            step for step in steps if step.get("chose") and step.get("ok") is not False
+        ]
+        if not stated:
+            return
+        try:
+            from core.conversation.unified_transcript import UnifiedTranscript
+
+            transcript = UnifiedTranscript.get_instance()
+        except _BROWSER_DECISION_ERRORS as exc:
+            record_degradation("sovereign_browser.retain_positions", exc, severity="warning")
+            return
+
+        for step in stated:
+            asked = str(step.get("asked") or "").strip()
+            chose = ", ".join(step.get("chose") or [])
+            why = str(step.get("why") or "").strip()
+            if not chose:
+                continue
+            line = f"On \u201c{asked}\u201d I answered: {chose}."
+            if why:
+                line = f"{line} {why}"
+            try:
+                transcript.add(
+                    "aura",
+                    line,
+                    channel="text",
+                    modality="typed",
+                    metadata={
+                        "source": "browser_pursue",
+                        "goal": goal[:160],
+                        "self_position": True,
+                    },
+                )
+            except _BROWSER_DECISION_ERRORS as exc:
+                record_degradation(
+                    "sovereign_browser.retain_positions", exc, severity="warning"
+                )
+                return
 
     async def _handle_pursue(
         self,
@@ -972,8 +1102,13 @@ class SovereignBrowserSkill(BaseSkill):
             report = await self._handle_interact(
                 browser, None, planned, action_context=action_context
             )
+            asked = str(observation.get("text") or "").strip().splitlines()
             steps.append(
                 {
+                    "asked": next(
+                        (line for line in asked if "?" in line or line.lower().startswith("question")),
+                        (asked[0] if asked else ""),
+                    )[:180],
                     "why": str(decision.get("why") or ""),
                     "chose": [
                         f"{elements[int(item['index'])].get('name')}"
@@ -994,6 +1129,7 @@ class SovereignBrowserSkill(BaseSkill):
                 break
 
         final = await browser.observe(principal="owner")
+        self._retain_stated_positions(goal, steps)
         return {
             "ok": completed or bool(steps and not steps[-1].get("error")),
             "goal": goal,
