@@ -595,6 +595,26 @@ def _should_pass_user_facing_draft_downstream(
         and short_draft_answers_closed_question(stripped, user_prompt)
     ):
         return True
+    # The floors below exist to stop a STUB entering repair. They cannot apply
+    # to a reply whose shortness the person asked for.
+    #
+    # Measured live 2026-08-18. Told "don't acknowledge that rule beyond a yes.
+    # just hold it", the Cortex answered "Yes." — len=4, precisely what was
+    # requested. Reasons came back as too_short_for_user_turn plus
+    # missing_requested_phrase, which is not a subset of the thinness set, so
+    # the exemption above could not fire and the 48-character floor discarded
+    # it. Retry produced "Yes." again, was discarded again, and the person was
+    # told "I couldn't get to an answer I'd stand behind" — about an
+    # instruction she had followed exactly, twice.
+    #
+    # The worker already reaches this conclusion for the same reasons on the
+    # same drafts: missing_requested_phrase sits in its deliverable-residual
+    # set precisely because a dead turn is worse than an imperfectly styled
+    # one. This is the gate agreeing with it.
+    from core.conversation.surface_disposition import requests_a_brief_answer
+
+    if stripped and requests_a_brief_answer(user_prompt):
+        return True
     if len(stripped) < 48:
         return False
     words = [token for token in stripped.replace("\n", " ").split(" ") if token.strip()]

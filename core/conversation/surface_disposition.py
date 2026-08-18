@@ -64,6 +64,7 @@ __all__ = [
     "integrity_failures",
     "preserved_draft",
     "preserve_draft",
+    "requests_a_brief_answer",
     "short_draft_answers_closed_question",
     "begin_turn_tool_receipts",
     "record_tool_receipt",
@@ -603,6 +604,40 @@ _POLAR_PROMPT_RE = re.compile(
     r"had|am)\b",
     re.IGNORECASE,
 )
+#: A request that asks for a SHORT answer in so many words.
+#:
+#: LIVE DEFECT, 2026-08-18. Told "don't acknowledge that rule beyond a yes.
+#: just hold it", the Cortex answered "Yes." — len=4, exactly what was asked
+#: for. It was rejected as too_short_for_user_turn, retried, produced "Yes."
+#: again, was rejected again, and the turn died as "I couldn't get to an answer
+#: I'd stand behind." She obeyed the instruction and was punished for obeying
+#: it, twice.
+#:
+#: The existing exemption covers arithmetic and GRAMMATICALLY polar questions —
+#: prompts opening with is/are/do/can. An instruction that constrains the reply
+#: is neither, so a request for brevity was the one shape that could not
+#: license brevity.
+#:
+#: Matched on the request asking for it, not on the answer being short, so it
+#: cannot excuse a stub nobody asked for.
+_REQUESTS_BREVITY_RE = re.compile(
+    r"\b(?:just|only|simply)\s+(?:say|answer|reply|tell\s+me)\b"
+    r"|\bone\s+word\b|\bin\s+a\s+word\b|\bsingle\s+word\b"
+    r"|\byes\s+or\s+no\b|\bnothing\s+(?:else|more)\b"
+    r"|\bdon'?t\s+(?:elaborate|explain|expand|acknowledge)\b"
+    r"|\bno\s+(?:preamble|explanation|elaboration|commentary)\b"
+    r"|\bbeyond\s+a\s+(?:yes|no)\b"
+    r"|\bjust\s+the\s+(?:number|answer|word|name|result)\b"
+    r"|\bshort\s+answer\b|\bbriefly\b",
+    re.IGNORECASE,
+)
+
+
+def requests_a_brief_answer(question: Any) -> bool:
+    """Whether the person asked, in words, for a short reply."""
+    return bool(_REQUESTS_BREVITY_RE.search(str(question or "")))
+
+
 #: Acknowledgements that answer nothing on their own.
 _FILLER_DRAFTS = frozenset(
     {"ok", "okay", "sure", "fine", "done", "right", "yep", "got it"}
@@ -644,6 +679,10 @@ def short_draft_answers_closed_question(text: Any, question: Any) -> bool:
     if _POLAR_PROMPT_RE.match(prompt) and re.match(
         r"^\s*(?:yes|no|yeah|nope|not\b|it\s+is|it\s+isn't)\b", draft, re.IGNORECASE
     ):
+        return True
+    # The person asked for a short answer. Brevity is compliance here, and the
+    # filler check above already keeps "ok" and "sure" out.
+    if requests_a_brief_answer(prompt):
         return True
     return False
 
