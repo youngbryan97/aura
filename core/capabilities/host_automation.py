@@ -103,6 +103,11 @@ class AutomationReceipt:
     script_hash: str = ""           # SHA256 of any executed script
     timestamp: float = field(default_factory=time.time)
     receipt_id: str = ""
+    #: Where the recognized text actually sat, for perception actions that
+    #: read a screen. `result` is the words in reading order; this is the same
+    #: reading with its geometry intact, which is the difference between
+    #: knowing a screen says "2048" and knowing where on the screen it says it.
+    layout: list[dict[str, Any]] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         if not self.receipt_id:
@@ -1399,6 +1404,90 @@ class HostAutomationProvider:
         return receipt
 
     @staticmethod
+    def _ocr_image_regions(image_path: str) -> list[dict[str, Any]]:
+        """Recognized text WITH the position of each run.
+
+        macOS Vision already computes this. Every VNRecognizedTextObservation
+        carries a boundingBox, and _ocr_image_text read `.string()` off the top
+        candidate and discarded the geometry, returning "\n".join(lines).
+
+        So the flat text a caller received was not what the OS produced — it
+        was what survived. Anything laid out in two dimensions became a column
+        of strings in reading order: a table lost its columns, a form lost
+        which label went with which field, and a grid lost the grid. Tasks
+        that need to know WHERE something is were unreachable, and the reason
+        was invisible because OCR appeared to work.
+
+        Boxes are normalized 0..1 with a TOP-left origin, matching how screen
+        coordinates are expressed everywhere else in this codebase. Vision's
+        own origin is bottom-left, and leaving that mismatch for each caller to
+        remember is how a click lands at the wrong end of the screen.
+
+        Returns [] rather than raising: a caller that wants flat text still has
+        _ocr_image_text, and losing layout is not a reason to lose the words.
+        """
+        try:
+            from Foundation import NSURL
+            from Quartz import (
+                CGImageSourceCreateImageAtIndex,
+                CGImageSourceCreateWithURL,
+            )
+            from Vision import (
+                VNImageRequestHandler,
+                VNRecognizeTextRequest,
+                VNRequestTextRecognitionLevelAccurate,
+            )
+
+            image_url = NSURL.fileURLWithPath_(str(image_path))
+            image_source = CGImageSourceCreateWithURL(image_url, None)
+            if image_source is None:
+                return []
+            image = CGImageSourceCreateImageAtIndex(image_source, 0, None)
+            if image is None:
+                return []
+            request = VNRecognizeTextRequest.alloc().init()
+            request.setRecognitionLevel_(VNRequestTextRecognitionLevelAccurate)
+            request.setUsesLanguageCorrection_(True)
+            handler = VNImageRequestHandler.alloc().initWithCGImage_options_(image, {})
+            succeeded, _error = handler.performRequests_error_([request], None)
+            if not succeeded:
+                return []
+            regions: list[dict[str, Any]] = []
+            for observation in list(request.results() or []):
+                candidates = list(observation.topCandidates_(1) or [])
+                if not candidates:
+                    continue
+                value = str(candidates[0].string() or "").strip()
+                if not value:
+                    continue
+                try:
+                    box = observation.boundingBox()
+                    x = float(box.origin.x)
+                    y = float(box.origin.y)
+                    w = float(box.size.width)
+                    h = float(box.size.height)
+                    confidence = float(candidates[0].confidence())
+                except (AttributeError, TypeError, ValueError):
+                    continue
+                regions.append(
+                    {
+                        "text": value,
+                        # Vision measures up from the bottom; everything else
+                        # here measures down from the top.
+                        "x": round(x, 5),
+                        "y": round(1.0 - (y + h), 5),
+                        "width": round(w, 5),
+                        "height": round(h, 5),
+                        "center_x": round(x + (w / 2.0), 5),
+                        "center_y": round(1.0 - (y + (h / 2.0)), 5),
+                        "confidence": round(confidence, 4),
+                    }
+                )
+            return regions
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+            return []
+
+    @staticmethod
     def _ocr_image_text(image_path: str) -> str:
         """Recognize text with native macOS Vision, then optional Tesseract."""
         native_error = ""
@@ -1481,8 +1570,16 @@ class HostAutomationProvider:
 
         text = ""
         ocr_error = ""
+        regions: list[dict[str, Any]] = []
         try:
             text = await asyncio.to_thread(self._ocr_image_text, str(ss.result))
+            # Read the layout in the SAME pass. Vision computes the position of
+            # every text run whether or not anyone asks, so taking it here
+            # costs one more traversal of a result set already in memory —
+            # against a second full screenshot and a second OCR, which at
+            # ~1-2s each is the difference between a loop that can watch
+            # something change and one that cannot.
+            regions = await asyncio.to_thread(self._ocr_image_regions, str(ss.result))
         except _HOST_AUTOMATION_ERRORS as e:
             ocr_error = str(e)
 
@@ -1535,6 +1632,7 @@ class HostAutomationProvider:
             result=text[:2000],
             error=ocr_error[:500],
             duration_ms=(time.time() - start) * 1000,
+            layout=regions,
         )
         return receipt
 
