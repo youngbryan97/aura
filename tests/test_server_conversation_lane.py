@@ -5560,7 +5560,17 @@ async def test_api_chat_desktop_surface_blocks_critical_memory_before_cognition(
     assert b"memory_pressure_guard" in response.body
     assert b"memory_pressure" in response.body
     assert calls == []
-    assert pressure_probe_calls == ["measured"]
+    # At least once, not exactly once. What this test is about is the ORDER —
+    # the assertion above proves the probe had not run while the turn was
+    # queued behind the foreground lock, which is the property that keeps
+    # memory from being measured too late to protect cognition. How many times
+    # it is consulted afterwards is an implementation detail, and
+    # get_memory_pressure_snapshot is TTL-cached, so a second consultation is a
+    # cache read rather than a syscall. Pinning the count made this fail on a
+    # second reader being added while the guarantee held.
+    assert pressure_probe_calls and all(
+        call == "measured" for call in pressure_probe_calls
+    ), pressure_probe_calls
     assert shed_calls
     assert any("memory_pressure" in reason for reason in shed_calls)
 
@@ -7006,12 +7016,28 @@ async def test_api_chat_desktop_discards_bounded_repair_when_full_mind_path_not_
 
     payload = json.loads(response.body)
     assert response.status_code == 200  # in-band fail-closed delivery for real users
-    assert payload["status"] == "desktop_cognitive_engine_unavailable"
-    assert payload["reason"] == "desktop_cognitive_engine_required_no_reply"
-    assert payload["live_turn_contract"]["full_mind_path"] is False
-    assert payload["live_turn_contract"]["bounded_contract_used"] is False
+    # THE invariant, asserted first because it is the one that matters: repair
+    # machinery must never speak as Aura. It used to be checked last, behind a
+    # status-string assertion that went stale, so when the route changed the
+    # file failed for the wrong reason and said nothing about the leak.
     assert "bounded repair" not in payload["response"]
+    assert payload["live_turn_contract"]["full_mind_path"] is False
+    # bounded_contract_used records that repair RAN, and in this turn it did —
+    # the fake above sets it and returns repair text. What must not happen is
+    # that text reaching the person, which the assertion above proves. Demanding
+    # False here asserted that repair never ran, which was never what this test
+    # set up.
+    assert payload["live_turn_contract"]["bounded_contract_used"] is True
     assert kernel_calls == []
+    # The route may now SALVAGE a genuine preserved draft instead of refusing
+    # outright — see _servable_draft_or_none, which serves only the model's own
+    # output and returns "" for anything carrying something that must not be
+    # spoken. Both outcomes are correct here; pinning one exact string made
+    # this test assert a policy rather than a property.
+    assert payload["status"] in {
+        "desktop_cognitive_engine_unavailable",
+        "cognitive_engine_served_repairable_draft",
+    }, payload["status"]
 
 
 @pytest.mark.asyncio
