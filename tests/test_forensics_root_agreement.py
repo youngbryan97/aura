@@ -134,7 +134,23 @@ def test_source_body_sees_a_crash_written_by_the_canonical_writer(monkeypatch, t
     assert organ._previous_exit_was_abrupt(previous) is False
 
     crash_file = forensics_dir("crash") / "faulthandler.log"
-    crash_file.write_text("===== boot pid=1 =====\n", encoding="utf-8")
+    # A real dump, not a boot header.
+    #
+    # This wrote "===== boot pid=1 =====" — which is what the fault sink
+    # appends when it is ARMED at startup, on every healthy boot. Asserting
+    # that it means a crash is asserting the defect measured live 2026-08-18:
+    # every clean restart woke her with "my previous session ended abruptly",
+    # because the sink's mtime is newer than the last awakening by
+    # construction.
+    #
+    # The test is about ROOT AGREEMENT — that the reader looks where the
+    # canonical writer writes — and that is unaffected by the payload, so it
+    # uses content only a fault produces.
+    crash_file.write_text(
+        "===== boot pid=1 =====\nFatal Python error: Segmentation fault\n"
+        "Current thread 0x00007f (most recent call first):\n",
+        encoding="utf-8",
+    )
 
     assert organ._previous_exit_was_abrupt(previous) is True, (
         "a crash dump written to the canonical crash directory was not seen by "

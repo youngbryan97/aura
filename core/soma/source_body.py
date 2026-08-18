@@ -127,10 +127,47 @@ def organ_of(path: str) -> str:
     return parts[0]
 
 
-#: Files in the crash directory whose mtime changes on every BOOT, because
-#: arming a fault sink writes a header to them. Their freshness is evidence
-#: that the runtime started, never that it crashed.
+#: Files in the crash directory that a live runtime appends to while HEALTHY,
+#: because arming a fault sink writes a header. Their freshness alone marks a
+#: start, not a death — but the same file also receives real dumps, so it is
+#: judged by content rather than excluded by name.
 _BOOT_SINK_FILENAMES = frozenset({"faulthandler.log"})
+
+#: What a real fault dump contains and a boot header does not.
+_FAULT_DUMP_MARKERS = (
+    "Fatal Python error",
+    "Current thread 0x",
+    "Traceback (most recent call last)",
+    "Thread 0x",
+    "Segmentation fault",
+)
+
+
+def _holds_a_fault_dump(path: Path) -> bool:
+    """Whether a boot-sink file contains an actual dump, not just headers.
+
+    The sink is appended at every arming with "===== boot pid=N at=... =====",
+    so mtime says only that the runtime started. A dump has a traceback or a
+    fatal-error banner in it, and nothing else in the file does.
+
+    Only the tail is read: the file grows for the life of the installation and
+    the question is about the most recent session.
+    """
+    try:
+        size = path.stat().st_size
+        with path.open("rb") as handle:
+            if size > _FAULT_TAIL_BYTES:
+                handle.seek(-_FAULT_TAIL_BYTES, 2)
+            tail = handle.read().decode("utf-8", "replace")
+    except OSError:
+        # Unreadable evidence is not evidence of safety either; fall back to
+        # treating it as a dump so a real death is never silently dismissed.
+        return True
+    return any(marker in tail for marker in _FAULT_DUMP_MARKERS)
+
+
+#: Enough of the sink to cover one session's dump.
+_FAULT_TAIL_BYTES = 64_000
 
 
 @dataclass(frozen=True)
@@ -726,12 +763,15 @@ class SourceBodyAwareness:
                     try:
                         if not entry.is_file():
                             continue
-                        if entry.name in _BOOT_SINK_FILENAMES:
-                            # Written when the sink is ARMED, so its freshness
-                            # marks a boot rather than a death.
+                        if entry.stat().st_mtime <= previous.t:
                             continue
-                        if entry.stat().st_mtime > previous.t:
-                            return True
+                        if entry.name in _BOOT_SINK_FILENAMES and not _holds_a_fault_dump(
+                            entry
+                        ):
+                            # Freshly appended, but only with a boot header:
+                            # the runtime started, it did not die.
+                            continue
+                        return True
                     except OSError:
                         continue
         except OSError as exc:
