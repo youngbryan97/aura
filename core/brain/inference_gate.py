@@ -955,7 +955,19 @@ def _observable_dispatch_markers() -> tuple[tuple[str, str], ...]:
         return tuple(
             (observable.name, observable.header) for observable in OBSERVABLES
         )
-    except Exception:  # noqa: BLE001 - observability must never break a turn
+    except (
+        AttributeError,
+        ImportError,
+        RuntimeError,
+        TypeError,
+        ValueError,
+    ):
+        # Observability must never break a turn — but the rule in this module
+        # is named exceptions, and these are the ones this body can raise: the
+        # import, the attribute read on the registry, and iterating whatever it
+        # holds. A bare `except Exception` here would also swallow a
+        # KeyboardInterrupt-adjacent bug in registration and report the runtime
+        # as having no observables at all.
         return ()
 
 
@@ -970,6 +982,17 @@ class InferenceGate:
     _last_cortex_policy_deferred_log_at: float = 0.0
     _last_stale_reset_log_at: float = 0.0
     _last_forced_warmup_override_log_at: float = 0.0
+    #: The lock the status/recovery path takes. The defaults above exist so a
+    #: partially constructed instance cannot crash that path with an
+    #: AttributeError, and this was the one it actually takes — omitted, so
+    #: _schedule_status_recovery raised "'InferenceGate' object has no
+    #: attribute '_status_recovery_lock'" on any instance built through
+    #: __new__ (test doubles, and the hot-reload edge the comment above names).
+    #:
+    #: A class-level lock is the right default rather than None: the paths that
+    #: take it are guarding a scheduling decision, and a missing lock must
+    #: serialise them, not skip the guard.
+    _status_recovery_lock: Any = _threading.RLock()
 
     def __init__(self, orch=None):
         self.orch = orch
@@ -2067,6 +2090,65 @@ class InferenceGate:
         )
         return (time.time() - started_at) < deadline_s
 
+    #: One RAM reading shared by everything that asks within this window.
+    #:
+    #: _cortex_warmup_admission_snapshot called psutil.virtual_memory() directly
+    #: and is consulted from five sites, several of them inside the same
+    #: ensure_foreground_ready call. Measured: 20 syscalls per foreground-ready
+    #: check, up from 2 — on the hot path immediately before every generation.
+    #:
+    #: A cached snapshot already exists (get_memory_pressure_snapshot, TTL'd)
+    #: and this path bypassed it, so the cheap reader was there and unused. The
+    #: window is short because the decision it feeds is "is it safe to load a
+    #: 32B right now": stale by a second is fine, stale by a minute is not.
+    _VIRTUAL_MEMORY_MEMO_TTL_S = 0.5
+    _virtual_memory_memo: tuple[float, int, Any] | None = None
+    _virtual_memory_memo_lock = _threading.Lock()
+
+    @staticmethod
+    def _recent_virtual_memory() -> Any:
+        """psutil.virtual_memory(), at most once per _VIRTUAL_MEMORY_MEMO_TTL_S.
+
+        Keyed on the identity of the probe as well as the clock. A class-level
+        cache with only a TTL is order-dependent: the first version of this
+        shared one reading across test functions, so a test that replaced the
+        probe was served the previous test's value and three of them failed.
+        Keying on the callable means replacing it — which is what patching does,
+        and what a runtime swapping its resource observer does — misses the memo
+        instead of silently reusing a reading taken through a different probe.
+        """
+        probe = psutil.virtual_memory
+        probe_key = id(probe)
+        now = time.monotonic()
+        with InferenceGate._virtual_memory_memo_lock:
+            memo = InferenceGate._virtual_memory_memo
+            if (
+                memo is not None
+                and memo[1] == probe_key
+                and (now - memo[0]) <= InferenceGate._VIRTUAL_MEMORY_MEMO_TTL_S
+            ):
+                cached = memo[2]
+                if isinstance(cached, BaseException):
+                    raise cached
+                return cached
+        try:
+            reading: Any = probe()
+        except (OSError, RuntimeError, ValueError) as exc:
+            # A BROKEN probe is remembered too, for the same window.
+            #
+            # Otherwise every caller re-attempts a syscall that has just
+            # failed: measured at 20 raising probes in one
+            # ensure_foreground_ready. "The probe is not answering" is as
+            # valid a reading as a number, and half a second of staleness on
+            # it costs nothing while re-asking twenty times costs the hot path
+            # before every generation.
+            with InferenceGate._virtual_memory_memo_lock:
+                InferenceGate._virtual_memory_memo = (now, probe_key, exc)
+            raise
+        with InferenceGate._virtual_memory_memo_lock:
+            InferenceGate._virtual_memory_memo = (now, probe_key, reading)
+        return reading
+
     @staticmethod
     def _cortex_warmup_admission_snapshot(context: str = "background") -> dict[str, Any]:
         """Return whether a cold Cortex load is safe under current RAM pressure.
@@ -2082,7 +2164,7 @@ class InferenceGate:
         """
         context_key = str(context or "background").strip().upper()
         try:
-            vm = psutil.virtual_memory()
+            vm = InferenceGate._recent_virtual_memory()
             total_gb = float(vm.total) / float(1024**3)
             available_gb = float(vm.available) / float(1024**3)
             pressure_pct = float(vm.percent)
@@ -2584,7 +2666,7 @@ class InferenceGate:
             return False
 
         try:
-            vm = psutil.virtual_memory()
+            vm = InferenceGate._recent_virtual_memory()
             snapshot = InferenceGate._cortex_warmup_admission_snapshot("boot")
             min_total_gb = float(_FLAG_BOOT_WARMUP_MIN_TOTAL_GB.value())
             if (vm.total / float(1024**3)) < min_total_gb or not snapshot["can_admit"]:
@@ -2858,7 +2940,7 @@ class InferenceGate:
             detected_total = (
                 float(total_gb)
                 if total_gb is not None
-                else float(psutil.virtual_memory().total) / float(1024**3)
+                else float(InferenceGate._recent_virtual_memory().total) / float(1024**3)
             )
         except (AttributeError, OSError, TypeError, ValueError):
             detected_total = 0.0
@@ -3963,7 +4045,7 @@ class InferenceGate:
                     next_delay = min(90.0, max(20.0, next_delay * 1.5))
                     continue
                 try:
-                    vm = psutil.virtual_memory()
+                    vm = InferenceGate._recent_virtual_memory()
                     total_gb = vm.total / float(1024**3)
                     available_gb = vm.available / float(1024**3)
                     critical_pressure = vm.percent >= (92.0 if total_gb >= 60.0 else 88.0)
@@ -5102,7 +5184,7 @@ class InferenceGate:
     @staticmethod
     def _background_memory_pressure_active() -> bool:
         try:
-            vm = psutil.virtual_memory()
+            vm = InferenceGate._recent_virtual_memory()
             total_gb = vm.total / float(1024**3)
             available_gb = vm.available / float(1024**3)
             max_pressure = float(
@@ -7065,7 +7147,7 @@ class InferenceGate:
             if mem_monitor is not None:
                 memory_pressure = getattr(mem_monitor, "pressure", None)
             if memory_pressure is None and psutil is not None:
-                memory_pressure = psutil.virtual_memory().percent
+                memory_pressure = InferenceGate._recent_virtual_memory().percent
             # Only render fields that were actually observed. Missing hardware
             # telemetry must appear as UNAVAILABLE — fabricating 0% CPU and a
             # "stable" thermal label would present dead sensors as calm
