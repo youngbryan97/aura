@@ -244,6 +244,49 @@ async def _read_queued_work(_prompt: str) -> str:
     return "Deferred maintenance work:\n" + "\n".join(lines)
 
 
+# ── what was actually said in this conversation ──────────────────────────────
+#
+# "what did I ask you two messages ago?" was answered "You asked, 'What's the
+# weather like? I can't seem to find my umbrella.' Then you asked me what I
+# thought about that. I said it was fine." None of that was ever said. She
+# invented an exchange, in detail, with dialogue.
+#
+# The transcript is on disk. Recall about this conversation is a reading, not a
+# recollection, and inventing it is the worst failure in the set — it is
+# indistinguishable from remembering, and it rewrites what the person said.
+
+_ASKS_TRANSCRIPT_RECALL = re.compile(
+    r"\bwhat\s+did\s+(?:i|you|we)\s+(?:just\s+)?(?:ask|say|tell|mention)\b"
+    r"|\b(?:messages?|turns?)\s+ago\b"
+    r"|\bearlier\s+(?:i|you|we)\s+(?:asked|said|mentioned)\b"
+    r"|\bmy\s+(?:first|last|previous)\s+(?:question|message)\b"
+    r"|\bwhat\s+was\s+my\s+(?:first|last|previous)\b"
+    r"|\brepeat\s+(?:back\s+)?what\s+i\s+said\b",
+    re.IGNORECASE,
+)
+
+
+def _matches_transcript(prompt: str) -> bool:
+    return bool(_ASKS_TRANSCRIPT_RECALL.search(prompt))
+
+
+async def _read_transcript(prompt: str) -> str:
+    from core.conversation.grounded_recall import _transcript_user_turns
+
+    turns = await asyncio.to_thread(_transcript_user_turns, "")
+    turns = [str(t).strip() for t in (turns or []) if str(t or "").strip()]
+    if not turns:
+        # A named absence. "I have no transcript for this session" is a true
+        # answer; an invented exchange is not.
+        return "No transcript is available for this conversation yet."
+    recent = turns[-8:]
+    lines = [
+        f"{len(recent) - index} turn(s) ago, they said: {turn[:300]}"
+        for index, turn in enumerate(recent)
+    ]
+    return "\n".join(lines)
+
+
 def install_default_observables() -> None:
     """Register the readings this runtime can take."""
 
@@ -264,6 +307,12 @@ def install_default_observables() -> None:
         Observable("beliefs", "## WHAT YOU ACTUALLY BELIEVE", _matches_beliefs, _read_beliefs),
         Observable(
             "queued_work", "## WORK YOU HAVE QUEUED", _matches_queued_work, _read_queued_work
+        ),
+        Observable(
+            "transcript",
+            "## WHAT WAS ACTUALLY SAID IN THIS CONVERSATION",
+            _matches_transcript,
+            _read_transcript,
         ),
     ):
         register_observable(observable)

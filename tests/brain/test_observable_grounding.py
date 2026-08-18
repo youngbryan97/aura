@@ -376,3 +376,64 @@ def test_an_empty_queue_says_so_rather_than_nothing(monkeypatch) -> None:
     from core.brain.observable_registry import _read_queued_work
 
     assert "Nothing is deferred" in asyncio.run(_read_queued_work("anything queued?"))
+
+
+# ── conversational recall is a reading, not a recollection ──────────────────
+#
+# "what did I ask you two messages ago?" was answered "You asked, 'What's the
+# weather like? I can't seem to find my umbrella.' Then you asked me what I
+# thought about that. I said it was fine." None of that was said. She invented
+# an exchange, in detail, with dialogue — the worst failure in this set,
+# because it is indistinguishable from remembering and it rewrites what the
+# person said.
+
+@pytest.mark.parametrize(
+    "prompt",
+    [
+        "what did I ask you two messages ago?",
+        "what was my first question?",
+        "repeat back what I said",
+        "what did I just ask",
+        "earlier I asked about the parser, what was it?",
+    ],
+)
+def test_recall_questions_are_recognised(prompt: str) -> None:
+    from core.brain.observable_registry import _matches_transcript
+
+    assert _matches_transcript(prompt) is True
+
+
+@pytest.mark.parametrize("prompt", ["how are you", "what is 2 + 2", "read config.py"])
+def test_other_turns_do_not_read_the_transcript(prompt: str) -> None:
+    from core.brain.observable_registry import _matches_transcript
+
+    assert _matches_transcript(prompt) is False
+
+
+def test_the_real_turns_are_supplied(monkeypatch) -> None:
+    import asyncio
+
+    monkeypatch.setattr(
+        "core.conversation.grounded_recall._transcript_user_turns",
+        lambda _exclude: ["first thing I said", "second thing I said"],
+    )
+
+    from core.brain.observable_registry import _read_transcript
+
+    body = asyncio.run(_read_transcript("what did I ask two messages ago?"))
+
+    assert "first thing I said" in body
+    assert "second thing I said" in body
+
+
+def test_an_absent_transcript_is_named_not_invented(monkeypatch) -> None:
+    """'No transcript' is true; an invented exchange never is."""
+    import asyncio
+
+    monkeypatch.setattr(
+        "core.conversation.grounded_recall._transcript_user_turns", lambda _exclude: []
+    )
+
+    from core.brain.observable_registry import _read_transcript
+
+    assert "No transcript" in asyncio.run(_read_transcript("what did I ask?"))
