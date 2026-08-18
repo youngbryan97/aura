@@ -242,6 +242,14 @@ def _locally_corrupted_language(text: str) -> bool:
     candidate = str(text or "")
     if not candidate:
         return False
+    # Corrupted LANGUAGE. Inside a fence there is no language to corrupt: a
+    # base64 blob, a hex digest or an identifier is a legitimate run of
+    # consonants, and reading one as damage replaced a correct code answer
+    # with the canned floor this module exists to avoid.
+    if "```" in candidate:
+        candidate = "\n".join(candidate.split("```")[::2])
+        if not candidate.strip():
+            return False
     return any(pattern.search(candidate) for _name, pattern in _LOCAL_CORRUPTION_TESTS)
 
 

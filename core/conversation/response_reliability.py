@@ -6602,11 +6602,28 @@ def _has_unrequested_pop_culture_intrusion(user_message: Any, reply_text: Any) -
     return not _UNREQUESTED_POP_CULTURE_INTRUSION_RE.search(str(user_message or ""))
 
 
+#: Naming a script in English is asking for it. "Write a function to detect
+#: chinese characters" carries no CJK itself, so an exemption that looked only
+#: for the characters never fired for the way people actually ask.
+_SCRIPT_SUBJECT_MARKERS = (
+    "chinese", "mandarin", "cantonese", "hanzi", "japanese", "kanji",
+    "hiragana", "katakana", "korean", "hangul", "cjk", "unicode", "utf-8",
+    "utf8", "codepoint", "code point", "wide character", "east asian",
+)
+
+
 def _has_unexpected_cjk_intrusion(user_message: Any, reply_text: Any) -> bool:
     raw = str(reply_text or "")
-    if not _CJK_INTRUSION_RE.search(raw):
+    # Inside a fence the characters are data — a test string, a sample input,
+    # the very thing a question about CJK handling has to show. Judging them
+    # as an intrusion rejected the answer the question asked for.
+    prose = "\n".join(raw.split("```")[::2]) if "```" in raw else raw
+    if not _CJK_INTRUSION_RE.search(prose):
         return False
-    return not _CJK_INTRUSION_RE.search(str(user_message or ""))
+    asked = str(user_message or "")
+    if _CJK_INTRUSION_RE.search(asked):
+        return False
+    return not names_any(asked, _SCRIPT_SUBJECT_MARKERS)
 
 
 def _has_surface_nonsense_drift(user_message: Any, reply_text: Any) -> bool:
