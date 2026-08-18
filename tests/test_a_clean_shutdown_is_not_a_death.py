@@ -89,3 +89,45 @@ def test_a_recorded_clean_exit_outranks_any_file(tmp_path, monkeypatch, reason):
 def test_no_previous_awakening_is_not_a_death():
     obj = module.SourceBodyAwareness.__new__(module.SourceBodyAwareness)
     assert obj._previous_exit_was_abrupt(None) is False
+
+
+# ── only this session's dump counts ──────────────────────────────────────
+
+
+def _sink(tmp_path: Path, body: str) -> Path:
+    target = tmp_path / "faulthandler.log"
+    target.write_text(body, encoding="utf-8")
+    return target
+
+
+def test_a_dump_from_an_earlier_session_is_not_this_death(tmp_path):
+    """The sink accumulates for the life of the installation.
+
+    An old dump left in the tail would report a crash forever — the same
+    always-true failure this whole check was written to remove, one level
+    down.
+    """
+    target = _sink(
+        tmp_path,
+        "===== boot pid=1 =====\nFatal Python error: old crash\n===== boot pid=2 =====\n",
+    )
+    assert module._holds_a_fault_dump(target) is False
+
+
+def test_a_dump_after_the_last_arming_is_this_death(tmp_path):
+    target = _sink(
+        tmp_path,
+        "===== boot pid=1 =====\n===== boot pid=2 =====\nFatal Python error: fresh\n",
+    )
+    assert module._holds_a_fault_dump(target) is True
+
+
+def test_headers_alone_are_never_a_death(tmp_path):
+    target = _sink(tmp_path, "===== boot pid=1 =====\n===== boot pid=2 =====\n")
+    assert module._holds_a_fault_dump(target) is False
+
+
+def test_an_unreadable_sink_is_treated_as_a_death(tmp_path):
+    """Evidence that cannot be examined is not evidence of safety."""
+    missing = tmp_path / "faulthandler.log"
+    assert module._holds_a_fault_dump(missing) is True

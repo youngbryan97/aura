@@ -133,6 +133,10 @@ def organ_of(path: str) -> str:
 #: judged by content rather than excluded by name.
 _BOOT_SINK_FILENAMES = frozenset({"faulthandler.log"})
 
+#: The header the sink writes when it is armed. Everything after the last one
+#: belongs to the session that just ended.
+_BOOT_HEADER_MARKER = "===== boot "
+
 #: What a real fault dump contains and a boot header does not.
 _FAULT_DUMP_MARKERS = (
     "Fatal Python error",
@@ -163,7 +167,14 @@ def _holds_a_fault_dump(path: Path) -> bool:
         # Unreadable evidence is not evidence of safety either; fall back to
         # treating it as a dump so a real death is never silently dismissed.
         return True
-    return any(marker in tail for marker in _FAULT_DUMP_MARKERS)
+    # Only what was written since the last arming belongs to the session that
+    # just ended. The file accumulates for the life of the installation, so an
+    # old dump sitting in the tail would otherwise report a crash forever —
+    # the same always-true failure this function was written to remove, one
+    # level down.
+    last_boot = tail.rfind(_BOOT_HEADER_MARKER)
+    since_last_boot = tail[last_boot:] if last_boot != -1 else tail
+    return any(marker in since_last_boot for marker in _FAULT_DUMP_MARKERS)
 
 
 #: Enough of the sink to cover one session's dump.
