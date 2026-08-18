@@ -1227,6 +1227,188 @@ class PhantomBrowser:
     MAX_LINKS = 500
     MAX_SCREENSHOT_BYTES = 4 * 1024 * 1024
 
+    #: Interactive roles worth offering as choices. Everything else on a page
+    #: is scenery: it cannot be clicked, typed into, or toggled, so listing it
+    #: only spends tokens and invites a decision that cannot be executed.
+    _OBSERVE_SCRIPT = r"""
+    (maxElements) => {
+        // A form control styled transparent is still the real control.
+        //
+        // MEASURED on a live questionnaire: every answer radio reported
+        // opacity 0 with visibility 'visible', display 'block' and a real box
+        // of 36-56px, carrying its meaning in aria-label ("I disagree",
+        // "I moderately disagree"). Sites hide the native control and paint a
+        // custom graphic over it constantly, so an opacity filter drops
+        // exactly the elements a form-filling agent needs and nothing else.
+        // Playwright clicks them happily; only the observer could not see them.
+        //
+        // So opacity is judged only for scenery. Anything intrinsically
+        // interactive is kept on geometry alone.
+        const FORM_ROLES = new Set(['radio', 'checkbox', 'switch', 'option']);
+        const isFormControl = (el) => {
+            const tag = el.tagName.toLowerCase();
+            if (tag === 'input' || tag === 'select' || tag === 'textarea') return true;
+            return FORM_ROLES.has((el.getAttribute('role') || '').toLowerCase());
+        };
+        const isVisible = (el) => {
+            const style = window.getComputedStyle(el);
+            if (style.display === 'none' || style.visibility === 'hidden') return false;
+            if (parseFloat(style.opacity || '1') === 0 && !isFormControl(el)) return false;
+            const rect = el.getBoundingClientRect();
+            if (rect.width <= 1 || rect.height <= 1) return false;
+            if (rect.bottom < 0 || rect.top > (window.innerHeight * 4)) return false;
+            return true;
+        };
+        const accessibleName = (el) => {
+            const byLabel = el.getAttribute('aria-label');
+            if (byLabel && byLabel.trim()) return byLabel.trim();
+            const labelledBy = el.getAttribute('aria-labelledby');
+            if (labelledBy) {
+                const parts = labelledBy.split(/\s+/)
+                    .map((id) => document.getElementById(id))
+                    .filter(Boolean)
+                    .map((node) => (node.innerText || '').trim())
+                    .filter(Boolean);
+                if (parts.length) return parts.join(' ');
+            }
+            if (el.id) {
+                const label = document.querySelector('label[for="' + CSS.escape(el.id) + '"]');
+                if (label && (label.innerText || '').trim()) return label.innerText.trim();
+            }
+            const wrapping = el.closest('label');
+            if (wrapping && (wrapping.innerText || '').trim()) return wrapping.innerText.trim();
+            for (const attr of ['title', 'placeholder', 'alt', 'name', 'value']) {
+                const v = el.getAttribute(attr);
+                if (v && v.trim()) return v.trim();
+            }
+            const text = (el.innerText || el.textContent || '').trim();
+            return text;
+        };
+        // A selector that still resolves after the page mutates. Ids first,
+        // then a positional path — index-only references break the moment a
+        // re-render reorders anything, which is the classic way these loops
+        // click the wrong thing on step nine.
+        const cssPath = (el) => {
+            if (el.id) return '#' + CSS.escape(el.id);
+            const parts = [];
+            let node = el;
+            while (node && node.nodeType === 1 && parts.length < 6) {
+                let part = node.tagName.toLowerCase();
+                if (node.id) { parts.unshift('#' + CSS.escape(node.id)); break; }
+                const parent = node.parentElement;
+                if (parent) {
+                    const siblings = Array.from(parent.children).filter(
+                        (c) => c.tagName === node.tagName);
+                    if (siblings.length > 1) {
+                        part += ':nth-of-type(' + (siblings.indexOf(node) + 1) + ')';
+                    }
+                }
+                parts.unshift(part);
+                node = node.parentElement;
+            }
+            return parts.join(' > ');
+        };
+        const selector = 'a[href], button, input, select, textarea, summary,'
+            + ' [role="button"], [role="link"], [role="checkbox"], [role="radio"],'
+            + ' [role="tab"], [role="menuitem"], [role="option"], [role="switch"],'
+            + ' [contenteditable="true"], [onclick], [tabindex]:not([tabindex="-1"])';
+        const seen = new Set();
+        const out = [];
+        for (const el of document.querySelectorAll(selector)) {
+            if (out.length >= maxElements) break;
+            if (!isVisible(el)) continue;
+            if (el.disabled) continue;
+            const path = cssPath(el);
+            if (!path || seen.has(path)) continue;
+            seen.add(path);
+            const tag = el.tagName.toLowerCase();
+            const role = el.getAttribute('role')
+                || (tag === 'a' ? 'link' : (tag === 'input' ? (el.type || 'text') : tag));
+            const entry = { role: role, name: accessibleName(el).slice(0, 140), selector: path };
+            if (typeof el.checked === 'boolean') entry.checked = el.checked;
+            if (el.value !== undefined && typeof el.value === 'string' && el.value) {
+                entry.value = el.value.slice(0, 80);
+            }
+            const pressed = el.getAttribute('aria-checked') || el.getAttribute('aria-selected');
+            if (pressed) entry.selected = pressed;
+            out.push(entry);
+        }
+        // The prose half of the observation. Elements say what can be DONE;
+        // this says what is being ASKED. A questionnaire is unanswerable from
+        // a list of radio labels alone — "I agree" with what? — so both halves
+        // travel together or the decision is uninformed.
+        const main = document.querySelector('main, [role="main"], form') || document.body;
+        const text = ((main && main.innerText) || '').replace(/\n{3,}/g, '\n\n').trim();
+        return {
+            url: location.href,
+            title: document.title || '',
+            text: text.slice(0, 4000),
+            scroll_y: Math.round(window.scrollY),
+            scroll_height: Math.round(document.body ? document.body.scrollHeight : 0),
+            viewport_height: Math.round(window.innerHeight),
+            elements: out,
+        };
+    }
+    """
+
+    async def observe(
+        self, *, principal: str = "", max_elements: int = 120
+    ) -> dict[str, Any]:
+        """What is on this page and what can be done to it, as structured text.
+
+        The missing half of this browser. It could already ``click(selector)``
+        and ``read_content()``, but nothing could enumerate what was CLICKABLE,
+        so every interaction had to be scripted from selectors known in
+        advance. That makes an open loop: fine for a known page, useless for a
+        flow whose next screen depends on the last answer.
+
+        This is the perception primitive a closed loop needs, and it is the one
+        the 2026 web-agent literature converges on — a pruned, indexed list of
+        interactive elements as structured text rather than pixels, which is
+        both cheaper and more reliable than screenshot reasoning.
+
+        Every element carries a CSS path rather than only an index. Indices are
+        positions in a list that a re-render reorders; a path still resolves,
+        which is the difference between clicking "Agree" on step nine and
+        clicking whatever moved into slot four.
+        """
+
+        principal = self._effective_principal(principal)
+        verdict = authorize_browser_action(
+            BrowserAction.READ,
+            principal=principal,
+            url=str(getattr(self.page, "url", "") or ""),
+        )
+        self._last_verdict = verdict.to_dict()
+        if not verdict.allowed:
+            logger.warning("Page observation refused: %s", verdict.reason)
+            return {}
+        if not self.page:
+            return {}
+        try:
+            observation = await self.page.evaluate(
+                self._OBSERVE_SCRIPT, int(max(1, min(int(max_elements or 120), 300)))
+            )
+        except (
+            OSError,
+            ConnectionError,
+            TimeoutError,
+            RuntimeError,
+            AttributeError,
+            TypeError,
+            ValueError,
+            KeyError,
+            PlaywrightError,
+        ) as exc:
+            record_degradation("phantom_browser", exc)
+            logger.warning("Page observation failed: %s", exc)
+            return {}
+        if not isinstance(observation, dict):
+            return {}
+        elements = observation.get("elements")
+        observation["elements"] = list(elements) if isinstance(elements, list) else []
+        return observation
+
     async def get_links(self, *, principal: str = "") -> list[dict[str, str]]:
         """Links on this page, bounded and scheme-filtered."""
         principal = self._effective_principal(principal)
