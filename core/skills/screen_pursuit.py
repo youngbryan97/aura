@@ -511,7 +511,18 @@ async def pursue_on_screen(
         except ImportError:
             return None
         verdict = assess_overlay(observation)
-        if not verdict.present or verdict.needs_person:
+        if verdict.needs_person:
+            # A dialog only the person can answer means the task cannot go on.
+            #
+            # This used to fall through to the policy, which then acted into a
+            # dialog that owned the keyboard: measured live, forty moves that
+            # each reported success while the board behind the dialog never
+            # changed. Continuing past a question addressed to the person is
+            # not perseverance, it is acting blind — and it is how a run
+            # eventually stumbles into answering that question by accident.
+            needs_person["reason"] = verdict.needs_person
+            return None
+        if not verdict.present:
             return None
 
         # A caller may declare its OWN way forward.
@@ -527,15 +538,57 @@ async def pursue_on_screen(
         # text, and only when something is genuinely in the way.
         if unblock_with:
             wanted = unblock_with.strip().lower()
+            candidates: list[tuple[float, float]] = []
             for region in observation.get("layout") or []:
-                label = str(region.get("text") or "").strip()
-                if wanted not in label.lower():
+                if wanted not in str(region.get("text") or "").strip().lower():
                     continue
                 try:
-                    ux = float(region.get("center_x", region.get("x")))
-                    uy = float(region.get("center_y", region.get("y")))
+                    candidates.append(
+                        (
+                            float(region.get("center_x", region.get("x"))),
+                            float(region.get("center_y", region.get("y"))),
+                        )
+                    )
                 except (TypeError, ValueError):
                     continue
+            if candidates:
+                # The one ON the dialog, when the label appears more than once.
+                #
+                # "New Game", "Start" and "Continue" routinely name both a
+                # dialog's button and a permanent control in the app's own
+                # toolbar. Measured live: four regions matched, and the first
+                # was the toolbar — clicking it started a game BEHIND the
+                # dialog and left the dialog up, so the run stayed blocked
+                # while every step reported success.
+                from core.perception.blocking_overlay import (
+                    overlay_box,
+                    overlay_focus,
+                )
+
+                box = overlay_box(observation)
+                if box is not None:
+                    left, top, right, bottom = box
+                    # Inside the dialog's horizontal span, at or below its
+                    # text. A margin, because a button may sit slightly wider
+                    # than the sentence above it; and downward only, because a
+                    # dialog's controls are under its message.
+                    margin = 0.08
+                    inside = [
+                        point
+                        for point in candidates
+                        if left - margin <= point[0] <= right + margin
+                        and top - 0.02 <= point[1] <= bottom + 0.35
+                    ]
+                    if inside:
+                        candidates = inside
+                focus = overlay_focus(observation)
+                if focus is not None:
+                    candidates.sort(
+                        key=lambda point: (point[0] - focus[0]) ** 2
+                        + (point[1] - focus[1]) ** 2
+                    )
+                ux, uy = candidates[0]
+                label = unblock_with
                 frame = list(observation.get("bounds") or [])
 
                 async def click_declared() -> bool:
@@ -570,6 +623,7 @@ async def pursue_on_screen(
 
     blocker_attempts = {"count": 0, "last": ""}
     lost_page = {"value": False}
+    needs_person: dict[str, str] = {"reason": ""}
     #: The page this run belongs to, learned on the first cycle when the caller
     #: did not name one.
     anchor: dict[str, str] = {"page": expect_page.strip()}
@@ -586,6 +640,8 @@ async def pursue_on_screen(
             blocker_attempts["count"] += 1
             blocker_attempts["last"] = blocker.name
             return blocker
+        if needs_person["reason"]:
+            return None
         blocker_attempts["count"] = 0
         if policy is None or not observation.get("ok"):
             return None
@@ -640,6 +696,12 @@ async def pursue_on_screen(
     result["target_app"] = target_app
     result["expect_page"] = expect_page
     result["anchored_to"] = anchor["page"]
+    if needs_person["reason"] and not receipt.completed:
+        # Name the question rather than the symptom. "no_move_available"
+        # describes a loop with nothing to do; this says a person is being
+        # waited on, and quotes what they are being asked.
+        result["outcome"] = "needs_person"
+        result["needs_person"] = needs_person["reason"]
     if lost_page["value"] and not receipt.completed:
         # Name it. "no_move_available" would describe the symptom of reading a
         # page that is not the task's, and hide that the browser had moved.

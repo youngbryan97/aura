@@ -270,3 +270,80 @@ def test_a_dialog_whose_only_exit_is_a_glyph_falls_to_escape():
 
     assert verdict.suggested_key == "escape"
     assert verdict.click_x is None
+
+
+# ── A dialog that destroys work is not an obstacle ────────────────────────
+
+DESTRUCTIVE_DIALOG = {
+    "text": (
+        "New Game Are you sure you want to start a new game? "
+        "All progress will be lost. Start New Game"
+    ),
+    "layout": [
+        {"text": "New Game", "center_x": 0.5, "center_y": 0.449},
+        {"text": "Are you sure you want to start a new game?", "center_x": 0.5, "center_y": 0.489},
+        {"text": "All progress will be lost.", "center_x": 0.5, "center_y": 0.512},
+        {"text": "Start New Game", "center_x": 0.5, "center_y": 0.578},
+    ],
+}
+
+
+def test_a_dialog_that_warns_of_loss_is_the_persons_decision():
+    """Measured live, and the most important thing this file protects.
+
+    Clearing the way on a real page produced "Are you sure you want to start a
+    new game? All progress will be lost." Nothing could tell that apart from a
+    cookie banner, so a loop told to get past obstacles would have wiped a game
+    in progress — or, on another page, a draft, a cart, or an unsaved document.
+    """
+    verdict = assess_overlay(DESTRUCTIVE_DIALOG)
+
+    assert verdict.needs_person
+    assert verdict.click_x is None
+    assert verdict.suggested_key == "", (
+        "not even Escape: on some dialogs Escape cancels and on others it "
+        "confirms the destructive default, and the difference is invisible"
+    )
+
+
+@pytest.mark.parametrize(
+    "warning",
+    [
+        "All progress will be lost.",
+        "This cannot be undone.",
+        "This will permanently delete your account.",
+        "You have unsaved changes.",
+        "Discard your draft?",
+        "This action is irreversible.",
+    ],
+)
+def test_every_loss_warning_stops_the_loop(warning):
+    verdict = assess_overlay(
+        {
+            "text": f"Are you sure? {warning} Continue",
+            "layout": [
+                {"text": warning, "center_x": 0.5, "center_y": 0.5},
+                {"text": "Continue", "center_x": 0.5, "center_y": 0.6},
+                {"text": "Cancel", "center_x": 0.4, "center_y": 0.6},
+            ],
+        }
+    )
+
+    assert verdict.needs_person, warning
+    assert verdict.click_x is None, f"{warning}: nothing here is safe to click"
+
+
+def test_an_ordinary_banner_is_unaffected_by_the_new_rule():
+    """The guard must not swallow the cases that were working."""
+    verdict = assess_overlay(
+        {
+            "text": "We use cookies for consent",
+            "layout": [
+                {"text": "Reject All", "center_x": 0.6, "center_y": 0.9},
+                {"text": "Accept All", "center_x": 0.7, "center_y": 0.9},
+            ],
+        }
+    )
+
+    assert verdict.label == "Reject All"
+    assert not verdict.needs_person

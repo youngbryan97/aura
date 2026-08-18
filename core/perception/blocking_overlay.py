@@ -86,6 +86,30 @@ ACCEPTING_LABELS: tuple[str, ...] = (
     r"\bopt\s*in\b",
 )
 
+#: Warnings that this dialog destroys something.
+#:
+#: A confirmation that says work will be lost is not a blocker to get past. It
+#: is a question whose answer belongs to the person, exactly like an agreement:
+#: closing it is free, confirming it is not undone by anything afterwards.
+#:
+#: LIVE, 2026-08-18. Clearing the way on a page produced "Are you sure you want
+#: to start a new game? All progress will be lost." with a "Start New Game"
+#: button. Nothing here could tell that apart from a cookie banner, and a loop
+#: told to get past obstacles would have wiped a game in progress — or, on a
+#: different page, a draft, a cart, or an unsaved document.
+DESTRUCTIVE_WARNINGS: tuple[str, ...] = (
+    r"\bprogress\s+will\s+be\s+lost\b",
+    r"\bwill\s+be\s+lost\b",
+    r"\bcannot\s+be\s+undone\b",
+    r"\bcan'?t\s+be\s+undone\b",
+    r"\bpermanently\s+(?:delete|remove|erase)\b",
+    r"\bdelete\s+(?:all|everything|permanently)\b",
+    r"\bunsaved\s+changes\b",
+    r"\bdiscard\s+(?:your\s+)?(?:changes|draft|work)\b",
+    r"\bstart\s+over\b",
+    r"\bthis\s+action\s+is\s+irreversible\b",
+)
+
 #: Words that suggest the thing on screen is an overlay at all, rather than
 #: page content that happens to contain a button.
 #: Fraction of the window occupied by its own toolbar/tab strip. Text above
@@ -202,6 +226,24 @@ def assess_overlay(observation: dict[str, Any]) -> OverlayVerdict:
     # content is IN the content. Ignoring the top strip is what separates them
     # without knowing anything about either application.
     lowered = text.lower()
+    destructive = tuple(
+        pattern for pattern in DESTRUCTIVE_WARNINGS if re.search(pattern, lowered)
+    )
+    if destructive:
+        # Stop here. Something on this dialog destroys work, and which button
+        # does it is not knowable from a label — "Start New Game" reads like
+        # progress and wipes a game. Dismissal controls on such a dialog are
+        # not offered either, because "Cancel" on one dialog is "discard" on
+        # another and the difference is invisible from the outside.
+        return OverlayVerdict(
+            present=True,
+            needs_person=(
+                "this dialog warns that something will be lost, so whether to "
+                "go ahead is yours to decide"
+            ),
+            reasons=destructive,
+        )
+
     body_text = " ".join(
         str(region.get("text") or "")
         for region in layout
@@ -272,12 +314,83 @@ def assess_overlay(observation: dict[str, Any]) -> OverlayVerdict:
     )
 
 
+def overlay_focus(observation: dict[str, Any]) -> tuple[float, float] | None:
+    """Roughly where the blocking dialog sits, from its own text.
+
+    Used to disambiguate a control that appears more than once. A declared
+    label like "New Game", "Start" or "Continue" frequently names both a
+    dialog's button and a permanent control in the app's own toolbar — on
+    play2048 it matched four regions, one of them the toolbar. Clicking the
+    toolbar one starts a game behind the dialog and leaves the dialog up, so
+    the run stays blocked while every step reports success.
+
+    The centroid of the hint-bearing text is where the dialog is talking, and
+    the button that belongs to it is the one nearest that.
+    """
+    points: list[tuple[float, float]] = []
+    for region in observation.get("layout") or []:
+        text = str(region.get("text") or "").strip().lower()
+        if not text or not any(re.search(hint, text) for hint in OVERLAY_HINTS):
+            continue
+        y = _region_y(region)
+        try:
+            x = float(region.get("center_x", region.get("x")))
+        except (TypeError, ValueError):
+            continue
+        if y is None or y < CHROME_STRIP_HEIGHT:
+            continue
+        points.append((x, y))
+    if not points:
+        return None
+    return (
+        sum(x for x, _ in points) / len(points),
+        sum(y for _, y in points) / len(points),
+    )
+
+
+def overlay_box(observation: dict[str, Any]) -> tuple[float, float, float, float] | None:
+    """The rectangle the dialog's own text occupies, or None.
+
+    A centroid is not enough to tell a dialog's button from an identically
+    named control elsewhere in the app. Measured live: the dialog's text spanned
+    x 0.42-0.46 while the page's permanent "New Game" button sat at x 0.759 at
+    the SAME height, so nearest-to-centroid chose the toolbar — starting a game
+    behind the dialog and leaving it up.
+
+    A box answers what a point cannot: a control belongs to the dialog when it
+    lies within the dialog's horizontal span, at or below its text. Buttons sit
+    under the message that explains them, which is a property of dialogs
+    generally rather than of any one page.
+    """
+    xs: list[float] = []
+    ys: list[float] = []
+    for region in observation.get("layout") or []:
+        text = str(region.get("text") or "").strip().lower()
+        if not text or not any(re.search(hint, text) for hint in OVERLAY_HINTS):
+            continue
+        y = _region_y(region)
+        try:
+            x = float(region.get("center_x", region.get("x")))
+        except (TypeError, ValueError):
+            continue
+        if y is None or y < CHROME_STRIP_HEIGHT:
+            continue
+        xs.append(x)
+        ys.append(y)
+    if not xs:
+        return None
+    return (min(xs), min(ys), max(xs), max(ys))
+
+
 __all__ = [
     "ACCEPTING_LABELS",
+    "DESTRUCTIVE_WARNINGS",
     "CHROME_STRIP_HEIGHT",
     "MIN_HINTS_FOR_BARE_ESCAPE",
     "DISMISSIVE_LABELS",
     "OVERLAY_HINTS",
     "OverlayVerdict",
+    "overlay_box",
+    "overlay_focus",
     "assess_overlay",
 ]
