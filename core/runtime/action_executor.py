@@ -661,6 +661,13 @@ class ActionExecutor:
                 "request_digest": request_digest,
                 "expectation_objective": expectation_contract.objective[:500],
                 "rollback_target_declared": bool(rollback_target),
+                # The arguments this action actually carries. A standing
+                # lease is bound to an argument digest, and the will validated
+                # with `arguments=None`, so a correctly-issued lease always
+                # answered `standing_authority_arguments_mismatch`. The digest
+                # exists to prove the lease is being used for the action it was
+                # issued for; it can only do that if the action is shown.
+                "authority_arguments": params,
                 **authority_view,
             },
         )

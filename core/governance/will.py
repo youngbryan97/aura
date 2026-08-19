@@ -2045,6 +2045,7 @@ class UnifiedWill:
                     has_scoped_authority, authority_validation_reason = (
                         validate_standing_authority_context(
                             context,
+                            arguments=context.get("authority_arguments"),
                             tool_name=context.get("tool") or context.get("skill"),
                             origin=context.get("authority_origin")
                             or context.get("origin")
