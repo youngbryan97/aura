@@ -168,3 +168,45 @@ async def test_a_pursuit_that_cannot_get_there_does_not_start_playing(monkeypatc
     )
     assert result["outcome"] == "could_not_get_there"
     assert pressed == [], "she started pressing keys at whatever was in front of her"
+
+
+@pytest.mark.parametrize(
+    "request_text,expected",
+    [
+        ("Go find a 2048 game online and play it until you get a 128 tile.", "2048 game"),
+        ("play 2048 in Chrome until you get 128", "2048"),
+        ("go to wordle and keep guessing until it says solved", "wordle"),
+        ("look up a typing test and keep going until it says 60 wpm", "typing test"),
+        ("pull up the crossword and keep at it until it says complete", "crossword"),
+    ],
+)
+def test_the_place_is_read_however_a_person_asks_for_it(request_text, expected):
+    """LIVE: "go find a 2048 game online" named no place, so she never moved.
+
+    The narrow pattern read "play 2048" and missed the same request with more
+    of the work spelled out.
+    """
+    goal = read_watched_goal(request_text)
+    assert goal is not None, request_text
+    assert goal.where == expected
+
+
+@pytest.mark.parametrize(
+    "request_text",
+    [
+        "2048 is open in Chrome. Keep playing it until you get a 128 tile.",
+        "the wizard is already open, step through it until it says Finished",
+        "keep refreshing the build page until it says passed",
+    ],
+)
+def test_nothing_to_go_to_stays_nothing(request_text):
+    goal = read_watched_goal(request_text)
+    assert goal is not None
+    assert goal.where == ""
+
+
+def test_where_a_thing_lives_is_not_part_of_its_name():
+    """"online" says where to look, not what to look for."""
+    assert read_watched_goal("find a chess puzzle online and keep solving until it says mate").where == (
+        "chess puzzle"
+    )

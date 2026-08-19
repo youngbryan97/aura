@@ -197,7 +197,7 @@ def _where_it_happens(text: str) -> str:
         before = str(match.group("before") or "").strip().lower()
         if before in _ALREADY_THERE:
             continue
-        named = str(match.group("what") or "").strip(" .,'\"")
+        named = _LOCATION_TAIL.sub("", str(match.group("what") or "")).strip(" .,'\"")
         if not named or named.lower() in _NOT_A_PLACE:
             continue
         return named
@@ -208,11 +208,22 @@ def _where_it_happens(text: str) -> str:
 #: asking for an action: "is open", "was already running".
 _ALREADY_THERE = frozenset({"is", "are", "was", "were", "already", "still"})
 #: Subjects that name nothing findable.
-_NOT_A_PLACE = frozenset({"it", "this", "that", "the game", "game", "them", "one"})
+_NOT_A_PLACE = frozenset({"it", "this", "that", "the game", "game", "them", "one", "some", "any"})
+#: Trailing words that describe where a thing lives rather than naming it.
+_LOCATION_TAIL = re.compile(r"\s+(?:online|on\s+the\s+web|on\s+the\s+internet|in\s+my\s+browser)$", re.IGNORECASE)
+#: Verbs that mean she is not there yet and has to get there.
+#:
+#: Deliberately wider than "open": a person says find, look up, pull up, go
+#: to, or just names the thing they want played. The narrow list read "play
+#: 2048" and missed "go find a 2048 game online", which is the same request
+#: with more of the work spelled out.
 _SUBJECT_RE = re.compile(
-    r"(?P<before>\b\w+\s+)?\b(?:play|open|use|go\s+to|visit)\s+"
-    r"(?:the\s+)?(?P<what>[A-Za-z0-9][^.\n,]{0,40}?)"
-    r"(?=\s+(?:in|on|at|until|till|and)\b|[.,\n]|$)",
+    r"(?P<before>\b\w+\s+)?"
+    r"\b(?:go\s+to|go\s+find|navigate\s+to|head\s+to|find|search\s+for|look\s+up|"
+    r"pull\s+up|bring\s+up|open|visit|load|play|use)\s+"
+    r"(?:a\s+|an\s+|the\s+|some\s+)?"
+    r"(?P<what>[A-Za-z0-9][^.\n,]{0,40}?)"
+    r"(?=\s+(?:in|on|at|until|till|and|then)\b|[.,\n]|$)",
     re.IGNORECASE,
 )
 
