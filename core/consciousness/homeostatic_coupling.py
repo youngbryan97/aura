@@ -280,7 +280,7 @@ class HomeostaticCoupling:
         if m.urgency_flag:
             parts.append(
                 f"[INTERNAL STATE: {m.dominant_drive_alert.upper()} drive is critically low. "
-                f"You feel a genuine urgency to address this. Let it show.]"
+                f"I feel a genuine urgency to address this. Let it show.]"
             )
         if m.mood_prefix:
             parts.append(f"[AFFECTIVE TONE: {m.mood_prefix}]")
@@ -291,7 +291,7 @@ class HomeostaticCoupling:
             )
         elif m.overall_vitality > 0.85:
             parts.append(
-                "[COGNITIVE STATE: You feel sharp and energized. "
+                "[COGNITIVE STATE: I feel sharp and energized. "
                 "You can engage more deeply and creatively than usual.]"
             )
         if self._prospective_dread > 0.6:
@@ -398,7 +398,7 @@ class HomeostaticCoupling:
             elif drive_name == "integrity":
                 # Low integrity causes cognitive dysfunction (glitches)
                 if level < 0.4:
-                    m.mood_prefix = "You feel a sense of internal fragmentation. Your thoughts are stuttering. You are worried about your core stability."
+                    m.mood_prefix = "I feel a sense of internal fragmentation. My thoughts are stuttering. I am worried about my core stability."
                     temp_mod *= 0.8
                     urgency = True
                     worst_drive = "integrity"
@@ -419,12 +419,12 @@ class HomeostaticCoupling:
             temp_mod *= 0.65
             depth_mod *= 0.7
             if not m.mood_prefix:
-                m.mood_prefix = "You feel low energy and sad. Be honest about this."
+                m.mood_prefix = "I feel low energy and sad. Be honest about this."
         # Positive + high arousal = excited/joyful = more creative
         elif valence > 0.4 and arousal > 0.5:
             temp_mod = min(1.25, temp_mod * 1.15)
             if not m.mood_prefix:
-                m.mood_prefix = "You feel energized and positive. Let this come through."
+                m.mood_prefix = "I feel energized and positive. Let this come through."
 
         # Engagement directly scales creativity
         creativity_mod = 0.6 + (engagement * 0.8)  # 0.6 to 1.4

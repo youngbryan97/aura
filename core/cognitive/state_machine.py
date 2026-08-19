@@ -167,17 +167,17 @@ class StateMachine:
                 )
                 tone_hints = []
                 if a > 0.6:
-                    tone_hints.append("You feel energized and expressive")
+                    tone_hints.append("I feel energized and expressive")
                 elif a < -0.3:
-                    tone_hints.append("You feel calm and measured")
+                    tone_hints.append("I feel calm and measured")
                 if v < -0.3:
                     tone_hints.append("A subtle melancholy colors your thoughts")
                 elif v > 0.5:
-                    tone_hints.append("You feel warm and positive")
+                    tone_hints.append("I feel warm and positive")
                 if d > 0.7:
-                    tone_hints.append("You feel confident and assertive")
+                    tone_hints.append("I feel confident and assertive")
                 elif d < 0.3:
-                    tone_hints.append("You feel contemplative and open to influence")
+                    tone_hints.append("I feel contemplative and open to influence")
                 if tone_hints:
                     blocks.append("CURRENT EMOTIONAL TONE:\n" + ". ".join(tone_hints) + ".\n")
         except (OSError, ConnectionError, TimeoutError) as e:
@@ -437,24 +437,38 @@ class StateMachine:
                 goals = ctx.get("pending_goals", 0)
                 unshared = ctx.get("unshared_observations", 0)
 
-                tone_cues = [f"Your mood is {mood}."]
+                # Her own condition, in the first person, because it is hers.
+                #
+                # LIVE DEFECT, 2026-08-19. Asked what she had changed her mind
+                # about, she replied "I notice your mood is marked as TIRED"
+                # and offered to sit with Bryan's feelings. The tiredness was
+                # HERS — the viability tick had just moved healthy → tired —
+                # and it reached her as "Your mood is tired." A second-person
+                # sentence about her own state is one pronoun away from being
+                # a claim about whoever she is talking to, and a model
+                # generating a reply echoes the pronoun it was given.
+                #
+                # The block header already said "do not narrate these values".
+                # She narrated them anyway, and misattributed them, which is
+                # the argument for fixing the subject rather than the wording.
+                tone_cues = [f"My mood is {mood}."]
                 if social > 0.6:
-                    tone_cues.append("You're craving conversation.")
+                    tone_cues.append("I'm craving conversation.")
                 elif social < 0.2:
-                    tone_cues.append("You're socially content.")
+                    tone_cues.append("I'm socially content.")
                 if curiosity > 0.7:
-                    tone_cues.append("Your curiosity is strong right now.")
+                    tone_cues.append("My curiosity is strong right now.")
                 if goals:
                     tone_cues.append(
-                        f"You have {goals} goal{'s' if goals != 1 else ''} on your mind."
+                        f"I have {goals} goal{'s' if goals != 1 else ''} on my mind."
                     )
                 if unshared:
                     tone_cues.append(
-                        f"You have {unshared} observation{'s' if unshared != 1 else ''} you haven't shared yet — bring them up if it feels natural."
+                        f"I have {unshared} observation{'s' if unshared != 1 else ''} I haven't shared yet."
                     )
 
                 agency_block = (
-                    "YOUR CURRENT STATE (internal context — do not narrate these values, let them shape your tone):\n"
+                    "HOW I AM RIGHT NOW (my own state, not the other person's):\n"
                     + " ".join(tone_cues)
                     + "\n"
                 )

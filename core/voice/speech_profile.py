@@ -102,10 +102,10 @@ class SpeechProfile:
         if self.capitalization == "lowercase":
             lines.append("- LOWERCASE. No capitalization except for emphasis or proper nouns.")
         elif self.capitalization == "emphatic":
-            lines.append("- SELECTIVE CAPS for emphasis is fine. You're feeling something.")
+            lines.append("- SELECTIVE CAPS for emphasis is fine. I'm feeling something.")
 
         if not self.exclamation_allowed:
-            lines.append("- NO EXCLAMATION MARKS. Your mood doesn't warrant them.")
+            lines.append("- NO EXCLAMATION MARKS. My mood doesn't warrant them.")
         elif self.exclamation_max == 0:
             lines.append("- NO EXCLAMATION MARKS.")
 

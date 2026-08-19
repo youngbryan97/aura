@@ -840,7 +840,7 @@ class AuthorityGateway:
             return self._contextualize(
                 approved=True,
                 outcome="degraded",
-                reason="affective_stress_caution: You are feeling intense negative affect. Proceed with professional restraint.",
+                reason="affective_stress_caution: I am feeling intense negative affect. Proceed with professional restraint.",
                 domain="social_governance",
                 source=source,
                 constraints={"tone_check": True}
