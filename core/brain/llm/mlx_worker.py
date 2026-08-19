@@ -1553,10 +1553,28 @@ def _shrink_scaffold_to_context_window(
 
     def _render(candidate_messages: list[Any]) -> tuple[str, list[int]] | None:
         try:
+            from core.brain.llm.chat_format import system_first
+
             rendered = tokenizer.apply_chat_template(
-                candidate_messages, tools=tools, add_generation_prompt=True, tokenize=False
+                system_first(candidate_messages),
+                tools=tools,
+                add_generation_prompt=True,
+                tokenize=False,
             )
-        except (AttributeError, RuntimeError, TypeError, ValueError):
+        except Exception:  # noqa: BLE001 - a failed trim must never kill the worker
+            # A template refusing a message list is a caller's mistake, and
+            # the cost of it here is the whole model process.
+            #
+            # LIVE 2026-08-19: jinja2.TemplateError("System message must be at
+            # the beginning") is not an AttributeError, RuntimeError,
+            # TypeError or ValueError, so it went straight past this guard,
+            # out of the worker loop, and killed the worker mid-generation.
+            # The crash-loop breaker then took the lane down and the person
+            # got a refusal, three times over, while she was mid-game.
+            #
+            # Failing to trim is a recoverable outcome: the caller keeps the
+            # untrimmed prompt and finds out it is too long, which is a far
+            # smaller problem than having no model.
             return None
         try:
             return str(rendered), list(tokenizer.encode(str(rendered)))

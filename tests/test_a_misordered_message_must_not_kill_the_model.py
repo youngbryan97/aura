@@ -106,3 +106,22 @@ def test_the_note_still_goes_first_when_there_is_no_system_content():
     messages = [{"role": "user", "content": "a"}]
     _place_system_note(messages, "note")
     assert [message["role"] for message in messages] == ["system", "user"]
+
+
+def test_the_trimmer_cannot_kill_the_worker_with_a_template_error():
+    """LIVE, three times in one run: jinja2.TemplateError is not an
+    AttributeError, RuntimeError, TypeError or ValueError, so it went past
+    the guard, out of the worker loop, and killed the worker mid-generation.
+
+    Failing to trim is recoverable — the caller keeps the untrimmed prompt
+    and finds out it is too long. Having no model is not.
+    """
+    import inspect
+
+    from core.brain.llm import mlx_worker
+
+    source = inspect.getsource(mlx_worker)
+    where = source.index("def _render(candidate_messages")
+    body = source[where : where + 1200]
+    assert "system_first(" in body, "the trimmer renders without normalising order"
+    assert "except Exception" in body, "a template refusal still escapes the trimmer"
