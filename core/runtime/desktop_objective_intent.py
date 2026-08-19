@@ -37,6 +37,19 @@ _DESKTOP_OBJECTIVE_ACTION_TERMS = (
     "compose",
     "close",
     "create",
+    # ...and the ordinary synonyms for it. "create" was here alone, so "make a
+    # file on my desktop called X with one sentence about what you are doing
+    # right now" named no action at all: the reading phrase at the end won,
+    # the objective went to the screen-observation lane, and 2ms later the
+    # reply was "Done — the desktop steps completed and their effects
+    # verified" with nothing written. Same shape as "put"/"copy" above — an
+    # everyday word for the act, missing from the enumeration.
+    "make",
+    "build",
+    "generate",
+    "draft",
+    "produce",
+    "record",
     "download",
     "export",
     "find",
