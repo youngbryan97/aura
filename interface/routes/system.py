@@ -5866,6 +5866,52 @@ async def api_hot_reload(request: Request):
         )
 
 
+@router.post("/system/browser-pursuit", tags=["system"])
+async def api_browser_pursuit(request: Request):
+    """Run one browser pursuit directly and return every round of it.
+
+    Diagnosing this through chat cost six minutes a cycle — restart, type,
+    wait, read a one-line failure — and the failures were reported in the
+    vocabulary of whichever layer noticed them, never in terms of what the
+    loop actually did. Four separate causes were found that way, each taking
+    several cycles, and each one hid the next.
+
+    This runs the same governed pursuit the desktop lane delegates to, with no
+    chat turn around it, and returns the trace: what she understood the page
+    to be, what she chose each round, why, what she expected, and whether the
+    page moved. Owner-only, and it changes nothing about how the capability
+    behaves in a real turn.
+    """
+    _require_internal(request)
+
+    goal = str(request.query_params.get("goal") or "").strip()
+    url = str(request.query_params.get("url") or "").strip()
+    try:
+        max_steps = int(request.query_params.get("max_steps") or 6)
+    except (TypeError, ValueError):
+        max_steps = 6
+    if not goal or not url:
+        return JSONResponse({"ok": False, "error": "goal and url are required"}, status_code=400)
+
+    try:
+        from core.capabilities.phantom_browser import PhantomBrowser
+        from core.skills.sovereign_browser import SovereignBrowserSkill
+
+        browser = PhantomBrowser(visible=False, browser_type="chromium", principal="owner")
+        if not await browser.ensure_ready():
+            return JSONResponse({"ok": False, "error": "browser_unavailable"}, status_code=503)
+        try:
+            skill = SovereignBrowserSkill()
+            report = await skill._handle_pursue(browser, url, goal, max_steps)
+        finally:
+            await browser.close()
+        return JSONResponse(report)
+    except _SYSTEM_RECOVERABLE_ERRORS as exc:
+        record_degradation("system.browser_pursuit", exc)
+        logger.error("Browser pursuit probe failed: %s", exc, exc_info=True)
+        return JSONResponse({"ok": False, "error": f"{type(exc).__name__}: {exc}"}, status_code=500)
+
+
 @router.get("/self/measured", tags=["system"])
 async def api_self_measured(request: Request):
     """Exactly what she is carrying about herself, right now.
