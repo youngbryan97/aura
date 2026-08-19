@@ -254,15 +254,27 @@ class SovereignBrowserSkill(BaseSkill):
         # one that fires and can report which round it was on.
         return self._execution_timeout(mode) + 30.0
 
-    def _execution_timeout(self, mode: str) -> float:
+    #: The step ceiling a pursuit gets when the caller names none — the same
+    #: default `BrowserInput.max_steps` carries, so an unspecified pursuit is
+    #: sized like a pursuit rather than like one interaction.
+    PURSUE_DEFAULT_STEPS = 40
+
+    def _execution_timeout(self, mode: str, steps_allowed: int | None = None) -> float:
         operation_timeout = {
             "search": self.SEARCH_TIMEOUT,
             "browse": self.BROWSE_TIMEOUT + self.READ_TIMEOUT,
             "interact": self.INTERACTION_TIMEOUT,
-            # A pursuit is many interactions plus a decision between each.
-            # Budgeting it like a single interaction would kill a working run
-            # partway through a form and report a timeout, not a refusal.
-            "pursue": self.INTERACTION_TIMEOUT * 12,
+            # A pursuit is many interactions plus a decision between each, and
+            # how many is not knowable in advance — that is what makes it a
+            # pursuit rather than a script. The envelope is therefore derived
+            # from the step ceiling the caller asked for, not from a constant:
+            # a run allowed forty rounds is allowed the time forty rounds take.
+            #
+            # It is an outer bound against a wedged process, not a work budget.
+            # The loop stops itself when progress stops; this only stops it
+            # when nothing is happening at all.
+            "pursue": self.INTERACTION_TIMEOUT
+            * max(1, int(steps_allowed or self.PURSUE_DEFAULT_STEPS)),
         }.get(mode, self.INTERACTION_TIMEOUT)
         return 30.0 + operation_timeout + 15.0
 
@@ -463,7 +475,9 @@ class SovereignBrowserSkill(BaseSkill):
             ),
             effect_handler=perform_browser_action,
             effect_verifier=self._verify_browser_effect,
-            execution_timeout_s=self._execution_timeout(params.mode),
+            execution_timeout_s=self._execution_timeout(
+                params.mode, getattr(params, "max_steps", 1)
+            ),
             verification_timeout_s=5.0,
         )
 
@@ -1674,6 +1688,7 @@ class SovereignBrowserSkill(BaseSkill):
             return {"ok": False, "error": f"Failed to load start URL: {url}"}
 
         steps: list[dict[str, Any]] = []
+        last_good_url = str(url or "")
         understanding: dict[str, Any] | None = None
         surprised = False
         mind = await self._assembled_mind()
@@ -1682,8 +1697,31 @@ class SovereignBrowserSkill(BaseSkill):
         observation: dict[str, Any] = {}
         completed = False
 
+        # PROGRESS is the bound, not a clock and not a step count.
+        #
+        # How long a questionnaire takes is not knowable in advance: it depends
+        # on how many items it has, how fast the site renders, and how often it
+        # re-navigates. Holding that to a fixed budget is a category error, and
+        # it showed — a working pursuit was cancelled at 181s mid-form, and the
+        # person was told the page had not responded.
+        #
+        # `max_steps` remains as a safety ceiling so nothing can spin forever,
+        # but the operating limit is whether the work is still moving: rounds
+        # that land actions, or a page that changes. When that stops,
+        # `PURSUE_STALL_LIMIT` ends it. A run that keeps making progress is
+        # allowed to keep going.
         for _round in range(max(1, int(max_steps))):
             observation = await browser.observe(principal="owner")
+            if (not observation or not observation.get("elements")) and last_good_url:
+                # A reload, a navigation, or a renderer that went away mid-run.
+                # The page being momentarily unreadable is not the end of the
+                # task — go back to where the work was and look again.
+                logger.info(
+                    "🌐 Pursuit lost the page; returning to %s to continue.",
+                    last_good_url,
+                )
+                if await self._safe_browse(browser, last_good_url):
+                    observation = await browser.observe(principal="owner")
             if not observation or not observation.get("elements"):
                 # Say which of the two it was. "Not observable" covers a
                 # refused read and a page with nothing on it, and those need
@@ -1709,6 +1747,9 @@ class SovereignBrowserSkill(BaseSkill):
             else:
                 stalled = 0
             last_signature = signature
+            current_url = str(observation.get("url") or "")
+            if current_url:
+                last_good_url = current_url
 
             # Form the understanding on arrival, and revise it when the page
             # surprises her — not every round. A person does not re-derive what

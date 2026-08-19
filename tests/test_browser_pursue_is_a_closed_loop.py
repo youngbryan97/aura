@@ -681,3 +681,67 @@ class TestOptionsAreGroupedByQuestion:
             {"elements": [{"role": "button", "name": "Next", "selector": "#n"}], "text": ""}
         )
         assert "question" not in rendered.split("AVAILABLE CONTROLS:")[1]
+
+
+class TestProgressIsTheBoundNotAClock:
+    """How long a questionnaire takes is not knowable in advance.
+
+    It depends on how many items it has, how fast the site renders, and how
+    often it re-navigates. Holding that to a fixed budget is a category error,
+    and it showed: a working pursuit was cancelled at 181s mid-form and the
+    person was told the page had not responded.
+    """
+
+    def test_the_envelope_follows_the_work_allowed(self):
+        skill = SovereignBrowserSkill.__new__(SovereignBrowserSkill)
+        assert skill._execution_timeout("pursue", 40) > skill._execution_timeout("pursue", 4)
+
+    def test_an_unspecified_pursuit_is_sized_like_a_pursuit(self):
+        """Defaulting to one step made a whole form the size of one click."""
+        skill = SovereignBrowserSkill.__new__(SovereignBrowserSkill)
+        assert skill._execution_timeout("pursue") > skill._execution_timeout("interact")
+
+    @pytest.mark.asyncio
+    async def test_a_run_that_keeps_moving_is_not_cut_short(self):
+        """Only a stall ends it, never a step count reached while progressing."""
+        executed: list = []
+        decisions = [
+            {"actions": [{"index": 0, "type": "click"}], "why": "answer", "expect": "moves"}
+            for _ in range(5)
+        ]
+        skill = _skill_with(decisions, executed)
+        pages = [_page(url=f"https://example.com/q{i}") for i in range(6)]
+        result = await skill._handle_pursue(_Browser(pages), None, "go", 5)
+        assert result["rounds"] == 5
+        assert not any(step.get("error") for step in result["steps"])
+
+
+class TestLosingThePageIsNotLosingTheTask:
+    """A reload, a navigation, or a renderer that went away mid-run."""
+
+    @pytest.mark.asyncio
+    async def test_it_returns_to_where_the_work_was(self):
+        executed: list = []
+        skill = _skill_with(
+            [{"actions": [{"index": 0, "type": "click"}], "why": "answer", "expect": "moves"}],
+            executed,
+        )
+        revisited: list = []
+
+        class _FlakyBrowser(_Browser):
+            async def observe(self, **kwargs):
+                self.observed += 1
+                # First look is fine, second comes back empty, third recovers.
+                if self.observed == 2:
+                    return {}
+                return _page(url="https://example.com/q1")
+
+        browser = _FlakyBrowser([])
+
+        async def _browse(_browser, target):
+            revisited.append(target)
+            return True
+
+        skill._safe_browse = _browse
+        await skill._handle_pursue(browser, "https://example.com/q1", "go", 2)
+        assert revisited == ["https://example.com/q1"], "it should go back and continue"
