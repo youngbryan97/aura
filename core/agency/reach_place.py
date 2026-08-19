@@ -18,10 +18,10 @@ assumed from the click. A destination she cannot justify is not opened.
 """
 from __future__ import annotations
 
-import json
 import logging
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any, Sequence
+from typing import Any
 from urllib.parse import urlparse
 
 from core.runtime.errors import record_degradation
@@ -61,14 +61,8 @@ def host_of(url: str) -> str:
         return ""
 
 
-def _results_from(receipt: Any) -> list[dict[str, str]]:
-    """The vetted candidates a search handed back."""
-    raw = getattr(receipt, "result", "") or ""
-    try:
-        payload = json.loads(raw) if isinstance(raw, str) else raw
-    except (TypeError, ValueError):
-        return []
-    rows = payload.get("results") if isinstance(payload, dict) else None
+def _usable(rows: Any) -> list[dict[str, str]]:
+    """One candidate per host, with the words that describe it."""
     if not isinstance(rows, list):
         return []
     seen: set[str] = set()
@@ -191,13 +185,20 @@ async def reach(
 
     url = named_url(wanted)
     if not url:
+        # Searched without navigating.
+        #
+        # search_and_open puts the search page itself in a tab, which then IS
+        # the page in front — so opening the destination replaced the wrong
+        # thing and the arrival check, reading the front tab, found a search
+        # engine. Measured live: she searched, and the run ended
+        # could_not_get_there with the browser sitting on DuckDuckGo.
         try:
-            receipt = await browser.search_and_open(wanted, count=CANDIDATES)
+            candidates = await browser.search_results(wanted, count=CANDIDATES)
         except (RuntimeError, OSError, AttributeError, TypeError, ValueError) as exc:
             record_degradation("reach_place", exc, action="search for where a task happens")
             outcome.reason = f"the search did not run ({type(exc).__name__})"
             return outcome
-        candidates = _results_from(receipt)
+        candidates = _usable(candidates)
         if not candidates:
             outcome.reason = "the search returned nothing that could be opened"
             return outcome

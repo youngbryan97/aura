@@ -10,8 +10,6 @@ the page back rather than assumed from the click.
 """
 from __future__ import annotations
 
-import json
-
 import pytest
 
 from core.agency.reach_place import host_of, named_url, reach
@@ -31,9 +29,9 @@ class _Browser:
         self.searched = []
         self.page = {"url": "https://start.example/", "title": "start"}
 
-    async def search_and_open(self, query, count=5):
+    async def search_results(self, query, count=5):
         self.searched.append(query)
-        return _Receipt(json.dumps({"query": query, "results": self._results}))
+        return list(self._results)
 
     async def open_url(self, url, new_tab=True):
         self.opened.append(url)
@@ -289,3 +287,18 @@ async def test_being_there_already_is_not_a_reason_to_search_again():
     assert got.arrived
     assert got.because == "already there"
     assert browser.searched == [] and browser.opened == []
+
+
+@pytest.mark.asyncio
+async def test_finding_where_to_go_does_not_put_a_search_page_in_front():
+    """LIVE: she searched, and the run ended could_not_get_there with the
+    browser sitting on DuckDuckGo.
+
+    Opening the search page made it the page in front, so opening the
+    destination replaced the wrong thing and the arrival check — which reads
+    the front tab — found a search engine.
+    """
+    browser = _Browser(results=RESULTS)
+    got = await reach("2048 game", browser=browser, think=_thinks("play2048.co"), lived=False)
+    assert got.arrived
+    assert browser.opened == ["https://play2048.co/"], "something other than the destination was opened"

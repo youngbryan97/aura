@@ -1963,7 +1963,9 @@ end tell
                 str(result.get("cannot_decide") or "")
                 or str(result.get("needs_person") or "")
                 or str(result.get("blocked_by") or "")
+                or str(result.get("could_not_get_there") or "")
                 or {
+                    "could_not_get_there": "she could not get to where the task happens",
                     "out_of_cycles": "ran out of moves before reaching the goal",
                     "out_of_time": "ran out of time before reaching the goal",
                     "navigated_away": "the page it was working on was replaced",
@@ -1984,6 +1986,8 @@ end tell
             "blocked_by": result.get("blocked_by", ""),
             "needs_person": result.get("needs_person", ""),
             "cannot_decide": result.get("cannot_decide", ""),
+            "could_not_get_there": result.get("could_not_get_there", ""),
+            "wanted": result.get("wanted", ""),
             "verification": f"pursuit ended {outcome or 'without a named outcome'}",
         }
 
