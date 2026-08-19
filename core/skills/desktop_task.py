@@ -1840,8 +1840,17 @@ class DesktopTaskSkill(BaseSkill):
             return False
         return bool(
             re.search(
-                r"\b(?:write|draft|compose|type|create)\b.{0,80}\b"
-                r"(?:paragraph|note|document|essay|summary|report|journal entry|about|describing|explaining)\b",
+                r"\b(?:write|draft|compose|type|create|make\s+up|tell)\b.{0,80}\b"
+                r"(?:paragraph|note|document|essay|summary|report|journal entry|"
+                # Creative forms are freeform writing too. Without them, "write
+                # a haiku to a file called poem.txt" fell through to the
+                # deterministic composer and the file held "Notes on the
+                # requested subject: The requested subject is the focus of this
+                # note" — the same empty template this predicate exists to
+                # avoid, reached by a request nobody had listed.
+                r"haiku|poem|poetry|verse|limerick|sonnet|song|lyric|story|"
+                r"tale|joke|riddle|letter|speech|toast|eulogy|caption|"
+                r"about|describing|explaining)\b",
                 lowered,
             )
         )
