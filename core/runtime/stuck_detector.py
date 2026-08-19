@@ -85,6 +85,18 @@ class Remedy(StrEnum):
     NONE = "none"
     NUDGE = "nudge"                    # tell her she is repeating; let her adjust
     FORCE_NEW_STRATEGY = "force_new_strategy"  # constrain away the repeated move
+    # Two ways out that are not "try harder at the thing that is not working".
+    #
+    # A run that has learned something mid-task can be worth abandoning: the
+    # position is bad, the knowledge is new, and the next attempt starts from
+    # both. A run can equally be worth finishing badly — the ending is where
+    # the evidence is, and a task that never reaches one teaches nothing about
+    # how it goes wrong.
+    #
+    # Both are choices about the task rather than moves inside it, and having
+    # neither is what leaves a loop with only "keep pressing" and "stop".
+    START_OVER = "start_over"          # abandon this attempt, begin again knowing more
+    SEE_IT_THROUGH = "see_it_through"  # finish it badly on purpose, and learn from the ending
     ASK_HUMAN = "ask_human"            # surface it; she is not getting out alone
 
 

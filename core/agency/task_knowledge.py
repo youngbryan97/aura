@@ -43,6 +43,47 @@ FINDINGS_KEPT = 4
 #: statement of how to do it.
 MAX_FINDING_CHARS = 240
 
+#: Where an answer came from, because a strategy and a definition are not
+#: interchangeable and the difference should survive into the evidence.
+BACKGROUND = "background"
+TACTIC = "tactic"
+
+#: A question about what something IS. Her offline corpus is a full Wikipedia
+#: snapshot, so these are answered instantly, privately, and without a
+#: network — and asking the web first would be going outside for something
+#: already in the building.
+_BACKGROUND_RE = re.compile(
+    r"\b(?:what\s+is|what\s+are|who\s+(?:is|was)|when\s+(?:did|was)|"
+    r"define|meaning\s+of|history\s+of|background\s+on|tell\s+me\s+about)\b",
+    re.IGNORECASE,
+)
+#: A question about what to DO. An encyclopedia entry describes a game; it
+#: does not say what to do when your board is locked. These go to the web,
+#: because that is where people write down how things are actually done.
+_TACTIC_RE = re.compile(
+    r"\b(?:how\s+(?:do|to|can)|what\s+(?:do|should)\s+i|stuck|strategy|"
+    r"tactic|technique|tips?|best\s+way|get\s+past|not\s+working|"
+    r"do\s+nothing|what\s+to\s+do)\b",
+    re.IGNORECASE,
+)
+
+
+def kind_of_question(question: str) -> str:
+    """Whether this asks what something is, or what to do about it.
+
+    The distinction decides where to ask. Her offline encyclopedia holds
+    6.5 million articles and answers the first kind instantly; it holds
+    almost nothing about the second, because an article about a game says
+    what the game is and not how to get out of a locked board.
+    """
+    text = str(question or "")
+    if _TACTIC_RE.search(text):
+        return TACTIC
+    if _BACKGROUND_RE.search(text):
+        return BACKGROUND
+    return TACTIC
+
+
 #: Words that mark a sentence as saying HOW to do something, rather than
 #: describing what the thing is. A search returns both, and only one of them
 #: helps somebody who is mid-task.

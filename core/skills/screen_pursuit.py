@@ -489,6 +489,73 @@ def screen_options(keys: Sequence[str] = DEFAULT_MOVES) -> list[Any]:
     return options
 
 
+
+#: Controls that begin a task again, by the words they are usually labelled
+#: with. Matched against what is really on screen — never inferred, and never
+#: clicked unless the run has actually stopped getting anywhere.
+RESTART_LABELS = ("new game", "restart", "play again", "try again", "start over", "reset")
+#: The two ways out of an impasse that are not "keep pressing".
+START_OVER = "start over"
+SEE_IT_THROUGH = "see it through"
+
+
+def restart_control(observation: dict[str, Any]) -> tuple[str, float, float] | None:
+    """A control on screen that would begin the task again, if there is one."""
+    for region in observation.get("layout") or []:
+        text = str(region.get("text") or "").strip()
+        if not text or len(text) > 40:
+            continue
+        lowered = text.lower()
+        if not any(label in lowered for label in RESTART_LABELS):
+            continue
+        try:
+            return (
+                text,
+                float(region.get("center_x", region.get("x"))),
+                float(region.get("center_y", region.get("y"))),
+            )
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
+def ways_out(observation: dict[str, Any]) -> list[Any]:
+    """What she can do about being stuck, as options she chooses between.
+
+    A loop whose only moves are inside the task can only press harder at
+    something that has stopped working. These are moves about the task: begin
+    it again knowing what she now knows, or finish it badly on purpose,
+    because the ending is where the evidence about how it goes wrong is.
+
+    Offered only once the in-task moves have demonstrably stopped working, so
+    an ordinary run never sees them and nothing gets restarted casually.
+    """
+    from core.agency.deliberate_action import ActionOption, Expectation
+
+    options: list[Any] = [
+        ActionOption(
+            name=SEE_IT_THROUGH,
+            detail="keep playing this out and learn from how it ends",
+            expectation=Expectation(
+                changed=False, describes="to reach the end of this attempt and know why it failed"
+            ),
+        )
+    ]
+    control = restart_control(observation)
+    if control is not None:
+        label, x, y = control
+        options.insert(
+            0,
+            ActionOption(
+                name=START_OVER,
+                params={"label": label, "x": x, "y": y},
+                detail=f"begin again with {label!r}, knowing what this attempt taught",
+                expectation=Expectation(changed=True, describes="a fresh start on the same task"),
+            ),
+        )
+    return options
+
+
 def _her_reasoning(stakes: float) -> Any:
     """Her own judgement, sized to what rides on the move."""
     from core.agency.her_reasoning import reasoning_for
@@ -539,6 +606,10 @@ async def pursue_on_screen(
     history: list[Attempt] = []
     pending: dict[str, Any] = {"deliberation": None, "before": ""}
     undecided: dict[str, str] = {"reason": ""}
+    #: She decided to play this attempt out rather than restart it.
+    seen_through: dict[str, Any] = {"value": False, "because": ""}
+    #: Attempts she chose to begin again, and why.
+    restarts: dict[str, Any] = {"count": 0, "because": ""}
     #: What she knows about doing this, learned once at the start and again
     #: whenever what she is doing stops working.
     knowledge: dict[str, Any] = {"held": None, "relearned": 0}
@@ -825,10 +896,17 @@ async def pursue_on_screen(
                 )
             learned = knowledge["held"].as_evidence() if knowledge["held"] is not None else []
 
+            # When nothing in the task is working, the task itself becomes a
+            # choice. Both ways out are hers, and both are recorded as
+            # decisions with reasons rather than happening to her.
+            available = screen_options(move_keys)
+            if stuck(history) and not seen_through["value"]:
+                available = available + ways_out(observation)
+
             chosen = await deliberate(
                 goal,
                 seen,
-                screen_options(move_keys),
+                available,
                 think=think or _her_reasoning(stakes),
                 knowledge=learned,
                 history=history[-RECENT_ATTEMPTS:],
@@ -846,6 +924,28 @@ async def pursue_on_screen(
                 return None
             key = chosen.chosen.name
             because = chosen.rationale
+
+            if key == SEE_IT_THROUGH:
+                # Chosen once. It says "stop offering me the way out", not
+                # "do something", so the loop carries on with the moves it has.
+                seen_through["value"] = True
+                seen_through["because"] = because
+                return None
+
+            if key == START_OVER:
+                params = dict(chosen.chosen.params)
+                label = str(params.get("label") or "")
+                rx, ry = float(params.get("x", 0.0)), float(params.get("y", 0.0))
+                frame = list(observation.get("bounds") or [])
+                restarts["count"] += 1
+                restarts["because"] = because
+                history.clear()
+
+                async def begin_again() -> bool:
+                    return await click_normalized(rx, ry, expect_app=target_app, bounds=frame)
+
+                return Step(name=f"begin again with {label!r}", action=begin_again)
+
             pending["deliberation"] = chosen
             pending["before"] = seen
 
@@ -942,6 +1042,11 @@ async def pursue_on_screen(
         result["outcome"] = "blocked_by_overlay"
         result["blocked_by"] = blocker_attempts["last"]
     result["moves"] = moves
+    result["restarts"] = restarts["count"]
+    if restarts["because"]:
+        result["restarted_because"] = restarts["because"]
+    if seen_through["value"]:
+        result["played_out_because"] = seen_through["because"]
     result["attempts"] = [
         {"option": a.option, "expected": a.expected, "held": a.verdict.held, "why": a.verdict.why()}
         for a in history
