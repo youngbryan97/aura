@@ -52,14 +52,22 @@ class _Browser:
 def _skill_with(decisions, executed):
     skill = SovereignBrowserSkill.__new__(SovereignBrowserSkill)
 
-    async def _decide(goal, observation, history):
+    async def _decide(goal, observation, history, understanding=None):
         return decisions.pop(0) if decisions else {"done": True, "actions": []}
+
+    async def _understand(goal, observation, prior, mind):
+        return {"here": "a test page", "done_when": "the stub says so"}
+
+    async def _mind():
+        return ""
 
     async def _interact(browser, url, actions, *, action_context=None):
         executed.append(list(actions))
         return {"ok": True}
 
     skill._decide_next_actions = _decide
+    skill._understand_page = _understand
+    skill._assembled_mind = _mind
     skill._handle_interact = _interact
     return skill
 
@@ -222,3 +230,68 @@ class TestTheRequestSizesItsOwnBudget:
         assert skill.timeout_for(SimpleNamespace(mode="pursue")) == skill.timeout_for(
             {"mode": "pursue"}
         )
+
+
+class TestSheActsFromAnUnderstandingNotAStepCount:
+    """A step-picker asks "which control advances the goal" from nothing, forever.
+
+    That is not how anyone uses a website. A person arrives with an aim, works
+    out what the place IS — a sixty-item survey, six to a screen, a seven-point
+    scale, a Next button — and acts fluently from that, revising only when the
+    page does something unexpected. Without it the loop has no answer to "why
+    this control and not that one", no notion of which controls are merely
+    present, and no way to know it is finished except a budget.
+    """
+
+    def test_the_understanding_reaches_the_decision(self):
+        rendered = SovereignBrowserSkill._render_understanding(
+            {
+                "here": "a 60-item personality questionnaire",
+                "to_progress": "answer every item on screen, then press Next",
+                "relevant": "the seven agree/disagree radios",
+                "present_but_not_needed": "the login and language links",
+                "done_when": "a personality type is shown",
+            }
+        )
+        assert "60-item personality questionnaire" in rendered
+        assert "then press Next" in rendered
+        assert "login and language links" in rendered
+        assert "a personality type is shown" in rendered
+
+    def test_nothing_understood_renders_nothing(self):
+        assert SovereignBrowserSkill._render_understanding(None) == ""
+        assert SovereignBrowserSkill._render_understanding({}) == ""
+
+    @pytest.mark.asyncio
+    async def test_it_is_revised_on_surprise_not_rebuilt_each_round(self):
+        """Re-deriving the page every round is a rebuild wearing another name."""
+        executed: list = []
+        skill = _skill_with(
+            [
+                {"actions": [{"index": 2, "type": "click"}], "why": "advance", "expect": "next screen"},
+                {"actions": [{"index": 2, "type": "click"}], "why": "advance", "expect": "next screen"},
+            ],
+            executed,
+        )
+        calls: list = []
+
+        async def _counting_understand(goal, observation, prior, mind):
+            calls.append(prior)
+            return {"here": "a page"}
+
+        skill._understand_page = _counting_understand
+        pages = [_page(), _page(url="https://example.com/q2"), _page(url="https://example.com/q3")]
+        await skill._handle_pursue(_Browser(pages), None, "go", 2)
+        assert len(calls) == 1, "the page moved as expected, so nothing needed re-deriving"
+
+    @pytest.mark.asyncio
+    async def test_a_violated_expectation_is_recorded_on_the_round(self):
+        """Noticing the page did not do what she said is the useful signal."""
+        executed: list = []
+        skill = _skill_with(
+            [{"actions": [{"index": 0, "type": "click"}], "why": "answer", "expect": "it selects"}],
+            executed,
+        )
+        result = await skill._handle_pursue(_Browser([_page()]), None, "go", 1)
+        assert result["steps"][0]["expected"] == "it selects"
+        assert result["steps"][0]["moved"] is False

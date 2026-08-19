@@ -918,8 +918,194 @@ class SovereignBrowserSkill(BaseSkill):
             )
         return "\n".join(lines)
 
+    async def _assembled_mind(self) -> str:
+        """Her whole mind, built once for the pursuit rather than per round.
+
+        The same assembly the cognitive engine and inference gate use for chat:
+        identity core and trained persona, the AuraNow moment with its affect
+        and ownership, the global-workspace winner, and the report boundary.
+        Deciding through it is what makes an action here the same kind of act
+        as an answer in conversation.
+        """
+
+        try:
+            from core.brain.llm.context_assembler import ContextAssembler
+            from core.container import ServiceContainer
+
+            state = ServiceContainer.get("aura_state", default=None)
+            if state is None:
+                return ""
+            return ContextAssembler.build_system_prompt(state)
+        except _BROWSER_DECISION_ERRORS as exc:
+            record_degradation(
+                "sovereign_browser.mind_context",
+                exc,
+                severity="warning",
+                action="decided without her assembled self-context",
+            )
+            return ""
+
+    @staticmethod
+    def _remember_the_place(url: str, understanding: Mapping[str, Any] | None) -> None:
+        """Put what she worked out about this site where the rest of her can see it.
+
+        A page model held in a local variable dies with the task and teaches
+        nothing. The world model already feeds `get_context_injection`, which
+        the context assembler injects into every later turn, so what she
+        learned about a place is available the next time she is there — and to
+        whatever else is reasoning about it.
+        """
+
+        if not understanding or not url:
+            return
+        here = str(understanding.get("here") or "").strip()
+        to_progress = str(understanding.get("to_progress") or "").strip()
+        if not here:
+            return
+        try:
+            from urllib.parse import urlsplit
+
+            from core.container import ServiceContainer
+
+            world = ServiceContainer.get("world_model", default=None)
+            if world is None or not hasattr(world, "add_belief"):
+                return
+            host = urlsplit(url).netloc or url
+            claim = f"{host} is {here}"
+            if to_progress:
+                claim = f"{claim}; to make progress there you {to_progress}"
+            world.add_belief(
+                claim[:400],
+                0.7,
+                source_id=f"browser_pursuit:{host}",
+                tags=["web", "page_model"],
+            )
+        except _BROWSER_DECISION_ERRORS as exc:
+            record_degradation("sovereign_browser.world_model", exc, severity="debug")
+
+    @staticmethod
+    def _record_expectation_outcome(expected: str, moved: bool) -> None:
+        """Whether the page did what she thought it would.
+
+        The loop used to notice only that nothing had changed and stop, calling
+        it `no_progress` — a step tally. Having an expectation and finding it
+        violated is a different thing: it is the signal that the understanding
+        is wrong, and it is the same predict/observe/error currency the rest of
+        the runtime already keeps.
+        """
+
+        if not expected:
+            return
+        try:
+            from core.container import ServiceContainer
+
+            calibration = ServiceContainer.get("calibration_engine", default=None)
+            recorder = getattr(calibration, "record_prediction", None)
+            if callable(recorder):
+                recorder(0.75, 1.0 if moved else 0.0)
+        except _BROWSER_DECISION_ERRORS as exc:
+            record_degradation("sovereign_browser.calibration", exc, severity="debug")
+
+    async def _understand_page(
+        self,
+        goal: str,
+        observation: Mapping[str, Any],
+        prior: Mapping[str, Any] | None,
+        mind: str,
+    ) -> dict[str, Any]:
+        """What she takes this page to be, and what doing the goal here means.
+
+        A step-picker asks "which control advances the goal" every round, from
+        nothing, forever. That is not how anyone uses a website. A person
+        arrives with an aim, works out what the place IS — a sixty-item survey,
+        six to a screen, a seven-point scale, a Next button at the bottom —
+        and then acts fluently from that understanding, revising it only when
+        the page does something unexpected.
+
+        Without a standing understanding the loop has no answer to "why this
+        control and not that one", no idea which controls are present but
+        irrelevant, and no way to know it is finished except a step budget. It
+        was five rounds of clicking with no view of the whole.
+
+        This is that view, and it is carried across rounds rather than rebuilt:
+        what I am ultimately trying to accomplish, what this page is, what it
+        requires of me to progress, which controls matter and which are merely
+        here, and how I will know I am done.
+
+        Revised, not regenerated. A revision that discards what was already
+        worked out is a rebuild wearing another name, so the prior
+        understanding is given back to her and she is asked what changed.
+        """
+
+        from core.container import ServiceContainer
+
+        router = ServiceContainer.get("llm_router", default=None)
+        if router is None:
+            return dict(prior or {})
+
+        prior_view = ""
+        if prior:
+            prior_view = (
+                "WHAT I ALREADY WORKED OUT ABOUT THIS TASK:\n"
+                + json.dumps(dict(prior), indent=None)[:900]
+                + "\n\nRevise it only where this page contradicts it.\n\n"
+            )
+
+        prompt = (
+            f"WHAT I AM TRYING TO ACCOMPLISH: {goal}\n\n"
+            f"{prior_view}"
+            f"{self._render_observation(observation)}\n\n"
+            "Describe the situation, as JSON only:\n"
+            '{"here": "<what this page is>", '
+            '"to_progress": "<what I have to do on THIS page to move forward>", '
+            '"relevant": "<which controls matter and what they do>", '
+            '"present_but_not_needed": "<controls that exist here and are not what I need>", '
+            '"done_when": "<how I will know the whole task is finished>"}'
+        )
+        try:
+            think = getattr(router, "think", None)
+            if callable(think) and mind:
+                _ok, raw, _meta = await think(
+                    prompt, system_prompt=mind, max_tokens=420, temperature=0.2
+                )
+            else:
+                generate = getattr(router, "generate", None)
+                if not callable(generate):
+                    return dict(prior or {})
+                raw = await generate(prompt, max_tokens=420, temperature=0.2)
+        except _BROWSER_DECISION_ERRORS as exc:
+            record_degradation("sovereign_browser.understand", exc, severity="debug")
+            return dict(prior or {})
+
+        parsed = self._parse_decision(str(raw or ""))
+        if parsed.get("error"):
+            return dict(prior or {})
+        parsed.pop("actions", None)
+        merged = dict(prior or {})
+        merged.update({key: value for key, value in parsed.items() if value})
+        return merged
+
+    @staticmethod
+    def _render_understanding(understanding: Mapping[str, Any] | None) -> str:
+        """Her standing view of the task, in the order a person would hold it."""
+        if not understanding:
+            return ""
+        rows = [
+            ("Where I am", understanding.get("here")),
+            ("What this page needs from me", understanding.get("to_progress")),
+            ("What matters here", understanding.get("relevant")),
+            ("Here but not what I need", understanding.get("present_but_not_needed")),
+            ("I am finished when", understanding.get("done_when")),
+        ]
+        lines = [f"- {label}: {value}" for label, value in rows if value]
+        return "MY UNDERSTANDING OF THIS TASK:\n" + "\n".join(lines) if lines else ""
+
     async def _decide_next_actions(
-        self, goal: str, observation: Mapping[str, Any], history: list[dict[str, Any]]
+        self,
+        goal: str,
+        observation: Mapping[str, Any],
+        history: list[dict[str, Any]],
+        understanding: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Ask her own reasoning what to do with this page.
 
@@ -956,20 +1142,7 @@ class SovereignBrowserSkill(BaseSkill):
         # and the report boundary saying which claims about herself are
         # allowed. Deciding through it is what makes an answer here the same
         # kind of act as an answer in conversation.
-        mind = ""
-        try:
-            from core.brain.llm.context_assembler import ContextAssembler
-
-            state = ServiceContainer.get("aura_state", default=None)
-            if state is not None:
-                mind = ContextAssembler.build_system_prompt(state)
-        except _BROWSER_DECISION_ERRORS as exc:
-            record_degradation(
-                "sovereign_browser.mind_context",
-                exc,
-                severity="warning",
-                action="decided this round without her assembled self-context",
-            )
+        mind = await self._assembled_mind()
 
         # Her own state and her own prior positions, from the organs that
         # already own them.
@@ -1012,15 +1185,16 @@ class SovereignBrowserSkill(BaseSkill):
         prompt = (
             f"GOAL: {goal}\n\n"
             + (f"{self_state}\n\n" if self_state else "")
+            + (f"{self._render_understanding(understanding)}\n\n" if understanding else "")
             + f"{self._render_observation(observation)}\n\n"
             f"{positions}\n\n"
-            "Choose the next actions on this page that advance the goal. Answer "
-            "with JSON only:\n"
+            "Act on this page from that understanding. Answer with JSON only:\n"
             '{"actions": [{"index": <int>, "type": "click"|"type"|"scroll", '
             '"value": "<text for type, up/down for scroll>"}], '
-            '"why": "<one sentence, first person, why these>", "done": false}\n'
-            "Set done to true only when the goal is fully accomplished on this "
-            "page. Use the index numbers exactly as listed above."
+            '"why": "<one sentence, first person, why these and not the others>", '
+            '"expect": "<what this should do to the page>", "done": false}\n'
+            "Set done to true only when the whole task is accomplished. Use the "
+            "index numbers exactly as listed above."
         )
         try:
             think = getattr(router, "think", None)
@@ -1153,6 +1327,9 @@ class SovereignBrowserSkill(BaseSkill):
             return {"ok": False, "error": f"Failed to load start URL: {url}"}
 
         steps: list[dict[str, Any]] = []
+        understanding: dict[str, Any] | None = None
+        surprised = False
+        mind = await self._assembled_mind()
         stalled = 0
         last_signature = ""
         observation: dict[str, Any] = {}
@@ -1186,7 +1363,20 @@ class SovereignBrowserSkill(BaseSkill):
                 stalled = 0
             last_signature = signature
 
-            decision = await self._decide_next_actions(goal, observation, steps)
+            # Form the understanding on arrival, and revise it when the page
+            # surprises her — not every round. A person does not re-derive what
+            # a website is after each click; they act until something does not
+            # match, and then they look again.
+            if understanding is None or surprised:
+                understanding = await self._understand_page(
+                    goal, observation, understanding, mind
+                )
+                surprised = False
+                self._remember_the_place(str(observation.get("url") or ""), understanding)
+
+            decision = await self._decide_next_actions(
+                goal, observation, steps, understanding
+            )
             if decision.get("error"):
                 steps.append({"error": decision["error"]})
                 break
@@ -1250,6 +1440,18 @@ class SovereignBrowserSkill(BaseSkill):
             if not report.get("ok"):
                 steps[-1]["error"] = str(report.get("error") or "interaction_failed")
                 break
+
+            # Did the page do what she said it would? A violated expectation is
+            # what should send her back to look again — the old loop only
+            # counted unchanged screens and gave up calling it `no_progress`.
+            after = await browser.observe(principal="owner")
+            moved = bool(after) and self._observation_signature(after) != signature
+            expected = str(decision.get("expect") or "")
+            steps[-1]["expected"] = expected
+            steps[-1]["moved"] = moved
+            self._record_expectation_outcome(expected, moved)
+            if expected and not moved:
+                surprised = True
             if decision.get("done") is True:
                 completed = True
                 break
