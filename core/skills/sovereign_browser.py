@@ -1302,50 +1302,36 @@ class SovereignBrowserSkill(BaseSkill):
         costs time.
         """
 
-        # Address the fast endpoint directly.
+        # `generate(prefer_tier=...)` on the registered router.
         #
-        # `prefer_tier` was ignored twice over: `think()` on the resolved client
-        # is endpoint-level and drops it, and `think_and_act` documents that it
-        # "falls back to the standard think() path" when no endpoint supports
-        # tools natively — which, with no tools passed, is always. So every
-        # round went to the Cortex at up to 103s while politely asking for the
-        # small model.
-        #
-        # Health is still respected, and an unhealthy or missing fast endpoint
-        # returns None so the caller takes the ordinary path.
-        endpoints = getattr(router, "endpoints", None) or {}
-        adapters = getattr(router, "adapters", None) or {}
-        monitor = getattr(router, "health_monitor", None)
-        for name, endpoint in endpoints.items():
-            raw_tier = getattr(endpoint, "tier", "")
-            tier = str(getattr(raw_tier, "value", raw_tier)).lower()
-            if tier != "local_fast":
-                continue
-            if monitor is not None and not monitor.is_healthy(name):
-                continue
-            adapter = adapters.get(name)
-            if adapter is None:
-                continue
-            for method_name in ("think", "generate", "generate_text_async"):
-                method = getattr(adapter, method_name, None)
-                if not callable(method):
-                    continue
-                try:
-                    outcome = await method(
-                        prompt, system_prompt=mind, max_tokens=900, temperature=0.2
-                    )
-                except _BROWSER_DECISION_ERRORS as exc:
-                    record_degradation(
-                        "sovereign_browser.fast_lane", exc, severity="debug"
-                    )
-                    return None
-                if isinstance(outcome, tuple) and len(outcome) >= 2:
-                    outcome = outcome[1]
-                if isinstance(outcome, Mapping):
-                    outcome = outcome.get("content")
-                content = str(outcome or "").strip()
-                return content or None
-        return None
+        # The registered service is HealthAwareLLMRouter and this is its own
+        # public entry: it takes the tier and honours it. Three earlier
+        # attempts went elsewhere and were silently ignored — `think()` on a
+        # resolved client is endpoint-level and drops the tier,
+        # `think_and_act` documents that it falls back to the standard think()
+        # path when no endpoint supports tools natively, and this router
+        # exposes no `adapters` map to address an endpoint directly. Every
+        # round went to the Cortex at up to 103s while asking for the small
+        # model, and nothing reported that the request had been ignored.
+        generate = getattr(router, "generate", None)
+        if not callable(generate):
+            return None
+        try:
+            outcome = await generate(
+                prompt,
+                system_prompt=mind,
+                timeout=45.0,
+                prefer_tier="local_fast",
+                max_tokens=900,
+                temperature=0.2,
+            )
+        except _BROWSER_DECISION_ERRORS as exc:
+            record_degradation("sovereign_browser.fast_lane", exc, severity="debug")
+            return None
+        if isinstance(outcome, Mapping):
+            outcome = outcome.get("content")
+        content = str(outcome or "").strip()
+        return content or None
 
     async def _decide_next_actions(
         self,
