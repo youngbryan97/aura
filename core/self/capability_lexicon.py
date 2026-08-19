@@ -49,6 +49,8 @@ _STRUCTURAL_WORDS = frozenset(
     why how not no any some all both each every use used using uses via
     aura her she your you my our their them they i me we us one two more most
     other others new current live real full only just also then than
+    about over under through between during before after again once out off
+    up down because if too very help please something anything everything
     """.split()
 )
 
@@ -246,7 +248,11 @@ def capabilities_named_in(
             continue
         vocabulary = lexicon.get(mention.skill, {})
         overlap = sorted(words & set(vocabulary))
-        if not overlap:
+        # The same bar the token path uses. Admitting a retrieval hit on one
+        # weak word let "can you help me think about this?" claim
+        # query_beliefs, matched on "about".
+        identity = set(_tokens(mention.skill))
+        if len(overlap) < _MIN_SHARED_TOKENS and not (set(overlap) & identity):
             continue
         mentions.append(
             CapabilityMention(

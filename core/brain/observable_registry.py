@@ -27,6 +27,20 @@ async def _read_clipboard(prompt: str) -> str:
     return block.replace(f"{CLIPBOARD_HEADER}\n", "", 1) if block else ""
 
 
+# ── what has actually been failing ───────────────────────────────────────────
+
+def _matches_operational_state(prompt: str) -> bool:
+    from core.self.operational_state import asks_about_own_condition
+
+    return asks_about_own_condition(prompt)
+
+
+async def _read_operational_state(prompt: str) -> str:
+    from core.self.operational_state import operational_state_block
+
+    return await asyncio.to_thread(operational_state_block, prompt)
+
+
 # ── what this build registers ────────────────────────────────────────────────
 
 def _matches_capability_status(prompt: str) -> bool:
@@ -509,6 +523,24 @@ def install_default_observables() -> None:
                 "what is the evidence for dark matter?",
                 "show me the data on unemployment",
                 "how are you doing",
+                "what is 2 + 2",
+            ),
+        ),
+        Observable(
+            "operational_state",
+            "## WHAT HAS ACTUALLY BEEN FAILING IN THIS RUNTIME",
+            _matches_operational_state,
+            _read_operational_state,
+            examples=(
+                # The live miss: three invented weaknesses, warmly ranked.
+                "rank your three weakest subsystems and say why.",
+                "what's been failing lately?",
+                "how are you really?",
+                "which of your components are degraded?",
+            ),
+            counter_examples=(
+                "what's wrong with my computer?",
+                "how are you?",
                 "what is 2 + 2",
             ),
         ),
