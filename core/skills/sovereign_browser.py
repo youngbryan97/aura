@@ -1462,7 +1462,7 @@ class SovereignBrowserSkill(BaseSkill):
                 raw = await self._decide_on_the_fast_lane(router, prompt, mind)
                 if not self._decision_is_usable(raw, observation):
                     _ok, raw, _meta = await think(
-                        prompt, system_prompt=mind, max_tokens=400, temperature=0.2
+                        prompt, system_prompt=mind, max_tokens=900, temperature=0.2
                     )
             else:
                 generate = getattr(router, "generate", None)
@@ -1482,8 +1482,7 @@ class SovereignBrowserSkill(BaseSkill):
         close anything.
         """
         found: list[str] = []
-        depth = 0
-        start = -1
+        starts: list[int] = []
         in_string = False
         escaped = False
         for index, char in enumerate(text):
@@ -1498,15 +1497,13 @@ class SovereignBrowserSkill(BaseSkill):
             if char == '"':
                 in_string = True
             elif char == "{":
-                if depth == 0:
-                    start = index
-                depth += 1
-            elif char == "}":
-                if depth:
-                    depth -= 1
-                    if depth == 0 and start != -1:
-                        found.append(text[start : index + 1])
-                        start = -1
+                starts.append(index)
+            elif char == "}" and starts:
+                # Every depth, not only the top level. A truncated reply never
+                # closes its outer object, and capturing top-level objects only
+                # meant the complete actions INSIDE it were invisible — six
+                # correct choices discarded for a missing bracket.
+                found.append(text[starts.pop() : index + 1])
         return found
 
     @classmethod
@@ -1544,10 +1541,35 @@ class SovereignBrowserSkill(BaseSkill):
             ):
                 parsed = loaded
                 break
-            if parsed is None and isinstance(loaded, dict):
-                parsed = loaded
+            # Deliberately no "any dict will do" fallback. With nested objects
+            # captured, the first thing found in a truncated reply is a single
+            # ACTION, and accepting it as the decision produced a decision with
+            # no actions in it — which then read as "she chose nothing".
         if parsed is None:
-            return {"error": "unparsable_decision", "raw": text[:200]}
+            # A cut-off answer still carries whole actions.
+            #
+            # MEASURED live: she answered six questions in one round and the
+            # reply was truncated mid-array, so the outer object never closed
+            # and the whole decision was discarded — six correct choices thrown
+            # away for a missing bracket. Each action object inside the array is
+            # itself balanced, so the complete ones are recoverable and only the
+            # severed tail is lost. Nothing is invented: an element is kept only
+            # if it already parsed and names an index.
+            salvaged: list[dict[str, Any]] = []
+            for candidate in cls._balanced_objects(text):
+                try:
+                    item = json.loads(candidate)
+                except (json.JSONDecodeError, ValueError):
+                    continue
+                if isinstance(item, dict) and "index" in item:
+                    salvaged.append(item)
+            if salvaged:
+                return {
+                    "actions": salvaged,
+                    "why": "",
+                    "truncated": True,
+                }
+            return {"error": "unparsable_decision", "raw": text[:400]}
         actions = parsed.get("actions")
         parsed["actions"] = actions if isinstance(actions, list) else []
         return parsed
@@ -1696,6 +1718,14 @@ class SovereignBrowserSkill(BaseSkill):
                 goal, observation, steps, understanding
             )
             if decision.get("error"):
+                # What she actually said, not just that it could not be read.
+                # "unparsable_decision" names the parser's problem and hides
+                # the model's answer, which is the only thing that says why.
+                logger.warning(
+                    "🌐 Pursuit decision unusable (%s): %.240s",
+                    decision.get("error"),
+                    str(decision.get("raw") or "(no text captured)"),
+                )
                 steps.append({"error": decision["error"]})
                 break
             # "Done" before anything has been done is not done.

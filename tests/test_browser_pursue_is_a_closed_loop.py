@@ -603,3 +603,44 @@ class TestTheDecisionIsFoundHoweverItIsWrapped:
 
     def test_genuinely_unparsable_output_still_reports_itself(self):
         assert SovereignBrowserSkill._parse_decision("no json at all")["error"] == "unparsable_decision"
+
+
+class TestATruncatedAnswerStillCarriesWholeChoices:
+    """She answered six questions in one round and it was thrown away.
+
+    MEASURED live, the raw decision was:
+
+        {"actions": [{"index": 3, "type": "click", "value": null},
+                     {"index": 10, "type": "click", "value": null},
+                     {"index": 17, "type": "cl
+
+    Correct, and cut off at the token limit, so the outer object never closed
+    and the whole thing was discarded as unparsable. Six right choices lost to
+    a missing bracket.
+    """
+
+    TRUNCATED = (
+        '{"actions": [{"index": 3, "type": "click", "value": null}, '
+        '{"index": 10, "type": "click", "value": null}, {"index": 17, "type": "cl'
+    )
+
+    def test_the_complete_actions_are_recovered(self):
+        parsed = SovereignBrowserSkill._parse_decision(self.TRUNCATED)
+        assert [a["index"] for a in parsed["actions"]] == [3, 10]
+        assert parsed["truncated"] is True
+
+    def test_the_severed_action_is_not_guessed_at(self):
+        parsed = SovereignBrowserSkill._parse_decision(self.TRUNCATED)
+        assert len(parsed["actions"]) == 2, "only whole objects may be kept"
+
+    def test_a_lone_action_is_not_mistaken_for_a_decision(self):
+        """The first object inside a truncated reply is an ACTION, not the answer."""
+        parsed = SovereignBrowserSkill._parse_decision('{"index": 3, "type": "click"}')
+        assert parsed.get("actions") == [{"index": 3, "type": "click"}]
+
+    def test_an_intact_answer_is_unaffected(self):
+        parsed = SovereignBrowserSkill._parse_decision(
+            '{"actions":[{"index":1,"type":"click"}],"why":"x","done":false}'
+        )
+        assert parsed["actions"] == [{"index": 1, "type": "click"}]
+        assert parsed.get("truncated") is None
