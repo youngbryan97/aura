@@ -14151,6 +14151,40 @@ def _brevity_requested(user_message: object) -> bool:
         return False
 
 
+def _serve_lifetime(user_message: object, reply: object) -> object:
+    """Answer how long she has been alive from the record that counts it.
+
+    LIVE, 2026-08-19: "how many turns have we had today, and how long have you
+    actually been awake across all your restarts?" got "That's a complex
+    question. The number of turns depends on how you count." Forty days across
+    1,523 sessions was in continuity.json, and every turn of the day was in the
+    episodic store.
+
+    A deflection is the worst available answer to the one question a person
+    asks to find out whether something has a life — and the true answer is
+    more impressive than anything a hedge could suggest.
+    """
+    try:
+        from core.brain.observable_registry import _matches_lifetime
+        from core.self.lifetime import describe_lifetime
+
+        if not _matches_lifetime(str(user_message or "")):
+            return reply
+        measured = describe_lifetime()
+        if measured:
+            logger.info("⏳ Served the cumulative lifetime from the continuity record.")
+            return measured
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        record_degradation(
+            "chat.lifetime",
+            exc,
+            severity="debug",
+            action="left the lifetime answer to the model",
+            enforce_failure_policy=False,
+        )
+    return reply
+
+
 def _serve_queued_work(user_message: object, reply: object) -> object:
     """Answer "what are you going to do next" from the coordinator's list.
 
@@ -15811,6 +15845,7 @@ _SERVED_FROM_RECORD_OPENINGS = (
     "Earlier today you asked me:",
     "My record holds",
     "Positions I have actually revised",
+    "Awake ",
 )
 
 #: The queued-work answer opens with a count, so it is recognised by shape.
@@ -15870,6 +15905,7 @@ def _apply_recorded_answer(user_message: object, response: Any) -> Any:
         corrected = str(_serve_measured_belief_history(corrected) or corrected)
         corrected = str(_serve_earlier_conversation(user_message, corrected) or corrected)
         corrected = str(_serve_queued_work(user_message, corrected) or corrected)
+        corrected = str(_serve_lifetime(user_message, corrected) or corrected)
         corrected = str(_correct_false_capability_denials(corrected) or corrected)
         # Cut a hallucinated continuation of the transcript.
         #

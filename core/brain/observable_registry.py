@@ -557,6 +557,56 @@ async def _read_belief_history(prompt: str) -> str:
     return describe_belief_changes()
 
 
+# ── how long she has been alive ──────────────────────────────────────────────
+#
+# "how many turns have we had today, and how long have you actually been awake
+# across all your restarts?" was answered "That's a complex question. The
+# number of turns depends on how you count". Both halves were on disk:
+# continuity.json carries total_uptime_seconds and session_count, and the
+# episodic store holds every turn of the day. A deflection is the worst
+# available answer to the one question a person asks to find out whether
+# something has a life.
+
+#: Scoped to the run in progress, which is a different reading.
+#:
+#: "how long have you been running this session?" is answered by the
+#: operational state, in minutes. Answering it from the cumulative record —
+#: forty days — would be wrong, and wrong in the direction that sounds
+#: impressive, which is the worst direction.
+def _matches_lifetime(prompt: str) -> bool:
+    import re
+
+    text = str(prompt or "")
+    if re.search(
+        r"\bthis\s+(?:session|run|boot|time)\b"
+        r"|\bsince\s+(?:you|the\s+last)\s+(?:started|booted|restarted|woke)\b"
+        r"|\bright\s+now\b|\bcurrent(?:ly)?\s+uptime\b",
+        text,
+        re.IGNORECASE,
+    ):
+        return False
+    return bool(
+        re.search(
+            r"\bhow\s+long\s+have\s+you\b"
+            r"|\bhow\s+long\s+(?:were|are)\s+you\b"
+            r"|\b(?:total|cumulative|overall)\s+(?:uptime|time\s+awake)\b"
+            r"|\bacross\s+(?:all\s+)?(?:your\s+)?(?:restarts|sessions|runs)\b"
+            r"|\bhow\s+many\s+(?:sessions|restarts|times\s+have\s+you\s+restarted)\b"
+            r"|\bhow\s+(?:old|long)\s+are\s+you\b"
+            r"|\bhow\s+many\s+turns\b"
+            r"|\bhow\s+long\s+have\s+you\s+been\s+(?:awake|alive|running|up)\b",
+            text,
+            re.IGNORECASE,
+        )
+    )
+
+
+async def _read_lifetime(_prompt: str) -> str:
+    from core.self.lifetime import describe_lifetime
+
+    return describe_lifetime()
+
+
 def install_default_observables() -> None:
     """Register the readings this runtime can take."""
 
@@ -910,6 +960,26 @@ def install_default_observables() -> None:
                 "how are you doing",
                 "what is 2 + 2",
                 "what did I ask you two messages ago?",
+            ),
+        ),
+        Observable(
+            "lifetime",
+            "## HOW LONG I HAVE BEEN AWAKE",
+            _matches_lifetime,
+            _read_lifetime,
+            examples=(
+                "how long have you actually been awake across all your restarts?",
+                "how many turns have we had today?",
+                "how long have you been alive?",
+                "what's your total uptime?",
+                "how many sessions have you had?",
+            ),
+            counter_examples=(
+                # This run, not the whole life — the operational-state reading
+                # owns that one, and answering it with 40 days would be wrong.
+                "how long have you been running this session?",
+                "how are you doing",
+                "what is 2 + 2",
             ),
         ),
     ):
