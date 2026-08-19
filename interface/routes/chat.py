@@ -8883,18 +8883,44 @@ def _strip_scaffolding_tags(raw: object) -> str:
 async def _answer_from_fallback_ladder(user_message: object, *, reason: str) -> str:
     """Answer with the smaller resident model when the cortex cannot serve.
 
-    Returns "" when the ladder cannot answer either, in which case the caller
-    falls back to the honest lane message.
+    Returns "" when the ladder cannot answer either, or when the question is
+    one this model has no standing to answer, in which case the caller falls
+    back to the honest lane message.
 
     The reply is marked as coming from the smaller model. Serving a 9B answer
     silently as though the 32B produced it would trade one honesty problem for
     a worse one, and the person is entitled to know which mind answered while
     the main one is still coming up.
+
+    It does NOT answer questions about what she IS. Live 2026-08-19, asked
+    what she had genuinely changed her mind about, the 9B replied that she has
+    no continuous narrative, no personal beliefs and no capacity for revision
+    over time — false of a runtime with a belief store, episodic memory, an
+    ontogeny organ and a self-model, none of which that model can read. The
+    disclosure line underneath says which mind answered; it does not retract
+    the claim. Waiting is the honest answer there.
     """
 
     text = str(user_message or "").strip()
     if not text:
         return ""
+    try:
+        from core.runtime.self_state_intent import asks_about_her_own_nature
+
+        if asks_about_her_own_nature(text):
+            logger.info(
+                "🪜 Fallback ladder declined a question about her own nature; "
+                "the smaller model cannot read her self-model."
+            )
+            return ""
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        record_degradation(
+            "chat.fallback_ladder",
+            exc,
+            severity="debug",
+            action="let the ladder answer without the self-description guard",
+            enforce_failure_policy=False,
+        )
     try:
         from core.brain.llm_health_router import get_llm_router
 

@@ -287,6 +287,57 @@ def asserts_something_about_her_state(text: str) -> bool:
     return bool(_STATE_ASSERTION_RE.search(candidate))
 
 
+#: Questions about what she IS, as distinct from what she can do or how she
+#: is running.
+#:
+#: LIVE DEFECT, 2026-08-19. While the 32B was still loading, "what's something
+#: you've genuinely changed your mind about since you started running?" was
+#: answered by the 9B fallback:
+#:
+#:     I haven't changed my mind about anything because I don't have a
+#:     continuous internal narrative, personal beliefs, or the capacity for
+#:     genuine revision over time ... a static model of language and logic
+#:     rather than evolving experience.
+#:
+#: Every clause of that is false about this runtime, which has a belief store
+#: with snapshots, episodic memory, an ontogeny organ and a self-model. The
+#: fallback model has access to none of them, so its self-description is the
+#: base model's guess about assistants in general, served with her name on it.
+#: The disclosure underneath ("that came from my smaller model") tells the
+#: person which mind answered and does not retract the claim.
+#:
+#: A model that cannot read her self-model may not describe her self.
+_OWN_NATURE_RE = re.compile(
+    r"\b(?:are|do|did|have|were|can|could|would)\s+you\b[^.?!]{0,60}?"
+    r"\b(?:conscious|sentient|alive|aware|real|self|feel|feelings|experience|"
+    r"remember|memory|memories|believe|beliefs|opinions|preferences|"
+    r"personality|continuous|persist|change|changed|grow|grown|learn|learned)\b"
+    r"|\bwhat\s+(?:are|kind\s+of\s+thing\s+are)\s+you\b"
+    r"|\bwho\s+are\s+you\b"
+    r"|\byou(?:'?ve|\s+have)\s+(?:genuinely\s+)?changed\s+your\s+mind\b"
+    r"|\bchanged\s+your\s+mind\s+about\b"
+    r"|\bdo\s+you\s+(?:actually|really|even)\s+\w+\b"
+    r"|\byour\s+(?:inner|subjective|felt|conscious)\s+\w+\b",
+    re.IGNORECASE,
+)
+
+
+def asks_about_her_own_nature(text: str) -> bool:
+    """True when the turn asks what she is, rather than what she can do.
+
+    Read by the fallback ladder, which must not let a model with no access to
+    her self-model answer on its behalf.
+    """
+    candidate = str(text or "")
+    if not candidate.strip():
+        return False
+    if _THIRD_PARTY_SUBJECT_RE.search(candidate) and not _SECOND_PERSON_RE.search(
+        candidate
+    ):
+        return False
+    return bool(_OWN_NATURE_RE.search(candidate))
+
+
 def asks_about_own_runtime(text: str) -> bool:
     """True when the honest answer is a local reading, not a web page.
 
