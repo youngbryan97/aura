@@ -1356,8 +1356,26 @@ class SovereignBrowserSkill(BaseSkill):
         try:
             think = getattr(router, "think", None)
             if callable(think) and mind:
+                # The fast lane, for the repetitive part.
+                #
+                # Working a sixty-item form is one rich judgement — what this
+                # place is and what doing it honestly means — followed by many
+                # small structured choices of the same shape. Putting every one
+                # of those through the 32B cost about a minute a round and the
+                # turn was cancelled at 181s, mid-pursuit, having answered
+                # nothing.
+                #
+                # So the understanding stays on the Cortex with her whole self
+                # in front of it, and the micro-choices go to the fast local
+                # tier. `is_background` is deliberately NOT set: background
+                # inference is deferrable under headroom pressure, and a
+                # decision that silently returns nothing would stall the loop.
                 _ok, raw, _meta = await think(
-                    prompt, system_prompt=mind, max_tokens=400, temperature=0.2
+                    prompt,
+                    system_prompt=mind,
+                    max_tokens=400,
+                    temperature=0.2,
+                    prefer_tier="local_fast",
                 )
             else:
                 generate = getattr(router, "generate", None)
