@@ -127,3 +127,10 @@ register_reader(
     "computed_text_answer",
     answers="reversing, counting, sorting or testing a given string",
 )
+register_reader(
+    "statistics",
+    "core.conversation.computable_statistics",
+    "computed_statistic",
+    answers="a statistic with a closed form — a Wilson interval, a mean, a "
+    "median, a standard deviation, a percentage",
+)

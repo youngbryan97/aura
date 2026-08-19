@@ -55,6 +55,31 @@ async def _read_computed_text(prompt: str) -> str:
     )
 
 
+# ── the exact statistic, computed ────────────────────────────────────────────
+
+def _matches_computed_statistic(prompt: str) -> bool:
+    from core.conversation.computable_statistics import computed_statistic
+
+    return computed_statistic(prompt) is not None
+
+
+async def _read_computed_statistic(prompt: str) -> str:
+    from core.conversation.computable_statistics import computed_statistic_result
+    from core.conversation.computation_receipts import record_computation
+
+    result = await asyncio.to_thread(computed_statistic_result, prompt)
+    if result is None:
+        return ""
+    record_computation(prompt, result.value, result.provenance())
+    return (
+        f"Computed exactly, not worked out by hand: {result.value}\n"
+        f"How: {result.provenance()}.\n"
+        "Use this figure. Substituting into a formula line by line is where "
+        "the arithmetic goes wrong, and it went wrong by a wide margin the "
+        "one time it was tried."
+    )
+
+
 # ── the question they say went unanswered ────────────────────────────────────
 
 def _matches_unanswered(prompt: str) -> bool:
@@ -993,6 +1018,25 @@ def install_default_observables() -> None:
                 "what do you think about jazz?",
                 "what is 2 + 2",
                 "how does a lock work in general?",
+            ),
+        ),
+        Observable(
+            "computed_statistic",
+            "## A STATISTIC WITH A CLOSED FORM, COMPUTED",
+            _matches_computed_statistic,
+            _read_computed_statistic,
+            examples=(
+                "what is the 95% wilson score interval for 12 of 17",
+                "I have 17 runs and 12 succeeded, give me the wilson interval",
+                "what is the mean of 2, 4, 4, 4, 5, 5, 7, 9",
+                "standard deviation of 2, 4, 4, 4, 5, 5, 7, 9",
+                "what percent of 17 is 12",
+            ),
+            counter_examples=(
+                # About the concept, not about any data.
+                "what is a wilson score interval",
+                "explain what standard deviation measures",
+                "how are you doing",
             ),
         ),
         Observable(
