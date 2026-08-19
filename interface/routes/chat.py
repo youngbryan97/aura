@@ -15758,6 +15758,21 @@ def _mark_http_turn_served(outcome: Any, response: Any) -> None:
         record_degradation("chat.turn_outcome", exc, severity="info")
 
 
+#: Openings the served-fact composers use. A reply that begins with one of
+#: these was read off a record rather than generated, whatever the draft it
+#: replaced scored.
+_SERVED_FROM_RECORD_OPENINGS = (
+    "Earlier today you asked me:",
+    "My record holds",
+    "Positions I have actually revised",
+)
+
+
+def _reply_was_served_from_a_record(reply: object) -> bool:
+    body = str(reply or "").lstrip()
+    return any(body.startswith(opening) for opening in _SERVED_FROM_RECORD_OPENINGS)
+
+
 def _apply_recorded_answer(user_message: object, response: Any) -> Any:
     """Attach a recorded answer to whatever this turn ended up returning.
 
@@ -15827,6 +15842,18 @@ def _apply_recorded_answer(user_message: object, response: Any) -> Any:
         if corrected == reply:
             return response
         data["response"] = corrected
+        # A served record is not the draft's confidence.
+        #
+        # Live 2026-08-19 the verbatim conversation history — five turns with
+        # their times, read off disk — arrived badged "Partial", inherited from
+        # the generated draft it replaced. The same way the exact product
+        # 50,420,273 arrived badged "No answer". Whatever the model's attempt
+        # scored says nothing about a fact that was looked up.
+        if corrected != reply and _reply_was_served_from_a_record(corrected):
+            data["response_confidence"] = "computed"
+            contract = data.get("live_turn_contract")
+            if isinstance(contract, dict):
+                contract["response_confidence"] = "computed"
         return JSONResponse(content=data, status_code=getattr(response, "status_code", 200))
     except _CHAT_RECOVERABLE_ERRORS as exc:
         record_degradation("chat", exc)
