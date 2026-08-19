@@ -1942,6 +1942,7 @@ end tell
             region_bottom=float(payload.get("region_bottom") or 1.0),
             target_app=str(payload.get("target_app") or ""),
             expect_page=str(payload.get("expect_page") or ""),
+            open_page=str(payload.get("open_page") or ""),
             unblock_with=str(payload.get("unblock_with") or ""),
             stakes=float(payload.get("stakes") or 0.5),
         )

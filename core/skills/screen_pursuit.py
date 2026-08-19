@@ -110,6 +110,9 @@ class ScreenPursuitInput(BaseModel):
     #: Offering every pressable key everywhere would put escape and return in
     #: front of a decision that has no business reaching for them.
     move_keys: list[str] = Field(default_factory=lambda: list(DEFAULT_MOVES), max_length=12)
+    #: Where the task happens, when she has to get there first. A URL is
+    #: opened; a name is searched for and the destination decided.
+    open_page: str = Field(default="", max_length=300)
     #: How much rides on this run, 0..1. Above 0.7 the decision is sharpened
     #: by deep deliberation rather than a single amplified pass.
     stakes: float = Field(default=0.5, ge=0.0, le=1.0)
@@ -451,6 +454,7 @@ class ScreenPursuitSkill(BaseSkill):
             unblock_with=params.unblock_with,
             move_keys=tuple(params.move_keys or DEFAULT_MOVES),
             stakes=params.stakes,
+            open_page=params.open_page,
         )
 
 
@@ -507,6 +511,7 @@ async def pursue_on_screen(
     expect_page: str = "",
     unblock_with: str = "",
     stakes: float = 0.5,
+    open_page: str = "",
     research: bool = True,
     lived: bool = True,
     spine: Any = None,
@@ -857,6 +862,34 @@ async def pursue_on_screen(
             return await press(key, expect_app=target_app)
 
         return Step(name=f"press {key}", action=act)
+
+    # Get to where the task happens before looking at anything.
+    #
+    # A goal that names a place is not doing anything until she is there, and
+    # somebody else opening the page first is the part of the task she should
+    # be doing herself. Naming a URL makes it an open; naming only the thing
+    # makes it a search and then a decision about which result really is it.
+    reached = None
+    if open_page:
+        from core.agency.reach_place import reach
+
+        reached = await reach(open_page, think=think, lived=lived)
+        if not reached.arrived:
+            return {
+                "goal": goal,
+                "completed": False,
+                "outcome": "could_not_get_there",
+                "could_not_get_there": reached.reason,
+                "wanted": open_page,
+                "considered": list(reached.considered),
+                "moves": [],
+                "attempts": [],
+                "success_when": success_when,
+            }
+        if not expect_page:
+            # The run belongs to the page she just opened.
+            expect_page = reached.url or reached.title
+            anchor["page"] = expect_page
 
     # Narration runs beside the pursuit, never inside it.
     #

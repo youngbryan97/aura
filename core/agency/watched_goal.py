@@ -67,6 +67,10 @@ class WatchedGoal:
     region_top: float = 0.0
     region_bottom: float = 1.0
     unblock_with: str = ""
+    #: Where the task happens: a URL if the request named one, otherwise the
+    #: thing itself, which she has to find. Empty when the task is about
+    #: whatever is already in front of her.
+    where: str = ""
     detail: dict[str, Any] = field(default_factory=dict)
 
     def as_target(self) -> dict[str, Any]:
@@ -82,6 +86,8 @@ class WatchedGoal:
             payload["target_app"] = self.target_app
         if self.unblock_with:
             payload["unblock_with"] = self.unblock_with
+        if self.where:
+            payload["open_page"] = self.where
         return payload
 
 
@@ -167,6 +173,50 @@ def _keys_for(text: str) -> tuple[str, ...]:
     return BOARD_KEYS
 
 
+
+def _where_it_happens(text: str) -> str:
+    """The place a task needs her to be, when the request implies one.
+
+    A URL written into the request is the place. Otherwise it is the thing
+    itself — she has to find it, which is a search and then a decision about
+    which result is really it.
+
+    Two things are deliberately not done. A domain is never guessed from a
+    name, because that is how a request for one site opens another. And a
+    request that says the thing is already open names no place at all: "2048
+    is open in Chrome" is a statement about the world, not an instruction to
+    go somewhere, and reading it as one sends her off to find what is already
+    in front of her.
+    """
+    from core.agency.reach_place import named_url  # noqa: PLC0415
+
+    url = named_url(text)
+    if url:
+        return url
+    for match in _SUBJECT_RE.finditer(text):
+        before = str(match.group("before") or "").strip().lower()
+        if before in _ALREADY_THERE:
+            continue
+        named = str(match.group("what") or "").strip(" .,'\"")
+        if not named or named.lower() in _NOT_A_PLACE:
+            continue
+        return named
+    return ""
+
+
+#: Words before the verb that mean it is describing a state rather than
+#: asking for an action: "is open", "was already running".
+_ALREADY_THERE = frozenset({"is", "are", "was", "were", "already", "still"})
+#: Subjects that name nothing findable.
+_NOT_A_PLACE = frozenset({"it", "this", "that", "the game", "game", "them", "one"})
+_SUBJECT_RE = re.compile(
+    r"(?P<before>\b\w+\s+)?\b(?:play|open|use|go\s+to|visit)\s+"
+    r"(?:the\s+)?(?P<what>[A-Za-z0-9][^.\n,]{0,40}?)"
+    r"(?=\s+(?:in|on|at|until|till|and)\b|[.,\n]|$)",
+    re.IGNORECASE,
+)
+
+
 def read_watched_goal(objective: str) -> WatchedGoal | None:
     """A watched goal, when the request is one. Otherwise nothing."""
     text = str(objective or "").strip()
@@ -180,8 +230,12 @@ def read_watched_goal(objective: str) -> WatchedGoal | None:
         return None
 
     app = _named_app(text)
-    in_browser = any(browser in app.lower() for browser in BROWSERS) or "://" in text
+    where = _where_it_happens(text)
+    # Somewhere to go is itself a browser: naming Chrome is how a person
+    # mentions it, not a condition on needing one.
+    in_browser = bool(where) or any(browser in app.lower() for browser in BROWSERS) or "://" in text
     return WatchedGoal(
+        where=where,
         goal=text[:400],
         success_when=condition,
         target_app=app,
