@@ -362,21 +362,54 @@ async def _read_beliefs(_prompt: str) -> str:
 # This is awareness of her own non-immediate actions, and she has a status()
 # that answers it exactly.
 
-_ASKS_QUEUED_WORK = re.compile(
-    r"\b(?:queued|scheduled|pending|background)\s+(?:work|task|tasks|job|jobs|maintenance)\b"
-    r"|\bwhat(?:'s| is)\s+(?:in\s+)?your\s+queue\b"
-    r"|\banything\s+(?:queued|scheduled|pending|planned)\b"
-    # "are you planning to do anything later?" is the same question in the
-    # phrasing a person actually uses, and the first pattern missed it.
-    r"|\bplan(?:ning|s)?\s+to\s+do\s+(?:anything|something|any\s+work)?\s*later\b"
-    r"|\bwhat\s+(?:are\s+you|will\s+you)\s+(?:be\s+)?do(?:ing)?\s+(?:later|next|after)\b"
+#: Asking what she is going to do, or what is waiting to run.
+#:
+#: This was a list of the shapes its author pictured, and three of four
+#: ordinary phrasings missed — including "what are you going to do after
+#: this?", where "going to" sits between "you" and "do" and breaks an
+#: adjacency the pattern required. Live 2026-08-19, "what actually happens
+#: next on your side? not in principle - what's queued right now" got a
+#: generic answer about persistence while the coordinator's real pending list
+#: went unread.
+#:
+#: The relation is small: something PENDING, and her as the one it belongs to.
+#: Past tense is excluded, because "what did you do after the update" asks
+#: about history and the pending list answers nothing about it.
+_PENDING_MARKER = (
+    r"(?:queued|scheduled|pending|planned|upcoming|deferred|backlog|"
+    r"waiting\s+to\s+run|next|later|afterwards?|going\s+to|about\s+to|"
+    r"will\s+you|you'?ll)"
+)
+_HER_ACTIVITY = (
+    r"(?:\byou\b|\byour\b|\bqueue\b|\bwork\b|\btasks?\b|\bjobs?\b|"
+    r"\bmaintenance\b|\bhappens?\b|\brunning\b)"
+)
+_PAST_TENSE = re.compile(
+    r"\b(?:did|was|were|had|used\s+to|earlier|yesterday|last\s+(?:time|night|week))\b",
+    re.IGNORECASE,
+)
+#: Words that name pending work on their own. "Anything planned?" and
+#: "what's in your queue?" need nothing else to be this question.
+_NAMES_PENDING_WORK = re.compile(
+    r"\b(?:queued|queue|scheduled|pending|deferred|backlog)\b"
+    r"|\banything\s+planned\b"
     r"|\bwaiting\s+to\s+run\b",
+    re.IGNORECASE,
+)
+_ASKS_QUEUED_WORK = re.compile(
+    rf"{_PENDING_MARKER}[^.?!]{{0,60}}?{_HER_ACTIVITY}"
+    rf"|{_HER_ACTIVITY}[^.?!]{{0,60}}?{_PENDING_MARKER}",
     re.IGNORECASE,
 )
 
 
 def _matches_queued_work(prompt: str) -> bool:
-    return bool(_ASKS_QUEUED_WORK.search(prompt))
+    text = str(prompt or "")
+    if _PAST_TENSE.search(text):
+        return False
+    if _NAMES_PENDING_WORK.search(text):
+        return True
+    return bool(_ASKS_QUEUED_WORK.search(text))
 
 
 async def _read_queued_work(_prompt: str) -> str:
@@ -639,11 +672,23 @@ def install_default_observables() -> None:
                 "are you planning to do anything later?",
                 "anything planned?",
                 "what will you be doing next?",
+                # Live 2026-08-19: three of four ordinary phrasings missed,
+                # and the coordinator's real pending list went unread while
+                # the answer talked about persistence in general.
+                "what are you going to do after this?",
+                "when i stop typing and walk away, what happens next on your "
+                "side? what's queued right now?",
+                "what's in your queue?",
+                "anything waiting to run?",
             ),
             counter_examples=(
                 "plan a trip to Rome",
                 "how are you doing",
                 "what is 2 + 2",
+                # Past tense asks about history; the pending list answers
+                # nothing about it, and "after" appears in both.
+                "what did you do after the update?",
+                "what did I ask you earlier today?",
             ),
         ),
         Observable(
