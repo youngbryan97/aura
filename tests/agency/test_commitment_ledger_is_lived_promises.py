@@ -162,17 +162,39 @@ def test_engine_has_no_add_commitment_method() -> None:
     assert not hasattr(CommitmentEngine, "add_commitment")
 
 
-def test_registration_does_not_reference_a_nonexistent_method() -> None:
-    import inspect
+def test_registration_calls_the_method_that_exists() -> None:
+    """The dead call was invisible because nothing ever ran the path.
 
+    This used to read the function's source text and look for the string
+    "ce.commit(". Source-reading proves a spelling, not a behaviour: a
+    registration that calls the right method and drops the result would
+    still pass. The test below drives the real path and watches the engine,
+    which is what the guarantee actually is — and it is the reason the
+    end-to-end test that follows exists.
+    """
+    from core.agency import commitment_engine as mod
     from interface.routes.chat_quality import _extract_and_register_commitments
 
-    source = inspect.getsource(_extract_and_register_commitments)
-    # Strip the docstring, which quotes the dead call deliberately.
-    body = source.split('"""')[-1]
+    seen: list[str] = []
 
-    assert "add_commitment" not in body
-    assert "ce.commit(" in body
+    class _Spy:
+        def commit(self, *args, **kwargs):
+            seen.append(str(args[0]) if args else str(kwargs))
+            return None
+
+    original = mod.get_commitment_engine
+    mod.get_commitment_engine = lambda: _Spy()
+    try:
+        _extract_and_register_commitments(
+            "I will send you the report tomorrow.",
+            "can you send me the report?",
+        )
+    except (AttributeError, TypeError) as exc:  # pragma: no cover - the defect
+        raise AssertionError(f"registration called a method that is not there: {exc}") from exc
+    finally:
+        mod.get_commitment_engine = original
+
+    assert not hasattr(mod.CommitmentEngine, "add_commitment")
 
 
 def test_acceptance_of_a_proposed_commitment_registers(

@@ -48,10 +48,15 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import sys
 import time
 from pathlib import Path
 from typing import Any
+
+#: The crash handler below logs, and a handler that raises NameError turns a
+#: counted control failure into a failed run.
+logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:

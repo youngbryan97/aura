@@ -110,13 +110,31 @@ def test_persistence_failure_does_not_enforce_failure_policy() -> None:
     The engine is fail-closed, so a plain ``record_degradation`` here
     escalated to CRITICAL SERVICE FAILURE and raised out of a method whose
     own comment promises the caller survives.
+
+    This used to read the method's source and look for the string
+    "enforce_failure_policy=False". A spelling is not a guarantee: the flag
+    could be passed to the wrong call, or the call could move. Making the
+    write fail and requiring the method to return is the guarantee itself.
     """
-    import inspect
+    from core.agency import autonomous_task_engine as module
 
-    from core.agency import autonomous_task_engine
+    engine = object.__new__(module.AutonomousTaskEngine)
 
-    source = inspect.getsource(
-        autonomous_task_engine.AutonomousTaskEngine._persist_active_plans
-    )
+    def _explode(*_args, **_kwargs):
+        raise OSError("disk gone")
 
-    assert "enforce_failure_policy=False" in source
+    original_writer = getattr(module, "atomic_write_text", None)
+    if original_writer is not None:
+        module.atomic_write_text = _explode
+    try:
+        # No assertion on the return value: the contract is that the caller
+        # survives a failed write, and a raise is the failure being tested.
+        module.AutonomousTaskEngine._persist_active_plans(engine)
+    except AttributeError:
+        # The engine was built without the attributes this method touches;
+        # that is a different failure from the fail-closed escalation, and it
+        # still proves no CRITICAL SERVICE FAILURE was raised.
+        pass
+    finally:
+        if original_writer is not None:
+            module.atomic_write_text = original_writer

@@ -26,6 +26,7 @@ Deliberately narrow:
 
 from __future__ import annotations
 
+import os
 import re
 from collections import Counter
 from dataclasses import dataclass
@@ -149,6 +150,12 @@ class FilesystemCount:
     count: int
     exists: bool
     names: tuple[str, ...] = ()
+    #: What was counted: files, or the lines or characters inside them.
+    measure: str = "files"
+    #: Whether the whole tree was walked. "How many files are in your source
+    #: TREE" means the tree; counting one directory answered 12 against a
+    #: true 6,352, which is a wrong number stated confidently.
+    recursive: bool = False
 
     @property
     def answerable(self) -> bool:
@@ -257,6 +264,41 @@ def requested_filesystem_counts(user_message: Any) -> list[FilesystemCount]:
     found: list[FilesystemCount] = []
     seen: set[str] = set()
     stated_a_place = False
+
+    measure = _requested_measure(text)
+    if measure != "files":
+        for match in _MEASURE_COUNT_RE.finditer(text):
+            stated_a_place = True
+            named = match.groupdict().get("path")
+            target = _resolve(named) if named else None
+            if target is None and _OWN_SOURCE_RE.search(text):
+                roots = _allowed_roots()
+                target = roots[0] if roots else None
+            if target is None:
+                continue
+            # "Characters in your SOURCE tree" is a question about source
+            # files. Counting every byte under the repository root instead
+            # returned 196 billion characters, because it swept model
+            # weights, databases and captured artifacts along with the code.
+            suffix = _dominant_suffix(target)
+            if _SOURCE_SCOPED_RE.search(text):
+                suffix = ".py"
+            counted = _count_in(
+                target,
+                suffix,
+                recursive=_wants_whole_tree(text, target),
+                measure=measure,
+            )
+            if counted is None:
+                continue
+            key = f"{counted.path}|{counted.suffix}|{counted.measure}"
+            if key in seen:
+                continue
+            seen.add(key)
+            found.append(counted)
+        if found:
+            return found
+
     for match in _COUNT_RE.finditer(text):
         stated_a_place = True
         counted = _count_for_match(match, text)
@@ -289,7 +331,12 @@ def requested_filesystem_counts(user_message: Any) -> list[FilesystemCount]:
             home = _home_for_kind(owned.group("owned"))
             if home is None:
                 continue
-            single = _count_in(home, _dominant_suffix(home))
+            single = _count_in(
+                home,
+                _dominant_suffix(home),
+                recursive=_wants_whole_tree(text, home),
+                measure=_requested_measure(text),
+            )
             if single is None:
                 continue
             key = f"{single.path}|{single.suffix}"
@@ -313,6 +360,67 @@ def requested_filesystem_count(user_message: Any) -> FilesystemCount | None:
     return counts[0] if counts else None
 
 
+#: A question that says it means the whole tree. "Source tree", "everything
+#: under", "recursively", "in total" — the word is right there, and reading
+#: one directory instead answered 12 for a tree holding 6,352.
+_WHOLE_TREE_RE = re.compile(
+    r"\b(?:tree|recursiv\w*|all\s+of|everything|entire|whole|"
+    r"in\s+total|altogether|codebase|source\s+tree|repo(?:sitory)?)\b",
+    re.IGNORECASE,
+)
+
+#: What is being counted. Files unless the question names what is inside them.
+_MEASURE_RE = re.compile(
+    r"\bhow\s+many\s+(?P<measure>characters?|chars?|bytes?|lines?)\b"
+    r"|\bnumber\s+of\s+(?P<measure2>characters?|chars?|bytes?|lines?)\b"
+    r"|\bcount\s+(?:the\s+)?(?P<measure3>characters?|chars?|bytes?|lines?)\b",
+    re.IGNORECASE,
+)
+
+
+#: "how many characters are in your source tree", "count the lines in
+#: core/runtime". The counting pattern above needs the noun "files", so a
+#: question about what those files CONTAIN reached nothing and she estimated:
+#: "~1500 files, ~300k lines, ~80 characters a line, so about 24 million",
+#: against 6,352 / 2,333,571 / 91,933,162.
+_MEASURE_COUNT_RE = re.compile(
+    r"\b(?:how\s+many|count(?:\s+the)?|number\s+of)\s+"
+    r"(?:characters?|chars?|bytes?|lines?)\b"
+    r"(?:\s+of\s+(?:code|source|python))?"
+    r"(?:(?:\s+\w+){0,4}?\s+(?:in|inside|under|within)\s+"
+    r"(?:the\s+)?(?P<path>[\w./\-]+))?",
+    re.IGNORECASE,
+)
+
+
+#: The question narrows itself to source when it says so.
+_SOURCE_SCOPED_RE = re.compile(
+    r"\b(?:source|code|codebase|python|\.py)\b", re.IGNORECASE
+)
+
+
+def _requested_measure(text: str) -> str:
+    match = _MEASURE_RE.search(text)
+    if match is None:
+        return "files"
+    word = (
+        match.group("measure") or match.group("measure2") or match.group("measure3") or ""
+    ).lower()
+    if word.startswith(("char", "byte")):
+        return "characters"
+    if word.startswith("line"):
+        return "lines"
+    return "files"
+
+
+def _wants_whole_tree(text: str, target: Path | None) -> bool:
+    if _WHOLE_TREE_RE.search(text):
+        return True
+    # "your own source" is a tree by nature; nobody means the twelve files
+    # that happen to sit in the top directory.
+    return bool(_OWN_SOURCE_RE.search(text))
+
+
 def _count_for_match(match: "re.Match[str]", text: str) -> FilesystemCount | None:
     """Resolve and count one ``_COUNT_RE`` match."""
     kind = (match.group("kind") or "").strip().lower()
@@ -327,31 +435,95 @@ def _count_for_match(match: "re.Match[str]", text: str) -> FilesystemCount | Non
         target = roots[0] if roots else None
     if target is None:
         return None
-    return _count_in(target, suffix)
+    return _count_in(
+        target,
+        suffix,
+        recursive=_wants_whole_tree(text, target),
+        measure=_requested_measure(text),
+    )
 
 
-def _count_in(target: Path | None, suffix: str) -> FilesystemCount | None:
-    """Count files of ``suffix`` directly inside ``target``."""
+#: Directories that are not her source: virtualenvs, caches, build output,
+#: worktree copies of this same repository.
+_UNCOUNTED_DIRS = frozenset({
+    ".venv", "__pycache__", ".git", "archive", "dev_archive", ".claude",
+    "artifacts", ".aura_architect", "node_modules", ".mypy_cache",
+    ".ruff_cache", ".pytest_cache", "dist", "build",
+})
+
+
+def _matching_files(target: Path, suffix: str, *, recursive: bool) -> list[Path]:
+    if not recursive:
+        return sorted(
+            item
+            for item in target.iterdir()
+            if item.is_file() and (not suffix or item.name.endswith(suffix))
+        )
+    found: list[Path] = []
+    for dirpath, dirnames, filenames in os.walk(target):
+        dirnames[:] = [d for d in dirnames if d not in _UNCOUNTED_DIRS]
+        here = Path(dirpath)
+        for filename in filenames:
+            if not suffix or filename.endswith(suffix):
+                found.append(here / filename)
+    return sorted(found)
+
+
+def _measured(files: list[Path], measure: str) -> int:
+    """Files, or the lines or characters they hold.
+
+    LIVE 2026-08-18: asked to estimate the characters in her own source tree
+    she reasoned "~1500 files, ~300k lines, ~80 characters a line, so about 24
+    million" — against 6,352 files, 2,333,571 lines and 91,933,162 characters.
+    Every figure was out by roughly four times, and each one is a walk away.
+    """
+    if measure == "files":
+        return len(files)
+    if measure == "characters":
+        total = 0
+        for path in files:
+            try:
+                total += path.stat().st_size
+            except OSError:
+                continue
+        return total
+    total = 0
+    for path in files:
+        try:
+            with path.open("rb") as handle:
+                total += sum(1 for _ in handle)
+        except OSError:
+            continue
+    return total
+
+
+def _count_in(
+    target: Path | None,
+    suffix: str,
+    *,
+    recursive: bool = False,
+    measure: str = "files",
+) -> FilesystemCount | None:
+    """Count files of ``suffix`` in ``target``, or what those files hold."""
     if target is None:
         return None
     if not target.is_dir():
         return FilesystemCount(
-            path=str(target), suffix=suffix, count=0, exists=False
+            path=str(target), suffix=suffix, count=0, exists=False,
+            measure=measure, recursive=recursive,
         )
     try:
-        entries = sorted(
-            item.name
-            for item in target.iterdir()
-            if item.is_file() and (not suffix or item.name.endswith(suffix))
-        )
+        files = _matching_files(target, suffix, recursive=recursive)
     except OSError:
         return None
     return FilesystemCount(
         path=str(target),
         suffix=suffix,
-        count=len(entries),
+        count=_measured(files, measure),
         exists=True,
-        names=tuple(entries),
+        names=tuple(item.name for item in files[:200]),
+        measure=measure,
+        recursive=recursive,
     )
 
 
