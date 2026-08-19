@@ -97,6 +97,10 @@ _AMBIGUOUS_SCAFFOLD_LINE_RE = re.compile(
 #: How many ambiguous headings make a run read as the internal block.
 _SCAFFOLD_RUN_MIN = 3
 
+#: Words after the colon before a heading stops reading as a machine field.
+#: The state block writes "mood: curious"; an answer writes a sentence.
+_SCAFFOLD_VALUE_MIN_WORDS = 4
+
 _PROMPT_ARTIFACT_PATTERNS = (
     re.compile(r"\[ACTIVE GROUNDING EVIDENCE\]", re.IGNORECASE),
     re.compile(r"\[FETCHED PAGE CONTENT\]", re.IGNORECASE),
@@ -373,8 +377,29 @@ def _contains_prompt_artifact(text: str, *, whole_reply: bool = True) -> bool:
         return True
     if _SCAFFOLD_ONLY_LINE_RE.search(body):
         return True
-    # A single "History:" is a heading; a stack of them is the state block.
-    return len(_AMBIGUOUS_SCAFFOLD_LINE_RE.findall(body)) >= _SCAFFOLD_RUN_MIN
+    # A single "History:" is a heading; a stack of them is the state block —
+    # but only when they read like one.
+    #
+    # LIVE 2026-08-19: "explain the same thing to a systems engineer who thinks
+    # you're a chatbot" died with the canned refusal. A good answer to that
+    # lays out state, history, goals and voice with a sentence under each, and
+    # four ambiguous headings met the run threshold. Raising the threshold
+    # again only moves the line; what separates the two is what follows the
+    # colon. The internal block carries machine values — "thinking",
+    # "curious", "none", "empty" — and an answer carries an explanation.
+    return _terse_scaffold_run(body) >= _SCAFFOLD_RUN_MIN
+
+
+def _terse_scaffold_run(body: str) -> int:
+    """How many ambiguous headings carry a machine value rather than prose."""
+    terse = 0
+    for line in str(body or "").splitlines():
+        if not _AMBIGUOUS_SCAFFOLD_LINE_RE.match(line):
+            continue
+        _, _, value = line.partition(":")
+        if len(value.split()) < _SCAFFOLD_VALUE_MIN_WORDS:
+            terse += 1
+    return terse
 
 
 def _contains_unsupported_internal_jargon(text: str) -> bool:
