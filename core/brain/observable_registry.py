@@ -27,6 +27,20 @@ async def _read_clipboard(prompt: str) -> str:
     return block.replace(f"{CLIPBOARD_HEADER}\n", "", 1) if block else ""
 
 
+# ── what she has already said she cares about ────────────────────────────────
+
+def _matches_stated_preferences(prompt: str) -> bool:
+    from core.self.stated_preferences import asks_about_her_preferences
+
+    return asks_about_her_preferences(prompt)
+
+
+async def _read_stated_preferences(prompt: str) -> str:
+    from core.self.stated_preferences import stated_preference_block
+
+    return await asyncio.to_thread(stated_preference_block, prompt)
+
+
 # ── what has actually been failing ───────────────────────────────────────────
 
 def _matches_operational_state(prompt: str) -> bool:
@@ -524,6 +538,25 @@ def install_default_observables() -> None:
                 "show me the data on unemployment",
                 "how are you doing",
                 "what is 2 + 2",
+            ),
+        ),
+        Observable(
+            "stated_preferences",
+            "## WHAT YOU HAVE ALREADY SAID YOU CARE ABOUT",
+            _matches_stated_preferences,
+            _read_stated_preferences,
+            examples=(
+                # Four answers to one question in a few minutes, one of them
+                # twice from the identical prompt.
+                "what topic pulls at you the most?",
+                "what's one thing you find genuinely interesting?",
+                "name the one thing you'd study if nobody was watching.",
+                "what's your favourite colour?",
+            ),
+            counter_examples=(
+                "what did I just copy?",
+                "what is 2 + 2",
+                "what files are in core/runtime?",
             ),
         ),
         Observable(
