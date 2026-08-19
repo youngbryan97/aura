@@ -12069,6 +12069,14 @@ class InferenceGate:
             and not strict_answer_contract
             and not strict_value_contract
             and not internal_inference
+            # A clean user-surface contract needs a user surface.
+            #
+            # The worker enforces the contract by validating the draft against
+            # the bound question, so switching it on with nothing bound fails
+            # every draft for surface_validation_prompt_binding_version — a
+            # correct answer rejected for the absence of a question it was
+            # never answering.
+            and bool(initial_visible_user_prompt)
         ):
             _foreground_floor, _foreground_cap, foreground_loops = (
                 self._foreground_compute_profile(initial_visible_user_prompt)
