@@ -958,8 +958,21 @@ class SovereignBrowserSkill(BaseSkill):
             "",
             "AVAILABLE CONTROLS:",
         ]
+        # Which questions are already answered, so the ones that are not stand
+        # out. Marking only the SELECTED option as answered left the other six
+        # options of a finished question looking like six open choices, so
+        # rounds were spent re-answering what was already done — visible as
+        # `moved: false` and, eventually, as a stall with the form half filled.
+        answered_groups = {
+            str(element.get("group"))
+            for element in elements
+            if element.get("group") and element.get("checked") is True
+        }
         for index, element in enumerate(elements):
             state = []
+            group = str(element.get("group") or "")
+            if group and group in answered_groups and element.get("checked") is not True:
+                state.append("this question is already answered")
             if element.get("group"):
                 # Options in one group answer ONE question. Rendering it is
                 # what lets a whole screen be answered in a single round

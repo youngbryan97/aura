@@ -745,3 +745,38 @@ class TestLosingThePageIsNotLosingTheTask:
         skill._safe_browse = _browse
         await skill._handle_pursue(browser, "https://example.com/q1", "go", 2)
         assert revisited == ["https://example.com/q1"], "it should go back and continue"
+
+
+class TestAnAnsweredQuestionLooksAnswered:
+    """Twenty answers landed, then it stalled with the form half filled.
+
+    Marking only the SELECTED option as answered left the other six options of
+    a finished question looking like six open choices, so rounds were spent
+    re-answering what was already done — visible as `moved: false` rounds and
+    then a stall.
+    """
+
+    OBSERVATION = {
+        "text": "Question 1 of 60",
+        "elements": [
+            {"role": "radio", "name": "I agree", "selector": "#a", "group": "q1", "checked": True},
+            {"role": "radio", "name": "I disagree", "selector": "#b", "group": "q1", "checked": False},
+            {"role": "radio", "name": "I agree", "selector": "#c", "group": "q2", "checked": False},
+        ],
+    }
+
+    def test_every_option_of_a_done_question_says_so(self):
+        rendered = SovereignBrowserSkill._render_observation(self.OBSERVATION)
+        line = [row for row in rendered.splitlines() if "I disagree" in row][0]
+        assert "already answered" in line
+
+    def test_an_unanswered_question_is_not_marked(self):
+        rendered = SovereignBrowserSkill._render_observation(self.OBSERVATION)
+        line = [row for row in rendered.splitlines() if "question q2" in row][0]
+        assert "already answered" not in line
+
+    def test_ungrouped_controls_are_unaffected(self):
+        rendered = SovereignBrowserSkill._render_observation(
+            {"text": "", "elements": [{"role": "button", "name": "Next", "selector": "#n"}]}
+        )
+        assert "already answered" not in rendered
