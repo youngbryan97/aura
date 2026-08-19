@@ -482,3 +482,43 @@ class TestDoneBeforeActingIsNotDone:
             3,
         )
         assert result["completed"] is True
+
+
+class TestTheDecisionPromptStaysAffordable:
+    """3,183-token prompts, 2,471 re-prefilled per round, cancelled at 181s.
+
+    A live questionnaire renders 83 controls and most are site furniture — nav,
+    language, login, footer — emitted first in document order. Truncating the
+    raw list would therefore cut the answers and keep the chrome, so the ranking
+    is by what a control DOES.
+    """
+
+    def _crowded_page(self):
+        return {
+            "url": "https://example.com/q",
+            "title": "t",
+            "text": "Question 1 of 60",
+            "elements": [{"role": "link", "name": f"nav{i}", "selector": f"#n{i}"} for i in range(30)]
+            + [{"role": "radio", "name": f"answer{i}", "selector": f"#a{i}"} for i in range(14)]
+            + [{"role": "button", "name": "Next", "selector": "#next"}],
+        }
+
+    def test_the_form_survives_and_the_chrome_does_not(self):
+        offered = SovereignBrowserSkill._controls_worth_offering(self._crowded_page()["elements"])
+        assert len(offered) <= SovereignBrowserSkill.PURSUE_CONTROL_BUDGET
+        assert sum(1 for e in offered if e["role"] == "radio") == 14
+        assert any(e["name"] == "Next" for e in offered)
+
+    def test_what_she_is_shown_is_what_the_indices_mean(self):
+        """Rendering a subset and resolving against the raw list clicks the wrong thing."""
+        page = self._crowded_page()
+        rendered = SovereignBrowserSkill._render_observation(page)
+        offered = SovereignBrowserSkill._controls_worth_offering(page["elements"])
+        assert f"[0] {offered[0]['role']}" in rendered
+        assert offered[0]["name"] in rendered
+
+    def test_the_ranking_is_stable(self):
+        page = self._crowded_page()
+        assert [e["selector"] for e in SovereignBrowserSkill._controls_worth_offering(page["elements"])] == [
+            e["selector"] for e in SovereignBrowserSkill._controls_worth_offering(page["elements"])
+        ]

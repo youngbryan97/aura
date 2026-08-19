@@ -5863,7 +5863,24 @@ class DesktopTaskSkill(BaseSkill):
             if step.get("error"):
                 failure = str(step["error"])
         if not failure and not report.get("ok"):
-            failure = str(report.get("error") or "the page did not respond to any action")
+            # Say what actually happened, not a guess about the page.
+            #
+            # A cancelled generation comes back `{"status": "failed",
+            # "error": ""}`, and an empty error was being rendered as "the page
+            # did not respond to any action" — a confident claim about a
+            # website, made because a model call was killed mid-round. The turn
+            # ran 181s and was cancelled by its own budget; the page had been
+            # responding fine.
+            reported = str(report.get("error") or "").strip()
+            status = str(report.get("status") or "").strip()
+            if reported:
+                failure = reported
+            elif status and status != "completed":
+                failure = f"the browser task ended as {status} without saying why"
+            elif report.get("rounds") in (None, 0):
+                failure = "the browser task ended before it could act"
+            else:
+                failure = "the page did not respond to any action"
         # The lane's own result shape, not a parallel vocabulary.
         #
         # Third time in this integration: `final_url` where the effect verifier

@@ -881,7 +881,7 @@ class SovereignBrowserSkill(BaseSkill):
     #: How many of the page's own words travel with the element list. The
     #: controls say what can be done; this says what is being asked, and a
     #: questionnaire is unanswerable without it.
-    PURSUE_TEXT_BUDGET = 1800
+    PURSUE_TEXT_BUDGET = 900
     #: Consecutive rounds that change neither the URL nor the set of controls
     #: before the loop concedes. Two is enough to distinguish a slow page from
     #: a wall: the first repeat may be a re-render, the second is a loop.
@@ -897,10 +897,44 @@ class SovereignBrowserSkill(BaseSkill):
         )
         return f"{observation.get('url')}#{marks}"
 
+    #: Controls offered to one decision. A live questionnaire renders 83, most
+    #: of them site furniture — nav, language, login, footer — and every one of
+    #: them is prefill on every round. Measured: 3,183-token prompts with 2,471
+    #: re-prefilled each time, ~60s a round, and the turn cancelled at 181s
+    #: mid-pursuit.
+    PURSUE_CONTROL_BUDGET = 40
+
+    #: Roles that DO something, offered before the ones that merely navigate.
+    _ACTIONABLE_ROLES = (
+        "radio", "checkbox", "switch", "option", "select", "textarea",
+        "text", "email", "password", "search", "number", "button", "submit",
+    )
+
+    @classmethod
+    def _controls_worth_offering(cls, elements: list[Any]) -> list[Any]:
+        """The controls that can advance a goal, before the ones that decorate.
+
+        Truncating the raw list would cut the answers and keep the navigation,
+        because site furniture is emitted first in document order. Ranking by
+        what a control DOES keeps the form and drops the chrome.
+        """
+        ranked = sorted(
+            enumerate(elements),
+            key=lambda pair: (
+                cls._ACTIONABLE_ROLES.index(str(pair[1].get("role") or "").lower())
+                if str(pair[1].get("role") or "").lower() in cls._ACTIONABLE_ROLES
+                else len(cls._ACTIONABLE_ROLES),
+                pair[0],
+            ),
+        )
+        return [element for _index, element in ranked[: cls.PURSUE_CONTROL_BUDGET]]
+
     @staticmethod
     def _render_observation(observation: Mapping[str, Any]) -> str:
         """The page as the decision sees it: what it says, and what it offers."""
-        elements = observation.get("elements") or []
+        elements = SovereignBrowserSkill._controls_worth_offering(
+            list(observation.get("elements") or [])
+        )
         lines = [
             f"URL: {observation.get('url')}",
             f"Title: {observation.get('title')}",
@@ -1539,7 +1573,12 @@ class SovereignBrowserSkill(BaseSkill):
                 steps.append({"why": str(decision.get("why") or ""), "done": True})
                 break
 
-            elements = observation.get("elements") or []
+            # The same list she was shown, in the same order. Rendering a
+            # ranked subset and resolving against the raw list would mean
+            # index 3 named one control on screen and a different one in the
+            # click — the precise way these loops end up pressing whatever
+            # moved into slot four.
+            elements = self._controls_worth_offering(list(observation.get("elements") or []))
             planned: list[BrowserAction] = []
             for item in decision.get("actions") or []:
                 if not isinstance(item, dict):
