@@ -166,6 +166,9 @@ async def test_a_control_under_its_own_decoration_needs_the_forced_path(browser)
     assert await browser.page.eval_on_selector("#real", "el => el.checked") is True
 
 
+# Source inspection, not a browser drive: the module-wide asyncio mark does
+# not apply and pytest warns if it is left on.
+@pytest.mark.filterwarnings("ignore::pytest.PytestWarning")
 def test_the_click_path_falls_back_rather_than_giving_up():
     """The fallback is ordered: ordinary first, forced only on timeout.
 

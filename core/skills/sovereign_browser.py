@@ -162,11 +162,20 @@ class SovereignBrowserSkill(BaseSkill):
     def _pick_browser_type(self, preference: str = "auto") -> str:
         return preference if preference in self._browser_types else "chromium"
 
-    async def _create_browser(self, preference: str = "auto") -> PhantomBrowser:
-        """Create a fresh, ephemeral PhantomBrowser instance."""
+    async def _create_browser(
+        self, preference: str = "auto", *, visible: bool = False
+    ) -> PhantomBrowser:
+        """Create a fresh, ephemeral PhantomBrowser instance.
+
+        A pursuit is visible by default. Search and browse are momentary reads
+        and a window flashing open for them would be noise, but working a page
+        is a governed action the owner asked for, that takes minutes, and that
+        they should be able to watch — both to see it working and to stop it.
+        A headless run of a long task is indistinguishable from a hung one.
+        """
         browser_type = self._pick_browser_type(preference)
         browser = PhantomBrowser(
-            visible=False,
+            visible=visible,
             browser_type=browser_type,
             principal="sovereign_browser",
         )
@@ -177,6 +186,32 @@ class SovereignBrowserSkill(BaseSkill):
                 "browser startup failed: " + str(status.get("startup_error") or "not active")
             )
         return browser
+
+    def _narrate(self, step: Mapping[str, Any]) -> None:
+        """Put one round of a pursuit into the thought stream as it happens.
+
+        What she chose and why, against the question she was reading. This is
+        the same record the trace keeps, said out loud at the time.
+        """
+        chose = [str(name) for name in (step.get("chose") or []) if name]
+        asked = str(step.get("asked") or "").strip()
+        why = str(step.get("why") or "").strip()
+        said = " / ".join(chose) if chose else "reading the page"
+        if asked:
+            said = f"{asked} -> {said}"
+        if why:
+            said = f"{said}. {why}"
+        try:
+            from core.thought_stream import get_emitter
+
+            get_emitter().emit(
+                "Browsing",
+                said[:400],
+                level="info",
+                category="ToolExecution",
+            )
+        except Exception as exc:  # narration must never break the pursuit
+            record_degradation("sovereign_browser", exc, action="pursuit narration skipped")
 
     async def _safe_close(self, browser: PhantomBrowser | None) -> None:
         """Guaranteed browser teardown — never raises."""
@@ -493,7 +528,9 @@ class SovereignBrowserSkill(BaseSkill):
         try:
             # 1. Try High-Fidelity Playwright (Phantom)
             try:
-                browser = await self._create_browser(params.browser_type)
+                browser = await self._create_browser(
+                    params.browser_type, visible=(params.mode == "pursue")
+                )
 
                 if params.mode == "search":
                     return await asyncio.wait_for(
@@ -1882,6 +1919,10 @@ class SovereignBrowserSkill(BaseSkill):
                     "url": observation.get("url"),
                 }
             )
+            # Say it while it happens. A pursuit runs for minutes; a trace
+            # handed over at the end is a transcript of something the owner
+            # could not watch, and had no way to stop.
+            self._narrate(steps[-1])
             # A batch that half-landed is progress, not failure.
             #
             # `interact` verifies all-or-nothing, which is right for a scripted
