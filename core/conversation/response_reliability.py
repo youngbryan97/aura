@@ -7405,6 +7405,84 @@ def _topical_stem(word: str) -> str:
     return lowered
 
 
+#: A sentence long enough that saying it twice cannot be a coincidence of
+#: phrasing. Short ones — "Here it is.", "That's the number." — recur in
+#: ordinary prose and in verse.
+_VERBATIM_REPEAT_MIN_WORDS = 8
+
+
+def repeated_statements(reply_text: Any) -> list[tuple[str, int]]:
+    """Sentences of substance this reply says more than once, verbatim.
+
+    The distinct-statement RATIO cannot see this. A reply that repeats three
+    of its eleven sentences word for word scores 0.727 and passes a 0.7 bar,
+    which is what happened live on 2026-08-19: the closing paragraph of a
+    statistics answer repeated three times and the reply ran off the end
+    mid-sentence.
+
+    Raising the bar instead would re-break what the bar protects — a worked
+    derivation reuses its scaffolding across items and scores low by design.
+    Verbatim repetition separates them exactly: enumerated items differ from
+    each other ("the probability of drawing a blue first is 4/12", "green is
+    5/12"), so a correct derivation repeats no whole sentence at all.
+    """
+    body = str(reply_text or "").strip()
+    if not body:
+        return []
+    counts: dict[str, int] = {}
+    for line in body.splitlines():
+        for sentence in _SENTENCE_SPLIT_RE.split(line):
+            cleaned = re.sub(r"^\s*(?:[-*+]|\d+[.)])\s*", "", sentence)
+            cleaned = re.sub(r"[*_`#]+", "", cleaned)
+            cleaned = re.sub(r"\s+", " ", cleaned).strip().lower()
+            if len(cleaned.split()) < _VERBATIM_REPEAT_MIN_WORDS:
+                continue
+            counts[cleaned] = counts.get(cleaned, 0) + 1
+    return sorted(
+        ((text, count) for text, count in counts.items() if count > 1),
+        key=lambda pair: -pair[1],
+    )
+
+
+def repair_verbatim_repeats(reply_text: Any) -> str:
+    """Drop sentences this reply already said, keeping the first of each.
+
+    Detecting the loop and rejecting the draft would cost the person a whole
+    answer over a duplicated closing paragraph. The content is all there; one
+    copy of it is the answer they asked for.
+
+    Only exact repeats go. Everything else — order, wording, code, lists —
+    survives byte for byte, so a repair can never be the thing that changed
+    what she said.
+    """
+    body = str(reply_text or "")
+    if not body.strip():
+        return ""
+    if not repeated_statements(body):
+        return body.strip()
+
+    seen: set[str] = set()
+    kept_lines: list[str] = []
+    for line in body.splitlines():
+        pieces = _SENTENCE_SPLIT_RE.split(line)
+        if len(pieces) <= 1:
+            kept_lines.append(line)
+            continue
+        kept: list[str] = []
+        for sentence in pieces:
+            cleaned = re.sub(r"^\s*(?:[-*+]|\d+[.)])\s*", "", sentence)
+            cleaned = re.sub(r"[*_`#]+", "", cleaned)
+            cleaned = re.sub(r"\s+", " ", cleaned).strip().lower()
+            if len(cleaned.split()) >= _VERBATIM_REPEAT_MIN_WORDS:
+                if cleaned in seen:
+                    continue
+                seen.add(cleaned)
+            kept.append(sentence)
+        kept_lines.append(" ".join(part.strip() for part in kept if part.strip()))
+    repaired = "\n".join(kept_lines)
+    return re.sub(r"\n{3,}", "\n\n", repaired).strip()
+
+
 def _distinct_statement_ratio(reply_text: Any) -> float:
     """Share of this reply's statements that say something new.
 
@@ -7540,6 +7618,13 @@ def _model_text_integrity_reasons(
     loop_reason = _phrase_loop_reason(prompt, raw)
     if loop_reason:
         reasons.append(loop_reason)
+    if user_facing and repeated_statements(raw):
+        # A reply that says three of its eleven sentences twice scores 0.727
+        # on the distinct-statement ratio and passes a 0.7 bar. Raising the
+        # bar would re-break the worked derivations the bar protects; a whole
+        # sentence repeated word for word is the thing that separates them.
+        # Paired with repair_verbatim_repeats, so the person keeps the answer.
+        reasons.append("verbatim_statement_repeat")
     if _has_internal_task_prompt_leak(raw) and not _matches_strict_answer_tag_request(
         prompt, raw
     ):

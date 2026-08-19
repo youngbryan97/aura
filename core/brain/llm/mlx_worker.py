@@ -7811,13 +7811,33 @@ def _mlx_worker_loop(
                                                 response_text = telemetry_surface
                                                 rejection_reasons = []
                                         if rejection_reasons:
-                                            if "runtime_boilerplate" in rejection_reasons:
+                                            # Reasons that name a REMOVABLE
+                                            # span, and what removes it. A
+                                            # rejection that can be repaired
+                                            # should cost the person nothing;
+                                            # the second one of these arrived
+                                            # as a copy of the first branch,
+                                            # so it is a table now.
+                                            _REPAIRS = {
+                                                "runtime_boilerplate": (
+                                                    "repair_runtime_boilerplate",
+                                                    "remove_matching_sentences_and_revalidate",
+                                                ),
+                                                "verbatim_statement_repeat": (
+                                                    "repair_verbatim_repeats",
+                                                    "drop_repeated_sentences_and_revalidate",
+                                                ),
+                                            }
+                                            for _reason, (
+                                                _repair_name,
+                                                _method,
+                                            ) in _REPAIRS.items():
+                                                if _reason not in rejection_reasons:
+                                                    continue
                                                 try:
-                                                    from core.conversation.response_reliability import (
-                                                        repair_runtime_boilerplate,
-                                                    )
+                                                    import core.conversation.response_reliability as _rr
 
-                                                    candidate = repair_runtime_boilerplate(
+                                                    candidate = getattr(_rr, _repair_name)(
                                                         response_text
                                                     )
                                                     candidate_reasons = (
@@ -7833,14 +7853,15 @@ def _mlx_worker_loop(
                                                         and candidate != str(response_text or "").strip()
                                                     ):
                                                         logger.info(
-                                                            "🛡️ [WORKER] Removed a runtime-status sentence "
-                                                            "and revalidated the remaining authored answer."
+                                                            "🛡️ [WORKER] Repaired %s and revalidated the "
+                                                            "remaining authored answer.",
+                                                            _reason,
                                                         )
                                                         append_text_mutation(
                                                             surface_control_state,
-                                                            stage="mlx_worker.runtime_boilerplate",
-                                                            method="remove_matching_sentences_and_revalidate",
-                                                            reasons=["runtime_boilerplate"],
+                                                            stage=f"mlx_worker.{_reason}",
+                                                            method=_method,
+                                                            reasons=[_reason],
                                                             before=response_text,
                                                             after=candidate,
                                                             deterministic=True,
@@ -7856,7 +7877,8 @@ def _mlx_worker_loop(
                                                     ValueError,
                                                 ) as repair_exc:
                                                     logger.debug(
-                                                        "Runtime-boilerplate sentence repair skipped: %s",
+                                                        "Sentence repair %s skipped: %s",
+                                                        _repair_name,
                                                         repair_exc,
                                                     )
                                         if rejection_reasons:
