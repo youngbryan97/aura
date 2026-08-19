@@ -69,3 +69,53 @@ def test_the_deliberation_declares_itself():
 
     source = inspect.getsource(her_reasoning)
     assert "purpose=\"action_deliberation\"" in source
+
+
+class _Amplified:
+    def __init__(self, answer):
+        self.answer = answer
+
+
+def test_nothing_coming_back_is_reported_as_nothing_coming_back(monkeypatch):
+    """An empty amplified answer is not a reply that named nothing.
+
+    The amplifier absorbs a generation failure and returns an unverified
+    answer with no candidates in it. Measured live while the resident worker
+    was still starting, a pursuit reported "she named no available move" six
+    times over — she had not been asked.
+    """
+    import asyncio
+
+    from core.agency import her_reasoning as hr
+
+    async def empty_amplify(objective, produce, **kw):
+        return _Amplified("   ")
+
+    import core.brain.reasoning_amplifier_v2 as amp
+
+    monkeypatch.setattr(amp, "amplify_turn", empty_amplify)
+    think = hr.her_reasoning(generate=lambda prompt, temp: None)
+
+    async def run():
+        await think("choose a move", ["Goal: x"])
+
+    try:
+        asyncio.run(run())
+    except RuntimeError as exc:
+        assert "produced nothing" in str(exc)
+    else:
+        raise AssertionError("an empty answer was passed on as if it were one")
+
+
+def test_a_real_answer_is_returned_unchanged(monkeypatch):
+    import asyncio
+
+    from core.agency import her_reasoning as hr
+    import core.brain.reasoning_amplifier_v2 as amp
+
+    async def good_amplify(objective, produce, **kw):
+        return _Amplified("left, because the corner holds")
+
+    monkeypatch.setattr(amp, "amplify_turn", good_amplify)
+    think = hr.her_reasoning(generate=lambda prompt, temp: None)
+    assert asyncio.run(think("choose a move", [])) == "left, because the corner holds"

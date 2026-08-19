@@ -118,7 +118,18 @@ def her_reasoning(
             risk_level=risk_level,
             time_budget_s=time_budget_s,
         )
-        return amplified.answer
+        answer = str(amplified.answer or "").strip()
+        if not answer:
+            # Nothing came back, so say that rather than passing emptiness on.
+            #
+            # The amplifier absorbs a generation failure and returns an
+            # unverified answer with no candidates in it. A caller reading only
+            # the text cannot tell that apart from a reply that named nothing,
+            # and the difference is the whole diagnosis: measured live while
+            # the resident worker was still starting, a pursuit reported "she
+            # named no available move" six times over. She had not been asked.
+            raise RuntimeError("her reasoning produced nothing (no candidate survived)")
+        return answer
 
     return think
 
@@ -143,7 +154,10 @@ def deep_reasoning(*, budget: int = 2, timeout_s: float = DELIBERATE_BUDGET_S):
             timeout_s=timeout_s,
             foreground_request=True,
         )
-        return result.answer
+        answer = str(result.answer or "").strip()
+        if not answer:
+            raise RuntimeError("her deliberation produced nothing")
+        return answer
 
     return think
 
