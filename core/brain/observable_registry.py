@@ -27,6 +27,20 @@ async def _read_clipboard(prompt: str) -> str:
     return block.replace(f"{CLIPBOARD_HEADER}\n", "", 1) if block else ""
 
 
+# ── whether she knows the fact this question needs ───────────────────────────
+
+def _matches_person_fact(prompt: str) -> bool:
+    from core.self.person_facts import needed_person_fact
+
+    return bool(needed_person_fact(prompt))
+
+
+async def _read_person_fact(prompt: str) -> str:
+    from core.self.person_facts import person_fact_block
+
+    return await asyncio.to_thread(person_fact_block, prompt)
+
+
 # ── what she has already said she cares about ────────────────────────────────
 
 def _matches_stated_preferences(prompt: str) -> bool:
@@ -549,6 +563,27 @@ def install_default_observables() -> None:
                 "show me the data on unemployment",
                 "how are you doing",
                 "what is 2 + 2",
+            ),
+        ),
+        Observable(
+            "person_fact",
+            "## WHETHER YOU ACTUALLY KNOW THIS ABOUT THEM",
+            _matches_person_fact,
+            _read_person_fact,
+            examples=(
+                # The live miss: the draft invented a home town, the guard
+                # caught it, the retries ran out, and the person got the
+                # canned refusal instead of "I don't know where you grew up".
+                "what's the population of the town I grew up in?",
+                "what's my sister's name?",
+                "how far is the office I work at?",
+                "what was the name of the school I went to?",
+            ),
+            counter_examples=(
+                "what is 2 + 2",
+                "what did I just copy?",
+                "what's on my screen?",
+                "what was my first question?",
             ),
         ),
         Observable(
