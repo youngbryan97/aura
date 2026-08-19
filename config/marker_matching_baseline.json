@@ -52,7 +52,7 @@
     "core/capabilities/interlocutor_factcheck.py": 5,
     "core/capabilities/web_interlocutor.py": 1,
     "core/capability_engine.py": 6,
-    "core/cognition/cognitive_kernel.py": 3,
+    "core/cognition/cognitive_kernel.py": 2,
     "core/cognition/pre_linguistic.py": 1,
     "core/cognitive/spiking_active_inference.py": 4,
     "core/cognitive/state_machine.py": 12,
@@ -158,5 +158,5 @@
     "interface/routes/chat_runtime_proof.py": 8,
     "interface/routes/subsystems.py": 2
   },
-  "total": 899
+  "total": 898
 }

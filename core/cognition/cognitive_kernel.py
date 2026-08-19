@@ -20,9 +20,11 @@ import logging
 import re
 import time
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from enum import Enum
 from typing import Any
 
+from core.conversation.word_markers import names_any
 from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.CognitiveKernel")
@@ -925,16 +927,26 @@ class CognitiveKernel:
         # Too vague AND complex AND no prior context
         if complexity == "simple" and any(t in lower for t in _INQUIRY_TRIGGERS) and not history:
             return True
-        # Very short with high ambiguity markers
-        if len(text.split()) < 8 and any(w in lower for w in ["this", "it", "that", "they"]):
+        # Very short with high ambiguity markers.
+        #
+        # These are PRONOUNS, and matching them as substrings made "I'm
+        # waiting", "quit that" and "is it working?" all ambiguous, because
+        # "waiting" and "quit" contain "it". A spurious inquiry costs the turn
+        # its answer and hands the person a question they did not need.
+        if len(text.split()) < 8 and names_any(lower, ("this", "it", "that", "they")):
             return True
         return False
 
     def _needs_research(self, text: str, domain: InputDomain, familiarity: float) -> bool:
         lower = text.lower()
-        # Explicit research signals
+        # Explicit research signals. The year is computed rather than listed:
+        # the list said 2025 and 2026, so every question naming a later year
+        # would stop counting as being about now, on a date nobody chose.
+        if names_any(lower, ("latest", "recent", "current", "today", "news")):
+            return True
+        this_year = datetime.now(UTC).year
         if any(
-            w in lower for w in ["latest", "recent", "current", "today", "news", "2025", "2026"]
+            str(year) in lower for year in (this_year - 1, this_year, this_year + 1)
         ):
             return True
         # Low familiarity on factual domains
