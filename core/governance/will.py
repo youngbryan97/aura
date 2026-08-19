@@ -2030,6 +2030,18 @@ class UnifiedWill:
                         validate_standing_authority_context,
                     )
 
+                    # ADDITIVE for every domain but tool_execution.
+                    #
+                    # A first pass let validation REPLACE the raw check
+                    # everywhere, and immediately refused internal paths that
+                    # legitimately set the key themselves — action_executor's
+                    # own "exact_private_runtime_maintenance" among them, which
+                    # took host_automation's screenshot directory offline.
+                    # Those grants are real; standing authority is a second way
+                    # to hold authority, not the only way. tool_execution keeps
+                    # its stricter original semantics, where validation is the
+                    # sole route.
+                    raw_scoped_authority = has_scoped_authority
                     has_scoped_authority, authority_validation_reason = (
                         validate_standing_authority_context(
                             context,
@@ -2041,8 +2053,16 @@ class UnifiedWill:
                             risk_level=context.get("risk_level"),
                         )
                     )
+                    if domain is not ActionDomain.TOOL_EXECUTION:
+                        has_scoped_authority = bool(
+                            has_scoped_authority or raw_scoped_authority
+                        )
                 except (ImportError, RuntimeError, TypeError, ValueError) as exc:
-                    has_scoped_authority = False
+                    has_scoped_authority = (
+                        False
+                        if domain is ActionDomain.TOOL_EXECUTION
+                        else bool(has_scoped_authority)
+                    )
                     authority_validation_reason = (
                         f"standing_authority_validation_unavailable:{type(exc).__name__}"
                     )

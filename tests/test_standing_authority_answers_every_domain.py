@@ -96,3 +96,34 @@ class TestNothingIsWidenedThatWasNotGranted:
         assert owner.allowed_tools == ("*",)
         assert owner.allowed_effect_scopes == ("*",)
         assert owner.max_risk == "critical"
+
+
+class TestValidationAddsAWayToHoldAuthorityRatherThanReplacingOne:
+    """The first pass let validation REPLACE the raw check everywhere.
+
+    That immediately refused internal paths which legitimately set the key
+    themselves — `action_executor`'s own "exact_private_runtime_maintenance"
+    among them — and took host_automation's screenshot directory offline:
+
+        WILL REFUSED: host_automation.screenshot_directory/file_write --
+        denied_by_default: file_write requires validated scoped authority
+
+    Those grants are real. Standing authority is a second way to hold
+    authority, not the only way.
+    """
+
+    def test_the_raw_grant_still_counts_outside_tool_execution(self):
+        source = inspect.getsource(will_module)
+        assert "raw_scoped_authority" in source
+        assert "has_scoped_authority or raw_scoped_authority" in source
+
+    def test_tool_execution_keeps_the_stricter_rule(self):
+        """Its original semantics were validation-only; that does not loosen."""
+        source = inspect.getsource(will_module)
+        assert "if domain is not ActionDomain.TOOL_EXECUTION:" in source
+
+    def test_an_unavailable_validator_does_not_erase_a_real_grant(self):
+        source = inspect.getsource(will_module)
+        assert "if domain is ActionDomain.TOOL_EXECUTION\n" in source or (
+            "False\n                        if domain is ActionDomain.TOOL_EXECUTION" in source
+        )
