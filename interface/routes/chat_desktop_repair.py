@@ -734,11 +734,37 @@ def _is_identity_request(user_message: str) -> bool:
         "introduce yourself",
     }:
         return True
-    if re.search(r"\btell\s+me\s+(?:who|what)\s+you\s+are\b", text) or re.search(
-        r"\bintroduce\s+yourself\b", text
-    ):
+    # "tell me what you are" has to be the whole question too.
+    #
+    # LIVE 2026-08-19: "Go find a 2048 game online and play it until you get a
+    # 128 tile. Tell me what you are doing as you go." matched here on "tell
+    # me what you are", and the turn was answered "I'm Aura. I'm a local
+    # stateful cognitive-agent runtime" — while she was, in fact, playing the
+    # game. She did the work and described herself instead of reporting it.
+    #
+    # This is the same defect _asks_only_who_you_are was written for: a
+    # pattern matching the OPENING of a longer question. It gets the same
+    # structural test rather than another list of words that may not follow.
+    for match in re.finditer(r"\btell\s+me\s+(?:who|what)\s+you\s+are\b", text, re.IGNORECASE):
+        if _IDENTITY_TAIL_RE.match(text[match.end() :]):
+            return True
+    if re.search(r"\bintroduce\s+yourself\b", text):
         return True
-    return _asks_only_who_you_are(text)
+    if _asks_only_who_you_are(text):
+        return True
+    # And a request to act on the machine is not a question about her.
+    #
+    # When both readings fit, the action is what was asked for. Answering it
+    # with a self-description loses the work entirely, which is exactly what
+    # happened above.
+    try:
+        from core.runtime.desktop_objective_intent import looks_like_desktop_objective
+
+        if looks_like_desktop_objective(user_message):
+            return False
+    except (ImportError, AttributeError, TypeError, ValueError):
+        pass
+    return False
 
 
 def _identity_request_asks_future_memory(user_message: str) -> bool:
