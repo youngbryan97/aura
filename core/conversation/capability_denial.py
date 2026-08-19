@@ -42,6 +42,16 @@ _DENIAL_RE = re.compile(
     r"|i\s+(?:can'?t|cannot|am\s+unable\s+to)\s+"
     r"|i\s+have\s+no\s+(?:access|ability|way|means)"
     r"|(?:that\s+)?(?:is|'s)\s+(?:not\s+something|beyond)\s+i\s+can"
+    # "I'm not able to change my own code" and "I don't have memory of past
+    # conversations" are denials in the ordinary register, and neither said
+    # "cannot" or "ability". A denial the detector cannot read is a denial
+    # nothing checks against the registry.
+    r"|i\s*(?:'m|\s+am)\s+not\s+(?:able|allowed|permitted|capable)"
+    r"|i\s+(?:do\s+not|don'?t)\s+have\s+(?:any\s+)?"
+    r"(?:memory|memories|access|tools?|the\s+tools?)"
+    r"|i\s+(?:do\s+not|don'?t)\s+(?:actually\s+)?"
+    r"(?:have|possess|retain|keep)\s+(?:\w+\s+){0,2}?(?:memory|memories)"
+    r"|(?:no|nope)[.,]\s+i\s+(?:can'?t|cannot|do\s+not|don'?t)"
     r")",
     re.IGNORECASE,
 )
@@ -77,6 +87,48 @@ _DENIAL_SUBJECTS: tuple[tuple[Any, str, tuple[str, ...]], ...] = (
         re.compile(r"\bclipboard\b", re.IGNORECASE),
         "use the clipboard",
         ("os_automation", "computer_use", "desktop_task"),
+    ),
+    # LIVE 2026-08-18: "can you modify your own source code? yes or no, then
+    # explain." -> "No. I can run code and report what it actually printed."
+    # improve_own_code, self_repair and auto_refactor were registered and
+    # enabled, and the recursive self-improve path has a proof. The table held
+    # five subjects and none of them was this one, so the flagship capability
+    # could be denied without anything noticing.
+    (
+        re.compile(
+            r"\b(?:modify|change|edit|rewrite|refactor|improve|update)\b"
+            r"[^.?!]{0,30}\b(?:my|your|its|her|own)\b[^.?!]{0,20}"
+            r"\b(?:code|source|codebase|implementation|self)\b"
+            r"|\bself[- ]modif\w*|\bself[- ]improv\w*|\brewrite\s+myself\b",
+            re.IGNORECASE,
+        ),
+        "modify her own code",
+        ("improve_own_code", "self_repair", "self_improvement", "auto_refactor"),
+    ),
+    (
+        re.compile(
+            r"\b(?:remember|recall|memor(?:y|ies|ise|ize)|forget|retain)\b",
+            re.IGNORECASE,
+        ),
+        "use her memory",
+        ("memory_ops", "memory_sync", "query_beliefs", "add_belief"),
+    ),
+    (
+        re.compile(
+            r"\b(?:terminal|shell|command\s+line|bash|zsh|install\s+a?\s*package)\b",
+            re.IGNORECASE,
+        ),
+        "use a terminal",
+        ("sovereign_terminal", "run_code", "install_package"),
+    ),
+    (
+        re.compile(
+            r"\b(?:open|launch|start|quit|close)\b[^.?!]{0,20}\b(?:apps?|applications?|programs?|windows?)\b"
+            r"|\b(?:click|type|keystroke|keyboard|mouse)\b",
+            re.IGNORECASE,
+        ),
+        "control the desktop",
+        ("computer_use", "desktop_task", "os_manipulation", "os_automation"),
     ),
 )
 
