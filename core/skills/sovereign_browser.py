@@ -1135,7 +1135,19 @@ class SovereignBrowserSkill(BaseSkill):
         for _round in range(max(1, int(max_steps))):
             observation = await browser.observe(principal="owner")
             if not observation or not observation.get("elements"):
-                steps.append({"error": "page_not_observable"})
+                # Say which of the two it was. "Not observable" covers a
+                # refused read and a page with nothing on it, and those need
+                # different fixes.
+                steps.append(
+                    {
+                        "error": (
+                            "page_read_refused"
+                            if not observation
+                            else "page_had_no_interactive_elements"
+                        ),
+                        "url": (observation or {}).get("url", ""),
+                    }
+                )
                 break
 
             signature = self._observation_signature(observation)

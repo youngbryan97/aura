@@ -5708,9 +5708,23 @@ class DesktopTaskSkill(BaseSkill):
             }
 
         steps = list(report.get("steps") or [])
+        # Say what went wrong, in the words of the round that failed.
+        #
+        # Returning a bare status produced "desktop_task reported failure
+        # without a cause (status=page_objective_partial)" — the same
+        # undiagnosable shape this file already documents for its own steps.
+        # The loop records an error on the round that stopped it; that is the
+        # cause, and it belongs in the reply rather than in a log.
+        failure = ""
+        for step in steps:
+            if step.get("error"):
+                failure = str(step["error"])
+        if not failure and not report.get("ok"):
+            failure = str(report.get("error") or "the page did not respond to any action")
         return {
             "ok": bool(report.get("ok")),
             "status": "page_objective_completed" if report.get("completed") else "page_objective_partial",
+            **({"error": failure} if failure else {}),
             "objective": objective,
             "url": report.get("final_url") or url,
             "requested_steps": len(steps),
