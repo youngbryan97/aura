@@ -200,6 +200,14 @@ class TestTheDesktopLaneDelegatesPagesToTheBrowser:
         # under any other name fails the objective with "expectation
         # incomplete: steps_requested; steps_completed".
         assert "steps_requested" in result and "steps_completed" in result
+        # The lane's own result shape. A new return path that speaks nearly the
+        # same language satisfies none of the machinery already there: the task
+        # contract reads `status: completed` with receipts beside it, and
+        # `page_objective_completed` failed it with "expectation incomplete"
+        # printed next to "Completed 1/1 steps".
+        assert result["status"] == "completed"
+        assert result["receipts"] and result["receipts"][0]["ok"] is True
+        assert result["failures"] == []
 
     def test_her_narration_survives_as_the_record(self, monkeypatch):
         """A step count is what the machine did; the answer is what she chose."""

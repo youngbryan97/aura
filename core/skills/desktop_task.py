@@ -5739,11 +5739,43 @@ class DesktopTaskSkill(BaseSkill):
                 failure = str(step["error"])
         if not failure and not report.get("ok"):
             failure = str(report.get("error") or "the page did not respond to any action")
+        # The lane's own result shape, not a parallel vocabulary.
+        #
+        # Third time in this integration: `final_url` where the effect verifier
+        # reads `observed_url`, a bare envelope where the caller reads `steps`,
+        # and `page_objective_completed` where the task contract reads
+        # `status: completed` with receipts beside it. A new return path that
+        # speaks nearly the same language satisfies none of the machinery that
+        # was already there, and the objective dies holding a result that
+        # worked — "expectation incomplete: steps_requested; steps_completed",
+        # printed next to "Completed 1/1 steps".
+        rounds = [step for step in steps if step.get("chose")]
+        receipts = [
+            {
+                "index": index,
+                "action": "browse_pursue",
+                "ok": bool(step.get("ok")),
+                "effect_verified": bool(step.get("moved", step.get("ok"))),
+                "effect_evidence": str(step.get("why") or ""),
+                "reason": str(step.get("asked") or ""),
+                "expect": str(step.get("expected") or ""),
+                "result": {"ok": bool(step.get("ok"))},
+            }
+            for index, step in enumerate(rounds)
+        ]
+        succeeded = bool(report.get("ok")) and not failure
         return {
-            "ok": bool(report.get("ok")),
-            "status": "page_objective_completed" if report.get("completed") else "page_objective_partial",
+            "ok": succeeded,
+            "status": "completed" if succeeded else "failed",
             **({"error": failure} if failure else {}),
             "objective": objective,
+            "receipts": receipts,
+            "failures": [] if succeeded else [r for r in receipts if not r["ok"]],
+            "planner": "browser_pursuit",
+            "summary": (
+                f"Worked through {report.get('final_url') or url} over "
+                f"{len(rounds)} round(s)."
+            ),
             "url": report.get("final_url") or url,
             # The names the task-level contract checks. This lane's expectation
             # requires `steps_requested` and `steps_completed`; returning them
@@ -5751,8 +5783,8 @@ class DesktopTaskSkill(BaseSkill):
             # incomplete: steps_requested; steps_completed" — the same
             # sentence, and the same cause, this file already records from
             # 2026-07-27, arriving again through a new return path.
-            "steps_requested": len(steps),
-            "steps_completed": sum(1 for step in steps if step.get("ok")),
+            "steps_requested": len(rounds) or len(steps),
+            "steps_completed": sum(1 for step in rounds if step.get("ok")),
             # Her own narration of each choice, kept as the observable record
             # of what was done rather than a step count.
             "narration": [
