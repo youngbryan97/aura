@@ -9387,7 +9387,20 @@ class InferenceGate:
             and explicit_visible_user_prompt
             and str(surface_prompt.prompt or "").strip() != explicit_visible_user_prompt
         )
-        if not surface_prompt.bound or stale_binding:
+        # An internal generation has no user question to be graded against.
+        #
+        # Binding one anyway is where the harm starts: the prompt of a
+        # deliberation becomes "the question", and every later check reads it
+        # as something a person asked. A screen reading full of numbers then
+        # looks like arithmetic, and a correct one-word move is rejected for
+        # not containing a total.
+        internal_inference_call = bool(
+            context.get("internal_inference", False)
+            or context.get("_non_chat_inference", False)
+        )
+        if internal_inference_call:
+            context["internal_inference"] = True
+        elif not surface_prompt.bound or stale_binding:
             if stale_binding:
                 logger.warning(
                     "🔗 Rebinding the user-surface validation prompt: the bound "
@@ -9504,12 +9517,7 @@ class InferenceGate:
         # good model is not the same as producing the visible answer. Internal
         # reasoning keeps the primary tier and the foreground lane; what it
         # stops inheriting is the contract that its output IS the reply.
-        internal_inference = bool(
-            context.get("internal_inference", False)
-            or context.get("_non_chat_inference", False)
-        )
-        if internal_inference:
-            context["internal_inference"] = True
+        internal_inference = internal_inference_call
         proof_evaluation_contract = proof_evaluation_contract or (
             not benchmark_request and is_proof_evaluation_purpose(purpose)
         )

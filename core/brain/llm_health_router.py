@@ -4138,6 +4138,12 @@ class HealthAwareLLMRouter:
                                 "live_runtime_payload_required",
                                 "visible_user_message",
                                 "current_user_message",
+                                # Whether this generation is the visible reply
+                                # at all. Without it in this list the gate
+                                # never sees the declaration, and every
+                                # internal call that prefers the resident
+                                # model is graded as somebody's answer.
+                                "internal_inference",
                                 "recent_conversation_context",
                                 "recent_context_needed",
                                 "desktop_quick_reply_contract",
