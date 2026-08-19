@@ -315,6 +315,48 @@ class DesktopTaskSkill(BaseSkill):
     )
     _SUFFIX_RE = re.compile(r"\B(\.[A-Za-z0-9]{1,6})\s+files?\b", re.IGNORECASE)
 
+    #: A path-shaped token. A single segment counts too — "the markdown files
+    #: in docs" names a directory as plainly as "core/runtime" does — because
+    #: what qualifies a token is that it EXISTS on disk, not its shape.
+    _DIRECTORY_TOKEN_RE = re.compile(r"\b((?:[\w.-]+/){0,6}[\w-]{2,})\b")
+
+    @classmethod
+    def _named_directories(cls, text: str, *, skip: str) -> list[str]:
+        """Directory paths the text names that actually exist."""
+        from pathlib import Path
+
+        found: list[str] = []
+        for match in cls._DIRECTORY_TOKEN_RE.finditer(str(text or "")):
+            token = match.group(1).strip("/")
+            if not token or token == str(skip) or "." in Path(token).name:
+                continue
+            for root in (Path.cwd(), Path(__file__).resolve().parents[2]):
+                candidate = (root / token).expanduser()
+                if candidate.is_dir():
+                    found.append(token)
+                    break
+        return found
+
+    @staticmethod
+    def _kind_pattern(text: str) -> str:
+        """"python files" is as specific as ".py files".
+
+        The suffix pattern above wanted a literal dot-extension, so counting
+        "the python files in core/runtime" listed every file in the directory
+        and reported a number answering a different question. The kind-to-
+        suffix map already exists for the counter that answers this in chat;
+        one mapping, used by both.
+        """
+        try:
+            from core.conversation.filesystem_check import _KIND_SUFFIXES
+        except ImportError:
+            return "*"
+        lowered = str(text or "").lower()
+        for kind, suffix in _KIND_SUFFIXES.items():
+            if re.search(rf"\b{re.escape(kind)}\s+(?:files?|scripts?|modules?)\b", lowered):
+                return f"*{suffix}"
+        return "*"
+
     @classmethod
     def _directory_read_step(cls, text: str, *, skip: str) -> "DesktopTaskStep | None":
         """A read of the directory the request asks about, if it asks about one.
@@ -333,11 +375,19 @@ class DesktopTaskSkill(BaseSkill):
             for path in extract_target_paths(text) or ()
             if str(path) != str(skip)
         ]
+        # A directory has no extension, so the path extractor cannot see one:
+        # "count the python files in core/runtime and write the number into
+        # aura-report.md" yielded only the destination. Without the source,
+        # the read was skipped and the file was written with composed filler —
+        # or, worse, the destination itself was taken as the directory to
+        # read. The filesystem is the authority on what is a directory.
+        if not candidates:
+            candidates = cls._named_directories(text, skip=skip)
         if not candidates:
             return None
         source = candidates[0]
         suffix = cls._SUFFIX_RE.search(text or "")
-        pattern = f"*{suffix.group(1)}" if suffix else "*"
+        pattern = f"*{suffix.group(1)}" if suffix else cls._kind_pattern(text)
         return DesktopTaskStep(
             action="list_directory",
             target=json.dumps({"path": source, "pattern": pattern}),
