@@ -305,6 +305,24 @@ def _hold_perception_for(domain: ActionDomain, action_name: str) -> None:
         )
 
 
+#: Authority a caller may PRESENT. Every one of these is verified downstream —
+#: the standing-authority token is signed and checked against the token store —
+#: so presenting one proves nothing on its own and forging one fails.
+_PRESENTABLE_AUTHORITY_KEYS = frozenset(
+    {
+        "standing_authority_token",
+        "standing_authority_grant_id",
+        "capability_token_id",
+        "executive_intent_id",
+        "authority_origin",
+        "effect_scope",
+        "risk_level",
+        "tool",
+        "skill",
+    }
+)
+
+
 class ActionExecutor:
     """Execute, observe, and receipt one consequential action."""
 
@@ -466,6 +484,7 @@ class ActionExecutor:
         execution_timeout_s: float | None = None,
         verification_timeout_s: float | None = None,
         action_id: str | None = None,
+        authority_context: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         domain = _coerce_domain(domain)
         action_name = _coerce_action_name(action_name)
@@ -611,6 +630,25 @@ class ActionExecutor:
                 ),
             }
 
+        # The authority the caller already holds, presented to the will.
+        #
+        # There was no channel for it. A request carrying a valid, signed
+        # standing-authority grant had no way to show it here, so
+        # `validate_context` looked for `standing_authority_token`, never found
+        # one, and answered `signed_standing_authority_lease_missing` — for
+        # every consequential action from every authorised origin. Measured
+        # live 2026-08-18 on an owner foreground request that held
+        # `owner.foreground-request` with allowed_tools ("*").
+        #
+        # Only these keys cross, and passing one forges nothing: the token is
+        # signed and `validate_context` verifies it against the token store, so
+        # a fabricated value fails exactly as it should. What this restores is
+        # the ability to present a real one.
+        authority_view = {
+            key: value
+            for key, value in dict(authority_context or {}).items()
+            if key in _PRESENTABLE_AUTHORITY_KEYS
+        }
         admission = cls.authorize_action(
             domain=domain,
             action_name=action_name,
@@ -622,6 +660,7 @@ class ActionExecutor:
                 "request_digest": request_digest,
                 "expectation_objective": expectation_contract.objective[:500],
                 "rollback_target_declared": bool(rollback_target),
+                **authority_view,
             },
         )
         will = admission.authority

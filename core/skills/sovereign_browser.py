@@ -344,7 +344,61 @@ class SovereignBrowserSkill(BaseSkill):
             return await self._execute_browser(params, action_context=action_context)
 
         source = str(context.get("source") or "sovereign_browser.direct")[:240]
+
+        # Obtain the authority this action needs, the way every other
+        # consequential skill here does (see email_adapter, reddit_adapter,
+        # messages_transport). Without it the will refuses on arrival with
+        # `signed_standing_authority_lease_missing`, which is correct: the
+        # grant is what the lease, the receipt and the origin check are all
+        # derived from, and a browser acting without one is acting on nobody's
+        # authority.
+        authority_view: dict[str, Any] = {
+            "tool": "sovereign_browser",
+            "authority_origin": str(
+                context.get("authority_origin") or context.get("origin") or source
+            )[:240],
+            "effect_scope": "read_only" if params.mode in {"search", "browse"} else "state_changing",
+            "risk_level": "low" if params.mode in {"search", "browse"} else "medium",
+        }
+        try:
+            from core.executive.authority_gateway import get_authority_gateway
+
+            gateway = get_authority_gateway()
+            granted = await gateway.authorize_tool_execution(
+                "sovereign_browser",
+                params.model_dump(mode="json"),
+                source=source,
+                priority=0.7,
+                is_critical=False,
+                context=dict(context or {}),
+            )
+            # A refusal here is NOT a veto. This call exists to OBTAIN a grant
+            # to present, and the will below is what decides. Treating it as a
+            # second gate added an approval prompt to plain `browse` and
+            # `search`, which have always been allowed — measured immediately,
+            # as "refused by AuthorityGateway:
+            # runtime_setting_user_confirmation_required" on a read-only
+            # navigation. When no grant is available the action proceeds
+            # without one and is judged exactly as it was before.
+            for key in () if not granted.approved else (
+                "standing_authority_token",
+                "standing_authority_grant_id",
+                "capability_token_id",
+                "executive_intent_id",
+            ):
+                value = getattr(granted, key, None)
+                if value:
+                    authority_view[key] = value
+        except _BROWSER_DECISION_ERRORS as exc:
+            record_degradation(
+                "sovereign_browser.authority",
+                exc,
+                action="continued to the will without a standing-authority grant",
+                severity="warning",
+            )
+
         return await ActionExecutor.execute(
+            authority_context=authority_view,
             domain=ActionDomain.NETWORK_CALL,
             action_name=f"sovereign_browser.{params.mode}",
             params=params.model_dump(mode="json"),
