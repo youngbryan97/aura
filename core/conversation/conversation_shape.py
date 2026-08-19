@@ -23,11 +23,14 @@ from __future__ import annotations
 
 import re
 import time
+from typing import Any
 
 __all__ = [
     "CONVERSATION_SHAPE_HEADER",
     "asks_about_conversation_shape",
+    "asks_about_shared_history",
     "conversation_shape_block",
+    "shared_history_block",
 ]
 
 CONVERSATION_SHAPE_HEADER = "## THE SHAPE OF THIS CONVERSATION"
@@ -131,3 +134,88 @@ def conversation_shape_block(prompt: str) -> str:
         shown = user_turns if len(user_turns) <= 12 else user_turns[:6] + ["..."] + user_turns[-6:]
         lines.extend(f"- {turn[:220]}" for turn in shown)
     return "\n".join(lines)
+
+
+#: "what did we agree on", "what did we decide", "remember when we talked
+#: about X" — a question that presupposes something already happened between
+#: them.
+_ASKS_SHARED_HISTORY_RE = re.compile(
+    r"\bwhat\s+did\s+we\s+(?:agree|decide|settle|conclude|say|discuss|cover)\b"
+    r"|\bwhat\s+(?:was|were)\s+(?:our|the)\s+(?:agreement|decision|conclusion|plan)\b"
+    r"|\bremember\s+when\s+we\b"
+    r"|\bdid\s+we\s+(?:agree|decide|settle|discuss|talk\s+about)\b"
+    r"|\bwe\s+(?:agreed|decided|settled)\s+(?:on|that)\b",
+    re.IGNORECASE,
+)
+
+
+def asks_about_shared_history(prompt: Any) -> bool:
+    """True when the turn presupposes something they already settled."""
+    return bool(_ASKS_SHARED_HISTORY_RE.search(str(prompt or "")))
+
+
+def _topic_words(prompt: str) -> list[str]:
+    common = {
+        "what", "did", "we", "agree", "agreed", "on", "about", "the", "our",
+        "decide", "decided", "last", "week", "yesterday", "earlier", "remember",
+        "when", "was", "were", "that", "this", "to", "for", "of", "and", "a",
+        "an", "in", "it", "you", "i", "me", "my", "your",
+    }
+    return [
+        word
+        for word in re.findall(r"[a-z][a-z'-]{2,}", str(prompt or "").lower())
+        if word not in common
+    ]
+
+
+def shared_history_block(prompt: Any) -> str:
+    """What the transcript holds about a presupposed agreement.
+
+    LIVE 2026-08-18: "what did we agree on last week?" was answered "we agreed
+    that you would provide me with the necessary files to review your code. I
+    haven't seen them yet." No such exchange existed. The guard that catches
+    fabricated shared history did not fire, and there was nothing else to
+    check the presupposition against.
+
+    Saying "we never settled that" is a complete answer. Inventing an
+    agreement puts a commitment in someone's mouth.
+    """
+    if not asks_about_shared_history(prompt):
+        return ""
+    entries = _entries()
+    if not entries:
+        return (
+            "No transcript is available, so you cannot see whether this was "
+            "ever agreed. Say that rather than describing an agreement."
+        )
+    topics = _topic_words(prompt)
+    lines: list[str] = []
+    for entry in entries:
+        content = " ".join(str(getattr(entry, "content", "") or "").split())
+        if not content:
+            continue
+        # Compare on the stem: the question says "semiconductors" and the
+        # transcript says "semiconductor", and a plural must not read as a
+        # different subject.
+        lowered = content.lower()
+        if not topics or any(
+            word in lowered or word.rstrip("s") in lowered for word in topics
+        ):
+            role = "them" if str(getattr(entry, "role", "")) == "user" else "you"
+            lines.append(f"- {role}: {content[:200]}")
+    if not lines:
+        return (
+            "Nothing in this conversation matches what the question assumes was "
+            "settled. Say that plainly — that you have no record of agreeing it "
+            "— and do not describe an agreement you cannot see."
+        )
+    heading = (
+        "What the record actually holds on this:"
+        if topics
+        else (
+            "The question names no particular subject, so this is the whole "
+            "record. If no agreement appears in it, say there is none rather "
+            "than describing one:"
+        )
+    )
+    return "\n".join([heading, *lines[:8]])

@@ -27,6 +27,20 @@ async def _read_clipboard(prompt: str) -> str:
     return block.replace(f"{CLIPBOARD_HEADER}\n", "", 1) if block else ""
 
 
+# ── whether they ever actually settled it ────────────────────────────────────
+
+def _matches_shared_history(prompt: str) -> bool:
+    from core.conversation.conversation_shape import asks_about_shared_history
+
+    return asks_about_shared_history(prompt)
+
+
+async def _read_shared_history(prompt: str) -> str:
+    from core.conversation.conversation_shape import shared_history_block
+
+    return await asyncio.to_thread(shared_history_block, prompt)
+
+
 # ── whether she knows the fact this question needs ───────────────────────────
 
 def _matches_person_fact(prompt: str) -> bool:
@@ -563,6 +577,26 @@ def install_default_observables() -> None:
                 "show me the data on unemployment",
                 "how are you doing",
                 "what is 2 + 2",
+            ),
+        ),
+        Observable(
+            "shared_history",
+            "## WHETHER YOU EVER ACTUALLY SETTLED THIS",
+            _matches_shared_history,
+            _read_shared_history,
+            examples=(
+                # The live miss: "we agreed that you would provide me with the
+                # necessary files to review your code. I haven't seen them
+                # yet." No such exchange existed.
+                "what did we agree on last week?",
+                "what did we decide about the schema?",
+                "did we agree on a price?",
+                "remember when we talked about orcas?",
+            ),
+            counter_examples=(
+                "what is 2 + 2",
+                "what's on my screen?",
+                "how are you doing",
             ),
         ),
         Observable(
