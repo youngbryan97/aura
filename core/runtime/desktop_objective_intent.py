@@ -220,7 +220,19 @@ _SCREEN_OBSERVATION_RE = re.compile(
     rf"\b{_PERCEPTION_CUE}\b[^.?!]{{0,60}}\b{_SCREEN_SURFACE}\b"
     # screen ... cue  ("my screen — what do you see", "the display shows what?")
     rf"|\b{_SCREEN_SURFACE}\b[^.?!]{{0,60}}\b{_PERCEPTION_CUE}\b"
-    r"|\bscreenshot\b",
+    r"|\bscreenshot\b"
+    # Which app is in front IS a question about the screen, and it is asked
+    # without the word. LIVE 2026-08-18: "can you tell what app I'm using
+    # right now?" reached no reading and was answered "I can capture and read
+    # this screen. I'm in my own little computational world, not connected to
+    # your device's sensors or UI" — a denial of the capability she has, and a
+    # self-contradiction inside two sentences.
+    r"|\bwhat\s+(?:app|application|program|window|document|tab|file)\b"
+    r"[^.?!]{0,30}\b(?:am\s+i|are\s+we|is\s+(?:open|active|frontmost|in\s+front)|"
+    r"i(?:'m| am)\s+(?:using|in|on|looking\s+at))"
+    r"|\b(?:which|what)\s+(?:app|application|program|window)\s+(?:is|am|are)\b"
+    r"|\bwhat\s+am\s+i\s+(?:looking\s+at|working\s+(?:on|in)|reading)\b"
+    r"|\bam\s+i\s+(?:in|using|on)\s+(?:\w+\s+){0,2}(?:app|application|window)\b",
     re.IGNORECASE,
 )
 

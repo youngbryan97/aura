@@ -3,8 +3,44 @@ import pytest
 from core.perception.screen_perception import ScreenPerception
 
 
+@pytest.fixture
+def capture_permitted(monkeypatch):
+    """Let capture() past the fail-closed screen-capture gate.
+
+    The gate refuses when the foreground window cannot be checked for privacy,
+    which is correct and is the state on a machine with screen recording off.
+    capture() then returns a denied snapshot before touching anything these
+    tests are about, so they passed or failed on the host's permissions rather
+    than on the code. The gate still runs; it is given a window it may read.
+    """
+    import core.security.screen_capture_policy as policy
+
+    def _admission():
+        # reason defaults to ScreenCaptureDenial.NONE; passing None instead
+        # violates the type and the receipt builder reads reason.value.
+        return policy.ScreenCaptureAdmission(allowed=True, authority="test")
+
+    async def _allowed():
+        return _admission()
+
+    monkeypatch.setattr(
+        policy, "require_screen_capture_admission_async", _allowed, raising=False
+    )
+    monkeypatch.setattr(
+        policy, "evaluate_screen_capture_admission_async", _allowed, raising=False
+    )
+    monkeypatch.setattr(
+        policy,
+        "evaluate_screen_capture_admission",
+        lambda **_kw: _admission(),
+    )
+    return policy
+
+
 @pytest.mark.asyncio
-async def test_screen_perception_capture_uses_accessibility_summary_without_screenshot(monkeypatch):
+async def test_screen_perception_capture_uses_accessibility_summary_without_screenshot(
+    monkeypatch, capture_permitted
+):
     perception = ScreenPerception()
 
     async def fake_summary(self):
