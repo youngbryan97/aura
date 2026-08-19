@@ -9078,6 +9078,19 @@ def _known_answer_for_this_turn() -> str:
         return ""
 
 
+def _lane_reply_confidence(served: object, default: str) -> str:
+    """How much to trust a reply the degraded path produced.
+
+    A deterministic result is the most reliable answer the runtime can give —
+    no model, no sampling, no lane. Live 2026-08-19 the exact product 50,420,273
+    was served and badged "No answer", which is the opposite of true and
+    exactly the kind of thing a person checking her work would catch.
+    """
+    body = str(served or "").strip()
+    known = _known_answer_for_this_turn()
+    return "computed" if known and body == known else str(default)
+
+
 def _conversation_lane_user_message(
     lane: dict[str, Any],
     *,
@@ -18197,10 +18210,14 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                         "status": status,
                         "reason": admission_reason,
                         "conversation_lane": lane,
-                        "response_confidence": "not_generated",
+                        "response_confidence": _lane_reply_confidence(
+                            response_text, "not_generated"
+                        ),
                         "live_turn_contract": _live_turn_contract(
                             lane_status=lane,
-                            response_confidence="not_generated",
+                            response_confidence=_lane_reply_confidence(
+                                response_text, "not_generated"
+                            ),
                             status=status,
                             reply_source="required_cognitive_lane_admission",
                         ),

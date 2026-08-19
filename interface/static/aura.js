@@ -1261,6 +1261,9 @@ const REPLY_CONFIDENCE_BADGES = {
     // Nothing to say — these are the ordinary, fully-backed cases.
     high: null,
     scoped: null,
+    // Not generated at all: worked out exactly. Worth saying, because
+    // it is a stronger claim than anything a sample can make.
+    computed: ['Computed', 'Worked out exactly, not generated.'],
     // She answered, but something about the answer did not meet her own bar.
     degraded: ['Unverified', 'Served without passing her own checks on it.'],
     bounded: ['Partial', 'Cut short by a limit, not finished on the merits.'],

@@ -105,3 +105,48 @@ def test_every_refusal_site_uses_the_same_helper():
     assert "requested_arithmetic_result(_semantic_user_message)" not in source, (
         "a second inline copy of the rescue has appeared"
     )
+
+
+def test_a_computed_answer_is_not_badged_as_no_answer():
+    """It is the most reliable answer the runtime can give.
+
+    Live 2026-08-19 the exact product 50,420,273 was served and badged "No
+    answer" — the opposite of true, and exactly what someone checking her work
+    would catch.
+    """
+    from interface.routes.chat import _lane_reply_confidence
+
+    set_user_question("what is 7919 * 6367?")
+    assert _lane_reply_confidence("50,420,273.", "not_generated") == "computed"
+    # Only the computed text earns it; a status message keeps the status.
+    assert (
+        _lane_reply_confidence("the lane could not finish preparing", "not_generated")
+        == "not_generated"
+    )
+
+
+def test_the_computed_badge_exists_in_the_shipped_ui():
+    """A confidence the interface cannot render is a confidence nobody sees."""
+    import json
+    import shutil
+    import subprocess
+    from pathlib import Path as _Path
+
+    if shutil.which("node") is None:
+        import pytest as _pytest
+
+        _pytest.skip("node is needed to run the shipped badge map")
+    aura_js = _Path(__file__).resolve().parents[1] / "interface/static/aura.js"
+    script = """
+    const fs = require('fs');
+    const s = fs.readFileSync(process.argv[1], 'utf8');
+    const i = s.indexOf('const REPLY_CONFIDENCE_BADGES');
+    const j = s.indexOf('};', i) + 2;
+    const m = new Function(s.slice(i, j) + '; return REPLY_CONFIDENCE_BADGES;')();
+    console.log(JSON.stringify(m.computed));
+    """
+    out = subprocess.run(
+        ["node", "-e", script, str(aura_js)],
+        capture_output=True, text=True, timeout=60, check=True,
+    )
+    assert json.loads(out.stdout)[0] == "Computed"
