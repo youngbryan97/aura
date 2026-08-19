@@ -5894,18 +5894,22 @@ async def api_browser_pursuit(request: Request):
         return JSONResponse({"ok": False, "error": "goal and url are required"}, status_code=400)
 
     try:
-        from core.capabilities.phantom_browser import PhantomBrowser
         from core.skills.sovereign_browser import SovereignBrowserSkill
 
-        browser = PhantomBrowser(visible=False, browser_type="chromium", principal="owner")
-        if not await browser.ensure_ready():
-            return JSONResponse({"ok": False, "error": "browser_unavailable"}, status_code=503)
-        try:
-            skill = SovereignBrowserSkill()
-            report = await skill._handle_pursue(browser, url, goal, max_steps)
-        finally:
-            await browser.close()
-        return JSONResponse(report)
+        # Through `execute`, not `_handle_pursue`.
+        #
+        # Calling the loop directly skips the transaction that mints the
+        # browser lease, so every click came back
+        # `browser_interaction_authority_unavailable` — the governance working,
+        # and a probe that exercises a path the real capability never takes is
+        # worth very little.
+        from core.skills.sovereign_browser import BrowserInput
+
+        report = await SovereignBrowserSkill().execute(
+            BrowserInput(mode="pursue", url=url, goal=goal, max_steps=max_steps),
+            {"source": "system.browser_pursuit_probe", "user_explicitly_authorized": True},
+        )
+        return JSONResponse(report if isinstance(report, dict) else {"ok": False})
     except _SYSTEM_RECOVERABLE_ERRORS as exc:
         record_degradation("system.browser_pursuit", exc)
         logger.error("Browser pursuit probe failed: %s", exc, exc_info=True)
