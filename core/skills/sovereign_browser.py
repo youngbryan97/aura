@@ -224,6 +224,32 @@ class SovereignBrowserSkill(BaseSkill):
             logger.warning("browse(%s) error: %s", url[:80], e)
             return False
 
+    def timeout_for(self, params: Any) -> float:
+        """What THIS request will cost, not what browsing costs on average.
+
+        The engine asks any skill that can size its own budget, and keeps the
+        declared number otherwise — the hook exists because a flat per-skill
+        timeout "cannot describe 'make a folder' and 'read three articles and
+        write a synthesis' at once", and desktop_task's 180s sat inside its own
+        spread until a successful 93.5s run was cancelled and reported as
+        "Completed 0/0 steps".
+
+        A browser search and a sixty-question pursuit are that same pair. The
+        skill already computes the difference for its own internal wait; not
+        answering here meant the engine cancelled a working pursuit at the flat
+        budget and the person was told "Operation took too long" — measured
+        live 2026-08-18, with the page open and the loop running.
+        """
+
+        mode = ""
+        if isinstance(params, Mapping):
+            mode = str(params.get("mode") or "")
+        else:
+            mode = str(getattr(params, "mode", "") or "")
+        # A little headroom over the internal wait, so the inner timeout is the
+        # one that fires and can report which round it was on.
+        return self._execution_timeout(mode) + 30.0
+
     def _execution_timeout(self, mode: str) -> float:
         operation_timeout = {
             "search": self.SEARCH_TIMEOUT,

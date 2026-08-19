@@ -188,3 +188,37 @@ class TestPursueIsFirstClassInTheTransaction:
     def test_a_pursuit_gets_more_time_than_one_interaction(self):
         skill = SovereignBrowserSkill.__new__(SovereignBrowserSkill)
         assert skill._execution_timeout("pursue") > skill._execution_timeout("interact")
+
+
+class TestTheRequestSizesItsOwnBudget:
+    """A working pursuit was cancelled and called "Operation took too long".
+
+    The engine asks any skill that can size its own budget and keeps the
+    declared number otherwise. The hook exists because a flat per-skill timeout
+    "cannot describe 'make a folder' and 'read three articles and write a
+    synthesis' at once" — desktop_task's 180s sat inside its own measured
+    spread until a successful 93.5s run was cancelled and reported as
+    "Completed 0/0 steps".
+
+    A search and a sixty-question pursuit are that same pair, and the browser
+    was not answering, so a run with the page open and the loop turning was
+    killed at the flat budget.
+    """
+
+    def test_a_pursuit_asks_for_much_more_than_a_search(self):
+        skill = SovereignBrowserSkill.__new__(SovereignBrowserSkill)
+        assert skill.timeout_for({"mode": "pursue"}) > 5 * skill.timeout_for({"mode": "search"})
+
+    def test_the_outer_budget_exceeds_the_inner_wait(self):
+        """The inner timeout should fire first; it can say which round it was on."""
+        skill = SovereignBrowserSkill.__new__(SovereignBrowserSkill)
+        for mode in ("search", "browse", "interact", "pursue"):
+            assert skill.timeout_for({"mode": mode}) > skill._execution_timeout(mode)
+
+    def test_it_reads_an_object_as_well_as_a_mapping(self):
+        from types import SimpleNamespace
+
+        skill = SovereignBrowserSkill.__new__(SovereignBrowserSkill)
+        assert skill.timeout_for(SimpleNamespace(mode="pursue")) == skill.timeout_for(
+            {"mode": "pursue"}
+        )
