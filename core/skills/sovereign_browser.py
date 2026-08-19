@@ -229,6 +229,10 @@ class SovereignBrowserSkill(BaseSkill):
             "search": self.SEARCH_TIMEOUT,
             "browse": self.BROWSE_TIMEOUT + self.READ_TIMEOUT,
             "interact": self.INTERACTION_TIMEOUT,
+            # A pursuit is many interactions plus a decision between each.
+            # Budgeting it like a single interaction would kill a working run
+            # partway through a form and report a timeout, not a refusal.
+            "pursue": self.INTERACTION_TIMEOUT * 12,
         }.get(mode, self.INTERACTION_TIMEOUT)
         return 30.0 + operation_timeout + 15.0
 
@@ -286,6 +290,21 @@ class SovereignBrowserSkill(BaseSkill):
             requested_url = bool(str(params.get("url") or "").strip())
             navigation_ok = not requested_url or (navigation_confirmed and url_observed)
             effect_verified = bool(result.get("ok") is True and actions_verified and navigation_ok)
+        elif mode == "pursue":
+            # A pursuit's evidence is that rounds happened and the page moved.
+            # `actions_verified` compares a declared action list against the
+            # rows executed, and a pursuit declares none in advance — that is
+            # the whole point of it — so the count check cannot apply. Falling
+            # to the `else` below would have left every pursuit unverifiable no
+            # matter how well it went, which is how a new mode silently becomes
+            # a mode that can never succeed.
+            rounds = result.get("rounds")
+            effect_verified = bool(
+                result.get("ok") is True
+                and isinstance(rounds, int)
+                and rounds > 0
+                and url_observed
+            )
         else:
             effect_verified = False
 
@@ -332,7 +351,9 @@ class SovereignBrowserSkill(BaseSkill):
             source=source,
             predicted_welfare_delta={
                 "curiosity": 0.03 if params.mode in {"search", "browse"} else 0.0,
-                "caution": 0.04 if params.mode == "interact" else 0.01,
+                "caution": 0.06 if params.mode == "pursue" else (
+                    0.04 if params.mode == "interact" else 0.01
+                ),
             },
             expectation=ActionExpectation(
                 objective=f"complete the requested browser {params.mode} operation",
@@ -1136,6 +1157,12 @@ class SovereignBrowserSkill(BaseSkill):
             "completed": completed,
             "steps": steps,
             "rounds": len(steps),
+            # `observed_url` is the name the effect verifier reads. Returning
+            # only `final_url` meant a completed pursuit presented no evidence
+            # it had ever been anywhere, and verification failed on a run that
+            # had worked — a new mode conforming to its own vocabulary instead
+            # of the one the transaction already speaks.
+            "observed_url": (final or observation).get("url", ""),
             "final_url": (final or observation).get("url", ""),
             "result_text": str((final or observation).get("text") or "")[:4000],
         }

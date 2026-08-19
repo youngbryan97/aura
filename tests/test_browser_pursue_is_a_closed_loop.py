@@ -146,3 +146,45 @@ class TestObservationRendering:
     def test_selected_state_is_visible_so_it_is_not_re_clicked(self):
         rendered = SovereignBrowserSkill._render_observation(_page(checked=True))
         assert "already selected" in rendered
+
+
+class TestPursueIsFirstClassInTheTransaction:
+    """A new mode that no surrounding machinery knows about can never succeed.
+
+    `_verify_browser_effect` branched on `browse` and `interact` and fell to
+    `effect_verified = False` for anything else, so every pursuit — however
+    well it went — was unverifiable. `_execution_timeout` budgeted it like a
+    single interaction, which would kill a working run partway through a form
+    and report a timeout rather than a refusal. And the loop returned
+    `final_url` while the verifier reads `observed_url`, so a completed pursuit
+    presented no evidence it had been anywhere.
+    """
+
+    def test_a_real_pursuit_verifies(self):
+        verdict = SovereignBrowserSkill._verify_browser_effect(
+            {
+                "result": {"ok": True, "rounds": 7, "observed_url": "https://example.com/q"},
+                "params": {"mode": "pursue"},
+            }
+        )
+        assert verdict["effect_verified"] is True
+
+    def test_a_pursuit_that_did_nothing_does_not_verify(self):
+        verdict = SovereignBrowserSkill._verify_browser_effect(
+            {"result": {"ok": False, "rounds": 0, "observed_url": ""}, "params": {"mode": "pursue"}}
+        )
+        assert verdict["effect_verified"] is False
+
+    def test_the_declared_action_check_is_not_applied_to_a_pursuit(self):
+        """A pursuit declares no actions in advance; that is the point of it."""
+        verdict = SovereignBrowserSkill._verify_browser_effect(
+            {
+                "result": {"ok": True, "rounds": 3, "observed_url": "https://example.com/q"},
+                "params": {"mode": "pursue", "actions": None},
+            }
+        )
+        assert verdict["effect_verified"] is True
+
+    def test_a_pursuit_gets_more_time_than_one_interaction(self):
+        skill = SovereignBrowserSkill.__new__(SovereignBrowserSkill)
+        assert skill._execution_timeout("pursue") > skill._execution_timeout("interact")
