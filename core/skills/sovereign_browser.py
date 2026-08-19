@@ -1562,9 +1562,32 @@ class SovereignBrowserSkill(BaseSkill):
                     "url": observation.get("url"),
                 }
             )
-            if not report.get("ok"):
+            # A batch that half-landed is progress, not failure.
+            #
+            # `interact` verifies all-or-nothing, which is right for a scripted
+            # sequence: you declared five actions and five must happen. A
+            # pursuit is not that. It answers what is on screen, and a live form
+            # re-renders the moment the last item is answered — so the
+            # selectors chosen a second ago stop resolving and the round is
+            # marked `browser_interaction_incomplete` for having worked.
+            #
+            # Measured live 2026-08-18: one round, several answers, the page
+            # advanced, and the objective was reported as 0/1 steps.
+            #
+            # So the round is judged on whether anything landed. Nothing
+            # landing is still a failure, and the expectation check below still
+            # decides whether the page did what she thought.
+            rows = report.get("action_report")
+            landed = sum(
+                1
+                for row in (rows if isinstance(rows, list) else [])
+                if isinstance(row, Mapping) and row.get("ok") is True
+            )
+            steps[-1]["landed"] = landed
+            if not report.get("ok") and not landed:
                 steps[-1]["error"] = str(report.get("error") or "interaction_failed")
                 break
+            steps[-1]["ok"] = True
 
             # Did the page do what she said it would? A violated expectation is
             # what should send her back to look again — the old loop only

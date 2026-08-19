@@ -371,3 +371,58 @@ class TestWhatSheLearnsTransfersAndPersists:
         assert "example.com is a survey" in recalled
         assert "multi-page form" in recalled
         assert "unrelated fact" not in recalled
+
+
+class TestAPartialBatchIsProgress:
+    """One round, several answers, the page advanced — reported as 0/1 steps.
+
+    `interact` verifies all-or-nothing, which is right for a scripted sequence:
+    you declared five actions and five must happen. A pursuit is not that. It
+    answers what is on screen, and a live form re-renders the moment the last
+    visible item is answered — so selectors chosen a second ago stop resolving
+    and the round is marked `browser_interaction_incomplete` for having worked.
+    """
+
+    @pytest.mark.asyncio
+    async def test_a_round_where_some_actions_landed_continues(self):
+        executed: list = []
+        skill = _skill_with(
+            [
+                {"actions": [{"index": 0, "type": "click"}], "why": "answer", "expect": "advances"},
+                {"done": True, "actions": []},
+            ],
+            executed,
+        )
+
+        async def _partial(browser, url, actions, *, action_context=None):
+            return {
+                "ok": False,
+                "error": "browser_interaction_incomplete",
+                "action_report": [{"action": "click", "ok": True}, {"action": "click", "ok": False}],
+            }
+
+        skill._handle_interact = _partial
+        result = await skill._handle_pursue(
+            _Browser([_page(), _page(url="https://example.com/q2")]), None, "go", 2
+        )
+        assert result["steps"][0].get("error") is None
+        assert result["steps"][0]["landed"] == 1
+
+    @pytest.mark.asyncio
+    async def test_a_round_where_nothing_landed_still_stops(self):
+        executed: list = []
+        skill = _skill_with(
+            [{"actions": [{"index": 0, "type": "click"}], "why": "answer", "expect": "advances"}],
+            executed,
+        )
+
+        async def _nothing(browser, url, actions, *, action_context=None):
+            return {
+                "ok": False,
+                "error": "browser_interaction_incomplete",
+                "action_report": [{"action": "click", "ok": False}],
+            }
+
+        skill._handle_interact = _nothing
+        result = await skill._handle_pursue(_Browser([_page()]), None, "go", 2)
+        assert result["steps"][-1]["error"] == "browser_interaction_incomplete"
