@@ -771,9 +771,15 @@ class ActionExecutor:
                                 ),
                             )
                         else:
+                            # Named as the class it belongs to. A rehearsal
+                            # that recorded no reason did not run, which is an
+                            # availability failure — and calling it anything
+                            # else made the executor's own fallback ineligible
+                            # for the bypass it was reaching for, refusing the
+                            # action outright.
                             skip_reason = str(
                                 rehearsal.get("skip_reason")
-                                or "rehearsal_unavailable"
+                                or "availability_failure:rehearsal_unavailable"
                             )
                             external_execution_transaction = await asyncio.to_thread(
                                 external_execute_coordinator.record_bypass,

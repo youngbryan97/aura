@@ -71,6 +71,32 @@ _BYPASS_REASONS = frozenset(
         "availability_failure:generation_lease_unavailable:DependencyUnavailable",
     }
 )
+
+
+#: An availability failure is not a decision, and that distinction is what
+#: eligibility is really about.
+#:
+#: The set below enumerates exact strings, and `preaction_cortex` composes its
+#: reasons — `availability_failure:{type(exc).__name__}` — so any exception
+#: class nobody had listed produced a reason that was not eligible, and an
+#: INELIGIBLE BYPASS REFUSES THE WHOLE ACTION. Live 2026-08-18 a user-requested
+#: browser task died here after clearing every authority gate before it.
+#:
+#: Eligibility is therefore by class. "The rehearsal could not run" is exactly
+#: what a bypass is for, however the unavailability spelled itself. An
+#: `episode_integrity_*` reason is the opposite — the rehearsal ran and refused
+#: — and must never bypass, because that is the case the allowlist exists to
+#: stop from masquerading as a decision.
+_BYPASS_REASON_PREFIXES = ("availability_failure:",)
+
+
+def _bypass_reason_is_eligible(reason: str) -> bool:
+    """Whether this reason describes an unavailable rehearsal rather than a verdict."""
+    if reason in _BYPASS_REASONS:
+        return True
+    return any(reason.startswith(prefix) for prefix in _BYPASS_REASON_PREFIXES)
+
+
 _TRANSACTION_FIELDS = frozenset(
     {
         "schema",
@@ -1102,8 +1128,10 @@ class ExternalExecuteCoordinator:
 
         normalized = validate_external_execution_offer(offer)
         bounded_reason = str(reason or "unknown")[:240]
-        if bounded_reason not in _BYPASS_REASONS:
-            raise ValueError("external execution bypass reason is not eligible")
+        if not _bypass_reason_is_eligible(bounded_reason):
+            raise ValueError(
+                f"external execution bypass reason is not eligible: {bounded_reason}"
+            )
         path = _transaction_path(self.root, normalized["action_id"])
         with interprocess_file_lock(path.with_suffix(".lock")):
             transaction = self._load(path)
