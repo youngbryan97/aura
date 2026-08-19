@@ -38,6 +38,23 @@ def _blocks(prompt: str) -> list[str]:
     return asyncio.run(observable_blocks(prompt))
 
 
+@pytest.fixture(autouse=True)
+def _registry_is_restored():
+    """Test observables must not outlive the test that registered them.
+
+    Several tests here register matchers that accept everything. The registry
+    is module-global, so one of those leaking made
+    `test_a_conversational_turn_takes_no_readings` fail whenever it ran after
+    them and pass on its own — the shape of an order-dependence defect, and it
+    reports as a failure in whichever test happened to run second.
+    """
+    original = list(OBSERVABLES)
+    try:
+        yield
+    finally:
+        OBSERVABLES[:] = original
+
+
 # ── the registry is populated and routes ────────────────────────────────────
 
 def test_the_expected_observables_are_registered() -> None:

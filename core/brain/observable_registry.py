@@ -377,7 +377,11 @@ async def _read_beliefs(_prompt: str) -> str:
 #: about history and the pending list answers nothing about it.
 _PENDING_MARKER = (
     r"(?:queued|scheduled|pending|planned|upcoming|deferred|backlog|"
-    r"waiting\s+to\s+run|next|later|afterwards?|going\s+to|about\s+to|"
+    # `waiting to run` is the coordinator's own phrase; a person says "do you
+    # have work waiting?" and means the same list. The clause-scoped proximity
+    # to her activity, and now the requirement that the sentence asks, keep the
+    # bare word from reading "I'm waiting" as a question about her queue.
+    r"waiting|next|later|afterwards?|going\s+to|about\s+to|"
     r"will\s+you|you'?ll)"
 )
 _HER_ACTIVITY = (
@@ -403,12 +407,33 @@ _ASKS_QUEUED_WORK = re.compile(
 )
 
 
+#: Sentences that ASK. The inferential path below reads a queue only for these.
+#:
+#: "Work through all 60 and keep going to the next set" matched the loose
+#: pattern — `work` as her activity, `going to` as a pending marker — and a
+#: nine-minute instruction to fill in a questionnaire was answered with a list
+#: of deferred maintenance jobs. The words were there; the question was not.
+#:
+#: An imperative is not a question about her queue even when it talks about
+#: what happens next, which is most instructions. The strict path is
+#: unaffected: naming the queue outright ("tell me what you have queued") still
+#: asks for it, imperative or otherwise.
+_IS_A_QUESTION = re.compile(
+    r"\?"
+    r"|^\s*(?:what|when|whats|what's|anything|any\s+more|is\s+there|are\s+there|"
+    r"do\s+you|have\s+you|will\s+you|got\s+anything)\b",
+    re.IGNORECASE,
+)
+
+
 def _matches_queued_work(prompt: str) -> bool:
     text = str(prompt or "")
     if _PAST_TENSE.search(text):
         return False
     if _NAMES_PENDING_WORK.search(text):
         return True
+    if not _IS_A_QUESTION.search(text):
+        return False
     return bool(_ASKS_QUEUED_WORK.search(text))
 
 

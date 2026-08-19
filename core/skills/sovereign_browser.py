@@ -1934,8 +1934,19 @@ class SovereignBrowserSkill(BaseSkill):
                         decision.get("error"),
                         str(decision.get("raw") or "(no text captured)"),
                     )
+                    # One unreadable answer is a bad round, not the end.
+                    #
+                    # Measured live: a run that had worked a form for nine
+                    # minutes ended on a single unparsable reply, and the whole
+                    # thing was reported as `unparsable_decision` — as though
+                    # nothing had happened. Looking again costs one round; the
+                    # stall counter still ends a run where nothing is landing.
                     steps.append({"error": decision["error"]})
-                    break
+                    stalled += 1
+                    if stalled >= self.PURSUE_STALL_LIMIT:
+                        break
+                    surprised = True
+                    continue
                 # "Done" before anything has been done is not done.
                 #
                 # Live 2026-08-18: asked to work through a sixty-item

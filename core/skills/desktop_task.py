@@ -5905,18 +5905,33 @@ class DesktopTaskSkill(BaseSkill):
             }
             for index, step in enumerate(rounds)
         ]
-        succeeded = bool(report.get("ok")) and not failure
+        # An errored round is not a failed task.
+        #
+        # `failure` was any error on any round, so one unreadable reply at
+        # round forty-one flipped the verdict on everything before it.
+        # Measured live: a nine-minute run that answered most of a sixty-item
+        # form came back `unparsable_decision`, and the reply she gave was
+        # about something else entirely, because the tool had told her it had
+        # done nothing.
+        #
+        # What stopped her is worth reporting either way, so it stays — as a
+        # note beside the work rather than instead of it. Only a run where
+        # nothing landed is a failure.
+        landed_rounds = sum(1 for step in rounds if step.get("ok"))
+        succeeded = bool(report.get("ok")) and landed_rounds > 0
         return {
             "ok": succeeded,
             "status": "completed" if succeeded else "failed",
-            **({"error": failure} if failure else {}),
+            **({"error": failure} if failure and not succeeded else {}),
+            **({"stopped_because": failure} if failure and succeeded else {}),
             "objective": objective,
             "receipts": receipts,
             "failures": [] if succeeded else [r for r in receipts if not r["ok"]],
             "planner": "browser_pursuit",
             "summary": (
                 f"Worked through {report.get('final_url') or url} over "
-                f"{len(rounds)} round(s)."
+                f"{len(rounds)} round(s)"
+                + (f", then stopped: {failure}." if failure else ".")
             ),
             "url": report.get("final_url") or url,
             # The names the task-level contract checks. This lane's expectation
