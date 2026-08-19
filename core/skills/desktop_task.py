@@ -26,6 +26,7 @@ from core.runtime.desktop_objective_intent import (
     looks_like_desktop_objective,
     looks_like_screen_observation,
 )
+from core.agency.watched_goal import read_watched_goal
 from core.runtime.desktop_task_contract import (
     DESKTOP_TASK_ALLOWED_ACTIONS,
     DESKTOP_TASK_RETRY_SAFE_ACTIONS,
@@ -4243,6 +4244,27 @@ class DesktopTaskSkill(BaseSkill):
         text = str(objective or "").strip()
         lowered = text.lower()
         steps: list[DesktopTaskStep] = []
+
+        # A goal to keep at comes first, because no single action satisfies one.
+        #
+        # LIVE 2026-08-19: "play 2048 until you get a 128 tile" reached the
+        # heuristics below, matched the browser in the sentence, and was
+        # planned as one open_app step. The turn then said "Done — opened
+        # Google Chrome" and reported the objective complete. Every branch
+        # after this point answers "what single thing is being asked for",
+        # which is the wrong question about a request carrying a condition.
+        watched = read_watched_goal(text)
+        if watched is not None:
+            return [
+                DesktopTaskStep(
+                    action="pursue_on_screen",
+                    target=json.dumps(watched.as_target()),
+                    reason=f"keep at it until {watched.success_when!r} is on screen",
+                    expect=f"{watched.success_when} appears",
+                    critical=True,
+                )
+            ]
+
         # A named file is an unambiguous instruction, and it has to be read
         # before the folder heuristics get a vote.
         #
