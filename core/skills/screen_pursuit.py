@@ -36,6 +36,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from core.runtime.errors import record_degradation
+from core.runtime.watched_goal import PURSUIT_SECONDS
 from core.skills.base_skill import BaseSkill
 
 logger = logging.getLogger("Aura.ScreenPursuit")
@@ -503,7 +504,7 @@ async def pursue_on_screen(
     think: Any = None,
     move_keys: Sequence[str] = DEFAULT_MOVES,
     max_cycles: int = 200,
-    max_seconds: float = 600.0,
+    max_seconds: float = PURSUIT_SECONDS,
     narrate: bool = True,
     region_top: float = 0.0,
     region_bottom: float = 1.0,

@@ -260,6 +260,13 @@ class DesktopTaskSkill(BaseSkill):
         objective = str(payload.get("objective") or payload.get("task") or "")
         if not objective:
             return cls.timeout_seconds
+        # A goal that is watched runs until it reaches its condition or its
+        # own clock stops it. The flat budget cancelled one mid-game: she had
+        # found the site, opened it and played to a score of 744, and the turn
+        # reported "Operation took too long. Completed 0/0 steps."
+        watched = read_watched_goal(objective)
+        if watched is not None:
+            return max(cls.timeout_seconds, float(watched.max_seconds) + cls._WATCHED_GOAL_GRACE_S)
         if not cls._objective_requests_research_document(objective):
             return cls.timeout_seconds
         sources = cls._requested_research_source_count(objective)
@@ -272,6 +279,9 @@ class DesktopTaskSkill(BaseSkill):
             + cls._SECONDS_TO_COMPOSE_A_DOCUMENT
             + cls._SECONDS_PER_RESEARCHED_SOURCE * sources
         )
+    #: Room for the action beneath to finish its last cycle and report. It is
+    #: bigger than the action's own grace because this waits on that.
+    _WATCHED_GOAL_GRACE_S = 60.0
     _DOCUMENT_BODY_TOKENS = (
         "{{document_body}}",
         "${document_body}",

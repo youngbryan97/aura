@@ -54,6 +54,13 @@ BROWSERS = ("chrome", "safari", "firefox", "edge", "arc", "brave", "opera")
 #: Keys a task is about when it is played rather than filled in.
 BOARD_KEYS = ("up", "down", "left", "right")
 FORM_KEYS = ("tab", "return")
+#: How long a watched goal runs before it stops itself.
+#:
+#: One number, read by everything that has to agree about it: the pursuit
+#: that bounds itself, the action that wraps it, and the task that waits for
+#: the action. When they disagreed the outermost one won, and a run that was
+#: playing correctly was cancelled and reported as "Completed 0/0 steps".
+PURSUIT_SECONDS = 600.0
 
 
 @dataclass(frozen=True)
@@ -71,6 +78,7 @@ class WatchedGoal:
     #: thing itself, which she has to find. Empty when the task is about
     #: whatever is already in front of her.
     where: str = ""
+    max_seconds: float = PURSUIT_SECONDS
     detail: dict[str, Any] = field(default_factory=dict)
 
     def as_target(self) -> dict[str, Any]:
@@ -81,6 +89,7 @@ class WatchedGoal:
             "move_keys": list(self.move_keys),
             "region_top": self.region_top,
             "region_bottom": self.region_bottom,
+            "max_seconds": self.max_seconds,
         }
         if self.target_app:
             payload["target_app"] = self.target_app

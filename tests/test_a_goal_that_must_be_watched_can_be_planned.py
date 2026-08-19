@@ -194,3 +194,39 @@ def test_a_malformed_target_still_gets_a_workable_budget():
     from core.skills.computer_use import ComputerUseSkill
 
     assert ComputerUseSkill.timeout_for({"action": "pursue_on_screen", "target": "not json"}) > 30.0
+
+
+def test_every_layer_agrees_on_how_long_a_watched_goal_gets():
+    """LIVE: she found the site, opened it, played to a score of 744, and the
+    turn reported "Operation took too long. Completed 0/0 steps."
+
+    Three layers each had their own idea of the budget and the outermost one
+    was smallest, so the run that was working got cancelled. They read one
+    number now, and each wraps the one below it.
+    """
+    from core.runtime.watched_goal import PURSUIT_SECONDS, read_watched_goal
+    from core.skills.computer_use import ComputerUseSkill
+    from core.skills.desktop_task import DesktopTaskSkill
+
+    goal = read_watched_goal("Go find a 2048 game online and play it until you get a 128 tile.")
+    assert goal is not None
+    action = ComputerUseSkill.timeout_for(
+        {"action": "pursue_on_screen", "target": json.dumps(goal.as_target())}
+    )
+    task = DesktopTaskSkill.timeout_for(
+        {"objective": "Go find a 2048 game online and play it until you get a 128 tile."}
+    )
+    assert PURSUIT_SECONDS < action < task
+
+
+def test_an_ordinary_desktop_request_keeps_its_ordinary_budget():
+    from core.skills.desktop_task import DesktopTaskSkill
+
+    assert DesktopTaskSkill.timeout_for({"objective": "open Chrome"}) == DesktopTaskSkill.timeout_seconds
+
+
+def test_the_pursuit_declares_its_own_limit_so_the_layers_can_read_it():
+    from core.runtime.watched_goal import PURSUIT_SECONDS, read_watched_goal
+
+    goal = read_watched_goal("play 2048 until you get 128")
+    assert goal.as_target()["max_seconds"] == PURSUIT_SECONDS

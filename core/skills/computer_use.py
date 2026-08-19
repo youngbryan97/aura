@@ -242,11 +242,13 @@ class ComputerUseSkill(BaseSkill):
         """The limit a pursuit gave itself, read from its own target."""
         payload = params if isinstance(params, dict) else None
         target = payload.get("target") if payload else getattr(params, "target", "")
+        from core.runtime.watched_goal import PURSUIT_SECONDS  # noqa: PLC0415
+
         try:
             declared = cls._target_json(str(target or "{}")).get("max_seconds")
             return max(0.0, float(declared))
         except (TypeError, ValueError, AttributeError):
-            return 600.0
+            return PURSUIT_SECONDS
 
     PERMISSION_CHECK_TIMEOUT_S = 3.0
     MAX_APPLESCRIPT_CHARS = 4000
