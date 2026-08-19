@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import time
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Mapping, Sequence
@@ -251,10 +252,47 @@ def choose_named(reply: str, options: Sequence[ActionOption]) -> ActionOption | 
     return latest[1] if latest else None
 
 
+def _distinctive(text: str) -> set[str]:
+    """The words in a phrase that carry what it is about."""
+    # Function words only. An earlier version also dropped "play" and "game"
+    # as too common, which removed the very words that separate a place to
+    # play something from an article about it — the discrimination this exists
+    # to make.
+    common = {
+        "the", "a", "an", "and", "or", "of", "to", "in", "on", "at", "for", "with",
+        "it", "its", "this", "that", "you", "your", "get", "got", "go", "going",
+        "keep", "until", "then", "so", "as", "up", "out", "one", "some", "any",
+        "com", "org", "www", "https", "http",
+    }
+    return {
+        word
+        for word in re.findall(r"[a-z0-9]+", str(text or "").lower())
+        if len(word) > 2 and word not in common
+    }
+
+
+def _describes_the_same_thing(wanted: str, option: "ActionOption") -> float:
+    """How much an option's own description matches what she is trying to do.
+
+    The only way to tell a place from a page about the place, without asking
+    anything: the words each option carries about itself, against the words
+    of the goal. Measured live — with the resident model down, every search
+    result looked identical and the encyclopedia article won on ordering.
+    """
+    goal_words = _distinctive(wanted)
+    if not goal_words:
+        return 0.0
+    described = _distinctive(f"{option.name} {option.detail}")
+    if not described:
+        return 0.0
+    return len(goal_words & described) / len(goal_words)
+
+
 def choose_without_language(
     options: Sequence[ActionOption],
     history: Sequence[Attempt] = (),
     recalled: Sequence[str] = (),
+    wanted: str = "",
 ) -> tuple[ActionOption | None, str]:
     """Pick a move from evidence alone, with no language anywhere in it.
 
@@ -281,11 +319,18 @@ def choose_without_language(
             failed_recently[attempt.option] = failed_recently.get(attempt.option, 0) + 1
 
     scored: list[tuple[float, int, ActionOption]] = []
+    matched: dict[str, float] = {}
     for option in options:
         lines = [line for line in recalled if line.startswith(option.name)]
         score = confidence_from_history(lines)
         # A move that just changed nothing is the worst thing to repeat.
         score -= 0.25 * failed_recently.get(option.name, 0)
+        # What an option says about itself, against what she is trying to do.
+        # Weighted to outrank the tie-breaks below without overriding a real
+        # record of something working or failing.
+        overlap = _describes_the_same_thing(wanted, option)
+        matched[option.name] = overlap
+        score += 0.4 * overlap
         # Among equals, the one left alone longest.
         staleness = -tried_at.get(option.name, -1)
         scored.append((score, staleness, option))
@@ -294,6 +339,10 @@ def choose_without_language(
     best_score, _staleness, best = scored[0]
     if failed_recently.get(best.name):
         why = f"{best.name} is the least bad of what is left"
+    elif matched.get(best.name, 0.0) > 0.0 and not any(
+        line.startswith(best.name) for line in recalled
+    ):
+        why = f"{best.name} is the one that describes what I am trying to do"
     elif best_score > UNTRIED_CONFIDENCE:
         why = f"{best.name} has worked here before"
     elif any(attempt.option == best.name for attempt in history):
@@ -354,7 +403,7 @@ async def deliberate(
 
     chosen = choose_named(reply or "", options) if spoke else None
     if chosen is None:
-        structural, why = choose_without_language(options, history, recalled)
+        structural, why = choose_without_language(options, history, recalled, wanted=goal)
         if structural is None:
             return Deliberation(
                 goal=goal,

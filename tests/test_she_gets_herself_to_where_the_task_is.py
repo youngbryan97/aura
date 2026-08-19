@@ -242,3 +242,50 @@ async def test_without_a_purpose_it_still_decides_on_the_name_alone():
     think = _thinks("play2048.co")
     got = await reach("2048 game", browser=browser, think=think, lived=False)
     assert got.arrived
+
+
+def test_without_language_the_option_that_describes_the_task_wins():
+    """LIVE: with the resident model down, every result looked identical and
+    the encyclopedia article won on ordering.
+
+    The only way to tell a place from a page about the place, without asking
+    anything, is the words each option carries about itself.
+    """
+    from core.agency.deliberate_action import ActionOption, choose_without_language
+
+    options = [
+        ActionOption(name="en.wikipedia.org", detail="2048 (video game) - Wikipedia"),
+        ActionOption(name="play2048.co", detail="2048 - Play the Free Online Game"),
+        ActionOption(name="crazygames.com", detail="2048 Games - Play on CrazyGames"),
+    ]
+    playing, why = choose_without_language(
+        options, wanted="get to where this can be done: play 2048 until you get a 128 tile"
+    )
+    assert playing.name == "play2048.co"
+    assert "describes what I am trying to do" in why
+
+    reading, _why = choose_without_language(
+        options, wanted="read the wikipedia article about the 2048 video game"
+    )
+    assert reading.name == "en.wikipedia.org"
+
+
+def test_a_record_of_something_working_still_outranks_a_description():
+    from core.agency.deliberate_action import ActionOption, choose_without_language
+
+    options = [ActionOption(name="up", detail="press up"), ActionOption(name="down", detail="press down")]
+    chosen, _why = choose_without_language(
+        options, recalled=["down worked before: tiles merged"] * 4, wanted="press up"
+    )
+    assert chosen.name == "down"
+
+
+@pytest.mark.asyncio
+async def test_being_there_already_is_not_a_reason_to_search_again():
+    """A retried pursuit searched a second time and left the game."""
+    browser = _Browser(results=RESULTS)
+    browser.page = {"url": "https://play2048.co/", "title": "2048"}
+    got = await reach("https://play2048.co/", browser=browser, lived=False)
+    assert got.arrived
+    assert got.because == "already there"
+    assert browser.searched == [] and browser.opened == []

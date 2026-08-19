@@ -170,6 +170,25 @@ async def reach(
             outcome.reason = "the browser is not available"
             return outcome
 
+    # Already there is already arrived.
+    #
+    # A pursuit that is retried re-runs this, and searching again from a page
+    # that is already the right one is how a run in progress gets navigated
+    # away from itself. Measured live: a retried pursuit searched a second
+    # time, chose differently, and left the game.
+    try:
+        already = await browser.current_page()
+    except (RuntimeError, OSError, AttributeError, TypeError, ValueError):
+        already = {}
+    here = str(already.get("url") or "")
+    asked_host = host_of(named_url(wanted) or wanted)
+    if here and asked_host and host_of(here) == asked_host:
+        outcome.url = here
+        outcome.title = str(already.get("title") or "")
+        outcome.arrived = True
+        outcome.because = "already there"
+        return outcome
+
     url = named_url(wanted)
     if not url:
         try:
