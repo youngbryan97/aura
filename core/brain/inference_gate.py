@@ -9352,9 +9352,37 @@ class InferenceGate:
             or context.get("current_user_message")
             or ""
         ).strip()
-        initial_visible_user_prompt = (
-            explicit_visible_user_prompt
-            or self._visible_user_prompt_from_messages(initial_messages, prompt)
+        # The user's question is supplied, never inferred from the prompt.
+        #
+        # A chat turn hands this in — response generation passes
+        # visible_user_message and user_surface_validation_prompt, and so does
+        # every path that produces a visible reply. When nobody supplies one,
+        # reading the last user-role message out of the envelope does not
+        # recover it: it invents it, out of whatever text the caller happened
+        # to send the model.
+        #
+        # LIVE 2026-08-19: deciding a move on a 2048 board, the deliberation's
+        # own prompt became "the question". It carried a screen reading full of
+        # numbers, so the reply was required to contain a total, and
+        #
+        #   "right — the board is mostly open on the right side, sliding right
+        #    consolidates the smaller numbers and creates space"
+        #
+        # was rejected as arithmetic_answer_missing. Three retries, then no
+        # text at all, and the pursuit reported she had named no move.
+        #
+        # The fallback survives where it is meaningful: an origin that really
+        # is a person talking. Anywhere else an unsupplied question means
+        # there is no user turn here to grade.
+        # Read here rather than at its later assignment: this decision is
+        # made before the binding, and the binding is the thing being guarded.
+        derivable = self._origin_is_user_facing(
+            str(context.get("origin", "") or "").lower()
+        )
+        initial_visible_user_prompt = explicit_visible_user_prompt or (
+            self._visible_user_prompt_from_messages(initial_messages, prompt)
+            if derivable
+            else ""
         )
         surface_prompt = resolve_user_surface_prompt(
             context,
@@ -9400,6 +9428,11 @@ class InferenceGate:
         )
         if internal_inference_call:
             context["internal_inference"] = True
+        elif not initial_visible_user_prompt and not surface_prompt.bound:
+            # Nothing to grade against, so nothing is bound. Binding an empty
+            # prompt is what let the checks downstream fall back to reading
+            # the model prompt again.
+            pass
         elif not surface_prompt.bound or stale_binding:
             if stale_binding:
                 logger.warning(
