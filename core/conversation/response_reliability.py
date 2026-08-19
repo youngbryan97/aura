@@ -5897,7 +5897,15 @@ _QUOTED_OUTPUT_CLAIM_RE = re.compile(
     r"|\bthe\s+(?:output|result)\s+(?:of|from)\s+(?:running|executing)\b"
     r"|\b(?:code|script|command|program|snippet|cell)\s+"
     r"(?:ran|executed|completed)\b"
-    r"|\bi\s+(?:just\s+)?(?:ran|executed)\s+(?:it|this|that|the)\b"
+    # "I ran the SEARCH" is an execution claim, not a quoted output, and a
+    # web_search receipt is exactly its evidence. Including a bare "the"
+    # here sent every "I ran the <anything>" down the strict branch, which
+    # demands an executor-surface receipt — so a true reply backed by a real
+    # search receipt was destroyed as a fabrication. "I ran the code" stays
+    # strict, because that IS a claim about an executor.
+    r"|\bi\s+(?:just\s+)?(?:ran|executed)\s+(?:it|this|that)\b"
+    r"|\bi\s+(?:just\s+)?(?:ran|executed)\s+the\s+"
+    r"(?:code|script|command|program|snippet|cell|query|function)\b"
     r")",
     re.IGNORECASE,
 )
