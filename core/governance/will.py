@@ -337,6 +337,39 @@ def _make_receipt_id(ts: float, source: str, content: str) -> str:
     return "will_" + hashlib.sha256(raw.encode()).hexdigest()[:12]
 
 
+def _derived_effect_scope(context: Mapping[str, Any] | None) -> str:
+    """What this action actually costs, computed rather than claimed."""
+    ctx = dict(context or {})
+    tool = ctx.get("tool") or ctx.get("skill") or ""
+    args = ctx.get("authority_arguments")
+    try:
+        from core.executive.execution_policy import resolve_execution_effect_scope
+
+        return str(resolve_execution_effect_scope(tool, args if isinstance(args, dict) else {}))
+    except (ImportError, AttributeError, TypeError, ValueError):
+        return str(ctx.get("effect_scope") or "")
+
+
+def _derived_risk_level(context: Mapping[str, Any] | None) -> str:
+    ctx = dict(context or {})
+    tool = ctx.get("tool") or ctx.get("skill") or ""
+    args = ctx.get("authority_arguments")
+    try:
+        from core.executive.execution_policy import (
+            classify_execution_risk,
+            resolve_execution_effect_scope,
+        )
+
+        payload = args if isinstance(args, dict) else {}
+        return str(
+            classify_execution_risk(
+                tool, payload, effect_scope=resolve_execution_effect_scope(tool, payload)
+            )
+        )
+    except (ImportError, AttributeError, TypeError, ValueError):
+        return str(ctx.get("risk_level") or "")
+
+
 class UnifiedWill:
     """The single locus of decision authority.
 
@@ -2050,8 +2083,23 @@ class UnifiedWill:
                             origin=context.get("authority_origin")
                             or context.get("origin")
                             or context.get("source"),
-                            effect_scope=context.get("effect_scope"),
-                            risk_level=context.get("risk_level"),
+                            # DERIVED, never taken from the caller.
+                            #
+                            # The gateway computes these with
+                            # `resolve_execution_effect_scope` and
+                            # `classify_execution_risk` when it issues the
+                            # lease. Reading them from the context instead meant
+                            # the two sides could disagree — a caller that
+                            # declared "state_changing" against a lease recorded
+                            # as something else answered
+                            # `standing_authority_effect_scope_mismatch`, and a
+                            # caller that declared nothing matched nothing.
+                            #
+                            # Deriving both from the same functions makes them
+                            # agree by construction, and removes the question of
+                            # whether an action may describe its own cost.
+                            effect_scope=_derived_effect_scope(context),
+                            risk_level=_derived_risk_level(context),
                         )
                     )
                     if domain is not ActionDomain.TOOL_EXECUTION:

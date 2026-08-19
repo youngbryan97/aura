@@ -352,13 +352,17 @@ class SovereignBrowserSkill(BaseSkill):
         # grant is what the lease, the receipt and the origin check are all
         # derived from, and a browser acting without one is acting on nobody's
         # authority.
+        # No effect_scope or risk_level here on purpose. Those are DERIVED
+        # from the tool and its arguments, by the gateway when it issues the
+        # lease and by the will when it validates one. A skill declaring its
+        # own cost is a skill grading its own homework, and when the two
+        # descriptions disagreed the answer was
+        # `standing_authority_effect_scope_mismatch`.
         authority_view: dict[str, Any] = {
             "tool": "sovereign_browser",
             "authority_origin": str(
                 context.get("authority_origin") or context.get("origin") or source
             )[:240],
-            "effect_scope": "read_only" if params.mode in {"search", "browse"} else "state_changing",
-            "risk_level": "low" if params.mode in {"search", "browse"} else "medium",
         }
         try:
             from core.executive.authority_gateway import get_authority_gateway

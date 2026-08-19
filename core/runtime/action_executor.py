@@ -316,8 +316,6 @@ _PRESENTABLE_AUTHORITY_KEYS = frozenset(
         "capability_token_id",
         "executive_intent_id",
         "authority_origin",
-        "effect_scope",
-        "risk_level",
         "tool",
         "skill",
     }
