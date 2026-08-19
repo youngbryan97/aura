@@ -357,3 +357,56 @@ async def test_a_remembered_place_that_is_not_a_url_is_ignored():
     browser = _Browser(results=RESULTS)
     await reach("2048 game", browser=browser, think=_thinks("play2048.co"), graph=graph, lived=False)
     assert browser.searched, "a note that is not an address cannot be navigated to"
+
+
+@pytest.mark.asyncio
+async def test_the_page_she_opened_is_the_window_she_acts_on(monkeypatch):
+    """LIVE: she found the game, opened it, then read whatever window happened
+    to be frontmost — reporting that nothing on screen offered a move, half a
+    second in, having never seen the board.
+
+    Opening a page does not put it in front.
+    """
+    from core.skills import screen_pursuit as sp
+
+    fronted = []
+
+    async def frontmost(app):
+        fronted.append(app)
+        return True
+
+    async def read(app_name=""):
+        return {"ok": True, "text": "board", "layout": [], "bounds": []}
+
+    async def press(key, *, expect_app=""):
+        return True
+
+    async def identity():
+        return {"url": "https://play2048.co/", "title": "2048", "error": ""}
+
+    async def arrived(wanted, **kw):
+        from core.agency.reach_place import Reached
+
+        return Reached(
+            wanted=wanted, url="https://play2048.co/", title="2048", arrived=True, app="Google Chrome"
+        )
+
+    monkeypatch.setattr(sp, "_ensure_frontmost", frontmost)
+    monkeypatch.setattr(sp, "read_screen", read)
+    monkeypatch.setattr(sp, "press", press)
+    monkeypatch.setattr(sp, "current_page_identity", identity)
+    import core.agency.reach_place as rp
+
+    monkeypatch.setattr(rp, "reach", arrived)
+
+    await sp.pursue_on_screen(
+        goal="play until 128",
+        success_when="never happens",
+        open_page="2048 game",
+        think=_thinks("up"),
+        max_cycles=1,
+        max_seconds=5.0,
+        narrate=False,
+        lived=False,
+    )
+    assert "Google Chrome" in fronted, "she acted without bringing the page to the front"

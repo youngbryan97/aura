@@ -41,6 +41,10 @@ class Reached:
     wanted: str
     url: str = ""
     title: str = ""
+    #: The application the page is in, so whatever acts on it can bring it to
+    #: the front. A page she opened and never fronted is a page she cannot
+    #: read: the screen belongs to whatever was already there.
+    app: str = ""
     arrived: bool = False
     because: str = ""
     considered: tuple[str, ...] = ()
@@ -289,6 +293,7 @@ async def reach(
     outcome.arrived = bool(wanted_host) and host_of(landed) == wanted_host
     if not outcome.arrived:
         outcome.reason = f"the browser is on {host_of(landed) or 'nothing'}, not {wanted_host}"
+    outcome.app = str(getattr(browser, "_preferred_browser", "") or "")
     outcome.detail = {"asked_for": url, "landed_on": landed}
     if outcome.arrived:
         _remember_arrival(wanted, outcome.url, graph=graph)

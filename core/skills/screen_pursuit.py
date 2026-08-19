@@ -1096,6 +1096,14 @@ async def pursue_on_screen(
             # The run belongs to the page she just opened.
             expect_page = reached.url or reached.title
             anchor["page"] = expect_page
+        if not target_app and reached.app:
+            # And to the application that page is in.
+            #
+            # Opening a page does not put it in front. Measured live: she
+            # found the game, opened it, and then read whatever window
+            # happened to be frontmost — reporting that nothing on screen
+            # offered a move, half a second in, having never seen the board.
+            target_app = reached.app
 
     # Narration runs beside the pursuit, never inside it.
     #
