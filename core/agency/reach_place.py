@@ -79,6 +79,51 @@ def _usable(rows: Any) -> list[dict[str, str]]:
     return candidates[:CANDIDATES]
 
 
+
+#: How an arrival is filed, so it can be found again by the same want.
+REMEMBERED_AS = "reach"
+
+
+def _remember_key(wanted: str) -> str:
+    return f"{REMEMBERED_AS}:{' '.join(str(wanted or '').lower().split())[:80]}"
+
+
+def where_she_went_before(wanted: str, *, graph: Any = None) -> str:
+    """Somewhere she has already reached for this, if there is one.
+
+    A place she has been is a place she knows how to get to. Searching for it
+    again is forgetting: it costs a network round trip, it re-opens a decision
+    she already made, and it can land somewhere else this time because search
+    results move.
+    """
+    try:
+        if graph is None:
+            from core.world_model.acg import acg as graph  # noqa: PLC0415
+        rows = graph.query_consequences(_remember_key(wanted)) or []
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        record_degradation("reach_place", exc, severity="info", action="recall where she went before")
+        return ""
+    for row in rows:
+        if not isinstance(row, dict) or not row.get("success"):
+            continue
+        remembered = str(row.get("outcome") or "").strip()
+        if remembered.startswith(("http://", "https://")):
+            return remembered
+    return ""
+
+
+def _remember_arrival(wanted: str, url: str, *, graph: Any = None) -> None:
+    """File where this want led, so the next one is a visit and not a search."""
+    if not url:
+        return
+    try:
+        if graph is None:
+            from core.world_model.acg import acg as graph  # noqa: PLC0415
+        graph.record_outcome(_remember_key(wanted), "getting to where a task happens", url, True)
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        record_degradation("reach_place", exc, severity="info", action="remember where she went")
+
+
 async def _choose_destination(
     wanted: str,
     candidates: Sequence[dict[str, str]],
@@ -140,6 +185,7 @@ async def reach(
     browser: Any = None,
     lived: bool = True,
     purpose: str = "",
+    graph: Any = None,
 ) -> Reached:
     """Get to where ``wanted`` happens, and confirm arrival by looking.
 
@@ -184,6 +230,12 @@ async def reach(
         return outcome
 
     url = named_url(wanted)
+    if not url:
+        # Somewhere she has already been, before asking anyone.
+        known = where_she_went_before(wanted, graph=graph)
+        if known:
+            url = known
+            outcome.because = "I have been here before"
     if not url:
         # Searched without navigating.
         #
@@ -238,4 +290,6 @@ async def reach(
     if not outcome.arrived:
         outcome.reason = f"the browser is on {host_of(landed) or 'nothing'}, not {wanted_host}"
     outcome.detail = {"asked_for": url, "landed_on": landed}
+    if outcome.arrived:
+        _remember_arrival(wanted, outcome.url, graph=graph)
     return outcome

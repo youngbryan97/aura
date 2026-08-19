@@ -16,9 +16,18 @@ from core.agency.reach_place import host_of, named_url, reach
 from core.runtime.watched_goal import read_watched_goal
 
 
-class _Receipt:
-    def __init__(self, result):
-        self.result = result
+class _Graph:
+    """A consequence graph that remembers only what a test puts in it."""
+
+    def __init__(self, rows=None):
+        self.rows = dict(rows or {})
+        self.written = []
+
+    def query_consequences(self, action, params=None):
+        return self.rows.get(action, [])
+
+    def record_outcome(self, action, context, outcome, success):
+        self.written.append((action, outcome, success))
 
 
 class _Browser:
@@ -100,7 +109,7 @@ async def test_a_navigation_that_landed_elsewhere_is_not_an_arrival():
 async def test_a_named_thing_is_searched_for_and_the_destination_is_decided():
     browser = _Browser(results=RESULTS)
     think = _thinks("play2048.co is the game itself, wikipedia is an article about it")
-    got = await reach("2048", browser=browser, think=think, lived=False)
+    got = await reach("2048", browser=browser, think=think, lived=False, graph=_Graph())
     assert browser.searched == ["2048"]
     assert got.arrived
     assert got.url == "https://play2048.co/"
@@ -111,7 +120,7 @@ async def test_a_named_thing_is_searched_for_and_the_destination_is_decided():
 async def test_the_choice_of_destination_is_between_real_results_only():
     browser = _Browser(results=RESULTS)
     think = _thinks("en.wikipedia.org")
-    got = await reach("2048", browser=browser, think=think, lived=False)
+    got = await reach("2048", browser=browser, think=think, lived=False, graph=_Graph())
     assert got.url == "https://en.wikipedia.org/wiki/2048_(video_game)"
     assert set(got.considered) == {"play2048.co", "en.wikipedia.org"}
 
@@ -119,7 +128,7 @@ async def test_the_choice_of_destination_is_between_real_results_only():
 @pytest.mark.asyncio
 async def test_a_search_that_returns_nothing_openable_is_said_plainly():
     browser = _Browser(results=[])
-    got = await reach("something that does not exist", browser=browser, think=_thinks("x"), lived=False)
+    got = await reach("something that does not exist", browser=browser, think=_thinks("x"), lived=False, graph=_Graph())
     assert not got.arrived
     assert "returned nothing" in got.reason
     assert browser.opened == []
@@ -225,6 +234,7 @@ async def test_the_destination_decision_knows_what_she_means_to_do_there():
         browser=browser,
         think=think,
         lived=False,
+        graph=_Graph(),
         purpose="play it until you get a 128 tile",
     )
     evidence = " ".join(think.seen)
@@ -238,7 +248,7 @@ async def test_the_destination_decision_knows_what_she_means_to_do_there():
 async def test_without_a_purpose_it_still_decides_on_the_name_alone():
     browser = _Browser(results=RESULTS)
     think = _thinks("play2048.co")
-    got = await reach("2048 game", browser=browser, think=think, lived=False)
+    got = await reach("2048 game", browser=browser, think=think, lived=False, graph=_Graph())
     assert got.arrived
 
 
@@ -299,6 +309,51 @@ async def test_finding_where_to_go_does_not_put_a_search_page_in_front():
     the front tab — found a search engine.
     """
     browser = _Browser(results=RESULTS)
-    got = await reach("2048 game", browser=browser, think=_thinks("play2048.co"), lived=False)
+    got = await reach("2048 game", browser=browser, think=_thinks("play2048.co"), lived=False, graph=_Graph())
     assert got.arrived
     assert browser.opened == ["https://play2048.co/"], "something other than the destination was opened"
+
+
+@pytest.mark.asyncio
+async def test_a_place_she_has_been_is_a_place_she_knows_how_to_get_to():
+    """Searching for it again is forgetting."""
+    from core.agency.reach_place import _remember_key
+
+    graph = _Graph({_remember_key("2048 game"): [{"outcome": "https://play2048.co/", "success": True}]})
+    browser = _Browser(results=RESULTS)
+    got = await reach("2048 game", browser=browser, graph=graph, lived=False)
+    assert got.arrived
+    assert browser.searched == [], "she searched for somewhere she had already been"
+    assert browser.opened == ["https://play2048.co/"]
+    assert got.because == "I have been here before"
+
+
+@pytest.mark.asyncio
+async def test_arriving_somewhere_new_is_remembered_for_next_time():
+    graph = _Graph()
+    browser = _Browser(results=RESULTS)
+    await reach("2048 game", browser=browser, think=_thinks("play2048.co"), graph=graph, lived=False)
+    assert graph.written, "she arrived and did not remember where"
+    action, url, success = graph.written[0]
+    assert action.startswith("reach:")
+    assert url == "https://play2048.co/"
+    assert success is True
+
+
+@pytest.mark.asyncio
+async def test_a_failed_arrival_is_not_remembered_as_the_way_there():
+    graph = _Graph()
+    browser = _Browser(results=RESULTS, lands_on="https://somewhere.else/")
+    got = await reach("https://play2048.co/", browser=browser, graph=graph, lived=False)
+    assert not got.arrived
+    assert graph.written == []
+
+
+@pytest.mark.asyncio
+async def test_a_remembered_place_that_is_not_a_url_is_ignored():
+    from core.agency.reach_place import _remember_key
+
+    graph = _Graph({_remember_key("2048 game"): [{"outcome": "it went fine", "success": True}]})
+    browser = _Browser(results=RESULTS)
+    await reach("2048 game", browser=browser, think=_thinks("play2048.co"), graph=graph, lived=False)
+    assert browser.searched, "a note that is not an address cannot be navigated to"
