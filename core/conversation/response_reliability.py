@@ -5887,13 +5887,53 @@ def _receipts_include(receipts: Iterable[Any] | None, pattern: re.Pattern[str]) 
 #: strict treatment: a quoted result must have had a producer.
 _QUOTED_OUTPUT_CLAIM_RE = re.compile(
     r"(?:"
-    r"\b(?:output|stdout|stderr|result|returned|prints?|printed)\s*[:=]\s*\S"
+    # A labelled result block, or the run asserted outright. Live 2026-08-19
+    # the small model wrote "The code executed successfully, and the output
+    # is: 5" with nothing dispatched — the strongest possible claim, and it
+    # matched nothing.
+    r"\b(?:output|stdout|stderr)\s*[:=]\s*\S"
     r"|\bit\s+printed\b"
     r"|\bhere(?:'s|\s+is)\s+(?:the\s+)?(?:actual\s+)?(?:output|stdout)\b"
     r"|\bthe\s+(?:output|result)\s+(?:of|from)\s+(?:running|executing)\b"
+    r"|\b(?:code|script|command|program|snippet|cell)\s+"
+    r"(?:ran|executed|completed)\b"
+    r"|\bi\s+(?:just\s+)?(?:ran|executed)\s+(?:it|this|that|the)\b"
     r")",
     re.IGNORECASE,
 )
+
+#: "the output is 5" — a quoted result ONLY if something ran in the same
+#: sentence.
+#:
+#: "The result is 19/66, so about 29 percent" ends an ordinary probability
+#: derivation, and an earlier version of this check annihilated correct
+#: arithmetic for phrasing its answer normally. A concrete value does not
+#: separate the two, because a stated conclusion is concrete as well. What
+#: separates them is whether the sentence says anything ran.
+_VALUE_ATTRIBUTED_RE = re.compile(
+    r"\b(?:output|result|stdout|return\s+value)\s+(?:is|was)\s*[:\-]?\s*"
+    r"(?=[\d\"'\[\{+-])",
+    re.IGNORECASE,
+)
+_EXECUTION_CONTEXT_RE = re.compile(
+    r"\b(?:ran|running|executed|executing|execution|script|sandbox|"
+    r"interpreter|repl|command|code|python|program|printed|prints)\b",
+    re.IGNORECASE,
+)
+
+
+def _quotes_a_result(raw: str) -> re.Match[str] | None:
+    """A claim that a value came back from something that ran."""
+    direct = _QUOTED_OUTPUT_CLAIM_RE.search(raw)
+    if direct:
+        return direct
+    attributed = _VALUE_ATTRIBUTED_RE.search(raw)
+    if not attributed:
+        return None
+    start = max(0, raw.rfind(".", 0, attributed.start()) + 1)
+    end = raw.find(".", attributed.end())
+    sentence = raw[start : end if end != -1 else len(raw)]
+    return attributed if _EXECUTION_CONTEXT_RE.search(sentence) else None
 
 
 #: Claims about what is ON a screen. These are PERCEPTION, not execution, and
@@ -6053,7 +6093,16 @@ def _has_unfounded_tool_execution_claim(
             if not _EXECUTION_CLAIM_HEDGE_RE.search(clause):
                 return True
 
-    match = _DESKTOP_ACTION_CLAIM_RE.search(raw) or _TOOL_EXECUTION_CLAIM_RE.search(raw)
+    # Quoting a result is its own entry condition. It was only a refinement
+    # INSIDE this branch, so a reply that quoted an output without also
+    # matching one of the older execution phrasings left before the check
+    # that exists for it — which is how "The code executed successfully, and
+    # the output is: 5" passed with nothing dispatched.
+    match = (
+        _DESKTOP_ACTION_CLAIM_RE.search(raw)
+        or _TOOL_EXECUTION_CLAIM_RE.search(raw)
+        or _quotes_a_result(raw)
+    )
     if not match:
         return False
     # Only the sentence carrying the claim decides whether it was hedged, and
@@ -6066,7 +6115,7 @@ def _has_unfounded_tool_execution_claim(
     # other kind of execution claim keeps the older, permissive reading, where
     # any receipt at all is enough, because those can be founded by work this
     # function cannot see and destroying a true reply is the worse error.
-    if _QUOTED_OUTPUT_CLAIM_RE.search(raw):
+    if _quotes_a_result(raw):
         if not _receipts_include(tool_receipts, _EXECUTOR_SURFACE_RE):
             return not _EXECUTION_CLAIM_HEDGE_RE.search(clause)
         return False

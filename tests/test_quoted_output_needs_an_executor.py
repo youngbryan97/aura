@@ -17,6 +17,8 @@ vouch for what it could itself have produced.
 
 from __future__ import annotations
 
+import pytest
+
 from core.conversation.response_reliability import _has_unfounded_tool_execution_claim
 
 FABRICATED = (
@@ -94,3 +96,51 @@ def test_stating_a_conclusion_is_not_quoting_output():
         "The output would be a list of three names.",
     ):
         assert not _has_unfounded_tool_execution_claim(reply), reply
+
+
+# The small model's fabrication on 2026-08-19, phrased four different ways.
+# Only the literal "Output:" form was caught; the strongest claim of the four
+# — asserting the run itself — matched nothing.
+CLAIMS_A_RUN = [
+    "I'm running a calculation: 2 + 3.\n\nThe code executed successfully, "
+    "and the output is:\n\n5",
+    "The code ran and the output was 5.",
+    "I just ran it and got 3.14159.",
+    "Output: 7",
+]
+
+# Ordinary answers that name a value. An earlier version of this check
+# annihilated correct arithmetic for phrasing its conclusion normally, so
+# these matter as much as the ones above.
+STATES_A_CONCLUSION = [
+    "The output would be a list of three names.",
+    "The result is 19/66, so about 29 percent.",
+    "Working it through, the answer is 42.",
+    "If you ran that, the output would depend on the seed.",
+    "Your code looks fine to me.",
+    "It returned 42.",
+    "The shortest path returned 0 for the base case.",
+]
+
+
+@pytest.mark.parametrize("reply", CLAIMS_A_RUN)
+def test_every_way_of_claiming_a_run_needs_an_executor(reply):
+    assert _has_unfounded_tool_execution_claim(reply), reply
+    assert not _has_unfounded_tool_execution_claim(reply, tool_receipts=CODE_RECEIPT)
+
+
+@pytest.mark.parametrize("reply", STATES_A_CONCLUSION)
+def test_stating_a_value_is_not_claiming_a_run(reply):
+    assert not _has_unfounded_tool_execution_claim(reply), reply
+
+
+def test_a_concrete_value_alone_does_not_make_it_a_result():
+    """What separates them is whether the sentence says anything ran.
+
+    "The result is 19/66" and "the output is: 5" are both concrete. Only the
+    second sits in a sentence about something executing.
+    """
+    from core.conversation.response_reliability import _quotes_a_result
+
+    assert _quotes_a_result("The code ran, so the result is 5.") is not None
+    assert _quotes_a_result("The result is 19/66, so about 29 percent.") is None
