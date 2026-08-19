@@ -50,7 +50,6 @@ class OutcomeLedger:
     def save(self) -> None:
         if not self.path:
             return
-        self.path.parent.mkdir(parents=True, exist_ok=True)
         get_file_write_gateway().write_text(
             self.path,
             json.dumps({k: asdict(v) for k, v in self.records.items()}, indent=2, sort_keys=True),

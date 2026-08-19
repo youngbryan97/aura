@@ -153,7 +153,6 @@ class ShadowRuntime:
                         result.warnings.append("Original code mismatch — file may have changed since patch was generated")
 
                 # 3. Apply mutation in shadow
-                shadow_file.parent.mkdir(parents=True, exist_ok=True)
                 await get_file_write_gateway().write_text_async(
                     shadow_file,
                     patched_code,

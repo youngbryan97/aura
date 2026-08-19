@@ -600,7 +600,6 @@ class CodingSessionMemory:
 
     def _save_locked(self) -> None:
         try:
-            self.persist_path.parent.mkdir(parents=True, exist_ok=True)
             atomic_write_json(
                 str(self.persist_path),
                 {

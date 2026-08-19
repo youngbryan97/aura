@@ -459,7 +459,6 @@ class EnvironmentBeliefGraph:
             ],
         }
         p = Path(path)
-        p.parent.mkdir(parents=True, exist_ok=True)
         get_file_write_gateway().write_text(
             p,
             json.dumps(payload, indent=2, default=str),

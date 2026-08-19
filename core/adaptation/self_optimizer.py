@@ -198,7 +198,6 @@ class SelfOptimizer:
                 if fusion_ok:
                     logger.info("🧠 Nucleus: Fusion successful. Updating active.json...")
                     active_json_path = self.base_model_path.parent.parent / "training" / "fused-model" / "active.json"
-                    active_json_path.parent.mkdir(parents=True, exist_ok=True)
                     await get_file_write_gateway().write_text_async(
                         active_json_path,
                         json.dumps({"active_model_path": str(fused_dir)}),

@@ -120,7 +120,6 @@ class BlindedWorkspaceFactory:
         # 1. Write interface stub
         stub_code = self._generate_stub(spec)
         stub_path = workspace_dir / spec.module_path
-        stub_path.parent.mkdir(parents=True, exist_ok=True)
         get_file_write_gateway().write_text(
             stub_path,
             stub_code,

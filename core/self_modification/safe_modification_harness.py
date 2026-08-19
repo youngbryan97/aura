@@ -299,7 +299,6 @@ class SafeModificationHarness:
         with tempfile.TemporaryDirectory(prefix="aura-harness-") as tmpdir:
             for fpath, content in file_contents.items():
                 tmp_file = Path(tmpdir) / fpath
-                tmp_file.parent.mkdir(parents=True, exist_ok=True)
                 get_file_write_gateway().write_text(
                     tmp_file,
                     content,

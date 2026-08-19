@@ -378,7 +378,6 @@ class TaskGraph:
 
     def persist(self, path: Path) -> None:
         """Save graph state to disk for crash recovery."""
-        path.parent.mkdir(parents=True, exist_ok=True)
         get_file_write_gateway().write_text(
             path,
             self.to_json(),

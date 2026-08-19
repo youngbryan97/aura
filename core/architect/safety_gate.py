@@ -176,7 +176,6 @@ class ASASafetyGate:
 
 
     def _save(self) -> None:
-        self.state_path.parent.mkdir(parents=True, exist_ok=True)
         get_file_write_gateway().write_text(
             self.state_path,
             json.dumps(self.state, indent=2, sort_keys=True, default=str),

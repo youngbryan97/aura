@@ -314,3 +314,21 @@ __all__ = [
     "main",
     "write_baseline",
 ]
+
+
+if __name__ == "__main__":  # pragma: no cover - entry point
+    # Run directly, this module used to parse nothing, write nothing, print
+    # nothing and exit 0 — which reads exactly like a clean run, and a
+    # `--write-baseline` that silently does nothing is worse than one that
+    # fails. It holds main() but takes its scanner from tools.lint_governance,
+    # so being an entry point means importing that first.
+    import sys
+    from pathlib import Path
+
+    # Run as a script, `tools` is not on the path — the directory holding this
+    # file is. The repository root is its parent.
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+    import tools.lint_governance  # noqa: F401  (installs the scanner facade)
+
+    raise SystemExit(main(sys.argv[1:]))

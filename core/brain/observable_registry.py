@@ -55,6 +55,22 @@ async def _read_computed_text(prompt: str) -> str:
     )
 
 
+# ── the question they say went unanswered ────────────────────────────────────
+
+def _matches_unanswered(prompt: str) -> bool:
+    from core.conversation.unanswered_question import (
+        complains_the_question_went_unanswered,
+    )
+
+    return complains_the_question_went_unanswered(prompt)
+
+
+async def _read_unanswered(prompt: str) -> str:
+    from core.conversation.unanswered_question import unanswered_question_block
+
+    return await asyncio.to_thread(unanswered_question_block, prompt)
+
+
 # ── how the last exact answer was actually produced ──────────────────────────
 
 def _matches_how_computed(prompt: str) -> bool:
@@ -977,6 +993,26 @@ def install_default_observables() -> None:
                 "what do you think about jazz?",
                 "what is 2 + 2",
                 "how does a lock work in general?",
+            ),
+        ),
+        Observable(
+            "unanswered_question",
+            "## THE QUESTION THEY SAY YOU DID NOT ANSWER",
+            _matches_unanswered,
+            _read_unanswered,
+            examples=(
+                "you didn't answer my question",
+                "you never answered my question",
+                "that's not what I asked",
+                "you dodged the question",
+                "answer my question",
+            ),
+            counter_examples=(
+                # A question ABOUT the transcript, which the transcript
+                # reading owns, and two turns that complain about nothing.
+                "what did I ask you two messages ago?",
+                "how are you doing",
+                "what is 2 + 2",
             ),
         ),
         Observable(

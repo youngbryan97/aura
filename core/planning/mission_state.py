@@ -574,7 +574,6 @@ class MissionState:
             elif action == "create_text_file":
                 path = _user_path(params.get("path", ""))
                 content = params.get("content", "")
-                path.parent.mkdir(parents=True, exist_ok=True)
                 await get_file_write_gateway().write_text_async(
                     path,
                     content,

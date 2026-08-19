@@ -45,8 +45,12 @@ BASELINE = ROOT / "config" / "aura_effect_ownership_baseline.json"
 #:
 #: The two invariants that do hold: total debt only falls, and the raw tier
 #: only falls. Together they permit migration and forbid regression.
-TOTAL_CEILING = 1848
-RAW_CEILING = 869
+#: 1848/866 before twelve `X.parent.mkdir(...)` calls came out — each one
+#: immediately followed by a gateway or atomic write of that same path, which
+#: creates the parent itself. Same finding as the 69 before them, in the files
+#: that were written after.
+TOTAL_CEILING = 1840
+RAW_CEILING = 854
 
 
 def _split() -> tuple[int, int]:

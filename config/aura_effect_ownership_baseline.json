@@ -7401,14 +7401,6 @@
       "scope": "<module>.SelfOptimizer._cleanup_temp"
     },
     {
-      "callee": "active_json_path.parent.mkdir",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/adaptation/self_optimizer.py",
-      "scope": "<module>.SelfOptimizer.optimize"
-    },
-    {
       "callee": "temp_dir.mkdir",
       "canonical_owner": false,
       "category": "raw_file_mutation",
@@ -7815,14 +7807,6 @@
       "count": 1,
       "path": "core/architect/safety_gate.py",
       "scope": "<module>.ASASafetyGate.__init__"
-    },
-    {
-      "callee": "self.state_path.parent.mkdir",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/architect/safety_gate.py",
-      "scope": "<module>.ASASafetyGate._save"
     },
     {
       "callee": "path.replace",
@@ -9409,14 +9393,6 @@
       "scope": "<module>.PermissionStore._save"
     },
     {
-      "callee": "<pathlib.Path>.parent.mkdir",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/environment/belief_graph.py",
-      "scope": "<module>.EnvironmentBeliefGraph.save"
-    },
-    {
       "callee": "self.path.parent.mkdir",
       "canonical_owner": false,
       "category": "raw_file_mutation",
@@ -9455,14 +9431,6 @@
       "count": 1,
       "path": "core/environment/environment_awareness.py",
       "scope": "<module>._data_path"
-    },
-    {
-      "callee": "self.path.parent.mkdir",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/environment/outcome/ledger.py",
-      "scope": "<module>.OutcomeLedger.save"
     },
     {
       "callee": "fallback.mkdir",
@@ -11081,14 +11049,6 @@
       "scope": "<module>.MissionState._execute_node"
     },
     {
-      "callee": "path.parent.mkdir",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/planning/mission_state.py",
-      "scope": "<module>.MissionState._execute_node"
-    },
-    {
       "callee": "self._db_path.parent.mkdir",
       "canonical_owner": false,
       "category": "raw_file_mutation",
@@ -11119,14 +11079,6 @@
       "count": 1,
       "path": "core/planning/planner.py",
       "scope": "<module>.Planner.save_to_disk"
-    },
-    {
-      "callee": "path.parent.mkdir",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/planning/task_graph.py",
-      "scope": "<module>.TaskGraph.persist"
     },
     {
       "callee": "db_path.parent.mkdir",
@@ -11423,14 +11375,6 @@
       "count": 1,
       "path": "core/resilience/omni_tracer.py",
       "scope": "<module>._ensure_trace_dir"
-    },
-    {
-      "callee": "self.data_path.parent.mkdir",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/resilience/reliability_tracker.py",
-      "scope": "<module>.ReliabilityTracker._save"
     },
     {
       "callee": "<pathlib.Path>.parent.mkdir",
@@ -11881,14 +11825,6 @@
       "scope": "<module>.record_trace_event"
     },
     {
-      "callee": "self.persist_path.parent.mkdir",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/runtime/coding_session_memory.py",
-      "scope": "<module>.CodingSessionMemory._save_locked"
-    },
-    {
       "callee": "audit_dir.mkdir",
       "canonical_owner": false,
       "category": "raw_file_mutation",
@@ -12218,14 +12154,6 @@
     },
     {
       "callee": "home.mkdir",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/runtime/restore_drill.py",
-      "scope": "<module>._seed_synthetic_home"
-    },
-    {
-      "callee": "target.parent.mkdir",
       "canonical_owner": false,
       "category": "raw_file_mutation",
       "count": 1,
@@ -12841,14 +12769,6 @@
       "scope": "<module>.BlindedWorkspaceFactory._write_init_files"
     },
     {
-      "callee": "stub_path.parent.mkdir",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/self_improvement/blinded_workspace.py",
-      "scope": "<module>.BlindedWorkspaceFactory.create"
-    },
-    {
       "callee": "clone_dir.mkdir",
       "canonical_owner": false,
       "category": "raw_file_mutation",
@@ -13129,14 +13049,6 @@
       "scope": "<module>.SafeSelfModification.apply_fix"
     },
     {
-      "callee": "tmp_file.parent.mkdir",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/self_modification/safe_modification_harness.py",
-      "scope": "<module>.SafeModificationHarness._check_py_compile"
-    },
-    {
       "callee": "backup_path.parent.mkdir",
       "canonical_owner": false,
       "category": "raw_file_mutation",
@@ -13207,14 +13119,6 @@
       "count": 1,
       "path": "core/self_modification/shadow_runtime.py",
       "scope": "<module>.ShadowRuntime._create_shadow_copy._copy"
-    },
-    {
-      "callee": "shadow_file.parent.mkdir",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/self_modification/shadow_runtime.py",
-      "scope": "<module>.ShadowRuntime.test_mutation"
     },
     {
       "callee": "shutil.rmtree",
@@ -15954,6 +15858,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "84b424e3918262c83a13cf8b171692ae01715469c9c0ad9640e1af64d11b902c",
+  "inventory_sha256": "b4c84f45419536298e1a752baa793a726f1b9d5c4e1344d2b5b4f0a07a109800",
   "schema_version": 1
 }

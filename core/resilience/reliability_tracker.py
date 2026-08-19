@@ -40,7 +40,6 @@ class ReliabilityTracker:
 
     def _save(self):
         try:
-            self.data_path.parent.mkdir(parents=True, exist_ok=True)
             get_file_write_gateway().write_text(
                 self.data_path,
                 json.dumps(self.stats, indent=2),

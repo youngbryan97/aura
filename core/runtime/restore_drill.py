@@ -104,7 +104,6 @@ def _seed_synthetic_home(home: Path) -> dict[str, str]:
     }
     for rel, body in layout.items():
         target = home / rel
-        target.parent.mkdir(parents=True, exist_ok=True)
         get_file_write_gateway().write_bytes(
             target,
             body.encode("utf-8"),
