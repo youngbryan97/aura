@@ -22,6 +22,8 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
+from core.conversation.word_markers import names_any
+
 #: Cues that something is to be kept up rather than done once.
 #:
 #: Patterns rather than phrases, because the same continuation arrives in any
@@ -177,7 +179,8 @@ def _named_app(text: str) -> str:
 
 def _keys_for(text: str) -> tuple[str, ...]:
     lowered = text.lower()
-    if any(word in lowered for word in ("wizard", "form", "field", "installer", "setup", "next screen")):
+    # Word boundaries: "form" sits inside "conformance" and "performance".
+    if names_any(lowered, ("wizard", "form", "field", "installer", "setup", "next screen")):
         return FORM_KEYS
     return BOARD_KEYS
 
@@ -263,7 +266,11 @@ def read_watched_goal(objective: str) -> WatchedGoal | None:
     where = _where_it_happens(text)
     # Somewhere to go is itself a browser: naming Chrome is how a person
     # mentions it, not a condition on needing one.
-    in_browser = bool(where) or any(browser in app.lower() for browser in BROWSERS) or "://" in text
+    # Browser names are short words that live inside longer ones: "edge" in
+    # "acknowledge", "arc" in "search", "opera" in "cooperative". Matched as
+    # substrings, an acknowledgement or a search became evidence that the goal
+    # needs a browser.
+    in_browser = bool(where) or names_any(app, BROWSERS) or "://" in text
     return WatchedGoal(
         where=where,
         goal=text[:400],

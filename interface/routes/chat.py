@@ -13440,6 +13440,16 @@ def _has_current_shown_source() -> bool:
         return False
 
 
+def _asks_to_read_a_named_file(user_message: str) -> bool:
+    """Whether the filesystem reader already claims this turn."""
+    try:
+        from core.conversation.filesystem_check import requested_file_read
+
+        return requested_file_read(user_message) is not None
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        return False
+
+
 def _turn_may_concern_own_source(user_message: str) -> bool:
     """Whether this turn is about her own code.
 
@@ -13473,6 +13483,24 @@ def _turn_may_concern_own_source(user_message: str) -> bool:
 
         if _lexical(text):
             return True
+        # A request to read a NAMED FILE is a file read, and the file reading
+        # is already attached for it.
+        #
+        # LIVE 2026-08-19: "read me the first line of CONTRIBUTING.md" scored
+        # as an own-source question, so a source-evidence brief went in beside
+        # the file the grounding channel had already read. The provenance
+        # corrector then required the reply to cite
+        # core/memory/associative_entity_memory.py, the correction failed its
+        # authorship proof, and the person got "I couldn't get to an answer
+        # I'd stand behind on that one" over a file that had been read
+        # successfully. At the production margin even "read notes.txt on my
+        # desktop" scored as a question about her own code.
+        #
+        # Asking FOR her code still routes here through the lexical matcher
+        # above; this only declines to add a second, different reading to a
+        # turn that already has the one it asked for.
+        if _asks_to_read_a_named_file(text):
+            return False
         if wants_evidence(text, OWN_SOURCE, margin=_OWN_SOURCE_ROUTE_MARGIN):
             return True
         # A provenance score cannot manufacture the object it refers to. It
