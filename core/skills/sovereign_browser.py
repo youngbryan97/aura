@@ -1370,12 +1370,28 @@ class SovereignBrowserSkill(BaseSkill):
                 # tier. `is_background` is deliberately NOT set: background
                 # inference is deferrable under headroom pressure, and a
                 # decision that silently returns nothing would stall the loop.
+                # Not a user-facing utterance, and it must not claim the
+                # protected lane.
+                #
+                # `prefer_tier` alone was overridden: a recognised principal
+                # gets the primary Cortex lane, correctly, because that lane
+                # exists for what she SAYS to them. A choice between eight
+                # labelled radio buttons inside a tool loop is not that. Marked
+                # user-facing it took the 32B at ~a minute a round and the turn
+                # was cancelled at 181s having answered nothing.
+                #
+                # The origin decides. An origin that is not an allowlisted
+                # user-facing label does not get protected routing, so the
+                # requested tier is honoured — and the reply she finally gives
+                # about the result still comes from the Cortex, because that
+                # one is speech.
                 _ok, raw, _meta = await think(
                     prompt,
                     system_prompt=mind,
                     max_tokens=400,
                     temperature=0.2,
                     prefer_tier="local_fast",
+                    origin="browser_pursuit_decision",
                 )
             else:
                 generate = getattr(router, "generate", None)
