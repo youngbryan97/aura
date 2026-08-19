@@ -196,6 +196,10 @@ class TestTheDesktopLaneDelegatesPagesToTheBrowser:
         assert seen["goal"] == objective, "the goal must cross whole, not as a query"
         assert result["ok"] is True
         assert "Architect" in result["result_text"]
+        # The names this lane's task-level contract checks. Returning them
+        # under any other name fails the objective with "expectation
+        # incomplete: steps_requested; steps_completed".
+        assert "steps_requested" in result and "steps_completed" in result
 
     def test_her_narration_survives_as_the_record(self, monkeypatch):
         """A step count is what the machine did; the answer is what she chose."""

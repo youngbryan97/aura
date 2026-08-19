@@ -5745,8 +5745,14 @@ class DesktopTaskSkill(BaseSkill):
             **({"error": failure} if failure else {}),
             "objective": objective,
             "url": report.get("final_url") or url,
-            "requested_steps": len(steps),
-            "completed_steps": sum(1 for step in steps if step.get("ok")),
+            # The names the task-level contract checks. This lane's expectation
+            # requires `steps_requested` and `steps_completed`; returning them
+            # under different names failed the objective with "expectation
+            # incomplete: steps_requested; steps_completed" — the same
+            # sentence, and the same cause, this file already records from
+            # 2026-07-27, arriving again through a new return path.
+            "steps_requested": len(steps),
+            "steps_completed": sum(1 for step in steps if step.get("ok")),
             # Her own narration of each choice, kept as the observable record
             # of what was done rather than a step count.
             "narration": [
