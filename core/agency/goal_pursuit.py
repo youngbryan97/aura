@@ -73,18 +73,31 @@ class GoalPursuitEngine:
     async def pursue(
         self,
         goal: str,
-        plan: list[Step] | list[ParallelTask],
+        plan: list[Step] | list[ParallelTask] | None = None,
         *,
         parallel: bool = False,
         timing_ok: Callable[[], Any] | None = None,
         replan: Callable[[Any], Any] | None = None,
+        think: Any = None,
+        allow_world_changing: bool = False,
     ) -> PursuitOutcome:
-        """Pursue ``goal`` via ``plan`` to completion, replanning on stall if possible.
+        """Pursue ``goal`` to completion, building and repairing the plan as needed.
 
         ``timing_ok`` (sync or async) gates whether now is an appropriate moment to act
-        autonomously — wire it to ``InitiativeArbiter.is_appropriate_time``. ``replan``
-        (sync or async) maps a failed receipt to a fresh plan for follow-through.
+        autonomously — wire it to ``InitiativeArbiter.is_appropriate_time``.
+
+        With no ``plan``, one is built from the actions she really has, through
+        :func:`core.agency.plan_synthesis.synthesize_plan`. With no ``replan``,
+        a stall is repaired by :func:`core.agency.replanning.replanner` rather
+        than abandoned. Both used to be the caller's problem, which is why a
+        goal without a plan could not be pursued at all.
         """
+        if plan is None:
+            plan = await self._build(goal, think=think, allow_world_changing=allow_world_changing)
+            if not plan:
+                return PursuitOutcome(goal=goal, completed=False, reason="no plan could be built")
+        if replan is None and not parallel:
+            replan = self._repairer(goal, plan, think=think)
         if timing_ok is not None:
             try:
                 if not await _maybe_await(timing_ok()):
@@ -131,6 +144,33 @@ class GoalPursuitEngine:
         outcome.reason = "not completed"
         logger.info("🛑 [Pursuit] '%s' not completed after %d attempt(s).", goal, outcome.attempts)
         return outcome
+
+
+
+    async def _build(self, goal: str, *, think: Any, allow_world_changing: bool) -> list[Any]:
+        """A plan made of actions she really has, or nothing."""
+        from core.agency.plan_synthesis import synthesize_plan
+
+        built = await synthesize_plan(
+            goal,
+            think=think or _her_reasoning(),
+            allow_world_changing=allow_world_changing,
+        )
+        if not built.usable:
+            logger.info("🛑 [Pursuit] no plan for '%s': %s", goal, "; ".join(built.rejected))
+        return built.steps
+
+    @staticmethod
+    def _repairer(goal: str, plan: list[Any], *, think: Any) -> Callable[[Any], Any]:
+        from core.agency.replanning import replanner
+
+        return replanner(goal, plan, think=think or _her_reasoning())
+
+
+def _her_reasoning() -> Any:
+    from core.agency.her_reasoning import her_reasoning
+
+    return her_reasoning()
 
 
 _instance: GoalPursuitEngine | None = None

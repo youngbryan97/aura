@@ -37,10 +37,21 @@ CHOOSING_ROLE = (
 
 
 def _router() -> Any:
+    """The model router, or None when nothing is registered yet.
+
+    A container that has not been built is a real state — at boot, in a test,
+    on an instance whose model has been evicted. It comes back as None so the
+    deliberation reports a mind out of reach and stops, rather than raising
+    a container error out of the middle of a goal loop.
+    """
     from core.container import get_container  # noqa: PLC0415
+    from core.exceptions import ContainerError  # noqa: PLC0415
     from core.service_names import ServiceNames  # noqa: PLC0415
 
-    return get_container().get(ServiceNames.LLM_ROUTER)
+    try:
+        return get_container().get(ServiceNames.LLM_ROUTER)
+    except (ContainerError, KeyError, AttributeError, RuntimeError):
+        return None
 
 
 def generator(*, origin: str = "agency_next_move", tier: str = "primary"):
