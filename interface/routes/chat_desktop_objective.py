@@ -8,6 +8,7 @@ lane filling in the blanks.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from interface.routes.chat_common import (  # noqa: E402
     _CHAT_BLOCKING_PREFLIGHT_TIMEOUT_S,  # noqa: F401
@@ -61,6 +62,17 @@ def _verified_desktop_task_result(result: dict[str, Any]) -> tuple[bool, str]:
         return False, "missing_positive_steps_requested"
     if not isinstance(completed, int):
         return False, "missing_steps_completed"
+    # A task that completed nothing has not been done, whatever else the
+    # result says. LIVE 2026-08-18: "make a file on my desktop called
+    # aura-live-check.txt" was answered "Done — the desktop steps completed
+    # and their effects verified" in 2ms, and no file existed. The count was
+    # read only to check it was an integer.
+    # A non-critical step is allowed to fail, so this is not "completed ==
+    # requested" — the loop below already refuses any CRITICAL step that is
+    # not ok and verified. What was missing is the floor: a task that
+    # completed nothing has not been done, whatever else the result says.
+    if completed <= 0:
+        return False, f"no_steps_completed:0/{requested}"
 
     receipts = result.get("receipts")
     if not isinstance(receipts, list) or len(receipts) < requested:
@@ -80,7 +92,40 @@ def _verified_desktop_task_result(result: dict[str, Any]) -> tuple[bool, str]:
             return False, f"step_{index}_missing_effect_evidence"
         if evidence.startswith("receipt_id="):
             return False, f"step_{index}_audit_receipt_without_effect"
+        missing = _effect_claim_contradicted_by_disk(evidence)
+        if missing:
+            return False, f"step_{index}_{missing}"
     return True, "verified"
+
+
+def _effect_claim_contradicted_by_disk(evidence: str) -> str:
+    """Check a receipt's own claim against the filesystem, or "" if it holds.
+
+    A file receipt states "path=X;bytes=N", which is a claim anyone can check
+    — so this bridge checks it rather than taking the executor's word, on the
+    same reasoning that already stops it accepting a bare ok=True. The cost is
+    one stat() and it is the difference between "it is done" and "the executor
+    believes it is done".
+    """
+    fields = dict(
+        part.split("=", 1)
+        for part in str(evidence or "").split(";")
+        if "=" in part
+    )
+    claimed_path = fields.get("path", "").strip()
+    if not claimed_path:
+        return ""
+    try:
+        target = Path(claimed_path).expanduser()
+        if not target.is_file():
+            return "claimed_file_is_not_on_disk"
+        claimed_bytes = fields.get("bytes", "").strip()
+        if claimed_bytes.isdigit() and target.stat().st_size != int(claimed_bytes):
+            return "claimed_file_size_does_not_match"
+    except (OSError, ValueError):
+        # An unreadable path is not proof of absence; the receipt stands.
+        return ""
+    return ""
 
 
 def _desktop_task_action_expectation(objective: str) -> dict[str, Any]:
