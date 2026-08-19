@@ -5894,8 +5894,6 @@ async def api_browser_pursuit(request: Request):
         return JSONResponse({"ok": False, "error": "goal and url are required"}, status_code=400)
 
     try:
-        from core.skills.sovereign_browser import SovereignBrowserSkill
-
         # Through `execute`, not `_handle_pursue`.
         #
         # Calling the loop directly skips the transaction that mints the
@@ -5903,11 +5901,27 @@ async def api_browser_pursuit(request: Request):
         # `browser_interaction_authority_unavailable` — the governance working,
         # and a probe that exercises a path the real capability never takes is
         # worth very little.
-        from core.skills.sovereign_browser import BrowserInput
-
-        report = await SovereignBrowserSkill().execute(
-            BrowserInput(mode="pursue", url=url, goal=goal, max_steps=max_steps),
-            {"source": "system.browser_pursuit_probe", "user_explicitly_authorized": True},
+        # Through the capability engine, which is the only governed way in.
+        #
+        # Calling the skill object directly is refused outright — "Ungoverned
+        # skill execution blocked: skill:sovereign_browser called outside
+        # governed context" — and rightly: the engine is where authority,
+        # receipts and the lease come from. The probe takes the same route the
+        # desktop lane takes, so what it exercises is what really runs.
+        capability_engine = ServiceContainer.get("capability_engine", default=None)
+        if capability_engine is None or not hasattr(capability_engine, "execute"):
+            return JSONResponse(
+                {"ok": False, "error": "capability_engine_unavailable"}, status_code=503
+            )
+        report = await capability_engine.execute(
+            "sovereign_browser",
+            {"mode": "pursue", "url": url, "goal": goal, "max_steps": max_steps},
+            context={
+                "source": "system.browser_pursuit_probe",
+                "origin": "desktop_ui",
+                "user_explicitly_authorized": True,
+                "user_requested_action": True,
+            },
         )
         return JSONResponse(report if isinstance(report, dict) else {"ok": False})
     except _SYSTEM_RECOVERABLE_ERRORS as exc:
