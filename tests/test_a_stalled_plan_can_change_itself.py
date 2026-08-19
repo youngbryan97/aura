@@ -120,14 +120,28 @@ async def test_the_decision_sees_where_the_run_actually_got_to():
 
 
 @pytest.mark.asyncio
-async def test_no_repair_she_can_justify_stops_the_run_rather_than_repeating_it():
+async def test_a_repair_is_chosen_even_when_language_is_gone():
+    """Retry, start over, drop, go around — a closed set with a history.
+
+    Picking from it needs evidence, not words, so a stalled plan is still
+    repaired while the resident model is reloading.
+    """
+
     async def unreachable(objective, evidence):
         raise RuntimeError("no model")
 
     repair = await replan(
         "book the appointment", _plan(), _stalled(), think=unreachable, lived=False, spine=_Store(), graph=_Store()
     )
-    assert repair is None
+    assert repair is not None
+    assert repair.kind in {RETRY, START_OVER, DROP, GO_AROUND}
+    assert repair.deliberation is not None and repair.deliberation.spoke is False
+
+
+@pytest.mark.asyncio
+async def test_a_plan_with_no_repairs_left_returns_nothing():
+    """An empty plan offers nothing to change, with or without language."""
+    assert await replan("goal", [], _Receipt(), think=_thinks("retry"), lived=False) is None
 
 
 @pytest.mark.asyncio

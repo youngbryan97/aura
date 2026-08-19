@@ -143,6 +143,9 @@ class Deliberation:
     recalled: tuple[str, ...] = ()
     episode_id: str | None = None
     reason: str = ""
+    #: False when the choice was made without language — she acted, and could
+    #: not put it in her own words because the model was not reachable.
+    spoke: bool = True
     decided_at: float = field(default_factory=time.time)
 
     @property
@@ -150,9 +153,20 @@ class Deliberation:
         return self.chosen is not None
 
     def narrate(self) -> str:
-        """One line she can say out loud before the move lands."""
+        """One line she can say out loud before the move lands.
+
+        A choice made without language still gets a sentence. It is built
+        from the decision rather than generated, which is the whole point of
+        deciding structurally: she can say what she did and why even while
+        the organ that writes her sentences is reloading.
+        """
         if self.chosen is None:
             return f"I have no move I can justify here — {self.reason}."
+        if not self.spoke:
+            expects = self.chosen.expectation.describes
+            said = f"{self.chosen.label()} — {self.rationale}" if self.rationale else self.chosen.label()
+            tail = f" I expect {expects}." if expects else ""
+            return f"{said} (deciding without words for a moment).{tail}"
         expects = self.chosen.expectation.describes
         opening = f"{self.chosen.label()}"
         if self.rationale:
@@ -226,6 +240,58 @@ def choose_named(reply: str, options: Sequence[ActionOption]) -> ActionOption | 
     return latest[1] if latest else None
 
 
+def choose_without_language(
+    options: Sequence[ActionOption],
+    history: Sequence[Attempt] = (),
+    recalled: Sequence[str] = (),
+) -> tuple[ActionOption | None, str]:
+    """Pick a move from evidence alone, with no language anywhere in it.
+
+    The resident model is her language organ, not her decision organ.
+    :mod:`core.cognition.pre_linguistic` says so as an invariant — actions can
+    be dispatched even when the LLM is unavailable — and a goal loop that
+    stops the moment a model is reloading has broken it. Measured live: a
+    pursuit spent every cycle inside a forty-second model reload and ended
+    having made no move.
+
+    The policy is the one any evidence supports: prefer what has worked here,
+    avoid what just did nothing, and otherwise try whatever has been tried
+    least recently. It returns the reason it chose, because a decision nobody
+    can explain is not better than no decision.
+    """
+    if not options:
+        return None, "nothing is available to do"
+
+    failed_recently: dict[str, int] = {}
+    tried_at: dict[str, int] = {}
+    for position, attempt in enumerate(history):
+        tried_at[attempt.option] = position
+        if not attempt.verdict.held:
+            failed_recently[attempt.option] = failed_recently.get(attempt.option, 0) + 1
+
+    scored: list[tuple[float, int, ActionOption]] = []
+    for option in options:
+        lines = [line for line in recalled if line.startswith(option.name)]
+        score = confidence_from_history(lines)
+        # A move that just changed nothing is the worst thing to repeat.
+        score -= 0.25 * failed_recently.get(option.name, 0)
+        # Among equals, the one left alone longest.
+        staleness = -tried_at.get(option.name, -1)
+        scored.append((score, staleness, option))
+
+    scored.sort(key=lambda row: (row[0], row[1]), reverse=True)
+    best_score, _staleness, best = scored[0]
+    if failed_recently.get(best.name):
+        why = f"{best.name} is the least bad of what is left"
+    elif best_score > UNTRIED_CONFIDENCE:
+        why = f"{best.name} has worked here before"
+    elif any(attempt.option == best.name for attempt in history):
+        why = f"{best.name} is the one left alone longest"
+    else:
+        why = f"{best.name} has not been tried yet"
+    return best, why
+
+
 async def deliberate(
     goal: str,
     situation: str,
@@ -255,36 +321,46 @@ async def deliberate(
         recalled.extend(recall_consequences(option.name, graph=graph))
 
     evidence = _situation_evidence(goal, situation, options, history, recalled)
+    spoke = True
+    reply = ""
     try:
         reply = await think(_objective(goal, options), evidence)
     except (RuntimeError, AttributeError, TypeError, ValueError, TimeoutError) as exc:
-        record_degradation("deliberate_action", exc, action="reason about the next move")
-        return Deliberation(
-            goal=goal,
-            situation=situation,
-            chosen=None,
-            reason=f"her reasoning could not be reached ({type(exc).__name__})",
-            considered=tuple(option.name for option in options),
-            recalled=tuple(recalled),
+        # Language being out of reach is not the same as having no judgement.
+        #
+        # The resident model is her language organ. A move can be chosen from
+        # what the consequence graph and the last few attempts already say,
+        # and that is what happens here — she acts, and cannot narrate it in
+        # her own words until the model is back.
+        record_degradation(
+            "deliberate_action",
+            exc,
+            severity="info",
+            action="chose the next move without language",
         )
+        spoke = False
 
-    chosen = choose_named(reply or "", options)
+    chosen = choose_named(reply or "", options) if spoke else None
     if chosen is None:
-        return Deliberation(
-            goal=goal,
-            situation=situation,
-            chosen=None,
-            reason="she named no available move",
-            rationale=(reply or "").strip(),
-            considered=tuple(option.name for option in options),
-            recalled=tuple(recalled),
-        )
+        structural, why = choose_without_language(options, history, recalled)
+        if structural is None:
+            return Deliberation(
+                goal=goal,
+                situation=situation,
+                chosen=None,
+                reason=why,
+                considered=tuple(option.name for option in options),
+                recalled=tuple(recalled),
+            )
+        chosen = structural
+        reply = why if not spoke else f"{(reply or '').strip()}\n{why}".strip()
 
     for_option = [line for line in recalled if line.startswith(chosen.name)]
     deliberation = Deliberation(
         goal=goal,
         situation=situation,
         chosen=chosen,
+        spoke=spoke,
         rationale=_rationale(reply, chosen),
         confidence=confidence_from_history(for_option),
         considered=tuple(option.name for option in options),

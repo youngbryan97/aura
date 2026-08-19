@@ -79,22 +79,39 @@ async def test_a_choice_arrives_with_a_prediction():
 
 
 @pytest.mark.asyncio
-async def test_reasoning_out_of_reach_stops_her_rather_than_guessing():
+async def test_language_out_of_reach_does_not_stop_her_deciding():
+    """She loses her words, not her judgement.
+
+    This test used to assert the opposite — that an unreachable model ends
+    the decision. That broke the invariant in pre_linguistic.py, and live it
+    meant a pursuit made no move at all while the resident model reloaded.
+    """
+
     async def unreachable(objective, evidence):
         raise RuntimeError("no model")
 
     result = await deliberate(
-        "reach 4096", "a board", [_option("up"), _option("down")], think=unreachable, spine=_Spine(), graph=_Graph()
+        "reach 4096",
+        "a board",
+        [_option("up"), _option("down")],
+        think=unreachable,
+        spine=_Spine(),
+        graph=_Graph(),
+        lived=False,
     )
-    assert not result.reached
-    assert result.chosen is None
-    assert "could not be reached" in result.reason
-    # The whole point: no move is taken on no reason.
-    assert "up" not in result.narrate()
+    assert result.reached
+    assert result.chosen is not None
+    assert result.spoke is False, "a choice made without language must say so"
 
 
 @pytest.mark.asyncio
-async def test_naming_no_available_move_is_not_a_silent_pick():
+async def test_an_answer_that_names_no_move_still_leaves_a_decision_to_make():
+    """Language wandering off is not a reason to stand still.
+
+    The evidence that decides without language is there either way, so it
+    decides — and the rationale carries both what she said and why the move
+    was picked, rather than quietly replacing one with the other.
+    """
     result = await deliberate(
         "reach 4096",
         "a board",
@@ -102,9 +119,11 @@ async def test_naming_no_available_move_is_not_a_silent_pick():
         think=_thinks("I would rather think about this for a while."),
         spine=_Spine(),
         graph=_Graph(),
+        lived=False,
     )
-    assert not result.reached
-    assert result.reason == "she named no available move"
+    assert result.reached
+    assert result.chosen is not None
+    assert "has not been tried yet" in result.rationale
 
 
 def test_the_move_she_settles_on_is_the_one_she_named_last():
@@ -276,3 +295,71 @@ def test_the_live_store_physically_refuses_a_rehearsal():
         provenance=Provenance.TEST,
     )
     assert spine.record(rehearsal) is None
+
+
+def test_a_move_can_be_chosen_with_no_language_anywhere_in_it():
+    """The resident model is her language organ, not her decision organ.
+
+    core/cognition/pre_linguistic.py holds this as a design invariant:
+    actions can be dispatched even when the LLM is unavailable.
+    """
+    from core.agency.deliberate_action import choose_without_language
+
+    options = [_option("up"), _option("down"), _option("left")]
+    chosen, why = choose_without_language(options, history=(), recalled=())
+    assert chosen is not None
+    assert "not been tried" in why
+
+
+def test_without_language_she_avoids_the_move_that_just_did_nothing():
+    from core.agency.deliberate_action import choose_without_language
+
+    options = [_option("up"), _option("down")]
+    stalled = Attempt(option="up", expected="the board to shift", verdict=Verdict(held=False, observed_change=False, stalled=True))
+    chosen, _why = choose_without_language(options, history=[stalled], recalled=())
+    assert chosen.name == "down"
+
+
+def test_without_language_she_prefers_what_has_worked_here():
+    from core.agency.deliberate_action import choose_without_language
+
+    options = [_option("up"), _option("down")]
+    recalled = ["down worked before: tiles merged"] * 3
+    chosen, why = choose_without_language(options, history=(), recalled=recalled)
+    assert chosen.name == "down"
+    assert "worked here before" in why
+
+
+def test_without_language_she_does_not_press_the_same_key_forever():
+    """Among equals, the one left alone longest — so a run keeps moving."""
+    from core.agency.deliberate_action import choose_without_language
+
+    options = [_option("up"), _option("down"), _option("left")]
+    history = [
+        Attempt(option="up", expected="x", verdict=Verdict(held=True, observed_change=True)),
+        Attempt(option="down", expected="x", verdict=Verdict(held=True, observed_change=True)),
+    ]
+    chosen, _why = choose_without_language(options, history=history, recalled=())
+    assert chosen.name == "left"
+
+
+@pytest.mark.asyncio
+async def test_she_acts_and_says_why_while_the_model_is_reloading():
+    async def unreachable(objective, evidence):
+        raise RuntimeError("worker_not_alive")
+
+    result = await deliberate(
+        "reach 4096",
+        "a board",
+        [_option("up", detail="slide up", expectation=Expectation(describes="the board to shift"))],
+        think=unreachable,
+        spine=_Spine(),
+        graph=_Graph(),
+        lived=False,
+    )
+    assert result.reached, "she stopped because she could not talk"
+    assert result.spoke is False
+    spoken = result.narrate()
+    assert "slide up" in spoken
+    assert "without words" in spoken
+    assert "the board to shift" in spoken

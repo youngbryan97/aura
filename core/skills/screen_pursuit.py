@@ -74,6 +74,7 @@ DEFAULT_MOVES: tuple[str, ...] = ("up", "down", "left", "right")
 RECENT_ATTEMPTS = 4
 
 
+
 class ScreenPursuitInput(BaseModel):
     goal: str = Field(..., min_length=1, max_length=400)
     #: Text that appearing on screen means the goal is reached. Matched

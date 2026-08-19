@@ -163,24 +163,32 @@ async def test_what_broke_is_carried_into_the_next_decision(screen):
 
 
 @pytest.mark.asyncio
-async def test_a_mind_out_of_reach_stops_the_loop_and_says_so(screen):
+async def test_language_being_gone_does_not_stop_her_from_playing(screen):
+    """The resident model is her language organ, not her decision organ.
+
+    core/cognition/pre_linguistic.py holds this as an invariant: actions can
+    be dispatched even when the LLM is unavailable. Measured live, a pursuit
+    spent every cycle inside a forty-second model reload and ended having
+    made no move.
+    """
+
     async def unreachable(objective, evidence):
-        raise RuntimeError("the model is not loaded")
+        raise RuntimeError("worker_not_alive")
 
     result = await sp.pursue_on_screen(
         goal="raise the number",
         success_when="never happens",
         think=unreachable,
-        max_cycles=5,
+        max_cycles=4,
         max_seconds=10.0,
         narrate=False,
         lived=False,
         spine=_Store(),
         graph=_Store(),
     )
-    assert not screen["pressed"], "she acted with no reason to"
-    assert result["outcome"] == "cannot_decide"
-    assert "could not be reached" in result["cannot_decide"]
+    assert screen["pressed"], "she stopped playing because she could not talk"
+    assert result["moves"], "no move was made without language"
+    assert result["outcome"] != "cannot_decide"
 
 
 @pytest.mark.asyncio
@@ -261,3 +269,50 @@ async def test_the_moves_offered_are_the_ones_the_caller_named(screen):
     offered = [line for line in think.asked[0] if line.startswith("Available move")]
     assert any("tab" in line for line in offered)
     assert not any("up" in line for line in offered)
+
+
+@pytest.mark.asyncio
+async def test_a_mind_that_comes_back_is_used_again(screen):
+    """Language returning means she narrates in her own words again."""
+    calls = {"n": 0}
+
+    async def slow_to_wake(objective, evidence):
+        calls["n"] += 1
+        if calls["n"] < 3:
+            raise RuntimeError("worker_not_alive")
+        return "up"
+
+    result = await sp.pursue_on_screen(
+        goal="raise the number",
+        success_when="never happens",
+        think=slow_to_wake,
+        max_cycles=2,
+        max_seconds=10.0,
+        narrate=False,
+        lived=False,
+        spine=_Store(),
+        graph=_Store(),
+    )
+    assert screen["pressed"], "she gave up on a mind that was coming back"
+    assert calls["n"] >= 2, "she stopped asking once language failed once"
+
+
+@pytest.mark.asyncio
+async def test_a_move_made_without_words_still_says_what_it_did(screen):
+    async def never(objective, evidence):
+        raise RuntimeError("worker_not_alive")
+
+    await sp.pursue_on_screen(
+        goal="raise the number",
+        success_when="never happens",
+        think=never,
+        max_cycles=2,
+        max_seconds=10.0,
+        narrate=True,
+        lived=False,
+        spine=_Store(),
+        graph=_Store(),
+    )
+    said = " ".join(screen["spoken"])
+    assert said.strip(), "she made a move and said nothing at all"
+    assert "without words" in said
