@@ -1462,6 +1462,110 @@ class SovereignBrowserSkill(BaseSkill):
         # instrument measuring anything.
         return len(shared[0]) > 2 and all(options == shared[0] for options in shared[1:])
 
+    #: How many independent questions are decided at once. A screen of a survey
+    #: is six or so; the cap is what keeps a pathological page from opening a
+    #: hundred generations at once.
+    PURSUE_PARALLEL_ITEMS = 8
+
+    @staticmethod
+    def _unanswered_questions(
+        observation: Mapping[str, Any]
+    ) -> list[tuple[str, list[Mapping[str, Any]]]]:
+        """The question groups still open, each with its own options."""
+        groups: dict[str, list[Mapping[str, Any]]] = {}
+        for element in observation.get("elements") or []:
+            if not isinstance(element, Mapping):
+                continue
+            group = str(element.get("group") or "")
+            if group:
+                groups.setdefault(group, []).append(element)
+        return [
+            (group, options)
+            for group, options in groups.items()
+            if not any(option.get("checked") is True for option in options)
+        ]
+
+    async def _answer_each_question(
+        self,
+        goal: str,
+        observation: Mapping[str, Any],
+        history: list[dict[str, Any]],
+        understanding: Mapping[str, Any] | None,
+    ) -> dict[str, Any] | None:
+        """Decide every open question on the screen, one decision each.
+
+        Six questions on a screen are six independent judgements, and asking
+        for all of them in one generation makes them compete: the small model
+        answered five at a time and shallowly, and her own reasoning answered
+        one at a time and well. Neither is the shape of the problem.
+
+        So each question gets its own decision, and they run together. What
+        comes back is merged into the same action list the loop already
+        executes, which is why this needs no special handling downstream.
+
+        Returns None when the page is not that shape, and the ordinary
+        whole-page decision runs instead.
+        """
+
+        open_questions = self._unanswered_questions(observation)
+        if len(open_questions) < 2:
+            return None
+
+        async def decide_one(options: list[Mapping[str, Any]]) -> dict[str, Any] | None:
+            # The page, cut down to one question. Everything else about the
+            # observation is unchanged, so what she sees is this item in its
+            # real context — the same URL, the same page text.
+            single = {**observation, "elements": list(options)}
+            decision = await self._decide_next_actions(goal, single, history, understanding)
+            if decision.get("error"):
+                return None
+            for item in decision.get("actions") or []:
+                if not isinstance(item, dict):
+                    continue
+                try:
+                    index = int(item.get("index"))
+                except (TypeError, ValueError):
+                    continue
+                if not 0 <= index < len(options):
+                    continue
+                selector = str(options[index].get("selector") or "")
+                if not selector:
+                    continue
+                # Resolved here, against the list this decision was shown.
+                # Handing an index back to the caller would resolve it against
+                # the whole page, which is how a loop ends up pressing whatever
+                # moved into slot four.
+                return {
+                    "selector": selector,
+                    "name": str(options[index].get("name") or ""),
+                    "why": str(decision.get("why") or ""),
+                    "expect": str(decision.get("expect") or ""),
+                }
+            return None
+
+        chosen = await asyncio.gather(
+            *(decide_one(options) for _group, options in open_questions[: self.PURSUE_PARALLEL_ITEMS]),
+            return_exceptions=True,
+        )
+        answers = [item for item in chosen if isinstance(item, dict)]
+        for outcome in chosen:
+            if isinstance(outcome, BaseException):
+                record_degradation(
+                    "sovereign_browser.answer_item",
+                    outcome,
+                    severity="debug",
+                    action="one question of a screen went unanswered",
+                )
+        if not answers:
+            return None
+        return {
+            "resolved_actions": [
+                {"selector": answer["selector"], "name": answer["name"]} for answer in answers
+            ],
+            "why": "; ".join(dict.fromkeys(a["why"] for a in answers if a["why"]))[:400],
+            "expect": next((a["expect"] for a in answers if a["expect"]), ""),
+        }
+
     async def _decide_next_actions(
         self,
         goal: str,
@@ -1922,9 +2026,15 @@ class SovereignBrowserSkill(BaseSkill):
                         str(observation.get("url") or ""), understanding, shape
                     )
 
-                decision = await self._decide_next_actions(
-                    goal, observation, steps, understanding
-                )
+                decision = None
+                if self._asks_about_the_one_answering(observation):
+                    decision = await self._answer_each_question(
+                        goal, observation, steps, understanding
+                    )
+                if decision is None:
+                    decision = await self._decide_next_actions(
+                        goal, observation, steps, understanding
+                    )
                 if decision.get("error"):
                     # What she actually said, not just that it could not be read.
                     # "unparsable_decision" names the parser's problem and hides
@@ -1983,6 +2093,13 @@ class SovereignBrowserSkill(BaseSkill):
                 # moved into slot four.
                 elements = self._controls_worth_offering(list(observation.get("elements") or []))
                 planned: list[BrowserAction] = []
+                # Selectors that were already resolved against the list their
+                # own decision was shown — see `_answer_each_question`. They
+                # skip index resolution entirely, because there is no shared
+                # list to resolve them against.
+                for item in decision.get("resolved_actions") or []:
+                    if isinstance(item, dict) and item.get("selector"):
+                        planned.append(BrowserAction(type="click", selector=str(item["selector"])))
                 for item in decision.get("actions") or []:
                     if not isinstance(item, dict):
                         continue
@@ -2023,6 +2140,11 @@ class SovereignBrowserSkill(BaseSkill):
                         )[:180],
                         "why": str(decision.get("why") or ""),
                         "chose": [
+                            str(item.get("name") or "")
+                            for item in (decision.get("resolved_actions") or [])
+                            if isinstance(item, dict)
+                        ]
+                        or [
                             f"{elements[int(item['index'])].get('name')}"
                             for item in (decision.get("actions") or [])
                             if isinstance(item, dict)

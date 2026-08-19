@@ -552,6 +552,37 @@ def _desktop_effect_summary(result: Any) -> str:
         return ""
 
 
+def _pursuit_account(result: dict) -> list[str]:
+    """What she did on the page, in her words, and what the page says now.
+
+    The narration is per-round: the item she was reading, what she picked, and
+    why she picked it. That is the deliverable of working a page, in the same
+    way a written paragraph is the deliverable of writing one.
+    """
+
+    lines: list[str] = []
+    narration = result.get("narration")
+    if isinstance(narration, list):
+        for entry in narration:
+            if not isinstance(entry, dict):
+                continue
+            chose = [str(choice) for choice in (entry.get("chose") or []) if choice]
+            if not chose:
+                continue
+            asked = str(entry.get("asked") or "").strip()
+            why = str(entry.get("why") or "").strip()
+            line = f"{asked} — {', '.join(chose)}" if asked else ", ".join(chose)
+            if why:
+                line += f" ({why})"
+            lines.append(line)
+    ending = str(result.get("result_text") or "").strip()
+    if ending:
+        # The tail, not the head: a result page repeats its navigation before
+        # it says anything, and what a page concludes with is what it is for.
+        lines.append("The page ends with:\n" + ending[-600:].strip())
+    return lines
+
+
 def _desktop_deliverable_text(result: Any) -> str:
     """The text a desktop task actually wrote, if it wrote any.
 
@@ -616,6 +647,19 @@ def _desktop_deliverable_text(result: Any) -> str:
         # Keystroke-level fragments are not a deliverable; a paragraph is.
         if len(text) >= 40:
             written.append(text)
+    if not written and any(
+        isinstance(receipt, dict)
+        and str(receipt.get("action") or "").strip() == "browse_pursue"
+        for receipt in receipts
+    ):
+        # Working a page produces an account, not a file.
+        #
+        # This function knew how to quote a paragraph she typed and how to
+        # report a directory listing, and nothing about a pursuit — so a run
+        # that answered most of a sixty-item questionnaire had no deliverable
+        # and the reply fell back to counting steps. What she chose, and why,
+        # is what happened; the page's own words are what it said back.
+        written.extend(_pursuit_account(result))
     if not written:
         return ""
     body = "\n\n".join(written).strip()

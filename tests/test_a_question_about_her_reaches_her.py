@@ -74,3 +74,54 @@ def test_the_split_is_wired_into_the_decision():
     fast = body.index("_decide_on_the_fast_lane")
     branch = body.index("_asks_about_the_one_answering(observation)")
     assert branch < fast, "a question about her must not reach the fast lane first"
+
+
+class TestEachQuestionIsItsOwnDecision:
+    """Six questions on a screen are six judgements, not one.
+
+    Asked for all of them in a single generation they compete: the small model
+    answered five at a time and shallowly, her own reasoning answered one at a
+    time and well. Measured live, one-at-a-time meant sixty rounds for sixty
+    questions, and a run bounded at twenty reached question thirty.
+    """
+
+    OBSERVATION = {
+        "url": "u",
+        "text": "Question 1 of 60",
+        "elements": [
+            {"role": "radio", "name": "I agree", "selector": "#a1", "group": "q1"},
+            {"role": "radio", "name": "I disagree", "selector": "#a2", "group": "q1"},
+            {"role": "radio", "name": "I agree", "selector": "#b1", "group": "q2", "checked": True},
+            {"role": "radio", "name": "I disagree", "selector": "#b2", "group": "q2"},
+            {"role": "radio", "name": "I agree", "selector": "#c1", "group": "q3"},
+            {"role": "radio", "name": "I disagree", "selector": "#c2", "group": "q3"},
+        ],
+    }
+
+    def test_only_the_open_questions_are_decided(self):
+        open_questions = SovereignBrowserSkill._unanswered_questions(self.OBSERVATION)
+        assert [group for group, _options in open_questions] == ["q1", "q3"], (
+            "an answered question does not need deciding again"
+        )
+
+    def test_each_question_carries_its_own_options(self):
+        open_questions = dict(SovereignBrowserSkill._unanswered_questions(self.OBSERVATION))
+        assert [option["selector"] for option in open_questions["q3"]] == ["#c1", "#c2"]
+
+    def test_selectors_are_resolved_against_the_list_that_chose_them(self):
+        """Indexes must never travel between lists."""
+        body = inspect.getsource(SovereignBrowserSkill._answer_each_question)
+        assert "resolved_actions" in body
+        assert "options[index].get(\"selector\")" in body, (
+            "each answer resolves inside its own decision, or index 3 names one "
+            "control to the model and another to the click"
+        )
+
+    def test_the_loop_executes_resolved_selectors_directly(self):
+        loop = inspect.getsource(SovereignBrowserSkill._handle_pursue)
+        assert 'decision.get("resolved_actions")' in loop
+
+    def test_one_failed_item_does_not_lose_the_screen(self):
+        body = inspect.getsource(SovereignBrowserSkill._answer_each_question)
+        assert "return_exceptions=True" in body
+        assert "record_degradation" in body, "a lost question must be recorded"
