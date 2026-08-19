@@ -423,6 +423,30 @@ def _matches_transcript(prompt: str) -> bool:
     return bool(_ASKS_TRANSCRIPT_RECALL.search(prompt))
 
 
+#: A question that reaches past this session.
+#:
+#: The cascade in `_user_turns` is first-non-empty, so a single turn in the
+#: current session shadows the entire durable history — and "what did i ask you
+#: about earlier today, BEFORE YOU RESTARTED" was answered from a transcript
+#: holding one greeting, by inventing a topic. Session scope is right for
+#: positional recall ("what was my first question?" means this conversation);
+#: it is wrong for a question that says out loud it is asking about before.
+def _reaches_past_this_session(prompt: str) -> bool:
+    import re
+
+    return bool(
+        re.search(
+            r"\bbefore\s+(?:you|the)\s+(?:restart|reboot|reload|crash|shut)"
+            r"|\b(?:you|we)\s+restarted\b"
+            r"|\bearlier\s+(?:today|this\s+(?:morning|afternoon|evening|week))\b"
+            r"|\b(?:yesterday|last\s+(?:time|night|week|session))\b"
+            r"|\bprevious\s+(?:session|conversation)\b",
+            str(prompt or ""),
+            re.IGNORECASE,
+        )
+    )
+
+
 async def _read_transcript(prompt: str) -> str:
     # _user_turns cascades live working memory -> transcript; the transcript
     # singleton alone came back empty in the live runtime while the
@@ -435,6 +459,12 @@ async def _read_transcript(prompt: str) -> str:
     if not turns:
         # A named absence. "I have no transcript for this session" is a true
         # answer; an invented exchange is not.
+        if _reaches_past_this_session(prompt):
+            from core.conversation.durable_turns import describe_durable_turns
+
+            earlier = describe_durable_turns()
+            if earlier:
+                return "Nothing has been said in THIS conversation yet.\n\n" + earlier
         return "No transcript is available for this conversation yet."
     # "What was the FIRST thing I told you?" is not answerable from a window of
     # the most recent turns, and answering it from that window produces a
@@ -453,6 +483,13 @@ async def _read_transcript(prompt: str) -> str:
             f"turn {offset + index + 1} ({ago} turn(s) ago), they said: {turn[:300]}"
         )
     lines.append(f"({len(turns)} user turn(s) in this conversation.)")
+    if _reaches_past_this_session(prompt):
+        from core.conversation.durable_turns import describe_durable_turns
+
+        earlier = describe_durable_turns()
+        if earlier:
+            lines.append("")
+            lines.append(earlier)
     return "\n".join(lines)
 
 

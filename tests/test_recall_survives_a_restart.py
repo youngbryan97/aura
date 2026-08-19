@@ -113,3 +113,32 @@ def test_the_cascade_reaches_the_durable_store_last():
     transcript = source.index("_transcript_user_turns(exclude_norm)", order)
     durable = source.index("_durable_user_turns(exclude_norm)", order)
     assert order < working < transcript < durable
+
+
+def test_a_question_that_says_it_reaches_past_the_session_is_recognised():
+    """The cascade is first-non-empty, so one greeting shadows the whole day.
+
+    LIVE, 2026-08-19: "what did i ask you about earlier today, before you
+    restarted? be specific." was answered from a transcript holding one "hi
+    again", by inventing a topic. Session scope is right for positional recall
+    — "what was my first question?" means this conversation — and wrong for a
+    question that says out loud it is asking about before.
+    """
+    from core.brain.observable_registry import _reaches_past_this_session
+
+    for beyond in (
+        "what did i ask you about earlier today, before you restarted?",
+        "what did we talk about yesterday?",
+        "what was I asking in the previous session?",
+        "you restarted — do you remember what we were doing?",
+        "what did I say last time?",
+    ):
+        assert _reaches_past_this_session(beyond), beyond
+
+    for within in (
+        "what was my first question?",
+        "what did I just ask you?",
+        "what did I ask you two messages ago?",
+        "how are you doing",
+    ):
+        assert not _reaches_past_this_session(within), within
