@@ -922,8 +922,39 @@ class CognitiveKernel:
 
     # ─── Flags ───────────────────────────────────────────────────────────────
 
+    #: Someone telling you about their own experience, rather than asking you
+    #: something ambiguous. First person, about themselves, with no request in
+    #: it. LIVE 2026-08-18: "I've been working on this project for two years
+    #: and I still don't know if it's real or if I'm fooling myself" matched
+    #: the inquiry trigger "don't know if" and was answered with two questions
+    #: and nothing else. The triggers exist for an ambiguous REQUEST — "should
+    #: I", "help me decide" — where asking what someone means is the helpful
+    #: move. A person describing their own doubt has been perfectly clear, and
+    #: asking them to specify is the opposite of engaging with it.
+    _DISCLOSURE_RE = re.compile(
+        r"\bi(?:'ve| have| am|'m| was| feel| felt| keep| kept| still|\s+don'?t|\s+can'?t)\b"
+        r"[^?]*$",
+        re.IGNORECASE,
+    )
+
+    def _is_personal_disclosure(self, text: str) -> bool:
+        """True when the turn tells you about them rather than asking you."""
+        body = str(text or "").strip()
+        if not body or body.endswith("?"):
+            return False
+        if re.search(
+            r"\b(?:should i|help me|what would you|tell me|can you|could you|"
+            r"how do i|what do i)\b",
+            body,
+            re.IGNORECASE,
+        ):
+            return False
+        return bool(self._DISCLOSURE_RE.search(body))
+
     def _should_inquire(self, text: str, history: list[dict], complexity: str) -> bool:
         lower = text.lower()
+        if self._is_personal_disclosure(text):
+            return False
         # Too vague AND complex AND no prior context
         if complexity == "simple" and any(t in lower for t in _INQUIRY_TRIGGERS) and not history:
             return True
