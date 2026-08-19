@@ -26,10 +26,13 @@ them.
 
 from __future__ import annotations
 
+import ast
 import math
+import operator
 import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import Any
 
 __all__ = [
     "COMPUTABLE_FORMS",
@@ -80,6 +83,154 @@ _MAX_FACTORIAL = 10_000
 _MAX_FIBONACCI = 100_000
 _MAX_PRIMALITY = 2**64
 _MAX_CHOOSE = 10_000
+
+
+# ── ordinary arithmetic ──────────────────────────────────────────────────────
+#
+# LIVE DEFECT, 2026-08-19. `computable_answer("what is 17 * 4839")` returned
+# None. Eight exotic forms were covered — primality, factorials, Fibonacci,
+# gcd — and plain arithmetic was not, so the commonest computable question in
+# existence depended entirely on the model getting it right. When it did not,
+# `arithmetic_answer_missing` destroyed every draft and the turn ended in a
+# canned apology, live and repeatedly.
+#
+# Evaluated through `ast`, not `eval`: only literals and the arithmetic
+# operators exist in this grammar, so there is no name to resolve, no call to
+# make and nothing to reach.
+_ARITHMETIC_OPS: dict[type, Callable[[Any, Any], Any]] = {
+    ast.Add: operator.add,
+    ast.Sub: operator.sub,
+    ast.Mult: operator.mul,
+    ast.Div: operator.truediv,
+    ast.FloorDiv: operator.floordiv,
+    ast.Mod: operator.mod,
+    ast.Pow: operator.pow,
+}
+
+#: Exponents are capped because 9**9**9 is a denial of service, not a sum.
+_MAX_EXPONENT = 4096
+_MAX_BASE_DIGITS = 100
+
+_WORD_OPERATORS: tuple[tuple[re.Pattern[str], str], ...] = (
+    (re.compile(r"\bto\s+the\s+power\s+of\b", re.IGNORECASE), "**"),
+    (re.compile(r"\braised\s+to\b", re.IGNORECASE), "**"),
+    (re.compile(r"\b(?:multiplied\s+by|times)\b", re.IGNORECASE), "*"),
+    (re.compile(r"\b(?:divided\s+by|over)\b", re.IGNORECASE), "/"),
+    (re.compile(r"\bplus\b", re.IGNORECASE), "+"),
+    (re.compile(r"\bminus\b", re.IGNORECASE), "-"),
+    (re.compile(r"\bmodulo\b", re.IGNORECASE), "%"),
+    (re.compile(r"\b[x×]\b", re.IGNORECASE), "*"),
+    (re.compile(r"[÷]"), "/"),
+    # A caret is exponentiation everywhere except Python. Without this,
+    # "what is 2^31 - 1?" matched the FRAGMENT "31 - 1" and answered 30.
+    (re.compile(r"\^"), "**"),
+)
+
+#: An expression: numbers joined by operators, at least one operator present.
+_ARITHMETIC_EXPRESSION_RE = re.compile(
+    r"(?<![\w.])"
+    r"\(*\s*-?\d[\d,]*(?:\.\d+)?\s*\)*"
+    r"(?:\s*(?:\*\*|//|[-+*/%])\s*\(*\s*-?\d[\d,]*(?:\.\d+)?\s*\)*)+"
+)
+
+
+def _evaluate_node(node: ast.AST) -> int | float | None:
+    if isinstance(node, ast.Expression):
+        return _evaluate_node(node.body)
+    if isinstance(node, ast.Constant):
+        return node.value if isinstance(node.value, (int, float)) else None
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
+        inner = _evaluate_node(node.operand)
+        if inner is None:
+            return None
+        return inner if isinstance(node.op, ast.UAdd) else -inner
+    if isinstance(node, ast.BinOp):
+        handler = _ARITHMETIC_OPS.get(type(node.op))
+        if handler is None:
+            return None
+        left, right = _evaluate_node(node.left), _evaluate_node(node.right)
+        if left is None or right is None:
+            return None
+        if isinstance(node.op, ast.Pow):
+            if not isinstance(right, int) or abs(right) > _MAX_EXPONENT:
+                return None
+            if isinstance(left, int) and len(str(abs(left))) > _MAX_BASE_DIGITS:
+                return None
+        try:
+            return handler(left, right)
+        except (ArithmeticError, TypeError, ValueError):
+            return None
+    return None
+
+
+def _arithmetic(match: re.Match[str]) -> int | float | None:
+    """Evaluate the expression this question is asking for."""
+    raw = match.group(0).replace(",", "").strip()
+    if not raw:
+        return None
+    try:
+        tree = ast.parse(raw, mode="eval")
+    except (SyntaxError, ValueError, MemoryError, RecursionError):
+        return None
+    value = _evaluate_node(tree)
+    if value is None:
+        return None
+    if isinstance(value, float):
+        if value != value or value in (float("inf"), float("-inf")):
+            return None
+        # A float that is exactly an integer reads as one. 6/3 is 2, not 2.0.
+        if value.is_integer() and abs(value) < 2**53:
+            value = int(value)
+        else:
+            return round(value, 10)
+    if isinstance(value, int):
+        return _renderable(value)
+    return value
+
+
+#: Asking for a sum, rather than containing one.
+#:
+#: Numbers with an operator between them are everywhere in ordinary prose:
+#: "the 2015 - 2020 period" is -5, "call me at 555-1234" is -679, and "she
+#: scored 9/10" is 0.9. A form that answers those is worse than one that
+#: answers nothing, so the text has to ASK.
+_ASKS_TO_COMPUTE_RE = re.compile(
+    r"\b(?:what(?:'s|\s+is|\s+are|\s+does)|how\s+much(?:\s+is)?|"
+    r"calculate|compute|work\s+out|evaluate|solve|equals?|"
+    r"(?:the\s+)?(?:sum|product|total|difference|quotient)\s+of)\b",
+    re.IGNORECASE,
+)
+
+
+class _ArithmeticPattern:
+    """Normalises words to operators before looking for an expression.
+
+    "2 to the power of 40" and "17 times 4839" are the same question as
+    "2 ** 40" and "17 * 4839"; only the spelling differs.
+    """
+
+    def search(self, text: str) -> re.Match[str] | None:
+        body = str(text or "")
+        for pattern, symbol in _WORD_OPERATORS:
+            body = pattern.sub(symbol, body)
+        found = _ARITHMETIC_EXPRESSION_RE.search(body)
+        if found is None:
+            return None
+        # Never answer a FRAGMENT. An expression that begins immediately after
+        # an operator is the tail of a longer one, and its value is not the
+        # answer to anything that was asked.
+        before = body[: found.start()].rstrip()
+        if before and before[-1] in "+-*/%^(":
+            return None
+        # A bare expression IS the request; anything else has to ask for one,
+        # and the asking has to come first.
+        if found.group(0).strip() == body.strip().rstrip("?=. "):
+            return found
+        asked = _ASKS_TO_COMPUTE_RE.search(body)
+        if asked is None or asked.start() > found.start():
+            return None
+        return found
+
 
 
 def _int(text: str) -> int:
@@ -337,6 +488,27 @@ COMPUTABLE_FORMS: tuple[ComputableForm, ...] = (
         examples=(
             ("52 choose 5", 2_598_960),
             ("how many ways are there to choose 3 from 10?", 120),
+        ),
+    ),
+)
+
+
+COMPUTABLE_FORMS = COMPUTABLE_FORMS + (
+    ComputableForm(
+        "arithmetic",
+        _ArithmeticPattern(),  # type: ignore[arg-type]
+        _arithmetic,
+        examples=(
+            ("what is 17 * 4839", 82_263),
+            ("what is 2 to the power of 40", 1_099_511_627_776),
+            ("what's 1024 / 8?", 128),
+            ("how much is 12,500 + 3,750", 16_250),
+            ("what is 7 times 6", 42),
+        ),
+        counter_examples=(
+            "what is 5 factorial?",
+            "is 97 prime",
+            "tell me about the year 1984",
         ),
     ),
 )
