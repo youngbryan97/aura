@@ -10763,6 +10763,22 @@ async def _grounded_competent_recovery(
     return reply
 
 
+#: "if ... could", "would you rather", "what would you do" — a question about
+#: choice rather than mechanism.
+_SELF_PROCESS_HYPOTHETICAL_RE = re.compile(
+    r"\bif\s+(?:you|your)\b|\bwould\s+you\s+rather\b"
+    r"|\bwhat\s+would\s+you\b|\bwhere\s+would\b|\bsuppose\b|\bimagine\b",
+    re.IGNORECASE,
+)
+
+#: The turn has to be asking about HER, not using a cognition word in passing.
+_SELF_PROCESS_ABOUT_HER_RE = re.compile(
+    r"\byour?\b|\byou(?:'re| are)\b|\bare\s+you\b|\bdo\s+you\b"
+    r"|\bhow\s+(?:do|does|did)\s+(?:you|aura)\b|\baura'?s\b",
+    re.IGNORECASE,
+)
+
+
 def _self_process_requested_dimensions(user_message: str) -> list[str]:
     text = _chat_memory_state._normalize_user_message(user_message)
     # Positional/temporal recall ("what did I first ask") is a factual recall
@@ -10776,6 +10792,20 @@ def _self_process_requested_dimensions(user_message: str) -> list[str]:
             return []
     except (ImportError, AttributeError, ValueError):
         pass
+    # A hypothetical asks what she would CHOOSE; the self-process block
+    # describes how she works. LIVE 2026-08-18: "if your attention could only
+    # go one place, where would it go?" was answered "Right now I am attending
+    # to where my attention is... My current bias is Happiness, leaning
+    # toward..." — internal telemetry recited at a question about preference.
+    # Same separation as the capability inventory: CAN asks the mechanism,
+    # WOULD asks the will.
+    if _SELF_PROCESS_HYPOTHETICAL_RE.search(text):
+        return []
+    # ...and an ordinary sentence that happens to use a cognition word is not
+    # a question about her cognition. "let's focus on the database schema"
+    # requested an introspection essay about attention.
+    if not _SELF_PROCESS_ABOUT_HER_RE.search(text):
+        return []
     requested: list[str] = []
     checks = (
         ("attention", ("attention", "attending", "focus", "noticing", "present")),
