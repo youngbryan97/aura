@@ -1898,7 +1898,8 @@ class HealthAwareLLMRouter:
                     **handoff_kwargs,
                 )
                 text = str(result.get("content", "") or "").strip()
-                if text:
+                called = result.get("tool_calls") or []
+                if text and called:
                     return {
                         "ok": True,
                         "text": text,
@@ -1906,13 +1907,35 @@ class HealthAwareLLMRouter:
                         "tokens": len(text.split()),
                         "error": "",
                     }
-                return {
-                    "ok": False,
-                    "text": "",
-                    "endpoint": "contract_tool_handoff",
-                    "tokens": 0,
-                    "error": "grounding_required_no_tool_result",
-                }
+                if not text:
+                    return {
+                        "ok": False,
+                        "text": "",
+                        "endpoint": "contract_tool_handoff",
+                        "tokens": 0,
+                        "error": "grounding_required_no_tool_result",
+                    }
+                # Text, but the model never called the tool it was handed.
+                #
+                # This returned that prose as a success. The handoff exists
+                # because the turn cannot be answered without the capability,
+                # so an answer produced without it is ungrounded by
+                # construction — and it also skipped `_generate_core`, where
+                # the user-facing integrity checks live. Live 2026-08-19, that
+                # is how "Output: 7" reached the screen with nothing executed:
+                # the tool was offered, declined, and the invention served
+                # without ever meeting the gate that exists to catch it.
+                #
+                # Falling through re-answers on the ordinary lane, which does
+                # run those checks. Costs one generation on a turn the model
+                # ignored its tool; the alternative is serving the invention.
+                record_degradation(
+                    "llm_health_router.tool_handoff",
+                    RuntimeError("model answered without calling the offered tool"),
+                    severity="info",
+                    action="re-answered on the ordinary lane so integrity checks apply",
+                    enforce_failure_policy=False,
+                )
         from core.consciousness.state_freeze import state_freeze
         async with state_freeze():
             return await self._generate_core(
