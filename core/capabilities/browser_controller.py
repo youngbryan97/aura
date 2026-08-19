@@ -17,7 +17,8 @@ import re
 import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
-from urllib.parse import quote, quote_plus, urlparse, urlsplit, urlunsplit
+import html as html_module
+from urllib.parse import quote, quote_plus, urlparse, urlsplit, urlunsplit, unquote
 
 from core.container import ServiceContainer
 from core.runtime.errors import record_degradation
@@ -188,6 +189,70 @@ class _RefusedAdmission:
     reason: str
     approved: bool = False
     receipt_id: str = ""
+
+
+
+#: A result link on DuckDuckGo Lite, and the words under it.
+_RESULT_ANCHOR_RE = re.compile(r'<a[^>]*href="([^"]+)"[^>]*>(.*?)</a>', re.IGNORECASE | re.DOTALL)
+#: The real destination, wrapped in the engine's own redirect.
+_REDIRECT_TARGET_RE = re.compile(r"[?&]uddg=([^&\"']+)", re.IGNORECASE)
+#: Tags inside a result title.
+_MARKUP_RE = re.compile(r"<[^>]+>")
+#: The engine's own pages, and the ad redirector.
+_NOT_A_RESULT = ("duckduckgo.com/duckduckgo-help", "duckduckgo.com/y.js", "duckduckgo.com/settings")
+
+
+def _unwrapped(href: str) -> str:
+    """The destination a result link actually points at.
+
+    Every organic result on DuckDuckGo Lite is a redirect through the engine:
+    ``//duckduckgo.com/l/?uddg=https%3A%2F%2Fplay2048.co%2F``. A reader that
+    skips anything containing "duckduckgo" therefore skips every result, and
+    keeps only the encyclopedia entry that happens to be linked directly.
+
+    LIVE 2026-08-19: a search for a game to play returned one result — the
+    Wikipedia article — twice, titled with its own hostname. She opened it and
+    there was nothing to play.
+    """
+    raw = str(href or "").strip()
+    if not raw:
+        return ""
+    wrapped = _REDIRECT_TARGET_RE.search(raw)
+    if wrapped:
+        raw = unquote(wrapped.group(1))
+    raw = html_module.unescape(raw)
+    if raw.startswith("//"):
+        raw = "https:" + raw
+    return raw if raw.startswith(("http://", "https://")) else ""
+
+
+def _search_results_in(html: str, count: int) -> list[dict[str, str]]:
+    """Every result in a search page, with the words that describe it.
+
+    The title matters as much as the link. It is the only thing that says
+    which result is a place to do something and which is a page about it, and
+    a decision made without it is a decision between hostnames.
+    """
+    results: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for match in _RESULT_ANCHOR_RE.finditer(str(html or "")):
+        url = _unwrapped(match.group(1))
+        if not url or any(marker in url for marker in _NOT_A_RESULT):
+            continue
+        host = (urlparse(url).netloc or "").lower()
+        if not host or "duckduckgo.com" in host or url in seen:
+            continue
+        # Unescaped properly rather than by hand: a title carries whatever
+        # entities the page used, and "2048 &bull; Play the Free Online Game"
+        # is not what anybody reads.
+        title = " ".join(html_module.unescape(_MARKUP_RE.sub(" ", match.group(2))).split()).strip()
+        if not title or title.lower().startswith(("more at", "more info", "next page")):
+            continue
+        seen.add(url)
+        results.append({"url": url, "title": title})
+        if len(results) >= count:
+            break
+    return results
 
 
 class BrowserController:
@@ -637,25 +702,7 @@ class BrowserController:
                 raise RuntimeError(str(response.get("error") or response.get("status_code")))
             html = bytes(response.get("content", b"")).decode("utf-8", errors="replace")
 
-            # Extract links from DuckDuckGo Lite results
-            results = []
-            for match in re.finditer(r'<a[^>]+href="(https?://[^"]+)"[^>]*class="result-link"[^>]*>([^<]+)</a>', html):
-                link_url = match.group(1)
-                title = match.group(2).strip()
-                if not any(d in link_url for d in ("duckduckgo.com", "duck.co")):
-                    results.append({"url": link_url, "title": title})
-                    if len(results) >= count:
-                        break
-
-            # Fallback: extract any external links
-            if not results:
-                for match in re.finditer(r'href="(https?://(?!duckduckgo)[^"]+)"', html):
-                    link_url = match.group(1)
-                    results.append({"url": link_url, "title": urlparse(link_url).netloc})
-                    if len(results) >= count:
-                        break
-
-            return results
+            return _search_results_in(html, count)
         except (OSError, RuntimeError, TypeError, ValueError) as e:
             record_degradation("browser_controller.search_fetch", e)
             logger.debug("Search fetch failed: %s", e)
