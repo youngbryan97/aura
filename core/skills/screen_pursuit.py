@@ -873,7 +873,7 @@ async def pursue_on_screen(
     if open_page:
         from core.agency.reach_place import reach
 
-        reached = await reach(open_page, think=think, lived=lived)
+        reached = await reach(open_page, think=think, lived=lived, purpose=goal)
         if not reached.arrived:
             return {
                 "goal": goal,

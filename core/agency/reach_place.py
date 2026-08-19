@@ -91,8 +91,17 @@ async def _choose_destination(
     *,
     think: Any,
     lived: bool,
+    purpose: str = "",
 ) -> tuple[dict[str, str] | None, str, tuple[str, ...]]:
-    """Pick which result is the place, through the ordinary deliberation."""
+    """Pick which result is the place, through the ordinary deliberation.
+
+    ``purpose`` is what she means to do when she gets there, and it is the
+    difference between the right page and a page about the right thing.
+    LIVE 2026-08-19: asked to find a game and play it, she searched, chose
+    the encyclopedia article about the game, and landed somewhere with
+    nothing to play. Both results were about 2048; only one of them was
+    somewhere you could do the task.
+    """
     from core.agency.deliberate_action import ActionOption, Expectation, deliberate  # noqa: PLC0415
 
     options = [
@@ -110,11 +119,15 @@ async def _choose_destination(
     ]
     if not options:
         return None, "", ()
+    doing = " ".join(str(purpose or "").split())[:160]
     decision = await deliberate(
-        f"open the page for: {wanted}",
-        "search results, none of them opened yet",
+        f"get to where this can be done: {doing or wanted}",
+        f"search results for {wanted!r}, none of them opened yet",
         options,
         think=think,
+        knowledge=(
+            [f"What has to be possible there — {doing}"] if doing else []
+        ),
         control_point="agency.reach_place",
         lived=lived,
     )
@@ -132,12 +145,14 @@ async def reach(
     think: Any = None,
     browser: Any = None,
     lived: bool = True,
+    purpose: str = "",
 ) -> Reached:
     """Get to where ``wanted`` happens, and confirm arrival by looking.
 
     ``wanted`` may be a URL or the name of the thing. A URL is opened; a name
     is searched for, and which result is the place is decided rather than
-    assumed.
+    assumed. ``purpose`` says what has to be possible once she is there,
+    which is what separates the page for doing a thing from a page about it.
     """
     wanted = " ".join(str(wanted or "").split())
     outcome = Reached(wanted=wanted)
@@ -172,7 +187,7 @@ async def reach(
 
             think = her_reasoning()
         picked, because, considered = await _choose_destination(
-            wanted, candidates, think=think, lived=lived
+            wanted, candidates, think=think, lived=lived, purpose=purpose
         )
         outcome.considered = considered
         if picked is None:

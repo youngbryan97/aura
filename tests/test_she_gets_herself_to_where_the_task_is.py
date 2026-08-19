@@ -210,3 +210,35 @@ def test_where_a_thing_lives_is_not_part_of_its_name():
     assert read_watched_goal("find a chess puzzle online and keep solving until it says mate").where == (
         "chess puzzle"
     )
+
+
+@pytest.mark.asyncio
+async def test_the_destination_decision_knows_what_she_means_to_do_there():
+    """LIVE: she searched for a game, opened the encyclopedia article, and
+    landed somewhere with nothing to play.
+
+    Both results were about 2048. Only one of them was somewhere the task
+    could be done, and nothing in the decision said which task.
+    """
+    browser = _Browser(results=RESULTS)
+    think = _thinks("play2048.co")
+    await reach(
+        "2048 game",
+        browser=browser,
+        think=think,
+        lived=False,
+        purpose="play it until you get a 128 tile",
+    )
+    evidence = " ".join(think.seen)
+    assert "play it until you get a 128 tile" in evidence
+    assert "get to where this can be done" in think.seen[0] or any(
+        "has to be possible" in line for line in think.seen
+    )
+
+
+@pytest.mark.asyncio
+async def test_without_a_purpose_it_still_decides_on_the_name_alone():
+    browser = _Browser(results=RESULTS)
+    think = _thinks("play2048.co")
+    got = await reach("2048 game", browser=browser, think=think, lived=False)
+    assert got.arrived
