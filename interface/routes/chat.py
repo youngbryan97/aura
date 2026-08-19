@@ -14151,6 +14151,45 @@ def _brevity_requested(user_message: object) -> bool:
         return False
 
 
+def _serve_earlier_conversation(user_message: object, reply: object) -> object:
+    """Answer "what did I ask you earlier" from the record, not from memory.
+
+    Given the durable turns in its prompt the model answered with the
+    immediately previous message; before the turns were available at all it
+    invented topics. Neither is what was asked, and the record holds the
+    answer exactly, with times.
+
+    Only for a question that says out loud it reaches past this session, and
+    only when the store actually holds earlier turns.
+    """
+    try:
+        from core.brain.observable_registry import _reaches_past_this_session
+        from core.conversation.durable_turns import earlier_conversation_answer
+
+        question = str(user_message or "")
+        if not _reaches_past_this_session(question):
+            return reply
+        if not re.search(
+            r"\bwhat\s+(?:did|was|were|have)\b|\bremember\b|\brecall\b|\btalk(?:ed|ing)?\s+about\b",
+            question,
+            re.IGNORECASE,
+        ):
+            return reply
+        composed = earlier_conversation_answer(exclude=question)
+        if composed:
+            logger.info("🗒️ Served the earlier conversation from the durable record.")
+            return composed
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        record_degradation(
+            "chat.earlier_conversation",
+            exc,
+            severity="debug",
+            action="left the recall answer to the model",
+            enforce_failure_policy=False,
+        )
+    return reply
+
+
 def _serve_measured_belief_history(reply: object) -> object:
     """Replace an invented revision with what her snapshots actually hold.
 
@@ -15763,6 +15802,7 @@ def _apply_recorded_answer(user_message: object, response: Any) -> Any:
         # for the turn — and the reply still named an invented revision with an
         # invented date. Evidence informs; it does not enforce.
         corrected = str(_serve_measured_belief_history(corrected) or corrected)
+        corrected = str(_serve_earlier_conversation(user_message, corrected) or corrected)
         corrected = str(_correct_false_capability_denials(corrected) or corrected)
         # Cut a hallucinated continuation of the transcript.
         #

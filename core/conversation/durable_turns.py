@@ -141,3 +141,40 @@ def describe_durable_turns(
 def durable_turn_texts(*, limit: int = _DEFAULT_LIMIT) -> list[str]:
     """Just the utterances, earliest first, for callers that want plain text."""
     return [turn.text for turn in durable_user_turns(limit=limit)]
+
+
+#: Turns close enough to now to be part of the conversation in progress.
+_THIS_SESSION_S = 900.0
+
+
+def earlier_conversation_answer(*, exclude: str = "", limit: int = 5) -> str:
+    """What he actually asked before now, composed from the record.
+
+    LIVE, 2026-08-19. Given the durable turns in its prompt, the model still
+    answered "what did i ask you about earlier today, before you restarted?"
+    with the immediately previous message — grounded, but not the question.
+    Before that it invented topics outright.
+
+    Evidence informs; it does not enforce. So the answer is composed from the
+    turns rather than requested from the model, the same treatment file counts
+    and belief history get. Each line carries its time, because "be specific"
+    is half a time and half a topic.
+    """
+    excluded = " ".join(str(exclude or "").split()).lower()
+    cutoff = time.time() - _THIS_SESSION_S
+    seen: set[str] = set()
+    chosen: list[DurableTurn] = []
+    for turn in durable_user_turns(limit=40):
+        body = " ".join(turn.text.split())
+        key = body.lower()
+        if not body or key == excluded or key in seen:
+            continue
+        if turn.at >= cutoff:
+            continue  # part of the conversation happening now, not "earlier"
+        seen.add(key)
+        chosen.append(DurableTurn(text=body, at=turn.at))
+    if not chosen:
+        return ""
+    chosen = chosen[-max(1, int(limit)) :]
+    lines = [f"{turn.when()} — {turn.text[:160]}" for turn in chosen]
+    return "Earlier today you asked me:\n" + "\n".join(f"- {line}" for line in lines)

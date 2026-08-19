@@ -142,3 +142,60 @@ def test_a_question_that_says_it_reaches_past_the_session_is_recognised():
         "how are you doing",
     ):
         assert not _reaches_past_this_session(within), within
+
+
+def test_the_earlier_conversation_is_composed_from_the_record(monkeypatch, store: Path):
+    """Evidence informs; it does not enforce.
+
+    With the durable turns in its prompt, the model answered "what did i ask
+    you about earlier today" with the immediately previous message. Before the
+    turns reached it at all, it invented topics. The record holds the answer
+    exactly, with times, so the answer is composed rather than requested.
+    """
+    from core.conversation import durable_turns as module
+
+    monkeypatch.setattr(module, "_episodic_path", lambda: store)
+    composed = module.earlier_conversation_answer()
+    assert "Earlier today you asked me:" in composed
+    assert "run a tiny bit of python" in composed
+    assert "what is 7919 * 6367?" in composed
+    # Her own notes are not his turns.
+    assert "awakening" not in composed
+
+
+def test_the_turn_being_answered_is_not_quoted_back(monkeypatch, store: Path):
+    from core.conversation import durable_turns as module
+
+    monkeypatch.setattr(module, "_episodic_path", lambda: store)
+    composed = module.earlier_conversation_answer(exclude="what is 7919 * 6367?")
+    assert "7919" not in composed
+
+
+def test_the_conversation_happening_now_is_not_earlier(monkeypatch, tmp_path: Path):
+    """A turn from a minute ago is this conversation, not earlier today."""
+    import sqlite3
+    import time as _time
+
+    from core.conversation import durable_turns as module
+
+    path = tmp_path / "episodic.db"
+    connection = sqlite3.connect(path)
+    connection.execute(
+        "CREATE TABLE episodes (episode_id TEXT, timestamp REAL, context TEXT, "
+        "action TEXT, outcome TEXT)"
+    )
+    connection.execute(
+        "INSERT INTO episodes VALUES (?, ?, ?, ?, ?)",
+        ("1", _time.time() - 60, "User asked: something just now", "a", "b"),
+    )
+    connection.commit()
+    connection.close()
+    monkeypatch.setattr(module, "_episodic_path", lambda: path)
+    assert module.earlier_conversation_answer() == ""
+
+
+def test_only_a_question_that_asks_for_it_is_served():
+    from interface.routes.chat import _serve_earlier_conversation
+
+    for unrelated in ("what is 2 + 2", "run some python", "how are you"):
+        assert _serve_earlier_conversation(unrelated, "the model's reply") == "the model's reply"
