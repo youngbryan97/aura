@@ -11,6 +11,7 @@ import logging
 import math
 import re
 import subprocess
+import time
 import urllib.parse
 import uuid
 from collections.abc import Awaitable, Callable, Mapping
@@ -1582,6 +1583,23 @@ def _validate_effect_handler(
     return _callable_name(effect_handler)
 
 
+#: How long an action may show no sign of life before it is treated as wedged.
+#:
+#: This used to be a ceiling on an action's TOTAL duration, which made it a
+#: work budget for anything slow. It killed a sixty-question form at round
+#: forty-one and threw away every answer, because a questionnaire's length is
+#: not knowable in advance — page loads, question counts and a remote site's
+#: latency are all outside the caller's control, and no constant here can know
+#: them.
+#:
+#: Silence is a different claim from duration, and it is the one this number
+#: can actually make: ten minutes with nothing happening is a wedge whatever
+#: the work is. An action that keeps reporting progress is not wedged, and is
+#: bounded instead by the total its caller declared — a figure derived from the
+#: work requested rather than chosen here.
+SILENCE_CEILING_S = 600.0
+
+
 def _coerce_execution_timeout(value: float | None) -> float:
     if value is None:
         return 60.0
@@ -1591,7 +1609,7 @@ def _coerce_execution_timeout(value: float | None) -> float:
         raise ValueError("execution_timeout_s must be numeric") from exc
     if timeout_s <= 0:
         raise ValueError("execution_timeout_s must be positive")
-    return min(timeout_s, 600.0)
+    return timeout_s
 
 
 async def _invoke_effect_handler(
@@ -1600,21 +1618,64 @@ async def _invoke_effect_handler(
     *,
     timeout_s: float,
 ) -> dict[str, Any]:
+    """Run one effect handler under a watchdog it can talk to.
+
+    A handler is handed `report_progress` in its context. Calling it says "I am
+    still working", and resets the silence clock. A handler that never calls it
+    behaves exactly as before: it has `SILENCE_CEILING_S` to finish. A handler
+    that does call it runs until the total its caller declared, which is the
+    only figure in the system derived from the work actually requested.
+
+    Ignoring the callback is fine. Handlers that finish quickly have nothing to
+    report, and nothing about them changes.
+    """
+
+    last_sign_of_life = time.monotonic()
+
+    def report_progress(_note: str = "") -> None:
+        nonlocal last_sign_of_life
+        last_sign_of_life = time.monotonic()
+
+    handler_context = dict(context)
+    handler_context["report_progress"] = report_progress
+
     async def invoke() -> Mapping[str, Any]:
         if inspect.iscoroutinefunction(handler):
-            value = await handler(dict(context))
+            value = await handler(dict(handler_context))
         else:
-            value = await asyncio.to_thread(handler, dict(context))
+            value = await asyncio.to_thread(handler, dict(handler_context))
             if inspect.isawaitable(value):
                 value = await value
         if not isinstance(value, Mapping):
             raise TypeError("effect handler must return a mapping")
         return value
 
-    completed = await asyncio.wait_for(
-        asyncio.gather(invoke(), return_exceptions=True),
-        timeout=timeout_s,
-    )
+    started = time.monotonic()
+    work = asyncio.ensure_future(asyncio.gather(invoke(), return_exceptions=True))
+    while True:
+        silent_for = time.monotonic() - last_sign_of_life
+        total_left = timeout_s - (time.monotonic() - started)
+        window = min(SILENCE_CEILING_S - silent_for, total_left)
+        if window <= 0:
+            work.cancel()
+            with contextlib.suppress(asyncio.CancelledError, Exception):
+                await work
+            raise TimeoutError(
+                f"effect handler {_callable_name(handler)} exceeded its "
+                + (
+                    "declared total"
+                    if total_left <= 0
+                    else f"silence ceiling ({SILENCE_CEILING_S:.0f}s with no progress)"
+                )
+            )
+        try:
+            completed = await asyncio.wait_for(asyncio.shield(work), timeout=window)
+            break
+        except TimeoutError:
+            # The window closed. Whether that is a wedge depends on whether
+            # anything was reported while it was open, which the next pass of
+            # the loop works out.
+            continue
     raw_result = completed[0]
     if isinstance(raw_result, asyncio.CancelledError):
         raise raw_result

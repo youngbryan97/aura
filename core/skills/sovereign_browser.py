@@ -1779,221 +1779,267 @@ class SovereignBrowserSkill(BaseSkill):
         # that land actions, or a page that changes. When that stops,
         # `PURSUE_STALL_LIMIT` ends it. A run that keeps making progress is
         # allowed to keep going.
-        for _round in range(max(1, int(max_steps))):
-            observation = await browser.observe(principal="owner")
-            if (not observation or not observation.get("elements")) and last_good_url:
-                # A reload, a navigation, or a renderer that went away mid-run.
-                # The page being momentarily unreadable is not the end of the
-                # task — go back to where the work was and look again.
-                logger.info(
-                    "🌐 Pursuit lost the page; returning to %s to continue.",
-                    last_good_url,
-                )
-                if await self._safe_browse(browser, last_good_url):
-                    observation = await browser.observe(principal="owner")
-            if not observation or not observation.get("elements"):
-                # Say which of the two it was. "Not observable" covers a
-                # refused read and a page with nothing on it, and those need
-                # different fixes.
-                steps.append(
-                    {
-                        "error": (
-                            "page_read_refused"
-                            if not observation
-                            else "page_had_no_interactive_elements"
-                        ),
-                        "url": (observation or {}).get("url", ""),
-                    }
-                )
-                break
+        # Say "still working" at the top of every round.
+        #
+        # The executor's ceiling bounds SILENCE, not duration: an action that
+        # reports progress is not wedged, and a questionnaire's length is not
+        # knowable in advance. Without this the run is capped at ten minutes
+        # whatever it is doing — measured, that killed a sixty-question form
+        # partway through and discarded every answer it had landed.
+        heartbeat = None
+        if isinstance(action_context, Mapping):
+            candidate = action_context.get("report_progress")
+            if callable(candidate):
+                heartbeat = candidate
 
-            signature = self._observation_signature(observation)
-            if signature == last_signature:
-                stalled += 1
-                if stalled >= self.PURSUE_STALL_LIMIT:
-                    steps.append({"error": "no_progress", "url": observation.get("url")})
-                    break
-            else:
-                stalled = 0
-            last_signature = signature
-            current_url = str(observation.get("url") or "")
-            if current_url:
-                last_good_url = current_url
-
-            # Form the understanding on arrival, and revise it when the page
-            # surprises her — not every round. A person does not re-derive what
-            # a website is after each click; they act until something does not
-            # match, and then they look again.
-            shape = self._page_shape(observation)
-            if understanding is None or surprised:
-                understanding = await self._understand_page(
-                    goal,
-                    observation,
-                    understanding,
-                    mind,
-                    self._recall_about(str(observation.get("url") or ""), shape),
-                )
-                surprised = False
-                self._remember_the_place(
-                    str(observation.get("url") or ""), understanding, shape
-                )
-
-            decision = await self._decide_next_actions(
-                goal, observation, steps, understanding
-            )
-            if decision.get("error"):
-                # What she actually said, not just that it could not be read.
-                # "unparsable_decision" names the parser's problem and hides
-                # the model's answer, which is the only thing that says why.
-                logger.warning(
-                    "🌐 Pursuit decision unusable (%s): %.240s",
-                    decision.get("error"),
-                    str(decision.get("raw") or "(no text captured)"),
-                )
-                steps.append({"error": decision["error"]})
-                break
-            # "Done" before anything has been done is not done.
-            #
-            # Live 2026-08-18: asked to work through a sixty-item
-            # questionnaire, she declared the task complete on the first look,
-            # having answered nothing — one round, zero actions, reported as a
-            # success. A goal that requires acting on a page cannot be finished
-            # before a single action has landed, and accepting the claim makes
-            # the loop a very expensive way to open a URL.
-            #
-            # Once something HAS landed she is trusted: she can see the result
-            # page and knows what finished looks like better than any rule
-            # here.
-            if decision.get("done") is True and not decision.get("actions"):
-                if not any(step.get("landed") for step in steps):
-                    # Look again rather than stop. Being told the task is not
-                    # started is more useful than an early exit, and the stall
-                    # detector still ends it if nothing changes.
+        # What she has already done survives however this ends.
+        #
+        # One slow decision used to destroy an entire run: a generation timed
+        # out, the exception left the loop, and forty-one landed answers went
+        # with it. Nothing here is worth less because the round after it
+        # failed, so the loop ends and the work is reported.
+        try:
+            for _round in range(max(1, int(max_steps))):
+                if heartbeat is not None:
+                    try:
+                        heartbeat(f"pursuit round {_round + 1}")
+                    except Exception as exc:  # a watchdog must never be the danger
+                        record_degradation("sovereign_browser", exc, action="heartbeat skipped")
+                        heartbeat = None
+                observation = await browser.observe(principal="owner")
+                if (not observation or not observation.get("elements")) and last_good_url:
+                    # A reload, a navigation, or a renderer that went away mid-run.
+                    # The page being momentarily unreadable is not the end of the
+                    # task — go back to where the work was and look again.
+                    logger.info(
+                        "🌐 Pursuit lost the page; returning to %s to continue.",
+                        last_good_url,
+                    )
+                    if await self._safe_browse(browser, last_good_url):
+                        observation = await browser.observe(principal="owner")
+                if not observation or not observation.get("elements"):
+                    # Say which of the two it was. "Not observable" covers a
+                    # refused read and a page with nothing on it, and those need
+                    # different fixes.
                     steps.append(
                         {
-                            "why": str(decision.get("why") or ""),
-                            "note": "claimed_done_before_acting",
+                            "error": (
+                                "page_read_refused"
+                                if not observation
+                                else "page_had_no_interactive_elements"
+                            ),
+                            "url": (observation or {}).get("url", ""),
                         }
                     )
-                    surprised = True
-                    continue
-                completed = True
-                steps.append({"why": str(decision.get("why") or ""), "done": True})
-                break
+                    break
 
-            # The same list she was shown, in the same order. Rendering a
-            # ranked subset and resolving against the raw list would mean
-            # index 3 named one control on screen and a different one in the
-            # click — the precise way these loops end up pressing whatever
-            # moved into slot four.
-            elements = self._controls_worth_offering(list(observation.get("elements") or []))
-            planned: list[BrowserAction] = []
-            for item in decision.get("actions") or []:
-                if not isinstance(item, dict):
-                    continue
-                try:
-                    index = int(item.get("index"))
-                except (TypeError, ValueError):
-                    continue
-                if not 0 <= index < len(elements):
-                    continue
-                kind = str(item.get("type") or "click").lower()
-                if kind not in {"click", "type", "scroll"}:
-                    continue
-                selector = str(elements[index].get("selector") or "")
-                if kind == "scroll":
-                    planned.append(BrowserAction(type="scroll", value=str(item.get("value") or "down")))
-                elif not selector:
-                    continue
-                elif kind == "type":
-                    planned.append(
-                        BrowserAction(type="type", selector=selector, value=str(item.get("value") or ""))
-                    )
+                signature = self._observation_signature(observation)
+                if signature == last_signature:
+                    stalled += 1
+                    if stalled >= self.PURSUE_STALL_LIMIT:
+                        steps.append({"error": "no_progress", "url": observation.get("url")})
+                        break
                 else:
-                    planned.append(BrowserAction(type="click", selector=selector))
+                    stalled = 0
+                last_signature = signature
+                current_url = str(observation.get("url") or "")
+                if current_url:
+                    last_good_url = current_url
 
-            if not planned:
-                steps.append({"error": "no_executable_action", "why": str(decision.get("why") or "")})
-                break
+                # Form the understanding on arrival, and revise it when the page
+                # surprises her — not every round. A person does not re-derive what
+                # a website is after each click; they act until something does not
+                # match, and then they look again.
+                shape = self._page_shape(observation)
+                if understanding is None or surprised:
+                    understanding = await self._understand_page(
+                        goal,
+                        observation,
+                        understanding,
+                        mind,
+                        self._recall_about(str(observation.get("url") or ""), shape),
+                    )
+                    surprised = False
+                    self._remember_the_place(
+                        str(observation.get("url") or ""), understanding, shape
+                    )
 
-            report = await self._handle_interact(
-                browser, None, planned, action_context=action_context
+                decision = await self._decide_next_actions(
+                    goal, observation, steps, understanding
+                )
+                if decision.get("error"):
+                    # What she actually said, not just that it could not be read.
+                    # "unparsable_decision" names the parser's problem and hides
+                    # the model's answer, which is the only thing that says why.
+                    logger.warning(
+                        "🌐 Pursuit decision unusable (%s): %.240s",
+                        decision.get("error"),
+                        str(decision.get("raw") or "(no text captured)"),
+                    )
+                    steps.append({"error": decision["error"]})
+                    break
+                # "Done" before anything has been done is not done.
+                #
+                # Live 2026-08-18: asked to work through a sixty-item
+                # questionnaire, she declared the task complete on the first look,
+                # having answered nothing — one round, zero actions, reported as a
+                # success. A goal that requires acting on a page cannot be finished
+                # before a single action has landed, and accepting the claim makes
+                # the loop a very expensive way to open a URL.
+                #
+                # Once something HAS landed she is trusted: she can see the result
+                # page and knows what finished looks like better than any rule
+                # here.
+                if decision.get("done") is True and not decision.get("actions"):
+                    if not any(step.get("landed") for step in steps):
+                        # Look again rather than stop. Being told the task is not
+                        # started is more useful than an early exit, and the stall
+                        # detector still ends it if nothing changes.
+                        steps.append(
+                            {
+                                "why": str(decision.get("why") or ""),
+                                "note": "claimed_done_before_acting",
+                            }
+                        )
+                        surprised = True
+                        continue
+                    completed = True
+                    steps.append({"why": str(decision.get("why") or ""), "done": True})
+                    break
+
+                # The same list she was shown, in the same order. Rendering a
+                # ranked subset and resolving against the raw list would mean
+                # index 3 named one control on screen and a different one in the
+                # click — the precise way these loops end up pressing whatever
+                # moved into slot four.
+                elements = self._controls_worth_offering(list(observation.get("elements") or []))
+                planned: list[BrowserAction] = []
+                for item in decision.get("actions") or []:
+                    if not isinstance(item, dict):
+                        continue
+                    try:
+                        index = int(item.get("index"))
+                    except (TypeError, ValueError):
+                        continue
+                    if not 0 <= index < len(elements):
+                        continue
+                    kind = str(item.get("type") or "click").lower()
+                    if kind not in {"click", "type", "scroll"}:
+                        continue
+                    selector = str(elements[index].get("selector") or "")
+                    if kind == "scroll":
+                        planned.append(BrowserAction(type="scroll", value=str(item.get("value") or "down")))
+                    elif not selector:
+                        continue
+                    elif kind == "type":
+                        planned.append(
+                            BrowserAction(type="type", selector=selector, value=str(item.get("value") or ""))
+                        )
+                    else:
+                        planned.append(BrowserAction(type="click", selector=selector))
+
+                if not planned:
+                    steps.append({"error": "no_executable_action", "why": str(decision.get("why") or "")})
+                    break
+
+                report = await self._handle_interact(
+                    browser, None, planned, action_context=action_context
+                )
+                asked = str(observation.get("text") or "").strip().splitlines()
+                steps.append(
+                    {
+                        "asked": next(
+                            (line for line in asked if "?" in line or line.lower().startswith("question")),
+                            (asked[0] if asked else ""),
+                        )[:180],
+                        "why": str(decision.get("why") or ""),
+                        "chose": [
+                            f"{elements[int(item['index'])].get('name')}"
+                            for item in (decision.get("actions") or [])
+                            if isinstance(item, dict)
+                            and str(item.get("index", "")).lstrip("-").isdigit()
+                            and 0 <= int(item["index"]) < len(elements)
+                        ],
+                        "ok": bool(report.get("ok")),
+                        "url": observation.get("url"),
+                    }
+                )
+                # Say it while it happens. A pursuit runs for minutes; a trace
+                # handed over at the end is a transcript of something the owner
+                # could not watch, and had no way to stop.
+                self._narrate(steps[-1])
+                # A batch that half-landed is progress, not failure.
+                #
+                # `interact` verifies all-or-nothing, which is right for a scripted
+                # sequence: you declared five actions and five must happen. A
+                # pursuit is not that. It answers what is on screen, and a live form
+                # re-renders the moment the last item is answered — so the
+                # selectors chosen a second ago stop resolving and the round is
+                # marked `browser_interaction_incomplete` for having worked.
+                #
+                # Measured live 2026-08-18: one round, several answers, the page
+                # advanced, and the objective was reported as 0/1 steps.
+                #
+                # So the round is judged on whether anything landed. Nothing
+                # landing is still a failure, and the expectation check below still
+                # decides whether the page did what she thought.
+                rows = report.get("action_report")
+                landed = sum(
+                    1
+                    for row in (rows if isinstance(rows, list) else [])
+                    if isinstance(row, Mapping) and row.get("ok") is True
+                )
+                # A success with no per-action report still ran the actions.
+                # Counting only rows made a clean interaction look like nothing had
+                # happened, which then made a later "done" unbelievable.
+                if not landed and report.get("ok"):
+                    landed = len(planned)
+                steps[-1]["landed"] = landed
+                if not report.get("ok") and not landed:
+                    steps[-1]["error"] = str(report.get("error") or "interaction_failed")
+                    break
+                steps[-1]["ok"] = True
+
+                # Did the page do what she said it would? A violated expectation is
+                # what should send her back to look again — the old loop only
+                # counted unchanged screens and gave up calling it `no_progress`.
+                after = await browser.observe(principal="owner")
+                moved = bool(after) and self._observation_signature(after) != signature
+                expected = str(decision.get("expect") or "")
+                steps[-1]["expected"] = expected
+                steps[-1]["moved"] = moved
+                self._record_expectation_outcome(expected, moved)
+                if expected and not moved:
+                    surprised = True
+                    self._learn_from_surprise(shape, expected, observation)
+                if decision.get("done") is True:
+                    completed = True
+                    break
+        except Exception as exc:
+            record_degradation(
+                "sovereign_browser",
+                exc,
+                action=f"pursuit ended early after {len(steps)} rounds; work kept",
             )
-            asked = str(observation.get("text") or "").strip().splitlines()
-            steps.append(
-                {
-                    "asked": next(
-                        (line for line in asked if "?" in line or line.lower().startswith("question")),
-                        (asked[0] if asked else ""),
-                    )[:180],
-                    "why": str(decision.get("why") or ""),
-                    "chose": [
-                        f"{elements[int(item['index'])].get('name')}"
-                        for item in (decision.get("actions") or [])
-                        if isinstance(item, dict)
-                        and str(item.get("index", "")).lstrip("-").isdigit()
-                        and 0 <= int(item["index"]) < len(elements)
-                    ],
-                    "ok": bool(report.get("ok")),
-                    "url": observation.get("url"),
-                }
-            )
-            # Say it while it happens. A pursuit runs for minutes; a trace
-            # handed over at the end is a transcript of something the owner
-            # could not watch, and had no way to stop.
-            self._narrate(steps[-1])
-            # A batch that half-landed is progress, not failure.
-            #
-            # `interact` verifies all-or-nothing, which is right for a scripted
-            # sequence: you declared five actions and five must happen. A
-            # pursuit is not that. It answers what is on screen, and a live form
-            # re-renders the moment the last item is answered — so the
-            # selectors chosen a second ago stop resolving and the round is
-            # marked `browser_interaction_incomplete` for having worked.
-            #
-            # Measured live 2026-08-18: one round, several answers, the page
-            # advanced, and the objective was reported as 0/1 steps.
-            #
-            # So the round is judged on whether anything landed. Nothing
-            # landing is still a failure, and the expectation check below still
-            # decides whether the page did what she thought.
-            rows = report.get("action_report")
-            landed = sum(
-                1
-                for row in (rows if isinstance(rows, list) else [])
-                if isinstance(row, Mapping) and row.get("ok") is True
-            )
-            # A success with no per-action report still ran the actions.
-            # Counting only rows made a clean interaction look like nothing had
-            # happened, which then made a later "done" unbelievable.
-            if not landed and report.get("ok"):
-                landed = len(planned)
-            steps[-1]["landed"] = landed
-            if not report.get("ok") and not landed:
-                steps[-1]["error"] = str(report.get("error") or "interaction_failed")
-                break
-            steps[-1]["ok"] = True
+            steps.append({"error": f"pursuit_interrupted:{type(exc).__name__}"})
 
-            # Did the page do what she said it would? A violated expectation is
-            # what should send her back to look again — the old loop only
-            # counted unchanged screens and gave up calling it `no_progress`.
-            after = await browser.observe(principal="owner")
-            moved = bool(after) and self._observation_signature(after) != signature
-            expected = str(decision.get("expect") or "")
-            steps[-1]["expected"] = expected
-            steps[-1]["moved"] = moved
-            self._record_expectation_outcome(expected, moved)
-            if expected and not moved:
-                surprised = True
-                self._learn_from_surprise(shape, expected, observation)
-            if decision.get("done") is True:
-                completed = True
-                break
+        # The last look is best-effort. If the browser is what broke, the run
+        # still has everything it did before that.
+        final: Mapping[str, Any] | None = None
+        try:
+            final = await browser.observe(principal="owner")
+        except Exception as exc:
+            record_degradation("sovereign_browser", exc, action="final observation skipped")
 
-        final = await browser.observe(principal="owner")
         self._retain_stated_positions(goal, steps)
+        landed_total = sum(int(step.get("landed") or 0) for step in steps)
         return {
-            "ok": completed or bool(steps and not steps[-1].get("error")),
+            # Work that landed is work that happened. A run that answered forty
+            # questions and then hit a slow round is not a failed run, and
+            # reporting it as one is what made a timeout look like nothing had
+            # been done at all.
+            "ok": completed or landed_total > 0 or bool(steps and not steps[-1].get("error")),
+            "landed_total": landed_total,
             "goal": goal,
             "completed": completed,
             "steps": steps,
