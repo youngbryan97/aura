@@ -23,10 +23,30 @@ SOURCE = (
 
 
 def _working_memory_append_block() -> str:
-    """The user-message append, as source text."""
-    start = SOURCE.index("if self._is_user_facing_origin(origin) and append_user_message:")
-    end = SOURCE.index("is_background = bool(kwargs.get(", start)
-    return SOURCE[start:end]
+    """The user-message append, located structurally.
+
+    This used to slice between two literal lines. The second one moved during
+    an unrelated refactor and the test died with "substring not found" — a
+    real invariant reporting a broken marker rather than a broken guarantee.
+    The branch is found by what it TESTS instead, so only a change to the
+    branch itself can break it.
+    """
+    import ast
+
+    tree = ast.parse(SOURCE)
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.If):
+            continue
+        condition = ast.get_source_segment(SOURCE, node.test) or ""
+        if "_is_user_facing_origin" in condition and "append_user_message" in condition:
+            return "\n".join(
+                ast.get_source_segment(SOURCE, statement) or ""
+                for statement in node.body
+            )
+    raise AssertionError(
+        "no branch appends the user message to working memory; the guarantee "
+        "this file protects has no code left to protect"
+    )
 
 
 def test_the_visible_message_is_what_gets_remembered():

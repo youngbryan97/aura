@@ -27,6 +27,20 @@ async def _read_clipboard(prompt: str) -> str:
     return block.replace(f"{CLIPBOARD_HEADER}\n", "", 1) if block else ""
 
 
+# ── her own source ───────────────────────────────────────────────────────────
+
+def _matches_self_source(prompt: str) -> bool:
+    from core.brain.self_source_grounding import asks_about_own_implementation
+
+    return asks_about_own_implementation(prompt)
+
+
+async def _read_self_source(prompt: str) -> str:
+    from core.brain.self_source_grounding import self_source_block
+
+    return await self_source_block(prompt)
+
+
 # ── the shape of this conversation ───────────────────────────────────────────
 
 def _matches_conversation_shape(prompt: str) -> bool:
@@ -475,6 +489,28 @@ def install_default_observables() -> None:
                 "show me the data on unemployment",
                 "how are you doing",
                 "what is 2 + 2",
+            ),
+        ),
+        Observable(
+            "self_source",
+            "## YOUR OWN SOURCE, FOR THE THING BEING ASKED ABOUT",
+            _matches_self_source,
+            _read_self_source,
+            timeout_s=6.0,
+            examples=(
+                # The live miss: answered with the general literature on
+                # deadlocks and recommended Go, while core/runtime/lockdep.py
+                # sat on disk doing exactly what was asked about.
+                "you have a lock ordering system. what happens if two subsystems take locks in opposite order?",
+                "how do you detect deadlocks?",
+                "what does your memory system actually store?",
+                "where in your code is the write gateway?",
+            ),
+            counter_examples=(
+                "how do you feel?",
+                "what do you think about jazz?",
+                "what is 2 + 2",
+                "how does a lock work in general?",
             ),
         ),
         Observable(

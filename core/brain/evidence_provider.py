@@ -17,10 +17,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import os
 import re
 import shutil
 from dataclasses import dataclass
+from collections import Counter
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -80,6 +83,23 @@ _SKIP_DIRS = {".venv", "__pycache__", "node_modules", ".git", "archive", "dev_ar
 #: interface/server.py and never reached core/runtime/subprocess_gateway.py.
 _STRONG_EVIDENCE_SCORE = 5.0
 
+#: Which file is ABOUT the thing is a ranking problem with a standard answer,
+#: and hand-weighting it kept trading one failure for another: counting terms
+#: put aura_main.py first because the entrypoint mentions every subsystem
+#: once, and counting density put a small file first because two lines of it
+#: matched. BM25 is the published resolution of exactly that tension — term
+#: frequency saturates, length is normalised, and a term appearing in most
+#: files counts for little. k1 and b are the literature's defaults.
+_BM25_K1 = 1.5
+_BM25_B = 0.75
+
+#: How much the file-level subject score moves a line's rank.
+_SUBJECT_WEIGHT = 4.0
+
+#: Lines quoted from any one file. An evidence pack of twelve lines from one
+#: module answers nothing a single line would not.
+_MAX_SPANS_PER_FILE = 2
+
 #: Files opened per repo search. Listing paths is cheap and reading them is
 #: not, so this bounds the reads while `_search_order` decides which ones.
 _MAX_FILES_READ = 4000
@@ -124,6 +144,41 @@ def _filename_candidates(objective: str) -> set[str]:
         for start in range(len(words) - width + 1):
             out.add("_".join(words[start : start + width]))
     return out
+
+
+@lru_cache(maxsize=1)
+def _low_information_terms() -> frozenset[str]:
+    """Words this project uses so often they cannot point at a file.
+
+    "you have a lock ordering system ... what happens if two subsystems take
+    locks in opposite order" reduces to six terms, of which "system",
+    "happens" and "opposite" say nothing about WHICH file. Counting them as
+    coverage put aura_main.py first for every such question, because the
+    entrypoint names every subsystem there is.
+
+    Measured against the project's own prose rather than a guessed stoplist: a
+    word the documentation writes constantly is a word that does not
+    discriminate. Read once per process from the docs already on disk, and an
+    unreadable docs tree simply yields no stoplist.
+    """
+    counts: Counter[str] = Counter()
+    try:
+        sources = list((PROJECT_ROOT / "docs").rglob("*.md")) + list(
+            PROJECT_ROOT.glob("*.md")
+        )
+        for path in sources[:200]:
+            text = path.read_text(encoding="utf-8", errors="ignore").lower()
+            text = re.sub(r"```.*?```", " ", text, flags=re.DOTALL)
+            counts.update(re.findall(r"[a-z][a-z-]{3,}", text))
+    except (OSError, ValueError):
+        return frozenset()
+    if not counts:
+        return frozenset()
+    # The head of the distribution, not an arbitrary count: terms appearing
+    # more often than the 200th most common one carry no file-level signal.
+    ranked = counts.most_common(200)
+    floor = ranked[-1][1]
+    return frozenset(word for word, uses in counts.items() if uses >= floor)
 
 
 def _salient_terms(objective: str, *, limit: int = 6) -> list[str]:
@@ -488,7 +543,14 @@ class EvidenceProvider:
         tooling, then tests — and the budget bounds the reads.
         """
         specific = set(filename_candidates or ())
-        wanted = {n.lower() for n in needles} | set(snake.values()) | specific
+        # Only the TOP-RANKED term claims a filename. _salient_terms orders by
+        # how informative a term is, and letting every term claim one let the
+        # least informative decide: "you have a lock ordering system" opened
+        # core/consciousness/system.py, because a file is named system.py and
+        # "system" was in the list. The rest of the terms still match content;
+        # they just do not get to say which file is read first.
+        lead = needles[0].lower() if needles else ""
+        wanted = ({lead, snake.get(needles[0], lead)} if lead else set()) | specific
         scored: list[tuple[int, str, Path]] = []
         # Prune while walking, not after. rglob yields every path under
         # .venv, node_modules and the worktree copies and leaves the caller to
@@ -556,6 +618,22 @@ class EvidenceProvider:
         per_term_cap = max(2, limit)
         per_term_candidates = max(per_term_cap * 8, 40)
         counts = {t: 0 for t in needles}
+        #: Which of the question's terms each file actually contains. A file
+        #: carrying most of what was asked about is the subject; a file
+        #: carrying one common word is a coincidence. Without this, "you have
+        #: a lock ordering system ... locks in opposite order" ranked
+        #: aura_main.py above core/runtime/lockdep.py, which is the file that
+        #: detects exactly that.
+        covered: dict[str, set[str]] = {}
+        #: Matching lines per file, and how many lines the file has. Presence
+        #: is not evidence of subject: aura_main.py mentions every subsystem
+        #: once, so it "covered" more of a question about lock ordering than
+        #: core/runtime/lockdep.py, which is the file that implements it.
+        #: What separates them is DENSITY — how much of the file is about the
+        #: thing — and both numbers are already in hand during the scan.
+        frequency: dict[str, Counter[str]] = {}
+        length: Counter[str] = Counter()
+        low_information = _low_information_terms()
         scanned = 0
         tie = 0
         strong = 0
@@ -582,12 +660,21 @@ class EvidenceProvider:
                     path_score += 2.0
                 elif is_tooling:
                     path_score += 0.5
-                for i, ln in enumerate(
-                    py.read_text(encoding="utf-8", errors="ignore").splitlines(), start=1
-                ):
+                file_lines = py.read_text(encoding="utf-8", errors="ignore").splitlines()
+                length[str(rel)] = len(file_lines)
+                for i, ln in enumerate(file_lines, start=1):
                     for rank, t in enumerate(needles):
                         if t not in ln:
                             continue
+                        # Count the term BEFORE any admission cap. The cap
+                        # bounds how many quotable lines are kept; it must not
+                        # decide how much a file is about the subject, or the
+                        # ranking sees zero for every file reached after the
+                        # buckets fill — which is every file past the first
+                        # dozen, including the one that implements the answer.
+                        if t.lower() not in low_information:
+                            covered.setdefault(str(rel), set()).add(t)
+                            frequency.setdefault(str(rel), Counter())[t] += 1
                         score = path_score
                         if def_re[t].search(ln):
                             score += 4.0
@@ -595,6 +682,12 @@ class EvidenceProvider:
                         # what "the file named after this" means, or the right
                         # file is opened first and then outscored by an
                         # incidental mention elsewhere.
+                        # Same rule as the read order above: a filename bonus
+                        # is only granted to the lead term or to a multi-word
+                        # name the question spells out. Letting any term grant
+                        # it put system.py at the top for a question about
+                        # lock ordering.
+                        named_file = False
                         if stem in (filename_candidates or ()):
                             # A stem matching several of the asked words is a
                             # more specific claim than one matching a single
@@ -602,8 +695,10 @@ class EvidenceProvider:
                             # named core/consciousness/contract.py ahead of
                             # core/runtime/health_contract.py on a tie.
                             score += 6.0
-                        elif stem == snake[t] or stem == t.lower():
+                            named_file = True
+                        elif rank == 0 and (stem == snake[t] or stem == t.lower()):
                             score += 5.0
+                            named_file = True
                         # A cap that admits candidates in walk order still lets
                         # early files crowd out the answer: with the cap alone,
                         # asking about SubprocessGateway filled up on aura_main
@@ -616,7 +711,13 @@ class EvidenceProvider:
                             break
                         counts[t] += 1
                         tie += 1
-                        if score >= _STRONG_EVIDENCE_SCORE:
+                        # Only a hit in the file NAMED after the subject can
+                        # end the scan early. Any def line in any
+                        # implementation file scores "strong", so counting
+                        # those stopped the search after ten files: asked
+                        # about lock ordering, core/runtime/lockdep.py sits at
+                        # position 2213 and was never opened.
+                        if named_file and score >= _STRONG_EVIDENCE_SCORE:
                             strong += 1
                         candidates.append(
                             (
@@ -630,12 +731,66 @@ class EvidenceProvider:
             except (OSError, ValueError):
                 continue
 
+        # Coverage outranks a single strong line — but as a PROPORTION of
+        # what was asked, not as a count. Rewarding the raw number put
+        # aura_main.py first for every question, because the entrypoint
+        # mentions every subsystem in the system and therefore "covers" more
+        # of any question than the file that actually implements the answer.
+        informative = [n for n in needles if n.lower() not in low_information]
+        documents = [f for f in length if length[f] > 0]
+        average_length = (
+            sum(length[f] for f in documents) / len(documents) if documents else 1.0
+        )
+        document_frequency = Counter(
+            term
+            for term in informative
+            for source_file in frequency
+            if frequency[source_file].get(term)
+        )
+        total_documents = max(1, len(documents))
+
+        def _subject_bonus(ref: str) -> float:
+            """BM25 over the files this scan actually read."""
+            source_file = ref.split(":", 1)[0]
+            counts = frequency.get(source_file)
+            if not counts:
+                return 0.0
+            file_length = max(1, length[source_file])
+            score = 0.0
+            for term in informative:
+                term_frequency = counts.get(term, 0)
+                if not term_frequency:
+                    continue
+                seen_in = document_frequency.get(term, 0)
+                idf = math.log(
+                    1 + (total_documents - seen_in + 0.5) / (seen_in + 0.5)
+                )
+                saturated = term_frequency * (_BM25_K1 + 1) / (
+                    term_frequency
+                    + _BM25_K1
+                    * (1 - _BM25_B + _BM25_B * file_length / average_length)
+                )
+                score += idf * saturated
+            return _SUBJECT_WEIGHT * score
+
+        candidates = [
+            (score - _subject_bonus(span.ref), rank, tie, span)
+            for score, rank, tie, span in candidates
+        ]
         candidates.sort()
         ordered: list[EvidenceSpan] = []
         seen: set[str] = set()
+        per_file: dict[str, int] = {}
         for _score, _rank, _tie, span in candidates:
             if span.ref in seen:
                 continue
+            # Evidence from one file is one piece of evidence. Twelve lines of
+            # aura_main.py is not a survey of the codebase, and it crowded out
+            # every other file that had something to say.
+            source_file = span.ref.split(":", 1)[0]
+            if per_file.get(source_file, 0) >= _MAX_SPANS_PER_FILE:
+                continue
+            per_file[source_file] = per_file.get(source_file, 0) + 1
             seen.add(span.ref)
             ordered.append(span)
             if len(ordered) >= limit:
