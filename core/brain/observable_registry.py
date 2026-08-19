@@ -267,7 +267,16 @@ async def _read_screen(_prompt: str) -> str:
 
 _ASKS_BELIEFS = re.compile(
     r"\bwhat\s+do\s+you\s+(?:currently\s+)?(?:believe|think)\s+about\b"
-    r"|\byour\s+beliefs?\b|\bwhat\s+have\s+you\s+concluded\b",
+    r"|\byour\s+beliefs?\b|\bwhat\s+have\s+you\s+concluded\b"
+    # Asking what she KNOWS about the person is asking for the same store.
+    # LIVE 2026-08-18: "what do you know about my work?" reached no reading at
+    # all, and neither did "give me three reasons I might be wrong about my own
+    # project" — which was answered with market research, technical
+    # feasibility and team misalignment, advice for a project she was never
+    # told anything about.
+    r"|\bwhat\s+do\s+you\s+(?:actually\s+)?(?:know|remember)\s+about\b"
+    r"|\bwhat\s+have\s+you\s+(?:learned|noticed|picked\s+up)\s+about\b"
+    r"|\bwhat\s+do\s+you\s+have\s+on\s+(?:me|my)\b",
     re.IGNORECASE,
 )
 
@@ -498,6 +507,8 @@ def install_default_observables() -> None:
                 "what do you currently believe about me?",
                 "what do you think about me?",
                 "tell me your beliefs",
+                "what do you know about my work?",
+                "what have you noticed about me?",
             ),
             counter_examples=(
                 "what do you think of that film?",
