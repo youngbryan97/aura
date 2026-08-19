@@ -6425,9 +6425,8 @@ class InferenceGate:
         self,
         client: Any,
         *,
-        prompt: Any,
+        visible: Any,
         system_prompt: Any,
-        history: Any,
         timeout_s: float,
     ) -> str | None:
         """Answer by running the capability the request needs, or return None.
@@ -6446,21 +6445,20 @@ class InferenceGate:
         capability needed, no tool map, the model declining to call — returns
         None so the ordinary generation proceeds untouched.
         """
-        visible = ""
-        try:
-            visible = str(self._visible_user_prompt_from_messages(history, prompt) or "").strip()
-        except (AttributeError, TypeError, ValueError):
-            visible = str(prompt or "").strip()
-        if not visible:
+        # The person's own words, not the assembled prompt. The scaffold runs
+        # to thousands of characters around a request of a hundred, and asking
+        # a question about the whole envelope answers about the envelope.
+        text = str(visible or "").strip()
+        if not text:
             return None
         try:
             from core.brain.llm.runtime_wiring import build_agentic_tool_map
             from core.phases.response_contract import derive_required_skill
 
-            required = derive_required_skill(visible)
+            required = derive_required_skill(text)
             if not required:
                 return None
-            tools = build_agentic_tool_map(required, objective=visible, max_tools=1)
+            tools = build_agentic_tool_map(required, objective=text, max_tools=1)
             if not tools:
                 logger.info(
                     "🔧 Tool handoff: skill=%s offered=NONE (no tool definition)", required
@@ -6471,7 +6469,7 @@ class InferenceGate:
             )
             result = await asyncio.wait_for(
                 client.think_and_act(
-                    objective=visible,
+                    objective=text,
                     system_prompt=str(system_prompt or ""),
                     tools=tools,
                     max_turns=3,
@@ -12389,9 +12387,8 @@ class InferenceGate:
                     if _is_user_facing and not skip_initial_primary_attempt:
                         tool_grounded = await self._tool_grounded_answer(
                             local_client,
-                            prompt=prompt,
+                            visible=(initial_visible_user_prompt or visible_user_prompt),
                             system_prompt=system_prompt,
-                            history=history,
                             timeout_s=float(timeout_val),
                         )
                     if tool_grounded:

@@ -42,7 +42,7 @@ class _Client:
 def _answer(gate: Any, client: Any, prompt: str) -> str | None:
     return asyncio.run(
         gate._tool_grounded_answer(
-            client, prompt=prompt, system_prompt="", history=None, timeout_s=30.0
+            client, visible=prompt, system_prompt="", timeout_s=30.0
         )
     )
 
@@ -121,3 +121,27 @@ def test_no_tool_definition_means_no_loop(gate, monkeypatch):
 
 def test_an_empty_request_is_left_alone(gate):
     assert _answer(gate, _Client({}), "   ") is None
+
+
+def test_the_persons_own_words_are_what_gets_read(gate, monkeypatch):
+    """Not the assembled prompt.
+
+    The scaffold runs to thousands of characters around a request of a
+    hundred, and the first wiring passed the envelope. Live, that made every
+    turn derive no capability at all — the helper returned before it even
+    logged, which is why the fix looked like it had not run.
+    """
+    seen: list[str] = []
+
+    def _derive(text: str) -> str | None:
+        seen.append(text)
+        return "code_repl"
+
+    monkeypatch.setattr("core.phases.response_contract.derive_required_skill", _derive)
+    monkeypatch.setattr(
+        "core.brain.llm.runtime_wiring.build_agentic_tool_map",
+        lambda *a, **k: {"code_repl": {"name": "code_repl"}},
+    )
+    client = _Client({"content": "7", "tool_calls": [{"tool": "code_repl"}]})
+    _answer(gate, client, "run some python")
+    assert seen == ["run some python"]
