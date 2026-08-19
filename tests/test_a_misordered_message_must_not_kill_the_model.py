@@ -79,3 +79,30 @@ def test_every_render_path_goes_through_it():
     renders = [line for line in source.splitlines() if "str(apply(" in line]
     assert renders, "the render calls moved; this test needs to follow them"
     assert all("system_first(" in line for line in renders), renders
+
+
+def test_the_assemblers_own_note_goes_with_the_system_content():
+    """This is the caller that actually built the list that killed the worker.
+
+    The omission notice was appended, so it landed after the whole
+    conversation — and it only fires once a run has gone on long enough to
+    drop messages, which is why it struck mid-game.
+    """
+    from core.brain.llm.context_assembler import _place_system_note
+
+    messages = [
+        {"role": "system", "content": "canonical"},
+        {"role": "user", "content": "a"},
+        {"role": "assistant", "content": "b"},
+    ]
+    _place_system_note(messages, "3 messages omitted")
+    assert [message["role"] for message in messages] == ["system", "system", "user", "assistant"]
+    assert messages[1]["content"] == "3 messages omitted"
+
+
+def test_the_note_still_goes_first_when_there_is_no_system_content():
+    from core.brain.llm.context_assembler import _place_system_note
+
+    messages = [{"role": "user", "content": "a"}]
+    _place_system_note(messages, "note")
+    assert [message["role"] for message in messages] == ["system", "user"]

@@ -192,6 +192,22 @@ def _signal_pattern(signals: tuple[str, ...]) -> re.Pattern[str]:
 _DELIBERATE_RE = _signal_pattern(_DELIBERATE_SIGNALS)
 _CASUAL_RE = _signal_pattern(_CASUAL_SIGNALS)
 
+
+def _place_system_note(messages: list[dict[str, Any]], content: str) -> None:
+    """Put one of the assembler's own notes with the system content it belongs to.
+
+    After the system messages already at the front, before the conversation.
+    Somewhere in the middle is what breaks templates; the end is the same
+    thing with more history in front of it.
+    """
+    where = 0
+    for message in messages:
+        if not isinstance(message, dict) or str(message.get("role") or "") != "system":
+            break
+        where += 1
+    messages.insert(where, {"role": "system", "content": content})
+
+
 class ContextAssembler:
     """Unified prompt construction from state."""
 
@@ -2629,7 +2645,18 @@ class ContextAssembler:
         # 6. Memory Summarization Hook
         if dropped_messages_count > 0:
             summary_notice = f"[SYSTEM: {dropped_messages_count} older conversational messages were omitted from this context window due to cognitive load limits. If the user refers to past context, be aware it may have scrolled out of immediate memory.]"
-            messages.append({"role": "system", "content": summary_notice})
+            # At the front, with the assembler's other system content.
+            #
+            # Appended, this landed after the conversation, and a chat
+            # template that requires system messages first raises rather than
+            # coping: "System message must be at the beginning." That
+            # exception surfaces inside the worker, which dies mid-generation
+            # and takes the model lane with it.
+            #
+            # LIVE 2026-08-19: it fired once a run had gone on long enough to
+            # drop messages, killed the worker in the middle of a game she was
+            # playing, and answered the person with a refusal.
+            _place_system_note(messages, summary_notice)
 
         # Assemble final array.
         #
