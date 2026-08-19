@@ -215,7 +215,10 @@ _WORD_RE = re.compile(r"[a-z0-9_+#.]+")
 #: Sentence and clause boundaries. A verb in one clause does not govern an
 #: object in the next: "I ran a marathon, then wrote some code" is not a
 #: request to execute anything.
-_CLAUSE_SPLIT_RE = re.compile(r"[.!?;\n]+|,\s+(?:then|and then|after|before)\b|\bthen\b")
+# A colon introduces a clause: "do something for real instead of describing
+# it: run a tiny bit of code" puts the request after it, and without the
+# colon here the verb is buried mid-sentence and reads as narration.
+_CLAUSE_SPLIT_RE = re.compile(r"[.!?;:\n]+|,\s+(?:then|and then|after|before)\b|\bthen\b")
 
 
 @lru_cache(maxsize=4096)

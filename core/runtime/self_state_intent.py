@@ -142,17 +142,44 @@ _SECOND_PERSON_RE = re.compile(r"\b(?:you|you're|your|yours|yourself)\b", re.IGN
 #: Kept as its own table rather than imported: ``core/runtime`` may not import
 #: cognition (see DEPS), and ``make layering`` is the gate. A test holds the
 #: two in sync so the copy cannot drift.
-_CAPABILITY_DOMAIN_RE = re.compile(
-    r"\b(?:"
-    r"code|coding|python|script|sandbox|repl|shell|exec|execute|run|compute|calculate"
-    r"|search|web|browse|browser|url|look\s+up|google"
-    r"|screen|vision|ocr|screenshot|camera|see|look\s+at"
-    r"|desktop|click|type|keyboard|mouse|window|app|automation"
-    r"|file|files|directory|folder|document|download|save"
-    r"|remember|recall|memory|belief|forget"
-    r"|email|message|notify|speak|say|send|voice"
-    r")\b",
-    re.IGNORECASE,
+#: The acts she has skills for, and the things those acts are done to.
+#:
+#: This was one flat list of words, matched anywhere. So "since you started
+#: running" — running as in OPERATING — read as a request to execute code, and
+#: "forget the tests for a second" read as a memory operation. Live 2026-08-19
+#: that put "I can query beliefs — query_beliefs are registered and enabled
+#: right now" in front of an answer to "what have you genuinely changed your
+#: mind about", which is a registry status line stapled to an intimate
+#: question.
+#:
+#: A request is a verb AND an object, in one clause, in the mood that asks —
+#: the same relation the capability router uses to pick a skill, so the two
+#: agree about what counts as asking for something.
+_CAPABILITY_VERBS = frozenset(
+    {
+        "run", "execute", "exec", "compute", "calculate", "evaluate",
+        "search", "browse", "google", "look", "find", "fetch",
+        "see", "watch", "observe", "read", "show", "display",
+        "take", "grab", "capture", "check", "screenshot",
+        "click", "type", "open", "download", "save", "write",
+        "remember", "recall", "forget", "store",
+        "notify", "speak", "say", "send", "email", "message",
+        "install", "make", "generate", "create", "draw",
+    }
+)
+_CAPABILITY_OBJECTS = frozenset(
+    {
+        "code", "coding", "python", "script", "snippet", "program", "sandbox",
+        "repl", "interpreter", "shell", "terminal", "command",
+        "web", "internet", "online", "url", "browser", "site", "website",
+        "screen", "display", "vision", "ocr", "screenshot", "camera",
+        "desktop", "keyboard", "mouse", "window", "app", "application",
+        "automation", "file", "files", "directory", "folder", "document",
+        "button", "menu", "link", "tab", "icon", "field", "checkbox",
+        "memory", "memories", "belief", "beliefs", "note", "notes",
+        "email", "message", "messages", "voice", "image", "picture",
+        "package", "library",
+    }
 )
 
 
@@ -168,6 +195,15 @@ _THIRD_PARTY_SUBJECT_RE = re.compile(
     r"|agents|system|systems|human|humans|person|people|carpenter|developer"
     r"|programmer|engineer|computer|machine)\b"
     r"|\b(?:people|someone|anyone|everyone|somebody|anybody|nobody|others)\b",
+    re.IGNORECASE,
+)
+
+
+#: A memory verb with the complement that makes it an operation.
+_MEMORY_OPERATION_RE = re.compile(
+    r"\b(?:remember|recall|memorise|memorize|note|store|forget)\s+"
+    r"(?:that|to|what|when|where|how|why|whether|if|my|our|your|his|her|their|"
+    r"i\s|we\s|this\s+about|the\s+fact)\b",
     re.IGNORECASE,
 )
 
@@ -200,7 +236,21 @@ def asked_to_act_in_a_capability_domain(text: str) -> bool:
         candidate
     ):
         return False
-    return bool(_CAPABILITY_DOMAIN_RE.search(candidate))
+    # Memory verbs take whatever they are given — "remember that my sister's
+    # name is Ada" has no domain object and is unmistakably a memory
+    # operation. What marks it is the complement: a clause, an infinitive or
+    # something of the speaker's. "Forget the tests for a second" takes a bare
+    # noun phrase and means set aside, which is how the flat word list turned
+    # an intimate question into a status line about the belief store.
+    if _MEMORY_OPERATION_RE.search(candidate):
+        return True
+    try:
+        from core.intent.declared_capability import request_matches_declaration
+    except ImportError:  # pragma: no cover - foundation must boot regardless
+        return False
+    return request_matches_declaration(
+        candidate, verbs=_CAPABILITY_VERBS, objects=_CAPABILITY_OBJECTS
+    )
 
 
 #: A claim ABOUT her state, rather than a question about it.

@@ -112,9 +112,12 @@ def test_the_domain_table_still_covers_every_family_it_mirrors():
     source = Path(
         Path(__file__).resolve().parents[1] / "core/runtime/self_state_intent.py"
     ).read_text(encoding="utf-8")
-    domain_block = source.split("_CAPABILITY_DOMAIN_RE = re.compile(", 1)[1].split(
-        "re.IGNORECASE", 1
-    )[0].lower()
+    # One flat word list became a verb set and an object set, because
+    # matching any of those words anywhere claimed "since you started running"
+    # as a request to execute code. Both halves are the table now.
+    verbs = source.split("_CAPABILITY_VERBS = frozenset(", 1)[1].split(")", 1)[0]
+    objects = source.split("_CAPABILITY_OBJECTS = frozenset(", 1)[1].split(")", 1)[0]
+    domain_block = (verbs + objects).lower()
 
     for label, tokens in _CAPABILITY_FAMILIES:
         assert any(
