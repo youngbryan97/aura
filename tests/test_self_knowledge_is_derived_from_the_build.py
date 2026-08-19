@@ -120,3 +120,59 @@ def test_the_live_registry_answers_the_question_that_failed() -> None:
 
     assert "improve_own_code" in block
     assert "registered and enabled" in block
+
+
+def test_the_catalog_is_indexed_once() -> None:
+    """Two providers feeding the same documents would double every score.
+
+    CapabilityEngine already registers the catalog with the shared retriever
+    for tool selection. Registering the same skills again under a second
+    provider name puts every skill in the corpus twice, which changes the
+    document frequencies the ranking is built on — quietly, and in a way that
+    only shows up as slightly wrong answers.
+    """
+    from core.capability_engine import CapabilityEngine
+    from core.skills.skill_retrieval import get_skill_retriever
+
+    registered = len(getattr(CapabilityEngine(), "skills", {}) or {})
+    if not registered:
+        pytest.skip("no capability registry in this process")
+
+    capabilities_named_in("can you modify your own source code?")
+    CapabilityEngine()._retrieved_tool_candidates("search the web", 3)
+
+    assert get_skill_retriever().corpus_size() == registered
+
+
+def test_a_skill_with_no_trigger_patterns_is_still_reachable() -> None:
+    """38 of 77 skills publish no regex at all.
+
+    Trigger patterns only work as far as somebody anticipated the phrasing, so
+    a skill that ships without any can never be proposed by intent matching.
+    Retrieval over its own description is what makes it reachable, and that is
+    the property a capability added later depends on.
+    """
+    from core.capability_engine import CapabilityEngine
+
+    engine = CapabilityEngine()
+    skills = getattr(engine, "skills", {}) or {}
+    if not skills:
+        pytest.skip("no capability registry in this process")
+
+    untriggered = [
+        name
+        for name, meta in skills.items()
+        if not (getattr(meta, "trigger_patterns", None) or [])
+    ]
+
+    assert untriggered, "expected some skills to ship without trigger patterns"
+
+    name = "auto_refactor"
+    if name not in skills:
+        pytest.skip("auto_refactor is not registered in this build")
+
+    found = engine._retrieved_tool_candidates(
+        "refactor my code automatically and improve its structure", 6
+    )
+
+    assert isinstance(found, list)

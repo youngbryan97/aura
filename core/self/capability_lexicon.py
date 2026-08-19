@@ -166,31 +166,39 @@ def capability_lexicon(engine: Any = None) -> dict[str, dict[str, float]]:
     return lexicon
 
 
-def _catalog_documents(engine: Any = None):
-    """The live capability registry, as retrievable documents.
-
-    core/skills/skill_retrieval.py is the canonical way to find the skill that
-    fits words nobody wrote a regex for — TF-IDF over each skill's own
-    description, with an encoder backend when one is installed. It shipped
-    with no provider registered, so its corpus was empty and it retrieved
-    nothing; the registry is the provider it was waiting for.
-    """
-    from core.skills.skill_retrieval import SkillDocument
-
-    for name, meta in _skill_metadata(engine).items():
-        description = str(getattr(meta, "description", "") or "")
-        yield SkillDocument(name=name, description=description, source="catalog")
+#: The provider key CapabilityEngine already registers the catalog under.
+#: Registering the same documents under a second name would put every skill in
+#: the corpus twice and quietly change every score.
+_CATALOG_PROVIDER = "capability_catalog"
 
 
 def _retriever_mentions(text: str, engine: Any) -> tuple[CapabilityMention, ...]:
-    """Ask the shared retriever, or () when it cannot answer."""
+    """Ask the shared retriever, or () when it cannot answer.
+
+    core/skills/skill_retrieval.py is the canonical way to find the skill that
+    fits words nobody wrote a regex for — TF-IDF over each skill's own
+    description, with an encoder backend when one is installed — and
+    CapabilityEngine already feeds it the catalog for tool selection. This
+    reads the same index rather than building a second one, and seeds it under
+    the same key when nothing has populated it yet in this process.
+    """
     try:
-        from core.skills.skill_retrieval import get_skill_retriever
+        from core.skills.skill_retrieval import SkillDocument, get_skill_retriever
 
         retriever = get_skill_retriever()
-        retriever.register_provider(
-            "capability_registry", lambda: list(_catalog_documents(engine))
-        )
+        if not retriever.corpus_size():
+            skills = _skill_metadata(engine)
+            retriever.register_provider(
+                _CATALOG_PROVIDER,
+                lambda: [
+                    SkillDocument(
+                        name=name,
+                        description=str(getattr(meta, "description", "") or ""),
+                        source="catalog",
+                    )
+                    for name, meta in skills.items()
+                ],
+            )
         hits = retriever.retrieve(str(text or ""), k=4)
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
         return ()
