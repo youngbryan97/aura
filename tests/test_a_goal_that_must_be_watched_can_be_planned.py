@@ -161,3 +161,36 @@ def test_a_pursuit_that_reached_its_goal_counts_the_moves_it_took():
     assert verified is True
     assert "moves=2" in evidence
     assert "goal_reached" in evidence
+
+
+def test_a_watching_action_is_bounded_by_its_goal_not_by_a_keystroke():
+    """LIVE: every run was cut off at thirty seconds mid-game.
+
+    The pursuit carries its own limit and stops itself. Wrapping it in the
+    budget sized for one keystroke reported "Operation took too long" for a
+    loop that was working.
+    """
+    from core.skills.computer_use import ComputerUseSkill
+
+    click = ComputerUseSkill.timeout_for({"action": "click"})
+    watching = ComputerUseSkill.timeout_for({"action": "pursue_on_screen", "target": "{}"})
+    assert watching > click * 10
+
+
+def test_the_budget_comes_from_what_the_pursuit_asked_for():
+    from core.skills.computer_use import ComputerUseSkill
+
+    short = ComputerUseSkill.timeout_for(
+        {"action": "pursue_on_screen", "target": json.dumps({"max_seconds": 120})}
+    )
+    long = ComputerUseSkill.timeout_for(
+        {"action": "pursue_on_screen", "target": json.dumps({"max_seconds": 600})}
+    )
+    assert long > short
+    assert short > 120, "a run killed on its own deadline loses the receipt saying what it did"
+
+
+def test_a_malformed_target_still_gets_a_workable_budget():
+    from core.skills.computer_use import ComputerUseSkill
+
+    assert ComputerUseSkill.timeout_for({"action": "pursue_on_screen", "target": "not json"}) > 30.0

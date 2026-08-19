@@ -223,7 +223,30 @@ class ComputerUseSkill(BaseSkill):
             # Launching or fetching waits on something outside this process;
             # hold_focus alone can spend the whole declared budget.
             return max(cls.timeout_seconds, cls._HOLD_FOCUS_BUDGET_S * 2 + 30.0)
+        if action == "pursue_on_screen":
+            # A watching action is bounded by the goal it is watching for, not
+            # by how long one keystroke takes. The pursuit already carries its
+            # own limit and stops itself; wrapping it in the ordinary
+            # thirty-second budget cut every run off mid-game and reported
+            # "Operation took too long" for a loop that was working.
+            return max(cls.timeout_seconds, cls._pursuit_budget_s(params) + cls._PURSUIT_GRACE_S)
         return cls.timeout_seconds
+
+    #: Room for the pursuit to finish its last cycle and report, after its own
+    #: clock has run out. A watching action that is killed on its own deadline
+    #: loses the receipt saying what it did.
+    _PURSUIT_GRACE_S = 30.0
+
+    @classmethod
+    def _pursuit_budget_s(cls, params: Any) -> float:
+        """The limit a pursuit gave itself, read from its own target."""
+        payload = params if isinstance(params, dict) else None
+        target = payload.get("target") if payload else getattr(params, "target", "")
+        try:
+            declared = cls._target_json(str(target or "{}")).get("max_seconds")
+            return max(0.0, float(declared))
+        except (TypeError, ValueError, AttributeError):
+            return 600.0
 
     PERMISSION_CHECK_TIMEOUT_S = 3.0
     MAX_APPLESCRIPT_CHARS = 4000
