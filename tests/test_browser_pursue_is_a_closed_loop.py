@@ -426,3 +426,59 @@ class TestAPartialBatchIsProgress:
         skill._handle_interact = _nothing
         result = await skill._handle_pursue(_Browser([_page()]), None, "go", 2)
         assert result["steps"][-1]["error"] == "browser_interaction_incomplete"
+
+
+class TestDoneBeforeActingIsNotDone:
+    """Asked to work a sixty-item questionnaire, she declared it complete on the
+    first look, having answered nothing — one round, zero actions, reported as
+    a success.
+
+    A goal that requires acting on a page cannot be finished before a single
+    action has landed, and accepting the claim makes the loop a very expensive
+    way to open a URL. Once something HAS landed she is trusted: she can see
+    the result page and knows what finished looks like better than any rule.
+    """
+
+    @pytest.mark.asyncio
+    async def test_an_immediate_done_does_not_complete_the_task(self):
+        executed: list = []
+        skill = _skill_with([{"done": True, "actions": [], "why": "looks finished"}], executed)
+        result = await skill._handle_pursue(_Browser([_page()]), None, "answer it", 3)
+        assert result["completed"] is False
+        assert not executed
+
+    @pytest.mark.asyncio
+    async def test_she_is_asked_to_look_again_rather_than_stopped(self):
+        executed: list = []
+        skill = _skill_with(
+            [
+                {"done": True, "actions": [], "why": "looks finished"},
+                {"actions": [{"index": 0, "type": "click"}], "why": "actually, answer this", "expect": "selects"},
+            ],
+            executed,
+        )
+        await skill._handle_pursue(
+            _Browser([_page(), _page(url="https://example.com/q2"), _page(url="https://example.com/q3")]),
+            None,
+            "answer it",
+            3,
+        )
+        assert executed, "the second look should have produced an action"
+
+    @pytest.mark.asyncio
+    async def test_done_after_work_is_accepted(self):
+        executed: list = []
+        skill = _skill_with(
+            [
+                {"actions": [{"index": 0, "type": "click"}], "why": "answer", "expect": "selects"},
+                {"done": True, "actions": [], "why": "the result page is showing"},
+            ],
+            executed,
+        )
+        result = await skill._handle_pursue(
+            _Browser([_page(), _page(url="https://example.com/done"), _page(url="https://example.com/done")]),
+            None,
+            "answer it",
+            3,
+        )
+        assert result["completed"] is True

@@ -1505,7 +1505,31 @@ class SovereignBrowserSkill(BaseSkill):
             if decision.get("error"):
                 steps.append({"error": decision["error"]})
                 break
+            # "Done" before anything has been done is not done.
+            #
+            # Live 2026-08-18: asked to work through a sixty-item
+            # questionnaire, she declared the task complete on the first look,
+            # having answered nothing — one round, zero actions, reported as a
+            # success. A goal that requires acting on a page cannot be finished
+            # before a single action has landed, and accepting the claim makes
+            # the loop a very expensive way to open a URL.
+            #
+            # Once something HAS landed she is trusted: she can see the result
+            # page and knows what finished looks like better than any rule
+            # here.
             if decision.get("done") is True and not decision.get("actions"):
+                if not any(step.get("landed") for step in steps):
+                    # Look again rather than stop. Being told the task is not
+                    # started is more useful than an early exit, and the stall
+                    # detector still ends it if nothing changes.
+                    steps.append(
+                        {
+                            "why": str(decision.get("why") or ""),
+                            "note": "claimed_done_before_acting",
+                        }
+                    )
+                    surprised = True
+                    continue
                 completed = True
                 steps.append({"why": str(decision.get("why") or ""), "done": True})
                 break
@@ -1583,6 +1607,11 @@ class SovereignBrowserSkill(BaseSkill):
                 for row in (rows if isinstance(rows, list) else [])
                 if isinstance(row, Mapping) and row.get("ok") is True
             )
+            # A success with no per-action report still ran the actions.
+            # Counting only rows made a clean interaction look like nothing had
+            # happened, which then made a later "done" unbelievable.
+            if not landed and report.get("ok"):
+                landed = len(planned)
             steps[-1]["landed"] = landed
             if not report.get("ok") and not landed:
                 steps[-1]["error"] = str(report.get("error") or "interaction_failed")
