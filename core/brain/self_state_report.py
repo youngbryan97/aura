@@ -28,6 +28,13 @@ _RECOVERABLE = (RuntimeError, AttributeError, TypeError, ValueError, OSError, Im
 
 SELF_STATE_HEADER = "## YOUR OWN INSTRUMENTS"
 
+#: What "GB" means to the person reading it. A 64GB Mac holds 68,719,476,736
+#: bytes, so dividing by 1e9 reported "69GB" for a machine everyone — Apple
+#: included — calls 64GB. She was quoting her instruments faithfully; the
+#: instrument was wrong, which is the worse of the two failures because it
+#: cannot be argued with from inside.
+_BYTES_PER_GB = 1024**3
+
 
 def _humanize(seconds: float) -> str:
     seconds = max(0.0, float(seconds))
@@ -105,12 +112,12 @@ def _memory_lines() -> list[str]:
 
         observer = get_resource_observer()
         proc = observer.process(os.getpid())
-        rss_gb = float(getattr(proc, "rss_bytes", 0.0) or 0.0) / 1e9
+        rss_gb = float(getattr(proc, "rss_bytes", 0.0) or 0.0) / _BYTES_PER_GB
         virt = observer.memory()
         lines.append(
             f"- This process holds {rss_gb:.1f}GB resident; the host is at "
-            f"{virt.percent:.0f}% of {virt.total_bytes / 1e9:.0f}GB with "
-            f"{virt.available_bytes / 1e9:.1f}GB available."
+            f"{virt.percent:.0f}% of {virt.total_bytes / _BYTES_PER_GB:.0f}GB with "
+            f"{virt.available_bytes / _BYTES_PER_GB:.1f}GB available."
         )
     except _RECOVERABLE as exc:
         record_degradation("self_state_report", exc, severity="info", action="omitted memory lines")
@@ -124,8 +131,8 @@ def _memory_lines() -> list[str]:
 
         accelerator = get_resource_observer().accelerator()
         if getattr(accelerator, "available", False):
-            active_gb = float(getattr(accelerator, "active_bytes", 0) or 0) / 1e9
-            cache_gb = float(getattr(accelerator, "cache_bytes", 0) or 0) / 1e9
+            active_gb = float(getattr(accelerator, "active_bytes", 0) or 0) / _BYTES_PER_GB
+            cache_gb = float(getattr(accelerator, "cache_bytes", 0) or 0) / _BYTES_PER_GB
             if active_gb > 0.05:
                 lines.append(
                     f"- Your model's weights are in unified GPU memory, which RSS "

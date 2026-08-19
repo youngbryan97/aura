@@ -252,7 +252,9 @@ class MemorySentinel:
         target = int(total * SOFT_PRESSURE_AVAILABLE_FRACTION * 1.5)
         reason = (
             f"host memory available {fraction * 100:.1f}% "
-            f"({available / 1e9:.2f}GB of {total / 1e9:.2f}GB)"
+            # GiB: "64GB of RAM" is 1024**3 bytes per GB everywhere a person
+            # reads it, including Apple's own description of the machine.
+            f"({available / 1024**3:.2f}GB of {total / 1024**3:.2f}GB)"
         )
         events = policy.shed_until(
             target_free_bytes=target,

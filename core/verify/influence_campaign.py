@@ -235,7 +235,12 @@ def campaign_admission_reason(*, min_free_gb: float = MIN_FREE_GB_FOR_CAMPAIGN) 
             # number yields 1.0 and refuses every campaign forever. Named here
             # because the first draft of this function did exactly that.
             return "memory_observation_unavailable"
-        free_gb = float(observation.available_bytes) / 1e9
+        # GiB, because min_free_gb is stated the way the machine is described
+        # — a "64GB" Mac holds 68,719,476,736 bytes. Dividing by 1e9 made the
+        # measured headroom read about 7% larger than it is, so the gate
+        # admitted campaigns with less room than it was told to require, and
+        # the failure that buys is memory shedding during the probe.
+        free_gb = float(observation.available_bytes) / 1024**3
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError, OSError):
         # No observer means no evidence of headroom. Refuse rather than gamble:
         # a probe that triggers shedding has measured the shedding.
