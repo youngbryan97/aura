@@ -242,3 +242,48 @@ class TestTheDesktopLaneDelegatesPagesToTheBrowser:
         assert result["narration"] == [
             {"asked": "You regularly make new friends.", "chose": ["I disagree"], "why": "solitude suits me"}
         ]
+
+
+def test_the_child_action_does_not_inherit_the_task_contract(monkeypatch):
+    """"expectation incomplete: steps_requested; steps_completed" — beside "1/1".
+
+    The task-level action expectation rides in the context, and a child action
+    cannot satisfy it: this lane's contract asks for `steps_requested` and
+    `steps_completed`, which only the TASK result has. Passing the raw context
+    down hands the browser a contract about desktop steps, so a pursuit that
+    worked is failed for not being a desktop step.
+
+    This is the defect desktop_task already documents from 2026-07-27, where a
+    `create_folder` step inherited the same contract and killed an objective
+    that had worked. The delegation reintroduced it by passing `dict(context)`.
+    """
+    import asyncio
+
+    from core.skills.desktop_task import DesktopTaskParams, DesktopTaskSkill
+
+    seen = {}
+
+    class _Engine:
+        async def execute(self, skill, params, context=None):
+            seen["context"] = dict(context or {})
+            return {"ok": True, "completed": True, "final_url": params["url"], "steps": []}
+
+    import core.container as container
+
+    monkeypatch.setattr(
+        container.ServiceContainer,
+        "get",
+        staticmethod(lambda name, default=None: _Engine() if name == "capability_engine" else default),
+    )
+    task_context = {
+        "action_expectation": {"acceptance_criteria": ["steps_requested", "steps_completed"]},
+        "source": "desktop_ui",
+    }
+    asyncio.run(
+        DesktopTaskSkill()._delegate_page_objective(
+            DesktopTaskParams(objective="complete https://example.com/quiz"), task_context
+        )
+    )
+    for key in DesktopTaskSkill._TASK_LEVEL_EXPECTATION_KEYS:
+        assert key not in seen["context"], f"{key} must not reach the child action"
+    assert seen["context"].get("source") == "desktop_ui", "provenance still travels"

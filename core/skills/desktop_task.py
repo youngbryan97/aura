@@ -5692,10 +5692,24 @@ class DesktopTaskSkill(BaseSkill):
             url,
         )
         try:
+            # `_child_step_context`, not `dict(context)`.
+            #
+            # The task-level action expectation rides in the context, and a
+            # child action cannot satisfy it: this lane's contract asks for
+            # `steps_requested` and `steps_completed`, which only the TASK
+            # result has. Passing the raw context down handed the browser a
+            # contract about desktop steps, so a pursuit that worked came back
+            # "expectation incomplete: steps_requested; steps_completed" —
+            # printed, in the same sentence, next to "Completed 1/1 steps".
+            #
+            # This is the defect this file already documents from 2026-07-27,
+            # where a `create_folder` step inherited the same contract and
+            # killed an objective that had worked. The helper that strips those
+            # keys was written for it; the delegation simply was not using it.
             report = await capability_engine.execute(
                 "sovereign_browser",
                 {"mode": "pursue", "url": url, "goal": objective},
-                context=dict(context or {}),
+                context=self._child_step_context(context),
             )
             report = report if isinstance(report, dict) else {}
             # The governed executor may hand back the skill's own dict or wrap
