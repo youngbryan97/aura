@@ -48,6 +48,36 @@ _UNHEALTHY_FAILURE_STREAK = 3
 _MIN_MODEL_BACKED_RATE = 0.25
 
 
+
+def _latent_episode_seconds(objective: str, *, floor_s: float) -> float:
+    """How long a complete answer to this actually needs.
+
+    Measured where there are measurements: `measured_admission` keeps p90
+    prefill, decode and overhead per task shape from completed generations,
+    and falls back to its own static prior for a shape it has not seen. Never
+    returns less than the caller's existing allowance, so this can only give a
+    hard question more room, never take room from an easy one.
+    """
+    from core.runtime.response_policy import USER_FACING_COMPLETION_DEADLINE_MAX_S
+
+    try:
+        from core.brain.llm.measured_admission import recommended_foreground_deadline
+        from core.brain.llm.model_registry import ACTIVE_MODEL
+        from core.runtime.structured_input import answer_surface_token_floor
+
+        needed, _confidence, _samples = recommended_foreground_deadline(
+            model=ACTIVE_MODEL,
+            prompt_tokens=max(2048, 1800 + len(str(objective or "")) // 4),
+            decode_tokens=max(1, answer_surface_token_floor(str(objective or ""))),
+            minimum_seconds=float(floor_s),
+            maximum_seconds=float(USER_FACING_COMPLETION_DEADLINE_MAX_S),
+        )
+        return float(needed)
+    except (ArithmeticError, ImportError, TypeError, ValueError) as exc:
+        _degrade(exc, action="sized the latent episode from the caller's allowance alone")
+        return float(floor_s)
+
+
 class DeepDeliberationEngine:
     def __init__(self, orchestrator: Any = None):
         self.orchestrator = orchestrator
@@ -177,6 +207,18 @@ class DeepDeliberationEngine:
                             ),
                         )
 
+                    # These were flat ceilings of 120s and 150s. The latent
+                    # cortex refuses before executing when the answer surface
+                    # cannot fit the window it is given, and the smallest
+                    # compound surface needs more than 120s allows — so every
+                    # multi-part question was refused before starting, and the
+                    # harder the question the more certain the refusal. Size
+                    # the window by what the answer actually needs, keeping the
+                    # old allowance as the floor and the runtime's own
+                    # published deadline as the ceiling.
+                    latent_timeout_s = _latent_episode_seconds(
+                        refined, floor_s=min(120.0, timeout_s * 2)
+                    )
                     latent = await asyncio.wait_for(
                         get_latent_cortex_service(self.orchestrator).deep_reason(
                             None if episode_messages else refined,
@@ -184,10 +226,12 @@ class DeepDeliberationEngine:
                             stakes=0.6,
                             uncertainty=0.7,
                             domain="deliberation",
-                            timeout_s=min(120.0, timeout_s * 2),
+                            timeout_s=latent_timeout_s,
                             foreground_request=foreground_request,
                         ),
-                        timeout=min(150.0, timeout_s * 3),
+                        # The outer net kept 30s over the inner window; that
+                        # margin is preserved rather than replaced.
+                        timeout=latent_timeout_s + 30.0,
                     )
                     if latent.get("ok") and str(latent.get("text") or "").strip():
                         answer = str(latent["text"]).strip()

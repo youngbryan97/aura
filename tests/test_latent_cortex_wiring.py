@@ -3184,7 +3184,14 @@ def test_compound_objective_expands_answer_surface(monkeypatch):
                 "decode_temperature": 0.58,
                 "decode_top_p": 0.85,
             },
-            timeout_s=240.0,
+            # The budget has to AFFORD the surface this test asserts. Three
+            # obligations reserve 1024 decode tokens, and the service refuses
+            # before executing rather than proving mid-turn that a complete
+            # answer cannot fit and leaving a fragment. 240s could not pay for
+            # it, so the test was measuring the refusal, not the allocation.
+            # Production sizes this window from the answer's own need, via
+            # DeepDeliberation._latent_episode_seconds.
+            timeout_s=420.0,
             foreground_request=True,
         )
     )
@@ -3202,7 +3209,7 @@ def test_compound_objective_expands_answer_surface(monkeypatch):
     assert captured["config"]["decode_repetition_window"] == 72
     assert captured["config"]["decode_bridge_policy"] == "assistant_answer_v3"
     assert captured["budget"]["wall_clock_s"] >= 198.0
-    assert captured["budget"]["wall_clock_s"] <= 240.0 - 8.0
+    assert captured["budget"]["wall_clock_s"] <= 420.0 - 8.0
     allocation = svc._last_allocation
     assert allocation["compound_objective"] is True
     assert set(allocation["objective_facets"]) >= {"compare", "select", "verify"}
@@ -3221,12 +3228,19 @@ def test_compound_objective_expands_answer_surface(monkeypatch):
             stakes=0.75,
             uncertainty=0.8,
             config_overrides={"decode_max_tokens": 256},
-            timeout_s=300.0,
+            # Five numbered obligations plus pseudocode reserve 1920 tokens,
+            # which prices at roughly 570s. That is more than
+            # USER_FACING_COMPLETION_DEADLINE_MAX_S (480s) allows, so the LIVE
+            # path refuses this shape before executing and answers on the
+            # ordinary lane with the full surface — the designed behaviour, and
+            # the case the block below covers. The window here is the one that
+            # exercises the ALLOCATION, which is what this block is about.
+            timeout_s=600.0,
             foreground_request=True,
         )
     )
     assert captured["config"]["decode_bridge_policy"] == "assistant_answer_v3"
-    assert captured["config"]["decode_max_tokens"] == 768
+    assert captured["config"]["decode_max_tokens"] == 1920
     assert captured["budget"]["wall_clock_s"] >= 264.0
     inline_allocation = svc._last_allocation
     assert inline_allocation["compound_objective"] is True
