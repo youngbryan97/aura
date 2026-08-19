@@ -918,6 +918,111 @@ class SovereignBrowserSkill(BaseSkill):
             )
         return "\n".join(lines)
 
+    @staticmethod
+    def _page_shape(observation: Mapping[str, Any]) -> str:
+        """What KIND of page this is, independent of whose page it is.
+
+        Knowing "16personalities.com is a questionnaire" helps exactly once.
+        Knowing "a page with repeated radio groups and a next control is a
+        multi-page form: answer the visible items, then advance" helps on every
+        survey, application and signup wizard she ever meets.
+
+        So the fingerprint is structural — which control roles are present,
+        whether they repeat, whether something advances — and deliberately
+        carries no site text, because the moment it does it stops transferring.
+        """
+
+        elements = observation.get("elements") or []
+        roles: dict[str, int] = {}
+        for element in elements:
+            role = str(element.get("role") or "").lower()
+            if role:
+                roles[role] = roles.get(role, 0) + 1
+        parts: list[str] = []
+        for role in ("radio", "checkbox", "text", "textarea", "select", "button", "link"):
+            count = roles.get(role, 0)
+            if not count:
+                continue
+            # Bucketed, not counted: "many radios" is the fact that transfers,
+            # not "forty-two of them".
+            parts.append(f"{role}:{'many' if count > 6 else 'few'}")
+        advances = any(
+            word in str(element.get("name") or "").lower()
+            for element in elements
+            if str(element.get("role") or "") == "button"
+            for word in ("next", "continue", "submit", "finish", "start")
+        )
+        if advances:
+            parts.append("advances")
+        return "|".join(parts) or "plain"
+
+    @staticmethod
+    def _recall_about(url: str, shape: str) -> str:
+        """What she already knows about this place, and about places like it.
+
+        Written knowledge that is never read back is a diary, not learning. The
+        world model persists across restarts, so a pursuit begins by asking
+        what she worked out last time — for this host, and for any page of this
+        SHAPE, which is the half that generalises.
+        """
+
+        try:
+            from urllib.parse import urlsplit
+
+            from core.container import ServiceContainer
+
+            world = ServiceContainer.get("world_model", default=None)
+            beliefs = getattr(world, "beliefs", None)
+            if not isinstance(beliefs, dict) or not beliefs:
+                return ""
+            host = urlsplit(url).netloc if url else ""
+            remembered: list[str] = []
+            for node in beliefs.values():
+                tags = set(getattr(node, "tags", ()) or ())
+                if "page_model" not in tags:
+                    continue
+                claim = str(getattr(node, "claim", "") or "")
+                if not claim:
+                    continue
+                if (host and host in claim) or (shape and shape in tags):
+                    remembered.append(f"- {claim}")
+            if not remembered:
+                return ""
+            return "WHAT I ALREADY KNOW ABOUT PAGES LIKE THIS:\n" + "\n".join(remembered[:6])
+        except _BROWSER_DECISION_ERRORS as exc:
+            record_degradation("sovereign_browser.recall", exc, severity="debug")
+            return ""
+
+    @staticmethod
+    def _learn_from_surprise(shape: str, expected: str, observation: Mapping[str, Any]) -> None:
+        """Record what actually happens, when it was not what she expected.
+
+        A surprise is the most informative thing that happens in a task, and
+        the old loop discarded it — it counted an unchanged screen and stopped.
+        Written against the SHAPE, so the correction applies to the next page
+        of this kind rather than only to this one.
+        """
+
+        if not shape or not expected:
+            return
+        try:
+            from core.container import ServiceContainer
+
+            world = ServiceContainer.get("world_model", default=None)
+            if world is None or not hasattr(world, "add_belief"):
+                return
+            world.add_belief(
+                (
+                    f"on a page shaped {shape}, expecting \u201c{expected[:120]}\u201d "
+                    "did not change the page"
+                )[:400],
+                0.55,
+                source_id="browser_pursuit:surprise",
+                tags=["web", "page_model", "correction", shape],
+            )
+        except _BROWSER_DECISION_ERRORS as exc:
+            record_degradation("sovereign_browser.learn", exc, severity="debug")
+
     async def _assembled_mind(self) -> str:
         """Her whole mind, built once for the pursuit rather than per round.
 
@@ -946,7 +1051,9 @@ class SovereignBrowserSkill(BaseSkill):
             return ""
 
     @staticmethod
-    def _remember_the_place(url: str, understanding: Mapping[str, Any] | None) -> None:
+    def _remember_the_place(
+        url: str, understanding: Mapping[str, Any] | None, shape: str = ""
+    ) -> None:
         """Put what she worked out about this site where the rest of her can see it.
 
         A page model held in a local variable dies with the task and teaches
@@ -980,6 +1087,15 @@ class SovereignBrowserSkill(BaseSkill):
                 source_id=f"browser_pursuit:{host}",
                 tags=["web", "page_model"],
             )
+            # And the transferable half. The host belief helps here; this one
+            # helps on the next survey, application or wizard she meets.
+            if shape and to_progress:
+                world.add_belief(
+                    (f"a page shaped {shape} is {here}; there you {to_progress}")[:400],
+                    0.6,
+                    source_id="browser_pursuit:shape",
+                    tags=["web", "page_model", shape],
+                )
         except _BROWSER_DECISION_ERRORS as exc:
             record_degradation("sovereign_browser.world_model", exc, severity="debug")
 
@@ -1012,6 +1128,7 @@ class SovereignBrowserSkill(BaseSkill):
         observation: Mapping[str, Any],
         prior: Mapping[str, Any] | None,
         mind: str,
+        recalled: str = "",
     ) -> dict[str, Any]:
         """What she takes this page to be, and what doing the goal here means.
 
@@ -1053,7 +1170,8 @@ class SovereignBrowserSkill(BaseSkill):
 
         prompt = (
             f"WHAT I AM TRYING TO ACCOMPLISH: {goal}\n\n"
-            f"{prior_view}"
+            + (f"{recalled}\n\n" if recalled else "")
+            + f"{prior_view}"
             f"{self._render_observation(observation)}\n\n"
             "Describe the situation, as JSON only:\n"
             '{"here": "<what this page is>", '
@@ -1367,12 +1485,19 @@ class SovereignBrowserSkill(BaseSkill):
             # surprises her — not every round. A person does not re-derive what
             # a website is after each click; they act until something does not
             # match, and then they look again.
+            shape = self._page_shape(observation)
             if understanding is None or surprised:
                 understanding = await self._understand_page(
-                    goal, observation, understanding, mind
+                    goal,
+                    observation,
+                    understanding,
+                    mind,
+                    self._recall_about(str(observation.get("url") or ""), shape),
                 )
                 surprised = False
-                self._remember_the_place(str(observation.get("url") or ""), understanding)
+                self._remember_the_place(
+                    str(observation.get("url") or ""), understanding, shape
+                )
 
             decision = await self._decide_next_actions(
                 goal, observation, steps, understanding
@@ -1452,6 +1577,7 @@ class SovereignBrowserSkill(BaseSkill):
             self._record_expectation_outcome(expected, moved)
             if expected and not moved:
                 surprised = True
+                self._learn_from_surprise(shape, expected, observation)
             if decision.get("done") is True:
                 completed = True
                 break

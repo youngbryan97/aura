@@ -55,7 +55,7 @@ def _skill_with(decisions, executed):
     async def _decide(goal, observation, history, understanding=None):
         return decisions.pop(0) if decisions else {"done": True, "actions": []}
 
-    async def _understand(goal, observation, prior, mind):
+    async def _understand(goal, observation, prior, mind, recalled=""):
         return {"here": "a test page", "done_when": "the stub says so"}
 
     async def _mind():
@@ -275,7 +275,7 @@ class TestSheActsFromAnUnderstandingNotAStepCount:
         )
         calls: list = []
 
-        async def _counting_understand(goal, observation, prior, mind):
+        async def _counting_understand(goal, observation, prior, mind, recalled=""):
             calls.append(prior)
             return {"here": "a page"}
 
@@ -295,3 +295,79 @@ class TestSheActsFromAnUnderstandingNotAStepCount:
         result = await skill._handle_pursue(_Browser([_page()]), None, "go", 1)
         assert result["steps"][0]["expected"] == "it selects"
         assert result["steps"][0]["moved"] is False
+
+
+class TestWhatSheLearnsTransfersAndPersists:
+    """Knowing "this site is a questionnaire" helps exactly once.
+
+    Knowing "a page with repeated radio groups and something that advances is a
+    multi-page form: answer what is visible, then advance" helps on every
+    survey, application and signup wizard she meets afterwards. So what is
+    written is structural and carries no site text — the moment it does, it
+    stops transferring.
+
+    The world model persists across restarts, so a pursuit begins by asking
+    what she worked out last time. Written knowledge that is never read back is
+    a diary, not learning.
+    """
+
+    def test_pages_of_the_same_kind_share_a_shape(self):
+        survey_a = {"elements": [{"role": "radio", "name": "I agree"}] * 14 + [{"role": "button", "name": "Next"}]}
+        survey_b = {"elements": [{"role": "radio", "name": "Strongly disagree"}] * 21 + [{"role": "button", "name": "Continue"}]}
+        assert SovereignBrowserSkill._page_shape(survey_a) == SovereignBrowserSkill._page_shape(survey_b)
+
+    def test_different_kinds_of_page_do_not(self):
+        survey = {"elements": [{"role": "radio", "name": "x"}] * 14 + [{"role": "button", "name": "Next"}]}
+        login = {"elements": [{"role": "text", "name": "Email"}, {"role": "button", "name": "Sign in"}]}
+        assert SovereignBrowserSkill._page_shape(survey) != SovereignBrowserSkill._page_shape(login)
+
+    def test_the_shape_carries_no_site_text(self):
+        """A fingerprint containing the site stops transferring immediately."""
+        shape = SovereignBrowserSkill._page_shape(
+            {
+                "url": "https://16personalities.com/free-personality-test",
+                "title": "16Personalities",
+                "text": "Question 1 of 60: You regularly make new friends.",
+                "elements": [{"role": "radio", "name": "I agree"}] * 14,
+            }
+        )
+        for leak in ("16personalities", "friends", "Question"):
+            assert leak.lower() not in shape.lower()
+
+    def test_something_that_advances_is_part_of_the_shape(self):
+        with_next = {"elements": [{"role": "radio", "name": "x"}] * 8 + [{"role": "button", "name": "Next"}]}
+        without = {"elements": [{"role": "radio", "name": "x"}] * 8 + [{"role": "button", "name": "Help"}]}
+        assert "advances" in SovereignBrowserSkill._page_shape(with_next)
+        assert "advances" not in SovereignBrowserSkill._page_shape(without)
+
+    def test_recall_is_quiet_when_she_knows_nothing(self):
+        assert SovereignBrowserSkill._recall_about("https://example.com", "radio:many") == ""
+
+    def test_recall_finds_both_the_place_and_the_kind(self, monkeypatch):
+        from types import SimpleNamespace
+
+        import core.container as container
+
+        beliefs = {
+            "a": SimpleNamespace(claim="example.com is a survey", tags=["web", "page_model"]),
+            "b": SimpleNamespace(
+                claim="a page shaped radio:many|advances is a multi-page form",
+                tags=["web", "page_model", "radio:many|advances"],
+            ),
+            "c": SimpleNamespace(claim="unrelated fact", tags=["other"]),
+        }
+        monkeypatch.setattr(
+            container.ServiceContainer,
+            "get",
+            staticmethod(
+                lambda name, default=None: SimpleNamespace(beliefs=beliefs)
+                if name == "world_model"
+                else default
+            ),
+        )
+        recalled = SovereignBrowserSkill._recall_about(
+            "https://example.com/x", "radio:many|advances"
+        )
+        assert "example.com is a survey" in recalled
+        assert "multi-page form" in recalled
+        assert "unrelated fact" not in recalled
