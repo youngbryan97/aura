@@ -160,6 +160,45 @@ def _record_inert_thinking_flag(template: str) -> None:
         )
 
 
+
+def system_first(messages: object) -> object:
+    """The same conversation with any system messages at the front.
+
+    Chat templates disagree about where a system message may appear, and some
+    raise rather than cope: "System message must be at the beginning." That
+    exception surfaces inside the worker process, kills it mid-generation,
+    trips the crash-loop breaker, and takes the whole model lane down with it.
+
+    LIVE 2026-08-19: a system message arriving second ended a game she was
+    playing and answered the person with "I couldn't get to an answer I'd
+    stand behind."
+
+    A misordered list is a caller's mistake, and the cost of it should be a
+    reordered list rather than a dead model. Order among the system messages
+    is kept, order among the rest is kept, and nothing is dropped or merged —
+    so a template that does accept them later sees the same content.
+    """
+    if not isinstance(messages, list) or len(messages) < 2:
+        return messages
+    system: list[object] = []
+    rest: list[object] = []
+    for message in messages:
+        role = ""
+        if isinstance(message, dict):
+            role = str(message.get("role") or "").strip().lower()
+        else:
+            role = str(getattr(message, "role", "") or "").strip().lower()
+        (system if role == "system" else rest).append(message)
+    if not system or messages[: len(system)] == system:
+        return messages
+    logger.info(
+        "Moved %d system message(s) to the front of a %d-message conversation.",
+        len(system),
+        len(messages),
+    )
+    return system + rest
+
+
 def render_chat_template(
     tokenizer: object,
     messages: object,
@@ -182,7 +221,7 @@ def render_chat_template(
     }
     if enable_thinking is not None and template_supports_thinking(tokenizer):
         kwargs["enable_thinking"] = bool(enable_thinking)
-    return str(apply(messages, **kwargs))
+    return str(apply(system_first(messages), **kwargs))
 
 
 def render_chat_continuation_template(
@@ -221,7 +260,7 @@ def render_chat_continuation_template(
     if enable_thinking is not None and template_supports_thinking(tokenizer):
         kwargs["enable_thinking"] = bool(enable_thinking)
     try:
-        rendered = str(apply(messages, **kwargs))
+        rendered = str(apply(system_first(messages), **kwargs))
     except (TypeError, ValueError, KeyError, RuntimeError, AttributeError):
         fallback_kwargs = {
             "tools": tools,
@@ -230,7 +269,7 @@ def render_chat_continuation_template(
         }
         if enable_thinking is not None and template_supports_thinking(tokenizer):
             fallback_kwargs["enable_thinking"] = bool(enable_thinking)
-        rendered = str(apply(messages, **fallback_kwargs))
+        rendered = str(apply(system_first(messages), **fallback_kwargs))
         prefix_end = rendered.rfind(partial)
         if prefix_end < 0:
             raise ValueError("chat template did not preserve the continuation prefix")
