@@ -572,3 +572,34 @@ class TestTheCheapLaneIsAnOptimisationNotADowngrade:
         assert not SovereignBrowserSkill._decision_is_usable(
             '{"actions": [{"index": %d, "type": "click"}]}' % (len(offered) + 5), crowded
         )
+
+
+class TestTheDecisionIsFoundHoweverItIsWrapped:
+    """Four consecutive `unparsable_decision` rounds ended a pursuit doing nothing.
+
+    Spanning the first "{" to the last "}" is one object only when the reply
+    contains exactly one. Models put a worked example before the answer, prose
+    with braces around it, or two objects in a row — and the span then covers
+    all of it and parses as nothing.
+    """
+
+    @pytest.mark.parametrize(
+        "raw,expected_index",
+        [
+            ('{"actions":[{"index":1,"type":"click"}],"done":false}', 1),
+            ('sure\n```json\n{"actions":[{"index":2,"type":"click"}]}\n```', 2),
+            ('Format: {"actions": []}\nMy answer: {"actions":[{"index":3,"type":"click"}]}', 3),
+            ('{"actions":[{"index":4,"type":"click"},],}', 4),
+            ('{"why":"the {next} button","actions":[{"index":5,"type":"click"}]}', 5),
+        ],
+    )
+    def test_the_answer_is_recovered(self, raw, expected_index):
+        parsed = SovereignBrowserSkill._parse_decision(raw)
+        assert parsed["actions"][0]["index"] == expected_index
+
+    def test_a_brace_inside_a_string_opens_nothing(self):
+        objects = SovereignBrowserSkill._balanced_objects('{"a":"{not an object}"}')
+        assert objects == ['{"a":"{not an object}"}']
+
+    def test_genuinely_unparsable_output_still_reports_itself(self):
+        assert SovereignBrowserSkill._parse_decision("no json at all")["error"] == "unparsable_decision"

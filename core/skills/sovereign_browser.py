@@ -1475,7 +1475,42 @@ class SovereignBrowserSkill(BaseSkill):
         return self._parse_decision(str(raw or ""))
 
     @staticmethod
-    def _parse_decision(raw: str) -> dict[str, Any]:
+    def _balanced_objects(text: str) -> list[str]:
+        """Every brace-balanced object in the text, in the order they appear.
+
+        Quote- and escape-aware, so a brace inside a string does not open or
+        close anything.
+        """
+        found: list[str] = []
+        depth = 0
+        start = -1
+        in_string = False
+        escaped = False
+        for index, char in enumerate(text):
+            if in_string:
+                if escaped:
+                    escaped = False
+                elif char == "\\":
+                    escaped = True
+                elif char == '"':
+                    in_string = False
+                continue
+            if char == '"':
+                in_string = True
+            elif char == "{":
+                if depth == 0:
+                    start = index
+                depth += 1
+            elif char == "}":
+                if depth:
+                    depth -= 1
+                    if depth == 0 and start != -1:
+                        found.append(text[start : index + 1])
+                        start = -1
+        return found
+
+    @classmethod
+    def _parse_decision(cls, raw: str) -> dict[str, Any]:
         """The decision, however the model wrapped it.
 
         Models put JSON inside prose, inside code fences, or after a preamble.
@@ -1485,20 +1520,34 @@ class SovereignBrowserSkill(BaseSkill):
         text = str(raw or "").strip()
         if not text:
             return {"error": "empty_decision"}
-        fenced = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
-        candidate = fenced.group(1) if fenced else None
-        if candidate is None:
-            start = text.find("{")
-            end = text.rfind("}")
-            candidate = text[start : end + 1] if start != -1 and end > start else ""
-        if not candidate:
-            return {"error": "no_json_in_decision", "raw": text[:200]}
-        try:
-            parsed = json.loads(candidate)
-        except (json.JSONDecodeError, ValueError):
-            return {"error": "unparsable_decision", "raw": candidate[:200]}
-        if not isinstance(parsed, dict):
-            return {"error": "decision_not_an_object"}
+        # Every balanced object in the text, tried newest first.
+        #
+        # Spanning the first "{" to the last "}" is one object only if the
+        # reply contains exactly one. Models put a worked example before the
+        # answer, prose with braces around it, or two objects in a row, and the
+        # span then covers all of it and parses as nothing — measured live as
+        # four consecutive `unparsable_decision` rounds, on both lanes, which
+        # ended the pursuit having done nothing.
+        parsed = None
+        for candidate in reversed(cls._balanced_objects(text)):
+            try:
+                loaded = json.loads(candidate)
+            except (json.JSONDecodeError, ValueError):
+                # A trailing comma is the commonest malformation and costs
+                # nothing to forgive; the object is still the model's.
+                try:
+                    loaded = json.loads(re.sub(r",\s*([}\]])", r"\1", candidate))
+                except (json.JSONDecodeError, ValueError):
+                    continue
+            if isinstance(loaded, dict) and (
+                "actions" in loaded or "done" in loaded or "here" in loaded
+            ):
+                parsed = loaded
+                break
+            if parsed is None and isinstance(loaded, dict):
+                parsed = loaded
+        if parsed is None:
+            return {"error": "unparsable_decision", "raw": text[:200]}
         actions = parsed.get("actions")
         parsed["actions"] = actions if isinstance(actions, list) else []
         return parsed
