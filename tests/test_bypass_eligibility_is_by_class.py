@@ -73,3 +73,40 @@ def test_the_refusal_names_the_reason():
 
     source = inspect.getsource(external_execute_coordinator.ExternalExecuteCoordinator.record_bypass)
     assert "{bounded_reason}" in source
+
+
+class TestAnAffordabilityDecisionIsNotAVerdict:
+    """A hand-off was read as a refusal, and it vetoed the action.
+
+    `latent_cortex_service` refuses with
+    `answer_surface_unaffordable_before_execution` when 65s + 0.26s per output
+    token exceeds the turn's remaining budget. Its own comment says what it
+    means: "No model owner has been acquired yet, so ResponseGeneration can use
+    the same resident checkpoint's ordinary lane with the full answer surface
+    immediately." It is a scheduling fact about the REHEARSAL, not a judgement
+    about the action.
+
+    Classified as integrity, it became one. An `episode_integrity_*` reason may
+    never bypass — correctly — so the coordinator raised and the action was
+    refused before dispatch. Live 2026-08-18 that was the last thing standing
+    between a user-requested browser task and the browser.
+    """
+
+    def test_it_is_classified_as_availability(self):
+        from core.brain.preaction_cortex import _availability_failure
+
+        assert _availability_failure("answer_surface_unaffordable_before_execution") is not None
+
+    def test_and_is_therefore_bypassable(self):
+        assert (
+            _bypass_reason_is_eligible(
+                "availability_failure:answer_surface_unaffordable_before_execution"
+            )
+            is True
+        )
+
+    def test_a_genuine_integrity_problem_is_still_not(self):
+        from core.brain.preaction_cortex import _availability_failure
+
+        assert _availability_failure("some_integrity_problem") is None
+        assert _bypass_reason_is_eligible("episode_integrity_refusal:some_integrity_problem") is False

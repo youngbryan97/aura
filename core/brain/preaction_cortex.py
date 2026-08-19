@@ -116,6 +116,24 @@ def _availability_failure(reason: str) -> str | None:
         "disabled:AURA_LATENT_CORTEX=0",
         "generation_gate_busy",
         "no_resident_model",
+        # The rehearsal could not FIT, which is a scheduling fact about the
+        # rehearsal and not a verdict about the action.
+        #
+        # `latent_cortex_service` refuses with this when
+        # 65s + 0.26s/token exceeds the turn's remaining budget, and its own
+        # comment says what it means by it: "No model owner has been acquired
+        # yet, so ResponseGeneration can use the same resident checkpoint's
+        # ordinary lane with the full answer surface immediately." It is a
+        # hand-off, not a refusal of the work.
+        #
+        # Classified as integrity, it became one. An `episode_integrity_*`
+        # reason may never bypass — correctly, since that is the case the
+        # allowlist exists to stop from masquerading as a decision — so the
+        # external-execution coordinator raised and the ACTION was refused
+        # before dispatch. Live 2026-08-18 that is what stood between a
+        # user-requested browser task and the browser, after every authority
+        # gate ahead of it had been cleared.
+        "answer_surface_unaffordable_before_execution",
     }:
         return normalized
     if normalized in {
