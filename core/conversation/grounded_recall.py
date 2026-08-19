@@ -546,12 +546,34 @@ def _transcript_user_turns(exclude_norm: str) -> list[str]:
     return turns
 
 
+def _durable_user_turns(exclude_norm: str) -> list[str]:
+    """The turns that survive a restart, when nothing in this process has any.
+
+    LIVE, 2026-08-19: "what did i ask you about earlier today, before you
+    restarted?" was answered with an invented topic. All three sources above
+    are process-local, so after a restart every one of them is empty and the
+    question had no source — while the episodic store held every turn of the
+    day, timestamped, the whole time.
+    """
+    try:
+        from core.conversation.durable_turns import durable_turn_texts
+
+        return [
+            text
+            for text in durable_turn_texts()
+            if str(text or "").strip().lower() != exclude_norm
+        ]
+    except (ImportError, OSError, TypeError, ValueError):
+        return []
+
+
 def _user_turns(exclude: str, history: Any = None) -> list[str]:
     """Earliest→latest user utterances this session, current turn excluded.
 
     A caller-supplied ``history`` (the chat route's live working memory) is the
     most reliable source; otherwise resolve the live AuraState working memory,
-    then fall back to the UnifiedTranscript.
+    then the UnifiedTranscript, then the episodic store — which is the only one
+    of the four that survives a restart.
     """
     exclude_norm = (exclude or "").strip().lower()
     turns = _history_user_turns(history, exclude_norm)
@@ -559,6 +581,8 @@ def _user_turns(exclude: str, history: Any = None) -> list[str]:
         turns = _working_memory_user_turns(exclude_norm)
     if not turns:
         turns = _transcript_user_turns(exclude_norm)
+    if not turns:
+        turns = _durable_user_turns(exclude_norm)
     return turns
 
 

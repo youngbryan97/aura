@@ -216,9 +216,16 @@ def test_the_refusal_path_asks_whether_the_runtime_holds_the_answer() -> None:
     marker = "failure_reply = (\n"
     sites = _positions(source, marker)
     assert sites, "the refusal is no longer built where this test expects"
+    # The window has to cover every reading the site consults before giving
+    # up, and more of them have been added since: a computed arithmetic answer
+    # now comes first, because it needs no channel at all. What matters is
+    # that the health reading is still ASKED at each site, not where in the
+    # queue it sits.
     for index in sites:
-        window = source[index : index + 1800]
-        assert "_self_health_answer_or_empty" in window
+        window = source[index : index + 2600]
+        assert "_self_health_answer_or_empty" in window, (
+            "a refusal site stopped asking whether the runtime holds the answer"
+        )
 
 
 def test_helper_returns_empty_rather_than_raising(monkeypatch) -> None:

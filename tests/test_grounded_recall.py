@@ -130,6 +130,12 @@ def test_build_context_none_when_no_prior_turn(monkeypatch):
 
     import core.conversation.unified_transcript as ut
     monkeypatch.setattr(ut, "UnifiedTranscript", _FakeTranscript)
+    # The cascade now ends at the episodic store, which survives a restart —
+    # so "no prior turn" has to be CONSTRUCTED rather than assumed. Without
+    # this the test reads whatever the developer said to Aura this week.
+    import core.conversation.durable_turns as dt
+
+    monkeypatch.setattr(dt, "durable_turn_texts", lambda **_kwargs: [])
 
     assert gr.build_grounded_recall_context("what did I first ask") is None
 

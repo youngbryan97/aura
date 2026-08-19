@@ -122,11 +122,33 @@ class TestObservationsAreBoundedOnEntry:
 
         assert _bounded_observation(None) == ""
 
-    def test_history_uses_the_bound(self):
+    def test_what_reaches_the_history_is_bounded(self):
+        """The property, not the spelling of one call.
+
+        This asserted the literal text `_bounded_observation(result_str)` in
+        the module. The bound then moved one level down, into the fenced
+        observation block that history actually appends, and the test went red
+        while the behaviour was intact — a structural check pinned to a call
+        site rather than to what the call site guarantees.
+        """
+        from core.brain.llm.local_agent_client import (
+            _MAX_OBSERVATION_CHARS,
+            _observation_block,
+        )
+
+        block = _observation_block(
+            "web_search", "x" * (_MAX_OBSERVATION_CHARS + 500), nonce="abc123"
+        )
+        assert len(block) < _MAX_OBSERVATION_CHARS + 600
+        assert "observation truncated" in block
+        assert "500 more characters" in block
+
+    def test_the_history_append_goes_through_that_block(self):
+        """And the bounded block is what history is built from."""
         from core.brain.llm import local_agent_client as mod
 
         source = inspect.getsource(mod)
-        assert "_bounded_observation(result_str)" in source
+        assert "history += f\"\\nAURA: {response_text}\" + _observation_block(" in source
 
 
 class TestRepairAcceptanceIsPositive:

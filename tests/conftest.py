@@ -478,6 +478,35 @@ class HermeticResourceSandbox:
 
 
 @pytest.fixture(autouse=True)
+def _fresh_conversation_transcript():
+    """No test inherits another test's conversation.
+
+    ``UnifiedTranscript`` is a process-global singleton and grounded recall
+    falls back to it when working memory is empty. So a test that causes any
+    turn to be recorded leaves it there for every test after it, and one that
+    asserts "no prior turn grounds nothing" passes or fails depending on which
+    file ran before it.
+
+    Found 2026-08-19: test_she_can_recall_her_own_position passed alone and
+    failed after test_browser_pursue_is_a_closed_loop, because
+    build_own_statement_recall_context found a turn from the other file's
+    conversation and grounded on it. An order-dependent recall test is worse
+    than none — it reports green on the run that matters and red on the run
+    that does not.
+    """
+    try:
+        from core.conversation.unified_transcript import UnifiedTranscript
+    except ImportError:
+        yield
+        return
+    UnifiedTranscript._instance = None
+    try:
+        yield
+    finally:
+        UnifiedTranscript._instance = None
+
+
+@pytest.fixture(autouse=True)
 def hermetic_resource_sandbox(tmp_path_factory):
     # Resource observation is test infrastructure, not test-owned payload. Put
     # it beside pytest's per-test directory so exact-directory transaction

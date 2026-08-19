@@ -96,3 +96,48 @@ def test_past_tense_attributions_still_work():
 def test_no_context_still_means_no_verdict():
     """An empty vocabulary makes everything novel; that guard must survive."""
     assert fabricated_shared_history("You point out that X happened.", "") == []
+
+
+def test_her_own_analysis_is_not_counted_as_invented_history():
+    """A sentence can carry an attribution AND her assessment of it.
+
+    LIVE, 2026-08-19:
+
+        The Aura closeout project you described earlier is in a
+        runtime-reliability phase: the immediate risk is live desktop
+        conversation drift, not the existence of the project.
+
+    Novelty was measured across the whole sentence, so "runtime-reliability",
+    "immediate risk" and "drift" — every word of HER assessment — counted as
+    invented shared history, and a true, grounded continuation was destroyed.
+    The only thing attributed to him is the project, which is exactly what he
+    said.
+    """
+    reply = (
+        "The Aura closeout project you described earlier is in a "
+        "runtime-reliability phase: the immediate risk is live desktop "
+        "conversation drift, not the existence of the project."
+    )
+    context = [
+        "I am working on the Aura closeout project and want the live desktop "
+        "path to stop drifting."
+    ]
+    assert fabricated_shared_history(reply, context) == []
+
+
+def test_a_discourse_marker_before_the_attribution_grounds_nothing():
+    """"Right —" is not a noun phrase he uttered."""
+    reply = "Right — you just said the deployment already shipped, so I will hold off."
+    assert fabricated_shared_history(reply, USER_TURN)
+
+
+def test_a_possessive_reference_keeps_the_whole_sentence():
+    """"your previous response" is not a relative clause.
+
+    Nothing before it is something he said, so the claim IS the predicate.
+    """
+    reply = (
+        "The tone of your previous response was heavy with a sense of "
+        "responsibility about the Prague trip."
+    )
+    assert fabricated_shared_history(reply, USER_TURN)

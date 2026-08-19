@@ -229,6 +229,50 @@ def _sentences(text: Any) -> list[str]:
     return [part.strip() for part in re.split(r"(?<=[.!?…])\s+", raw) if part.strip()]
 
 
+def _attributed_span(sentence: str, attribution: re.Match[str]) -> str:
+    """The part of the sentence being put in his mouth.
+
+    A sentence can carry both an attribution and her own analysis:
+
+        The Aura closeout project you described earlier is in a
+        runtime-reliability phase: the immediate risk is conversation drift.
+
+    Measuring novelty across the whole of that counts "runtime-reliability",
+    "immediate risk" and "drift" — every word of HER assessment — as invented
+    shared history, and the sentence was flagged though the only thing
+    attributed to him, the project, is exactly what he said. LIVE, 2026-08-19.
+
+    Where the attribution sits says which part is his. Sentence-initial
+    ("you mentioned X"), the claim follows it. Medial, it is a relative clause
+    modifying the noun phrase before it ("the project you described earlier"),
+    and the main predicate after it is hers.
+    """
+    matched = attribution.group(0).strip().lower()
+    # "your previous response" is a possessive reference, not a relative
+    # clause: nothing precedes it that he said, and the claim IS the predicate.
+    if matched.startswith("your"):
+        return sentence
+    head = sentence[: attribution.start()].strip()
+    # A relative clause attaches directly to the noun it modifies. Anything
+    # ending in punctuation is a separate clause — "Right — you just said ..."
+    # opens with a discourse marker, and treating "Right" as the thing he said
+    # grounds the sentence on nothing.
+    if head and head[-1] in "\u2014\u2013-,:;.!?" :
+        head = ""
+    if _content_words(head):
+        return head
+    # The complement of a speech-act verb ends where the clause does. In
+    # "you point out the 'your_files' directory exists, something did feel off
+    # about my response", only the part before the comma is his; the rest is
+    # hers, and counting it dilutes the invented content below the threshold
+    # that catches it.
+    tail = sentence[attribution.end() :].strip()
+    clause = re.split(r"[,;:\u2014\u2013]| - ", tail, maxsplit=1)[0].strip()
+    if _content_words(clause):
+        return clause
+    return tail or sentence
+
+
 def fabricated_shared_history(
     reply_text: Any,
     user_message: Any = "",
@@ -276,11 +320,19 @@ def fabricated_shared_history(
 
     found: list[str] = []
     for sentence in sentences:
-        if not any(pattern.search(sentence) for pattern in _RELATIONAL_PAST_RES):
+        attribution = next(
+            (
+                match
+                for match in (pattern.search(sentence) for pattern in _RELATIONAL_PAST_RES)
+                if match is not None
+            ),
+            None,
+        )
+        if attribution is None:
             continue
         if _IRREALIS_SECOND_PERSON_RE.search(sentence):
             continue
-        content = _content_words(sentence)
+        content = _content_words(_attributed_span(sentence, attribution))
         if not content:
             continue
         novel = content - known
