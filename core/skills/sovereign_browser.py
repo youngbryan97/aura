@@ -380,15 +380,24 @@ class SovereignBrowserSkill(BaseSkill):
             # runtime_setting_user_confirmation_required" on a read-only
             # navigation. When no grant is available the action proceeds
             # without one and is judged exactly as it was before.
-            for key in () if not granted.approved else (
-                "standing_authority_token",
-                "standing_authority_grant_id",
-                "capability_token_id",
-                "executive_intent_id",
-            ):
-                value = getattr(granted, key, None)
-                if value:
-                    authority_view[key] = value
+            if granted.approved:
+                # The token is a field; the grant id and receipt live in
+                # `constraints`. Reading only attributes found the token and
+                # not its grant, and the will answered
+                # `standing_authority_grant_context_mismatch` — a lease
+                # presented without the grant it belongs to, which is exactly
+                # what that check exists to catch.
+                carried = dict(getattr(granted, "constraints", {}) or {})
+                for key in (
+                    "standing_authority_token",
+                    "standing_authority_grant_id",
+                    "standing_authority_receipt_id",
+                    "capability_token_id",
+                    "executive_intent_id",
+                ):
+                    value = getattr(granted, key, None) or carried.get(key)
+                    if value:
+                        authority_view[key] = value
         except _BROWSER_DECISION_ERRORS as exc:
             record_degradation(
                 "sovereign_browser.authority",

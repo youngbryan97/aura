@@ -312,6 +312,7 @@ _PRESENTABLE_AUTHORITY_KEYS = frozenset(
     {
         "standing_authority_token",
         "standing_authority_grant_id",
+        "standing_authority_receipt_id",
         "capability_token_id",
         "executive_intent_id",
         "authority_origin",
