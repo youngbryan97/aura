@@ -5974,6 +5974,21 @@ _DESKTOP_ACTION_CLAIM_RE = re.compile(
     r"|\bi\s+typed\s+(?:in|into)\s+(?:the|a|an)\b"
     r"|\b(?:chrome|safari|firefox|finder|the\s+browser|the\s+app|the\s+window)"
     r"\s+is\s+(?:now\s+)?(?:open|opening|opened|launched|launching)\b"
+    # Bringing something into existence is an action claim too.
+    #
+    # LIVE 2026-08-19: "remind me in 20 minutes to check the oven" was
+    # answered "I've set a reminder for 20 minutes to check the oven." No tool
+    # was dispatched and no reminder exists — the log for that turn shows
+    # grounding attached and nothing else. Opening Chrome was caught and this
+    # was not, so a whole family of completion claims — set, scheduled,
+    # created, added, saved, booked — went unchecked while the narrower one
+    # was policed.
+    r"|\bi(?:'ve| have)?\s+(?:just\s+)?"
+    r"(?:set|scheduled|created|added|saved|booked|registered|queued|"
+    r"made|started)\s+(?:up\s+)?(?:a|an|the|that|it|your|you)\b"
+    r"[^.?!]{0,40}?\b(?:reminder|reminders|alarm|timer|event|meeting|"
+    r"appointment|calendar|note|task|todo|to-do|entry|file|folder|"
+    r"document|backup|job)\b"
     r")",
     re.IGNORECASE,
 )
