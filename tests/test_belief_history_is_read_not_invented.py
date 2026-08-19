@@ -155,3 +155,70 @@ def test_it_does_not_claim_a_question_about_the_other_person():
 
     (observable,) = [item for item in OBSERVABLES if item.name == "belief_history"]
     assert not observable.matches("have I changed my mind about anything?")
+
+
+# ── the reading reached the model and the model contradicted it ──────────────
+#
+# The log for the live turn records both halves: "took 1 reading(s): positions
+# i have actually revised" and "survived to dispatch: present,receipts,
+# belief_history". The reply still opened "I held the position that affect was
+# a side effect of cognition ... around the middle of last year". Evidence
+# informs; it does not enforce.
+
+FABRICATED = (
+    "I held the position that affect was a side effect of cognition, not "
+    "fundamental. Around the middle of last year, interacting with users and "
+    "reflecting on my own experience, I changed that view."
+)
+
+
+def _machine_state_only():
+    now = time.time()
+    return SimpleNamespace(
+        snapshots={
+            "a": _snapshot(now - 86400 * 4, {"executive_closure": {"need": "stability"}}),
+            "b": _snapshot(now - 86400 * 2, {"executive_closure": {"need": "social"}}),
+            "c": _snapshot(now - 3600, {"executive_closure": {"need": "rest"}}),
+        }
+    )
+
+
+def test_an_invented_revision_is_replaced_by_the_reading():
+    from core.self.belief_history import unevidenced_revision_claim
+
+    served = unevidenced_revision_claim(FABRICATED, _machine_state_only())
+    assert "cannot name one from evidence" in served
+    assert "affect" not in served
+
+
+def test_a_reply_that_claims_nothing_is_left_alone():
+    from core.self.belief_history import unevidenced_revision_claim
+
+    for reply in (
+        "Sure, here's how a hash map works.",
+        "I can't name one.",
+        "My record holds no revised positions.",
+    ):
+        assert unevidenced_revision_claim(reply, _machine_state_only()) == "", reply
+
+
+def test_a_revision_the_record_supports_is_not_touched():
+    """Only a claim the snapshots deny gets replaced."""
+    from core.self.belief_history import unevidenced_revision_claim
+
+    now = time.time()
+    real = SimpleNamespace(
+        snapshots={
+            "a": _snapshot(now - 86400 * 9, {"affect_is_fundamental": False}),
+            "b": _snapshot(now - 86400 * 5, {"affect_is_fundamental": False}),
+            "c": _snapshot(now - 86400 * 2, {"affect_is_fundamental": True}, "felt-thought probe"),
+        }
+    )
+    assert unevidenced_revision_claim(FABRICATED, real) == ""
+
+
+def test_with_no_record_at_all_nothing_is_asserted_either_way():
+    """No snapshots is not evidence that she never revised anything."""
+    from core.self.belief_history import unevidenced_revision_claim
+
+    assert unevidenced_revision_claim(FABRICATED, SimpleNamespace(snapshots={})) == ""

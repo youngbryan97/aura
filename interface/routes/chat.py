@@ -14151,6 +14151,39 @@ def _brevity_requested(user_message: object) -> bool:
         return False
 
 
+def _serve_measured_belief_history(reply: object) -> object:
+    """Replace an invented revision with what her snapshots actually hold.
+
+    Asked to name a position she had held and dropped, WITH a date, and given
+    the explicit out "if you can't, say so plainly", she named one that does
+    not exist and dated it "around the middle of last year". The belief-history
+    reading was in the prompt for that very turn — the log records it taken and
+    surviving to dispatch — and the reply contradicted it anyway.
+
+    A revision she cannot evidence is not a matter of opinion, so the reading
+    is served instead of requested, the same treatment file counts get and for
+    the same reason.
+    """
+    try:
+        from core.self.belief_history import unevidenced_revision_claim
+
+        measured = unevidenced_revision_claim(reply)
+        if measured:
+            logger.warning(
+                "🧠 Replaced an unevidenced revision claim with the snapshot reading."
+            )
+            return measured
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        record_degradation(
+            "chat.belief_history",
+            exc,
+            severity="debug",
+            action="left the reply's revision claim unchecked",
+            enforce_failure_policy=False,
+        )
+    return reply
+
+
 def _serve_measured_filesystem_count(user_message: object, reply: object) -> object:
     """Replace a contradicted file count with the one the runtime took.
 
@@ -15725,6 +15758,11 @@ def _apply_recorded_answer(user_message: object, response: Any) -> Any:
         # A measured count outranks a generated one. Asking the model to use
         # the real number was tried and produced the wrong number a third time.
         corrected = str(_serve_measured_filesystem_count(user_message, corrected) or corrected)
+        # Same remedy for her own history. The reading REACHED the model —
+        # "took 1 reading(s): positions i have actually revised" is in the log
+        # for the turn — and the reply still named an invented revision with an
+        # invented date. Evidence informs; it does not enforce.
+        corrected = str(_serve_measured_belief_history(corrected) or corrected)
         corrected = str(_correct_false_capability_denials(corrected) or corrected)
         # Cut a hallucinated continuation of the transcript.
         #

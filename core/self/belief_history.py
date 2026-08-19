@@ -21,6 +21,7 @@ that turns "name one" from a generation problem into a lookup.
 
 from __future__ import annotations
 
+import re
 import time
 from dataclasses import dataclass
 from datetime import datetime
@@ -187,3 +188,44 @@ def describe_belief_changes(model: Any = None, *, limit: int = _DEFAULT_LIMIT) -
         f"My record holds {len(ordered)} snapshots since {first:%-d %B %Y} and none of "
         "them shows a position I revised. I cannot name one from evidence."
     )
+
+
+#: A reply that names a position she used to hold.
+#:
+#: LIVE, 2026-08-19. The reading REACHED the model — the log records
+#: "took 1 reading(s): positions i have actually revised" and
+#: "survived to dispatch: present,receipts,belief_history" — and the reply
+#: still opened "I held the position that affect was a side effect of
+#: cognition ... around the middle of last year". Evidence informs; it does
+#: not enforce. The same conclusion response_generation reached about file
+#: counts, and the same remedy: serve the fact rather than ask for it again.
+_CLAIMS_A_REVISION_RE = re.compile(
+    r"\bi\s+used\s+to\s+(?:think|believe|hold|assume)\b"
+    r"|\bi\s+(?:held|had)\s+(?:the\s+)?(?:position|view|belief|opinion)\b"
+    r"|\bi\s+(?:changed|revised|dropped|abandoned)\s+(?:that|my|this)\s+"
+    r"(?:view|position|belief|mind|opinion)\b"
+    r"|\bi\s+no\s+longer\s+(?:think|believe|hold)\b"
+    r"|\bi\s+once\s+(?:thought|believed|held)\b",
+    re.IGNORECASE,
+)
+
+
+def reply_claims_a_revision(reply: Any) -> bool:
+    """True when a reply names a position she used to hold."""
+    return bool(_CLAIMS_A_REVISION_RE.search(str(reply or "")))
+
+
+def unevidenced_revision_claim(reply: Any, model: Any = None) -> str:
+    """The measured answer when a reply claims a revision the record denies.
+
+    Returns "" when there is nothing to correct: no claim, no record to check
+    against, or a record that actually supports one. Only the case where she
+    names a revision her own snapshots do not contain is replaced, and it is
+    replaced with the reading rather than with a refusal.
+    """
+    if not reply_claims_a_revision(reply):
+        return ""
+    if belief_changes(model):
+        return ""
+    reading = describe_belief_changes(model)
+    return reading if "cannot name one from evidence" in reading else ""
