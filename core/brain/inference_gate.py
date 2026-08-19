@@ -10096,7 +10096,7 @@ class InferenceGate:
                             "🎭 Guest recognized, but this request was already "
                             "downgraded; not re-promoting it to the protected lane."
                         )
-                    elif requested_tier != "secondary":
+                    elif requested_tier in ("", "primary"):
                         protected_foreground_lane = True
                         requested_tier = "primary"
                         logger.info(
@@ -10104,9 +10104,27 @@ class InferenceGate:
                             _trust_level.name,
                         )
                     else:
+                        # An EXPLICIT handoff, of any depth, is honoured.
+                        #
+                        # This read `!= "secondary"`, so an explicit request
+                        # for the fast tertiary lane was overridden back to the
+                        # 32B — silently. The protection exists to stop a
+                        # recognised principal being downgraded WITHOUT asking;
+                        # a caller that asks is not that, and asking for a
+                        # cheaper lane is less consequential than asking for
+                        # secondary, which was already allowed.
+                        #
+                        # Measured live 2026-08-19: a browser pursuit asked for
+                        # `local_fast` on every round of a sixty-item form,
+                        # was forced onto the Cortex at up to 103s a round, and
+                        # the turn died on its own budget having answered
+                        # nothing. Three layers were searched before the
+                        # override was found, because nothing reported that the
+                        # preference had been discarded.
                         logger.info(
-                            "🎭 %s user recognized. Keeping the explicit secondary handoff eligible for normal headroom checks.",
+                            "🎭 %s user recognized. Keeping the explicit %s handoff eligible for normal headroom checks.",
                             _trust_level.name,
+                            requested_tier,
                         )
 
                 # Trust belongs to THIS request, not to whatever reads the
