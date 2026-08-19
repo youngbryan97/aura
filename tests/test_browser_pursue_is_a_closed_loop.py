@@ -522,3 +522,53 @@ class TestTheDecisionPromptStaysAffordable:
         assert [e["selector"] for e in SovereignBrowserSkill._controls_worth_offering(page["elements"])] == [
             e["selector"] for e in SovereignBrowserSkill._controls_worth_offering(page["elements"])
         ]
+
+
+class TestTheCheapLaneIsAnOptimisationNotADowngrade:
+    """Routing reached Brainstem correctly, and then nothing landed: 0/0.
+
+    The small model returned text that parsed to no usable choice, so the round
+    had nothing to execute. Falling back only when the CALL fails is not
+    enough — an answer that cannot be acted on is a failure too.
+    """
+
+    PAGE = {
+        "elements": [
+            {"role": "radio", "name": "I agree", "selector": "#a"},
+            {"role": "button", "name": "Next", "selector": "#n"},
+        ]
+    }
+
+    def test_a_real_choice_is_usable(self):
+        assert SovereignBrowserSkill._decision_is_usable(
+            '{"actions": [{"index": 1, "type": "click"}]}', self.PAGE
+        )
+
+    def test_finishing_is_usable(self):
+        assert SovereignBrowserSkill._decision_is_usable('{"done": true, "actions": []}', self.PAGE)
+
+    @pytest.mark.parametrize(
+        "raw",
+        [
+            "",
+            "I think you should click next",
+            '{"actions": []}',
+            '{"actions": [{"index": 99, "type": "click"}]}',
+        ],
+    )
+    def test_an_unactionable_answer_is_not(self, raw):
+        assert not SovereignBrowserSkill._decision_is_usable(raw, self.PAGE)
+
+    def test_the_index_is_checked_against_what_she_was_shown(self):
+        """The ranked list is what the indices mean, so it is what is checked."""
+        crowded = {
+            "elements": [{"role": "link", "name": f"n{i}", "selector": f"#n{i}"} for i in range(60)]
+            + [{"role": "radio", "name": "answer", "selector": "#a"}]
+        }
+        offered = SovereignBrowserSkill._controls_worth_offering(crowded["elements"])
+        assert SovereignBrowserSkill._decision_is_usable(
+            '{"actions": [{"index": 0, "type": "click"}]}', crowded
+        )
+        assert not SovereignBrowserSkill._decision_is_usable(
+            '{"actions": [{"index": %d, "type": "click"}]}' % (len(offered) + 5), crowded
+        )

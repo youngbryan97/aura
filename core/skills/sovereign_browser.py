@@ -1257,6 +1257,34 @@ class SovereignBrowserSkill(BaseSkill):
         lines = [f"- {label}: {value}" for label, value in rows if value]
         return "MY UNDERSTANDING OF THIS TASK:\n" + "\n".join(lines) if lines else ""
 
+    @classmethod
+    def _decision_is_usable(cls, raw: Any, observation: Mapping[str, Any]) -> bool:
+        """Whether this decision names something that can actually be done.
+
+        Not "did the call succeed" — an answer that parses to no action, or to
+        an index that is not on the page, leaves the round with nothing to
+        execute, which is indistinguishable from no answer at all.
+        """
+
+        if not raw:
+            return False
+        parsed = cls._parse_decision(str(raw))
+        if parsed.get("error"):
+            return False
+        if parsed.get("done") is True:
+            return True
+        elements = cls._controls_worth_offering(list(observation.get("elements") or []))
+        for item in parsed.get("actions") or []:
+            if not isinstance(item, dict):
+                continue
+            try:
+                index = int(item.get("index"))
+            except (TypeError, ValueError):
+                continue
+            if 0 <= index < len(elements):
+                return True
+        return False
+
     @staticmethod
     async def _decide_on_the_fast_lane(router: Any, prompt: str, mind: str) -> str | None:
         """One micro-decision on the small model, or None to fall back.
@@ -1424,8 +1452,15 @@ class SovereignBrowserSkill(BaseSkill):
                 # requested tier is honoured — and the reply she finally gives
                 # about the result still comes from the Cortex, because that
                 # one is speech.
+                # The cheap lane is an optimisation, not a downgrade.
+                #
+                # Routing landed on Brainstem correctly, and then no action
+                # landed at all: the small model returned text that parsed to
+                # no usable choice, so the round produced nothing and the run
+                # ended 0/0. Falling back only when the call FAILS is not
+                # enough — an answer that cannot be acted on is a failure too.
                 raw = await self._decide_on_the_fast_lane(router, prompt, mind)
-                if raw is None:
+                if not self._decision_is_usable(raw, observation):
                     _ok, raw, _meta = await think(
                         prompt, system_prompt=mind, max_tokens=400, temperature=0.2
                     )
