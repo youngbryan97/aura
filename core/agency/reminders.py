@@ -107,10 +107,16 @@ def _save(reminders: list[Reminder]) -> bool:
     path = reminders_path()
     payload = json.dumps([asdict(item) for item in reminders], indent=2)
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        from core.runtime.atomic_writer import atomic_write_text
+        # Through the gateway, not around it. Every consequential write in this
+        # runtime is governed there, and a reminder store that wrote directly
+        # would be exactly the kind of ungoverned side channel the gateway
+        # exists to prevent — noticed by the governance ratchet the moment it
+        # was added.
+        from core.runtime.file_write_gateway import get_file_write_gateway
 
-        atomic_write_text(path, payload, encoding="utf-8")
+        gateway = get_file_write_gateway()
+        gateway.ensure_directory(path.parent, source="reminders")
+        gateway.write_text(path, payload, encoding="utf-8", source="reminders")
         return True
     except _RECOVERABLE as exc:
         record_degradation(

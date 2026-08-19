@@ -1302,10 +1302,41 @@ class StandingAuthorityManager:
         )
         if not args_digest or args_digest != record.arguments_digest:
             return False, "standing_authority_arguments_mismatch", record
+        # Derive the scope the way the LEASE derived it.
+        #
+        # issue_child_lease falls back to resolve_execution_effect_scope(name,
+        # args) when no scope is passed, and this did not, so a caller that
+        # omitted it presented "" against a recorded scope and could never
+        # match. LIVE 2026-08-19: computer_use, desktop_task, self_evolution
+        # and read_screen_text were all refused with
+        # standing_authority_effect_scope_mismatch, which is what a guaranteed
+        # inequality looks like from the outside — her self-directed action
+        # could not execute a tool at all.
+        #
+        # This does not loosen the check. The comparison against the recorded
+        # scope is unchanged, and the tool and arguments it derives from are
+        # separately bound above (tool_out_of_grant, arguments_mismatch), so
+        # the fallback can only reproduce the recorded value for the same
+        # tool and the same arguments the lease was issued for.
         scope = str(effect_scope or ctx.get("effect_scope") or "").strip().lower()
+        if not scope:
+            scope = str(
+                resolve_execution_effect_scope(name, dict(arguments or {}))
+            ).strip().lower()
         if scope != record.effect_scope:
             return False, "standing_authority_effect_scope_mismatch", record
-        risk = normalize_risk(risk_level or ctx.get("risk_level") or "")
+        # Same asymmetry, one field along: the lease classifies the risk from
+        # the tool when none is given. The RAW value decides whether anything
+        # was supplied — normalize_risk("") returns a default rather than an
+        # empty string, so testing the normalised value never finds a gap.
+        raw_risk = str(risk_level or ctx.get("risk_level") or "").strip()
+        risk = (
+            normalize_risk(raw_risk)
+            if raw_risk
+            else normalize_risk(
+                classify_execution_risk(name, dict(arguments or {}), effect_scope=scope)
+            )
+        )
         if risk != record.risk_level:
             return False, "standing_authority_risk_mismatch", record
         if not self._matches(grant.allowed_origins, record.origin):

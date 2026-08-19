@@ -3362,6 +3362,22 @@
     },
     {
       "callee": "<file_write_gateway>.ensure_directory",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/agency/reminders.py",
+      "scope": "<module>._save"
+    },
+    {
+      "callee": "<file_write_gateway>.write_text",
+      "canonical_owner": false,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/agency/reminders.py",
+      "scope": "<module>._save"
+    },
+    {
+      "callee": "<file_write_gateway>.ensure_directory",
       "canonical_owner": true,
       "category": "file_write_gateway",
       "count": 1,
@@ -6711,6 +6727,14 @@
       "count": 1,
       "path": "core/capabilities/phantom_browser.py",
       "scope": "<module>.PhantomBrowser.get_links"
+    },
+    {
+      "callee": "self.page.evaluate",
+      "canonical_owner": false,
+      "category": "raw_browser",
+      "count": 1,
+      "path": "core/capabilities/phantom_browser.py",
+      "scope": "<module>.PhantomBrowser.observe"
     },
     {
       "callee": "self.page.evaluate",
@@ -15565,6 +15589,14 @@
       "canonical_owner": false,
       "category": "subprocess_gateway",
       "count": 1,
+      "path": "core/utils/memory_monitor.py",
+      "scope": "<module>.kernel_memory_pressure_level"
+    },
+    {
+      "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().run",
+      "canonical_owner": false,
+      "category": "subprocess_gateway",
+      "count": 1,
       "path": "core/voice/audio_provenance.py",
       "scope": "<module>.host_audio_sources"
     },
@@ -15922,6 +15954,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "d7126137d9f621e8ad62fca5d863b778f79e8eabb15907a785e0b8c7f7322685",
+  "inventory_sha256": "84b424e3918262c83a13cf8b171692ae01715469c9c0ad9640e1af64d11b902c",
   "schema_version": 1
 }

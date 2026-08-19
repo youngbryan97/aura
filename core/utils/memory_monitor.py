@@ -240,18 +240,24 @@ def kernel_memory_pressure_level() -> str:
     if sys.platform != "darwin":
         return MEMORY_PRESSURE_UNKNOWN
     try:
-        import subprocess
+        # Through the governed gateway: it is the canonical owner of process
+        # execution, and a raw subprocess.run here is how that ownership
+        # erodes one reading at a time. This one is read-only — a sysctl that
+        # changes nothing — and says so.
+        from core.runtime.subprocess_gateway import get_subprocess_gateway
 
-        raw = subprocess.run(
+        raw = get_subprocess_gateway().run(
             ["sysctl", "-n", "kern.memorystatus_vm_pressure_level"],
-            capture_output=True,
-            text=True,
             timeout=2.0,
+            read_only=True,
+            accelerator_capability="none",
+            source="memory_monitor:kernel_pressure",
         )
         level = _KERNEL_PRESSURE_LEVELS.get(
-            int(str(raw.stdout).strip() or "0"), MEMORY_PRESSURE_UNKNOWN
+            int(str(getattr(raw, "stdout", "") or "").strip() or "0"),
+            MEMORY_PRESSURE_UNKNOWN,
         )
-    except (OSError, ValueError, subprocess.SubprocessError):
+    except (OSError, ValueError, RuntimeError, ImportError, TypeError):
         return MEMORY_PRESSURE_UNKNOWN
     with _KERNEL_PRESSURE_LOCK:
         _KERNEL_PRESSURE_CACHE = (now, level)
