@@ -21,6 +21,7 @@ a real source, and omitted entirely rather than guessed at.
 """
 from __future__ import annotations
 
+import re
 import time
 from typing import Any
 
@@ -136,4 +137,52 @@ def recent_actions_block(*, now: float | None = None) -> str:
     )
 
 
-__all__ = ["RECENT_ACTIONS_HEADER", "recent_actions_block"]
+#: "prove you did something", "what have you actually done", "did you do
+#: anything while I was away" — a question the receipts answer outright.
+_ASKS_WHAT_SHE_DID = re.compile(
+    r"\b(?:prove|show\s+me)\b[^.?!]{0,40}\byou\s+(?:did|ran|made|built|used)\b"
+    r"|\bwhat\s+have\s+you\s+(?:actually\s+)?(?:done|been\s+doing|run|used)\b"
+    r"|\bwhat\s+did\s+you\s+(?:actually\s+)?(?:do|run|use|make|build)\b"
+    r"|\bdid\s+you\s+(?:actually\s+)?(?:do|run|use|make|build)\s+anything\b"
+    r"|\banything\s+you(?:'ve| have)\s+done\b",
+    re.IGNORECASE,
+)
+
+
+def asks_what_she_recently_did(user_message: Any) -> bool:
+    """True when the receipts are the answer, not context for one."""
+    return bool(_ASKS_WHAT_SHE_DID.search(str(user_message or "")))
+
+
+def recent_actions_answer() -> str:
+    """The receipts as an ANSWER, with nothing written for the model in it.
+
+    The block above is scaffolding: it carries a heading and an instruction
+    about how to use the receipts. Serving that verbatim would hand someone
+    the prompt instead of the answer, which is the same failure as any other
+    leaked internal text. This keeps the receipt lines and says what they are.
+    """
+    block = recent_actions_block()
+    if not block:
+        return ""
+    lines = [
+        line.strip()
+        for line in block.splitlines()
+        if line.strip().startswith("-")
+    ]
+    if not lines:
+        return ""
+    return "\n".join(
+        [
+            "Here is what actually ran, from my own action receipts:",
+            *lines,
+        ]
+    )
+
+
+__all__ = [
+    "RECENT_ACTIONS_HEADER",
+    "asks_what_she_recently_did",
+    "recent_actions_answer",
+    "recent_actions_block",
+]

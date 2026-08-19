@@ -4364,6 +4364,27 @@ def _append_requested_phrases_for_quality_gate(user_message: str, reply_text: st
     return f"{reply.rstrip()} {suffix}".strip()
 
 
+def _recent_action_receipts(user_message: str) -> str:
+    """Her real action receipts, rendered as an answer, when asked what she did."""
+    try:
+        from core.brain.recent_actions import (
+            asks_what_she_recently_did,
+            recent_actions_answer,
+        )
+
+        if not asks_what_she_recently_did(user_message):
+            return ""
+        return str(recent_actions_answer() or "").strip()
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        record_degradation(
+            "chat",
+            exc,
+            severity="warning",
+            action="answered without recent-action receipts",
+        )
+        return ""
+
+
 def _ground_runtime_fact_status_reply(
     user_message: str,
     reply_text: str,
@@ -4372,6 +4393,19 @@ def _ground_runtime_fact_status_reply(
     cognitive_engine_handled: bool,
 ) -> str:
     """Ground operational status answers in live runtime metadata."""
+    # A question about what she DID is answered by the receipts, and the
+    # receipts are already in hand.
+    #
+    # LIVE 2026-08-19: "prove to me you did something in the last five minutes
+    # that wasn't just talking to me" spent 81 seconds in the cortex, produced
+    # 2496 characters of repetitive_phrase_loop under memory pressure, and the
+    # person got the canned refusal. The receipts block had been attached to
+    # that very turn — the log records "survived to dispatch: present,
+    # receipts" — so the answer existed while the model was failing to write
+    # it. A generation failure is not an absence of facts.
+    _receipts = _recent_action_receipts(user_message)
+    if _receipts:
+        return _receipts
     if not _chat_preflight._is_runtime_fact_status_request(user_message):
         return reply_text
     lane = dict(lane or {})
