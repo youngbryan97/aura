@@ -53,6 +53,7 @@ from core.conversation.session_scope import (
 from core.conversation.session_scope import (
     conversation_turn_var as _CHAT_DELIVERY_TURN_ID,  # noqa: N812
 )
+from core.conversation.session_scope import set_user_question
 from core.memory.session_pin_cipher import (
     SESSION_PIN_ENVELOPE_SCHEMA,
     SESSION_PIN_INDEX_CONTENT,
@@ -9044,12 +9045,46 @@ async def _await_foreground_gate(*, budget_s: float) -> Any:
     return ServiceContainer.get("inference_gate", default=None)
 
 
+def _known_answer_for_this_turn() -> str:
+    """What the runtime can answer without the model, or empty.
+
+    A lane that is warming, timed out or recovering says nothing about whether
+    the answer is knowable. "what is 7919 * 6367?" has one exact answer, held
+    by a deterministic form that needs no generation at all, and it was
+    replaced by a sentence about the lane.
+    """
+    try:
+        from core.conversation.arithmetic_check import requested_arithmetic_result
+        from core.conversation.session_scope import current_user_question
+
+        question = current_user_question()
+        if not question:
+            return ""
+        value = requested_arithmetic_result(question)
+        if value is None:
+            return ""
+        return f"{value:,}" if isinstance(value, int) else f"{value:,}".rstrip("0").rstrip(".")
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        record_degradation(
+            "chat.known_answer",
+            exc,
+            severity="debug",
+            action="served the lane status without checking for a computed answer",
+            enforce_failure_policy=False,
+        )
+        return ""
+
+
 def _conversation_lane_user_message(
     lane: dict[str, Any],
     *,
     timed_out: bool = False,
     status_override: str = "",
 ) -> str:
+    # A fact the machine holds is not the lane's to withhold.
+    known = _known_answer_for_this_turn()
+    if known:
+        return known
     message = _lane_status_message_body(lane, timed_out=timed_out, status_override=status_override)
     return message + _lane_status_repeat_suffix(message)
 
@@ -15991,6 +16026,11 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
 
     _interlocutor_turn = parse_interlocutor_introduction(_original_user_message)
     _semantic_user_message = _interlocutor_turn.utterance
+    # Every degraded path from here on can now see what was asked. Without it
+    # they answer about the LANE — live, "what is 7919 * 6367?" came back as
+    # "the live answer lane could not finish preparing", for a product the
+    # runtime computes exactly.
+    set_user_question(_semantic_user_message)
     _declared_interlocutor = _interlocutor_turn.evidence()
     _resume_prefix_for_response: str = ""
     _grounded_recall_context: str = ""

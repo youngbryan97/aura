@@ -19,6 +19,24 @@ conversation_turn_var: contextvars.ContextVar[str] = contextvars.ContextVar(
     default="",
 )
 
+#: What the person actually asked on this turn.
+#:
+#: LIVE DEFECT, 2026-08-19. "what is 7919 * 6367?" was answered with "the live
+#: answer lane could not finish preparing". The runtime can compute that
+#: exactly, and did not, because the code choosing the failure message had no
+#: idea what had been asked — every degraded path returns a sentence about the
+#: LANE rather than about the question. A fact the machine holds must not be
+#: suppressed by a lane that was not ready to say it.
+#:
+#: Turn-scoped like the ids above, so a background tick cannot see a
+#: foreground question or answer with one.
+user_question_var: contextvars.ContextVar[str] = contextvars.ContextVar(
+    "aura_user_question",
+    default="",
+)
+
+MAX_USER_QUESTION_CHARS: Final = 4000
+
 LOCAL_CONVERSATION_ID: Final = "local"
 # Native windows are an owner surface, not anonymous internal cognition.  The
 # HTTP desktop and voice routes already derive this principal key for the same
@@ -78,3 +96,14 @@ __all__ = [
     "normalize_conversation_id",
     "normalize_conversation_turn_id",
 ]
+
+
+def set_user_question(text: object) -> None:
+    """Record what this turn was asked, for anything that needs to answer it."""
+    body = " ".join(str(text or "").split())[:MAX_USER_QUESTION_CHARS]
+    user_question_var.set(body)
+
+
+def current_user_question() -> str:
+    """What this turn was asked, or empty outside a turn."""
+    return str(user_question_var.get() or "")
