@@ -15,7 +15,7 @@ import json
 import pytest
 
 from core.agency.reach_place import host_of, named_url, reach
-from core.agency.watched_goal import read_watched_goal
+from core.runtime.watched_goal import read_watched_goal
 
 
 class _Receipt:

@@ -20,16 +20,15 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 from dataclasses import dataclass, field
 from typing import Any, Sequence
 from urllib.parse import urlparse
 
 from core.runtime.errors import record_degradation
+from core.runtime.watched_goal import named_url
 
 logger = logging.getLogger("Aura.ReachPlace")
 
-URL_RE = re.compile(r"https?://[^\s<>\"']+", re.IGNORECASE)
 #: How many vetted results are worth choosing between. More than a handful is
 #: a reading exercise, not a decision.
 CANDIDATES = 5
@@ -53,12 +52,6 @@ class Reached:
             place = self.title or self.url
             return f"Opened {place}" + (f" — {self.because}" if self.because else "")
         return f"I could not get to {self.wanted}: {self.reason}"
-
-
-def named_url(text: str) -> str:
-    """A URL written into the request, if there is one."""
-    found = URL_RE.search(str(text or ""))
-    return found.group(0).rstrip(".,);") if found else ""
 
 
 def host_of(url: str) -> str:

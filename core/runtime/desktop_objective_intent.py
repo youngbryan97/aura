@@ -379,6 +379,25 @@ def looks_like_desktop_objective(user_message: str) -> bool:
     text = normalize_memory_intent_text(user_message).lower()
     if not text:
         return False
+    # A goal to be kept at until a condition holds is a desktop objective by
+    # definition: it names something to keep doing on the machine and the
+    # thing on screen that means it is finished.
+    #
+    # LIVE 2026-08-19: "Go find a 2048 game online and play it until you get
+    # a 128 tile. Tell me what you are doing as you go." classified False
+    # here, was routed to identity grounding by the rider on the end, and
+    # answered "I'm Aura. I'm a local stateful cognitive-agent runtime" while
+    # the browser sat on a blank page.
+    #
+    # The recogniser for these already exists and is already the thing that
+    # plans them, so asking it here means one definition rather than two.
+    try:
+        from core.runtime.watched_goal import read_watched_goal
+
+        if read_watched_goal(user_message) is not None:
+            return True
+    except (ImportError, AttributeError, TypeError, ValueError):
+        pass
     # Acting on a web page is acting on the world.
     #
     # LIVE 2026-08-18: "go take it for real: <url> — work through the whole

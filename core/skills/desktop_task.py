@@ -26,7 +26,7 @@ from core.runtime.desktop_objective_intent import (
     looks_like_desktop_objective,
     looks_like_screen_observation,
 )
-from core.agency.watched_goal import read_watched_goal
+from core.runtime.watched_goal import read_watched_goal
 from core.runtime.desktop_task_contract import (
     DESKTOP_TASK_ALLOWED_ACTIONS,
     DESKTOP_TASK_RETRY_SAFE_ACTIONS,

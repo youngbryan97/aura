@@ -174,6 +174,18 @@ def _keys_for(text: str) -> tuple[str, ...]:
 
 
 
+#: A URL written into a request. Lives here rather than beside the browser
+#: work because reading one out of text is text analysis, and this module is
+#: the one both the planner and the runtime's intent check can reach.
+URL_RE = re.compile(r"https?://[^\s<>\"']+", re.IGNORECASE)
+
+
+def named_url(text: str) -> str:
+    """A URL written into the request, if there is one."""
+    found = URL_RE.search(str(text or ""))
+    return found.group(0).rstrip(".,);") if found else ""
+
+
 def _where_it_happens(text: str) -> str:
     """The place a task needs her to be, when the request implies one.
 
@@ -188,8 +200,6 @@ def _where_it_happens(text: str) -> str:
     go somewhere, and reading it as one sends her off to find what is already
     in front of her.
     """
-    from core.agency.reach_place import named_url  # noqa: PLC0415
-
     url = named_url(text)
     if url:
         return url

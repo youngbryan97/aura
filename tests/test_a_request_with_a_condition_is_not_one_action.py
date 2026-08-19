@@ -16,7 +16,7 @@ import json
 
 import pytest
 
-from core.agency.watched_goal import BOARD_KEYS, FORM_KEYS, read_watched_goal
+from core.runtime.watched_goal import BOARD_KEYS, FORM_KEYS, read_watched_goal
 from core.skills.desktop_task import DesktopTaskSkill
 
 
@@ -108,3 +108,32 @@ def test_the_pursuit_payload_is_what_the_action_accepts():
     payload = goal.as_target()
     assert set(payload) >= {"goal", "success_when", "move_keys", "region_top", "region_bottom", "target_app"}
     assert payload["move_keys"] == list(BOARD_KEYS)
+
+
+def test_a_watched_goal_is_a_desktop_objective():
+    """LIVE: the request never reached the lane that could do it.
+
+    "Go find a 2048 game online and play it until you get a 128 tile. Tell me
+    what you are doing as you go." was classified as not needing the desktop,
+    routed to identity grounding by the rider on the end, and answered "I'm
+    Aura. I'm a local stateful cognitive-agent runtime" while the browser sat
+    on a blank page.
+
+    The recogniser that plans these is now the one that identifies them, so
+    there is one definition rather than two.
+    """
+    from core.runtime.desktop_objective_intent import looks_like_desktop_objective
+
+    assert looks_like_desktop_objective(
+        "Go find a 2048 game online and play it until you get a 128 tile. "
+        "Tell me what you are doing as you go."
+    )
+    assert looks_like_desktop_objective("2048 is open in Chrome. Keep playing it until you get a 128 tile.")
+
+
+def test_ordinary_conversation_is_still_not_a_desktop_objective():
+    from core.runtime.desktop_objective_intent import looks_like_desktop_objective
+
+    assert not looks_like_desktop_objective("who are you?")
+    assert not looks_like_desktop_objective("tell me about mycelial networks")
+    assert not looks_like_desktop_objective("what did you do earlier today?")
