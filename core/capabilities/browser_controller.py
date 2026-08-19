@@ -628,6 +628,31 @@ class BrowserController:
                 tabs.append({"url": parts[0].strip(), "title": ""})
         return tabs
 
+    async def search_results(self, query: str, count: int = 5) -> list[dict[str, str]]:
+        """What a search returns, without opening or navigating anything.
+
+        Looking something up must not disturb the page somebody is working
+        on. search_and_open puts the search itself in a tab, which is right
+        when the search IS the request and wrong when it is a question asked
+        mid-task — measured live, a run researching how to get unstuck left
+        the game it was playing.
+
+        Destinations are vetted the same way and still not opened: choosing
+        one remains a decision for the caller.
+        """
+        try:
+            rows = await self._fetch_search_results(query, count)
+        except (RuntimeError, OSError, TypeError, ValueError) as exc:
+            record_degradation("browser_controller.search_results", exc)
+            return []
+        vetted: list[dict[str, str]] = []
+        for row in rows[:count]:
+            try:
+                vetted.append({**row, "url": canonical_navigable_url(row.get("url"))})
+            except BrowserNavigationRefused as exc:
+                logger.info("Search result refused (%s): %.80s", exc, row.get("url"))
+        return vetted
+
     async def search_and_open(
         self, query: str, count: int = 3
     ) -> AutomationReceipt:

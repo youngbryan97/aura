@@ -599,7 +599,7 @@ async def pursue_on_screen(
     reasoning, keeping the predict-and-check loop around it.
     """
     from core.agency.deliberate_action import Attempt, Deliberation, confirm, deliberate
-    from core.agency.task_knowledge import learn_about, stuck
+    from core.agency.task_knowledge import learn_about, stuck, work_out_what_it_means
     from core.skills.fluid_executor import FluidExecutor, Step
 
     moves: list[dict[str, Any]] = []
@@ -612,7 +612,7 @@ async def pursue_on_screen(
     restarts: dict[str, Any] = {"count": 0, "because": ""}
     #: What she knows about doing this, learned once at the start and again
     #: whenever what she is doing stops working.
-    knowledge: dict[str, Any] = {"held": None, "relearned": 0}
+    knowledge: dict[str, Any] = {"held": None, "relearned": 0, "meant": []}
 
     async def observe() -> dict[str, Any]:
         # Put the target back in front before looking at it.
@@ -884,6 +884,7 @@ async def pursue_on_screen(
                 if knowledge["held"] is not None:
                     knowledge["relearned"] += 1
                 relearning = knowledge["held"] is not None
+                knowledge["meant"] = []
                 knowledge["held"] = await learn_about(
                     goal,
                     search=research,
@@ -895,6 +896,17 @@ async def pursue_on_screen(
                     history=history[-RECENT_ATTEMPTS:],
                 )
             learned = knowledge["held"].as_evidence() if knowledge["held"] is not None else []
+            # Work out what it means HERE before deciding with it.
+            #
+            # Retrieving advice is not applying it. "Keep your largest tile in
+            # a corner" is a fact about the game; what it means depends on
+            # where the tiles actually are, and that comparison is the step
+            # between reading something and playing differently.
+            if knowledge["held"] is not None and knowledge["held"].known and not knowledge["meant"]:
+                knowledge["meant"] = await work_out_what_it_means(
+                    knowledge["held"], seen, screen_options(move_keys), think=think or _her_reasoning(stakes)
+                )
+            learned = learned + [meaning.as_evidence() for meaning in knowledge["meant"]]
 
             # When nothing in the task is working, the task itself becomes a
             # choice. Both ways out are hers, and both are recorded as

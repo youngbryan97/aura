@@ -25,8 +25,9 @@ from __future__ import annotations
 import logging
 import re
 import time
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Sequence
+from typing import Any
 
 from core.runtime.errors import record_degradation
 
@@ -117,6 +118,8 @@ class TaskKnowledge:
     #: True when this was looked up because the run had stopped getting
     #: anywhere, rather than at the start.
     stuck: bool = False
+    #: Which kind of question was asked, and therefore which source answered.
+    asking: str = ""
     at: float = field(default_factory=time.time)
 
     @property
@@ -173,6 +176,120 @@ def _from_her_own_record(goal: str, *, graph: Any = None) -> list[Finding]:
             worked = "worked" if row.get("success") else "did not work"
             findings.append(Finding(says=f"last time this {worked}: {outcome}"[:MAX_FINDING_CHARS], source="my own record"))
     return findings
+
+
+async def _from_her_own_shelf(question: str, *, engine: Any = None) -> list[Finding]:
+    """What her offline encyclopedia says, which is instant and needs no network.
+
+    Asked first for a question about what something IS. Going to the web for
+    that is going outside for something already in the building — she carries
+    a full Wikipedia snapshot and answers from it in tens of milliseconds.
+    """
+    engine = engine if engine is not None else _capability_engine()
+    if engine is None:
+        return []
+    try:
+        result = await engine.execute(
+            "local_reference_search",
+            {"query": question, "limit": 3},
+            {"requested_via": "task_knowledge", "purpose": "background on a task"},
+        )
+    except (AttributeError, RuntimeError, TypeError, ValueError, TimeoutError) as exc:
+        record_degradation("task_knowledge", exc, severity="info", action="read her own reference shelf")
+        return []
+    if not isinstance(result, Mapping):
+        return []
+    findings: list[Finding] = []
+    for row in list(result.get("results") or [])[:FINDINGS_KEPT]:
+        if not isinstance(row, Mapping):
+            continue
+        title = str(row.get("title") or "").strip()
+        for sentence in usable_sentences(str(row.get("snippet") or ""))[:2]:
+            findings.append(Finding(says=sentence, source=f"my own reference shelf: {title}"))
+    return findings
+
+
+def _capability_engine() -> Any:
+    try:
+        from core.container import get_container  # noqa: PLC0415
+        from core.exceptions import ContainerError  # noqa: PLC0415
+
+        try:
+            return get_container().get("capability_engine")
+        except (ContainerError, KeyError):
+            return None
+    except (ImportError, AttributeError, RuntimeError):
+        return None
+
+
+
+async def _search_results_for(question: str, *, engine: Any = None, browser: Any = None) -> list[dict[str, str]]:
+    """Candidates for a question, fetched without navigating anywhere."""
+    if browser is None:
+        try:
+            from core.capabilities.browser_controller import get_browser_controller  # noqa: PLC0415
+
+            browser = get_browser_controller()
+        except (ImportError, AttributeError, RuntimeError):
+            return []
+    try:
+        return await browser.search_results(question, count=FINDINGS_KEPT)
+    except (RuntimeError, OSError, AttributeError, TypeError, ValueError) as exc:
+        record_degradation("task_knowledge", exc, severity="info", action="look for an answer")
+        return []
+
+
+async def _read_the_best_answer(
+    results: Sequence[Mapping[str, Any]], question: str, *, browser: Any = None
+) -> list[Finding]:
+    """Open the most relevant result and read what it actually says.
+
+    A snippet is an advertisement for an answer. Being stuck needs the answer,
+    which means opening the page whose description best matches the question
+    and reading the sentences in it that address that question — not the ones
+    that happen to sound instructive.
+    """
+    if not results:
+        return []
+    wanted = _distinctive(question)
+    best = max(
+        results,
+        key=lambda row: len(wanted & _distinctive(f"{row.get('title', '')} {row.get('snippet', '')}")),
+    )
+    url = str(best.get("url") or "").strip()
+    if not url:
+        return []
+    if browser is None:
+        try:
+            from core.capabilities.browser_controller import get_browser_controller  # noqa: PLC0415
+
+            browser = get_browser_controller()
+        except (ImportError, AttributeError, RuntimeError):
+            return []
+    try:
+        extract = await browser.extract_article_text(url)
+    except (RuntimeError, OSError, AttributeError, TypeError, ValueError) as exc:
+        record_degradation("task_knowledge", exc, severity="info", action="read a page for an answer")
+        return []
+    body = str(getattr(extract, "text", "") or "")
+    if not body:
+        return []
+    # The sentences that answer THIS question, ranked by how much of it they
+    # actually address. Untrusted text: it is carried as something she read,
+    # attributed, and never as an instruction.
+    scored = sorted(
+        ((len(wanted & _distinctive(line)), line) for line in usable_sentences(body)),
+        key=lambda row: row[0],
+        reverse=True,
+    )
+    where = str(getattr(extract, "source_domain", "") or url)
+    return [Finding(says=line, source=f"read on {where}") for score, line in scored[:FINDINGS_KEPT] if score]
+
+
+def _distinctive(text: str) -> set[str]:
+    from core.agency.deliberate_action import _distinctive as words  # noqa: PLC0415
+
+    return words(text)
 
 
 async def _from_search(question: str, *, engine: Any = None) -> tuple[list[Finding], str]:
@@ -323,9 +440,19 @@ async def learn_about(
         question = (
             why_is_this_stuck(goal, situation, history) if because_stuck else how_is_this_done(goal)
         )
-        read, asked = await _from_search(question, engine=engine)
-        knowledge.findings.extend(read)
-        knowledge.searched = asked
+        knowledge.asking = kind_of_question(question)
+        knowledge.searched = question
+        if knowledge.asking == BACKGROUND:
+            knowledge.findings.extend(await _from_her_own_shelf(question, engine=engine))
+        if knowledge.asking == TACTIC or not knowledge.findings:
+            read, _asked = await _from_search(question, engine=engine)
+            if read:
+                knowledge.findings.extend(read)
+            else:
+                # A search that returned only headlines is not an answer.
+                # Open the best match and read it.
+                results = await _search_results_for(question, engine=engine)
+                knowledge.findings.extend(await _read_the_best_answer(results, question))
 
     if remember:
         _remembered[goal] = knowledge
@@ -380,6 +507,126 @@ def _announce(knowledge: TaskKnowledge) -> None:
         task.add_done_callback(lambda done: done.exception())
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
         record_degradation("task_knowledge", exc, severity="info", action="learned without saying so")
+
+
+
+@dataclass(frozen=True)
+class Implication:
+    """What a thing she read means for the position she is actually in."""
+
+    finding: str
+    means: str
+    favours: str = ""
+
+    def as_evidence(self) -> str:
+        line = f"What that means here — {self.means}"
+        return f"{line} (so: {self.favours})" if self.favours else line
+
+
+def _favoured_option(finding: str, options: Sequence[Any]) -> str:
+    """Which available move a finding points at, when it points at one.
+
+    An option's own name appearing in the advice is the strongest signal
+    there is, and it is checked directly rather than through the distinctive
+    words — move names are short, and a filter that drops words under three
+    letters drops "up" and "go" along with "the".
+    """
+    text = str(finding or "")
+    if not text or not options:
+        return ""
+    # The same job choose_named already does, and for the same reason: a
+    # sentence that works through the moves before settling on one mentions
+    # several, so the last one named is the one it settled on. "Pressing up
+    # would dislodge it — go left instead" favours left.
+    from core.agency.deliberate_action import choose_named  # noqa: PLC0415
+
+    named = choose_named(text, options)
+    if named is not None:
+        return str(getattr(named, "name", ""))
+    said = _distinctive(text)
+    if not said:
+        return ""
+    best_name, best_score = "", 0
+    for option in options:
+        described = _distinctive(f"{getattr(option, 'name', '')} {getattr(option, 'detail', '')}")
+        score = len(said & described)
+        if score > best_score:
+            best_name, best_score = str(getattr(option, "name", "")), score
+    return best_name
+
+
+def _structural_meaning(finding: str, situation: str, options: Sequence[Any]) -> Implication:
+    """What a finding means here, worked out without asking anything.
+
+    Weaker than reasoning about it, and honest about that: it says which
+    available move the advice names, and otherwise says it does not fit what
+    is on screen. A floor, so that losing language costs her the quality of
+    the thinking and not the step itself.
+    """
+    favours = _favoured_option(finding, options)
+    shared = _distinctive(finding) & _distinctive(situation)
+    if favours:
+        means = f"it names {favours}, which is available now"
+    elif shared:
+        means = "it is about " + ", ".join(sorted(shared)[:3]) + ", which is on screen"
+    else:
+        means = "nothing on screen matches what it describes"
+    return Implication(finding=finding, means=means, favours=favours)
+
+
+def _meaning_question(finding: str, situation: str, options: Sequence[Any]) -> str:
+    names = ", ".join(str(getattr(option, "name", "")) for option in options)
+    return (
+        "Given what is on screen, say in one sentence what this means for the "
+        f"move to make next, and name one of: {names}."
+    )
+
+
+async def work_out_what_it_means(
+    knowledge: TaskKnowledge,
+    situation: str,
+    options: Sequence[Any] = (),
+    *,
+    think: Any = None,
+) -> list[Implication]:
+    """Work out what she read against the position she is actually in.
+
+    Retrieving advice is not applying it. "Keep your largest tile in a corner"
+    is a fact about the game; what it means here depends on where the tiles
+    actually are, and that comparison is the step between reading something
+    and playing differently.
+
+    Reasoned when language is reachable and derived structurally when it is
+    not, so the step always happens and only its quality varies.
+    """
+    if not knowledge.known:
+        return []
+    meanings: list[Implication] = []
+    for finding in knowledge.findings[:FINDINGS_KEPT]:
+        said = finding.says
+        if think is None:
+            meanings.append(_structural_meaning(said, situation, options))
+            continue
+        try:
+            reply = await think(
+                _meaning_question(said, situation, options),
+                [f"What I read — {said}", f"What is on screen — {situation}"]
+                + [f"Available move — {getattr(option, 'label', lambda: '')()}" for option in options],
+            )
+        except (RuntimeError, AttributeError, TypeError, ValueError, TimeoutError) as exc:
+            record_degradation(
+                "task_knowledge", exc, severity="info", action="worked out what a finding meant without language"
+            )
+            meanings.append(_structural_meaning(said, situation, options))
+            continue
+        spoken = " ".join(str(reply or "").split())[:MAX_FINDING_CHARS]
+        if not spoken:
+            meanings.append(_structural_meaning(said, situation, options))
+            continue
+        meanings.append(
+            Implication(finding=said, means=spoken, favours=_favoured_option(spoken, options))
+        )
+    return meanings
 
 
 def stuck(history: Sequence[Any], *, run_of: int = 3) -> bool:
