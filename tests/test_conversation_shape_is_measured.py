@@ -64,6 +64,13 @@ def _populate(instance):
         "how many messages have I sent you?",
         "what did we cover earlier?",
         "how long has this conversation been going?",
+        # Asking for a summary of THIS conversation is asking what is in it.
+        # LIVE: "summarize this conversation in one sentence" produced two
+        # topics that had never come up.
+        "summarize this conversation in one sentence",
+        "recap what we covered",
+        "give me the gist of this chat",
+        "tldr this conversation",
     ],
 )
 def test_a_question_about_the_conversation_is_recognised(question: str) -> None:
@@ -78,6 +85,9 @@ def test_a_question_about_the_conversation_is_recognised(question: str) -> None:
         "how long will it take to build?",
         "what is 2 + 2",
         "how are you doing",
+        # Summarising something that is not this conversation.
+        "summarize this article for me",
+        "summarize the file notes.txt",
     ],
 )
 def test_a_different_question_is_not_claimed(question: str) -> None:
@@ -123,3 +133,11 @@ def test_the_reading_reaches_the_grounding_channel(transcript) -> None:
     text = "\n".join(blocks) if isinstance(blocks, list) else str(blocks)
 
     assert "THE SHAPE OF THIS CONVERSATION" in text
+
+
+def test_a_summary_request_is_answered_from_the_transcript(transcript) -> None:
+    """The recap has to be of what happened, not of what usually happens."""
+    block = conversation_shape_block("summarize this conversation in one sentence")
+
+    assert "what is a semiconductor?" in block
+    assert "what did I just copy?" in block

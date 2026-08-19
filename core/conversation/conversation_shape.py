@@ -39,7 +39,20 @@ _ASKS_SHAPE_RE = re.compile(
     r"|\bwhat\s+(?:have|did)\s+we\s+(?:been\s+)?(?:talk|talked|discuss|discussed|cover|covered)\b"
     r"|\bwhat\s+have\s+we\s+been\s+(?:talking|discussing)\s+about\b"
     r"|\bhow\s+far\s+(?:into|through)\s+(?:this|our)\s+(?:conversation|chat)\b"
-    r"|\bwhat\s+(?:else\s+)?did\s+we\s+(?:cover|discuss|talk\s+about)\b",
+    r"|\bwhat\s+(?:else\s+)?did\s+we\s+(?:cover|discuss|talk\s+about)\b"
+    # Asking for a summary of THIS conversation is asking what is in it.
+    # LIVE 2026-08-18: "summarize this conversation in one sentence" produced
+    # "we discussed the potential for distributed systems to achieve consensus,
+    # and you asked me about my substrate and cognitive architecture" — a
+    # conversation about a clipboard token, a file count, memory readings and
+    # a contradiction. The recap was invented because the transcript never
+    # reached the turn.
+    r"|\b(?:summar(?:ise|ize|y)|recap|rundown|gist|tl;?dr|"
+    r"catch\s+me\s+up|bring\s+me\s+up\s+to\s+speed)\b"
+    r"[^.?!]{0,30}\b(?:this|our|the)\s+"
+    r"(?:conversation|chat|session|discussion|exchange|thread)\b"
+    r"|\b(?:summar(?:ise|ize)|recap)\b\s+(?:what\s+)?we\s+"
+    r"(?:covered|discussed|talked\s+about|said)\b",
     re.IGNORECASE,
 )
 
