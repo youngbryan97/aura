@@ -75,12 +75,36 @@ def _snapshots(model: Any) -> list[Any]:
     return sorted(dated, key=lambda item: float(getattr(item, "ts", 0.0) or 0.0))
 
 
+#: A position is something she holds. Per-tick machine state is not.
+#:
+#: The live self-model's only belief keys are `executive_closure` and
+#: `runtime_lessons`, both dictionaries rewritten on nearly every snapshot —
+#: the dominant need, the current attention focus, the last lesson. Diffing
+#: them yields a wall of nested dict text that changes constantly, and
+#: reporting it as "a position I have revised" would be both unreadable and
+#: untrue. Two properties separate the two, and neither needs a list of keys:
+#: a stance has a value you can say out loud, and a stance does not change
+#: every time the clock ticks.
+_MAX_STANCE_CHARS = 120
+_CHURN_FRACTION = 0.5
+
+
+def _is_a_stance(value: Any) -> bool:
+    """True when the value is something she could state as a position."""
+    if isinstance(value, bool) or isinstance(value, (int, float)):
+        return True
+    if isinstance(value, str):
+        return 0 < len(value.strip()) <= _MAX_STANCE_CHARS
+    return False
+
+
 def belief_changes(model: Any = None, *, limit: int = _DEFAULT_LIMIT) -> tuple[BeliefChange, ...]:
-    """Every belief that differs between consecutive snapshots, newest first.
+    """Positions that differ between consecutive snapshots, newest first.
 
     A belief appearing for the FIRST time is not a change of mind — she did
     not use to think otherwise, she had no view. Only keys present in both
-    snapshots with different values count.
+    snapshots with different values count, and only where the value is a
+    stance rather than machine state that moves on its own.
     """
     try:
         if model is None:
@@ -92,7 +116,9 @@ def belief_changes(model: Any = None, *, limit: int = _DEFAULT_LIMIT) -> tuple[B
         ordered = _snapshots(model)
         if len(ordered) < 2:
             return ()
-        changes: list[BeliefChange] = []
+        transitions = len(ordered) - 1
+        moved: dict[str, int] = {}
+        candidates: list[BeliefChange] = []
         for earlier, later in zip(ordered, ordered[1:], strict=False):
             before = getattr(earlier, "beliefs", {}) or {}
             after = getattr(later, "beliefs", {}) or {}
@@ -101,7 +127,10 @@ def belief_changes(model: Any = None, *, limit: int = _DEFAULT_LIMIT) -> tuple[B
             for key in sorted(set(before) & set(after)):
                 if before[key] == after[key]:
                     continue
-                changes.append(
+                moved[str(key)] = moved.get(str(key), 0) + 1
+                if not (_is_a_stance(before[key]) and _is_a_stance(after[key])):
+                    continue
+                candidates.append(
                     BeliefChange(
                         key=str(key),
                         before=before[key],
@@ -110,6 +139,10 @@ def belief_changes(model: Any = None, *, limit: int = _DEFAULT_LIMIT) -> tuple[B
                         note=str(getattr(later, "revision_note", "") or ""),
                     )
                 )
+        # A key that moves on most transitions is being written by the runtime,
+        # not reconsidered by her.
+        churn_ceiling = max(1, int(transitions * _CHURN_FRACTION))
+        changes = [item for item in candidates if moved.get(item.key, 0) <= churn_ceiling]
         changes.sort(key=lambda item: item.at, reverse=True)
         return tuple(changes[: max(1, int(limit))])
     except _RECOVERABLE as exc:
@@ -124,15 +157,33 @@ def belief_changes(model: Any = None, *, limit: int = _DEFAULT_LIMIT) -> tuple[B
 
 
 def describe_belief_changes(model: Any = None, *, limit: int = _DEFAULT_LIMIT) -> str:
-    """The changes as text, or "" when there are none.
+    """The changes as text, or "" when there is no record to read.
 
-    Empty is the honest reading when nothing changed, and it has to stay
-    distinguishable from "I did not look" — the caller serves the block only
-    when there is something in it, so an empty return leaves her free to say
-    she cannot name one, which is what the question asked for.
+    An empty block and a block saying "none" are different answers. Silence
+    leaves the model free to invent a revision, which is exactly what happened;
+    a measured "none, out of N snapshots since <date>" gives her something true
+    to say instead. So "" is reserved for having no record at all, which is the
+    one case where there is genuinely nothing to report.
     """
+    try:
+        if model is None:
+            from core.container import ServiceContainer
+
+            model = ServiceContainer.peek("self_model", default=None)
+        ordered = _snapshots(model) if model is not None else []
+    except _RECOVERABLE:
+        ordered = []
     changes = belief_changes(model, limit=limit)
-    if not changes:
+    if changes:
+        lines = [change.sentence() for change in changes]
+        return (
+            "Positions I have actually revised, from my own snapshots:\n- "
+            + "\n- ".join(lines)
+        )
+    if len(ordered) < 2:
         return ""
-    lines = [change.sentence() for change in changes]
-    return "Positions I have actually revised, from my own snapshots:\n- " + "\n- ".join(lines)
+    first = datetime.fromtimestamp(float(getattr(ordered[0], "ts", 0.0) or 0.0))
+    return (
+        f"My record holds {len(ordered)} snapshots since {first:%-d %B %Y} and none of "
+        "them shows a position I revised. I cannot name one from evidence."
+    )
