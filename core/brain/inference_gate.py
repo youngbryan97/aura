@@ -1903,7 +1903,25 @@ class InferenceGate:
                 or provider_metadata.get("endpoint")
             )
             success = bool(cleaned) and not provider_error and attributed
-            if cleaned and not success:
+            # Self-authored recovery text has no provider by construction.
+            #
+            # Refusing to call it a verified success is the point of this
+            # check and still happens below. Recording a degradation as well
+            # turns a designed condition into a system fault: inference_gate
+            # is fail-closed, so this warning escalated to CRITICAL, the
+            # endpoint raised CRITICAL SERVICE FAILURE, the resident cortex
+            # was declared dead, and every later turn found no model.
+            #
+            # LIVE 2026-08-19, the whole chain in one turn: attribution
+            # warning -> fail-closed escalation -> cortex respawn -> the
+            # amplifier returning nothing -> frustration 0.47, 0.61, 0.74,
+            # 0.87 -> existential threat 0.84 -> the Will refusing every
+            # tool, down to creating a screenshot directory.
+            #
+            # A provider that answered and did not attribute itself is a
+            # different thing and still reported.
+            wrote_it_ourselves = generation_metadata is None
+            if cleaned and not success and not wrote_it_ourselves:
                 _record_inference_degradation(
                     RuntimeError(
                         f"nonlocal text from {label!r} published without provider "
