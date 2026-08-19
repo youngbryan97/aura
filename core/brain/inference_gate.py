@@ -9491,6 +9491,25 @@ class InferenceGate:
                 )
 
         health_probe = bool(context.get("health_probe", False)) or purpose == "proof_model_lane_probe"
+        # A generation that is not the reply must be able to say so.
+        #
+        # LIVE 2026-08-19: deciding a move on screen answered "left", and the
+        # user-surface gate rejected it as arithmetic_answer_missing — because
+        # the request it was graded against was the deliberation's own prompt,
+        # which mentions a 128 tile. Retries were exhausted, the model returned
+        # nothing, and the pursuit reported that she named no available move.
+        #
+        # The conflation is one clause below: a call is treated as user-facing
+        # when its origin says so OR it asked for the primary tier. Wanting the
+        # good model is not the same as producing the visible answer. Internal
+        # reasoning keeps the primary tier and the foreground lane; what it
+        # stops inheriting is the contract that its output IS the reply.
+        internal_inference = bool(
+            context.get("internal_inference", False)
+            or context.get("_non_chat_inference", False)
+        )
+        if internal_inference:
+            context["internal_inference"] = True
         proof_evaluation_contract = proof_evaluation_contract or (
             not benchmark_request and is_proof_evaluation_purpose(purpose)
         )
@@ -12008,6 +12027,7 @@ class InferenceGate:
             and requested_tier == "primary"
             and not strict_answer_contract
             and not strict_value_contract
+            and not internal_inference
         ):
             _foreground_floor, _foreground_cap, foreground_loops = (
                 self._foreground_compute_profile(initial_visible_user_prompt)

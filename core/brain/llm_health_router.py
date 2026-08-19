@@ -1829,6 +1829,14 @@ class HealthAwareLLMRouter:
             kwargs.get("health_probe", False)
         )
         non_chat_inference = bool(kwargs.pop("_non_chat_inference", False))
+        if non_chat_inference:
+            # Carried on rather than consumed here. The inference gate is where
+            # the user-surface reply contract is applied, and without this it
+            # cannot tell an internal deliberation from the visible answer:
+            # every caller that prefers the primary tier was treated as the
+            # reply lane and graded against a question invented from its own
+            # prompt.
+            kwargs["internal_inference"] = True
         if not origin and not purpose and not explicit_background and not non_chat_inference:
             purpose = "expression"
             kwargs["purpose"] = purpose

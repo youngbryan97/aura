@@ -74,6 +74,11 @@ def generator(*, origin: str = "agency_next_move", tier: str = "primary"):
             is_background=False,
             foreground_request=True,
             allow_cloud_fallback=False,
+            # Deciding a move is not answering a person. Without this the
+            # user-surface reply contract is applied to the decision and
+            # grades it against a question invented from its own prompt:
+            # measured live, "left" was rejected as arithmetic_answer_missing.
+            internal_inference=True,
         )
         if isinstance(out, str):
             return out
