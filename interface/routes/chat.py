@@ -13527,6 +13527,26 @@ def _reply_claims_own_code(reply: str) -> bool:
         return False
 
 
+def _another_reader_owns_this_turn(user_message: str) -> bool:
+    """Whether a different, more specific reading already answers this turn."""
+    try:
+        from core.conversation.computable_text import computed_text_answer
+        from core.conversation.filesystem_check import requested_file_read
+
+        if requested_file_read(user_message) is not None:
+            return True
+        if computed_text_answer(user_message) is not None:
+            return True
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        return False
+    try:
+        from core.conversation.arithmetic_check import requested_arithmetic_result
+
+        return requested_arithmetic_result(user_message) is not None
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        return False
+
+
 def _turn_asks_where_that_came_from(user_message: str) -> bool:
     """Whether this turn asks where something she already showed came from.
 
@@ -13542,6 +13562,21 @@ def _turn_asks_where_that_came_from(user_message: str) -> bool:
     """
     text = str(user_message or "").strip()
     if not text or not _has_current_shown_source():
+        return False
+    # A turn another reader already answers is not a question about code shown
+    # earlier.
+    #
+    # LIVE 2026-08-19, both canned refusals of the session. Showing one source
+    # excerpt makes this state sticky, and every later turn was then scored
+    # for provenance: "read me the first line of CONTRIBUTING.md" and "spell
+    # 'necessary' backwards" both came back True. The correction replaced each
+    # answer with a citation sentence, the replacement failed its authorship
+    # proof, and the person got "I couldn't get to an answer I'd stand behind
+    # on that one" — over a file that had been read and a word that had been
+    # reversed.
+    #
+    # "Where did that come from?" is unaffected: nothing else claims it.
+    if _another_reader_owns_this_turn(text):
         return False
 
     def _lexical(candidate: str) -> bool:
