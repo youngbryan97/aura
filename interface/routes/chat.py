@@ -14151,6 +14151,52 @@ def _brevity_requested(user_message: object) -> bool:
         return False
 
 
+def _serve_queued_work(user_message: object, reply: object) -> object:
+    """Answer "what are you going to do next" from the coordinator's list.
+
+    LIVE, 2026-08-19. The reading was taken and reached dispatch — the log
+    records "took 1 reading(s): work you have queued" — and the answer was
+    "After this, I'm going to keep running. There's no stopping point." Two
+    jobs were waiting at that moment: dlq_recovery, held by an active
+    foreground generation, and biological_sleep, held for want of a user
+    anchor. Neither was mentioned.
+
+    Third channel to get this treatment, for the same reason as the first two:
+    evidence informs, it does not enforce, and a pending list is not a matter
+    of opinion.
+    """
+    try:
+        from core.brain.observable_registry import _matches_queued_work
+        from core.maintenance.dream_coordinator import get_dream_coordinator
+
+        if not _matches_queued_work(str(user_message or "")):
+            return reply
+        pending = dict((get_dream_coordinator().status() or {}).get("pending") or {})
+        if not pending:
+            return reply
+        lines = []
+        for name, detail in list(pending.items())[:8]:
+            label = str(name).replace("_", " ").strip()
+            reason = str(dict(detail or {}).get("reason") or "").replace("_", " ").strip()
+            lines.append(f"- {label}" + (f" — waiting on {reason}" if reason else ""))
+        count = len(pending)
+        head = (
+            f"{count} job{'s' if count != 1 else ''} waiting to run, "
+            "and nothing else queued:"
+        )
+        logger.info("🗓️ Served the queued-work list from the coordinator.")
+        return head + "\n" + "\n".join(lines)
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        record_degradation(
+            "chat.queued_work",
+            exc,
+            severity="debug",
+            action="left the queued-work answer to the model",
+            enforce_failure_policy=False,
+        )
+    return reply
+
+
 def _serve_earlier_conversation(user_message: object, reply: object) -> object:
     """Answer "what did I ask you earlier" from the record, not from memory.
 
@@ -15767,9 +15813,14 @@ _SERVED_FROM_RECORD_OPENINGS = (
     "Positions I have actually revised",
 )
 
+#: The queued-work answer opens with a count, so it is recognised by shape.
+_SERVED_COUNT_OPENING = re.compile(r"^\d+\s+jobs?\s+waiting\s+to\s+run\b")
+
 
 def _reply_was_served_from_a_record(reply: object) -> bool:
     body = str(reply or "").lstrip()
+    if _SERVED_COUNT_OPENING.match(body):
+        return True
     return any(body.startswith(opening) for opening in _SERVED_FROM_RECORD_OPENINGS)
 
 
@@ -15818,6 +15869,7 @@ def _apply_recorded_answer(user_message: object, response: Any) -> Any:
         # invented date. Evidence informs; it does not enforce.
         corrected = str(_serve_measured_belief_history(corrected) or corrected)
         corrected = str(_serve_earlier_conversation(user_message, corrected) or corrected)
+        corrected = str(_serve_queued_work(user_message, corrected) or corrected)
         corrected = str(_correct_false_capability_denials(corrected) or corrected)
         # Cut a hallucinated continuation of the transcript.
         #
