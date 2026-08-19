@@ -52,6 +52,40 @@ class ThoughtEmitter:
             if queue in self.listeners:
                 self.listeners.discard(queue)
 
+    @staticmethod
+    def _also_tell_the_interface(message: dict) -> None:
+        """Put the thought where the interface is actually looking.
+
+        This emitter broadcasts to listeners that register with it, and nothing
+        in the codebase registers — seventy-two modules have been emitting into
+        a channel with no reader. The neural feed is fed from the event bus,
+        which the interface bridge subscribes to with a wildcard.
+
+        Bridging here rather than at the call sites means every existing
+        emitter becomes visible at once, and anything written later reaches the
+        interface without having to know this.
+        """
+
+        try:
+            from core.event_bus import get_event_bus
+
+            bus = get_event_bus()
+            if bus is None:
+                return
+            payload = {
+                "content": str(message.get("content") or ""),
+                "phase": str(message.get("category") or "cognition"),
+                "title": str(message.get("title") or ""),
+                "urgency": "NORMAL" if message.get("level") != "warning" else "HIGH",
+            }
+            publish = getattr(bus, "publish_threadsafe", None)
+            if callable(publish):
+                publish("thoughts", payload)
+        except Exception as exc:
+            # A thought that cannot be shown is not worth failing the work that
+            # produced it.
+            record_degradation("thought_stream", exc, action="thought not bridged to the interface")
+
     def emit(self, title: str, content: str, level: str = "info", category: str = "General", **kwargs):
         """Broadcast a thought/event to all listeners.
         Thread-safe: Can be called from sync threads (Orchestrator).
@@ -64,6 +98,8 @@ class ThoughtEmitter:
             "category": category
         }
         message.update(kwargs)
+
+        self._also_tell_the_interface(message)
 
         with self._lock:
             loop = self._loop
