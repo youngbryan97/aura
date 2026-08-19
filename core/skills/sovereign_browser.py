@@ -1302,27 +1302,50 @@ class SovereignBrowserSkill(BaseSkill):
         costs time.
         """
 
-        agentic = getattr(router, "think_and_act", None)
-        if not callable(agentic):
-            return None
-        try:
-            outcome = await agentic(
-                prompt,
-                system_prompt=mind,
-                tools={},
-                max_turns=1,
-                prefer_tier="local_fast",
-                origin="browser_pursuit_decision",
-                max_tokens=400,
-                temperature=0.2,
-            )
-        except _BROWSER_DECISION_ERRORS as exc:
-            record_degradation("sovereign_browser.fast_lane", exc, severity="debug")
-            return None
-        if not isinstance(outcome, Mapping):
-            return None
-        content = str(outcome.get("content") or "").strip()
-        return content or None
+        # Address the fast endpoint directly.
+        #
+        # `prefer_tier` was ignored twice over: `think()` on the resolved client
+        # is endpoint-level and drops it, and `think_and_act` documents that it
+        # "falls back to the standard think() path" when no endpoint supports
+        # tools natively — which, with no tools passed, is always. So every
+        # round went to the Cortex at up to 103s while politely asking for the
+        # small model.
+        #
+        # Health is still respected, and an unhealthy or missing fast endpoint
+        # returns None so the caller takes the ordinary path.
+        endpoints = getattr(router, "endpoints", None) or {}
+        adapters = getattr(router, "adapters", None) or {}
+        monitor = getattr(router, "health_monitor", None)
+        for name, endpoint in endpoints.items():
+            raw_tier = getattr(endpoint, "tier", "")
+            tier = str(getattr(raw_tier, "value", raw_tier)).lower()
+            if tier != "local_fast":
+                continue
+            if monitor is not None and not monitor.is_healthy(name):
+                continue
+            adapter = adapters.get(name)
+            if adapter is None:
+                continue
+            for method_name in ("think", "generate", "generate_text_async"):
+                method = getattr(adapter, method_name, None)
+                if not callable(method):
+                    continue
+                try:
+                    outcome = await method(
+                        prompt, system_prompt=mind, max_tokens=900, temperature=0.2
+                    )
+                except _BROWSER_DECISION_ERRORS as exc:
+                    record_degradation(
+                        "sovereign_browser.fast_lane", exc, severity="debug"
+                    )
+                    return None
+                if isinstance(outcome, tuple) and len(outcome) >= 2:
+                    outcome = outcome[1]
+                if isinstance(outcome, Mapping):
+                    outcome = outcome.get("content")
+                content = str(outcome or "").strip()
+                return content or None
+        return None
 
     async def _decide_next_actions(
         self,
