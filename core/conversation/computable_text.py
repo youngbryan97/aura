@@ -208,3 +208,17 @@ def computed_text_answer(question: str) -> str | None:
 def text_form_failures() -> list[str]:
     """Every declared example a form gets wrong."""
     return [failure for form in TEXT_FORMS for failure in form.failures()]
+
+
+def capability_vocabulary() -> tuple[str, ...]:
+    """The words a person uses to ask for these, taken from the forms.
+
+    Self-knowledge reads this. Deriving it from the declared forms rather than
+    writing a sentence about them means a form added later describes itself,
+    and a description can never drift from what the code actually answers.
+    """
+    words: list[str] = []
+    for form in TEXT_FORMS:
+        words.append(form.name.replace("_", " "))
+        words.extend(question for question, _answer in form.examples)
+    return tuple(words)

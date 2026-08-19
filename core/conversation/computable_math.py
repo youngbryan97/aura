@@ -459,22 +459,30 @@ COMPUTABLE_FORMS: tuple[ComputableForm, ...] = (
     ComputableForm(
         "gcd",
         re.compile(
-            r"(?:gcd|greatest\s+common\s+(?:divisor|factor))\s+of\s+"
+            r"(?:gcd|hcf|(?:greatest|highest|largest)\s+common\s+(?:divisor|factor))\s+of\s+"
             r"(?P<a>[0-9][0-9,]*)\s*(?:and|,|&)\s*(?P<b>[0-9][0-9,]*)",
             re.IGNORECASE,
         ),
         _gcd,
-        examples=(("what is the gcd of 462 and 1071?", 21),),
+        examples=(
+            ("what is the gcd of 462 and 1071?", 21),
+            ("greatest common divisor of 48 and 180", 12),
+            ("what is the highest common factor of 54 and 24", 6),
+        ),
     ),
     ComputableForm(
         "lcm",
         re.compile(
-            r"(?:lcm|least\s+common\s+multiple)\s+of\s+"
+            r"(?:lcm|(?:least|lowest|smallest)\s+common\s+multiple)\s+of\s+"
             r"(?P<a>[0-9][0-9,]*)\s*(?:and|,|&)\s*(?P<b>[0-9][0-9,]*)",
             re.IGNORECASE,
         ),
         _lcm,
-        examples=(("what is the lcm of 4 and 6?", 12),),
+        examples=(
+            ("what is the lcm of 4 and 6?", 12),
+            ("lowest common multiple of 21 and 6", 42),
+            ("least common multiple of 8 and 12", 24),
+        ),
     ),
     ComputableForm(
         "choose",
@@ -537,3 +545,16 @@ def computable_answer(question: str) -> int | float | None:
 def form_failures() -> list[str]:
     """Every declared example a form gets wrong."""
     return [failure for form in COMPUTABLE_FORMS for failure in form.failures()]
+
+
+def capability_vocabulary() -> tuple[str, ...]:
+    """The words a person uses to ask for these, taken from the forms.
+
+    See the note on the text side: derived, so a form added later is a
+    capability she knows she has without anyone writing it down twice.
+    """
+    words: list[str] = []
+    for form in COMPUTABLE_FORMS:
+        words.append(form.name.replace("_", " "))
+        words.extend(question for question, _answer in form.examples)
+    return tuple(words)

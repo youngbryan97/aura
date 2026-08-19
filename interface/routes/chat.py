@@ -13476,12 +13476,9 @@ def _has_current_shown_source() -> bool:
 
 def _asks_to_read_a_named_file(user_message: str) -> bool:
     """Whether the filesystem reader already claims this turn."""
-    try:
-        from core.conversation.filesystem_check import requested_file_read
+    from core.conversation.turn_ownership import reader_owns
 
-        return requested_file_read(user_message) is not None
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-        return False
+    return reader_owns(user_message, "file_read")
 
 
 def _turn_may_concern_own_source(user_message: str) -> bool:
@@ -13562,23 +13559,14 @@ def _reply_claims_own_code(reply: str) -> bool:
 
 
 def _another_reader_owns_this_turn(user_message: str) -> bool:
-    """Whether a different, more specific reading already answers this turn."""
-    try:
-        from core.conversation.computable_text import computed_text_answer
-        from core.conversation.filesystem_check import requested_file_read
+    """Whether a different, more specific reading already answers this turn.
 
-        if requested_file_read(user_message) is not None:
-            return True
-        if computed_text_answer(user_message) is not None:
-            return True
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-        return False
-    try:
-        from core.conversation.arithmetic_check import requested_arithmetic_result
+    The readers declare themselves in core/conversation/turn_ownership.py, so
+    a new one arrives here without an edit to this file.
+    """
+    from core.conversation.turn_ownership import another_reader_owns_this_turn
 
-        return requested_arithmetic_result(user_message) is not None
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-        return False
+    return another_reader_owns_this_turn(user_message)
 
 
 def _turn_asks_where_that_came_from(user_message: str) -> bool:

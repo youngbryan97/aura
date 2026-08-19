@@ -26,7 +26,7 @@ import re
 from collections.abc import Iterable
 from functools import lru_cache
 
-__all__ = ["names_any", "names_marker", "which_markers"]
+__all__ = ["names_any", "names_marker", "stem_fold", "which_markers"]
 
 
 @lru_cache(maxsize=4096)
@@ -67,3 +67,40 @@ def which_markers(text: str, markers: Iterable[str]) -> list[str]:
         for marker in markers
         if (pattern := _pattern(marker)) is not None and pattern.search(probe)
     ]
+
+
+@lru_cache(maxsize=8192)
+def stem_fold(word: str) -> str:
+    """One key for a word and its inflections, for matching word against word.
+
+    `names_any` handles inflection by anchoring the start of a marker and
+    letting the end run, which works when one side is a known stem. When both
+    sides are ordinary prose — a question against a capability description —
+    neither is the stem, and "reverse a string" misses "reversing ... a given
+    string" over the last three letters.
+
+    The rules are deliberately shallow. Anything deeper starts merging words
+    that mean different things, and a false capability match is worse than a
+    missed one.
+    """
+    text = re.sub(r"[^a-z]", "", str(word or "").lower())
+    if len(text) <= 3:
+        return text
+    for suffix in ("ing", "ed"):
+        if text.endswith(suffix) and len(text) - len(suffix) >= 3:
+            text = text[: -len(suffix)]
+            # running -> runn -> run
+            if len(text) > 3 and text[-1] == text[-2] and text[-1] not in "aeiou":
+                text = text[:-1]
+            break
+    else:
+        if text.endswith("ies") and len(text) > 4:
+            text = text[:-3] + "y"
+        elif text.endswith("es") and len(text) > 4:
+            text = text[:-2]
+        elif text.endswith("s") and not text.endswith("ss") and len(text) > 3:
+            text = text[:-1]
+    # reverse -> revers, so that reversing -> revers meets it.
+    if text.endswith("e") and len(text) > 3:
+        text = text[:-1]
+    return text

@@ -24,6 +24,8 @@ file inside her roots.
 """
 from __future__ import annotations
 
+import pathlib
+
 import pytest
 
 from core.conversation.filesystem_check import requested_file_read
@@ -59,7 +61,20 @@ def test_the_reported_case_reads_the_real_file():
 
     assert result is not None and result.exists
     assert result.path.endswith("CLAUDE.md")
-    assert "Aura" in result.text
+    # Content from the actual file, checked against the actual file.
+    #
+    # This asserted that the word "Aura" appeared in the text. The reader
+    # returns a topic-relevant excerpt, CLAUDE.md is a living document, and the
+    # excerpt eventually moved to a stretch that does not contain the word —
+    # so a working read failed a test about reading. What the test means is
+    # that the text came off the disk, and that is checkable directly.
+    on_disk = pathlib.Path(result.path).read_text(encoding="utf-8", errors="replace")
+    excerpt = result.text.strip()
+    assert excerpt
+    first_line = excerpt.splitlines()[0].strip()
+    assert first_line and first_line in on_disk, (
+        "returned text is not a substring of the file it names"
+    )
 
 
 @pytest.mark.parametrize(

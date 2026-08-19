@@ -23,6 +23,8 @@ words and is found by them, with nothing to re-wire.
 from __future__ import annotations
 
 import re
+
+from core.conversation.word_markers import stem_fold
 from collections import Counter
 from dataclasses import dataclass
 from typing import Any
@@ -78,13 +80,34 @@ class CapabilityMention:
     enabled: bool
 
 
-def _tokens(text: Any) -> list[str]:
+def _surface_words(text: Any) -> list[str]:
+    """The content words as they were actually written."""
     return [
         word
         for word in re.findall(r"[a-z][a-z_]{2,}", str(text or "").lower())
         for word in word.split("_")
         if len(word) > 2 and word not in _STRUCTURAL_WORDS
     ]
+
+
+def _tokens(text: Any) -> list[str]:
+    """Content words folded to one key per word, inflections together.
+
+    Both sides of every comparison here are ordinary prose — a question
+    against a capability description — so neither side is a stem the other can
+    be anchored to. Compared as written, "can you reverse a string" missed a
+    capability described as "reversing ... a given string", and she answered
+    that nothing in the registry matched.
+    """
+    return [stem_fold(word) for word in _surface_words(text)]
+
+
+def _surface_by_stem(text: Any) -> dict[str, str]:
+    """Each stem back to the word the person actually used, for explaining."""
+    mapping: dict[str, str] = {}
+    for word in _surface_words(text):
+        mapping.setdefault(stem_fold(word), word)
+    return mapping
 
 
 def _literal_tokens_from_pattern(pattern: Any) -> list[str]:
@@ -99,6 +122,18 @@ def _literal_tokens_from_pattern(pattern: Any) -> list[str]:
 
 
 def _skill_metadata(engine: Any = None) -> dict[str, Any]:
+    """Every capability she has, not only the ones that are skills.
+
+    Deterministic readers — arithmetic, text operations, reading a named file —
+    answer turns without a skill entry, so a lexicon built from the skill
+    registry alone told her she had no way to reverse a string.
+    """
+    try:
+        from core.self.capability_sources import all_capabilities
+
+        return dict(all_capabilities(engine))
+    except (ImportError, RuntimeError, TypeError, ValueError):
+        pass
     if engine is None:
         try:
             from core.capability_engine import CapabilityEngine
@@ -218,9 +253,13 @@ def capabilities_named_in(
     text: Any, engine: Any = None, *, enabled_only: bool = True
 ) -> tuple[CapabilityMention, ...]:
     """Registered capabilities this text is talking about, best match first."""
-    words = set(_tokens(text))
+    surface = _surface_by_stem(text)
+    words = set(surface)
     if not words:
         return ()
+
+    def _as_written(stems: Any) -> tuple[str, ...]:
+        return tuple(surface.get(stem, stem) for stem in stems)
     skills = _skill_metadata(engine)
     found: list[tuple[float, CapabilityMention]] = []
     for name, vocabulary in capability_lexicon(engine).items():
@@ -237,7 +276,7 @@ def capabilities_named_in(
             continue
         score = sum(vocabulary[word] for word in matched)
         found.append(
-            (score, CapabilityMention(skill=name, matched=tuple(matched), enabled=enabled))
+            (score, CapabilityMention(skill=name, matched=_as_written(matched), enabled=enabled))
         )
     found.sort(key=lambda pair: (-pair[0], pair[1].skill))
     mentions = [mention for _score, mention in found]
@@ -265,7 +304,7 @@ def capabilities_named_in(
         mentions.append(
             CapabilityMention(
                 skill=mention.skill,
-                matched=tuple(overlap) + mention.matched,
+                matched=_as_written(overlap) + mention.matched,
                 enabled=mention.enabled,
             )
         )

@@ -44,10 +44,21 @@ def test_expressions_it_can_evaluate_are_evaluated(question: str, expected) -> N
     assert requested_arithmetic_result(question) == expected
 
 
-@pytest.mark.parametrize("question", ["what is 10 % 3", "what is 5! + 2"])
+@pytest.mark.parametrize("question", ["what is 5! + 2"])
 def test_operators_that_are_genuinely_unimplemented_are_refused(question: str) -> None:
     """Not implemented means not answered, never answered from the part it knows."""
     assert requested_arithmetic_result(question) is None
+
+
+def test_the_remainder_operator_is_implemented_now() -> None:
+    """It was on the unimplemented list until 2026-08-19.
+
+    Refusing a question Python answers in one operator was the reason to build
+    it rather than a property to preserve, so this asserts the answer instead —
+    and it is recomputed here rather than copied.
+    """
+    assert requested_arithmetic_result("what is 10 % 3") == 10 % 3
+    assert requested_arithmetic_result("what is 17 mod 5") == 17 % 5
 
 
 def test_a_runaway_exponent_is_bounded_not_attempted() -> None:

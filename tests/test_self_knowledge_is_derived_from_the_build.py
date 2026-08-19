@@ -74,10 +74,18 @@ def test_a_disabled_capability_is_reported_as_disabled_not_absent(invented) -> N
 
 
 def test_the_vocabulary_follows_the_registry(invented) -> None:
+    from core.conversation.word_markers import stem_fold
+    from core.self.capability_sources import all_capabilities
+
     lexicon = capability_lexicon(invented)
 
-    assert set(lexicon) <= set(invented.skills)
-    assert "lattice" in lexicon["thermal_lattice_tuner"]
+    # Skills are one register of what she can do; the deterministic readers
+    # are another, and both belong in a self-image. What must not appear is a
+    # name from neither — that would be vocabulary somebody typed by hand.
+    declared = set(all_capabilities(invented))
+    assert set(lexicon) <= declared
+    assert set(invented.skills) <= declared
+    assert stem_fold("lattice") in lexicon["thermal_lattice_tuner"]
 
 
 def test_a_registry_change_changes_the_answer(invented) -> None:

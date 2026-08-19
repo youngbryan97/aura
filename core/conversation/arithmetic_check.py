@@ -340,3 +340,29 @@ def arithmetic_answer_matches(expected: ArithmeticResult, candidate: Any) -> boo
     if not math.isfinite(value):
         return False
     return math.isclose(value, expected, rel_tol=1e-9, abs_tol=1e-6)
+
+
+def capability_vocabulary() -> tuple[str, ...]:
+    """The words this reader answers to, from the forms behind it.
+
+    It evaluates plain expressions and delegates the named forms — factorial,
+    gcd, roots — to computable_math, so its vocabulary is that module's plus
+    the arithmetic words a person writes in a sentence.
+    """
+    from core.conversation.computable_math import (
+        capability_vocabulary as math_vocabulary,
+    )
+
+    return math_vocabulary() + (
+        "arithmetic",
+        "calculate",
+        "compute",
+        "add",
+        "subtract",
+        "multiply",
+        "divide",
+        "sum",
+        "product",
+        "percent",
+        "what is 47 * 89",
+    )
