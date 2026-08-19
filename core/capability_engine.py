@@ -2145,6 +2145,56 @@ class CapabilityEngine(AuraBaseModule):
                     break
         return named
 
+    def _declaration_vocabulary(self) -> dict[str, tuple[frozenset[str], frozenset[str]]]:
+        """What every enabled skill says it does, rebuilt when the roster moves."""
+        from core.intent.declared_capability import declared_vocabulary
+
+        roster = tuple(
+            sorted(
+                (name, str(getattr(meta, "description", "") or ""))
+                for name, meta in self.skills.items()
+                if getattr(meta, "enabled", True)
+            )
+        )
+        cached = getattr(self, "_declaration_vocabulary_cache", None)
+        if cached is not None and cached[0] == roster:
+            return cached[1]
+        vocabulary = {name: declared_vocabulary(name, text) for name, text in roster}
+        self._declaration_vocabulary_cache = (roster, vocabulary)
+        self._declaration_objects_cache = None
+        return vocabulary
+
+    def _declaration_matched_skills(self, message: str) -> list[str]:
+        """Skills whose own declaration answers this request."""
+        from core.intent.declared_capability import (
+            distinctive_objects,
+            request_matches_declaration,
+        )
+
+        try:
+            vocabulary = self._declaration_vocabulary()
+            if not vocabulary:
+                return []
+            objects = getattr(self, "_declaration_objects_cache", None)
+            if objects is None:
+                objects = distinctive_objects(vocabulary)
+                self._declaration_objects_cache = objects
+            return [
+                name
+                for name, (verbs, _declared) in vocabulary.items()
+                if request_matches_declaration(
+                    message, verbs=verbs, objects=objects.get(name, frozenset())
+                )
+            ]
+        except Exception as exc:  # noqa: BLE001 - reported, never silent
+            record_degradation(
+                "capability_engine",
+                exc,
+                severity="warning",
+                action="matched intent on trigger patterns alone",
+            )
+            return []
+
     def detect_intent(self, message: str) -> list[str]:
         """Aura's 'Cognitive Proprioception': Detects which skills match the user's intent."""
         triggered = []
@@ -2181,6 +2231,23 @@ class CapabilityEngine(AuraBaseModule):
         # trigger patterns at all, so without this they cannot be selected by
         # intent under any phrasing — including the ones a person is most likely
         # to ask for by name, like improve_own_code.
+        # A phrase list can only match the phrasings someone thought of. Live
+        # 2026-08-19, four of five ordinary ways to ask for code execution
+        # missed while `code_repl` sat READY, and 37 registered skills have no
+        # patterns at all, so no phrasing whatsoever could reach them. The
+        # declaration each skill already carries says what it does; reading the
+        # request against that needs nothing maintained in a second place.
+        #
+        # Additive on purpose: the patterns above still decide everything they
+        # already decided, and this only ever adds a candidate they missed.
+        if not mentions_without_asking:
+            for name in self._declaration_matched_skills(msg):
+                if name in triggered:
+                    continue
+                if skip_web_search and self.resolve_skill_name(name) in _SEARCH_SKILL_NAMES:
+                    continue
+                triggered.append(name)
+
         if not mentions_without_asking:
             for name in self._explicitly_named_skills(msg):
                 if name in triggered:
