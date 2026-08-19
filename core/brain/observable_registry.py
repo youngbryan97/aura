@@ -27,6 +27,27 @@ async def _read_clipboard(prompt: str) -> str:
     return block.replace(f"{CLIPBOARD_HEADER}\n", "", 1) if block else ""
 
 
+# ── the exact answer, computed ───────────────────────────────────────────────
+
+def _matches_computed_text(prompt: str) -> bool:
+    from core.conversation.computable_text import computed_text_answer
+
+    return computed_text_answer(prompt) is not None
+
+
+async def _read_computed_text(prompt: str) -> str:
+    from core.conversation.computable_text import computed_text_answer
+
+    answer = await asyncio.to_thread(computed_text_answer, prompt)
+    if not answer:
+        return ""
+    return (
+        f"Computed exactly, not spelled out from memory: {answer}\n"
+        "Use this. Letter-level work is the one place a language model is "
+        "unreliable and a machine is exact."
+    )
+
+
 # ── whether they ever actually settled it ────────────────────────────────────
 
 def _matches_shared_history(prompt: str) -> bool:
@@ -577,6 +598,24 @@ def install_default_observables() -> None:
                 "show me the data on unemployment",
                 "how are you doing",
                 "what is 2 + 2",
+            ),
+        ),
+        Observable(
+            "computed_text",
+            "## THE EXACT ANSWER, COMPUTED",
+            _matches_computed_text,
+            _read_computed_text,
+            examples=(
+                # The live miss: the canned refusal for [::-1].
+                "spell 'necessary' backwards",
+                "how many r's in strawberry",
+                "is racecar a palindrome?",
+                "how many letters in necessary",
+            ),
+            counter_examples=(
+                "reverse the polarity of the flow",
+                "what is 2 + 2",
+                "tell me a joke",
             ),
         ),
         Observable(
