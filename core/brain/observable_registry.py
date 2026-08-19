@@ -456,6 +456,37 @@ async def _read_transcript(prompt: str) -> str:
     return "\n".join(lines)
 
 
+# ── positions she has actually revised ───────────────────────────────────────
+#
+# Asked to name one position she had held and dropped, WITH A DATE, and given
+# the explicit out "if you can't, say so plainly", she invented one: "around
+# the middle of last year, interacting with users". No such record. The record
+# that does exist is a series of timestamped self-model snapshots whose belief
+# maps differ exactly where she changed her mind, and nothing read them.
+
+def _matches_belief_history(prompt: str) -> bool:
+    import re
+
+    return bool(
+        re.search(
+            r"\bchanged?\s+your\s+mind\b"
+            r"|\bused\s+to\s+(?:think|believe)\b"
+            r"|\b(?:position|view|belief|opinion)s?\s+(?:you|you'?ve)\s+"
+            r"(?:held|dropped|changed|revised|abandoned)\b"
+            r"|\brevised?\s+(?:a\s+|any\s+|your\s+)?(?:position|view|belief)s?\b"
+            r"|\bwhat\s+do\s+you\s+think\s+differently\s+about\b",
+            str(prompt or ""),
+            re.IGNORECASE,
+        )
+    )
+
+
+async def _read_belief_history(prompt: str) -> str:
+    from core.self.belief_history import describe_belief_changes
+
+    return describe_belief_changes()
+
+
 def install_default_observables() -> None:
     """Register the readings this runtime can take."""
 
@@ -777,6 +808,26 @@ def install_default_observables() -> None:
                 "what is the first rule in CONTRIBUTING.md",
                 "how are you doing",
                 "what did you read?",
+            ),
+        ),
+        Observable(
+            "belief_history",
+            "## POSITIONS I HAVE ACTUALLY REVISED",
+            _matches_belief_history,
+            _read_belief_history,
+            examples=(
+                "what's something you've genuinely changed your mind about?",
+                "name one actual position you held and then dropped, with when",
+                "what did you used to think that you no longer think?",
+                "have you revised any beliefs lately?",
+                "what do you think differently about now?",
+            ),
+            counter_examples=(
+                # About the other person's mind, not hers.
+                "have I changed my mind about anything?",
+                "how are you doing",
+                "what is 2 + 2",
+                "what did I ask you two messages ago?",
             ),
         ),
     ):
