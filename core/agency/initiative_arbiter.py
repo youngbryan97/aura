@@ -81,6 +81,24 @@ class ScoredInitiative:
 _MAX_HISTORY = 20
 
 
+def _explicit_urgency(initiative: dict) -> float | None:
+    """The urgency a proposer actually declared, or None if none was.
+
+    An absent urgency is not an urgency of zero: the arbiter infers one from
+    age in that case, and preference is free to weigh in.
+    """
+    raw = (initiative or {}).get("urgency")
+    if raw is None:
+        metadata = dict((initiative or {}).get("metadata", {}) or {})
+        raw = metadata.get("urgency")
+    if raw is None:
+        return None
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return None
+
+
 class InitiativeArbiter:
     """Scores and selects the single best pending initiative."""
 
@@ -158,6 +176,36 @@ class InitiativeArbiter:
                 best = preferred
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
             logger.debug("Subjective-choice arbitration skipped: %s", exc)
+
+        # Preference may choose between comparable options. It may not
+        # overturn a stated urgency.
+        #
+        # Urgency is one of eight weighted dimensions, so proposing at 0.9
+        # against 0.7 moves the blended score by about 0.03 — a gap small
+        # enough for the preference layer to tip. Measured: "Stabilize thermal
+        # load" (0.9) scored 0.648 and "Investigate runtime drift" (0.7)
+        # scored 0.617, and curiosity took the second. A caller that declares
+        # an urgency is not offering a hint; if preference can reverse it, the
+        # parameter means nothing whenever she happens to fancy something else.
+        #
+        # Only EXPLICIT urgencies count here. Where none was declared the
+        # dimension is inferred from age, and preference keeps its say.
+        explicit_best = _explicit_urgency(best.initiative)
+        explicit_drive = _explicit_urgency(drive_top.initiative)
+        if (
+            best is not drive_top
+            and explicit_best is not None
+            and explicit_drive is not None
+            and explicit_drive > explicit_best
+        ):
+            logger.debug(
+                "InitiativeArbiter: preference kept out of a stated-urgency "
+                "ordering (%.2f > %.2f); drive selection stands.",
+                explicit_drive,
+                explicit_best,
+            )
+            best = drive_top
+            subjective_receipt = None
 
         # Build rationale comparing the winner to runners-up
         rationale_parts = [f"Selected '{_goal(best.initiative)}' (score={best.final_score:.3f})"]
