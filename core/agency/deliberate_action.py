@@ -237,6 +237,7 @@ async def deliberate(
     control_point: str = "agency.next_move",
     graph: Any = None,
     spine: Any = None,
+    lived: bool = True,
 ) -> Deliberation:
     """Pick the next move toward ``goal`` from what is available right now.
 
@@ -289,7 +290,9 @@ async def deliberate(
         considered=tuple(option.name for option in options),
         recalled=tuple(recalled),
     )
-    deliberation.episode_id = _open_episode(deliberation, options, stakes=stakes, control_point=control_point, spine=spine)
+    deliberation.episode_id = _open_episode(
+        deliberation, options, stakes=stakes, control_point=control_point, spine=spine, lived=lived
+    )
     return deliberation
 
 
@@ -315,15 +318,23 @@ def _open_episode(
     stakes: float,
     control_point: str,
     spine: Any = None,
+    lived: bool = True,
 ) -> str | None:
-    """Record the decision now, with only what was true when it was made."""
+    """Record the decision now, with only what was true when it was made.
+
+    ``lived`` is what keeps a rehearsal out of her history. The spine refuses
+    anything but lived experience into a live store, but only if the producer
+    says which it is, so a caller that is exercising the loop rather than
+    living it must say so and the refusal happens structurally.
+    """
     if deliberation.chosen is None:
         return None
     try:
-        from core.ontogeny.experience import Episode, get_experience_spine  # noqa: PLC0415
+        from core.ontogeny.experience import Episode, Provenance, get_experience_spine  # noqa: PLC0415
 
         store = spine if spine is not None else get_experience_spine()
         episode = Episode(
+            provenance=Provenance.LIVE if lived else Provenance.TEST,
             control_point=control_point,
             features={
                 "options": float(len(options)),

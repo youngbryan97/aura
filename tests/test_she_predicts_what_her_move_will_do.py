@@ -233,3 +233,46 @@ async def test_she_can_say_why_before_the_move_lands():
     assert "slide up" in spoken
     assert "Go up" in spoken
     assert "the big tile to stay in the corner" in spoken
+
+
+@pytest.mark.asyncio
+async def test_a_rehearsal_is_marked_so_her_real_history_refuses_it():
+    """A test run must not be able to teach her anything.
+
+    The experience spine refuses anything but lived experience into a live
+    store, and that guarantee only holds if the producer says which it is.
+    """
+    from core.ontogeny.experience import Provenance
+
+    spine = _Spine()
+    await deliberate(
+        "reach 4096",
+        "a board",
+        [_option("up")],
+        think=_thinks("up"),
+        spine=spine,
+        graph=_Graph(),
+        lived=False,
+    )
+    assert spine.recorded[0].provenance is Provenance.TEST
+
+    lived_spine = _Spine()
+    await deliberate(
+        "reach 4096", "a board", [_option("up")], think=_thinks("up"), spine=lived_spine, graph=_Graph()
+    )
+    assert lived_spine.recorded[0].provenance is Provenance.LIVE
+
+
+def test_the_live_store_physically_refuses_a_rehearsal():
+    """Not a convention — the refusal is structural, and this proves it."""
+    from core.ontogeny.experience import Episode, ExperienceSpine, Provenance
+
+    spine = ExperienceSpine(db_path="/tmp/claude-501/x/rehearsal_check.db", autoflush=False)
+    spine._store_kind = "live"
+    rehearsal = Episode(
+        control_point="agency.next_move",
+        features={},
+        decision="up",
+        provenance=Provenance.TEST,
+    )
+    assert spine.record(rehearsal) is None

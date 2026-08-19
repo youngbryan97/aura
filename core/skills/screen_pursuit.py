@@ -462,6 +462,9 @@ async def pursue_on_screen(
     expect_page: str = "",
     unblock_with: str = "",
     stakes: float = 0.5,
+    lived: bool = True,
+    spine: Any = None,
+    graph: Any = None,
 ) -> dict[str, Any]:
     """Run the loop. Returns the receipt the executor produced.
 
@@ -714,7 +717,7 @@ async def pursue_on_screen(
         # forty times because nothing ever checked that the board moved.
         previous = pending["deliberation"]
         if previous is not None:
-            attempt = confirm(previous, pending["before"], seen)
+            attempt = confirm(previous, pending["before"], seen, spine=spine, graph=graph)
             history.append(attempt)
             if moves:
                 moves[-1]["held"] = attempt.verdict.held
@@ -749,6 +752,9 @@ async def pursue_on_screen(
                 history=history[-RECENT_ATTEMPTS:],
                 stakes=stakes,
                 control_point="screen_pursuit.next_move",
+                lived=lived,
+                spine=spine,
+                graph=graph,
             )
             if not chosen.reached:
                 # Stop rather than press something for no reason. A loop that

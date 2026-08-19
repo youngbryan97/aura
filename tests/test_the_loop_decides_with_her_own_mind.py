@@ -17,6 +17,26 @@ import pytest
 from core.skills import screen_pursuit as sp
 
 
+class _Store:
+    """A spine and a graph that record nothing anywhere real."""
+
+    def __init__(self):
+        self.episodes = []
+
+    def record(self, episode):
+        self.episodes.append(episode)
+        return f"ep_{len(self.episodes)}"
+
+    def resolve(self, episode_id, outcome):
+        pass
+
+    def query_consequences(self, action, params=None):
+        return []
+
+    def record_outcome(self, action, context, outcome, success):
+        pass
+
+
 @pytest.fixture
 def screen(monkeypatch):
     """A screen that changes only when a move is one that works."""
@@ -74,6 +94,9 @@ async def test_with_nothing_injected_the_loop_reasons_for_itself(screen):
         max_cycles=6,
         max_seconds=10.0,
         narrate=False,
+        lived=False,
+        spine=_Store(),
+        graph=_Store(),
     )
     assert screen["pressed"], "she never moved"
     assert think.asked, "she never thought"
@@ -89,6 +112,9 @@ async def test_every_move_carries_a_prediction_that_is_then_graded(screen):
         max_cycles=4,
         max_seconds=10.0,
         narrate=False,
+        lived=False,
+        spine=_Store(),
+        graph=_Store(),
     )
     assert result["attempts"], "no prediction was ever checked"
     first = result["attempts"][0]
@@ -107,6 +133,9 @@ async def test_a_move_that_changes_nothing_is_recorded_as_not_having_worked(scre
         max_cycles=4,
         max_seconds=10.0,
         narrate=False,
+        lived=False,
+        spine=_Store(),
+        graph=_Store(),
     )
     graded = result["attempts"]
     assert graded and all(not a["held"] for a in graded)
@@ -124,6 +153,9 @@ async def test_what_broke_is_carried_into_the_next_decision(screen):
         max_cycles=3,
         max_seconds=10.0,
         narrate=False,
+        lived=False,
+        spine=_Store(),
+        graph=_Store(),
     )
     assert len(think.asked) >= 2
     later = think.asked[-1]
@@ -142,6 +174,9 @@ async def test_a_mind_out_of_reach_stops_the_loop_and_says_so(screen):
         max_cycles=5,
         max_seconds=10.0,
         narrate=False,
+        lived=False,
+        spine=_Store(),
+        graph=_Store(),
     )
     assert not screen["pressed"], "she acted with no reason to"
     assert result["outcome"] == "cannot_decide"
@@ -157,6 +192,9 @@ async def test_she_narrates_the_move_and_the_reason_she_gave(screen):
         max_cycles=2,
         max_seconds=10.0,
         narrate=True,
+        lived=False,
+        spine=_Store(),
+        graph=_Store(),
     )
     said = " ".join(screen["spoken"])
     assert "Up" in said
@@ -174,6 +212,9 @@ async def test_a_broken_prediction_is_said_out_loud_too(screen):
         max_cycles=3,
         max_seconds=10.0,
         narrate=True,
+        lived=False,
+        spine=_Store(),
+        graph=_Store(),
     )
     assert any("did not work" in line for line in screen["spoken"])
 
@@ -194,6 +235,9 @@ async def test_an_injected_policy_still_wins(screen):
         max_cycles=2,
         max_seconds=10.0,
         narrate=False,
+        lived=False,
+        spine=_Store(),
+        graph=_Store(),
     )
     assert result["moves"][0]["key"] == "left"
     assert not think.asked
@@ -210,6 +254,9 @@ async def test_the_moves_offered_are_the_ones_the_caller_named(screen):
         max_cycles=2,
         max_seconds=10.0,
         narrate=False,
+        lived=False,
+        spine=_Store(),
+        graph=_Store(),
     )
     offered = [line for line in think.asked[0] if line.startswith("Available move")]
     assert any("tab" in line for line in offered)
