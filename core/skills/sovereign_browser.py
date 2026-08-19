@@ -1257,6 +1257,45 @@ class SovereignBrowserSkill(BaseSkill):
         lines = [f"- {label}: {value}" for label, value in rows if value]
         return "MY UNDERSTANDING OF THIS TASK:\n" + "\n".join(lines) if lines else ""
 
+    @staticmethod
+    async def _decide_on_the_fast_lane(router: Any, prompt: str, mind: str) -> str | None:
+        """One micro-decision on the small model, or None to fall back.
+
+        `think()` on the resolved client is endpoint-level: it builds a payload
+        and drops `prefer_tier` and `origin` on the floor, which is why asking
+        for the fast lane changed nothing and every round still logged
+        "Routing to Cortex (timeout=103s, user_facing=True)". `think_and_act`
+        is the tier-aware entry, and with no tools passed it is simply a
+        generation on the endpoint the tier selects.
+
+        Returning None rather than raising is the point: if the fast lane is
+        unavailable, deferred or empty, the caller falls back to the ordinary
+        path. A decision that vanishes stalls the loop; a slower decision only
+        costs time.
+        """
+
+        agentic = getattr(router, "think_and_act", None)
+        if not callable(agentic):
+            return None
+        try:
+            outcome = await agentic(
+                prompt,
+                system_prompt=mind,
+                tools={},
+                max_turns=1,
+                prefer_tier="local_fast",
+                origin="browser_pursuit_decision",
+                max_tokens=400,
+                temperature=0.2,
+            )
+        except _BROWSER_DECISION_ERRORS as exc:
+            record_degradation("sovereign_browser.fast_lane", exc, severity="debug")
+            return None
+        if not isinstance(outcome, Mapping):
+            return None
+        content = str(outcome.get("content") or "").strip()
+        return content or None
+
     async def _decide_next_actions(
         self,
         goal: str,
@@ -1385,14 +1424,11 @@ class SovereignBrowserSkill(BaseSkill):
                 # requested tier is honoured — and the reply she finally gives
                 # about the result still comes from the Cortex, because that
                 # one is speech.
-                _ok, raw, _meta = await think(
-                    prompt,
-                    system_prompt=mind,
-                    max_tokens=400,
-                    temperature=0.2,
-                    prefer_tier="local_fast",
-                    origin="browser_pursuit_decision",
-                )
+                raw = await self._decide_on_the_fast_lane(router, prompt, mind)
+                if raw is None:
+                    _ok, raw, _meta = await think(
+                        prompt, system_prompt=mind, max_tokens=400, temperature=0.2
+                    )
             else:
                 generate = getattr(router, "generate", None)
                 if not callable(generate):
