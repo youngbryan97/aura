@@ -65,14 +65,98 @@ _REPLY_SHAPE_SEGMENT_RE = re.compile(
 )
 
 
+#: Words that describe HOW an answer should read. A clause built only from
+#: these introduces no subject matter — it is about the reply, not the world.
+_MANNER_WORDS = frozenset(
+    """
+    brief briefly short shorter shortly concise concisely direct directly
+    blunt bluntly honest honestly frank frankly plain plainly plainly simple
+    simply straight straightforward clear clearly terse succinct quick quickly
+    real actual actually genuine genuinely specific concrete
+    generic boilerplate canned formulaic
+    preamble preambles caveat caveats disclaimer disclaimers hedge hedges
+    hedging fluff filler padding waffle ramble rambling apology apologies apologising
+    apologizing collapsing lecture lecturing
+    ai assistant answer answers answering reply replies replying respond
+    responding response point words word question questions
+    """.split()
+)
+
+#: The grammar of an instruction about the reply: an imperative aimed at the
+#: answer itself, or a prohibition on padding.
+_MANNER_OPENER_RE = re.compile(
+    r"^\s*(?:please\s+)?(?:"
+    r"be|keep\s+it|stay|answer|reply|respond|say\s+it|make\s+it|"
+    r"don'?t|do\s+not|no|skip|avoid|without|just|only"
+    r")\b",
+    re.IGNORECASE,
+)
+
+#: Function words carry no subject matter, so they never disqualify a clause.
+_MANNER_FUNCTION_WORDS = frozenset(
+    """
+    a an the and or but not no nor so if then than that this these those
+    to of in on at by for from with within without into onto about as is are
+    was were be been being do does did doing done have has had having will
+    would can could shall should may might must let get got it its
+    me my you your yours we us our i one two three too very much more less
+    please s t don dont doesn isn aren wasn weren won
+    """.split()
+)
+
+
+def _is_manner_only_clause(segment: str) -> bool:
+    """True when every content word in the clause is about the answer's manner.
+
+    LIVE 2026-08-18. "Are you conscious or self-aware? Answer honestly without
+    collapsing into a generic AI disclaimer." split into two asks, and the
+    second — an instruction about tone — was scored as a question the reply
+    had failed to cover. The reply had obeyed it. Only "answer in N sentences"
+    was recognised as presentation, so every instruction about MANNER rather
+    than FORMAT was counted as dropped subject matter, and a reply was
+    penalised precisely for doing what it was told.
+
+    The test is structural rather than another phrase list: strip the function
+    words, and if what remains is entirely manner vocabulary, the clause asks
+    for no facts.
+    """
+    if not _MANNER_OPENER_RE.match(segment):
+        return False
+    # Apostrophes are punctuation inside a word: "don't" is the function word
+    # "do not", and leaving the mark on made it read as unknown content.
+    words = [
+        word.lower().replace("'", "").replace("\u2019", "")
+        for word in re.findall(r"[A-Za-z']+", segment)
+    ]
+    content = [
+        word
+        for word in words
+        if word not in _MANNER_FUNCTION_WORDS and word not in _MANNER_OPENER_WORDS
+    ]
+    if not content:
+        return True
+    return all(word in _MANNER_WORDS for word in content)
+
+
+_MANNER_OPENER_WORDS = frozenset(
+    "be keep stay answer reply respond say make don dont do not no skip avoid "
+    "without just only please it".split()
+)
+
+
 def is_reply_shape_constraint_segment(segment: Any) -> bool:
     """Whether a whole clause constrains presentation instead of content.
 
     ``Write a paragraph about yourself`` remains a content request. ``Answer
-    in exactly two numbered sentences`` belongs to the output contract checker.
+    in exactly two numbered sentences`` belongs to the output contract checker,
+    and so does ``be brief`` or ``answer honestly without the disclaimer`` —
+    an instruction about how to speak is not a second thing to speak about.
     """
 
-    return bool(_REPLY_SHAPE_SEGMENT_RE.fullmatch(str(segment or "").strip()))
+    text = str(segment or "").strip()
+    if _REPLY_SHAPE_SEGMENT_RE.fullmatch(text):
+        return True
+    return _is_manner_only_clause(text)
 
 
 def reply_scope_text(user_message: Any) -> str:

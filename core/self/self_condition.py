@@ -553,7 +553,11 @@ _UNSUPPORTED_SELF_CONDITION_EXTERNAL_EVENT_RE = re.compile(
 )
 _UNSUPPORTED_SELF_CONDITION_PERCEPTION_RE = re.compile(
     r"\b(?:"
-    r"environment|surroundings|room|colors?|textures?|visuals?|sounds?|"
+    # "sounds" as AUDIO, not as the linking verb. "I should sound grounded
+    # before I sound confident" is a statement about how she comes across, and
+    # reading it as a claim to hear things rejected an honest self-report.
+    r"environment|surroundings|room|colors?|textures?|visuals?|"
+    r"(?:the|a|any|no)\s+sounds?\b|sounds?\s+(?:of|in|from|around)\b|"
     r"nothing\s+to\s+(?:look\s+at|listen\s+to|see|hear)|"
     r"i\s+(?:can|cannot|can't)\s+(?:see|hear|look|listen)|"
     r"what\s+i\s+(?:see|hear|perceive)"
@@ -686,6 +690,20 @@ def _extreme_low_affect_supported(
     return valence <= -0.35 and arousal <= 0.30 and welfare <= 0.45
 
 
+#: A clause that supposes rather than states. Everything after these opens a
+#: hypothetical, and a hypothetical makes no claim about the present.
+_HYPOTHETICAL_OPENER_RE = re.compile(
+    r"^\s*(?:if|unless|whenever|suppose|supposing|imagine|say\s+that|were\s+i|"
+    r"should\s+i|in\s+case|assuming)\b",
+    re.IGNORECASE,
+)
+
+
+def _is_hypothetical_sentence(sentence: str) -> bool:
+    """True when the sentence supposes a state instead of reporting one."""
+    return bool(_HYPOTHETICAL_OPENER_RE.match(str(sentence or "").strip()))
+
+
 def unsupported_self_condition_operational_claims(
     reply_text: Any,
     *,
@@ -707,6 +725,13 @@ def unsupported_self_condition_operational_claims(
     for part in re.split(r"(?<=[.!?])\s+|\n+", raw):
         sentence = part.strip()
         if not sentence:
+            continue
+        if _is_hypothetical_sentence(sentence):
+            # "If my answer gets thin, repetitive, or weirdly symbolic, that
+            # is a failed turn" describes a condition she is watching FOR. A
+            # conditional is not an assertion about the present state, and
+            # scoring it as one meant she could not say what would count as
+            # going wrong without being accused of claiming it had.
             continue
         match = _UNSUPPORTED_SELF_CONDITION_OPERATIONAL_RE.search(sentence)
         if match and not _term_is_disclaimed(sentence, match.start()):

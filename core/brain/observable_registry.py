@@ -27,6 +27,20 @@ async def _read_clipboard(prompt: str) -> str:
     return block.replace(f"{CLIPBOARD_HEADER}\n", "", 1) if block else ""
 
 
+# ── the shape of this conversation ───────────────────────────────────────────
+
+def _matches_conversation_shape(prompt: str) -> bool:
+    from core.conversation.conversation_shape import asks_about_conversation_shape
+
+    return asks_about_conversation_shape(prompt)
+
+
+async def _read_conversation_shape(prompt: str) -> str:
+    from core.conversation.conversation_shape import conversation_shape_block
+
+    return await asyncio.to_thread(conversation_shape_block, prompt)
+
+
 # ── her own validated claims ─────────────────────────────────────────────────
 
 def _matches_validated_claims(prompt: str) -> bool:
@@ -461,6 +475,27 @@ def install_default_observables() -> None:
                 "show me the data on unemployment",
                 "how are you doing",
                 "what is 2 + 2",
+            ),
+        ),
+        Observable(
+            "conversation_shape",
+            "## THE SHAPE OF THIS CONVERSATION",
+            _matches_conversation_shape,
+            _read_conversation_shape,
+            examples=(
+                # The live miss: answered "about an hour" and named topics that
+                # had never come up.
+                "how long have we been talking?",
+                "what have we talked about so far?",
+                "how many messages have I sent you?",
+                "what did we cover earlier?",
+            ),
+            counter_examples=(
+                # Uptime is not conversation length.
+                "how long have you been running?",
+                "how long will it take to build?",
+                "what is 2 + 2",
+                "how are you doing",
             ),
         ),
         Observable(
