@@ -1362,6 +1362,15 @@ class PhantomBrowser:
                 || (tag === 'a' ? 'link' : (tag === 'input' ? (el.type || 'text') : tag));
             const entry = { role: role, name: accessibleName(el).slice(0, 140), selector: path };
             if (typeof el.checked === 'boolean') entry.checked = el.checked;
+            // Which question this option belongs to.
+            //
+            // A form's radios carry their grouping in `name`: one group is one
+            // question, and its options are mutually exclusive. Without it a
+            // caller sees forty-two identical-looking radios and cannot tell
+            // that they are six questions of seven options — so answering one
+            // per question is guesswork and answering one in total is the safe
+            // read. The grouping is in the DOM; it just was not being carried.
+            if (el.name) entry.group = String(el.name).slice(0, 60);
             if (el.value !== undefined && typeof el.value === 'string' && el.value) {
                 entry.value = el.value.slice(0, 80);
             }

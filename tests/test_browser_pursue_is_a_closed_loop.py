@@ -153,7 +153,7 @@ class TestObservationRendering:
 
     def test_selected_state_is_visible_so_it_is_not_re_clicked(self):
         rendered = SovereignBrowserSkill._render_observation(_page(checked=True))
-        assert "already selected" in rendered
+        assert "already answered" in rendered
 
 
 class TestPursueIsFirstClassInTheTransaction:
@@ -644,3 +644,40 @@ class TestATruncatedAnswerStillCarriesWholeChoices:
         )
         assert parsed["actions"] == [{"index": 1, "type": "click"}]
         assert parsed.get("truncated") is None
+
+
+class TestOptionsAreGroupedByQuestion:
+    """Forty-two identical-looking radios are six questions of seven options.
+
+    A form carries that grouping in each control's `name`, and it was not being
+    carried through. Without it, answering one option per question is guesswork
+    and answering one in total is the safe read — which is exactly what
+    happened: every round landed a single answer, so sixty questions would have
+    taken sixty rounds.
+    """
+
+    OBSERVATION = {
+        "url": "u",
+        "title": "t",
+        "text": "Question 1 of 60",
+        "elements": [
+            {"role": "radio", "name": "I agree", "selector": "#a", "group": "q1", "checked": False},
+            {"role": "radio", "name": "I disagree", "selector": "#b", "group": "q1", "checked": False},
+            {"role": "radio", "name": "I agree", "selector": "#c", "group": "q2", "checked": True},
+        ],
+    }
+
+    def test_each_option_says_which_question_it_answers(self):
+        rendered = SovereignBrowserSkill._render_observation(self.OBSERVATION)
+        assert "question q1" in rendered
+        assert "question q2" in rendered
+
+    def test_an_answered_question_is_visible_as_answered(self):
+        rendered = SovereignBrowserSkill._render_observation(self.OBSERVATION)
+        assert "already answered" in rendered
+
+    def test_ungrouped_controls_say_nothing_about_groups(self):
+        rendered = SovereignBrowserSkill._render_observation(
+            {"elements": [{"role": "button", "name": "Next", "selector": "#n"}], "text": ""}
+        )
+        assert "question" not in rendered.split("AVAILABLE CONTROLS:")[1]

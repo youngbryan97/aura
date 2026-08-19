@@ -946,8 +946,13 @@ class SovereignBrowserSkill(BaseSkill):
         ]
         for index, element in enumerate(elements):
             state = []
+            if element.get("group"):
+                # Options in one group answer ONE question. Rendering it is
+                # what lets a whole screen be answered in a single round
+                # instead of one control at a time.
+                state.append(f"question {element['group']}")
             if element.get("checked") is True:
-                state.append("already selected")
+                state.append("already answered")
             if element.get("value"):
                 state.append(f"value={element['value']}")
             suffix = f" ({', '.join(state)})" if state else ""
