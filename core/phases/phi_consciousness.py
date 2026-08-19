@@ -1,5 +1,12 @@
 """core/phases/phi_consciousness.py — Unified Consciousness Phase.
 
+Operationally: this measures a scalar between 0 and 1 from four quantities
+already present in AuraState — how many emotion channels are active and how
+strongly, how far apart they spread, how full the workspace/memory/percept/goal
+slots are, and how many body, world and identity channels are in play. It is a
+weighted surrogate for integrated information, not a measurement of it, and
+nothing here decides whether the system is conscious.
+
 This is the phase that makes Phi real.
 
 Before this file, state.phi was a float that nothing read. The RIIU module existed

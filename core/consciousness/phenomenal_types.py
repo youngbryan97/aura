@@ -1,5 +1,10 @@
 """core/consciousness/phenomenal_types.py — the phenomenal data structures.
 
+Operationally: this measures nothing. The file holds five dataclasses and
+their serialisation, and the words in its name are the names of those
+structures. What the values in them mean is defined where they are produced,
+in `core/consciousness/phenomenological_experiencer.py`.
+
 Split out of `core/consciousness/phenomenological_experiencer.py`, which was
 2,011 lines and over the 2,000-line ceiling the module-size ratchet holds.
 These five are the file's data layer: `Quale`, `AttentionSchema` and

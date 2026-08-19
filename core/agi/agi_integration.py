@@ -1,5 +1,11 @@
 """core/agi/agi_integration.py
 ===========================
+
+Operationally: this starts, stops and health-checks four subsystems —
+dimensional expansion, actuator synthesis, the unified inference engine and
+the consciousness loop — and records a degradation when one of them fails.
+"AGI" names the group of modules it coordinates; nothing here measures
+generality, and no test in the tree treats the name as a claim.
 AGI Integration Layer coordinates the dimensional expansion, actuator synthesis,
 unified inference engine, and consciousness loop modules of Aura.
 """

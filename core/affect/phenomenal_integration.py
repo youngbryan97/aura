@@ -1,5 +1,12 @@
 """core/affect/phenomenal_integration.py — Integration of Phenomenal Substrate into Aura.
 
+Operationally: this measures interoceptive observations of the running process
+— load, latency, memory, error rate — at heartbeat time, and publishes them as
+an ExperienceState that planning, memory prioritisation and self-regulation
+read. "Phenomenal" names the ordering constraint that makes the wiring
+falsifiable: the state is written before language generation and is read-only
+to it, so removing the engine must visibly change those three systems.
+
 This module wires the Phenomenal Substrate (active inference + interoceptive
 affect machinery) into Aura's main cognitive loop. The phenomenal engine runs
 at heartbeat time and broadcasts its state to planner, memory, attention,

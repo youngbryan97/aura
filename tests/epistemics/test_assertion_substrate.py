@@ -246,3 +246,102 @@ def test_an_unknown_criterion_is_not_invented() -> None:
         {"action": "os_automation", "ok": True, "index": 1,
          "effect_evidence": "some_future_criterion=x"},
     ]) == ""
+
+
+def test_every_recognizer_is_tested_against_text_she_would_write() -> None:
+    """A recognizer nobody tested against captured text audits clean forever.
+
+    The coverage test above asks only whether an action HAS a recognizer. A
+    pattern with a typo satisfies that and then sees no claim in any reply,
+    which is the failure the honesty layer exists to prevent. So each spec
+    declares the sentences it is for, and both directions are checked.
+    """
+    from core.epistemics.effect_registry import EFFECT_REGISTRY
+
+    undeclared = [
+        spec.action
+        for spec in EFFECT_REGISTRY.values()
+        if spec.recognizer is not None
+        and (not spec.claim_examples or not spec.non_claim_examples)
+    ]
+    assert undeclared == [], (
+        f"{undeclared}: a recognizer with no examples cannot be shown to "
+        "recognise anything. Add claim_examples and non_claim_examples."
+    )
+
+    missed = [
+        (spec.action, sentence)
+        for spec in EFFECT_REGISTRY.values()
+        if spec.recognizer is not None
+        for sentence in spec.claim_examples
+        if not spec.recognizer.search(sentence)
+    ]
+    assert missed == [], f"claims the auditor cannot see: {missed}"
+
+    false_positives = [
+        (spec.action, sentence)
+        for spec in EFFECT_REGISTRY.values()
+        if spec.recognizer is not None
+        for sentence in spec.non_claim_examples
+        if spec.recognizer.search(sentence)
+    ]
+    assert false_positives == [], f"not claims, read as claims: {false_positives}"
+
+
+def test_an_offer_to_act_is_never_read_as_having_acted() -> None:
+    """Tense, across every effect at once.
+
+    "Should I hit return?" contains "I hit", and the first-person-completed
+    prefix matched it. An offer audited as an unevidenced claim is corrected
+    or refused, so asking the person a question cost her the answer.
+    """
+    from core.epistemics.effect_registry import EFFECT_REGISTRY
+
+    offers = [
+        "Should I {verb} it for you?",
+        "Do you want me to {verb} that?",
+        "I can {verb} it if you like.",
+        "Let me know if I should {verb} that.",
+        "I will {verb} it once you confirm.",
+    ]
+    verbs = [
+        "click the button",
+        "read the directory",
+        "hit return",
+        "open Safari",
+        "run the command",
+        "move the file",
+    ]
+
+    seen: list[tuple[str, str]] = []
+    for spec in EFFECT_REGISTRY.values():
+        if spec.recognizer is None:
+            continue
+        for template in offers:
+            for verb in verbs:
+                sentence = template.format(verb=verb)
+                if spec.recognizer.search(sentence):
+                    seen.append((spec.action, sentence))
+    assert seen == [], f"offers read as completed claims: {seen}"
+
+
+def test_a_pursuit_is_recognised_as_a_claim_and_an_offer_is_not() -> None:
+    """Captured shapes, both sides. Tense is the whole distinction."""
+    from core.epistemics.effect_registry import effect_spec
+
+    spec = effect_spec("pursue_on_screen")
+    assert spec is not None and spec.recognizer is not None
+
+    for claim in (
+        "I worked through the screens until the form was submitted.",
+        "I clicked through the wizard for you.",
+        "I reached the final screen.",
+    ):
+        assert spec.recognizer.search(claim), claim
+
+    for not_a_claim in (
+        "I will work through the screen for you.",
+        "Do you want me to click through the wizard?",
+        "Working through screens is something I can do.",
+    ):
+        assert not spec.recognizer.search(not_a_claim), not_a_claim

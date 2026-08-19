@@ -107,6 +107,18 @@ class EffectSpec:
     recognizer: Pattern[str] | None = None
     #: How a correction refers to it. "created a folder", "opened an app".
     claim_description: str = ""
+    #: Sentences she would actually write when claiming this effect. The
+    #: recognizer must match every one.
+    #:
+    #: A recognizer is a reader, and a reader nobody tested against captured
+    #: text reports a clean audit forever — the same defect class as a rule
+    #: that could never match. `claim_description` does not serve: it is a
+    #: category label ("opened an application"), and she says "I opened
+    #: Safari".
+    claim_examples: tuple[str, ...] = field(default_factory=tuple)
+    #: Sentences that are NOT this claim, which the recognizer must not match.
+    #: Mostly tense — an offer to do it, a question about it, a refusal.
+    non_claim_examples: tuple[str, ...] = field(default_factory=tuple)
     #: Why this action is classified the way it is, where that is not obvious.
     note: str = ""
 
@@ -119,7 +131,24 @@ def _rx(pattern: str) -> Pattern[str]:
 #: "I've opened", "I opened". Deliberately excludes "I will" and "I would" —
 #: a promise is not a report, which is the tense distinction the whole
 #: honesty layer turns on.
-_DID = r"\bi\s+(?:have\s+)?|\bi(?:'ve|\s+have)\s+"
+#: An "I" governed by a modal is not a report of anything. "Should I hit
+#: return?" and "if I read the directory" both put the verb in the completed
+#: form, and the prefix below saw a first-person past tense in each.
+#:
+#: The cost of that fell on her, not on the audit: an offer to act was read as
+#: a claim to have acted, and a claim with no receipt is corrected or refused.
+#: The person asking a question got an answer about honesty.
+_NOT_GOVERNED_BY_A_MODAL = (
+    r"(?<!should )(?<!shall )(?<!could )(?<!would )(?<!can )(?<!may )"
+    r"(?<!might )(?<!must )(?<!will )(?<!let )(?<!if )(?<!unless )"
+    r"(?<!whether )(?<!before )(?<!after )(?<!until )(?<!when )(?<!while )"
+    r"(?<!want )(?<!wants )(?<!wanted )"
+)
+
+_DID = (
+    rf"{_NOT_GOVERNED_BY_A_MODAL}\bi\s+(?:have\s+)?"
+    rf"|{_NOT_GOVERNED_BY_A_MODAL}\bi(?:'ve|\s+have)\s+"
+)
 
 #: Narrating the act with no subject, as if performing it while speaking:
 #: "Appending 'line two' to notes.txt", "Writing that to the file now".
@@ -158,6 +187,15 @@ _SPECS: tuple[EffectSpec, ...] = (
             r"(?:on\s+)?(?:the\s+|that\s+|your\s+|a\s+)?[\w\"'’]"
         ),
         claim_description="clicked something",
+        claim_examples=(
+            'I clicked the Send button for you.',
+            "I've clicked on that link.",
+            'I pressed the blue button.',
+        ),
+        non_claim_examples=(
+            'I will click the Send button.',
+            'Should I click that for you?',
+        ),
     ),
     EffectSpec(
         action="type",
@@ -170,6 +208,14 @@ _SPECS: tuple[EffectSpec, ...] = (
             r"(?:in\s+|into\s+|out\s+)?(?:the\s+|that\s+|your\s+|it\b)?"
         ),
         claim_description="typed something",
+        claim_examples=(
+            'I typed your address into the field.',
+            "I've entered the text you gave me.",
+        ),
+        non_claim_examples=(
+            'I will type it in for you.',
+            'Do you want me to type that?',
+        ),
     ),
     EffectSpec(
         action="hotkey",
@@ -183,6 +229,14 @@ _SPECS: tuple[EffectSpec, ...] = (
             r"|(?:{})(?:pressed|hit)\s+(?:the\s+)?(?:return|enter|escape|tab)\b".format(_DID)
         ),
         claim_description="pressed a key combination",
+        claim_examples=(
+            'I pressed cmd+S to save it.',
+            'I hit return to confirm.',
+        ),
+        non_claim_examples=(
+            'I will press cmd+S.',
+            'Should I hit return?',
+        ),
     ),
     EffectSpec(
         action="scroll",
@@ -192,6 +246,12 @@ _SPECS: tuple[EffectSpec, ...] = (
         evidence_fields=("direction", "target"),
         recognizer=_rx(rf"(?:{_DID})scrolled\b"),
         claim_description="scrolled something",
+        claim_examples=(
+            'I scrolled down to the bottom of the page.',
+        ),
+        non_claim_examples=(
+            'I will scroll down for you.',
+        ),
     ),
     # ── Perception ─────────────────────────────────────────────────────────
     # No world change, but "I read your screen" is a claim about an action.
@@ -209,6 +269,14 @@ _SPECS: tuple[EffectSpec, ...] = (
             r"(?:the\s+|your\s+|my\s+)?(?:screen|display|desktop|window)\b"
         ),
         claim_description="looked at the screen",
+        claim_examples=(
+            'I looked at the screen and the dialog is still open.',
+            'I checked your display.',
+        ),
+        non_claim_examples=(
+            'I will look at the screen.',
+            'Do you want me to check the screen?',
+        ),
     ),
     EffectSpec(
         action="read_screen_text",
@@ -223,6 +291,14 @@ _SPECS: tuple[EffectSpec, ...] = (
             rf"|(?:{_DID})read\s+(?:the\s+|your\s+)?screen\b"
         ),
         claim_description="read the screen",
+        claim_examples=(
+            'I read the text on the screen.',
+            'I read your screen just now.',
+        ),
+        non_claim_examples=(
+            'I will read the screen.',
+            'Should I read what is on screen?',
+        ),
     ),
     EffectSpec(
         action="read_menu_clock",
@@ -235,6 +311,13 @@ _SPECS: tuple[EffectSpec, ...] = (
             r"(?:the\s+|your\s+)?(?:menu\s*bar\s*)?clock\b"
         ),
         claim_description="read the menu bar clock",
+        claim_examples=(
+            'I read the menu bar clock and it says 2:14.',
+            'I checked the clock.',
+        ),
+        non_claim_examples=(
+            'I will check the clock.',
+        ),
     ),
     EffectSpec(
         action="get_clipboard",
@@ -247,6 +330,13 @@ _SPECS: tuple[EffectSpec, ...] = (
             r"(?:the\s+|your\s+|my\s+)?clipboard\b"
         ),
         claim_description="read the clipboard",
+        claim_examples=(
+            'I read the clipboard and it holds a URL.',
+            'I checked your clipboard.',
+        ),
+        non_claim_examples=(
+            'I will check the clipboard.',
+        ),
     ),
     EffectSpec(
         action="list_directory",
@@ -260,6 +350,14 @@ _SPECS: tuple[EffectSpec, ...] = (
             r"(?:the\s+|that\s+|your\s+)?(?:director(?:y|ies)|folders?|files?)\b"
         ),
         claim_description="read a directory",
+        claim_examples=(
+            'I listed the files in your Documents folder.',
+            'I read the directory.',
+        ),
+        non_claim_examples=(
+            'I will list that folder.',
+            'Should I read the directory?',
+        ),
     ),
     # ── Application and window control ─────────────────────────────────────
     EffectSpec(
@@ -283,6 +381,14 @@ _SPECS: tuple[EffectSpec, ...] = (
             r"terminal|finder|mail|messages|preview|textedit|reminders)\b"
         ),
         claim_description="opened an application",
+        claim_examples=(
+            'I opened Safari for you.',
+            'I launched Notes.',
+        ),
+        non_claim_examples=(
+            'I will open Safari.',
+            'Do you want me to open Notes?',
+        ),
     ),
     EffectSpec(
         action="open_url",
@@ -297,6 +403,14 @@ _SPECS: tuple[EffectSpec, ...] = (
             rf"|(?:{_DID})opened\s+(?:that\s+|the\s+)?(?:link|url|page|site|website)\b"
         ),
         claim_description="opened a URL",
+        claim_examples=(
+            'I opened https://example.com in your browser.',
+            'I opened that link.',
+        ),
+        non_claim_examples=(
+            'I will open the link.',
+            'Should I open that page?',
+        ),
     ),
     EffectSpec(
         action="move_aura_bubble",
@@ -309,6 +423,12 @@ _SPECS: tuple[EffectSpec, ...] = (
             rf"(?:{_DID})moved\s+(?:my|the)\s+(?:bubble|companion|orb|window)\b"
         ),
         claim_description="moved her bubble",
+        claim_examples=(
+            'I moved my bubble to the corner.',
+        ),
+        non_claim_examples=(
+            'I will move my bubble.',
+        ),
     ),
     # ── Filesystem ─────────────────────────────────────────────────────────
     EffectSpec(
@@ -334,6 +454,14 @@ _SPECS: tuple[EffectSpec, ...] = (
             rf"|{_NOW_CONTAINS}"
         ),
         claim_description="wrote a file",
+        claim_examples=(
+            'I wrote the note to your desktop.',
+            'The file now contains both lines.',
+        ),
+        non_claim_examples=(
+            'I will write that to a file.',
+            'Should I save it as a file?',
+        ),
     ),
     EffectSpec(
         action="render_text_pdf",
@@ -344,10 +472,17 @@ _SPECS: tuple[EffectSpec, ...] = (
         evidence_fields=("path",),
         recognizer=_rx(
             rf"(?:{_DID})(?:rendered|generated|exported|created|made|saved)\s+"
-            r"(?:the\s+|a\s+|that\s+|your\s+)?(?:pdf|PDF)\b"
+            r"(?:the\s+|a\s+|that\s+|your\s+)?[^.!?]{0,30}?\b(?:pdf|PDF)\b"
             r"|\b(?:the\s+)?pdf\s+(?:is|was)\s+(?:now\s+)?(?:on|in|at|saved|ready)\b"
         ),
         claim_description="rendered a PDF",
+        claim_examples=(
+            'I rendered the report as a PDF.',
+            'The pdf is saved to your desktop.',
+        ),
+        non_claim_examples=(
+            'I will render it as a PDF.',
+        ),
     ),
     EffectSpec(
         action="move_file",
@@ -360,6 +495,14 @@ _SPECS: tuple[EffectSpec, ...] = (
             rf"(?:{_DID})(?:moved|relocated|shifted)\s+(?:it|the\s+file|that|them)\b"
         ),
         claim_description="moved a file",
+        claim_examples=(
+            'I moved the file to your Archive folder.',
+            'I moved it into Documents.',
+        ),
+        non_claim_examples=(
+            'I will move the file.',
+            'Should I move that?',
+        ),
     ),
     EffectSpec(
         action="create_folder",
@@ -375,6 +518,14 @@ _SPECS: tuple[EffectSpec, ...] = (
             r"(?:created|there|on|in|at)\b"
         ),
         claim_description="created a folder",
+        claim_examples=(
+            'I created a folder called Receipts.',
+            'The folder is now on your desktop.',
+        ),
+        non_claim_examples=(
+            'I will create the folder.',
+            'Do you want me to make a folder?',
+        ),
     ),
     EffectSpec(
         action="fetch_topic_image",
@@ -388,6 +539,13 @@ _SPECS: tuple[EffectSpec, ...] = (
             r"(?:an?\s+|the\s+|that\s+)?(?:image|picture|photo|graphic)\b"
         ),
         claim_description="fetched an image",
+        claim_examples=(
+            'I downloaded an image of the bridge.',
+            'I fetched the picture.',
+        ),
+        non_claim_examples=(
+            'I will fetch an image.',
+        ),
     ),
     # ── Clipboard ──────────────────────────────────────────────────────────
     EffectSpec(
@@ -407,6 +565,13 @@ _SPECS: tuple[EffectSpec, ...] = (
             r"\s*clipboard\b"
         ),
         claim_description="put something on the clipboard",
+        claim_examples=(
+            'I copied the address to the clipboard.',
+            'The link is now on your clipboard.',
+        ),
+        non_claim_examples=(
+            'I will copy it to the clipboard.',
+        ),
     ),
     # ── Native application scripting ───────────────────────────────────────
     EffectSpec(
@@ -422,6 +587,14 @@ _SPECS: tuple[EffectSpec, ...] = (
             r"[A-Z][\w]{2,20})\b"
         ),
         claim_description="wrote a document in an application",
+        claim_examples=(
+            'I wrote your shopping list in Notes.',
+            'I drafted the reply in Mail.',
+        ),
+        non_claim_examples=(
+            'I will write it in Notes.',
+            'Should I draft it in Mail?',
+        ),
     ),
     EffectSpec(
         action="create_note",
@@ -436,6 +609,14 @@ _SPECS: tuple[EffectSpec, ...] = (
             r"|\b(?:the\s+)?note\s+(?:is|was)\s+(?:now\s+)?(?:created|saved|in|there)\b"
         ),
         claim_description="created a note",
+        claim_examples=(
+            'I created a note with the address in it.',
+            'The note is saved.',
+        ),
+        non_claim_examples=(
+            'I will create a note.',
+            'Do you want a note for that?',
+        ),
     ),
     # ── Opaque execution ───────────────────────────────────────────────────
     # The contract cannot read what a command or script will do, so a claim to
@@ -452,6 +633,14 @@ _SPECS: tuple[EffectSpec, ...] = (
             r"(?:the\s+|a\s+|that\s+)?(?:command|shell|terminal|script\s+in\s+the\s+shell)\b"
         ),
         claim_description="ran a command",
+        claim_examples=(
+            'I ran the command and it exited cleanly.',
+            'I executed that shell command.',
+        ),
+        non_claim_examples=(
+            'I will run the command.',
+            'Should I run that in the terminal?',
+        ),
     ),
     EffectSpec(
         action="run_applescript",
@@ -465,6 +654,13 @@ _SPECS: tuple[EffectSpec, ...] = (
             r"(?:an?\s+|the\s+|that\s+)?(?:applescript|apple\s+script|automation\s+script)\b"
         ),
         claim_description="ran a script",
+        claim_examples=(
+            'I ran an applescript to set the volume.',
+            'I executed the automation script.',
+        ),
+        non_claim_examples=(
+            'I will run an applescript.',
+        ),
     ),
     EffectSpec(
         action="system_control",
@@ -480,8 +676,48 @@ _SPECS: tuple[EffectSpec, ...] = (
             r"do\s+not\s+disturb|dark\s+mode|wallpaper|background|setting|system\s+\w+)\b"
         ),
         claim_description="changed a system setting",
+        claim_examples=(
+            'I turned down the volume for you.',
+            'I changed your brightness.',
+        ),
+        non_claim_examples=(
+            'I will turn down the volume.',
+            'Should I change the brightness?',
+        ),
     ),
     # ── Nothing to claim ───────────────────────────────────────────────────
+    EffectSpec(
+        action="pursue_on_screen",
+        changes_world=True,
+        observable_action=True,
+        narrates_in_reply=True,
+        render_phrase="worked through the screen to",
+        evidence_fields=("goal", "outcome", "target"),
+        recognizer=_rx(
+            rf"(?:{_DID})(?:worked\s+through|worked\s+my\s+way\s+through|"
+            r"navigated|drove|stepped\s+through|clicked\s+through|"
+            r"got\s+through)\s+(?:the\s+)?(?:screen|screens|pages?|flow|"
+            r"dialog|wizard|form)"
+            rf"|(?:{_DID})(?:reached|completed|finished|got\s+to)\s+"
+            r"(?:the\s+)?(?:goal|end|final\s+screen|last\s+step)"
+        ),
+        claim_description="worked through the screen toward a goal",
+        note=(
+            "A pursuit is a loop of the low-level input steps, so it looks "
+            "like several clicks in the receipts and like one accomplishment "
+            "in the reply. It narrates as the accomplishment, because that is "
+            "what the person asked for and what they can go and check."
+        ),
+        claim_examples=(
+            'I worked through the screens until the form was submitted.',
+            'I clicked through the wizard for you.',
+            'I reached the final screen.',
+        ),
+        non_claim_examples=(
+            'I will work through the screen for you.',
+            'Do you want me to click through the wizard?',
+        ),
+    ),
     EffectSpec(
         action="wait",
         changes_world=False,

@@ -1,5 +1,11 @@
 """Subjective choice receipts for preference-bearing agency.
 
+Operationally: this measures how well each available option matches her
+recorded preference weights, and emits a receipt naming the option chosen, the
+features that scored it, and the margin over the runner-up. "Subjective" here
+means the ranking depends on preferences she holds rather than on the request
+alone; it is not a claim about experience.
+
 This module is deliberately smaller than a personality layer and deeper than a
 prompt instruction.  It gives Aura a governed way to choose among valid options
 because one option better matches her authored preferences, even when raw drive

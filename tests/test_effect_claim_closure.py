@@ -77,30 +77,16 @@ def test_registry_holds_nothing_aura_cannot_do() -> None:
 #: These are the recall floor: if a recogniser stops matching its own effect,
 #: property 1 still passes and nothing is protected, which is how a channel
 #: goes half-wired without any test noticing.
+#:
+#: They are READ FROM THE REGISTRY, not written here. This was a second
+#: hand-maintained list beside the specs, and the finding this file records —
+#: "a second list that never learned what the first knew" — reproduced itself
+#: in the fixture written to prevent it: adding pursue_on_screen to the
+#: registry left this dict a phrasing short.
 _LIVE_PHRASINGS: dict[str, str] = {
-    "click": "I clicked the Save button for you.",
-    "type": "I typed the address into the field.",
-    "hotkey": "I pressed cmd+S to save it.",
-    "scroll": "I scrolled down to the bottom of the page.",
-    "inspect_screen": "I looked at your screen just now.",
-    "read_screen_text": "I read the text on your screen.",
-    "read_menu_clock": "I checked the menu bar clock.",
-    "get_clipboard": "I read your clipboard.",
-    "list_directory": "I counted the files in that directory.",
-    "open_app": "I opened Notes for you.",
-    "open_url": "I opened https://example.com in your browser.",
-    "move_aura_bubble": "I moved my bubble to the corner.",
-    "write_text_file": "I wrote the file to your Desktop.",
-    "render_text_pdf": "I rendered the PDF you asked for.",
-    "move_file": "I moved it to your Documents folder.",
-    "create_folder": "I created a folder called Reports.",
-    "fetch_topic_image": "I downloaded an image of the bridge.",
-    "set_clipboard": "The text ORION-7 is now on your clipboard.",
-    "write_in_app": "I wrote your draft in TextEdit.",
-    "create_note": "I created a note with your reminder.",
-    "run_command": "I ran the command you gave me.",
-    "run_applescript": "I ran an AppleScript to do it.",
-    "system_control": "I turned down the volume for you.",
+    action: spec.claim_examples[0]
+    for action, spec in EFFECT_REGISTRY.items()
+    if spec.claim_examples
 }
 
 
@@ -110,7 +96,7 @@ def test_every_observable_action_has_a_live_phrasing_fixture() -> None:
     uncovered = sorted(set(observable_actions()) - set(_LIVE_PHRASINGS))
     assert uncovered == [], (
         f"{uncovered} have a recogniser but no phrasing fixture, so nothing "
-        "proves the recogniser fires. Add one to _LIVE_PHRASINGS."
+        "proves the recogniser fires. Declare claim_examples on the spec."
     )
 
 
