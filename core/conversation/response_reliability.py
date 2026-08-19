@@ -41,7 +41,7 @@ from __future__ import annotations
 
 import logging
 import re
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, replace
 from typing import Any
 
@@ -5828,6 +5828,74 @@ _TOOL_EXECUTION_CLAIM_RE = re.compile(
     re.IGNORECASE,
 )
 
+#: What a piece of evidence has to be ABOUT before it can vouch for a claim.
+#:
+#: LIVE DEFECT, 2026-08-19. Asked to run a little Python and report the real
+#: number, she wrote a function, printed nothing, and stated
+#: "Output: 94867200.0". Nothing ran — no dispatch reached any executor, and
+#: the arithmetic was wrong besides (the true value is 113788800). The gate
+#: that exists for exactly this fired its regex correctly and was then talked
+#: out of it by ``if tool_receipts: return False``: one unrelated receipt from
+#: any tool at all excused any execution claim, so a memory lookup earlier in
+#: the turn was enough to launder a fabricated interpreter session.
+#:
+#: The camera branch never had this hole because its evidence is TYPED — a
+#: camera claim needs camera evidence. That is the invariant, and it is not
+#: specific to cameras: evidence may only vouch for what it could itself have
+#: produced. Quoted output is where the invariant is absolute, because output
+#: has exactly one possible source. Anything named for running things is one
+#: of those sources, so a surface added tomorrow needs no entry here.
+_EXECUTOR_SURFACE_RE = re.compile(
+    r"(?:repl|sandbox|terminal|shell|bash|zsh|interpreter|python|exec|eval|"
+    r"run(?:ner|time)?|script|code|coding|compile|subprocess|notebook|query)",
+    re.IGNORECASE,
+)
+
+#: Evidence that something looked at the display.
+_OBSERVER_SURFACE_RE = re.compile(
+    r"(?:screen|screenshot|display|desktop|window|vision|observe|capture|look)",
+    re.IGNORECASE,
+)
+
+
+def _receipt_describes_itself_as(receipt: Any, pattern: re.Pattern[str]) -> bool:
+    """Read what a receipt is evidence OF, from how the tool named itself."""
+    if isinstance(receipt, Mapping):
+        described = " ".join(
+            str(receipt.get(field, "") or "")
+            for field in ("tool", "action", "object_ref", "verification")
+        )
+    else:
+        described = " ".join(
+            str(getattr(receipt, field, "") or "")
+            for field in ("tool", "name", "action", "object_ref", "verification")
+        ).strip() or str(receipt or "")
+    # Tool names are identifiers: `code_repl` carries its modality in a word
+    # the pattern only reaches once the joiner is a space.
+    return bool(pattern.search(described.replace("_", " ").replace(".", " ")))
+
+
+def _receipts_include(receipts: Iterable[Any] | None, pattern: re.Pattern[str]) -> bool:
+    return any(_receipt_describes_itself_as(row, pattern) for row in (receipts or ()))
+
+
+#: Presenting a value as something that came back from running something.
+#:
+#: Narrower than _TOOL_EXECUTION_CLAIM_RE on purpose. That one catches every
+#: way of saying a tool ran, and this gate DESTROYS a reply rather than
+#: repairing it, so only the claims whose evidence is unambiguous get the
+#: strict treatment: a quoted result must have had a producer.
+_QUOTED_OUTPUT_CLAIM_RE = re.compile(
+    r"(?:"
+    r"\b(?:output|stdout|stderr|result|returned|prints?|printed)\s*[:=]\s*\S"
+    r"|\bit\s+printed\b"
+    r"|\bhere(?:'s|\s+is)\s+(?:the\s+)?(?:actual\s+)?(?:output|stdout)\b"
+    r"|\bthe\s+(?:output|result)\s+(?:of|from)\s+(?:running|executing)\b"
+    r")",
+    re.IGNORECASE,
+)
+
+
 #: Claims about what is ON a screen. These are PERCEPTION, not execution, and
 #: their evidence is a fresh frame rather than a tool receipt.
 #:
@@ -5963,7 +6031,7 @@ def _has_unfounded_tool_execution_claim(
         supported = bool(
             _screen_perception_is_live()
             or _typed_sensory_evidence_is_live(sensory_evidence, "screen")
-            or tool_receipts
+            or _receipts_include(tool_receipts, _OBSERVER_SURFACE_RE)
         )
         if not supported:
             start = max(0, raw.rfind(".", 0, match.start()) + 1)
@@ -5988,13 +6056,22 @@ def _has_unfounded_tool_execution_claim(
     match = _DESKTOP_ACTION_CLAIM_RE.search(raw) or _TOOL_EXECUTION_CLAIM_RE.search(raw)
     if not match:
         return False
-    if tool_receipts:
-        return False
-    # Only the sentence carrying the claim decides whether it was hedged;
+    # Only the sentence carrying the claim decides whether it was hedged, and
+    # only evidence of the same kind can vouch for it;
     # a "would" elsewhere in a long reply says nothing about this clause.
     start = max(0, raw.rfind(".", 0, match.start()) + 1)
     end = raw.find(".", match.end())
     clause = raw[start : end if end != -1 else len(raw)]
+    # A quoted result had a producer or it was written by the model. Every
+    # other kind of execution claim keeps the older, permissive reading, where
+    # any receipt at all is enough, because those can be founded by work this
+    # function cannot see and destroying a true reply is the worse error.
+    if _QUOTED_OUTPUT_CLAIM_RE.search(raw):
+        if not _receipts_include(tool_receipts, _EXECUTOR_SURFACE_RE):
+            return not _EXECUTION_CLAIM_HEDGE_RE.search(clause)
+        return False
+    if tool_receipts:
+        return False
     return not _EXECUTION_CLAIM_HEDGE_RE.search(clause)
 
 
