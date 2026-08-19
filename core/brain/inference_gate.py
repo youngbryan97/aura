@@ -9780,10 +9780,25 @@ class InferenceGate:
             protected_foreground_lane = True
         if desktop_cognitive_engine_contract:
             context["desktop_cognitive_engine_required"] = True
-            requested_tier = "primary"
-            deep_handoff = False
-            is_background = False
-            protected_foreground_lane = True
+            # The contract is about the ANSWER, not about every call made
+            # while producing it.
+            #
+            # This forced `primary` for the whole turn, so an internal
+            # tool-loop decision — picking one of eight labelled radio buttons
+            # inside a browser pursuit — inherited the desktop reply's lane and
+            # ran on the 32B at up to 103s a round. A sixty-item form died on
+            # the turn budget having answered nothing, and because this runs
+            # before the trust block, the explicit fast-lane request never even
+            # reached the rule that would have honoured it.
+            #
+            # What the contract requires is that what she SAYS comes from the
+            # real engine. An origin that is not user-facing is not that, and
+            # keeps whatever lane it asked for.
+            if self._origin_is_user_facing(origin):
+                requested_tier = "primary"
+                deep_handoff = False
+                is_background = False
+                protected_foreground_lane = True
         if is_background:
             requested_tier = "tertiary"
             deep_handoff = False
