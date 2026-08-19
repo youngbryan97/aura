@@ -24,6 +24,7 @@ from typing import Any, Literal, Self
 
 from pydantic import BaseModel, Field, model_validator
 
+from core.conversation.word_markers import names_any
 from core.capabilities.browser_authority import (
     BrowserAction as AuthorityAction,
     issue_browser_lease,
@@ -56,6 +57,9 @@ def _read_comprehension(*, url: str, title: str, text: str) -> dict[str, Any]:
     except ImportError:
         return {}
     return comprehension_payload(url=url, title=title, text=text)
+
+_ADVANCING_BUTTON_WORDS = ("next", "continue", "submit", "finish", "start")
+
 
 class BrowserAction(BaseModel):
     type: Literal["click", "type", "scroll", "wait", "get_html", "screenshot"] = Field(
@@ -946,11 +950,12 @@ class SovereignBrowserSkill(BaseSkill):
             # Bucketed, not counted: "many radios" is the fact that transfers,
             # not "forty-two of them".
             parts.append(f"{role}:{'many' if count > 6 else 'few'}")
+        # Word boundaries: a "Restart" button is not a "start" button, and an
+        # "Unfinished" label is not a "finish" one.
         advances = any(
-            word in str(element.get("name") or "").lower()
+            names_any(str(element.get("name") or ""), _ADVANCING_BUTTON_WORDS)
             for element in elements
             if str(element.get("role") or "") == "button"
-            for word in ("next", "continue", "submit", "finish", "start")
         )
         if advances:
             parts.append("advances")
