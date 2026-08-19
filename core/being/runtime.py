@@ -5,6 +5,7 @@ import threading
 import time
 from dataclasses import asdict, replace
 from typing import Any
+from collections.abc import Mapping
 
 from core.governance.recovery_authority import (
     is_internal_recovery_context,
@@ -215,6 +216,28 @@ def active_governance_attests_private_maintenance(
         and constraints.get("runtime_generated") is True
         and str(constraints.get("op") or "").strip().lower()
         == str(context.get("maintenance_operation") or "").strip().lower()
+    )
+
+
+def _is_explicit_owner_request(context: Any) -> bool:
+    """Did the person ask for this, in the foreground, just now?
+
+    Deliberately requires an EXPLICIT signal rather than merely "not
+    autonomous". A background loop that forgets to set a flag must not inherit
+    the owner's standing; the flags below are set by the routes that actually
+    carry a live request.
+    """
+
+    ctx = dict(context or {}) if isinstance(context, Mapping) else {}
+    return any(
+        bool(ctx.get(flag))
+        for flag in (
+            "foreground_request",
+            "user_explicitly_authorized",
+            "user_explicit_action_request",
+            "desktop_execution_contract",
+            "user_visible_desktop_action",
+        )
     )
 
 
@@ -738,6 +761,29 @@ class BeingRuntime:
                 }:
                     constraints.append(
                         f"restorative_consolidation_lane: recovery_drive={welfare.recovery_drive:.3f}"
+                    )
+                elif _is_explicit_owner_request(context):
+                    # Rest instead of doing MORE OF YOUR OWN WORK is sound.
+                    # Rest instead of doing the thing the person just asked for
+                    # is not, and it is silent: they get "the desktop task lane
+                    # did not complete", never "I am depleted".
+                    #
+                    # MEASURED live 2026-08-18. recovery_drive sat at 0.60-0.64
+                    # for a whole session — just over the line — so every
+                    # consequential action was deferred, 10,330 times in one
+                    # log. At the moment an owner request was refused the
+                    # context read foreground_request=True,
+                    # user_explicitly_authorized=True,
+                    # desktop_execution_contract=True,
+                    # user_visible_desktop_action=True. Everything needed to
+                    # know whose request it was, present and unused.
+                    #
+                    # The state is still recorded, so depletion stays visible
+                    # and she can say so; what it no longer does is decide, on
+                    # her behalf, that the person can wait.
+                    constraints.append(
+                        f"welfare_recovery_drive={welfare.recovery_drive:.3f}"
+                        "; owner_request_proceeds_while_depleted"
                     )
                 else:
                     constraints.append(f"welfare_recovery_drive={welfare.recovery_drive:.3f}")
