@@ -6421,6 +6421,107 @@ class InferenceGate:
             return text.replace(token, "").strip()
         return text
 
+    async def _tool_grounded_answer(
+        self,
+        client: Any,
+        *,
+        prompt: Any,
+        system_prompt: Any,
+        history: Any,
+        timeout_s: float,
+    ) -> str | None:
+        """Answer by running the capability the request needs, or return None.
+
+        LIVE DEFECT, 2026-08-19. Asked to run Python and report the number,
+        with code_repl READY, she wrote a snippet and stated an invented
+        "Output:". The runtime HAS a tool loop — parse a call, bind it to the
+        tool's advertised schema, execute, feed the result back — and reaching
+        it goes through `should_force_tool_handoff` in the health router. Chat
+        never gets there: this lane calls the MLX client directly
+        (`local_client = self._mlx_client`), so the router's contract, its
+        handoff, and the loop behind it apply to every OTHER caller and not to
+        the one people actually type into.
+
+        Returns text only when a tool really ran. Anything else — no
+        capability needed, no tool map, the model declining to call — returns
+        None so the ordinary generation proceeds untouched.
+        """
+        visible = ""
+        try:
+            visible = str(self._visible_user_prompt_from_messages(history, prompt) or "").strip()
+        except (AttributeError, TypeError, ValueError):
+            visible = str(prompt or "").strip()
+        if not visible:
+            return None
+        try:
+            from core.brain.llm.runtime_wiring import build_agentic_tool_map
+            from core.phases.response_contract import derive_required_skill
+
+            required = derive_required_skill(visible)
+            if not required:
+                return None
+            tools = build_agentic_tool_map(required, objective=visible, max_tools=1)
+            if not tools:
+                logger.info(
+                    "🔧 Tool handoff: skill=%s offered=NONE (no tool definition)", required
+                )
+                return None
+            logger.info(
+                "🔧 Tool handoff: skill=%s offered=%s", required, ",".join(sorted(tools))
+            )
+            result = await asyncio.wait_for(
+                client.think_and_act(
+                    objective=visible,
+                    system_prompt=str(system_prompt or ""),
+                    tools=tools,
+                    max_turns=3,
+                    context={"required_skill": required, "foreground_request": True},
+                ),
+                timeout=max(20.0, float(timeout_s)),
+            )
+        except (TimeoutError, asyncio.CancelledError) as exc:
+            record_degradation(
+                "inference_gate.tool_grounded_answer",
+                exc,
+                severity="info",
+                action="answered on the ordinary lane after the tool loop ran out of time",
+                enforce_failure_policy=False,
+            )
+            return None
+        except Exception as exc:  # noqa: BLE001 - reported, then the normal lane runs
+            record_degradation(
+                "inference_gate.tool_grounded_answer",
+                exc,
+                severity="warning",
+                action="answered on the ordinary lane after the tool loop failed",
+                enforce_failure_policy=False,
+            )
+            return None
+
+        if not isinstance(result, dict):
+            return None
+        called = result.get("tool_calls") or []
+        text = str(result.get("content") or "").strip()
+        if not called:
+            # The model was handed the tool and answered without it. That
+            # answer is ungrounded by construction, and it is exactly how
+            # "Output: 7" reached the screen.
+            return None
+        from core.conversation.surface_disposition import record_tool_receipt
+
+        for call in called:
+            if not isinstance(call, dict):
+                continue
+            record_tool_receipt(
+                str(call.get("tool") or call.get("name") or "tool"),
+                ok=bool(call.get("ok", True)),
+                action="execute",
+                object_ref=str(call.get("args") or "")[:200],
+                effect_observed=True,
+                verification="tool loop returned a result for this turn",
+            )
+        return text or None
+
     async def _generate_with_client(
         self,
         client: Any,
@@ -12284,7 +12385,18 @@ class InferenceGate:
                         self._window_within(request_deadline, primary_timeout)
                     )
                     primary_attempt_started = time.monotonic()
-                    if skip_initial_primary_attempt:
+                    tool_grounded = None
+                    if _is_user_facing and not skip_initial_primary_attempt:
+                        tool_grounded = await self._tool_grounded_answer(
+                            local_client,
+                            prompt=prompt,
+                            system_prompt=system_prompt,
+                            history=history,
+                            timeout_s=float(timeout_val),
+                        )
+                    if tool_grounded:
+                        text = tool_grounded
+                    elif skip_initial_primary_attempt:
                         text = None
                     else:
                         async with self._resource_context(
