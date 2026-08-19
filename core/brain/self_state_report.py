@@ -177,6 +177,63 @@ def _model_line() -> str:
     return ""
 
 
+def _turn_cost_line() -> str:
+    """What the recent cognitive work actually cost, or that it is unreadable.
+
+    LIVE 2026-08-18: "how hard was that last answer to produce?" came back with
+    "about 1.2 seconds of wall time... CPU utilization was around 3%... memory
+    peaked at about 2.7GB". The turn had taken fourteen seconds. Every figure
+    was invented, in the confident register of a reading.
+
+    This block already names the things it cannot see — cycle count, mood,
+    skill registry — precisely so an absence is spoken rather than filled.
+    Effort had no line at all, so there was nothing to say and something was
+    said anyway.
+    """
+    try:
+        from core.pipeline.pass_manager import get_instrumentation
+
+        report = get_instrumentation().report()
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        record_degradation(
+            "self_state_report", exc, severity="info", action="omitted turn cost line"
+        )
+        return (
+            "- Effort and duration of your last answer: not readable from this "
+            "turn. Say you cannot see them; do not estimate seconds or "
+            "percentages."
+        )
+    passes = report.get("passes") if isinstance(report, dict) else None
+    hottest = report.get("hottest") if isinstance(report, dict) else None
+    if not isinstance(passes, dict) or not passes or not isinstance(hottest, list):
+        return (
+            "- Effort and duration of your last answer: not readable from this "
+            "turn. Say you cannot see them; do not estimate seconds or "
+            "percentages."
+        )
+    measured: list[str] = []
+    for name in hottest[:3]:
+        entry = passes.get(name)
+        if not isinstance(entry, dict):
+            continue
+        runs = int(entry.get("runs", 0) or 0)
+        total = float(entry.get("total_s", 0.0) or 0.0)
+        if runs and total > 0:
+            measured.append(f"{name} {total:.2f}s over {runs} run(s)")
+    if not measured:
+        return (
+            "- Effort and duration of your last answer: not readable from this "
+            "turn. Say you cannot see them; do not estimate seconds or "
+            "percentages."
+        )
+    return (
+        "- Measured cognitive phases so far this run: "
+        + "; ".join(measured)
+        + ". This is phase time, not end-to-end wall time for one answer — "
+        "that is not readable here, so do not state it."
+    )
+
+
 def _degradation_line() -> str:
     """What has actually gone wrong lately, from the ledger that records it."""
     try:
@@ -497,6 +554,9 @@ def runtime_self_report() -> str:
     capabilities = _capability_line()
     if capabilities:
         lines.append(capabilities)
+    turn_cost = _turn_cost_line()
+    if turn_cost:
+        lines.append(turn_cost)
     degradations = _degradation_line()
     if degradations:
         lines.append(degradations)
