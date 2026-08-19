@@ -5917,7 +5917,12 @@ async def api_browser_pursuit(request: Request):
             "sovereign_browser",
             {"mode": "pursue", "url": url, "goal": goal, "max_steps": max_steps},
             context={
-                "source": "system.browser_pursuit_probe",
+                # A real foreground origin, because the probe is exercising
+                # the foreground capability. "system.browser_pursuit_probe"
+                # coerces to nothing known, carries no user authority, and the
+                # will refuses the action — which tests the probe's label
+                # rather than the capability.
+                "source": "desktop_ui",
                 "origin": "desktop_ui",
                 "user_explicitly_authorized": True,
                 "user_requested_action": True,
