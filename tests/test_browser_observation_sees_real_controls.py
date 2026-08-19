@@ -119,3 +119,64 @@ async def test_control_state_is_reported(browser):
     assert radios
     assert all("checked" in radio for radio in radios)
     assert {radio.get("value") for radio in radios} >= {"3", "-1"}
+
+
+async def test_a_control_under_its_own_decoration_needs_the_forced_path(browser):
+    """Five rounds of acting on a page that never changed.
+
+    Playwright's actionability check includes hit-target: the point clicked
+    must actually receive the event. Sites hide the native input (opacity 0)
+    and paint a custom graphic over it, so the overlay receives the click and
+    the ordinary path times out — the element is visible, in view, and
+    unclickable.
+
+    MEASURED live 2026-08-18: a questionnaire ran five observe-decide-act
+    rounds and the page never moved, because every answer click was landing on
+    nothing. The loop's stall detector stopped it and reported `no_progress`,
+    which named the symptom rather than this.
+
+    Asserted at the Playwright level: the governed `click()` needs a real
+    lease, and a test must not forge one.
+    """
+    await browser.page.set_content(
+        """
+        <html><body><main>
+          <div style="position:relative; width:60px; height:60px">
+            <input id="real" type="radio" aria-label="I agree"
+                   style="opacity:0; width:60px; height:60px; position:absolute; inset:0">
+            <div style="position:absolute; inset:0; background:#333"></div>
+          </div>
+        </main></body></html>
+        """
+    )
+    element = browser.page.locator("#real")
+
+    with pytest.raises(Exception):
+        await element.click(timeout=1500)
+    assert await browser.page.eval_on_selector("#real", "el => el.checked") is False
+
+    # `force=True` is not the answer: it skips the actionability checks and
+    # still clicks at a POINT, so the decoration receives it just the same.
+    await element.click(force=True, timeout=4000)
+    assert await browser.page.eval_on_selector("#real", "el => el.checked") is False
+
+    # Dispatching to the element itself bypasses hit-testing rather than
+    # ignoring it, and is what actually reaches the control.
+    await element.dispatch_event("click")
+    assert await browser.page.eval_on_selector("#real", "el => el.checked") is True
+
+
+def test_the_click_path_falls_back_rather_than_giving_up():
+    """The fallback is ordered: ordinary first, forced only on timeout.
+
+    An unconditional forced click would punch through consent banners and
+    anything genuinely in the way, which is the opposite of what is wanted.
+    """
+    import inspect
+
+    from core.capabilities.phantom_browser import PhantomBrowser
+
+    source = inspect.getsource(PhantomBrowser.click)
+    ordinary = source.index("await element.click(timeout=")
+    forced = source.index('dispatch_event("click")')
+    assert ordinary < forced

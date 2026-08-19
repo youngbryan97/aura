@@ -946,7 +946,43 @@ class PhantomBrowser:
                     await self.page.mouse.move(x, y, steps=15)
                     await self._human_delay(0.1, 0.3)
                 
-                await element.click()
+                # A styled-invisible control still has to be clickable.
+                #
+                # Playwright's actionability check includes hit-target: the
+                # point being clicked must actually receive the event. Sites
+                # hide the native input (opacity 0) and paint a custom graphic
+                # over it, so the overlay receives the click and the check
+                # times out — the element is visible, in view, and unclickable
+                # by the ordinary path.
+                #
+                # MEASURED live 2026-08-18: a questionnaire ran five rounds of
+                # observe-decide-act and the page never changed, because every
+                # answer click was silently landing on nothing. The loop's
+                # stall detector correctly stopped it and reported no_progress,
+                # which named the symptom, not this.
+                #
+                # So an ordinary click first — it respects overlays, consent
+                # banners and anything genuinely in the way — and a forced
+                # click only when that times out, which is exactly the case
+                # where the "obstruction" is the control's own decoration.
+                try:
+                    await element.click(timeout=4000)
+                except PlaywrightError as click_exc:
+                    # `force=True` is NOT the answer here: it only skips the
+                    # actionability checks and still clicks at a POINT, so the
+                    # decoration on top receives it just the same. Measured
+                    # against a covered radio: forced click, still unchecked.
+                    #
+                    # Dispatching to the element itself is what reaches the
+                    # control, because it bypasses hit-testing rather than
+                    # ignoring it.
+                    logger.info(
+                        "🖱️ Ordinary click did not land on %s (%s); "
+                        "dispatching to the element itself.",
+                        selector or text_match,
+                        type(click_exc).__name__,
+                    )
+                    await element.dispatch_event("click")
                 logger.info("🖱️ Clicked: %s", selector or text_match)
                 await self._human_delay(0.5, 1.5)
                 await self._record_interaction(
@@ -956,7 +992,7 @@ class PhantomBrowser:
             else:
                 logger.warning("Element not found or not visible: %s", selector or text_match)
                 return False
-        except (ImportError, AttributeError, RuntimeError) as e:
+        except (ImportError, AttributeError, RuntimeError, PlaywrightError) as e:
             record_degradation('phantom_browser', e)
             logger.error("Click failed: %s", e)
             return False
