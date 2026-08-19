@@ -259,7 +259,10 @@ def test_live_repo_catalog_matches_rust_and_dry_runs_every_skill():
     assert catalog.ok is True
     assert catalog.backend == "rust-filesystem+python-parity"
     assert catalog.parity_status == "matched"
-    assert len(catalog.accepted) == 76
+    # 77 shipped skills plus `reminder`, added 2026-08-19 because she said
+    # she had set one when nothing was stored. A count that moves when a
+    # capability is added is the point of the assertion.
+    assert len(catalog.accepted) == 78
     assert len(catalog.excluded) == 10
     assert python_catalog.backend == "python"
     assert python_catalog.parity_status == "python_only"

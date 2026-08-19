@@ -392,7 +392,11 @@ def test_an_empty_queue_says_so_rather_than_nothing(monkeypatch) -> None:
 
     from core.brain.observable_registry import _read_queued_work
 
-    assert "Nothing is deferred" in asyncio.run(_read_queued_work("anything queued?"))
+    # The guarantee is that an empty queue SAYS so, not the exact sentence:
+    # reminders joined this reading, so the wording now covers both sources.
+    said = asyncio.run(_read_queued_work("anything queued?"))
+    assert said.strip()
+    assert "nothing deferred" in said.lower()
 
 
 # ── conversational recall is a reading, not a recollection ──────────────────

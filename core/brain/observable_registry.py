@@ -437,18 +437,45 @@ def _matches_queued_work(prompt: str) -> bool:
     return bool(_ASKS_QUEUED_WORK.search(text))
 
 
+async def _read_reminder_lines() -> list[str]:
+    """Reminders she owes the person, soonest first.
+
+    A reminder is queued work in the sense that matters to whoever asked: it
+    is a thing she has undertaken to raise. Keeping it out of this reading is
+    how "anything planned?" answered with maintenance chores while a promise
+    about the oven sat unmentioned in the store.
+    """
+    from core.agency.reminders import pending_reminders, spoken_delay
+
+    reminders = await asyncio.to_thread(pending_reminders)
+    lines: list[str] = []
+    for item in reminders[:8]:
+        if item.is_due:
+            lines.append(f"- DUE NOW: {item.text}")
+        else:
+            lines.append(f"- in {spoken_delay(item.seconds_remaining())}: {item.text}")
+    return lines
+
+
 async def _read_queued_work(_prompt: str) -> str:
+    reminder_lines = await _read_reminder_lines()
+
     from core.maintenance.dream_coordinator import get_dream_coordinator
 
     status = await asyncio.to_thread(get_dream_coordinator().status)
     pending = dict(status.get("pending") or {})
-    if not pending:
-        return "Nothing is deferred in the maintenance coordinator."
-    lines = []
-    for name, detail in list(pending.items())[:12]:
-        reason = str(dict(detail or {}).get("reason") or "").strip()
-        lines.append(f"- {name}" + (f" (waiting on: {reason})" if reason else ""))
-    return "Deferred maintenance work:\n" + "\n".join(lines)
+    sections: list[str] = []
+    if reminder_lines:
+        sections.append("Reminders you owe them:\n" + "\n".join(reminder_lines))
+    if pending:
+        lines = []
+        for name, detail in list(pending.items())[:12]:
+            reason = str(dict(detail or {}).get("reason") or "").strip()
+            lines.append(f"- {name}" + (f" (waiting on: {reason})" if reason else ""))
+        sections.append("Deferred maintenance work:\n" + "\n".join(lines))
+    if not sections:
+        return "Nothing is queued: no reminders outstanding and nothing deferred."
+    return "\n\n".join(sections)
 
 
 # ── what was actually said in this conversation ──────────────────────────────
