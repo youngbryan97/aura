@@ -5698,6 +5698,24 @@ class DesktopTaskSkill(BaseSkill):
                 context=dict(context or {}),
             )
             report = report if isinstance(report, dict) else {}
+            # The governed executor may hand back the skill's own dict or wrap
+            # it, depending on the dispatch path taken. Reading only the top
+            # level found no `steps`, so a run that had opened the page and
+            # turned the loop reported "the page did not respond to any
+            # action" — the delegation describing its own reading of the
+            # envelope as the page's behaviour.
+            if "steps" not in report:
+                for nested_key in ("result", "effect_result", "payload"):
+                    nested = report.get(nested_key)
+                    if isinstance(nested, dict) and "steps" in nested:
+                        report = {**report, **nested}
+                        break
+            logger.info(
+                "🌐 Browser pursuit returned: ok=%s rounds=%s keys=%s",
+                report.get("ok"),
+                report.get("rounds"),
+                sorted(report.keys())[:12],
+            )
         except _DESKTOP_TASK_RECOVERABLE_ERRORS as exc:
             record_degradation("desktop_task.page_objective", exc, severity="warning")
             return {
