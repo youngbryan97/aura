@@ -200,12 +200,20 @@ async def read_screen(app_name: str = "") -> dict[str, Any]:
     }
 
 
-def _matches(pattern: str, text: str) -> bool:
-    """Regex when the pattern is one, plain text when it is not."""
+def _matches(pattern: str, text: str, *, whole_region: bool = False) -> bool:
+    """Regex when the pattern is one, plain text when it is not.
+
+    ``whole_region`` requires the text to BE the pattern rather than contain
+    it. A bare number is the case that needs it: "128" appears inside
+    "SCORE 128" and inside "1284", and neither is the thing being waited for.
+    """
+    body = str(text or "").strip()
+    if whole_region:
+        return body.replace(",", "") == str(pattern or "").strip().replace(",", "")
     try:
-        return re.search(pattern, text, re.IGNORECASE) is not None
+        return re.search(pattern, body, re.IGNORECASE) is not None
     except re.error:
-        return pattern.lower() in text.lower()
+        return pattern.lower() in body.lower()
 
 
 def content_text(
@@ -262,10 +270,27 @@ def goal_reached(
     if not pattern:
         return False
 
+    # A bare value has to BE something on screen, not appear inside something.
+    #
+    # LIVE 2026-08-19: asked to play until a 128 tile, she opened the game,
+    # read "SCORE 128" from the header, and reported the goal reached in 1.2
+    # seconds without making a move. The number was on screen; it was not a
+    # tile. A value that is the whole of a text region is a value the screen
+    # is showing as a thing; one inside a longer run is part of a sentence
+    # about something else.
+    bare_value = bool(re.fullmatch(r"[0-9][0-9,]*", pattern))
+
     band_is_whole_screen = region_top <= 0.0 and region_bottom >= 1.0
     if band_is_whole_screen:
         text = str(observation.get("text") or "")
-        return bool(text) and _matches(pattern, text)
+        if not bare_value:
+            return bool(text) and _matches(pattern, text)
+        # With no band and no geometry there is nothing to check a bare value
+        # against, so every region is examined instead of the flattened text.
+        return any(
+            _matches(pattern, str(region.get("text") or ""), whole_region=True)
+            for region in observation.get("layout") or []
+        )
 
     layout = observation.get("layout") or []
     if not layout:
@@ -284,7 +309,7 @@ def goal_reached(
             continue
         if not (top <= y <= bottom):
             continue
-        if _matches(pattern, str(region.get("text") or "")):
+        if _matches(pattern, str(region.get("text") or ""), whole_region=bare_value):
             return True
     return False
 
@@ -598,7 +623,7 @@ async def pursue_on_screen(
     judgement or a test that needs a fixed one. ``think`` replaces only the
     reasoning, keeping the predict-and-check loop around it.
     """
-    from core.agency.deliberate_action import Attempt, Deliberation, confirm, deliberate
+    from core.agency.deliberate_action import Attempt, confirm, deliberate
     from core.agency.task_knowledge import learn_about, stuck, work_out_what_it_means
     from core.skills.fluid_executor import FluidExecutor, Step
 
@@ -608,6 +633,8 @@ async def pursue_on_screen(
     undecided: dict[str, str] = {"reason": ""}
     #: She decided to play this attempt out rather than restart it.
     seen_through: dict[str, Any] = {"value": False, "because": ""}
+    #: The finishing condition was already met on the first reading.
+    already: dict[str, bool] = {"value": False}
     #: Attempts she chose to begin again, and why.
     restarts: dict[str, Any] = {"count": 0, "because": ""}
     #: What she knows about doing this, learned once at the start and again
@@ -666,17 +693,28 @@ async def pursue_on_screen(
             return await asyncio.wait_for(
                 read_screen(target_app), timeout=OBSERVE_TIMEOUT_S
             )
-        except (TimeoutError, asyncio.TimeoutError):
+        except TimeoutError:
             # A wedged capture is not a reason to keep acting blind.
             return {"ok": False, "text": "", "layout": [], "error": "observe_timeout"}
 
     def satisfied(observation: dict[str, Any]) -> bool:
-        return goal_reached(
+        reached = goal_reached(
             observation,
             success_when,
             region_top=region_top,
             region_bottom=region_bottom,
         )
+        # True before she did anything is not something she did.
+        #
+        # A run that reports success off its first reading has not achieved
+        # the goal, it has found the condition already met — which usually
+        # means the condition is describing something other than the thing
+        # being waited for. Measured live: asked to play until a 128 tile,
+        # she opened the game, matched the number in the score, and reported
+        # the goal reached in 1.2 seconds without a move.
+        if reached and not moves:
+            already["value"] = True
+        return reached
 
     async def clear_blocker(observation: dict[str, Any]) -> Step | None:
         """A Step that clears whatever is covering the content, or None.
@@ -1058,6 +1096,13 @@ async def pursue_on_screen(
         result["outcome"] = "blocked_by_overlay"
         result["blocked_by"] = blocker_attempts["last"]
     result["moves"] = moves
+    if already["value"]:
+        # Said plainly rather than claimed. The person asked her to do
+        # something and the condition was true before she started, so what
+        # they get is that fact and not a receipt for work nobody did.
+        result["already_true_at_the_start"] = success_when
+        result["outcome"] = "already_true"
+        result["completed"] = False
     result["restarts"] = restarts["count"]
     if restarts["because"]:
         result["restarted_because"] = restarts["because"]
