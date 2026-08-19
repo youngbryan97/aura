@@ -1881,6 +1881,16 @@ class HealthAwareLLMRouter:
                 objective=prompt,
                 max_tools=getattr(contract, "max_tools", 8) if contract else 8,
             )
+            # Whether a turn was offered its tools is not otherwise visible
+            # anywhere: the worker logs "Rendering native chat/tool template"
+            # for every templated generation, with or without tools, so the
+            # one line that looked like evidence was not. Diagnosing a turn
+            # that should have called a tool and did not starts here.
+            logger.info(
+                "🔧 Tool handoff: skill=%s offered=%s",
+                str(getattr(contract, "required_skill", "") or "?"),
+                ",".join(sorted(tools)) if tools else "NONE",
+            )
             if tools:
                 handoff_kwargs = dict(kwargs)
                 handoff_kwargs.pop("origin", None)
