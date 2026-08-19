@@ -1421,6 +1421,47 @@ class SovereignBrowserSkill(BaseSkill):
         content = str(outcome or "").strip()
         return content or None
 
+    @staticmethod
+    def _asks_about_the_one_answering(observation: Mapping[str, Any]) -> bool:
+        """Whether this page is asking who she is, rather than what to do next.
+
+        Structural, not lexical. When several question groups on one page all
+        offer the SAME set of options, those options cannot be describing
+        content — there is nothing common to six different questions except
+        degree of endorsement. That shape is a scale instrument: a survey, an
+        intake form, an application's disposition section, a preference sheet.
+        Every item on it is a question about the respondent.
+
+        The distinction matters because of who should answer. Finding the Next
+        button is mechanics and the fast lane does it well. "You regularly make
+        new friends" is a claim about herself, and answering it needs what she
+        knows about herself — the same self-model, memory and felt state that
+        answer the question when a person asks it in conversation. Measured:
+        with these routed to the cheap tier, the plurality of her answers was
+        "I am not sure", which is what something without access to the answer
+        says.
+
+        Deliberately no word list. "Agree/disagree" is one instrument's
+        vocabulary in one language; repeated identical option sets are what
+        every scale instrument has in common.
+        """
+
+        groups: dict[str, set[str]] = {}
+        for element in observation.get("elements") or []:
+            if not isinstance(element, Mapping):
+                continue
+            group = str(element.get("group") or "")
+            name = str(element.get("name") or "").strip().lower()
+            if group and name:
+                groups.setdefault(group, set()).add(name)
+        if len(groups) < 2:
+            return False
+        shared = list(groups.values())
+        # Every group offering the same choices, and more than one choice, so a
+        # page of identical yes/no confirmations does not qualify as an
+        # instrument measuring anything.
+        return len(shared[0]) > 2 and all(options == shared[0] for options in shared[1:])
+
     async def _decide_next_actions(
         self,
         goal: str,
@@ -1556,11 +1597,28 @@ class SovereignBrowserSkill(BaseSkill):
                 # no usable choice, so the round produced nothing and the run
                 # ended 0/0. Falling back only when the call FAILS is not
                 # enough — an answer that cannot be acted on is a failure too.
-                raw = await self._decide_on_the_fast_lane(router, prompt, mind)
-                if not self._decision_is_usable(raw, observation):
+                # Who answers depends on what is being asked.
+                #
+                # A page of repeated identical option sets is asking about the
+                # one answering it, and self-knowledge is not something the
+                # tertiary tier holds. Handing it her assembled self-context
+                # does not help: the context says who she is, and the model
+                # still has to reason from it about herself. Those rounds go to
+                # her own reasoning, the same lane that answers the question
+                # when a person asks it out loud.
+                #
+                # Everything else — the Next button, a cookie banner, a login
+                # form — is mechanics, and stays fast.
+                if self._asks_about_the_one_answering(observation):
                     _ok, raw, _meta = await think(
                         prompt, system_prompt=mind, max_tokens=900, temperature=0.2
                     )
+                else:
+                    raw = await self._decide_on_the_fast_lane(router, prompt, mind)
+                    if not self._decision_is_usable(raw, observation):
+                        _ok, raw, _meta = await think(
+                            prompt, system_prompt=mind, max_tokens=900, temperature=0.2
+                        )
             else:
                 generate = getattr(router, "generate", None)
                 if not callable(generate):
