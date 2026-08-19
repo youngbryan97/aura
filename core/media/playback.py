@@ -93,6 +93,14 @@ class MediaResolution:
         }
 
 
+#: Words that point at something already under discussion rather than naming
+#: anything. A request whose whole object is one of these is not answerable
+#: from a media library.
+_DEICTIC = frozenset(
+    {"it", "this", "that", "these", "those", "them", "one", "the one", "something", "anything"}
+)
+
+
 def parse_play_request(message: str) -> tuple[str, str]:
     """Extract (what, kind) from a spoken or typed request, or ("", "").
 
@@ -114,13 +122,30 @@ def parse_play_request(message: str) -> tuple[str, str]:
         kind = "audio"
 
     what = match.group("what").strip()
+    # A title does not run past the end of a sentence.
+    #
+    # LIVE 2026-08-19: "2048 is open in Chrome. Play it — keep going until you
+    # get a 128 tile. Tell me what you are doing as you go" was parsed as a
+    # seventy-eight character query spanning two sentences, and a video in
+    # Downloads started playing in the chat. Anything after the full stop is
+    # the next thing being said, not more of the name.
+    what = re.split(r"(?<=[.!?])\s+|\s+[—–]\s+|\n", what)[0]
     # Strip trailing clauses: "play Kind of Blue and turn the lights down".
     what = re.split(r"\b(?:and then|and also|,? then\b|and turn|and set)\b", what)[0]
     previous = None
     while previous != what:
         previous = what
         what = _STOPWORDS.sub("", what).strip()
-    return what.strip(" .!?\"'"), kind
+    what = what.strip(" .!?\"'")
+    # A pronoun is not a title.
+    #
+    # "Play it" is a request whose object is whatever was being discussed —
+    # a game, a page, a video someone linked. Searching a media library for
+    # "it" cannot be right, and answering it with a file is how a video
+    # nobody asked for ends up on screen.
+    if what.lower() in _DEICTIC:
+        return "", ""
+    return what, kind
 
 
 def resolve_play_request(message: str) -> MediaResolution:

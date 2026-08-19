@@ -201,6 +201,40 @@ def _item_id(path: Path, modified_at: float, size: int) -> str:
     return digest[:24]
 
 
+#: Words too common or too short to identify anything on their own.
+_UNSEARCHABLE = frozenset(
+    {
+        "the", "a", "an", "and", "or", "of", "to", "in", "on", "at", "for", "with",
+        "it", "its", "this", "that", "these", "those", "them", "they", "me", "my",
+        "you", "your", "i", "is", "are", "was", "be", "am", "do", "does", "did",
+        "get", "got", "go", "going", "keep", "until", "then", "so", "as", "up",
+        "out", "off", "one", "some", "any", "all", "what", "when", "how", "tell",
+    }
+)
+
+
+def _searchable_terms(needle: str) -> list[str]:
+    """The words in a query that could identify something.
+
+    A two-letter word is a substring of half the filenames on a machine, and
+    an ordinary English word is in the other half. Neither can be evidence
+    that a particular file is the one being asked for — inside a long query.
+    A caller keeps whatever is left when this removes everything.
+    """
+    return [term for term in needle.split() if len(term) > 2 and term not in _UNSEARCHABLE]
+
+
+def _hits(term: str, words: set[str]) -> bool:
+    """Whether a query word appears as a word, rather than inside one.
+
+    Substring matching is why "it" found "Cognitive": every short word is
+    hiding inside some longer one. A prefix match is kept, because "remaster"
+    should still find "remastered".
+    """
+    return any(word == term or word.startswith(term) for word in words)
+
+
+
 class MediaLibrary:
     """A bounded, cached index of the playable media on this machine."""
 
@@ -335,20 +369,36 @@ class MediaLibrary:
         if not needle:
             return []
         scan = self.index()
-        terms = [t for t in needle.split() if t]
+        # Ordinary words are dropped only when something is left without them.
+        #
+        # "So What" and "Let It Be" are real titles made entirely of words too
+        # common to identify anything in a longer query. Emptying the query
+        # would make those unfindable, so a query that is nothing but common
+        # words is taken at face value: it is short, and somebody typed it.
+        terms = _searchable_terms(needle) or [term for term in needle.split() if term]
+        if not terms:
+            return []
 
         scored: list[tuple[int, int, MediaItem]] = []
         for item in scan.items:
             if kind and item.kind != kind:
                 continue
             hay = _normalize(f"{item.title} {item.path.parent.name}")
+            words = set(hay.split())
             if needle in hay:
                 rank = 0
-            elif terms and all(term in hay for term in terms):
+            elif all(_hits(term, words) for term in terms):
                 rank = 1
             else:
-                hits = sum(1 for term in terms if term in hay)
-                if not hits:
+                hits = sum(1 for term in terms if _hits(term, words))
+                # Most of what was asked for has to be there.
+                #
+                # LIVE 2026-08-19: "Play it — keep going until you get a 128
+                # tile" was parsed as a seventeen-word query, one word of
+                # which appeared inside a filename, and a video started
+                # playing in the chat. Matching on any single term means every
+                # long sentence containing "play" finds something.
+                if hits * 2 < len(terms):
                     continue
                 rank = 2 + (len(terms) - hits)
             # Shorter titles that still match are the more exact match:

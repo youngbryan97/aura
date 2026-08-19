@@ -31,6 +31,49 @@ from core.brain.llm.latent_cortex.types import (  # noqa: E402
     WorkspaceConfig,
 )
 
+
+def _eos_is_suppressed(eos_logit: float) -> bool:
+    """Whether the decode is holding the end-of-text token down.
+
+    Read from the engine's own floor rather than written here as a number.
+    The floor moved to -1e4 so it stays finite in float16, and these tests
+    still compared against -1e8: every masked logit read as unmasked, the
+    doubles returned EOS on the first token, and a working contract decode
+    looked like one that generates nothing. A test that hardcodes a constant
+    it does not own drifts silently the day that constant is right to change.
+    """
+    from core.brain.llm.latent_cortex.engine import _FINITE_LOGIT_FLOOR
+
+    return eos_logit <= _FINITE_LOGIT_FLOOR + 1.0
+
+
+def _standing_in_for_sample(double) -> None:
+    """Refuse a double the real sampler's callers could not call.
+
+    A double that has drifted from the signature it replaces makes the engine
+    look broken while it is correct: the decode fails with a TypeError about
+    an unexpected keyword, and the test reports a contract failure that never
+    happened. Checking the substitution at the point of substitution says
+    which one is actually wrong.
+    """
+    import inspect
+
+    from core.brain.llm.latent_cortex.engine import LatentCortexEngine
+
+    real = inspect.signature(LatentCortexEngine._sample)
+    accepted = inspect.signature(double).parameters
+    if any(p.kind is inspect.Parameter.VAR_KEYWORD for p in accepted.values()):
+        return
+    missing = [
+        name
+        for name, param in real.parameters.items()
+        if name not in {"self", "logits"}
+        and param.kind is inspect.Parameter.KEYWORD_ONLY
+        and name not in accepted
+    ]
+    assert not missing, f"this double cannot be called the way _sample is: missing {missing}"
+
+
 PROMPT_TOKENS = [5, 9, 17, 3, 42, 7, 11, 23]
 CONTRACT_TEXT = 'FINAL_ANSWER: {"node": 6}'
 
@@ -182,14 +225,16 @@ def test_contract_masks_early_eos_and_completes_inside_bounded_grace():
         *,
         budget=None,
         random_key=None,
+        operation="decode_sampling",
     ):
-        del budget, random_key
+        del budget, random_key, operation
         eos_logit = float(logits[0].item())
         observed_eos_logits.append(eos_logit)
-        if eos_logit > -1e8:
+        if not _eos_is_suppressed(eos_logit):
             return 0
         return next(remaining)
 
+    _standing_in_for_sample(eos_pressured_sample)
     engine._sample = eos_pressured_sample
     result = engine.reason(token_ids=PROMPT_TOKENS, budget=ComputeBudget())
 
@@ -201,7 +246,7 @@ def test_contract_masks_early_eos_and_completes_inside_bounded_grace():
     assert result.receipt.decode_generated_tokens == len(text)
     assert result.receipt.decode_contract_grace_used_tokens == len(text) - 8
     assert observed_eos_logits
-    assert all(value < -1e8 for value in observed_eos_logits)
+    assert all(_eos_is_suppressed(value) for value in observed_eos_logits)
 
 
 def test_contract_incomplete_exhaustion_is_bounded_and_receipted():
@@ -222,10 +267,12 @@ def test_contract_incomplete_exhaustion_is_bounded_and_receipted():
         *,
         budget=None,
         random_key=None,
+        operation="decode_sampling",
     ):
-        del budget, random_key
-        return ord("x") if float(logits[0].item()) < -1e8 else 0
+        del budget, random_key, operation
+        return ord("x") if _eos_is_suppressed(float(logits[0].item())) else 0
 
+    _standing_in_for_sample(never_complete)
     engine._sample = never_complete
     result = engine.reason(token_ids=PROMPT_TOKENS, budget=ComputeBudget())
 
@@ -250,11 +297,12 @@ def test_engine_stops_immediately_on_irrecoverable_contract_prefix():
     )
     sampled = {"count": 0}
 
-    def sample_once(logits, _temperature, _top_p, *, budget=None, random_key=None):
-        del logits, budget, random_key
+    def sample_once(logits, _temperature, _top_p, *, budget=None, random_key=None, operation="decode_sampling"):
+        del logits, budget, random_key, operation
         sampled["count"] += 1
         return 17
 
+    _standing_in_for_sample(sample_once)
     engine._sample = sample_once
     result = engine.reason(token_ids=PROMPT_TOKENS, budget=ComputeBudget())
 
