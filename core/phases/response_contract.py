@@ -1046,6 +1046,78 @@ def extract_search_query_focus(text: str) -> str:
     return candidate[:180]
 
 
+
+#: Effect scopes a turn may enter WITHOUT the person having authorised it.
+#:
+#: Forcing a tool handoff exposes exactly one skill to the model, and the skill
+#: still passes governance before anything runs, but a request that merely
+#: sounds like a capability must not be able to reach the world. Computing in a
+#: sandbox and reading are recoverable; writing, external I/O and driving the
+#: desktop are the person's call, and those already have their own explicit
+#: paths through the chat route.
+_SELF_SERVICE_EFFECT_SCOPES = frozenset(
+    {"sandboxed_compute", "pure_compute", "read_only", "status"}
+)
+
+
+def derive_required_skill(objective: str) -> str | None:
+    """The one capability this request needs, or None.
+
+    LIVE DEFECT, 2026-08-19. `required_skill` existed as a general field and
+    only ever held one value — `"web_search" if requires_search else None`.
+    `should_force_tool_handoff` reads it, so the runtime's whole tool-calling
+    loop (parse, bind to the advertised schema, execute, feed the result back)
+    was reachable for search and for nothing else. Asked to run Python with
+    `code_repl` READY, the model had no tool to call, wrote an answer instead,
+    and stated an invented "Output:". Sixty-odd other capabilities were in the
+    same position.
+
+    The skill is chosen from what each one declares about itself rather than
+    from a list kept here, so a capability registered tomorrow is reachable
+    with nothing to add.
+    """
+    text = str(objective or "").strip()
+    if not text:
+        return None
+    try:
+        from core.container import ServiceContainer
+        from core.intent.declared_capability import (
+            declared_vocabulary,
+            distinctive_objects,
+            rank_declaration_matches,
+        )
+
+        engine = ServiceContainer.get("capability_engine", default=None)
+        skills = getattr(engine, "skills", None)
+        if not skills:
+            return None
+        catalogue = {
+            name: declared_vocabulary(name, str(getattr(meta, "description", "") or ""))
+            for name, meta in skills.items()
+            if getattr(meta, "enabled", True)
+        }
+        if not catalogue:
+            return None
+        ranked = rank_declaration_matches(text, catalogue, distinctive_objects(catalogue))
+        for name, _score in ranked:
+            meta = skills.get(name)
+            scope = str(getattr(meta, "effect_scope", "") or "").strip().lower()
+            if scope in _SELF_SERVICE_EFFECT_SCOPES:
+                return name
+        return None
+    except Exception as exc:  # noqa: BLE001 - reported, never silent
+        from core.runtime.errors import record_degradation
+
+        record_degradation(
+            "response_contract.required_skill",
+            exc,
+            severity="debug",
+            action="built the contract without an inferred capability",
+            enforce_failure_policy=False,
+        )
+        return None
+
+
 def build_response_contract(
     state: AuraState,
     objective: str,
@@ -1355,7 +1427,7 @@ def build_response_contract(
     return ResponseContract(
         is_user_facing=is_user_facing,
         requires_search=requires_search,
-        required_skill="web_search" if requires_search else None,
+        required_skill=("web_search" if requires_search else derive_required_skill(text)),
         requires_exact_dates=requires_exact_dates,
         requires_exact_format=requires_exact_format,
         format_instruction=exact_format_instruction,

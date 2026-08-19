@@ -4952,13 +4952,53 @@ class LatentCortexService:
             config["decode_repetition_window"] = 72
             if compound_objective:
                 # Reserve the answer floor before optional recurrent work.
-                # The resident profile has measured a conservative 65s for
-                # prefill, verifier previews, recurrence, cleanup, and about
-                # 0.26s for each output token.  The former fixed 150s/384-token
-                # ceiling contradicted a five-obligation 768-token caller and
-                # physically forced the answer to stop in section two.
+                #
+                # This read `65.0 + (0.26 * tokens)` — a conservative profile
+                # written down once. Against the 112s ceiling its own caller
+                # allows (deep_deliberation caps at min(120, timeout*2)), the
+                # smallest compound surface of 768 tokens asks for 264.7s, so
+                # EVERY compound objective was refused before execution and
+                # every measurement of foreground deep reasoning was a
+                # measurement of something that never ran. The harder the
+                # question, the more certainly it was refused.
+                #
+                # The machine already measures this. `measured_admission`
+                # keeps p90 prefill, decode and overhead per task shape from
+                # completed generations, and chat.py already sizes the turn
+                # deadline from it; only this decision was still using the
+                # written-down number. An unmeasured shape falls back to the
+                # module's own static prior, so the conservative behaviour
+                # survives exactly as long as there is nothing better.
                 target_decode_tokens = int(config["decode_max_tokens"])
                 required_wall_clock_s = 65.0 + (0.26 * target_decode_tokens)
+                try:
+                    from core.brain.llm.measured_admission import (
+                        recommended_foreground_deadline,
+                    )
+                    from core.brain.llm.model_registry import ACTIVE_MODEL
+
+                    measured_s, _confidence, samples = recommended_foreground_deadline(
+                        model=ACTIVE_MODEL,
+                        prompt_tokens=max(
+                            2048, 1800 + len(str(visible_objective or "")) // 4
+                        ),
+                        decode_tokens=max(1, target_decode_tokens),
+                        minimum_seconds=0.0,
+                        maximum_seconds=float("inf"),
+                    )
+                    if samples > 0 and measured_s > 0.0:
+                        required_wall_clock_s = float(measured_s)
+                    self._last_allocation[
+                        "answer_surface_wall_clock_samples"
+                    ] = int(samples)
+                except (ArithmeticError, ImportError, TypeError, ValueError) as exc:
+                    record_degradation(
+                        "latent_cortex.answer_surface_admission",
+                        exc,
+                        severity="debug",
+                        action="priced the answer surface from the static profile",
+                        enforce_failure_policy=False,
+                    )
                 available_wall_clock_s = max(15.0, float(timeout_s) - 8.0)
                 budget["wall_clock_s"] = min(
                     max(required_wall_clock_s, float(budget.get("wall_clock_s") or 0.0)),

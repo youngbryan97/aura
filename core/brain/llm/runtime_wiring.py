@@ -779,9 +779,16 @@ def should_force_tool_handoff(contract: ResponseContract | None, *, is_backgroun
         return False
     if contract and getattr(contract, "requires_capability_inventory", False):
         return False
+    # `required_skill` was a general field holding one value: web_search. So
+    # this whole handoff — and the tool-calling loop behind it, which parses a
+    # call, binds it to the tool's advertised schema, executes it and feeds the
+    # result back — was reachable for search and for nothing else. Asked to run
+    # Python with code_repl READY, the model was handed no tool at all, wrote
+    # an answer instead, and stated an invented "Output:". Sixty-odd other
+    # capabilities sat behind the same gate.
     return bool(
         contract
-        and contract.requires_search
+        and (contract.requires_search or contract.required_skill)
         and not contract.tool_evidence_available
         and not is_background
     )

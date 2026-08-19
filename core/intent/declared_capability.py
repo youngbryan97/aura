@@ -46,6 +46,7 @@ from functools import lru_cache
 __all__ = [
     "declared_vocabulary",
     "distinctive_objects",
+    "rank_declaration_matches",
     "request_matches_declaration",
     "verb_class_of",
 ]
@@ -427,3 +428,39 @@ def request_matches_declaration(
         if _asks_rather_than_mentions(present, verb_positions):
             return True
     return False
+
+def rank_declaration_matches(
+    message: object,
+    catalogue: Mapping[str, tuple[frozenset[str], frozenset[str]]],
+    selective: Mapping[str, frozenset[str]],
+) -> list[tuple[str, float]]:
+    """Matching skills, most specific first.
+
+    Several skills can honestly match one request — "run some python" reaches
+    the REPL, the sandbox and anything else declaring code. Picking the first
+    by dictionary order would make the choice depend on registration order, so
+    rank by how much of the request each skill actually accounts for.
+    """
+    body = str(message or "").strip().lower()
+    if not body:
+        return []
+    present = {_fold(word) for word in _words(body)}
+    scored: list[tuple[str, float]] = []
+    for name, (verbs, _declared) in catalogue.items():
+        objects = selective.get(name, frozenset())
+        if not request_matches_declaration(body, verbs=verbs, objects=objects):
+            continue
+        covered = len({_fold(word) for word in objects} & present)
+        # A skill that declared the very act being asked for accounts for more
+        # of the request than one that merely shares a noun with it.
+        acts = {member for verb in verbs for member in (verb_class_of(verb) or {verb})}
+        said = set(_words(body))
+        # Naming the instrument names the act: a request that says
+        # "interpreter" has said as much about a REPL as one saying "run".
+        spoken = len(acts & said) + sum(
+            1 for word in said if not verb_class_of(word) and (_act_named_by(word) & acts)
+        )
+        named = 1.5 if all(part in present for part in _words(name)) else 0.0
+        scored.append((name, float(covered) + named + (0.75 * spoken)))
+    scored.sort(key=lambda row: (-row[1], row[0]))
+    return scored
