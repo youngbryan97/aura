@@ -58,6 +58,19 @@ DESKTOP_TASK_ALLOWED_ACTIONS: tuple[str, ...] = (
     # The Notes-shaped name, kept because plans and receipts already use it.
     # It resolves through write_in_app.
     "create_note",
+    # A goal that has to be watched rather than performed.
+    #
+    # Every other action here happens once. That made any request with a
+    # condition on it structurally unplannable: "keep going until", "wait for
+    # it to finish and then", "step through the wizard", "play until". A
+    # planner holding only one-shot verbs has to reduce such a request to its
+    # first action, and then the turn reports success. Measured live,
+    # 2026-08-19: "play 2048 until you get a 128" was planned as open_app and
+    # answered "Done — opened Google Chrome" in under two seconds.
+    #
+    # This action takes a goal and the text that means it is finished, then
+    # looks, decides, acts and looks again until one or the other runs out.
+    "pursue_on_screen",
 )
 
 DESKTOP_TASK_RETRY_SAFE_ACTIONS: frozenset[str] = frozenset(
@@ -74,6 +87,9 @@ DESKTOP_TASK_RETRY_SAFE_ACTIONS: frozenset[str] = frozenset(
         # rather than half of one, which is the safe direction for a retry.
         "write_in_app",
         "create_note",
+        # Re-running a pursuit re-reads the screen and decides again from what
+        # is there now, which is what a retry should do.
+        "pursue_on_screen",
     }
 )
 

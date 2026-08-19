@@ -3953,6 +3953,26 @@ class DesktopTaskSkill(BaseSkill):
                 bool(typed) and verified,
                 evidence,
             )
+        if action == "pursue_on_screen":
+            # A pursuit proves itself by what it did and how it ended.
+            #
+            # Not by "ok": a run that ends blocked by a dialog, or on a page
+            # it was moved away from, reports honestly and must not be read as
+            # the goal being reached.
+            outcome = str(result.get("outcome") or "").strip()
+            moves = result.get("moves")
+            made = len(moves) if isinstance(moves, list) else 0
+            if not bool(result.get("ok")):
+                reason = (
+                    str(result.get("cannot_decide") or "")
+                    or str(result.get("needs_person") or "")
+                    or str(result.get("blocked_by") or "")
+                    or outcome
+                    or "the goal was not reached"
+                )
+                return False, f"pursuit_unfinished;moves={made};{reason}"[:240]
+            return True, f"pursuit_reached_goal;moves={made};outcome={outcome or 'goal_reached'}"
+
         if action in {"inspect_screen", "read_screen_text"}:
             text = str(result.get("text") or "").strip()
             active_app = str(result.get("active_app") or "").strip()

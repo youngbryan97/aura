@@ -107,7 +107,7 @@ class ComputerUseParams(BaseModel):
             "dismiss_popup|inspect_browser_page|"
             "run_command|set_clipboard|get_clipboard|wait|run_applescript|write_text_file|"
             "render_text_pdf|move_file|create_folder|list_directory|fetch_topic_image|system_control|"
-            "move_aura_bubble"
+            "move_aura_bubble|pursue_on_screen"
         ),
     )
     target: str = Field(
@@ -1883,6 +1883,83 @@ end tell
             "Path is outside Aura's allowed desktop/document artifact roots: "
             f"{detail}. Allowed roots: {roots}."
         )
+
+    async def _pursue_on_screen(self, target: Any) -> dict[str, Any]:
+        """Watch and act until a goal is reached, or a bound runs out.
+
+        Every other desktop action performs once. This one keeps a goal until
+        the screen says it is finished, which is what any request carrying a
+        condition actually needs. The judgement inside it is hers: the loop
+        reasons about the moves really available, predicts what the chosen one
+        should change, and grades that against the next reading.
+        """
+        from core.skills.screen_pursuit import DEFAULT_MOVES, pursue_on_screen
+
+        payload = self._target_json(target)
+        goal = str(payload.get("goal") or "").strip()
+        success_when = str(payload.get("success_when") or payload.get("until") or "").strip()
+        if not goal:
+            return {"ok": False, "action": "pursue_on_screen", "error": "no goal was given to pursue"}
+        if not success_when:
+            return {
+                "ok": False,
+                "action": "pursue_on_screen",
+                "error": "no finishing condition was given, so the run could never end",
+            }
+
+        keys = payload.get("move_keys") or payload.get("moves") or list(DEFAULT_MOVES)
+        result = await pursue_on_screen(
+            goal=goal,
+            success_when=success_when,
+            move_keys=tuple(str(key) for key in keys),
+            max_cycles=int(payload.get("max_cycles") or 200),
+            max_seconds=float(payload.get("max_seconds") or 600.0),
+            narrate=bool(payload.get("narrate", True)),
+            region_top=float(payload.get("region_top") or 0.0),
+            region_bottom=float(payload.get("region_bottom") or 1.0),
+            target_app=str(payload.get("target_app") or ""),
+            expect_page=str(payload.get("expect_page") or ""),
+            unblock_with=str(payload.get("unblock_with") or ""),
+            stakes=float(payload.get("stakes") or 0.5),
+        )
+        outcome = str(result.get("outcome") or "")
+        moves = result.get("moves") or []
+        # Name the reason at the point it is known.
+        #
+        # The step verifier reports a failed action's own "error", falling
+        # back to "child action reported failure" — a sentence that tells the
+        # person nothing. A pursuit always knows better than that: it was
+        # blocked by something named, it lost the page, it ran out of moves,
+        # or it could not decide.
+        reason = ""
+        if not result.get("completed"):
+            reason = (
+                str(result.get("cannot_decide") or "")
+                or str(result.get("needs_person") or "")
+                or str(result.get("blocked_by") or "")
+                or {
+                    "out_of_cycles": "ran out of moves before reaching the goal",
+                    "out_of_time": "ran out of time before reaching the goal",
+                    "navigated_away": "the page it was working on was replaced",
+                    "no_move_available": "nothing on screen offered a move",
+                    "stalled": "the screen stopped changing",
+                }.get(outcome, outcome or "the goal was not reached")
+            )
+            reason = f"{reason} (after {len(moves)} move(s))"
+        return {
+            "ok": bool(result.get("completed")),
+            "error": reason,
+            "action": "pursue_on_screen",
+            "goal": goal,
+            "outcome": outcome,
+            "cycles": result.get("cycles"),
+            "moves": result.get("moves") or [],
+            "attempts": result.get("attempts") or [],
+            "blocked_by": result.get("blocked_by", ""),
+            "needs_person": result.get("needs_person", ""),
+            "cannot_decide": result.get("cannot_decide", ""),
+            "verification": f"pursuit ended {outcome or 'without a named outcome'}",
+        }
 
     @staticmethod
     def _target_json(target: str) -> dict[str, Any]:
@@ -3904,6 +3981,23 @@ end tell
 
             elif action == "get_clipboard":
                 return await asyncio.to_thread(self._get_clipboard)
+
+            elif action == "pursue_on_screen":
+                # A goal that is watched rather than performed once.
+                #
+                # The target is a JSON object naming the goal and the text
+                # that means it is done, plus anything the run needs to stay
+                # on the right window and page. Deciding each move is the
+                # pursuit's own business — it reasons, predicts what the move
+                # should change, and checks that against the next reading.
+                blocked = await self._require_permissions(
+                    "watching the screen and acting until a goal is reached",
+                    "ACCESSIBILITY",
+                    "SCREEN_RECORDING",
+                )
+                if blocked:
+                    return blocked
+                return await self._pursue_on_screen(params.target)
 
             elif action == "wait":
                 delay_s = max(0.0, min(10.0, float(params.target or 1.0)))
