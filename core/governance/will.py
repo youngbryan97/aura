@@ -1993,7 +1993,38 @@ class UnifiedWill:
                 or context.get("capability_token")
             )
             authority_validation_reason = ""
-            if domain == ActionDomain.TOOL_EXECUTION:
+            # Standing authority answers for EVERY default-deny domain, not
+            # just tool_execution.
+            #
+            # `validate_standing_authority_context` takes a tool, an origin, an
+            # effect scope and a risk level, and no domain — it is
+            # domain-agnostic by construction, because the grants themselves
+            # are written in those terms. Consulting it for one domain out of
+            # five left the other four falling through to a raw
+            # `context.get("scoped_authority")` that no legitimate issuer ever
+            # populates, and that key is on the forgeable list precisely so
+            # nothing may set it from a payload. The result was a permission
+            # that could be held and never used.
+            #
+            # MEASURED live 2026-08-18: an authenticated owner foreground
+            # request — which holds `owner.foreground-request`, allowed_tools
+            # ("*"), allowed_effect_scopes ("*"), max_risk critical — asked to
+            # work through a web page and got "WILL REFUSED:
+            # desktop_ui/network_call -- denied_by_default: network_call
+            # requires validated scoped authority".
+            #
+            # This widens nothing that was not already granted. Autonomous
+            # origins keep their narrow grants: bounded tool lists, read_only
+            # effect scopes, low max_risk, capped action counts. What changes
+            # is that the grant a request actually holds is now consulted
+            # whatever domain the action falls in.
+            if domain in {
+                ActionDomain.TOOL_EXECUTION,
+                ActionDomain.NETWORK_CALL,
+                ActionDomain.FILE_WRITE,
+                ActionDomain.CLOUD_CALL,
+                ActionDomain.CI_CD,
+            }:
                 try:
                     from core.executive.standing_authority import (
                         validate_standing_authority_context,
@@ -2036,11 +2067,7 @@ class UnifiedWill:
                     reasons.append("denied_by_default: external_action requires explicit authorization in context")
                     return WillOutcome.REFUSE, "; ".join(reasons), constraints
             elif not has_scoped_authority:
-                detail = (
-                    f" ({authority_validation_reason})"
-                    if domain == ActionDomain.TOOL_EXECUTION and authority_validation_reason
-                    else ""
-                )
+                detail = f" ({authority_validation_reason})" if authority_validation_reason else ""
                 reasons.append(
                     f"denied_by_default: {domain.value} requires validated scoped authority{detail}"
                 )
