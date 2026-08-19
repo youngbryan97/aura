@@ -940,10 +940,46 @@ _SURFACE_QUALITY_REJECTIONS = frozenset(
 )
 
 
+#: Readiness blockers that mean "becoming ready", not "broken".
+#:
+#: A lane reports why it is not ready as a comma-joined list of these. Every
+#: one of them clears on its own: a warmup finishes, a generation completes,
+#: an init completes. None of them says the endpoint is unreliable.
+_STILL_COMING_UP = frozenset(
+    {
+        "warmup_in_flight",
+        "warmup_foreground_owner",
+        "active_generation_in_flight",
+        "init_not_complete",
+        "lane_warming",
+        "lane_recovering",
+    }
+)
+
+
+def _only_still_coming_up(error: str) -> bool:
+    """True when every reason given is the lane still becoming ready.
+
+    LIVE 2026-08-19, mid-game: "Circuit OPEN for Cortex after 5 failures.
+    Reason: warmup_in_flight,warmup_foreground_owner", then a cascade cleanup
+    force-killed the worker that was warming, then a respawn, then the same
+    again. A pursuit asking during a reload counted five times against a
+    worker whose only fault was not being finished yet.
+
+    One genuine fault in the list — a dead worker, a shutdown — and this says
+    nothing, because a real problem alongside a warmup is still a real
+    problem.
+    """
+    parts = [part.strip() for part in str(error or "").lower().split(",") if part.strip()]
+    return bool(parts) and all(part in _STILL_COMING_UP for part in parts)
+
+
 def _is_transient_local_runtime_failure(error: str) -> bool:
     normalized = str(error or "").strip().lower()
     if not normalized:
         return False
+    if _only_still_coming_up(normalized):
+        return True
     return normalized in {
         "client_returned_no_text",
         "heartbeat_stalled_during_generation",

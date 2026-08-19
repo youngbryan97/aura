@@ -110,3 +110,26 @@ def test_both_ends_of_the_system_agree_about_backpressure():
     for condition in ("candidate_worker_not_ready", "background_deferred:memory_pressure"):
         assert _background_error_is_quiet(condition)
         assert _deferred_generation_reason(SimpleNamespace(error=condition))
+
+
+def test_a_lane_still_warming_is_not_an_unreliable_endpoint():
+    """LIVE mid-game: "Circuit OPEN for Cortex after 5 failures. Reason:
+    warmup_in_flight,warmup_foreground_owner", then a cascade cleanup
+    force-killed the worker that was warming, then a respawn, then again.
+
+    A pursuit asking during a reload counted five times against a worker
+    whose only fault was not being finished yet.
+    """
+    from core.brain.llm_health_router import _is_transient_local_runtime_failure
+
+    assert _is_transient_local_runtime_failure("warmup_in_flight,warmup_foreground_owner")
+    assert _is_transient_local_runtime_failure("warmup_in_flight")
+    assert _is_transient_local_runtime_failure("active_generation_in_flight")
+
+
+def test_a_real_fault_beside_a_warmup_is_still_a_real_fault():
+    from core.brain.llm_health_router import _is_transient_local_runtime_failure
+
+    assert not _is_transient_local_runtime_failure("warmup_in_flight,worker_not_alive")
+    assert not _is_transient_local_runtime_failure("worker_not_alive")
+    assert not _is_transient_local_runtime_failure("")
