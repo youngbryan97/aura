@@ -146,3 +146,92 @@ def test_a_label_directly_above_counts_too():
         {"text": "99", "x": 0.50, "width": 0.04, "center_y": 0.46, "height": 0.02},
     ]
     assert labelled_by(stacked[1], stacked) == "Total"
+
+
+@pytest.mark.asyncio
+async def test_a_goal_met_by_an_old_game_is_a_choice_to_begin_again(monkeypatch):
+    """Someone else's finished board satisfies "play until a 128 tile" without
+    her having played. Stopping there hands back a result she did not produce.
+    """
+    state = {"clicked": [], "pressed": []}
+    board = dict(BOARD_WITH_TILE)
+    board["layout"] = BOARD_WITH_TILE["layout"] + [
+        {"text": "New Game", "x": 0.70, "width": 0.10, "center_x": 0.75, "center_y": 0.18, "height": 0.02}
+    ]
+
+    async def read(app_name=""):
+        return board
+
+    async def click(x, y, *, expect_app="", bounds=None):
+        state["clicked"].append((x, y))
+        return True
+
+    async def press(key, *, expect_app=""):
+        state["pressed"].append(key)
+        return True
+
+    async def frontmost(_app):
+        return True
+
+    async def identity():
+        return {"url": "https://play2048.co/", "title": "2048", "error": ""}
+
+    async def think(objective, evidence):
+        return "start over"
+
+    monkeypatch.setattr(sp, "read_screen", read)
+    monkeypatch.setattr(sp, "click_normalized", click)
+    monkeypatch.setattr(sp, "press", press)
+    monkeypatch.setattr(sp, "_ensure_frontmost", frontmost)
+    monkeypatch.setattr(sp, "current_page_identity", identity)
+
+    result = await sp.pursue_on_screen(
+        goal="play until a 128 tile",
+        success_when="128",
+        region_top=0.12,
+        think=think,
+        max_cycles=1,
+        max_seconds=5.0,
+        narrate=False,
+        lived=False,
+    )
+    assert state["clicked"], "she accepted a board she had not played"
+    assert result["restarts"] >= 1
+    assert result.get("outcome") != "already_true"
+
+
+@pytest.mark.asyncio
+async def test_accepting_a_pre_met_goal_is_still_reported_honestly(monkeypatch):
+    board = dict(BOARD_WITH_TILE)
+    board["layout"] = BOARD_WITH_TILE["layout"] + [
+        {"text": "New Game", "x": 0.70, "width": 0.10, "center_x": 0.75, "center_y": 0.18, "height": 0.02}
+    ]
+
+    async def read(app_name=""):
+        return board
+
+    async def frontmost(_app):
+        return True
+
+    async def identity():
+        return {"url": "https://play2048.co/", "title": "2048", "error": ""}
+
+    async def think(objective, evidence):
+        return "see it through"
+
+    monkeypatch.setattr(sp, "read_screen", read)
+    monkeypatch.setattr(sp, "_ensure_frontmost", frontmost)
+    monkeypatch.setattr(sp, "current_page_identity", identity)
+
+    result = await sp.pursue_on_screen(
+        goal="play until a 128 tile",
+        success_when="128",
+        region_top=0.12,
+        think=think,
+        max_cycles=1,
+        max_seconds=5.0,
+        narrate=False,
+        lived=False,
+    )
+    assert result["outcome"] == "already_true"
+    assert result["completed"] is False

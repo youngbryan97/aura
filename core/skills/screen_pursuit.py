@@ -763,7 +763,7 @@ async def pursue_on_screen(
         # being waited for. Measured live: asked to play until a 128 tile,
         # she opened the game, matched the number in the score, and reported
         # the goal reached in 1.2 seconds without a move.
-        if reached and not moves:
+        if reached and not moves and not restarts["count"]:
             already["value"] = True
         return reached
 
@@ -1104,6 +1104,45 @@ async def pursue_on_screen(
             # happened to be frontmost — reporting that nothing on screen
             # offered a move, half a second in, having never seen the board.
             target_app = reached.app
+
+    # A goal already met by what was left behind is a decision, not a finish.
+    #
+    # Someone else's finished board satisfies "play until a 128 tile" without
+    # her having played, and stopping there hands back a result she did not
+    # produce. Whether to accept it or begin again is hers, made the same way
+    # every other choice is, and it is only offered when there is really a
+    # way to begin again.
+    if not moves:
+        first = await observe()
+        if first.get("ok") and satisfied(first):
+            already["value"] = False
+            fresh = restart_control(first)
+            if fresh is not None:
+                from core.agency.deliberate_action import deliberate as _decide
+
+                settle = await _decide(
+                    goal,
+                    f"the finishing condition ({success_when}) is already true, "
+                    "and nothing here was done by me",
+                    ways_out(first),
+                    think=think or _her_reasoning(stakes),
+                    control_point="screen_pursuit.pre_met",
+                    lived=lived,
+                    spine=spine,
+                    graph=graph,
+                )
+                if settle.reached and settle.chosen is not None and settle.chosen.name == START_OVER:
+                    label, rx, ry = fresh
+                    frame = list(first.get("bounds") or [])
+                    if await click_normalized(rx, ry, expect_app=target_app, bounds=frame):
+                        restarts["count"] += 1
+                        restarts["because"] = settle.rationale or "the goal was already met by an old game"
+                    else:
+                        already["value"] = True
+                else:
+                    already["value"] = True
+            else:
+                already["value"] = True
 
     # Narration runs beside the pursuit, never inside it.
     #
