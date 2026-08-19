@@ -97,3 +97,52 @@ async def test_a_goal_already_met_before_she_moved_is_said_not_claimed(monkeypat
     assert result["outcome"] == "already_true"
     assert result["completed"] is False
     assert result["already_true_at_the_start"] == "128"
+
+
+SCORED = [
+    {"text": "SCORE", "x": 0.40, "width": 0.06, "center_y": 0.15, "height": 0.02},
+    {"text": "128", "x": 0.48, "width": 0.04, "center_y": 0.15, "height": 0.02},
+    {"text": "BEST", "x": 0.60, "width": 0.05, "center_y": 0.15, "height": 0.02},
+    {"text": "6068", "x": 0.66, "width": 0.05, "center_y": 0.15, "height": 0.02},
+    {"text": "2", "x": 0.30, "width": 0.03, "center_y": 0.50, "height": 0.05},
+]
+TILED = SCORED + [{"text": "128", "x": 0.55, "width": 0.05, "center_y": 0.55, "height": 0.05}]
+
+
+def test_a_number_beside_a_word_is_that_words_number():
+    """"SCORE" and "128" are separate regions, so wholeness cannot tell them
+    apart — but a tile has nothing next to it saying what it counts."""
+    from core.skills.screen_pursuit import labelled_by
+
+    assert labelled_by(SCORED[1], SCORED) == "SCORE"
+    assert labelled_by(SCORED[3], SCORED) == "BEST"
+    assert labelled_by(TILED[-1], TILED) == ""
+
+
+def test_a_labelled_total_does_not_satisfy_a_goal_about_a_thing():
+    assert not goal_reached({"ok": True, "text": "x", "layout": SCORED}, "128", region_top=0.12, region_bottom=1.0)
+
+
+def test_the_thing_itself_does():
+    assert goal_reached({"ok": True, "text": "x", "layout": TILED}, "128", region_top=0.12, region_bottom=1.0)
+
+
+def test_a_label_far_away_is_not_a_label():
+    """A label sits against the value it names."""
+    from core.skills.screen_pursuit import labelled_by
+
+    distant = [
+        {"text": "SCORE", "x": 0.05, "width": 0.06, "center_y": 0.15, "height": 0.02},
+        {"text": "128", "x": 0.80, "width": 0.04, "center_y": 0.15, "height": 0.02},
+    ]
+    assert labelled_by(distant[1], distant) == ""
+
+
+def test_a_label_directly_above_counts_too():
+    from core.skills.screen_pursuit import labelled_by
+
+    stacked = [
+        {"text": "Total", "x": 0.50, "width": 0.06, "center_y": 0.40, "height": 0.02},
+        {"text": "99", "x": 0.50, "width": 0.04, "center_y": 0.46, "height": 0.02},
+    ]
+    assert labelled_by(stacked[1], stacked) == "Total"

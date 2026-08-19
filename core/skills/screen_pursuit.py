@@ -216,6 +216,51 @@ def _matches(pattern: str, text: str, *, whole_region: bool = False) -> bool:
         return pattern.lower() in body.lower()
 
 
+
+#: How far from a number a word can be and still be its label, as a share of
+#: the screen. A label sits against the value it names; anything further away
+#: is a different thing on the page.
+LABEL_REACH = 0.16
+
+
+def labelled_by(region: dict[str, Any], layout: Sequence[dict[str, Any]]) -> str:
+    """The word this number is the value of, if it is a value of anything.
+
+    A bare number beside a word is that word's number. "SCORE" and "128" are
+    separate text regions, so wholeness cannot tell a score from a tile — but
+    a tile has nothing sitting next to it saying what it counts, and a score
+    does.
+
+    LIVE 2026-08-19: asked to play until a 128 tile, she matched the 128 in
+    the header and reported the goal met without a move. General to any
+    screen: "Total 99", "Items: 42", "BEST 6068".
+    """
+    try:
+        x = float(region.get("x", region.get("center_x", 0.0)))
+        y = float(region.get("center_y", region.get("y", 0.0)))
+    except (TypeError, ValueError):
+        return ""
+    height = float(region.get("height", 0.03) or 0.03)
+    for other in layout or []:
+        if other is region:
+            continue
+        word = str(other.get("text") or "").strip()
+        if not word or not re.search(r"[A-Za-z]", word) or len(word) > 24:
+            continue
+        try:
+            ox = float(other.get("x", other.get("center_x", 0.0)))
+            ow = float(other.get("width", 0.0) or 0.0)
+            oy = float(other.get("center_y", other.get("y", 0.0)))
+        except (TypeError, ValueError):
+            continue
+        same_line = abs(oy - y) <= max(height, 0.02)
+        to_the_left = 0.0 <= x - (ox + ow) <= LABEL_REACH
+        directly_above = 0.0 < y - oy <= LABEL_REACH and abs(ox - x) <= LABEL_REACH
+        if (same_line and to_the_left) or directly_above:
+            return word
+    return ""
+
+
 def content_text(
     observation: dict[str, Any],
     *,
@@ -287,9 +332,11 @@ def goal_reached(
             return bool(text) and _matches(pattern, text)
         # With no band and no geometry there is nothing to check a bare value
         # against, so every region is examined instead of the flattened text.
+        regions = list(observation.get("layout") or [])
         return any(
             _matches(pattern, str(region.get("text") or ""), whole_region=True)
-            for region in observation.get("layout") or []
+            and not labelled_by(region, regions)
+            for region in regions
         )
 
     layout = observation.get("layout") or []
@@ -309,8 +356,12 @@ def goal_reached(
             continue
         if not (top <= y <= bottom):
             continue
-        if _matches(pattern, str(region.get("text") or ""), whole_region=bare_value):
-            return True
+        if not _matches(pattern, str(region.get("text") or ""), whole_region=bare_value):
+            continue
+        if bare_value and labelled_by(region, layout):
+            # This number is something's total, not the thing itself.
+            continue
+        return True
     return False
 
 
