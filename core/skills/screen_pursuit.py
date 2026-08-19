@@ -99,6 +99,16 @@ class ScreenPursuitInput(BaseModel):
     #: generic is safe to press — "New Game", "Start", "Continue". The loop
     #: never infers this; the caller declares it.
     unblock_with: str = Field(default="", max_length=80)
+    #: The moves this task is about, when they are not the arrow keys.
+    #:
+    #: A vocabulary is part of a task, not part of a screen. Stepping through
+    #: a wizard is tab and return; a board is the arrows; a video is space.
+    #: Offering every pressable key everywhere would put escape and return in
+    #: front of a decision that has no business reaching for them.
+    move_keys: list[str] = Field(default_factory=lambda: list(DEFAULT_MOVES), max_length=12)
+    #: How much rides on this run, 0..1. Above 0.7 the decision is sharpened
+    #: by deep deliberation rather than a single amplified pass.
+    stakes: float = Field(default=0.5, ge=0.0, le=1.0)
     #: A URL or title fragment identifying the page this run is about.
     #:
     #: Checked every cycle and restored by tab when it drifts. Without it a
@@ -406,6 +416,8 @@ class ScreenPursuitSkill(BaseSkill):
             target_app=params.target_app,
             expect_page=params.expect_page,
             unblock_with=params.unblock_with,
+            move_keys=tuple(params.move_keys or DEFAULT_MOVES),
+            stakes=params.stakes,
         )
 
 
