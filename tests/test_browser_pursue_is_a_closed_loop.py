@@ -670,11 +670,17 @@ class TestOptionsAreGroupedByQuestion:
     def test_each_option_says_which_question_it_answers(self):
         rendered = SovereignBrowserSkill._render_observation(self.OBSERVATION)
         assert "question q1" in rendered
-        assert "question q2" in rendered
 
-    def test_an_answered_question_is_visible_as_answered(self):
+    def test_an_answered_question_is_not_offered_at_all(self):
+        """q2 is answered, so it is not among the things left to do.
+
+        Annotating it and offering it anyway was still offering it, and the
+        annotated options were chosen: measured live, two questions were each
+        answered four times while later ones on the same screen were never
+        reached.
+        """
         rendered = SovereignBrowserSkill._render_observation(self.OBSERVATION)
-        assert "already answered" in rendered
+        assert "question q2" not in rendered
 
     def test_ungrouped_controls_say_nothing_about_groups(self):
         rendered = SovereignBrowserSkill._render_observation(
@@ -765,18 +771,29 @@ class TestAnAnsweredQuestionLooksAnswered:
         ],
     }
 
-    def test_every_option_of_a_done_question_says_so(self):
+    def test_every_option_of_a_done_question_is_gone(self):
+        """Not just the selected one: all seven options stop being choices."""
         rendered = SovereignBrowserSkill._render_observation(self.OBSERVATION)
-        line = [row for row in rendered.splitlines() if "I disagree" in row][0]
-        assert "already answered" in line
+        offered = rendered.split("AVAILABLE CONTROLS:")[1]
+        assert "question q1" not in offered
+        assert "I disagree" not in offered
 
-    def test_an_unanswered_question_is_not_marked(self):
+    def test_what_is_left_to_do_is_still_offered(self):
         rendered = SovereignBrowserSkill._render_observation(self.OBSERVATION)
         line = [row for row in rendered.splitlines() if "question q2" in row][0]
-        assert "already answered" not in line
+        assert "I agree" in line
 
-    def test_ungrouped_controls_are_unaffected(self):
+    def test_the_control_that_advances_always_survives(self):
+        """Filtering answers must never filter the way forward."""
         rendered = SovereignBrowserSkill._render_observation(
-            {"text": "", "elements": [{"role": "button", "name": "Next", "selector": "#n"}]}
+            {
+                "text": "",
+                "elements": [
+                    {"role": "radio", "name": "I agree", "selector": "#a",
+                     "group": "q1", "checked": True},
+                    {"role": "button", "name": "Next", "selector": "#n"},
+                ],
+            }
         )
-        assert "already answered" not in rendered
+        assert "Next" in rendered
+        assert "I agree" not in rendered

@@ -969,8 +969,37 @@ class SovereignBrowserSkill(BaseSkill):
         because site furniture is emitted first in document order. Ranking by
         what a control DOES keeps the form and drops the chrome.
         """
+        # A question that is answered offers nothing.
+        #
+        # Labelling the six unselected options of a finished question as
+        # "already answered" and then offering them anyway is still offering
+        # them, and they were chosen: measured live, question 8 and question 10
+        # were each answered four separate times while questions further down
+        # the same screen were never reached at all. Worse, they are not free —
+        # one screen of six questions renders 42 radios against a budget of 40,
+        # so the answered ones were crowding the unanswered ones out of the
+        # list entirely.
+        #
+        # Their answers stay visible in the page text, which is where reading
+        # what she has said belongs. What is offered here is what is left to do.
+        answered = {
+            str(element.get("group"))
+            for element in elements
+            if isinstance(element, Mapping)
+            and element.get("group")
+            and element.get("checked") is True
+        }
+        live = [
+            element
+            for element in elements
+            if not (
+                isinstance(element, Mapping)
+                and element.get("group")
+                and str(element.get("group")) in answered
+            )
+        ]
         ranked = sorted(
-            enumerate(elements),
+            enumerate(live),
             key=lambda pair: (
                 cls._ACTIONABLE_ROLES.index(str(pair[1].get("role") or "").lower())
                 if str(pair[1].get("role") or "").lower() in cls._ACTIONABLE_ROLES
@@ -995,21 +1024,11 @@ class SovereignBrowserSkill(BaseSkill):
             "",
             "AVAILABLE CONTROLS:",
         ]
-        # Which questions are already answered, so the ones that are not stand
-        # out. Marking only the SELECTED option as answered left the other six
-        # options of a finished question looking like six open choices, so
-        # rounds were spent re-answering what was already done — visible as
-        # `moved: false` and, eventually, as a stall with the form half filled.
-        answered_groups = {
-            str(element.get("group"))
-            for element in elements
-            if element.get("group") and element.get("checked") is True
-        }
+        # Answered questions are gone from this list rather than annotated in
+        # it — see `_controls_worth_offering`. What remains is what is left to
+        # do, so a screen half-finished reads as a shorter screen.
         for index, element in enumerate(elements):
             state = []
-            group = str(element.get("group") or "")
-            if group and group in answered_groups and element.get("checked") is not True:
-                state.append("this question is already answered")
             if element.get("group"):
                 # Options in one group answer ONE question. Rendering it is
                 # what lets a whole screen be answered in a single round
