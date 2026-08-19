@@ -36,11 +36,33 @@ from typing import Any
 
 __all__ = [
     "COMPUTABLE_FORMS",
+    "ComputedNumber",
+    "computable_result",
     "is_prime_answer",
     "ComputableForm",
     "computable_answer",
     "form_failures",
 ]
+
+
+@dataclass(frozen=True)
+class ComputedNumber:
+    """An exact number together with the code object that produced it."""
+
+    value: int | float
+    form: str
+    module: str
+    function: str
+
+    @property
+    def source(self) -> str:
+        return f"{self.module}.{self.function}"
+
+    def provenance(self) -> str:
+        return (
+            f"computed by {self.source} (form {self.form!r}), "
+            "run as Python, not generated"
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -381,6 +403,26 @@ def _choose_from(match: re.Match[str]) -> int | None:
 _N = r"(?P<n>[0-9][0-9,]*)"
 _PRIMALITY_RE = re.compile(r"\bis\s+(?P<n>[0-9][0-9,]*)\s+(?:a\s+)?prime\b", re.IGNORECASE)
 
+def _rectangle_area(match: re.Match[str]) -> int | float | None:
+    """Length times width, wherever the sentence puts the two numbers.
+
+    The dimensions of a rectangle are written in whatever order the sentence
+    wants — "the rectangle is 3 by 4, what is its area", "the area of a 3 by 4
+    rectangle", "a 3 by 4 rectangle, area?". A single pattern that fixed the
+    order answered the first and refused the rest.
+    """
+    left = match.group("a") or match.group("a2")
+    right = match.group("b") or match.group("b2")
+    if not left or not right:
+        return None
+    try:
+        if "." in left or "." in right:
+            return float(left) * float(right)
+        return int(left) * int(right)
+    except (ArithmeticError, ValueError):
+        return None
+
+
 COMPUTABLE_FORMS: tuple[ComputableForm, ...] = (
     ComputableForm(
         "factorial_digits",
@@ -520,6 +562,55 @@ COMPUTABLE_FORMS = COMPUTABLE_FORMS + (
         ),
     ),
 )
+
+
+COMPUTABLE_FORMS = COMPUTABLE_FORMS + (
+    ComputableForm(
+        "rectangle_area",
+        re.compile(
+            r"\brectangl\w*\b(?s:.){0,60}?"
+            r"(?P<a>[0-9]+(?:\.[0-9]+)?)\s*(?:by|x|\u00d7|\*)\s*"
+            r"(?P<b>[0-9]+(?:\.[0-9]+)?)"
+            r"|(?P<a2>[0-9]+(?:\.[0-9]+)?)\s*(?:by|x|\u00d7|\*)\s*"
+            r"(?P<b2>[0-9]+(?:\.[0-9]+)?)(?s:.){0,30}?\brectangl\w*\b",
+            re.IGNORECASE,
+        ),
+        _rectangle_area,
+        examples=(
+            ("the rectangle is 3 by 4, what is its area?", 12),
+            ("what is the area of a 3 by 4 rectangle", 12),
+            ("area of a rectangle 2.5 by 4", 10.0),
+        ),
+        counter_examples=(
+            "what is the area of a circle with radius 3",
+            "how many rectangles are on the screen",
+        ),
+    ),
+)
+
+
+def computable_result(question: str) -> "ComputedNumber | None":
+    """The exact answer and the code object that produced it.
+
+    Same reason as the text side: an answer with no account of its own
+    mechanism gets one invented for it when the person asks how it was done.
+    """
+    text = str(question or "")
+    if not text.strip():
+        return None
+    for form in COMPUTABLE_FORMS:
+        match = form.pattern.search(text)
+        if match is None:
+            continue
+        answer = form.compute(match)
+        if answer is not None:
+            return ComputedNumber(
+                value=answer,
+                form=form.name,
+                module=getattr(form.compute, "__module__", __name__),
+                function=getattr(form.compute, "__qualname__", form.name),
+            )
+    return None
 
 
 def computable_answer(question: str) -> int | float | None:

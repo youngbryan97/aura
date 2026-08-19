@@ -39,7 +39,7 @@ import math
 import re
 from decimal import Decimal, InvalidOperation
 
-from core.conversation.computable_math import computable_answer
+from core.conversation.computable_math import computable_result
 from typing import Any
 
 ArithmeticResult = int | float
@@ -48,6 +48,7 @@ __all__ = [
     "ARITHMETIC_NUMBER_RE",
     "ArithmeticResult",
     "arithmetic_answer_matches",
+    "requested_arithmetic_provenance",
     "requested_arithmetic_result",
 ]
 
@@ -253,30 +254,34 @@ _POWER_RE = re.compile(
     r"what(?:'s| is)\s+([0-9]+)\s+to\s+the\s+([0-9]+)(?:st|nd|rd|th)?\s+power",
     re.IGNORECASE,
 )
-_RECTANGLE_AREA_RE = re.compile(
-    r"rectangle\s+is\s+([0-9]+(?:\.[0-9]+)?)\s*(?:by|x|\*)\s*([0-9]+(?:\.[0-9]+)?)"
-    r"(?s:.){0,60}?\barea\b",
-    re.IGNORECASE,
-)
+#: Rectangle area moved to computable_math as a self-checking form, where it
+#: also answers "the area of a 3 by 4 rectangle" — the phrasing this pattern
+#: refused, because it required the dimensions before the word "area".
 
 
-def requested_arithmetic_result(user_message: Any) -> ArithmeticResult | None:
-    """The single correct answer to a computable arithmetic question, if any."""
-    text = str(user_message or "")
+def _resolve(text: str) -> tuple[ArithmeticResult, str] | None:
+    """The answer and the name of the branch that produced it.
+
+    One traversal serves both public entry points, so the account of the
+    method cannot drift from the method.
+    """
 
     # Named functions — factorials, primality, Fibonacci, roots, remainders,
     # gcd, binomials — are asked first because they are the narrower claim:
     # "how many digits are in 100 factorial" carries no operator for the
     # expression parser below, so it used to reach the model, which has no way
     # to know that the answer is 158.
-    named = computable_answer(text)
+    named = computable_result(text)
     if named is not None:
-        return named
+        return named.value, named.source
 
     match = _PERCENT_OF_RE.search(text)
     if match:
         try:
-            return float(match.group(1)) / 100.0 * float(match.group(2))
+            return (
+                float(match.group(1)) / 100.0 * float(match.group(2)),
+                f"{__name__}._PERCENT_OF_RE",
+            )
         except (ArithmeticError, ValueError):
             return None
 
@@ -293,17 +298,7 @@ def requested_arithmetic_result(user_message: Any) -> ArithmeticResult | None:
             value = base**exponent
         except ArithmeticError:
             return None
-        return value
-
-    match = _RECTANGLE_AREA_RE.search(text)
-    if match:
-        try:
-            left, right = match.group(1), match.group(2)
-            if "." not in left and "." not in right:
-                return int(left) * int(right)
-            return float(left) * float(right)
-        except (ArithmeticError, ValueError):
-            return None
+        return value, f"{__name__}._POWER_RE"
 
     match = _ARITHMETIC_QUESTION_RE.search(text)
     if match:
@@ -314,12 +309,34 @@ def requested_arithmetic_result(user_message: Any) -> ArithmeticResult | None:
         if not re.match(r"\s*[-+*/%!0-9]", _tail):
             result = _evaluate_arithmetic(match.group(1))
             if result is not None:
-                return result
+                return result, f"{__name__}._evaluate_arithmetic"
 
     expression = _arithmetic_expression_in(text)
     if expression is None:
         return None
-    return _evaluate_arithmetic(expression)
+    evaluated = _evaluate_arithmetic(expression)
+    if evaluated is None:
+        return None
+    return evaluated, f"{__name__}._evaluate_arithmetic"
+
+
+def requested_arithmetic_result(user_message: Any) -> ArithmeticResult | None:
+    """The single correct answer to a computable arithmetic question, if any."""
+    resolved = _resolve(str(user_message or ""))
+    return resolved[0] if resolved is not None else None
+
+
+def requested_arithmetic_provenance(user_message: Any) -> str | None:
+    """What actually computed the answer, named so she can say it.
+
+    A correct number with no account of its own mechanism gets an invented
+    one: asked how she reversed a string she reported "a model capability",
+    about a Python slice.
+    """
+    resolved = _resolve(str(user_message or ""))
+    if resolved is None:
+        return None
+    return f"computed by {resolved[1]}, run as Python, not generated"
 
 
 def arithmetic_answer_matches(expected: ArithmeticResult, candidate: Any) -> bool:

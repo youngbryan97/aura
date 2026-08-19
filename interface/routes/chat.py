@@ -2157,6 +2157,20 @@ async def _reanswer_when_the_runtime_contradicts_her(
         )
 
         expected = requested_arithmetic_result(user_message)
+        if expected is not None:
+            # Keep what produced it. Asked afterwards how a number was arrived
+            # at, she otherwise has nothing to consult and describes a model
+            # capability that had no part in it.
+            from core.conversation.arithmetic_check import (
+                requested_arithmetic_provenance,
+            )
+            from core.conversation.computation_receipts import record_computation
+
+            record_computation(
+                user_message,
+                expected,
+                requested_arithmetic_provenance(user_message) or "",
+            )
         if expected is not None and _arithmetic_answer_missing(user_message, text):
             # This used to write "[Your reply does not contain the correct
             # result... Answer again from that value.]" into the turn context

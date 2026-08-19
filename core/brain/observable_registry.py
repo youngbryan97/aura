@@ -36,16 +36,42 @@ def _matches_computed_text(prompt: str) -> bool:
 
 
 async def _read_computed_text(prompt: str) -> str:
-    from core.conversation.computable_text import computed_text_answer
+    from core.conversation.computable_text import computed_text_result
+    from core.conversation.computation_receipts import record_computation
 
-    answer = await asyncio.to_thread(computed_text_answer, prompt)
-    if not answer:
+    result = await asyncio.to_thread(computed_text_result, prompt)
+    if result is None:
         return ""
+    record_computation(prompt, result.value, result.provenance())
+    # Naming the code object is the difference between an exact answer and an
+    # exact answer she can account for. Without it, "how did you do that?"
+    # got "I have a model capability for string manipulation" about a Python
+    # slice.
     return (
-        f"Computed exactly, not spelled out from memory: {answer}\n"
+        f"Computed exactly, not spelled out from memory: {result.value}\n"
+        f"How: {result.provenance()}.\n"
         "Use this. Letter-level work is the one place a language model is "
         "unreliable and a machine is exact."
     )
+
+
+# ── how the last exact answer was actually produced ──────────────────────────
+
+def _matches_how_computed(prompt: str) -> bool:
+    # Whether the QUESTION asks about method, and nothing else. Gating the
+    # matcher on whether a receipt happens to exist made the reading's own
+    # examples fail against it, which is the contract test doing its job: a
+    # matcher that answers "not this kind of question" when it means "no
+    # record yet" cannot be checked against the questions it is for.
+    from core.conversation.computation_receipts import asks_how_it_was_computed
+
+    return asks_how_it_was_computed(prompt)
+
+
+async def _read_how_computed(prompt: str) -> str:
+    from core.conversation.computation_receipts import how_it_was_computed_block
+
+    return await asyncio.to_thread(how_it_was_computed_block, prompt)
 
 
 # ── whether they ever actually settled it ────────────────────────────────────
@@ -951,6 +977,26 @@ def install_default_observables() -> None:
                 "what do you think about jazz?",
                 "what is 2 + 2",
                 "how does a lock work in general?",
+            ),
+        ),
+        Observable(
+            "how_it_was_computed",
+            "## WHAT PRODUCED THE LAST EXACT ANSWER",
+            _matches_how_computed,
+            _read_how_computed,
+            examples=(
+                "how did you do that?",
+                "how did you get that number?",
+                "was that the model or code?",
+                "did you actually compute that or did you just guess?",
+                "where did that number come from?",
+            ),
+            counter_examples=(
+                # About her state or her reasoning, not the mechanism of an
+                # arithmetic answer.
+                "how are you doing",
+                "how long have you been running?",
+                "what did I ask you two messages ago?",
             ),
         ),
         Observable(

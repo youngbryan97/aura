@@ -24,7 +24,9 @@ __all__ = [
     "COMPUTED_TEXT_HEADER",
     "TEXT_FORMS",
     "TextForm",
+    "ComputedAnswer",
     "computed_text_answer",
+    "computed_text_result",
     "text_form_failures",
 ]
 
@@ -190,8 +192,41 @@ TEXT_FORMS: tuple[TextForm, ...] = (
 )
 
 
-def computed_text_answer(question: str) -> str | None:
-    """The exact answer, or None when no form claims the question."""
+@dataclass(frozen=True)
+class ComputedAnswer:
+    """An exact answer together with what produced it.
+
+    Asked to reverse a string she returned "desserts", correctly, and then
+    said she had "a model capability for string manipulation" and had
+    "requested the reverse operation". Nothing of the sort happened: a regex
+    matched and a Python slice ran. The answer travelled and its provenance
+    did not, so the only account of the method available to the reply was an
+    invented one.
+
+    Every field here is read off the code object that ran, so there is no
+    sentence anywhere that can drift from what actually happened.
+    """
+
+    value: str
+    form: str
+    module: str
+    function: str
+
+    @property
+    def source(self) -> str:
+        """`module.function`, the thing a person could go and read."""
+        return f"{self.module}.{self.function}"
+
+    def provenance(self) -> str:
+        """One line naming the mechanism, in words she can say."""
+        return (
+            f"computed by {self.source} (form {self.form!r}), "
+            "run as Python, not generated"
+        )
+
+
+def computed_text_result(question: str) -> ComputedAnswer | None:
+    """The exact answer and the code object that produced it."""
     text = str(question or "")
     if not text.strip():
         return None
@@ -201,8 +236,19 @@ def computed_text_answer(question: str) -> str | None:
             continue
         answer = form.compute(match)
         if answer:
-            return answer
+            return ComputedAnswer(
+                value=str(answer),
+                form=form.name,
+                module=getattr(form.compute, "__module__", __name__),
+                function=getattr(form.compute, "__qualname__", form.name),
+            )
     return None
+
+
+def computed_text_answer(question: str) -> str | None:
+    """The exact answer, or None when no form claims the question."""
+    result = computed_text_result(question)
+    return result.value if result is not None else None
 
 
 def text_form_failures() -> list[str]:
