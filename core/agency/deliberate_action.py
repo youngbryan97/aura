@@ -18,6 +18,7 @@ are really available.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from dataclasses import dataclass, field
@@ -31,6 +32,9 @@ logger = logging.getLogger(__name__)
 RECALL_DEPTH = 5
 #: Confidence assigned when nothing has ever been recorded about an option.
 UNTRIED_CONFIDENCE = 0.5
+#: The shape a decision takes when it reaches the workspace, so anything
+#: reading it there knows what it is looking at without guessing.
+DECISION_SCHEMA = "aura.decision.v1"
 
 ThinkFn = Callable[[str, Sequence[str]], Awaitable[str]]
 
@@ -369,7 +373,85 @@ async def deliberate(
     deliberation.episode_id = _open_episode(
         deliberation, options, stakes=stakes, control_point=control_point, spine=spine, lived=lived
     )
+    _announce(deliberation, control_point)
     return deliberation
+
+
+def _announce(deliberation: Deliberation, control_point: str) -> None:
+    """Offer the decision to the global workspace.
+
+    Offered rather than spoken. Whatever is acting carries straight on; a
+    narrator, if one is running, hears it only if it wins the broadcast —
+    which is the right test, because narrating what she is not attending to
+    would not be self-awareness, it would be a log.
+
+    The workspace is also what makes this general: a decision reaching it is
+    available to every other faculty, not just to whatever wants to talk.
+    """
+    if deliberation.chosen is None:
+        return
+    try:
+        from core.consciousness.global_workspace import ContentType  # noqa: PLC0415
+        from core.container import ServiceContainer  # noqa: PLC0415
+
+        workspace = ServiceContainer.get("global_workspace", default=None)
+        if workspace is None:
+            return
+        payload = {
+            "schema": DECISION_SCHEMA,
+            "decision": {
+                "control_point": control_point,
+                "goal": deliberation.goal,
+                "chose": deliberation.chosen.label(),
+                "because": deliberation.rationale,
+                "expected": deliberation.chosen.expectation.describes,
+                "confidence": round(float(deliberation.confidence), 3),
+                "spoke": deliberation.spoke,
+                "considered": list(deliberation.considered),
+                "episode_id": deliberation.episode_id,
+            },
+        }
+        _offer_to_workspace(
+            workspace,
+            priority=_attention_for(deliberation),
+            source=control_point,
+            payload=payload,
+            reason=deliberation.narrate(),
+            content_type=ContentType.INTENTIONAL,
+        )
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        record_degradation(
+            "deliberate_action",
+            exc,
+            severity="info",
+            action="decided without offering it to the workspace",
+        )
+
+
+def _attention_for(deliberation: Deliberation) -> float:
+    """How much a decision deserves to be attended to.
+
+    A move she is unsure of is worth more attention than one she is certain
+    of, which is why this rises as confidence falls: the interesting decision
+    is the one that might be wrong.
+    """
+    return max(0.0, min(1.0, 1.0 - float(deliberation.confidence) * 0.5))
+
+
+def _offer_to_workspace(workspace: Any, **fields: Any) -> None:
+    """Submit to the workspace from sync code without waiting on it."""
+    publish = getattr(workspace, "publish", None)
+    if publish is None:
+        return
+    coroutine = publish(**fields)
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        coroutine.close()
+        return
+    task = loop.create_task(coroutine)
+    # Deciding must not wait on being noticed.
+    task.add_done_callback(lambda done: done.exception())
 
 
 def _rationale(reply: str, chosen: ActionOption) -> str:
@@ -453,7 +535,39 @@ def confirm(
     )
     _resolve_episode(deliberation, verdict, spine=spine)
     _record_consequence(deliberation, verdict, after, graph=graph)
+    _announce_outcome(deliberation, attempt, verdict)
     return attempt
+
+
+def _announce_outcome(deliberation: Deliberation, attempt: Attempt, verdict: Verdict) -> None:
+    """Offer what actually happened, so a broken prediction can be said too."""
+    try:
+        from core.consciousness.global_workspace import ContentType  # noqa: PLC0415
+        from core.container import ServiceContainer  # noqa: PLC0415
+
+        workspace = ServiceContainer.get("global_workspace", default=None)
+        if workspace is None:
+            return
+        _offer_to_workspace(
+            workspace,
+            # A prediction that broke is the more interesting of the two, and
+            # is the one worth interrupting for.
+            priority=0.8 if not verdict.held else 0.3,
+            source="agency.confirm",
+            payload={
+                "schema": DECISION_SCHEMA,
+                "outcome": {
+                    "chose": attempt.option,
+                    "held": verdict.held,
+                    "why": verdict.why(),
+                    "episode_id": deliberation.episode_id,
+                },
+            },
+            reason=attempt.as_evidence(),
+            content_type=ContentType.META,
+        )
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        record_degradation("deliberate_action", exc, severity="info", action="graded a move without announcing it")
 
 
 def _resolve_episode(deliberation: Deliberation, verdict: Verdict, *, spine: Any = None) -> None:

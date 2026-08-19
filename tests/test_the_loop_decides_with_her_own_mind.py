@@ -192,42 +192,6 @@ async def test_language_being_gone_does_not_stop_her_from_playing(screen):
 
 
 @pytest.mark.asyncio
-async def test_she_narrates_the_move_and_the_reason_she_gave(screen):
-    await sp.pursue_on_screen(
-        goal="raise the number",
-        success_when="never happens",
-        think=_thinks("Corner stays put if I go up."),
-        max_cycles=2,
-        max_seconds=10.0,
-        narrate=True,
-        lived=False,
-        spine=_Store(),
-        graph=_Store(),
-    )
-    said = " ".join(screen["spoken"])
-    assert "Up" in said
-    assert "Corner stays put" in said
-    assert "I expect" in said
-
-
-@pytest.mark.asyncio
-async def test_a_broken_prediction_is_said_out_loud_too(screen):
-    screen["works"] = set()
-    await sp.pursue_on_screen(
-        goal="raise the number",
-        success_when="never happens",
-        think=_thinks("up"),
-        max_cycles=3,
-        max_seconds=10.0,
-        narrate=True,
-        lived=False,
-        spine=_Store(),
-        graph=_Store(),
-    )
-    assert any("did not work" in line for line in screen["spoken"])
-
-
-@pytest.mark.asyncio
 async def test_an_injected_policy_still_wins(screen):
     """A caller with its own judgement keeps it, and no thinking happens."""
     think = _thinks("up")
@@ -297,22 +261,26 @@ async def test_a_mind_that_comes_back_is_used_again(screen):
     assert calls["n"] >= 2, "she stopped asking once language failed once"
 
 
-@pytest.mark.asyncio
-async def test_a_move_made_without_words_still_says_what_it_did(screen):
-    async def never(objective, evidence):
-        raise RuntimeError("worker_not_alive")
 
+
+@pytest.mark.asyncio
+async def test_the_loop_itself_says_nothing(screen):
+    """Narration is a separate faculty, so the loop has no voice of its own.
+
+    It used to speak between deciding and acting, which made the next move
+    wait on language. Decisions now reach the global workspace and a narrator
+    — if one is running — speaks from there.
+    """
     await sp.pursue_on_screen(
         goal="raise the number",
         success_when="never happens",
-        think=never,
+        think=_thinks("up"),
         max_cycles=2,
         max_seconds=10.0,
-        narrate=True,
+        narrate=False,
         lived=False,
         spine=_Store(),
         graph=_Store(),
     )
-    said = " ".join(screen["spoken"])
-    assert said.strip(), "she made a move and said nothing at all"
-    assert "without words" in said
+    assert screen["spoken"] == [], "the loop narrated itself instead of publishing"
+    assert screen["pressed"], "and it did not play"

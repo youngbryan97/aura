@@ -735,8 +735,6 @@ async def pursue_on_screen(
             if moves:
                 moves[-1]["held"] = attempt.verdict.held
                 moves[-1]["outcome"] = attempt.verdict.why()
-            if narrate and not attempt.verdict.held:
-                await _narrate(f"That did not work — {attempt.verdict.why()}")
             pending["deliberation"] = None
 
         if policy is not None:
@@ -781,27 +779,61 @@ async def pursue_on_screen(
             pending["before"] = seen
 
         moves.append({"key": key, "because": because, "at": time.time()})
-        if narrate:
-            # Said out loud, per move, because a loop that acts silently for
-            # ten minutes is indistinguishable from one that has hung.
-            spoken = pending["deliberation"].narrate() if pending["deliberation"] else because
-            await _narrate(f"Board: {key.capitalize()}", spoken)
+        # Nothing is said here on purpose.
+        #
+        # Every decision is published to the deliberation stream as it is
+        # made, and a narrator — if one is running — speaks about it on its
+        # own schedule. Saying the line inline made the next move wait on
+        # language, which is backwards: she should be able to play at full
+        # speed and describe it, play silently, or narrate something else
+        # entirely, and the loop should read the same in all three cases.
 
         async def act() -> bool:
             return await press(key, expect_app=target_app)
 
         return Step(name=f"press {key}", action=act)
 
+    # Narration runs beside the pursuit, never inside it.
+    #
+    # Asking for it starts a separate faculty that listens to the global
+    # workspace and speaks; the loop below offers its decisions there and
+    # carries on regardless. Not asking for it changes nothing else — silent
+    # play is the absence of a narrator, not a different code path.
+    #
+    # Scoped to this run's decisions by default, because a caller asking for
+    # a running commentary on a game wants that and not everything she is
+    # thinking. A narrator started with no scope narrates whatever reaches
+    # her, which is the same faculty doing the more general thing.
+    speaker = None
+    if narrate:
+        try:
+            from core.agency.narrator import Narrator
+
+            speaker = Narrator(say=_say_line, about="screen_pursuit.next_move")
+            speaker.start()
+        except (ImportError, RuntimeError, AttributeError, TypeError) as exc:
+            record_degradation(
+                "screen_pursuit",
+                exc,
+                severity="info",
+                action="pursued the goal without narrating it",
+            )
+            speaker = None
+
     executor = FluidExecutor(verifier=None, gateway=None)
-    receipt = await executor.pursue(
-        goal,
-        observe=observe,
-        decide=decide,
-        is_satisfied=satisfied,
-        max_cycles=max_cycles,
-        max_seconds=max_seconds,
-        perception_reason=f"pursuing on screen: {goal[:60]}",
-    )
+    try:
+        receipt = await executor.pursue(
+            goal,
+            observe=observe,
+            decide=decide,
+            is_satisfied=satisfied,
+            max_cycles=max_cycles,
+            max_seconds=max_seconds,
+            perception_reason=f"pursuing on screen: {goal[:60]}",
+        )
+    finally:
+        if speaker is not None:
+            await speaker.stop()
     result = receipt.to_dict()
     if blocker_attempts["count"] >= MAX_BLOCKER_ATTEMPTS and not receipt.completed:
         # Say what stopped it. "out_of_cycles" describes the budget running
@@ -836,6 +868,11 @@ async def pursue_on_screen(
         # page that is not the task's, and hide that the browser had moved.
         result["outcome"] = "navigated_away"
     return result
+
+
+async def _say_line(line: str) -> None:
+    """Hand one line to whatever surface is listening. Never raises."""
+    await _narrate(line)
 
 
 async def _narrate(line: str, because: str = "") -> None:
