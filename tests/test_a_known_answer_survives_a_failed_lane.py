@@ -45,7 +45,7 @@ def test_a_computable_question_is_answered_despite_the_lane():
     served = _conversation_lane_user_message(
         {"state": "failed"}, status_override="warming_failed"
     )
-    assert served == "50,420,273"
+    assert served == "50,420,273."
     assert "lane" not in served.lower()
 
 
@@ -65,7 +65,7 @@ def test_the_number_is_written_the_way_a_person_writes_it():
     from interface.routes.chat import _known_answer_for_this_turn
 
     set_user_question("what is 7919 * 6367?")
-    assert _known_answer_for_this_turn() == "50,420,273"
+    assert _known_answer_for_this_turn() == "50,420,273."
 
 
 def test_a_fraction_keeps_its_fraction():
@@ -81,3 +81,27 @@ def test_prose_that_merely_contains_numbers_displaces_nothing():
     for text in ("the 2015 - 2020 period was rough", "call me at 555-1234"):
         set_user_question(text)
         assert _known_answer_for_this_turn() == "", text
+
+
+def test_every_refusal_site_uses_the_same_helper():
+    """The rescue existed at ONE of the refusal sites.
+
+    A 2026-08-10 defect — "7919 times 6421" answered with a refusal while the
+    preflight held the product — was fixed inline at the site it happened on.
+    The other refusal site and every lane-status path kept giving the same
+    apology for the same computable question, which is how the identical
+    defect arrived again on 2026-08-19 with 7919 * 6367.
+    """
+    import re
+    from pathlib import Path as _Path
+
+    source = (_Path(__file__).resolve().parents[1] / "interface/routes/chat.py").read_text()
+    refusals = source.count("won't send you a thinner one and pass it off as the real thing")
+    rescues = len(re.findall(r"_known_answer_for_this_turn\(\)", source))
+    # One definition, one lane path, and one per refusal site.
+    assert rescues >= refusals + 1, (
+        f"{refusals} refusal sites but only {rescues} references to the helper"
+    )
+    assert "requested_arithmetic_result(_semantic_user_message)" not in source, (
+        "a second inline copy of the rescue has appeared"
+    )

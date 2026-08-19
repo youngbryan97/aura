@@ -9063,7 +9063,10 @@ def _known_answer_for_this_turn() -> str:
         value = requested_arithmetic_result(question)
         if value is None:
             return ""
-        return f"{value:,}" if isinstance(value, int) else f"{value:,}".rstrip("0").rstrip(".")
+        if isinstance(value, float) and value.is_integer():
+            value = int(value)
+        shown = f"{value:,}" if isinstance(value, int) else f"{value:,}"
+        return f"{shown}."
     except _CHAT_RECOVERABLE_ERRORS as exc:
         record_degradation(
             "chat.known_answer",
@@ -16893,7 +16896,15 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             # not have. When no channel reads, it returns "" and the honest
             # refusal above stands.
             evidenced_reply = ""
-            if _is_simple_affect_check_request(_semantic_user_message):
+            # An exact answer is the strongest reading of all: it needs no
+            # channel, no generation and no model. Live 2026-08-19 the
+            # arithmetic drafts were rejected three times for missing the very
+            # number the runtime could compute, and the turn ended in the
+            # sentence above with the answer sitting one function call away.
+            computed = _known_answer_for_this_turn()
+            if computed:
+                evidenced_reply = computed
+            if not evidenced_reply and _is_simple_affect_check_request(_semantic_user_message):
                 evidenced_reply = _build_grounded_self_condition_reply(
                     _semantic_user_message,
                     session_id=_chat_session_id,
@@ -18937,22 +18948,17 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             # Deterministic beats absent. This does not ask the model again,
             # because the model has just demonstrated five times that it cannot
             # produce this value; a calculator's answer does not need one.
-            try:
-                from core.conversation.response_reliability import (
-                    requested_arithmetic_result,
+            # This rescue lived HERE and only here, so the other refusal site
+            # and every lane-status path gave the same apology for the same
+            # computable question. One helper now, used by all of them.
+            _computed = _known_answer_for_this_turn()
+            if _computed:
+                failure_reply = _computed
+                logger.warning(
+                    "🔢 Serving the computed arithmetic result (%s) instead of "
+                    "a refusal — the value was known the whole turn.",
+                    _computed,
                 )
-
-                _known = requested_arithmetic_result(_semantic_user_message)
-                if _known is not None:
-                    _shown = int(_known) if float(_known).is_integer() else _known
-                    failure_reply = f"{_shown}."
-                    logger.warning(
-                        "🔢 Serving the computed arithmetic result (%s) instead of "
-                        "a refusal — the value was known the whole turn.",
-                        _shown,
-                    )
-            except _CHAT_RECOVERABLE_ERRORS as _known_exc:
-                record_degradation("chat.arithmetic_fallback", _known_exc)
             logger.error("%s Surface=%s", failure_reply, request_surface or "unknown")
             if pending_exchange_id:
                 await _chat_preflight._complete_logged_exchange(
