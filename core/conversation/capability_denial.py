@@ -177,6 +177,7 @@ def denied_registered_capabilities(
     for sentence in re.split(r"(?<=[.!?])\s+|\n+", text):
         if not _DENIAL_RE.search(sentence):
             continue
+        claimed = False
         for pattern, subject, skills in _DENIAL_SUBJECTS:
             if not pattern.search(sentence):
                 continue
@@ -187,5 +188,35 @@ def denied_registered_capabilities(
                         subject=subject, sentence=sentence.strip(), skills=present
                     )
                 )
+                claimed = True
                 break
+        if claimed:
+            continue
+        # Nothing in the table matched, which says nothing about whether the
+        # capability exists — the table is a list somebody maintains, and the
+        # registry is what the build actually has. Every skill describes
+        # itself; a denial that names one of them is a denial of a real
+        # capability, and a skill added tomorrow is covered by the same
+        # mechanism with nothing to re-wire here.
+        for mention in _registry_mentions(sentence, engine):
+            if mention.skill not in available:
+                continue
+            found.append(
+                CapabilityDenial(
+                    subject=mention.skill.replace("_", " "),
+                    sentence=sentence.strip(),
+                    skills=(mention.skill,),
+                )
+            )
+            break
     return tuple(found)
+
+
+def _registry_mentions(sentence: str, engine: Any) -> tuple[Any, ...]:
+    """Registered capabilities this sentence is talking about, or ()."""
+    try:
+        from core.self.capability_lexicon import capabilities_named_in
+
+        return capabilities_named_in(sentence, engine)
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+        return ()

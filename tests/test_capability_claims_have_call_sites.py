@@ -361,6 +361,25 @@ def _modules_declaring_unwired() -> dict[str, tuple[str, set[str]]]:
                 )
             }
             quoted = set(re.findall(r"``([A-Za-z_][A-Za-z0-9_]*)(?:\(\))?``", doc))
+            # A module explaining that SOMETHING ELSE was unwired is not
+            # declaring itself dead. core/skills/skill_retrieval.py exists
+            # because SkillLibrary.get_available_skills_prompt() had no
+            # callers; it says so in its first paragraph, names that function
+            # in backticks, and defines none of it. Reading that as a
+            # self-declaration made the module that FIXED a dead capability
+            # look like a dead capability.
+            marker_lines = [
+                line
+                for line in doc.splitlines()
+                if any(marker in line for marker in _UNWIRED_MARKERS)
+            ]
+            near_marker = set()
+            for line in marker_lines:
+                near_marker.update(
+                    re.findall(r"``([A-Za-z_][A-Za-z0-9_]*)(?:\(\))?``", line)
+                )
+            if near_marker and not (near_marker & defined):
+                continue
             found[rel] = (doc, defined & quoted)
     return found
 

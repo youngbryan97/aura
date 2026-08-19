@@ -27,6 +27,27 @@ async def _read_clipboard(prompt: str) -> str:
     return block.replace(f"{CLIPBOARD_HEADER}\n", "", 1) if block else ""
 
 
+# ── what this build registers ────────────────────────────────────────────────
+
+def _matches_capability_status(prompt: str) -> bool:
+    from core.self.capability_lexicon import (
+        asks_whether_she_can,
+        capabilities_named_in,
+    )
+
+    if not asks_whether_she_can(prompt):
+        return False
+    # Only when the question names something the registry knows about.
+    # "can you help me think about this" is not a capability question.
+    return bool(capabilities_named_in(prompt, enabled_only=False))
+
+
+async def _read_capability_status(prompt: str) -> str:
+    from core.self.capability_lexicon import capability_status_block
+
+    return await asyncio.to_thread(capability_status_block, prompt)
+
+
 # ── her own source ───────────────────────────────────────────────────────────
 
 def _matches_self_source(prompt: str) -> bool:
@@ -489,6 +510,26 @@ def install_default_observables() -> None:
                 "show me the data on unemployment",
                 "how are you doing",
                 "what is 2 + 2",
+            ),
+        ),
+        Observable(
+            "capability_status",
+            "## WHAT THIS BUILD ACTUALLY REGISTERS FOR THIS",
+            _matches_capability_status,
+            _read_capability_status,
+            examples=(
+                # The live miss: "No." while improve_own_code, self_repair and
+                # auto_refactor were registered and enabled.
+                "can you modify your own source code?",
+                "are you able to search the web?",
+                "do you have a way to read my screen?",
+                "can you run a terminal command?",
+            ),
+            counter_examples=(
+                "can you help me think about this?",
+                "what is 2 + 2",
+                "how are you doing",
+                "can you believe it's already August?",
             ),
         ),
         Observable(
