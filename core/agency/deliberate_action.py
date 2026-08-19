@@ -159,10 +159,9 @@ class Deliberation:
     def narrate(self) -> str:
         """One line she can say out loud before the move lands.
 
-        A choice made without language still gets a sentence. It is built
-        from the decision rather than generated, which is the whole point of
-        deciding structurally: she can say what she did and why even while
-        the organ that writes her sentences is reloading.
+        A choice made without language still gets a sentence, built from the
+        decision rather than generated. She can say what she did and why
+        while the organ that writes her sentences is reloading.
         """
         if self.chosen is None:
             return f"I have no move I can justify here — {self.reason}."
