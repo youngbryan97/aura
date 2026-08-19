@@ -210,7 +210,32 @@ def coerce_authority_origin(value: Any) -> str:
         return "unknown"
     if normalized in USER_FACING_AUTHORITY_ORIGINS | AUTONOMOUS_AUTHORITY_ORIGINS:
         return normalized
-    tokens = {token for token in normalized.split("_") if token}
+    # A sub-route inherits the standing of the route it belongs to.
+    #
+    # This fell back to a hardcoded nine-token list — user, api, voice, admin,
+    # gui, websocket, ws, direct, external — which omits `desktop`, `chat`,
+    # `ui`, `frontend` and most of the set it was standing in for. So any
+    # labelled sub-route lost its authority silently: `desktop_task.web_search`
+    # coerced to itself, matched no grant, and `context_has_user_authority`
+    # returned False for a route the desktop lane uses on ordinary foreground
+    # turns. Measured 2026-08-19, along with `sovereign_browser.pursue`
+    # refused for the same reason.
+    #
+    # Longest prefix first, so specificity is preserved: `desktop_task` is
+    # preferred over `desktop`, and a label that matches nothing still falls
+    # through to the token scan below rather than being invented.
+    known = USER_FACING_AUTHORITY_ORIGINS | AUTONOMOUS_AUTHORITY_ORIGINS
+    parts = [token for token in normalized.split("_") if token]
+    for length in range(len(parts) - 1, 0, -1):
+        prefix = "_".join(parts[:length])
+        if prefix in known:
+            return prefix
+    # The token scan below stays exactly as narrow as it was. Widening it to
+    # the whole known set remapped unrelated labels — `test_autonomy` became
+    # `autonomy` and stopped matching its own grant — which is inheritance
+    # turning into reassignment. Prefix inheritance above is the specific
+    # thing that was missing; this is not.
+    tokens = set(parts)
     for candidate in (
         "user",
         "api",
