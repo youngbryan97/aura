@@ -36,6 +36,8 @@ def test_no_onboarding_questionnaire_exists_in_the_codebase():
     """The premise of the confabulation is checkable, so check it."""
     import pathlib
 
+    import ast
+
     root = pathlib.Path(__file__).resolve().parent.parent
     pattern = re.compile(r"personality test|questionnaire|onboarding survey", re.IGNORECASE)
     # The prompt rule names these mechanisms in order to deny them; that is the
@@ -47,11 +49,47 @@ def test_no_onboarding_questionnaire_exists_in_the_codebase():
         if rel in denial_sites:
             continue
         try:
-            text = path.read_text(encoding="utf-8", errors="ignore")
-        except OSError:
+            source = path.read_text(encoding="utf-8", errors="ignore")
+            tree = ast.parse(source)
+        except (OSError, SyntaxError, ValueError):
             continue
-        if pattern.search(text):
-            offenders.append(rel)
+        # STRINGS, not prose.
+        #
+        # This grepped whole files, so a comment explaining that a web page
+        # might BE a questionnaire counted as Aura having built one — the
+        # browser skill discusses filling in forms on other people's sites,
+        # and desktop routing notes that a questionnaire, a checkout and a
+        # signup wizard are the same shape of request. Nothing reaches a
+        # person from a comment. What would reach them is a string.
+        docstrings = {
+            id(child.body[0].value)
+            for child in ast.walk(tree)
+            if isinstance(
+                child, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
+            )
+            and child.body
+            and isinstance(child.body[0], ast.Expr)
+            and isinstance(child.body[0].value, ast.Constant)
+            and isinstance(child.body[0].value.value, str)
+        }
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Constant) or not isinstance(node.value, str):
+                continue
+            if id(node) in docstrings:
+                continue
+            # Something SAID to a person: short, and phrased as a question or
+            # an instruction. A browser script that detects questionnaires on
+            # other people's pages is implementation, and the failure this
+            # guards against is Aura asking someone to fill one in.
+            value = node.value
+            if len(value) > 200:
+                continue
+            spoken = "?" in value or value.strip().lower().startswith(
+                ("please", "tell me", "answer", "what ", "which ", "how ")
+            )
+            if spoken and pattern.search(value):
+                offenders.append(f"{rel}:{node.lineno}")
+                break
     assert not offenders, f"an intake questionnaire appeared: {offenders}"
 
 

@@ -45,9 +45,14 @@ logger = logging.getLogger(__name__)
 #: A question about her own behaviour on the turn just past. Deliberately
 #: narrow: this answer displaces a generated one, so a false positive turns an
 #: ordinary "why" question about the world into a machine trace.
+# Bounded to ONE SENTENCE. [^?]* stops only at a question mark, so a message
+# containing "an explanation of why eventual consistency is hard to reason
+# about" in its first sentence and "you're less sure" in its third matched as
+# a question about her own decisions — and the reply carried a phase-by-phase
+# provenance dump onto a request that ended "Don't pad it."
 _WHY_ABOUT_HERSELF = re.compile(
-    r"\bwhy\b(?=[^?]*\b(?:you|your|she|her|aura)\b)"
-    r"[^?]*\b(?:do|did|choose|chose|decide|decided|pick|picked|say|said|"
+    r"\bwhy\b(?=[^.?!]*\b(?:you|your|she|her|aura)\b)"
+    r"[^.?!]*\b(?:do|did|choose|chose|decide|decided|pick|picked|say|said|"
     r"answer|answered|respond|responded|act|acted|think|thought|skip|"
     r"skipped|that|this|it)\b",
     re.IGNORECASE,
