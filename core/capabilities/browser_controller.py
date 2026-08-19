@@ -10,15 +10,16 @@ before summarization, producing clean ArticleExtract objects.
 from __future__ import annotations
 
 import asyncio
+import base64
 import hashlib
+import html as html_module
 import json
 import logging
 import re
 import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
-import html as html_module
-from urllib.parse import quote, quote_plus, urlparse, urlsplit, urlunsplit, unquote
+from urllib.parse import parse_qs, quote, quote_plus, unquote, urlparse, urlsplit, urlunsplit
 
 from core.container import ServiceContainer
 from core.runtime.errors import record_degradation
@@ -253,6 +254,70 @@ def _search_results_in(html: str, count: int) -> list[dict[str, str]]:
         if len(results) >= count:
             break
     return results
+
+
+
+#: A search page that answered with a challenge rather than results.
+#:
+#: An engine under load answers 202 with an interstitial, or 200 with a page
+#: that has no results in it. Both look like "nothing matched" to a reader
+#: that only counts links, and that is how one throttled provider became no
+#: search at all: measured live, every lookup returned zero and the run
+#: reported that the search returned nothing that could be opened.
+def _looks_like_a_challenge(status: int, html: str) -> bool:
+    if int(status or 0) in {202, 403, 429, 503}:
+        return True
+    body = str(html or "")
+    return len(body) < 2000 and "result" not in body.lower()
+
+
+def _bing_destination(href: str) -> str:
+    """The real page behind a Bing redirect link."""
+    raw = html_module.unescape(str(href or ""))
+    query = parse_qs(urlparse(raw).query)
+    wrapped = (query.get("u") or [""])[0]
+    if not wrapped:
+        return raw
+    # Bing prefixes the base64 with a short marker.
+    if wrapped[:2] in {"a1", "a2", "a3"}:
+        wrapped = wrapped[2:]
+    try:
+        return base64.urlsafe_b64decode(wrapped + "=" * (-len(wrapped) % 4)).decode("utf-8", "replace")
+    except (ValueError, UnicodeDecodeError):
+        return ""
+
+
+_BING_RESULT_RE = re.compile(r'<h2[^>]*>\s*<a[^>]*href="([^"]+)"[^>]*>(.*?)</a>', re.IGNORECASE | re.DOTALL)
+
+
+def _bing_results_in(html: str, count: int) -> list[dict[str, str]]:
+    results: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for match in _BING_RESULT_RE.finditer(str(html or "")):
+        url = _bing_destination(match.group(1))
+        if not url.startswith(("http://", "https://")) or "bing.com" in url or url in seen:
+            continue
+        title = " ".join(html_module.unescape(_MARKUP_RE.sub(" ", match.group(2))).split()).strip()
+        if not title:
+            continue
+        seen.add(url)
+        results.append({"url": url, "title": title})
+        if len(results) >= count:
+            break
+    return results
+
+
+#: Where to look, in order, and how to read what comes back.
+#:
+#: More than one on purpose. A single provider is a single point of failure
+#: for every question she can ask, and providers throttle: after a run of
+#: lookups the first one began answering 202 with an interstitial and her
+#: entire capacity to look anything up went with it.
+SEARCH_SOURCES: tuple[tuple[str, str, Any], ...] = (
+    ("duckduckgo", "https://lite.duckduckgo.com/lite/?q={q}", _search_results_in),
+    ("bing", "https://www.bing.com/search?q={q}", _bing_results_in),
+    ("duckduckgo-html", "https://html.duckduckgo.com/html/?q={q}", _search_results_in),
+)
 
 
 class BrowserController:
@@ -710,7 +775,49 @@ class BrowserController:
         return receipt
 
     async def _fetch_search_results(self, query: str, count: int = 5) -> list[dict[str, str]]:
-        """Fetch search results from DuckDuckGo Lite (HTML scraping)."""
+        """Search, trying each source until one actually answers.
+
+        A provider that is throttling answers with a challenge rather than an
+        error, which reads as "nothing matched" and silently removes her
+        ability to look anything up. Each source is asked in turn, a challenge
+        is treated as that source being unavailable, and the first real answer
+        wins.
+        """
+        for name, template, read_results in SEARCH_SOURCES:
+            try:
+                response = await get_network_gateway().request_async(
+                    "GET",
+                    template.format(q=quote_plus(query)),
+                    headers={
+                        "User-Agent": (
+                            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36"
+                        )
+                    },
+                    timeout=10,
+                    read_only=True,
+                    source=f"browser_controller.search.{name}",
+                )
+                if not response.get("ok"):
+                    continue
+                body = bytes(response.get("content", b"")).decode("utf-8", errors="replace")
+                if _looks_like_a_challenge(response.get("status_code", 0), body):
+                    logger.info("Search source %s answered with a challenge; trying the next.", name)
+                    continue
+                found = read_results(body, count)
+                if found:
+                    return found
+            except (OSError, RuntimeError, TypeError, ValueError) as exc:
+                record_degradation(
+                    "browser_controller.search_fetch",
+                    exc,
+                    severity="info",
+                    action=f"tried the next search source after {name} failed",
+                )
+        return []
+
+    async def _fetch_search_results_legacy(self, query: str, count: int = 5) -> list[dict[str, str]]:
+        """The single-source reader, kept for the tests that pin its parsing."""
         url = f"https://lite.duckduckgo.com/lite/?q={quote_plus(query)}"
         try:
             response = await get_network_gateway().request_async(
