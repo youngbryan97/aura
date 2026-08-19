@@ -3897,15 +3897,28 @@ async def test_secondary_request_fails_safe_to_primary_when_coexistence_probe_er
 
 
 def test_secondary_headroom_snapshot_blocks_64gb_solver_envelope_by_default(monkeypatch):
+    """Patched at the source the function actually reads.
+
+    This patched `inference_gate.psutil.virtual_memory`, which
+    `_headroom_snapshot` stopped consulting when it moved to the memory
+    monitor's snapshot. The patch therefore applied to nothing: the call fell
+    through to the real host, and the assertions were checked against whatever
+    this machine happened to have free. The behaviour under test never
+    regressed — 42.0 / 52.0 / can_admit False is exactly what it still
+    produces — but the test had quietly stopped exercising it.
+    """
     monkeypatch.delenv("AURA_FOREGROUND_SECONDARY_MAX_PRESSURE_PCT", raising=False)
     monkeypatch.delenv("AURA_FOREGROUND_SECONDARY_MIN_AVAILABLE_GB", raising=False)
     monkeypatch.setattr(
-        "core.brain.inference_gate.psutil.virtual_memory",
+        "core.utils.memory_monitor.get_memory_pressure_snapshot",
         lambda: SimpleNamespace(
-            percent=77.5,
-            total=64 * 1024 ** 3,
-            available=int(14.4 * 1024 ** 3),
-            used=int((64.0 - 14.4) * 1024 ** 3),
+            total_gb=64.0,
+            available_gb=14.4,
+            pressure_pct=77.5,
+            process_rss_gb=2.0,
+            process_rss_limit_gb=0.0,
+            kernel_level="normal",
+            refuse_heavy_local_generation=False,
         ),
     )
 

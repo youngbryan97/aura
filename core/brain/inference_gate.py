@@ -6486,7 +6486,12 @@ class InferenceGate:
                 enforce_failure_policy=False,
             )
             return None
-        except Exception as exc:  # noqa: BLE001 - reported, then the normal lane runs
+        except _INFERENCE_RECOVERABLE_ERRORS as exc:
+            # Named, like every other handler in this file. A bare `except
+            # Exception` here also swallowed KeyboardInterrupt-adjacent and
+            # programming errors — a NameError in the tool loop would have been
+            # recorded as "the tool loop failed" and answered around, so the
+            # defect would never surface as a defect.
             record_degradation(
                 "inference_gate.tool_grounded_answer",
                 exc,
