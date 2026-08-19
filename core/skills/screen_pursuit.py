@@ -904,7 +904,11 @@ async def pursue_on_screen(
             # between reading something and playing differently.
             if knowledge["held"] is not None and knowledge["held"].known and not knowledge["meant"]:
                 knowledge["meant"] = await work_out_what_it_means(
-                    knowledge["held"], seen, screen_options(move_keys), think=think or _her_reasoning(stakes)
+                    knowledge["held"],
+                    seen,
+                    screen_options(move_keys),
+                    think=think or _her_reasoning(stakes),
+                    history=history[-RECENT_ATTEMPTS:],
                 )
             learned = learned + [meaning.as_evidence() for meaning in knowledge["meant"]]
 

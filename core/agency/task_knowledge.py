@@ -517,10 +517,22 @@ class Implication:
     finding: str
     means: str
     favours: str = ""
+    #: What she has already measured that bears on this advice. Empty when
+    #: nothing does.
+    against: str = ""
+
+    @property
+    def holds_up(self) -> bool:
+        """Whether her own evidence supports acting on this."""
+        return not self.against
 
     def as_evidence(self) -> str:
         line = f"What that means here — {self.means}"
-        return f"{line} (so: {self.favours})" if self.favours else line
+        if self.favours:
+            line = f"{line} (so: {self.favours})"
+        if self.against:
+            line = f"{line}. I am not taking that at face value: {self.against}"
+        return line
 
 
 def _favoured_option(finding: str, options: Sequence[Any]) -> str:
@@ -582,12 +594,49 @@ def _meaning_question(finding: str, situation: str, options: Sequence[Any]) -> s
     )
 
 
+def _measured_against(favours: str, history: Sequence[Any]) -> str:
+    """What she has already watched happen that bears on this advice.
+
+    Advice is somebody else's experience of a task in general. Her own
+    measurements are of this task, now, and when the two disagree the
+    measurement wins — it is about the position she is actually in.
+
+    A move she has watched change nothing twice does not become a good move
+    because a page recommends it. Saying so is the difference between reading
+    advice and following it.
+    """
+    if not favours:
+        return ""
+    broke = [
+        attempt
+        for attempt in history
+        if str(getattr(attempt, "option", "")) == favours
+        and getattr(getattr(attempt, "verdict", None), "held", True) is False
+    ]
+    if len(broke) < 2:
+        return ""
+    verdict = getattr(broke[-1], "verdict", None)
+    why = verdict.why() if verdict is not None and hasattr(verdict, "why") else ""
+    return f"{favours} has already been tried {len(broke)} times here and {why or 'did nothing'}"
+
+
+def _appraised(meaning: Implication, history: Sequence[Any]) -> Implication:
+    """The same reading, with her own evidence about it attached."""
+    against = _measured_against(meaning.favours, history)
+    if not against:
+        return meaning
+    return Implication(
+        finding=meaning.finding, means=meaning.means, favours=meaning.favours, against=against
+    )
+
+
 async def work_out_what_it_means(
     knowledge: TaskKnowledge,
     situation: str,
     options: Sequence[Any] = (),
     *,
     think: Any = None,
+    history: Sequence[Any] = (),
 ) -> list[Implication]:
     """Work out what she read against the position she is actually in.
 
@@ -605,7 +654,7 @@ async def work_out_what_it_means(
     for finding in knowledge.findings[:FINDINGS_KEPT]:
         said = finding.says
         if think is None:
-            meanings.append(_structural_meaning(said, situation, options))
+            meanings.append(_appraised(_structural_meaning(said, situation, options), history))
             continue
         try:
             reply = await think(
@@ -617,14 +666,17 @@ async def work_out_what_it_means(
             record_degradation(
                 "task_knowledge", exc, severity="info", action="worked out what a finding meant without language"
             )
-            meanings.append(_structural_meaning(said, situation, options))
+            meanings.append(_appraised(_structural_meaning(said, situation, options), history))
             continue
         spoken = " ".join(str(reply or "").split())[:MAX_FINDING_CHARS]
         if not spoken:
-            meanings.append(_structural_meaning(said, situation, options))
+            meanings.append(_appraised(_structural_meaning(said, situation, options), history))
             continue
         meanings.append(
-            Implication(finding=said, means=spoken, favours=_favoured_option(spoken, options))
+            _appraised(
+                Implication(finding=said, means=spoken, favours=_favoured_option(spoken, options)),
+                history,
+            )
         )
     return meanings
 

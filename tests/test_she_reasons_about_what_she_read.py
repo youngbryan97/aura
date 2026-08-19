@@ -116,3 +116,60 @@ def test_an_implication_reads_back_as_advice_about_now():
     line = Implication(finding="keep it in the corner", means="it names up, which is available now", favours="up").as_evidence()
     assert line.startswith("What that means here —")
     assert line.endswith("(so: up)")
+
+
+def _stalled(option, times=2):
+    from core.agency.deliberate_action import Attempt, Verdict
+
+    return [
+        Attempt(option=option, expected="a shift", verdict=Verdict(held=False, observed_change=False, stalled=True))
+    ] * times
+
+
+@pytest.mark.asyncio
+async def test_advice_is_weighed_against_what_she_has_already_measured():
+    """A move she watched change nothing twice does not become good because a
+    page recommends it.
+
+    Advice is somebody else's experience of the task in general. Her
+    measurements are of this task, now.
+    """
+    known = TaskKnowledge(
+        goal="play 2048", findings=[Finding(says="Always move up to keep the corner", source="read on x")]
+    )
+    meant = await work_out_what_it_means(known, "a board", MOVES, history=_stalled("up"))
+    assert meant[0].favours == "up"
+    assert not meant[0].holds_up
+    assert "already been tried 2 times" in meant[0].against
+    assert "not taking that at face value" in meant[0].as_evidence()
+
+
+@pytest.mark.asyncio
+async def test_advice_with_nothing_against_it_stands():
+    known = TaskKnowledge(
+        goal="play 2048", findings=[Finding(says="Always move up to keep the corner", source="read on x")]
+    )
+    meant = await work_out_what_it_means(known, "a board", MOVES, history=_stalled("left"))
+    assert meant[0].holds_up
+    assert meant[0].against == ""
+
+
+@pytest.mark.asyncio
+async def test_one_bad_outcome_is_not_enough_to_dismiss_advice():
+    """Once is an event; twice is a measurement."""
+    known = TaskKnowledge(
+        goal="play 2048", findings=[Finding(says="Always move up to keep the corner", source="read on x")]
+    )
+    meant = await work_out_what_it_means(known, "a board", MOVES, history=_stalled("up", times=1))
+    assert meant[0].holds_up
+
+
+@pytest.mark.asyncio
+async def test_reasoned_advice_is_appraised_the_same_way():
+    async def think(objective, evidence):
+        return "The corner argues for up here."
+
+    known = TaskKnowledge(goal="play 2048", findings=[Finding(says="keep the corner", source="read on x")])
+    meant = await work_out_what_it_means(known, "a board", MOVES, think=think, history=_stalled("up"))
+    assert meant[0].favours == "up"
+    assert not meant[0].holds_up
