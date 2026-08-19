@@ -72,6 +72,9 @@ DEFAULT_MOVES: tuple[str, ...] = ("up", "down", "left", "right")
 #: How many graded attempts travel into the next decision. Enough to notice a
 #: move that stopped working, short enough that old evidence stops steering.
 RECENT_ATTEMPTS = 4
+#: How many times one run will go back and look up how the task is done.
+#: Beyond this the problem is not that she is missing a strategy.
+MAX_RELEARNS = 2
 
 
 
@@ -199,6 +202,35 @@ def _matches(pattern: str, text: str) -> bool:
         return re.search(pattern, text, re.IGNORECASE) is not None
     except re.error:
         return pattern.lower() in text.lower()
+
+
+def content_text(
+    observation: dict[str, Any],
+    *,
+    region_top: float = 0.0,
+    region_bottom: float = 1.0,
+) -> str:
+    """The reading inside the content band, with the furniture left out.
+
+    A caller that names a band has already said where the task lives, and
+    everything outside it is the application's own chrome. Asking a question
+    about a stuck position is where that matters most: a whole-screen reading
+    of a game puts the score, the best-ever score and the site footer into
+    the question, and a search for those returns nothing about the position.
+    """
+    if region_top <= 0.0 and region_bottom >= 1.0:
+        return str(observation.get("text") or "")
+    said: list[str] = []
+    for region in observation.get("layout") or []:
+        try:
+            middle = float(region.get("center_y", region.get("y", 0.0)))
+        except (TypeError, ValueError):
+            continue
+        if region_top <= middle <= region_bottom:
+            text = str(region.get("text") or "").strip()
+            if text:
+                said.append(text)
+    return " ".join(said) if said else str(observation.get("text") or "")
 
 
 def goal_reached(
@@ -475,6 +507,7 @@ async def pursue_on_screen(
     expect_page: str = "",
     unblock_with: str = "",
     stakes: float = 0.5,
+    research: bool = True,
     lived: bool = True,
     spine: Any = None,
     graph: Any = None,
@@ -493,12 +526,16 @@ async def pursue_on_screen(
     reasoning, keeping the predict-and-check loop around it.
     """
     from core.agency.deliberate_action import Attempt, Deliberation, confirm, deliberate
+    from core.agency.task_knowledge import learn_about, stuck
     from core.skills.fluid_executor import FluidExecutor, Step
 
     moves: list[dict[str, Any]] = []
     history: list[Attempt] = []
     pending: dict[str, Any] = {"deliberation": None, "before": ""}
     undecided: dict[str, str] = {"reason": ""}
+    #: What she knows about doing this, learned once at the start and again
+    #: whenever what she is doing stops working.
+    knowledge: dict[str, Any] = {"held": None, "relearned": 0}
 
     async def observe() -> dict[str, Any]:
         # Put the target back in front before looking at it.
@@ -755,11 +792,39 @@ async def pursue_on_screen(
                 return None
             because = str(intent.get("because") or "").strip()
         else:
+            # Find out how this is done — at the start, and again when what
+            # she is doing has stopped working.
+            #
+            # A loop that only reads the screen in front of it can play badly
+            # forever: it has the board, the moves and its own last few
+            # outcomes, and none of that contains the thing a person would go
+            # and look up. Being stuck is the signal, because a run of broken
+            # predictions means the current approach is not working whatever
+            # the reason.
+            if knowledge["held"] is None or (
+                stuck(history) and knowledge["relearned"] < MAX_RELEARNS
+            ):
+                if knowledge["held"] is not None:
+                    knowledge["relearned"] += 1
+                relearning = knowledge["held"] is not None
+                knowledge["held"] = await learn_about(
+                    goal,
+                    search=research,
+                    remember=not relearning,
+                    because_stuck=relearning,
+                    situation=content_text(
+                        observation, region_top=region_top, region_bottom=region_bottom
+                    ),
+                    history=history[-RECENT_ATTEMPTS:],
+                )
+            learned = knowledge["held"].as_evidence() if knowledge["held"] is not None else []
+
             chosen = await deliberate(
                 goal,
                 seen,
                 screen_options(move_keys),
                 think=think or _her_reasoning(stakes),
+                knowledge=learned,
                 history=history[-RECENT_ATTEMPTS:],
                 stakes=stakes,
                 control_point="screen_pursuit.next_move",

@@ -212,9 +212,17 @@ def _situation_evidence(
     options: Sequence[ActionOption],
     history: Sequence[Attempt],
     recalled: Sequence[str],
+    knowledge: Sequence[str] = (),
 ) -> list[str]:
-    """Facts the decision rests on. Every line is measured, none of it is persuasion."""
+    """Facts the decision rests on. Every line is measured or retrieved.
+
+    ``knowledge`` is what she found out about how this kind of task is done.
+    It arrives attributed and sits beside the reading and the consequence
+    history rather than above them, because a thing she read is evidence and
+    not an instruction.
+    """
     evidence = [f"Goal: {goal}", f"What is visible now: {situation}"]
+    evidence.extend(knowledge)
     evidence.extend(f"Available move — {option.label()}" for option in options)
     evidence.extend(attempt.as_evidence() for attempt in history)
     evidence.extend(recalled)
@@ -301,6 +309,7 @@ async def deliberate(
     options: Sequence[ActionOption],
     *,
     think: ThinkFn,
+    knowledge: Sequence[str] = (),
     history: Sequence[Attempt] = (),
     stakes: float = 0.5,
     control_point: str = "agency.next_move",
@@ -323,7 +332,7 @@ async def deliberate(
     for option in options:
         recalled.extend(recall_consequences(option.name, graph=graph))
 
-    evidence = _situation_evidence(goal, situation, options, history, recalled)
+    evidence = _situation_evidence(goal, situation, options, history, recalled, knowledge)
     spoke = True
     reply = ""
     try:

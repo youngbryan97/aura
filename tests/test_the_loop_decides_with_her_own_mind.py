@@ -284,3 +284,90 @@ async def test_the_loop_itself_says_nothing(screen):
     )
     assert screen["spoken"] == [], "the loop narrated itself instead of publishing"
     assert screen["pressed"], "and it did not play"
+
+
+@pytest.mark.asyncio
+async def test_the_pursuit_finds_out_how_the_task_is_done(screen, monkeypatch):
+    """Live she played 2048 to 280 and stalled, never asking how it is played."""
+    from core.agency import task_knowledge as tk
+
+    tk.forget_everything()
+    asked = []
+
+    async def learn(goal, **kw):
+        asked.append(goal)
+        return tk.TaskKnowledge(
+            goal=goal,
+            findings=[tk.Finding(says="keep the largest tile in a corner", source="what I read")],
+        )
+
+    monkeypatch.setattr(tk, "learn_about", learn)
+    think = _thinks("up")
+    await sp.pursue_on_screen(
+        goal="raise the number",
+        success_when="never happens",
+        think=think,
+        max_cycles=2,
+        max_seconds=10.0,
+        narrate=False,
+        lived=False,
+        spine=_Store(),
+        graph=_Store(),
+    )
+    assert asked, "she never asked how the task is done"
+    evidence = think.asked[0]
+    assert any("largest tile in a corner" in line for line in evidence)
+
+
+@pytest.mark.asyncio
+async def test_being_stuck_sends_her_back_to_find_out_more(screen, monkeypatch):
+    from core.agency import task_knowledge as tk
+
+    tk.forget_everything()
+    screen["works"] = set()  # every move changes nothing
+    asked = []
+
+    async def learn(goal, **kw):
+        asked.append(goal)
+        return tk.TaskKnowledge(goal=goal, findings=[tk.Finding(says="try the other direction")])
+
+    monkeypatch.setattr(tk, "learn_about", learn)
+    await sp.pursue_on_screen(
+        goal="raise the number",
+        success_when="never happens",
+        think=_thinks("up"),
+        max_cycles=6,
+        max_seconds=10.0,
+        narrate=False,
+        lived=False,
+        spine=_Store(),
+        graph=_Store(),
+    )
+    assert len(asked) > 1, "she kept pressing without ever asking why it was not working"
+
+
+@pytest.mark.asyncio
+async def test_research_can_be_switched_off_for_a_run(screen, monkeypatch):
+    from core.agency import task_knowledge as tk
+
+    tk.forget_everything()
+    seen = {}
+
+    async def learn(goal, **kw):
+        seen.update(kw)
+        return tk.TaskKnowledge(goal=goal)
+
+    monkeypatch.setattr(tk, "learn_about", learn)
+    await sp.pursue_on_screen(
+        goal="raise the number",
+        success_when="never happens",
+        think=_thinks("up"),
+        research=False,
+        max_cycles=2,
+        max_seconds=10.0,
+        narrate=False,
+        lived=False,
+        spine=_Store(),
+        graph=_Store(),
+    )
+    assert seen.get("search") is False
