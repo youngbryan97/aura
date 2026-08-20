@@ -101,6 +101,10 @@ logger = logging.getLogger(__name__)
 _EXPLICIT_TOOL_COMPOSITION_ORIGINS = frozenset({"web_interlocutor"})
 
 _DOWNSTREAM_REPAIRABLE_RESPONSE_REASONS = {
+    # One invented tool name in an otherwise grounded reply. The repair pass
+    # regenerates against the same evidence, which already named the real
+    # ones, so throwing the whole answer away costs more than it protects.
+    "unregistered_capability_claim",
     "missing_requested_self_process_coverage",
     "missing_requested_paragraph_count",
     "missing_requested_list_count",

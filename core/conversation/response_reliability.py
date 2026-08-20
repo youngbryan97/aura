@@ -1697,6 +1697,84 @@ def _has_fabricated_substrate_claim(user_message: Any, reply_text: Any) -> bool:
     return False
 
 
+#: A tool named as HERS. "a tool called X" and "my X tool" assert that X is a
+#: capability of this runtime; "I used curl" or "the Open-Meteo API" do not,
+#: and are none of this rule's business.
+_TOOL_CLAIMED_AS_HERS_RE = re.compile(
+    r"\b(?:"
+    r"(?:a|my|the)\s+tool\s+(?:called|named)\s+[\"'\u201c]?(?P<called>[A-Za-z][\w.\-]{1,31})"
+    r"|my\s+(?P<mine>[A-Za-z][\w.\-]{1,31})\s+(?:tool|skill|capability)"
+    r")\b",
+    re.IGNORECASE,
+)
+
+#: Only a claim to have USED it counts. Discussing what a tool would be called
+#: is not a claim to have one.
+_TOOL_USE_CLAIM_RE = re.compile(
+    r"\b(?:i|i've|ive|i'm|im)\b[^.;:!?]{0,80}"
+    r"\b(?:used|using|use|ran|running|run|called|tested|testing|built\s+with)\b",
+    re.IGNORECASE,
+)
+
+
+def _registered_capability_names() -> frozenset[str]:
+    """Every capability this build actually registers, folded for comparison.
+
+    Fails OPEN: with no catalogue there is nothing to contradict, and a rule
+    that fires when it cannot check is worse than one that stays quiet.
+    """
+    try:
+        from core.skills.discovery import build_skill_catalog
+
+        catalogue = build_skill_catalog()
+    except Exception:  # noqa: BLE001 - no catalogue means no contradiction
+        return frozenset()
+    names: set[str] = set()
+    for declaration in getattr(catalogue, "accepted", ()) or ():
+        name = str(getattr(declaration, "name", "") or "").strip().lower()
+        if not name:
+            continue
+        names.add(name)
+        names.add(name.replace("_", ""))
+        names.update(part for part in name.split("_") if len(part) > 3)
+    return frozenset(names)
+
+
+def _claims_a_capability_it_does_not_have(user_message: Any, reply_text: Any) -> bool:
+    """Whether the reply names one of her tools that is not registered.
+
+    LIVE, 2026-08-20. Asked what she had been working on, with the record in
+    front of her naming swarm_debate, web_search and http_request, she
+    answered "I've been testing my memory reasoning with a tool called
+    WebGPT". No such capability exists in this build. The rest of the reply
+    was grounded — she named a curiosity topic straight from the record — so
+    nothing was wrong with the evidence; one clause invented a name.
+
+    Narrow on purpose. Only a first-person claim to have USED a tool it calls
+    HERS counts, and not when the person introduced the name.
+    """
+    raw = str(reply_text or "")
+    if not raw.strip():
+        return False
+    registered = _registered_capability_names()
+    if not registered:
+        return False
+    prompt = _normalize(user_message)
+    for sentence in re.split(r"(?<=[.!?])\s+|\n", raw):
+        match = _TOOL_CLAIMED_AS_HERS_RE.search(sentence)
+        if not match:
+            continue
+        if not _TOOL_USE_CLAIM_RE.search(sentence):
+            continue
+        named = (match.group("called") or match.group("mine") or "").strip().lower()
+        if not named or named in prompt:
+            continue
+        if named in registered or named.replace("_", "") in registered:
+            continue
+        return True
+    return False
+
+
 def _has_unsupported_deployment_routing_claim(
     user_message: Any,
     reply_text: Any,
@@ -7773,6 +7851,8 @@ def _model_text_integrity_reasons(
         reasons.append("search_meta_artifact")
     if user_facing and _has_unsupported_deployment_routing_claim(prompt, raw):
         reasons.append("unsupported_deployment_routing_claim")
+    if user_facing and _claims_a_capability_it_does_not_have(prompt, raw):
+        reasons.append("unregistered_capability_claim")
     if user_facing and _has_fabricated_substrate_claim(prompt, raw):
         reasons.append("fabricated_substrate_claim")
     if user_facing and antecedent_topic_abandoned(prompt, raw, antecedent):
