@@ -21,6 +21,9 @@ from core.skills.test_generator import TestGeneratorSkill
 from core.skills.toggle_senses import ToggleSensesSkill
 
 EXPECTED_REGISTERED_SKILLS = {
+    "http_request",
+    "pursue_on_screen",
+    "reminder",
     "ManageAbilities",
     "add_belief",
     "auto_refactor",
@@ -369,7 +372,10 @@ def test_capability_context_borrows_only_initialized_runtime_services(monkeypatc
 
 def test_registered_skill_surface_matches_expected_catalog(skill_registry):
     assert set(skill_registry) == EXPECTED_REGISTERED_SKILLS
-    assert len(skill_registry) == 76
+    # Counted against the declaration rather than a literal. A third copy of
+    # the number drifts from the other two: this list was already missing
+    # pursue_on_screen and reminder when a new skill made the diff visible.
+    assert len(skill_registry) == len(EXPECTED_REGISTERED_SKILLS)
 
 
 @pytest.mark.asyncio

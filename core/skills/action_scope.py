@@ -37,6 +37,7 @@ __all__ = [
     "action_within_scope",
     "declared_action_scopes",
     "resolve_skill_target",
+    "skill_class_named",
     "skill_has_action_within",
 ]
 
@@ -47,6 +48,46 @@ def _import_class(module_path: str, class_name: str) -> Any:
         return getattr(importlib.import_module(module_path), class_name, None)
     except Exception:  # noqa: BLE001 - a skill that cannot import declares nothing
         return None
+
+
+@lru_cache(maxsize=1)
+def _declared_classes() -> dict[str, tuple[str, str]]:
+    """Where each skill's class lives, by skill name.
+
+    Built from the source catalogue, which parses declarations without
+    importing or instantiating anything, so asking for one skill's scope does
+    not start seventy-five others.
+    """
+    try:
+        from core.skills.discovery import build_skill_catalog
+
+        catalog = build_skill_catalog()
+    except Exception:  # noqa: BLE001 - no catalogue means no declaration to read
+        return {}
+    found: dict[str, tuple[str, str]] = {}
+    for declaration in getattr(catalog, "accepted", ()) or ():
+        name = str(getattr(declaration, "name", "") or "").strip()
+        module_path = str(getattr(declaration, "module_path", "") or "").strip()
+        class_name = str(getattr(declaration, "class_name", "") or "").strip()
+        if name and module_path and class_name:
+            found.setdefault(name, (module_path, class_name))
+    return found
+
+
+def skill_class_named(name: Any) -> Any:
+    """The class declaring a skill's actions, found by the skill's name.
+
+    The registry is the fast path and is absent outside a running container.
+    Scope resolution has to answer either way: a skill's declaration of what
+    its own actions cost does not depend on whether the runtime is up.
+    """
+    wanted = str(name or "").strip()
+    if not wanted:
+        return None
+    located = _declared_classes().get(wanted)
+    if not located:
+        return None
+    return _import_class(*located)
 
 
 def resolve_skill_target(meta: Any) -> Any:
@@ -67,6 +108,9 @@ def resolve_skill_target(meta: Any) -> Any:
         resolved = _import_class(module_path, class_name)
         if resolved is not None:
             return resolved
+    by_name = skill_class_named(getattr(meta, "name", None))
+    if by_name is not None:
+        return by_name
     return meta
 
 #: Containment, least to most dangerous. A call is admissible when its scope

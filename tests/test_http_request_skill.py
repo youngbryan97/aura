@@ -1,0 +1,75 @@
+"""Fetching a URL: what it will and will not reach.
+
+LIVE GAP, 2026-08-20. Asked to work out how to call an API from its endpoint,
+she answered "let's make a request" — because among seventy-five skills none
+could make one.
+"""
+
+from __future__ import annotations
+
+import asyncio
+
+import pytest
+
+from core.executive.execution_policy import resolve_execution_effect_scope
+from core.skills.http_request import HttpRequestSkill, check_url
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://localhost:8000/api/skills",
+        "http://127.0.0.1:8000/",
+        "http://[::1]:8000/",
+        "http://169.254.169.254/latest/meta-data/",
+        "http://metadata.google.internal/",
+    ],
+)
+def test_this_machine_is_not_the_web(url: str) -> None:
+    """The runtime's own API listens on loopback; a link must not reach it."""
+    fetched, reason = check_url(url)
+    assert not fetched
+    assert reason
+
+
+@pytest.mark.parametrize("url", ["file:///etc/passwd", "ftp://example.com/x", "/etc/passwd", ""])
+def test_only_http_is_fetched(url: str) -> None:
+    assert check_url(url)[0] == ""
+
+
+def test_a_public_url_is_allowed() -> None:
+    fetched, reason = check_url("https://example.com/docs")
+    assert reason == ""
+    assert fetched
+
+
+def test_a_refused_url_never_reaches_the_network() -> None:
+    result = asyncio.run(HttpRequestSkill().execute({"url": "http://127.0.0.1:9/"}))
+    assert result["ok"] is False
+    assert "own network" in result["error"]
+
+
+def test_reading_is_scoped_as_reading_and_writing_is_not() -> None:
+    """The point of the per-action table: a GET is not an external effect."""
+    assert resolve_execution_effect_scope("http_request", {"method": "GET"}) == "read_only"
+    assert resolve_execution_effect_scope("http_request", {"method": "HEAD"}) == "read_only"
+    for method in ("POST", "PUT", "PATCH", "DELETE"):
+        assert resolve_execution_effect_scope("http_request", {"method": method}) == "external_io"
+
+
+def test_a_reader_is_scoped_by_its_action_without_a_branch_of_its_own() -> None:
+    """The general fallthrough, checked on the skill that motivated it.
+
+    Reading a file outside the workspace used to resolve to state_mutation,
+    because the only per-action rule was a workspace-specific special case.
+    """
+    assert resolve_execution_effect_scope("file_operation", {"action": "read", "path": "/etc/hosts"}) == "read_only"
+    assert resolve_execution_effect_scope("file_operation", {"action": "delete", "path": "/etc/hosts"}) == "state_mutation"
+
+
+def test_the_skill_is_in_the_catalogue() -> None:
+    """A skill the catalogue rejects is a skill nobody can be offered."""
+    from core.skills.discovery import build_skill_catalog
+
+    names = {declaration.name for declaration in build_skill_catalog().accepted}
+    assert "http_request" in names

@@ -17,6 +17,9 @@ from typing import Any
 
 from core.skills.catalog_policy import resolve_skill_policy
 
+#: The registry is absent in tests and in tools that never build a container.
+_REGISTRY_LOOKUP_FAILURES = (ImportError, AttributeError, KeyError, RuntimeError, TypeError)
+
 RISK_ORDER = {
     "low": 0,
     "medium": 1,
@@ -457,10 +460,61 @@ def resolve_execution_effect_scope(
             return "read_only"
 
     declared = str(declared_effect_scope or "").strip().lower()
+
+    # Every branch above is one skill's name. A skill that declares its own
+    # per-action scopes needs no branch: ACTION_EFFECT_SCOPES on the class says
+    # what each action costs, and the same table already drives which skills a
+    # turn may be offered. Consulting it here is what makes the declaration
+    # true at the moment of the call, so a reader added tomorrow is scoped as a
+    # read without an edit to this chain.
+    from core.skills.action_scope import (
+        declared_action_scopes,
+        resolve_skill_target,
+        skill_class_named,
+    )
+
+    action = _declared_action_name(name, arguments)
+    if action:
+        target = resolve_skill_target(_skill_meta_for(name)) or skill_class_named(name)
+        scopes = declared_action_scopes(target) or declared_action_scopes(skill_class_named(name))
+        scoped = scopes.get(action)
+        if scoped:
+            return scoped
+
     policy = resolve_skill_policy(name, declared)
     if policy is not None:
         return policy.effect_scope
     return _GENERIC_EFFECT_SCOPES.get(name, "unknown")
+
+
+#: Fields a skill uses to name which of its actions this call performs.
+_ACTION_FIELDS: tuple[str, ...] = ("action", "method", "mode", "operation", "command")
+
+
+def _declared_action_name(name: str, arguments: dict[str, Any]) -> str:
+    """The action this call names, in the spelling the skill declares."""
+    for field in _ACTION_FIELDS:
+        value = arguments.get(field)
+        if isinstance(value, str) and value.strip():
+            return value.strip().lower()
+    return ""
+
+
+def _skill_meta_for(name: str) -> Any:
+    """The registry entry for a skill, or None when the registry is not up.
+
+    Scope resolution runs in tests and in tools that never build a container,
+    so a missing registry means "no declaration to read", not an error.
+    """
+    try:
+        from core.container import get_container
+        from core.service_names import ServiceNames
+
+        engine = get_container().try_get(ServiceNames.CAPABILITY_ENGINE)
+        skills = getattr(engine, "skills", None) or {}
+        return skills.get(name)
+    except _REGISTRY_LOOKUP_FAILURES:
+        return None
 
 
 def classify_execution_risk(

@@ -27,8 +27,12 @@ def test_clean_wheel_discovers_the_complete_catalog_without_rust(tmp_path: Path)
     assert result["schema"] == "aura.skill_portability_audit.v1"
     assert result["ok"] is True
     assert result["failures"] == []
-    assert result["source"]["accepted_count"] == 76
-    assert result["clean_install"]["accepted_count"] == 76
+    # The claim in this test's name is that the wheel finds everything the
+    # source tree finds. A frozen number does not say that, and it went stale
+    # twice — pinned at 76 while the tree carried 79 — so a real shortfall
+    # would have been indistinguishable from the drift.
+    assert result["source"]["accepted_count"] == result["clean_install"]["accepted_count"]
+    assert result["source"]["accepted_count"] >= 79
     assert result["clean_install"]["native_extension_available"] is False
     assert result["clean_install"]["backend"] == "python"
     assert result["clean_install"]["parity_status"] == "unavailable"
