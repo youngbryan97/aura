@@ -14127,6 +14127,22 @@ class MLXLocalClient:
                 messages=messages,
                 tools=template_tools,
                 max_tokens=kwargs.get("max_tokens", self.max_tokens),
+                # A tool call is structured output, and affective steering
+                # destroys structured output.
+                #
+                # LIVE, 2026-08-19: with five tools offered and the engine
+                # alpha at 3.8, this generation returned ONE token and no text
+                # survived — "Generation produced 1 token(s) but no text
+                # survived to the caller". Every tool-using turn therefore
+                # looked like a model that declined to call anything, when
+                # nothing had been generated at all.
+                #
+                # The user surface already decodes at alpha 0.0 for the same
+                # reason, and the code model is loaded unsteered outright. This
+                # is that rule applied to the third kind of structured
+                # generation the runtime performs.
+                clean_user_surface_steering_alpha=0.0,
+                clean_user_surface_recurrent_loops=1,
             )
             if not raw or not raw.strip():
                 # An empty generation in tool mode looks identical from the
