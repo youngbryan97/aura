@@ -12823,7 +12823,33 @@ class MLXLocalClient:
             if call is not None:
                 return call
 
-        # 2. Whole-response JSON envelope only. A fenced block must BE the
+        # 2. A whole-response CODE fence, when a code tool is on offer.
+        #
+        # LIVE, 2026-08-19. Asked to read a file with code_repl among the
+        # offered tools, the model answered with exactly this:
+        #
+        #     ```python
+        #     with open('/private/tmp/.../README.md') as f: print(f.read())
+        #     ```
+        #
+        # That is the right action, expressed the way a model naturally
+        # expresses "run this". Rejecting it for lacking a tool-call envelope
+        # discarded a correct attempt and reported that she had refused to act.
+        #
+        # The whole-response rule is what keeps this safe, and it is the same
+        # rule the JSON envelope below already lives under: a fence EMBEDDED in
+        # prose is a worked example being discussed, and only a response that
+        # IS the fence is a request to run it.
+        code_fence = re.fullmatch(
+            r"```(?:python|py)?\s*\n?(.*?)\n?```", stripped, re.DOTALL
+        )
+        if code_fence and allowed_tools:
+            body = code_fence.group(1).strip()
+            runner = _code_execution_tool(allowed_tools)
+            if body and runner:
+                return {"tool": runner, "args": {"code": body}}
+
+        # 3. Whole-response JSON envelope only. A fenced block must BE the
         #    response; prose wrapped around it means the model was talking
         #    about a call, not making one.
         candidate: str | None = None
@@ -15678,6 +15704,21 @@ def _truncate_tool_result(result: Any, *, limit: int = 4000) -> str:
     if limit <= len(marker):
         return marker[:limit]
     return text[: limit - len(marker)] + marker
+
+
+def _code_execution_tool(allowed_tools: set[str] | None) -> str | None:
+    """The offered tool that runs code, if one is offered.
+
+    Chosen by what the tool is named for rather than from a list, so a runner
+    registered tomorrow is found without an edit here.
+    """
+    if not allowed_tools:
+        return None
+    ranked = sorted(
+        (name for name in allowed_tools if re.search(r"repl|run_code|sandbox|exec", str(name), re.I)),
+        key=lambda name: (0 if "repl" in str(name).lower() else 1, str(name)),
+    )
+    return ranked[0] if ranked else None
 
 
 def _refuse_action_beyond_authority(
