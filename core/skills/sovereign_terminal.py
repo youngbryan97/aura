@@ -332,7 +332,7 @@ class SovereignTerminalSkill(BaseSkill):
                     "summary": f"Target {target} opened successfully.",
                     "governance": verdict.receipt(),
                 }
-        except (RuntimeError, asyncio.CancelledError, TimeoutError, AttributeError) as e:
+        except (RuntimeError, TimeoutError, AttributeError) as e:
             record_degradation('sovereign_terminal', e)
             return {"ok": False, "error": f"Failed to open target: {e}"}
         finally:

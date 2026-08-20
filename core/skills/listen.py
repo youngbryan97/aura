@@ -231,7 +231,7 @@ class AudioListenerSkill(BaseSkill):
                 "ok": False,
                 "error": "Microphone access timed out."
             }
-        except (RuntimeError, asyncio.CancelledError, AttributeError) as e:
+        except (RuntimeError, AttributeError) as e:
             record_degradation('listen', e)
             logger.error("Audio capture failed: %s", e)
             return {"ok": False, "error": f"Audio capture failed: {e}"}

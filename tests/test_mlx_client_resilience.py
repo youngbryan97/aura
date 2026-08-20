@@ -49,6 +49,12 @@ QWEN32_MODEL = str(TMP_ROOT / "Qwen2.5-32B-Instruct-8bit")
 TEST_MODEL = str(TMP_ROOT / "test-model")
 
 
+from core.brain.llm.token_budget_evidence import (
+    CALIBRATION_SCHEMA,
+    MIN_OBSERVATIONS as MIN_CALIBRATION_OBSERVATIONS,
+)
+
+
 def ready_init_receipt(
     model_path: str = TEST_MODEL,
     *,
@@ -82,6 +88,18 @@ def ready_init_receipt(
     receipt = {
         "status": "ok",
         "action": "init",
+        # The worker measures a fixed prompt mix with its resident tokenizer
+        # and the handshake refuses a receipt without it. This fixture predated
+        # that requirement, so nine tests were asserting readiness against a
+        # receipt the running system would reject.
+        "token_budget_calibration": {
+            "schema": CALIBRATION_SCHEMA,
+            "sample_set": "aura-runtime-mixed-v1",
+            "observations": [
+                {"label": f"sample_{index}", "chars": 120 * (index + 1), "tokens": 30 * (index + 1)}
+                for index in range(MIN_CALIBRATION_OBSERVATIONS)
+            ],
+        },
         "worker_identity": {
             "schema": (
                 "aura.latent_cortex.worker_identity.v2"
@@ -766,8 +784,18 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
                     for hook in self._hooks:
                         hook._alpha = min(hook._alpha, alpha)
 
+        class _Layer:
+            pass
+
         class _Inner:
             _recurrent_depth_config = {"n_loops": 2}
+            # resolve_model_layers identifies the forward owner by its layer
+            # stack and refuses to guess from arbitrary attributes. Without one
+            # the clamp had nothing to apply to, and the test read that as the
+            # clamp not happening.
+            layers = [_Layer(), _Layer()]
+            embed_tokens = object()
+            norm = object()
 
         class _Model:
             model = _Inner()
@@ -866,17 +894,42 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(client._first_token_sla(foreground_request=True), 120.0)
 
     async def test_worker_sanitizer_finishes_current_request_for_caller_recovery(self):
-        worker_source = await asyncio.to_thread(
-            Path("core/brain/llm/mlx_worker.py").read_text,
-            encoding="utf-8",
-        )
-        marker = "Hallucination detected by sanitizer."
-        start = worker_source.index(marker)
-        end = worker_source.index('ipc_writer.put({', start)
-        sanitizer_block = worker_source[start:end]
+        """A sanitized draft answers the caller; it does not abandon the request.
 
-        self.assertIn("Returning empty text for caller-side recovery.", sanitizer_block)
-        self.assertNotIn("continue", sanitizer_block)
+        This asserted on a literal spelling in the worker source and on the
+        next occurrence of `ipc_writer.put({` after it. The sanitizer moved
+        and the marker survived only inside a comment, so the search raised
+        ValueError instead of reporting anything about behaviour. What matters
+        is the property: whatever the sanitizer rejects, the caller gets a
+        reply it can recover from rather than a request that never returns.
+        """
+        from core.brain.llm.mlx_worker import _route_telemetry_sanitizer_draft
+
+        unspeakable = "PROCEEDING TOOL_ACTION CONVERGE_UNION MySelfEpsilon ExistenceHash"
+
+        # With a repair lane that owns the draft, the caller receives it as
+        # rejected evidence and can recover.
+        carried, carried_reasons = _route_telemetry_sanitizer_draft(
+            unspeakable, is_proof=False, authored_surface_repair_available=True
+        )
+        self.assertEqual(carried, unspeakable)
+        self.assertTrue(carried_reasons)
+
+        # With no owner, it is withheld — but the reasons still come back, so
+        # the caller is told what happened instead of being left waiting.
+        withheld, withheld_reasons = _route_telemetry_sanitizer_draft(
+            unspeakable, is_proof=False, authored_surface_repair_available=False
+        )
+        self.assertEqual(withheld, "")
+        self.assertTrue(withheld_reasons)
+
+        kept, kept_reasons = _route_telemetry_sanitizer_draft(
+            "The bridge takes seventeen minutes if the two fastest carry the torch back.",
+            is_proof=False,
+            authored_surface_repair_available=False,
+        )
+        self.assertIn("seventeen minutes", kept)
+        self.assertFalse(list(kept_reasons))
 
     async def test_heavy_model_hotswap_reboots_other_heavy_client_before_spawn(self):
         import core.brain.llm.mlx_client as mlx_module

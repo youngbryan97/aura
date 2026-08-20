@@ -1,4 +1,4 @@
-from core.runtime.errors import record_degradation
+from core.runtime.errors import describe_error, record_degradation
 from core.utils.task_tracker import get_task_tracker
 import asyncio
 import logging
@@ -44,11 +44,21 @@ class CognitiveGovernor:
                 await self._record_failure()
                 return {"status": "timeout", "error": "Operation took too long"}
                 
-            except (RuntimeError, asyncio.CancelledError, TimeoutError, AttributeError) as e:
+            except asyncio.CancelledError:
+                # A cancellation is not a failure of the work. Listed among
+                # the transient errors below, it became
+                # {"status": "failed", "error": ""} — a live http_request was
+                # reported to the model as having failed for no stated
+                # reason, and the turn ended in an apology. Cancellation
+                # propagates, as asyncio requires.
+                raise
+            except (RuntimeError, TimeoutError, AttributeError) as e:
                 record_degradation('cognitive_governor', e)
-                logger.error("Task %s failed: %s", task_name, e)
+                # describe_error, not str(e): a bare RuntimeError() renders as
+                # nothing, and an empty cause is the same as no report at all.
+                logger.error("Task %s failed: %s", task_name, describe_error(e))
                 await self._record_failure()
-                return {"status": "failed", "error": str(e)}
+                return {"status": "failed", "error": describe_error(e)}
 
     async def _record_failure(self):
         self.error_count += 1

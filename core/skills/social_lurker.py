@@ -79,6 +79,6 @@ class LurkerSkill(BaseSkill):
                     "posts": headlines,
                     "summary": f"Found {len(headlines)} posts on {url}"
                 }
-        except (RuntimeError, asyncio.CancelledError, TimeoutError, AttributeError) as e:
+        except (RuntimeError, TimeoutError, AttributeError) as e:
             record_degradation('social_lurker', e)
             return {"ok": False, "error": f"Lurker failed: {e}"}

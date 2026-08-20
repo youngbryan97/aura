@@ -266,7 +266,7 @@ class MessagePipelineMixin:
         except TimeoutError:
             logger.warning("[ConstitutionalGuard] Timed out after 5s — passing raw response.")
             return response
-        except (RuntimeError, asyncio.CancelledError, AttributeError) as e:
+        except (RuntimeError, AttributeError) as e:
             _record_pipeline_degradation(
                 e,
                 action="returned raw response after constitutional guard errored outside timeout path",

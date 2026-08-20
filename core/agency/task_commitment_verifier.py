@@ -731,7 +731,7 @@ class TaskCommitmentVerifier:
                 ),
                 elapsed_ms=elapsed,
             )
-        except (RuntimeError, asyncio.CancelledError, TimeoutError, AttributeError) as e:
+        except (RuntimeError, TimeoutError, AttributeError) as e:
             record_degradation('task_commitment_verifier', e)
             self._update_task_entry(task_id, status="failed", error=str(e))
             await self._update_goal_dispatch(
