@@ -16056,6 +16056,27 @@ def _apply_recorded_answer(user_message: object, response: Any) -> Any:
         corrected = str(_serve_queued_work(user_message, corrected) or corrected)
         corrected = str(_serve_lifetime(user_message, corrected) or corrected)
         corrected = str(_correct_false_capability_denials(corrected) or corrected)
+        # Cut a reply that stopped mid-clause back to where it last made sense.
+        #
+        # The repair existed and served the desktop-task lane and the event
+        # bridge, not the lane people type into. Live 2026-08-19 a correct
+        # diagnosis — it quoted the exact wrong line out of the file — ended
+        # "The correction would depend on whether" and was served that way.
+        try:
+            from core.conversation.response_reliability import complete_truncated_tail
+
+            _whole = complete_truncated_tail(corrected)
+            if _whole.strip() and _whole != corrected:
+                logger.info("✂️ Trimmed a reply that stopped mid-clause.")
+                corrected = _whole
+        except _CHAT_RECOVERABLE_ERRORS as exc:
+            record_degradation(
+                "chat.truncated_tail",
+                exc,
+                severity="debug",
+                action="served the reply with its unfinished clause",
+                enforce_failure_policy=False,
+            )
         # Cut a hallucinated continuation of the transcript.
         #
         # LIVE 2026-08-18: "<tool_call> !user yes check it. Read the contents
