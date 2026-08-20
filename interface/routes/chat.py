@@ -16323,6 +16323,26 @@ _SERVED_FROM_RECORD_OPENINGS = (
 _SERVED_COUNT_OPENING = re.compile(r"^\d+\s+jobs?\s+waiting\s+to\s+run\b")
 
 
+def _recorded_answer_corrections(user_message: object, reply: object) -> tuple[str, bool]:
+    """Every answer the runtime already holds, applied in order.
+
+    Returns the text and whether a record replaced what the model wrote, so
+    the caller does not have to recognise a record by how its first sentence
+    opens. That inference is the same shape as the grounding "text marker"
+    this codebase replaced with a stamp: it works until a reader phrases a
+    true thing differently.
+    """
+    body = str(reply or "")
+    corrected = str(_serve_measured_filesystem_count(user_message, body) or body)
+    corrected = str(_serve_measured_belief_history(corrected) or corrected)
+    corrected = str(_serve_earlier_conversation(user_message, corrected) or corrected)
+    corrected = str(_serve_queued_work(user_message, corrected) or corrected)
+    corrected = str(_serve_recent_activity(user_message, corrected) or corrected)
+    corrected = str(_serve_lifetime(user_message, corrected) or corrected)
+    corrected = str(_serve_tabular_answer(user_message, corrected) or corrected)
+    return corrected, corrected.strip() != body.strip()
+
+
 def _reply_was_served_from_a_record(reply: object) -> bool:
     body = str(reply or "").lstrip()
     if _SERVED_COUNT_OPENING.match(body):
@@ -16359,11 +16379,33 @@ def _apply_recorded_answer(user_message: object, response: Any) -> Any:
         if not isinstance(reply, str) or not reply.strip():
             return response
         contract = data.get("live_turn_contract")
+
+        # A recorded answer outranks a proven one, and is typed as itself.
+        #
+        # LIVE, 2026-08-20. "what have you been up to tonight?" was answered
+        # "I've been running in the background. The system was a little
+        # sluggish earlier" while thirty-eight finished pieces of work sat in
+        # the record. The reply had passed the answer contract, so the whole
+        # correction chain was skipped by the gate below — every record
+        # server with it. The comment there is right that a proof must not
+        # come to refer to different text; what follows from that is
+        # re-typing the response, not keeping the wrong answer.
+        recorded, served_from_record = _recorded_answer_corrections(user_message, reply)
+        if served_from_record:
+            data["response"] = recorded
+            data["response_confidence"] = "computed"
+            if isinstance(contract, dict):
+                contract["response_confidence"] = "computed"
+                contract["answer_delivery_proven"] = False
+                contract["recorded_answer_served"] = True
+            return JSONResponse(
+                content=data, status_code=getattr(response, "status_code", 200)
+            )
+
         if isinstance(contract, dict) and contract.get("answer_delivery_proven") is True:
-            # Exact authored bytes have crossed the terminal answer contract.
-            # A wrapper correction after that point would make the proof refer
-            # to different text. Recorded/computed answers must be selected
-            # before proof, or remain a separately typed unproven response.
+            # Exact authored bytes have crossed the terminal answer contract,
+            # and nothing above replaced them. A stylistic correction after
+            # this point would make the proof refer to different text.
             return response
         corrected = str(_append_past_action_record(user_message, reply) or reply)
         # Self-metric honesty belongs here for the same reason the recorded
@@ -16375,17 +16417,10 @@ def _apply_recorded_answer(user_message: object, response: Any) -> Any:
         corrected = str(_correct_unsourced_self_metrics(corrected) or corrected)
         # A measured count outranks a generated one. Asking the model to use
         # the real number was tried and produced the wrong number a third time.
-        corrected = str(_serve_measured_filesystem_count(user_message, corrected) or corrected)
-        # Same remedy for her own history. The reading REACHED the model —
-        # "took 1 reading(s): positions i have actually revised" is in the log
-        # for the turn — and the reply still named an invented revision with an
-        # invented date. Evidence informs; it does not enforce.
-        corrected = str(_serve_measured_belief_history(corrected) or corrected)
-        corrected = str(_serve_earlier_conversation(user_message, corrected) or corrected)
-        corrected = str(_serve_queued_work(user_message, corrected) or corrected)
-        corrected = str(_serve_recent_activity(user_message, corrected) or corrected)
-        corrected = str(_serve_lifetime(user_message, corrected) or corrected)
-        corrected = str(_serve_tabular_answer(user_message, corrected) or corrected)
+        # The same readers, through the one entry point. Evidence informs; it
+        # does not enforce, so where the runtime holds the answer it composes
+        # it rather than asking again.
+        corrected = _recorded_answer_corrections(user_message, corrected)[0]
         corrected = str(_correct_false_capability_denials(corrected) or corrected)
         # Cut a reply that stopped mid-clause back to where it last made sense.
         #
