@@ -347,3 +347,41 @@ def test_an_ordinary_banner_is_unaffected_by_the_new_rule():
 
     assert verdict.label == "Reject All"
     assert not verdict.needs_person
+
+
+def test_a_control_label_is_not_a_warning():
+    """LIVE: a finished game showing "Try again" and "Start over" could never
+    be restarted — deciding to restart it produced a halt saying the decision
+    was the person's to make.
+
+    A warning is a sentence about a consequence. "Start over" is a button.
+    """
+    from core.perception.blocking_overlay import DESTRUCTIVE_WARNINGS
+
+    assert not any("start" in pattern and "over" in pattern for pattern in DESTRUCTIVE_WARNINGS)
+
+
+def test_a_warning_about_what_she_chose_is_a_confirmation_not_an_ambush():
+    from core.perception.blocking_overlay import assess_overlay
+
+    text = "Game over! Try again. Your progress will be lost."
+    seen = {"ok": True, "text": text, "layout": [{"text": w, "center_y": 0.4} for w in text.split()]}
+    assert assess_overlay(seen).needs_person, "unasked-for destruction still stops her"
+    assert not assess_overlay(seen, intending="start over").needs_person
+
+
+def test_permanent_deletion_stops_her_whatever_she_intended():
+    """Losing this attempt is recoverable by doing it again. This is not."""
+    from core.perception.blocking_overlay import assess_overlay
+
+    text = "This will permanently delete all your files and cannot be undone"
+    seen = {"ok": True, "text": text, "layout": [{"text": w, "center_y": 0.4} for w in text.split()]}
+    assert assess_overlay(seen, intending="start over").needs_person
+
+
+def test_an_unrelated_intent_does_not_unlock_a_warning():
+    from core.perception.blocking_overlay import assess_overlay
+
+    text = "Your unsaved changes will be lost"
+    seen = {"ok": True, "text": text, "layout": [{"text": w, "center_y": 0.4} for w in text.split()]}
+    assert assess_overlay(seen, intending="press up").needs_person

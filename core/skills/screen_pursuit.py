@@ -686,6 +686,9 @@ async def pursue_on_screen(
     seen_through: dict[str, Any] = {"value": False, "because": ""}
     #: The finishing condition was already met on the first reading.
     already: dict[str, bool] = {"value": False}
+    #: What she has just deliberately decided to do, so a dialog confirming
+    #: that decision is not read as an ambush.
+    intent: dict[str, str] = {"value": ""}
     #: Attempts she chose to begin again, and why.
     restarts: dict[str, Any] = {"count": 0, "because": ""}
     #: What she knows about doing this, learned once at the start and again
@@ -785,7 +788,7 @@ async def pursue_on_screen(
             from core.perception.blocking_overlay import assess_overlay
         except ImportError:
             return None
-        verdict = assess_overlay(observation)
+        verdict = assess_overlay(observation, intending=intent["value"])
         if verdict.needs_person:
             # A dialog only the person can answer means the task cannot go on.
             #
@@ -1044,6 +1047,7 @@ async def pursue_on_screen(
                 frame = list(observation.get("bounds") or [])
                 restarts["count"] += 1
                 restarts["because"] = because
+                intent["value"] = START_OVER
                 history.clear()
 
                 async def begin_again() -> bool:
@@ -1133,6 +1137,7 @@ async def pursue_on_screen(
                 )
                 if settle.reached and settle.chosen is not None and settle.chosen.name == START_OVER:
                     label, rx, ry = fresh
+                    intent["value"] = START_OVER
                     frame = list(first.get("bounds") or [])
                     if await click_normalized(rx, ry, expect_app=target_app, bounds=frame):
                         restarts["count"] += 1

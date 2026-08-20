@@ -106,9 +106,16 @@ DESTRUCTIVE_WARNINGS: tuple[str, ...] = (
     r"\bdelete\s+(?:all|everything|permanently)\b",
     r"\bunsaved\s+changes\b",
     r"\bdiscard\s+(?:your\s+)?(?:changes|draft|work)\b",
-    r"\bstart\s+over\b",
     r"\bthis\s+action\s+is\s+irreversible\b",
 )
+# "start over" was on this list and is a control label, not a warning.
+#
+# A warning is a sentence about a consequence — "your progress will be
+# lost", "this cannot be undone". "Start over" is the name of a button, and
+# treating it as a warning meant every screen offering one was a screen she
+# had to stop and ask about. Measured live: a finished game showing "Try
+# again" and "Start over" could never be restarted, because deciding to
+# restart it produced a halt saying the decision was the person's to make.
 
 #: Words that suggest the thing on screen is an overlay at all, rather than
 #: page content that happens to contain a button.
@@ -201,12 +208,41 @@ def _dismissal_score(text: str) -> int:
     return 0
 
 
-def assess_overlay(observation: dict[str, Any]) -> OverlayVerdict:
+
+#: Warnings that stop her no matter what she intended. Losing this attempt's
+#: progress is recoverable by doing it again; these are not.
+NEVER_INTENDED = (
+    r"\bpermanently\s+(?:delete|remove|erase)\b",
+    r"\bdelete\s+(?:all|everything|permanently)\b",
+    r"\bcannot\s+be\s+undone\b",
+    r"\bcan'?t\s+be\s+undone\b",
+    r"\bthis\s+action\s+is\s+irreversible\b",
+)
+
+
+def _is_what_she_intended(warnings: tuple[str, ...], intending: str) -> bool:
+    """Whether a warning is about the thing she has just decided to do."""
+    if not intending or not warnings:
+        return False
+    if any(pattern in NEVER_INTENDED for pattern in warnings):
+        return False
+    return "start over" in intending.lower() or "restart" in intending.lower()
+
+
+def assess_overlay(observation: dict[str, Any], *, intending: str = "") -> OverlayVerdict:
     """Read one screen observation and decide whether something is in the way.
 
     Takes the same shape every reading already produces — `text` plus a
     `layout` of positioned runs — so any caller that can see can use this
     without new plumbing.
+
+    ``intending`` names what the caller has just deliberately decided to do.
+    A warning halts an action she did not choose; it is not there to stop her
+    doing the thing she decided on. A dialog saying progress will be lost, to
+    somebody who has just chosen to abandon this attempt and begin again, is
+    a confirmation of that decision rather than an ambush — and only for
+    warnings about the very thing being intended. Anything speaking of
+    permanent deletion still stops, whatever was intended.
     """
     text = str(observation.get("text") or "")
     layout = list(observation.get("layout") or [])
@@ -229,6 +265,9 @@ def assess_overlay(observation: dict[str, Any]) -> OverlayVerdict:
     destructive = tuple(
         pattern for pattern in DESTRUCTIVE_WARNINGS if re.search(pattern, lowered)
     )
+    if destructive and _is_what_she_intended(destructive, intending):
+        # She decided this. The dialog is confirming it, not ambushing her.
+        destructive = ()
     if destructive:
         # Stop here. Something on this dialog destroys work, and which button
         # does it is not knowable from a label — "Start New Game" reads like
