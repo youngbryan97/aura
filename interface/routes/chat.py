@@ -14556,6 +14556,45 @@ def _serve_lifetime(user_message: object, reply: object) -> object:
     return reply
 
 
+def _serve_positional_solution(user_message: object, reply: object) -> object:
+    """Answer a seating or order problem from the enumeration.
+
+    LIVE, 2026-08-20. Six people, four constraints, one arrangement. She
+    narrated it twice and was wrong twice, the second time stating a layout in
+    which Dara sat opposite Ada one line after Boris did. The tools reached
+    the turn — a Python sandbox among them — and the model answered directly
+    anyway.
+
+    Where the answer follows from the constraints there is nothing to
+    generate, the same as a column of a spreadsheet or a product of two
+    numbers. Reported only when every arrangement that satisfies the
+    constraints agrees, so a problem that is genuinely open stays with the
+    model.
+    """
+    try:
+        from core.reasoning.positional_constraints import (
+            answer_positional_problem,
+            describe_positional_answer,
+        )
+
+        described = describe_positional_answer(
+            answer_positional_problem(str(user_message or ""))
+        )
+        if not described:
+            return reply
+        logger.info("🪑 Served a seating problem from the enumeration.")
+        return described
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        record_degradation(
+            "chat.positional_solution",
+            exc,
+            severity="debug",
+            action="left the seating problem to the model",
+            enforce_failure_policy=False,
+        )
+        return reply
+
+
 def _serve_recent_activity(user_message: object, reply: object) -> object:
     """Answer "what have you been working on" from the record of doing it.
 
@@ -16338,6 +16377,7 @@ def _recorded_answer_corrections(user_message: object, reply: object) -> tuple[s
     corrected = str(_serve_earlier_conversation(user_message, corrected) or corrected)
     corrected = str(_serve_queued_work(user_message, corrected) or corrected)
     corrected = str(_serve_recent_activity(user_message, corrected) or corrected)
+    corrected = str(_serve_positional_solution(user_message, corrected) or corrected)
     corrected = str(_serve_lifetime(user_message, corrected) or corrected)
     corrected = str(_serve_tabular_answer(user_message, corrected) or corrected)
     return corrected, corrected.strip() != body.strip()

@@ -543,6 +543,23 @@ async def _read_reminder_lines() -> list[str]:
     return lines
 
 
+def _matches_positional_problem(prompt: str) -> bool:
+    from core.reasoning.positional_constraints import parse_positional_problem
+
+    return parse_positional_problem(prompt) is not None
+
+
+async def _read_positional_problem(prompt: str) -> str:
+    """A seating or order problem, solved by enumerating the arrangements."""
+    from core.reasoning.positional_constraints import (
+        answer_positional_problem,
+        describe_positional_answer,
+    )
+
+    answer = await asyncio.to_thread(answer_positional_problem, prompt)
+    return describe_positional_answer(answer)
+
+
 def _matches_recent_activity(prompt: str) -> bool:
     from core.self.recent_activity import looks_like_a_question_about_recent_activity
 
@@ -924,6 +941,26 @@ def install_default_observables() -> None:
                 "what will you be doing next?",
                 "what did I ask you earlier today?",
                 "what is 2 + 2",
+            ),
+        ),
+        Observable(
+            "positional_solution",
+            "## THE SEATING, WORKED OUT",
+            _matches_positional_problem,
+            _read_positional_problem,
+            examples=(
+                # Live 2026-08-20: narrated twice, wrong twice, with a stated
+                # layout that contradicted its own conclusion.
+                "six people sit around a round table with six seats. Boris "
+                "sits directly opposite Ada. Chen and Dara sit next to each "
+                "other. Emil sits immediately clockwise of Ada. Chen is "
+                "exactly two seats from Ada. Who sits opposite Chen, and who "
+                "are Dara's two neighbours?",
+            ),
+            counter_examples=(
+                "how are you doing today?",
+                "what is 2 + 2",
+                "Ada and Boris are friends who like chess.",
             ),
         ),
         Observable(
