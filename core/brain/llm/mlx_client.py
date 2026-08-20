@@ -14203,6 +14203,7 @@ class MLXLocalClient:
         messages.append({"role": "user", "content": objective})
         tool_calls_made: list[dict[str, Any]] = []
         last_response_text = ""
+        announced_without_acting = False
 
         logger.info(
             "🔧 Tool loop payload: system=%d chars, objective=%d chars, "
@@ -14295,6 +14296,32 @@ class MLXLocalClient:
                         ",".join(sorted(tools)),
                         " ".join(response_text.split())[:200],
                     )
+                # An announced action with no action is not an answer.
+                #
+                # LIVE, 2026-08-20. Given a seating problem and a Python
+                # sandbox, the model produced exactly "Let's break down the
+                # problem step by step and use code to help us figure out the
+                # seating arrangement." and ended its turn. The loop read that
+                # as a final answer, so the turn was decided by a sentence
+                # describing work nobody did — and the reply that followed got
+                # the neighbours wrong.
+                #
+                # Once, and only while turns remain: the announcement stays in
+                # the history, so the next turn continues from a model that has
+                # already said what it was about to do.
+                if (
+                    tools
+                    and not tool_calls_made
+                    and not announced_without_acting
+                    and turn + 1 < max_turns
+                    and _announces_an_action_it_did_not_take(response_text)
+                ):
+                    announced_without_acting = True
+                    logger.info(
+                        "🔧 The model announced a tool it did not call; continuing the loop."
+                    )
+                    messages.append({"role": "assistant", "content": response_text})
+                    continue
                 return {
                     "content": response_text,
                     "turns": turn + 1,
@@ -15775,6 +15802,47 @@ def _balanced_json_object(text: str, start: int) -> str | None:
             if depth == 0:
                 return text[opening : index + 1]
     return None
+
+
+#: Saying it is about to do something, in the first person, now.
+_ANNOUNCES_AN_ACTION_RE = re.compile(
+    r"\b(?:"
+    # Words in between: the live sentence was "Let's break down the problem
+    # step by step and use code…", where the verb that matters is six words
+    # from the "let's" that governs it.
+    r"let(?:'s|\s+us)\s+(?:\w+\s+){0,8}?(?:use|write|run|try|compute|calculate|check)"
+    r"|i(?:'ll|\s+will|\s+am\s+going\s+to|\s+can|\s+should)\s+"
+    r"(?:use|write|run|try|compute|calculate|check)"
+    r"|let\s+me\s+(?:use|write|run|try|compute|calculate|check)"
+    r"|we\s+(?:can|could|should)\s+(?:use|write|run)"
+    r"|using\s+\w+\s+to\s+(?:figure|work|solve|compute)"
+    r")\b",
+    re.IGNORECASE,
+)
+
+#: The thing it says it is about to use. Without this, "let's use the first
+#: constraint" reads as a tool it forgot to call.
+_NAMES_A_MEANS_RE = re.compile(
+    r"\b(?:code|python|script|sandbox|repl|interpreter|program|tool|search|"
+    r"fetch|calculator|enumerate|brute[\s-]?force)\b",
+    re.IGNORECASE,
+)
+
+
+def _announces_an_action_it_did_not_take(text: object) -> bool:
+    """Whether the reply says it is about to act and then stops.
+
+    Narrow: the sentence has to say it is about to do something AND name what
+    with. An answer that merely mentions code is not an announcement, and a
+    plan that ends the turn is not an answer.
+    """
+    body = str(text or "").strip()
+    if not body:
+        return False
+    for sentence in re.split(r"(?<=[.!?])\s+|\n", body):
+        if _ANNOUNCES_AN_ACTION_RE.search(sentence) and _NAMES_A_MEANS_RE.search(sentence):
+            return True
+    return False
 
 
 def _tool_loop_evidence_messages(evidence: Any) -> list[dict[str, Any]]:
