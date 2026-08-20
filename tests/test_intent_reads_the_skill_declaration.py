@@ -160,3 +160,40 @@ def test_a_skill_with_no_trigger_patterns_is_still_reachable(matcher):
     assert request_matches_declaration(
         "simulate a quantum circuit for me", verbs=verbs, objects=objects["quantum_lab"]
     )
+
+
+@pytest.mark.parametrize(
+    "request_text",
+    [
+        "now read /tmp/x/accounts.py - the test fails. which line is wrong?",
+        "ok read the file and tell me",
+        "and then run the tests",
+        "just open the config",
+        "so search the web for that",
+    ],
+)
+def test_a_discourse_word_before_an_imperative_is_still_a_request(request_text: str):
+    """"Now read the file" is "read the file" with one word in front.
+
+    LIVE, 2026-08-19: "now read /private/tmp/.../accounts.py - the test fails"
+    matched nothing, so the turn was handed no capabilities and a downstream
+    fallback chose web_interlocutor — a browser-dialogue skill — to debug a
+    Python file.
+    """
+    from core.intent.declared_capability import looks_like_a_request
+
+    assert looks_like_a_request(request_text)
+
+
+@pytest.mark.parametrize(
+    "conversation",
+    [
+        "now that you mention it, I agree",
+        "so my code doesn't run anymore",
+        "well I use python at work",
+    ],
+)
+def test_a_discourse_word_does_not_make_a_statement_a_request(conversation: str):
+    from core.intent.declared_capability import looks_like_a_request
+
+    assert not looks_like_a_request(conversation)

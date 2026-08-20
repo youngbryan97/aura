@@ -200,6 +200,20 @@ _OBJECT_CLASSES: tuple[frozenset[str], ...] = (
 #: reason. "I ran the numbers" reports; "run the numbers" asks.
 _ADDRESSES_THE_LISTENER = frozenset({"you", "your", "yours", "please", "u"})
 
+#: Words that can sit in front of an imperative without changing it.
+#:
+#: "Now read the file" is a request; "read the file" is the same request with
+#: one word fewer. Requiring the verb to be clause-initial made the first of
+#: those conversation and the second a task — live 2026-08-19, "now read
+#: /private/tmp/.../accounts.py" was handed no capabilities at all.
+_DISCOURSE_LEAD = frozenset(
+    {
+        "now", "then", "next", "so", "ok", "okay", "right", "well", "also",
+        "and", "but", "first", "finally", "quickly", "actually", "just",
+        "maybe", "perhaps", "hey", "alright",
+    }
+)
+
 #: Verbs with no content of their own, which borrow the act from their object:
 #: "use the web" asks for whatever the web is for.
 _PRO_VERBS = frozenset({"use", "using"})
@@ -299,6 +313,8 @@ def _asks_rather_than_mentions(clause_words: list[str], verb_positions: set[int]
         if any(word.replace("'", "") in _NEGATION for word in preceding):
             continue
         if index == 0:
+            return True
+        if all(word in _DISCOURSE_LEAD for word in preceding):
             return True
         if any(word in _ADDRESSES_THE_LISTENER for word in preceding):
             return True
