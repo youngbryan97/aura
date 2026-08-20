@@ -14129,6 +14129,18 @@ class MLXLocalClient:
                 max_tokens=kwargs.get("max_tokens", self.max_tokens),
             )
             if not raw or not raw.strip():
+                # An empty generation in tool mode looks identical from the
+                # outside to a model that declined to call anything: both end
+                # the loop with no tool_calls. They are different faults —
+                # nothing generated versus something generated that was not a
+                # call — and only one of them is about tool calling at all.
+                if tools:
+                    logger.info(
+                        "🔧 Tools offered (%s) and the generation came back empty "
+                        "on turn %d.",
+                        ",".join(sorted(tools)),
+                        turn + 1,
+                    )
                 break
 
             response_text = raw.strip()
