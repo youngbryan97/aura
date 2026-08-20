@@ -362,6 +362,16 @@ class ResponseGenerationPhase(BasePhase):
         )
         return repaired
 
+    def _capability_engine(self) -> Any:
+        """The engine that runs skills, or None when it is not up yet."""
+        cap = self.container.get("capability_engine", default=None)
+        if cap is None:
+            try:
+                cap = ServiceContainer.get("capability_engine", default=None)
+            except (AttributeError, RuntimeError, TypeError, ValueError):
+                cap = None
+        return cap if cap is not None and hasattr(cap, "execute") else None
+
     async def _execute_required_search_evidence(
         self,
         *,
@@ -371,11 +381,29 @@ class ResponseGenerationPhase(BasePhase):
         origin: str,
         runtime_context: dict[str, Any],
     ) -> bool:
-        """Run mandatory read-only search before the model narrates a search turn."""
+        """Read the evidence a turn requires before the model narrates having it.
+
+        A named document first, then search. The URL branch sits ABOVE the
+        requires_search gate on purpose: the chat lane stopped calling a turn
+        with an address in it a search turn — correctly, since searching for
+        an address returns pages about it — and this method returned
+        immediately, so nothing was fetched at all and she reported the fetch
+        as failing.
+        """
+
+        if getattr(contract, "tool_evidence_available", False):
+            return False
+
+        cap = self._capability_engine()
+        named_url = _first_named_url(objective)
+        if named_url and cap is not None:
+            fetched = await self._fetch_named_url_evidence(
+                state, cap, named_url, origin=origin, runtime_context=runtime_context
+            )
+            if fetched:
+                return True
 
         if not getattr(contract, "requires_search", False):
-            return False
-        if getattr(contract, "tool_evidence_available", False):
             return False
 
         query = self._clean_required_search_query(
@@ -420,30 +448,11 @@ class ResponseGenerationPhase(BasePhase):
             )
             return False
 
-        cap = self.container.get("capability_engine", default=None)
         if cap is None:
-            try:
-                cap = ServiceContainer.get("capability_engine", default=None)
-            except (AttributeError, RuntimeError, TypeError, ValueError):
-                cap = None
-        if cap is None or not hasattr(cap, "execute"):
             logger.warning(
                 "🔎 ResponseGeneration: required search evidence skipped because capability_engine is unavailable."
             )
             return False
-
-        # A named URL is not a search term. Asked to read a specific endpoint,
-        # this searched for the address and handed back somebody else's pages
-        # about it — evidence for New York on a turn about Reykjavik, which she
-        # then had to argue with. When the person names a document, the
-        # evidence is that document.
-        named_url = _first_named_url(objective)
-        if named_url:
-            fetched = await self._fetch_named_url_evidence(
-                state, cap, named_url, origin=origin, runtime_context=runtime_context
-            )
-            if fetched:
-                return True
 
         skill_name = "web_search"
         matched = state.response_modifiers.get("matched_skills") or []

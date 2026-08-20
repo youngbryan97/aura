@@ -48,6 +48,23 @@ def test_the_evidence_step_tries_the_document_before_the_search() -> None:
     assert body.index("_fetch_named_url_evidence") < body.index('skill_name = "web_search"')
 
 
+def test_reading_a_named_document_does_not_wait_for_a_search_turn() -> None:
+    """The gap this closed.
+
+    The chat lane stopped treating a message with an address in it as a
+    search turn, correctly. This method returned at the same flag, so nothing
+    was fetched at all and she told the person the fetch had failed.
+    """
+    from pathlib import Path
+
+    source = Path("core/phases/response_generation.py").read_text(encoding="utf-8")
+    method = source[source.index("async def _execute_required_search_evidence") :]
+    method = method[: method.index("\n    async def ", 10)]
+    assert method.index("_fetch_named_url_evidence") < method.index(
+        'if not getattr(contract, "requires_search", False):'
+    )
+
+
 def test_the_fetch_falls_back_rather_than_leaving_the_turn_empty() -> None:
     from pathlib import Path
 

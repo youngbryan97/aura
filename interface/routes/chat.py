@@ -11378,9 +11378,23 @@ def _desktop_secondary_model_repair_allowed(
         from core.utils.memory_monitor import get_memory_pressure_snapshot
 
         snapshot = get_memory_pressure_snapshot()
-        completion_retry = normalized_reason.startswith("cognitive_engine_completion_retry")
+        # `warning` is a level, and with a resident 32B it is the steady state
+        # rather than an event: the process sits at ~33GB of a 40GB limit
+        # whenever the model is loaded at all. Vetoing on it disabled the
+        # repair path permanently — measured live 2026-08-20 as
+        # "Skipping CognitiveEngine desktop repair retry
+        # (process_tree_rss:32.8GB/40.0GB (level=warning))", on a turn whose
+        # repair had produced the correct answer.
+        #
+        # The completion retry was already carved out of this, which is the
+        # same observation made once. What separates the two cases is not
+        # which retry it is but whether it ALLOCATES: a same-worker correction
+        # reuses the loaded Cortex, as this function's own contract says, so
+        # the signal that applies to it is refuse_heavy_local_generation —
+        # emergency, or available memory under the floor, or the process at
+        # its ceiling.
         if bool(getattr(snapshot, "refuse_heavy_local_generation", False)) or (
-            bool(getattr(snapshot, "warning", False)) and not completion_retry
+            bool(getattr(snapshot, "warning", False)) and not safe_same_worker_default
         ):
             return False, str(getattr(snapshot, "reason", "") or "memory_pressure")
     except _CHAT_RECOVERABLE_ERRORS as exc:
