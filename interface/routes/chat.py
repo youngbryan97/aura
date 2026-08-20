@@ -14518,6 +14518,29 @@ def _serve_measured_filesystem_count(user_message: object, reply: object) -> obj
     return " ".join(sentences)
 
 
+def _capabilities_this_turn_needs() -> set[str]:
+    """The working set for the turn in progress, or empty when unknown.
+
+    Read from the same selector the router and the tool loop use, so what
+    counts as relevant here cannot drift from what was actually offered.
+    """
+    try:
+        from core.conversation.session_scope import current_user_question
+        from core.phases.response_contract import derive_capability_set
+
+        question = current_user_question()
+        return set(derive_capability_set(question)) if question else set()
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        record_degradation(
+            "chat.capability_relevance",
+            exc,
+            severity="debug",
+            action="corrected every denial, relevant or not",
+            enforce_failure_policy=False,
+        )
+        return set()
+
+
 def _correct_false_capability_denials(reply: object) -> object:
     """Replace a denial of a capability the registry says she has.
 
@@ -14545,6 +14568,19 @@ def _correct_false_capability_denials(reply: object) -> object:
     if not denials:
         return reply
     corrected = text
+    # Correct what the turn was ABOUT, and delete the rest.
+    #
+    # LIVE, 2026-08-19. A repository-debugging reply degenerated into a loop
+    # and denied three unrelated capabilities along the way, so this faithfully
+    # produced "I can read the filesystem — ...", "I can self repair — ..." and
+    # "I can execute nethack action — execute_nethack_action are registered and
+    # enabled right now" inside an answer about a failing test. Each correction
+    # was individually true and the result was absurd: a degenerate draft
+    # amplified into three status lines about things nobody asked for.
+    #
+    # A capability the turn never needed has no business being discussed
+    # either way, so an off-topic denial is removed rather than answered.
+    relevant = _capabilities_this_turn_needs()
     # One correction per capability. A reply that denies the same thing twice
     # ("I don't have file access. I can't read files.") produced the same
     # replacement sentence twice, verbatim, which reads worse than the denial
@@ -14555,8 +14591,22 @@ def _correct_false_capability_denials(reply: object) -> object:
         if denial.subject in seen:
             corrected = corrected.replace(denial.sentence, "", 1)
             continue
+        if relevant and not (set(denial.skills) & relevant):
+            corrected = corrected.replace(denial.sentence, "", 1)
+            logger.info(
+                "🧭 Dropped an off-topic capability denial (%s); this turn needed %s.",
+                denial.subject,
+                ",".join(sorted(relevant)) or "nothing",
+            )
+            continue
         seen.add(denial.subject)
-        named = ", ".join(denial.skills[:3])
+        # Name the ones that would actually do it on THIS turn. The registry
+        # lists every skill that could plausibly satisfy the subject, which for
+        # "read the filesystem" meant citing computer_use and desktop_task —
+        # neither of which reads a file — while the reader that was offered
+        # went unmentioned.
+        offered = [name for name in denial.skills if name in relevant]
+        named = ", ".join((offered or list(denial.skills))[:3])
         truth = (
             f"I can {denial.subject} — {named} are registered and enabled right "
             "now, so if that failed it was the attempt and not the capability."
