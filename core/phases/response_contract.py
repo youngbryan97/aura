@@ -1316,10 +1316,32 @@ def build_response_contract(
     except (ImportError, AttributeError, TypeError, ValueError):
         acts_on_a_page = False
 
+    # A local path is not a web query.
+    #
+    # LIVE, 2026-08-19. "there's a python project at /private/tmp/.../ledger -
+    # one of its tests is failing. read the code, work out why" set
+    # requires_search with the whole message as the query, so the runtime
+    # searched the WEB for a filesystem path and handed her results about
+    # /private/tmp disk usage. She then told the person "the search results you
+    # provided don't contain any information about a Python project in that
+    # directory" — which was true, and the answer was on disk the whole time.
+    #
+    # Same line this module already draws between observation and actuation,
+    # one axis over: local source of truth versus remote.
+    try:
+        from core.runtime.desktop_objective_intent import (
+            looks_like_filesystem_observation,
+        )
+
+        reads_local_disk = looks_like_filesystem_observation(search_trigger_text)
+    except (ImportError, AttributeError, TypeError, ValueError):
+        reads_local_disk = False
+
     requires_search = bool(
         is_user_facing
         and not is_embodied_control
         and not acts_on_a_page
+        and not reads_local_disk
         and (
             explicit_search
             or has_url
