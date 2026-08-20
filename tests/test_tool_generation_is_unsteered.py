@@ -20,11 +20,11 @@ from __future__ import annotations
 
 import inspect
 
-from core.brain.llm.mlx_client import MLXClient
+from core.brain.llm.mlx_client import MLXLocalClient
 
 
 def test_the_tool_loop_asks_for_an_unsteered_decode():
-    source = inspect.getsource(MLXClient.think_and_act)
+    source = inspect.getsource(MLXLocalClient.think_and_act)
     assert "clean_user_surface_steering_alpha=0.0" in source
     # The worker's contract requires both controls together; alpha alone is
     # rejected as invalid runtime controls and silently leaves steering on.
@@ -33,7 +33,7 @@ def test_the_tool_loop_asks_for_an_unsteered_decode():
 
 def test_the_controls_are_on_the_generation_that_carries_the_tools():
     """Not on some other call in the same function."""
-    source = inspect.getsource(MLXClient.think_and_act)
+    source = inspect.getsource(MLXLocalClient.think_and_act)
     start = source.index("tools=template_tools")
     end = source.index(")", source.index("clean_user_surface_recurrent_loops=1"))
     window = source[start:end]
@@ -47,6 +47,6 @@ def test_the_empty_generation_is_recorded():
     calling. Without a record they are indistinguishable, which is why the
     decoding fault was read as a behaviour problem.
     """
-    source = inspect.getsource(MLXClient.think_and_act)
+    source = inspect.getsource(MLXLocalClient.think_and_act)
     assert "came back empty" in source
     assert "none called" in source
