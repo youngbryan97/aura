@@ -503,6 +503,51 @@ def rank_declaration_matches(
 _FOUNDATIONAL_DOMAINS: tuple[str, ...] = ("file", "code", "web")
 
 
+def computation_capabilities(
+    catalogue: Mapping[str, tuple[frozenset[str], frozenset[str]]],
+) -> list[str]:
+    """The primitives that can settle a problem by working it out.
+
+    Chosen the same way the foundational set is: by what a skill declares it
+    acts on, so an interpreter registered tomorrow joins by describing itself.
+    """
+    wanted: set[str] = set()
+    for members in _OBJECT_CLASSES:
+        if "code" in members:
+            wanted |= members
+    folded = {_fold(word) for word in wanted}
+    scored: list[tuple[int, str]] = []
+    for name, (_verbs, objects) in catalogue.items():
+        overlap = len({_fold(word) for word in objects} & folded)
+        if overlap:
+            scored.append((-overlap, name))
+    scored.sort()
+    return [name for _rank, name in scored]
+
+
+def settles_by_computation(message: object) -> bool:
+    """True when the turn states a problem that can be worked out exactly.
+
+    LIVE, 2026-08-20. A six-person seating problem with four constraints was
+    answered by narration: the opposite-of-Chen half was right, the
+    neighbours half was wrong, and her own stated layout contradicted her own
+    conclusion. The runtime holds a Python sandbox and offered it nothing,
+    because the tool set is gated on the turn asking for a CAPABILITY —
+    "read this", "search that" — and a problem to work out asks for none.
+
+    A finite constraint problem is the case where enumeration is not a
+    heuristic but the definition of the answer. The predicate is the one the
+    reasoning amplifier already computes, so there is one notion of "this is
+    a problem with an exact answer" rather than two.
+    """
+    try:
+        from core.brain.reasoning_amplifier_v2 import _looks_like_a_quantitative_puzzle
+
+        return bool(_looks_like_a_quantitative_puzzle(str(message or "")))
+    except (ImportError, AttributeError, TypeError, ValueError):
+        return False
+
+
 def foundational_capabilities(
     catalogue: Mapping[str, tuple[frozenset[str], frozenset[str]]],
 ) -> list[str]:

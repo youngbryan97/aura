@@ -59,11 +59,13 @@ def select_capabilities(
         return []
 
     from core.intent.declared_capability import (
+        computation_capabilities,
         declared_vocabulary,
         distinctive_objects,
         foundational_capabilities,
         looks_like_a_request,
         rank_declaration_matches,
+        settles_by_computation,
     )
     from core.skills.action_scope import resolve_skill_target, skill_has_action_within
 
@@ -83,6 +85,16 @@ def select_capabilities(
     ]
     if looks_like_a_request(text):
         for name in foundational_capabilities(catalogue):
+            if name not in ordered:
+                ordered.append(name)
+    elif settles_by_computation(text):
+        # A problem to work out asks for no capability by name, so the mood
+        # gate above leaves it with nothing — and a finite constraint problem
+        # is exactly the case where enumeration is not a heuristic but the
+        # definition of the answer. Only the computing primitives: searching
+        # the web for a seating puzzle is noise, and every capability offered
+        # is context the model has to hold.
+        for name in computation_capabilities(catalogue):
             if name not in ordered:
                 ordered.append(name)
 
