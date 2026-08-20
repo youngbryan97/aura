@@ -25,6 +25,24 @@ def test_only_what_a_skill_produced_is_carried() -> None:
     assert carried == [{"role": "system", "content": "READ https://x: 11.7"}]
 
 
+def test_a_banner_is_recognised_without_matching_metadata() -> None:
+    """The gap that made this land as "evidence=0 blocks" live.
+
+    The block reaching the payload did not carry the metadata key this filter
+    was written against. The banner vocabulary is the runtime's own, and it
+    already distinguishes what was read from what describes her.
+    """
+    carried = _tool_loop_evidence_messages(
+        [
+            {"role": "system", "content": "[SKILL RESULT: http_request]\n{\"temperature\": 11.8}"},
+            {"role": "system", "content": "[YOUR OWN SOURCE]\nfiles she can see"},
+            {"role": "system", "content": "[DIRECT RESULT]: 11.8"},
+        ]
+    )
+    assert len(carried) == 2
+    assert all("YOUR OWN SOURCE" not in message["content"] for message in carried)
+
+
 def test_nothing_in_means_nothing_out() -> None:
     for value in (None, [], "a string", 7, [{"role": "system"}], [{"metadata": {}}]):
         assert _tool_loop_evidence_messages(value) == []

@@ -28,8 +28,10 @@ import uuid
 from typing import Any
 
 __all__ = [
+    "EVIDENCE_BANNERS",
     "GROUNDING_STAMP",
     "INJECTED_BANNERS",
+    "carries_read_evidence",
     "contains_injected_block",
     "is_stamped_grounding",
     "is_stamped_runtime_payload",
@@ -108,6 +110,46 @@ INJECTED_BANNERS: tuple[str, ...] = (
     "SKILL RESULT",
     "INTERNAL MEMORY RECALL",
 )
+
+#: The banners that report something the turn READ, as opposed to the ones
+#: that describe her — source, perception, the desktop contract. A tool loop
+#: needs the first kind and must not be handed the second: the conversational
+#: scaffold around a tool call produced an immediate end-of-turn.
+EVIDENCE_BANNERS: tuple[str, ...] = (
+    "ACTIVE GROUNDING EVIDENCE",
+    "OBSERVATION",
+    "DIRECT RESULT",
+    "SKILL OUTPUT",
+    "SKILL RESULT",
+    "INTERNAL MEMORY RECALL",
+)
+
+_EVIDENCE_BANNER_RE = re.compile(
+    r"\[\s*(?:" + "|".join(re.escape(name) for name in EVIDENCE_BANNERS) + r")\b",
+    re.IGNORECASE,
+)
+
+
+def carries_read_evidence(message: Any) -> bool:
+    """Whether this message reports something the turn read.
+
+    The stamp is the precise signal and is preferred. A block that reached
+    the payload through a producer that has not adopted the stamp yet is
+    still recognised by its banner, which is the vocabulary this module
+    already defines — the alternative was every caller inventing its own
+    metadata key, which is how the grounding marker went wrong before.
+    """
+    if isinstance(message, dict) and is_stamped_grounding(message):
+        return True
+    if isinstance(message, dict):
+        metadata = message.get("metadata")
+        if isinstance(metadata, dict) and str(metadata.get("type") or "") == "skill_result":
+            return True
+        body = str(message.get("content") or "")
+    else:
+        body = str(message or "")
+    return bool(_EVIDENCE_BANNER_RE.search(body))
+
 
 _BANNER_ALTERNATION = "|".join(re.escape(name) for name in INJECTED_BANNERS)
 

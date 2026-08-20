@@ -544,3 +544,28 @@ def test_each_matcher_agrees_with_its_own_examples(observable) -> None:
     failures = observable.example_failures()
 
     assert not failures, "\n".join(failures)
+
+
+def test_registering_does_not_rebind_the_registry() -> None:
+    """A holder of the list must keep seeing registrations.
+
+    register_observable assigned a new list to the module global, so every
+    reference taken earlier pointed at a dead one. A caller that removed its
+    own registration edited the orphan while the live registry kept it, which
+    is how a test observable named DUP went on answering "how are you doing
+    today?" in another test entirely.
+    """
+    from core.brain import observable_grounding
+
+    async def _reader(_prompt: str) -> str:
+        return "value"
+
+    before = observable_grounding.OBSERVABLES
+    register_observable(Observable("test_identity", "## IDENT", lambda _p: True, _reader))
+    try:
+        assert observable_grounding.OBSERVABLES is before
+        assert any(item.name == "test_identity" for item in before)
+    finally:
+        OBSERVABLES[:] = [item for item in OBSERVABLES if item.name != "test_identity"]
+
+    assert not any(item.name == "test_identity" for item in observable_grounding.OBSERVABLES)

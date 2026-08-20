@@ -123,10 +123,17 @@ _READINGS_DELIVERED: contextvars.ContextVar[tuple[str, ...]] = contextvars.Conte
 
 
 def register_observable(observable: Observable) -> None:
-    """Add an observable. Later registrations win on name collision."""
+    """Add an observable. Later registrations win on name collision.
 
-    global OBSERVABLES
-    OBSERVABLES = [item for item in OBSERVABLES if item.name != observable.name]
+    In place, never rebinding. Assigning a new list to the module global left
+    every existing reference pointing at the old one, so a holder went on
+    reading a registry that had stopped changing — and a caller removing its
+    own registration edited an orphan while the real list kept it. Found as a
+    test that passed alone and failed under a different order, with a
+    registration from another test still answering.
+    """
+
+    OBSERVABLES[:] = [item for item in OBSERVABLES if item.name != observable.name]
     OBSERVABLES.append(observable)
 
 

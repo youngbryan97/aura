@@ -15784,14 +15784,16 @@ def _tool_loop_evidence_messages(evidence: Any) -> list[dict[str, Any]]:
     """
     if not isinstance(evidence, (list, tuple)):
         return []
+    try:
+        from core.utils.injected_blocks import carries_read_evidence
+    except ImportError:  # pragma: no cover - the module ships with the runtime
+        return []
     carried: list[dict[str, Any]] = []
     budget = _TOOL_LOOP_EVIDENCE_CHARS
     for item in evidence:
         if not isinstance(item, Mapping):
             continue
-        metadata = item.get("metadata")
-        kind = str((metadata or {}).get("type") or "") if isinstance(metadata, Mapping) else ""
-        if kind != "skill_result":
+        if not carries_read_evidence(dict(item)):
             continue
         content = str(item.get("content") or "").strip()
         if not content:
