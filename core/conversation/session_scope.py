@@ -37,6 +37,16 @@ user_question_var: contextvars.ContextVar[str] = contextvars.ContextVar(
 
 MAX_USER_QUESTION_CHARS: Final = 4000
 
+#: Evidence actually handed to the model this turn.
+#:
+#: A MUTABLE set, replaced once per turn, because a ContextVar set inside a
+#: child task does not propagate back to the parent — asyncio gives children a
+#: COPY of the context. Readings are taken in child tasks and checked in the
+#: parent, so the container is shared and the children mutate it.
+_TURN_EVIDENCE: contextvars.ContextVar[set[str]] = contextvars.ContextVar(
+    "aura_turn_evidence", default=frozenset()
+)
+
 LOCAL_CONVERSATION_ID: Final = "local"
 # Native windows are an owner surface, not anonymous internal cognition.  The
 # HTTP desktop and voice routes already derive this principal key for the same
@@ -102,6 +112,24 @@ def set_user_question(text: object) -> None:
     """Record what this turn was asked, for anything that needs to answer it."""
     body = " ".join(str(text or "").split())[:MAX_USER_QUESTION_CHARS]
     user_question_var.set(body)
+    # A fresh container per turn, so evidence from the previous one cannot be
+    # mistaken for evidence in hand now.
+    _TURN_EVIDENCE.set(set())
+
+
+def record_evidence_delivered(name: object) -> None:
+    """Note that a reading was actually handed to the model this turn."""
+    label = str(name or "").strip()
+    if not label:
+        return
+    holder = _TURN_EVIDENCE.get()
+    if isinstance(holder, set):
+        holder.add(label)
+
+
+def evidence_delivered() -> frozenset[str]:
+    """What the model was given this turn, as far as anything recorded it."""
+    return frozenset(_TURN_EVIDENCE.get() or ())
 
 
 def current_user_question() -> str:

@@ -7711,6 +7711,11 @@ def _model_text_integrity_reasons(
         reasons.append("surface_nonsense_drift")
     if user_facing and _has_function_word_starvation(raw):
         reasons.append("function_word_starvation")
+    if user_facing and disclaims_delivered_evidence(raw):
+        # Disclaiming evidence in hand is the mirror of claiming evidence
+        # never had, and it costs the same thing: the person is told the work
+        # cannot be done while it is being done.
+        reasons.append("disclaimed_delivered_evidence")
     if user_facing and numeric_answer_missing(prompt, raw):
         # The numeric floor lived only at the chat route, so every other
         # consumer of this assessment — the worker gate, the inference gate,
@@ -8905,3 +8910,47 @@ def reliability_floor_for_user(user_message: Any) -> str:
     if is_status_check_turn(user_message):
         return _STATUS_REPAIR_FLOOR
     return ""
+
+#: Calling evidence in hand hypothetical.
+#:
+#: LIVE DEFECT, 2026-08-19. The file reading was taken and delivered — the log
+#: records "took 1 reading(s): file you were asked about" — and the reply said:
+#:
+#:     [Note: The file path and contents are fictional for this example. If you
+#:     have the actual accounts.py code, I'd be happy to look at it.]
+#:
+#: The contents were real, on disk, and in the prompt. A model disclaiming the
+#: evidence it was given is the mirror image of one claiming evidence it never
+#: had, and it costs the same thing: the person is told the work cannot be done
+#: while it is being done.
+_DISCLAIMS_EVIDENCE_RE = re.compile(
+    r"\b(?:path|file|content|contents|code|data|example|numbers?|results?)\b"
+    r"[^.!?\n]{0,60}?\b(?:is|are|were|was)\s+(?:purely\s+|entirely\s+)?"
+    r"(?:fictional|hypothetical|made\s+up|invented|fabricated|illustrative|"
+    r"a\s+placeholder|placeholders?)\b"
+    r"|\bfor\s+(?:this|the)\s+example\b[^.!?\n]{0,40}?\bfictional\b"
+    r"|\bif\s+you\s+have\s+the\s+actual\b",
+    re.IGNORECASE,
+)
+
+
+def disclaims_delivered_evidence(reply_text: Any, delivered: Any = None) -> bool:
+    """True when a reply calls evidence it was actually handed fictional.
+
+    ``delivered`` names the readings that reached the model this turn; without
+    any, there is nothing to disclaim and this stays quiet.
+    """
+    body = str(reply_text or "")
+    if not body.strip():
+        return False
+    if delivered is None:
+        try:
+            from core.conversation.session_scope import evidence_delivered
+
+            delivered = evidence_delivered()
+        except (ImportError, RuntimeError, TypeError, ValueError):
+            return False
+    if not delivered:
+        return False
+    return bool(_DISCLAIMS_EVIDENCE_RE.search(body))
+

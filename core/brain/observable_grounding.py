@@ -41,6 +41,7 @@ Deliberate constraints:
 from __future__ import annotations
 
 import asyncio
+import contextvars
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
@@ -49,6 +50,7 @@ __all__ = [
     "Observable",
     "OBSERVABLES",
     "observable_blocks",
+    "readings_delivered_this_turn",
     "register_observable",
 ]
 
@@ -114,6 +116,11 @@ class Observable:
 
 OBSERVABLES: list[Observable] = []
 
+#: What was actually read for the turn in progress.
+_READINGS_DELIVERED: contextvars.ContextVar[tuple[str, ...]] = contextvars.ContextVar(
+    "aura_readings_delivered", default=()
+)
+
 
 def register_observable(observable: Observable) -> None:
     """Add an observable. Later registrations win on name collision."""
@@ -157,4 +164,25 @@ async def observable_blocks(user_prompt: Any) -> list[str]:
         *(_read_one(observable, prompt) for observable in OBSERVABLES),
         return_exceptions=False,
     )
+    delivered = tuple(name for name, block in results if block)
+    _READINGS_DELIVERED.set(delivered)
+    try:
+        from core.conversation.session_scope import record_evidence_delivered
+
+        for name in delivered:
+            record_evidence_delivered(name)
+    except ImportError:  # pragma: no cover - grounding must never fail a turn
+        pass
     return [block for _name, block in results if block]
+
+
+def readings_delivered_this_turn() -> tuple[str, ...]:
+    """Which observables actually produced a block for the turn in progress.
+
+    Recorded because a reply can only be checked against evidence if something
+    knows the evidence was handed over. LIVE 2026-08-19: the file reading was
+    taken and delivered, and the reply said "the file path and contents are
+    fictional for this example" — a disclaimer of evidence in hand, which
+    nothing was in a position to notice.
+    """
+    return tuple(_READINGS_DELIVERED.get())
