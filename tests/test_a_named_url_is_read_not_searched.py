@@ -56,3 +56,23 @@ def test_the_fetch_falls_back_rather_than_leaving_the_turn_empty() -> None:
     body = body[: body.index("\n    @staticmethod")]
     assert "return False" in body
     assert 'if not bool(payload.get("ok")):' in body
+
+
+def test_the_desktop_lane_does_not_search_for_an_address() -> None:
+    """The same rule the local-file case already had: the bytes are at the
+    address, so no search result can be better evidence than the document."""
+    from pathlib import Path
+
+    source = Path("interface/routes/chat.py").read_text(encoding="utf-8")
+    gate = source[source.index("def _chat_requires_search") :] if "def _chat_requires_search" in source else source
+    gate = source[source.index("# A file on this disk is not a live-search question.") :]
+    gate = gate[: gate.index("contract = _resolve_chat_response_contract(user_message)")]
+    assert "first_named_url" in gate
+
+
+def test_the_reader_is_shared_by_both_lanes() -> None:
+    """One binding: the chat lane and the evidence phase read the same one."""
+    from core.intent.opaque_spans import first_named_url
+    from core.phases.response_generation import _first_named_url
+
+    assert first_named_url is _first_named_url

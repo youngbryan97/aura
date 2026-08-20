@@ -21,6 +21,18 @@ class LoopCoreError(RuntimeError):
     """The recurrent state violated a fail-closed numerical invariant."""
 
 
+class ActionContinuationDrift(RuntimeError):
+    """The restored continuation is not the state the episode left behind.
+
+    Detection worked and the reason did not survive the trip out. Reasons
+    reach the caller with the exception's message stripped, because messages
+    here can carry local paths and processed text, so the caller saw
+    ``latent_phase_failed:RuntimeError`` — the same string a numerical
+    invariant produces, needing the opposite response. The class name is the
+    part that is safe to publish, so the class is where the meaning goes.
+    """
+
+
 class ComputeBudgetUnaffordable(RuntimeError):
     """The episode declined to spend, which is not the same as breaking.
 

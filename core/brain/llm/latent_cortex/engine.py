@@ -61,7 +61,10 @@ from core.brain.llm.latent_cortex.fast_weight_learning import (
 from core.brain.llm.latent_cortex.fast_weights import EpisodicFastWeights
 from core.brain.llm.latent_cortex.governance import CheckpointInvariant
 from core.brain.llm.latent_cortex.latent_opt import LatentOptimizer, build_proxy_loss
-from core.brain.llm.latent_cortex.loop_core import ComputeBudgetUnaffordable
+from core.brain.llm.latent_cortex.loop_core import (
+    ActionContinuationDrift,
+    ComputeBudgetUnaffordable,
+)
 from core.brain.llm.latent_cortex.plasticity_sites import PLASTICITY_SITE_REGISTRY
 from core.brain.llm.latent_cortex.probe_cache import DecodeProbeCache
 from core.brain.llm.latent_cortex.recurrence import WindowRunner, recurrence_step
@@ -4508,7 +4511,7 @@ class LatentCortexEngine:
                                     if value
                                     != action_continuation_restore.state_components.get(name)
                                 )
-                                raise RuntimeError(
+                                raise ActionContinuationDrift(
                                     "restored action continuation differs before action:"
                                     + ",".join(differing)
                                 )

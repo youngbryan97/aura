@@ -13051,6 +13051,22 @@ def _should_collect_desktop_required_search_evidence(
         named_file = None
     if named_file is not None and named_file.exists:
         return False, "", None
+    # A document the person addressed directly is not a search question
+    # either, for the same reason: the bytes are AT that address.
+    #
+    # LIVE 2026-08-20: "read https://api.open-meteo.com/v1/forecast?...
+    # &latitude=64.15 and tell me the temperature it reports" ran a 33-second
+    # web_search whose results were the API's documentation, whose example
+    # uses New York. The fetch succeeded on the same turn, and she answered
+    # from the search: "the result seems to be a link to an API page with
+    # different coordinates (New York City)".
+    try:
+        from core.intent.opaque_spans import first_named_url
+
+        if first_named_url(user_message):
+            return False, "", None
+    except _CHAT_RECOVERABLE_ERRORS:
+        pass
     contract = _resolve_chat_response_contract(user_message)
     if not contract or not getattr(contract, "requires_search", False):
         return False, "", contract

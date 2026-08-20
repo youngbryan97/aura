@@ -169,7 +169,10 @@ def test_runner_state_drift_fails_before_action_or_decode():
         action_continuation_capture_only=True,
     )
     assert result.ok is False
-    assert "durable_state_sha256" in result.reason
+    # The reason the caller sees, not the exception message: reasons are
+    # published with messages stripped because they can carry local paths and
+    # processed text, so what must identify the fault is the class.
+    assert result.reason == "latent_phase_failed:ActionContinuationDrift"
     assert result.receipt.cognitive_action_trace == []
     assert result.receipt.decode_generated_tokens == 0
 

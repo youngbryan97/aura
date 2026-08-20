@@ -28,7 +28,21 @@ from __future__ import annotations
 
 import re
 
-__all__ = ["OPAQUE_SPAN_RE", "without_opaque_spans"]
+__all__ = ["OPAQUE_SPAN_RE", "first_named_url", "without_opaque_spans"]
+
+#: A URL somebody typed. Trailing punctuation ends the sentence, not the
+#: address, and a closing bracket belongs to whatever opened it.
+NAMED_URL_RE = re.compile(r"""https?://[^\s<>"'\]})]+""", re.IGNORECASE)
+
+
+def first_named_url(text: object) -> str:
+    """The first http(s) URL the person named, or empty.
+
+    A named address is the opposite of an opaque span: the rest of the
+    sentence should ignore it, and one caller needs exactly it.
+    """
+    match = NAMED_URL_RE.search(str(text or ""))
+    return match.group(0).rstrip(".,;:!?") if match else ""
 
 #: What an address looks like, in the order that matters.
 #:

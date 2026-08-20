@@ -43,17 +43,7 @@ from core.utils.injected_blocks import stamp_grounding
 from ..state.aura_state import AuraState, CognitiveMode
 from . import BasePhase
 
-#: A URL somebody typed. Trailing punctuation is sentence punctuation, not
-#: part of the address.
-_NAMED_URL_RE = re.compile(r"https?://[^\s<>\"'\]})]+", re.IGNORECASE)
-
-
-def _first_named_url(text: object) -> str:
-    """The first http(s) URL the person named, or empty."""
-    match = _NAMED_URL_RE.search(str(text or ""))
-    if not match:
-        return ""
-    return match.group(0).rstrip(".,;:!?")
+from core.intent.opaque_spans import first_named_url as _first_named_url
 
 logger = logging.getLogger(__name__)
 

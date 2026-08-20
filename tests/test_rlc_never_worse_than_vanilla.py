@@ -34,20 +34,34 @@ _CONTROL_DECODE = {
     "decode_min_tokens": 0,
 }
 
-# decode_contract is deliberately NOT in the list above.
+# decode_contract is NOT in the list above, because the answer changed once on
+# measurement and a literal here cannot record that.
 #
-# The control uses final_answer_v1 purely as a STOPPING rule -- `_run_vanilla`
-# breaks on the first complete answer and never discards anything. Inside the
-# engine the same setting is also a validity gate that can blank the produced
-# answer: measured, 576 generated tokens came back as an empty string under
+# It read "none" while the engine's contract enforcement could blank a produced
+# answer: 576 generated tokens came back as an empty string under
 # token_limit_contract_incomplete, which puts the arm below the floor by
-# construction. The deployed system runs "none", and so does the product arm.
+# construction. The risk of running without it -- past a correct answer into a
+# second FINAL_ANSWER marker, which grades invalid -- looked small at the time:
+# marker counts matched the control exactly on a three-task probe.
 #
-# The risk that creates -- running past a correct answer into a second
-# FINAL_ANSWER marker, which grades invalid -- was measured rather than
-# assumed: marker counts matched the control exactly (0/1/1 on both arms) and
-# two of three probe answers were byte-identical to ordinary decode.
-_PRODUCT_CONTRACT = "none"
+# The 2026-08-06 campaign measured it at scale and it was not small. The
+# free-running vanilla arm emitted a second marker on 12 of 28 tasks and was
+# format-rejected for every one, while each recurrent arm was protected by its
+# contract stop -- the control was handicapped, which is the same unfairness
+# pointing the other way. Both arms now stop on the same rule.
+#
+# So the constant is gone. What this file is for is that the product arm
+# decodes like the control, and the control's stopping rule is the one
+# _run_vanilla actually applies.
+def _control_decode_contract() -> str:
+    """The stopping rule `_run_vanilla` applies, read from the source."""
+    from pathlib import Path as _Path
+
+    source = _Path("tools/run_rlc_reconciliation_sweep.py").read_text(encoding="utf-8")
+    body = source[source.index("def _run_vanilla") :]
+    body = body[: body.index("\ndef ", 1)]
+    assert "is_contract_complete" in body, "the control no longer stops on a contract"
+    return "final_answer_v1"
 
 
 def test_the_product_arm_decodes_like_the_control():
@@ -60,7 +74,7 @@ def test_the_product_arm_decodes_like_the_control():
         for knob, expected in _CONTROL_DECODE.items()
         if getattr(full, knob) != expected
     }
-    assert full.decode_contract == _PRODUCT_CONTRACT, (
+    assert full.decode_contract == _control_decode_contract(), (
         "the product arm must run the deployed contract setting; enforcement "
         "inside the engine can discard a produced answer, which the control "
         "never does"
@@ -79,7 +93,7 @@ def test_ordinary_decode_owns_the_answer_until_something_beats_it():
     assert full.decode_incumbent_policy == "vanilla_incumbent"
     assert full.answer_replacement_enabled is True
     assert full.decode_bridge_policy == "assistant_answer_v4"
-    assert full.decode_contract == "none"
+    assert full.decode_contract == _control_decode_contract()
     assert full.verifier_probe_contract == "final_answer_v1"
 
 
@@ -92,23 +106,33 @@ def test_the_ablation_is_allowed_to_break_the_floor():
     assert mech.decode_incumbent_policy == "latent"
 
 
+#: What "bounded below by ordinary decode" is, in the config that decides it.
+_BOUNDED = "vanilla_incumbent"
+_UNBOUNDED = "latent"
+
+
 def test_every_arm_declares_which_side_of_the_floor_it_is_on():
-    """No arm may be ambiguous about whether it is bounded below by vanilla."""
-    bounded = {
-        "complete_closed_book",
-        "complete_closed_book_adaptation_ablation",
-        "complete_closed_book_executable_ablation",
-        "full",
-        "full_oracle",
-    }
-    unbounded = {
-        "mechanism",
-        "ordinary",
-        "ordinary_best_of_3",
-        "ordinary_resource_dominating",
-    }
+    """No arm may be ambiguous about whether it is bounded below by vanilla.
+
+    This listed the profile names by hand, and three arms added since —
+    recurrent_composed, recurrent_initial_control, recurrent_depth_lesion —
+    were on neither list. The side is not a name; it is
+    decode_incumbent_policy, so the check reads that. A new arm now has to
+    have a decidable answer rather than a mention here.
+    """
     for arm in sweep.ARMS:
-        assert arm.profile in bounded | unbounded, arm
+        config = sweep._build_config(
+            arm.steps or 8, 16, arm.policy, arm.max_tokens or 512, profile=arm.profile
+        )
+        assert config.decode_incumbent_policy in {_BOUNDED, _UNBOUNDED}, arm
+
+        # The families are named for which side they are on, and a name that
+        # disagrees with the setting is the ambiguity this test exists to stop.
+        expected = _UNBOUNDED if arm.profile.startswith(("ordinary", "mechanism")) else _BOUNDED
+        assert config.decode_incumbent_policy == expected, (
+            f"{arm.profile} is named as {expected} but decodes as "
+            f"{config.decode_incumbent_policy}"
+        )
 
 
 def test_the_last_divergence_is_crossed_rather_than_assumed():
