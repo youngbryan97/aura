@@ -14250,6 +14250,57 @@ def _brevity_requested(user_message: object) -> bool:
         return False
 
 
+def _serve_tabular_answer(user_message: object, reply: object) -> object:
+    """Answer a quantitative question about a data file by computing it.
+
+    LIVE, 2026-08-19. Given a 60-row CSV she had already read, asked which
+    team spent the most on approved expenses and how much, every draft was
+    rejected as arithmetic_answer_missing and the turn ended in a canned
+    apology. The gate was right — the question asks for a number and no draft
+    had one — and no model sums sixty rows reliably in its head.
+
+    The file is on disk and the answer is arithmetic, so it is computed. When
+    the question does not resolve to one unambiguous reading of the table this
+    returns the model's reply untouched: a wrong number served with authority
+    is worse than no number.
+    """
+    try:
+        from core.conversation.filesystem_check import files_already_read
+        from core.conversation.tabular_answer import (
+            answer_tabular_question,
+            describe_tabular_answer,
+        )
+
+        question = str(user_message or "")
+        if not question.strip():
+            return reply
+        tables = [
+            path
+            for path in files_already_read()
+            if str(path).lower().endswith((".csv", ".tsv"))
+        ]
+        for path in tables[:3]:
+            computed = answer_tabular_question(path, question)
+            described = describe_tabular_answer(computed)
+            if described:
+                logger.info(
+                    "📊 Served a computed reading of %s (%d of %d rows).",
+                    path,
+                    computed.rows_used,
+                    computed.rows_total,
+                )
+                return described
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        record_degradation(
+            "chat.tabular_answer",
+            exc,
+            severity="debug",
+            action="left the table question to the model",
+            enforce_failure_policy=False,
+        )
+    return reply
+
+
 def _serve_lifetime(user_message: object, reply: object) -> object:
     """Answer how long she has been alive from the record that counts it.
 
@@ -15995,6 +16046,7 @@ _SERVED_FROM_RECORD_OPENINGS = (
     "My record holds",
     "Positions I have actually revised",
     "Awake ",
+    "By ",
 )
 
 #: The queued-work answer opens with a count, so it is recognised by shape.
@@ -16055,6 +16107,7 @@ def _apply_recorded_answer(user_message: object, response: Any) -> Any:
         corrected = str(_serve_earlier_conversation(user_message, corrected) or corrected)
         corrected = str(_serve_queued_work(user_message, corrected) or corrected)
         corrected = str(_serve_lifetime(user_message, corrected) or corrected)
+        corrected = str(_serve_tabular_answer(user_message, corrected) or corrected)
         corrected = str(_correct_false_capability_denials(corrected) or corrected)
         # Cut a reply that stopped mid-clause back to where it last made sense.
         #
