@@ -1,19 +1,17 @@
-"""A tool call is structured output, and steering destroys structured output.
+"""A tool call must reach the parser exactly as it was produced.
 
-LIVE, 2026-08-19. With five tools offered and the engine's affective alpha at
-3.8, the tool-mode generation returned ONE token and no text survived:
+LIVE, 2026-08-19. Chasing "she will not use her tools", the tool generation
+was put under the clean-user-surface contract to get an unsteered decode. That
+contract does two things: it honours the decode controls AND it turns on
+user-surface quality validation. So the surface quality gate was pointed at a
+tool call — which is not a user-facing answer and never passes it — and the
+worker generated 100 tokens and then cleared them:
 
-    ⚠️ [WORKER] Generation produced 1 token(s) but no text survived to the
+    ⚠️ [WORKER] Generation produced 100 token(s) but no text survived to the
     caller — discarded downstream, not a decode failure
 
-So every tool-using turn looked from the outside like a model that declined to
-call anything, when nothing had been generated at all. Days of "she won't use
-her tools" was a decoding fault the whole time.
-
-The runtime already knows this. The clean user surface decodes at alpha 0.0,
-and the code model is loaded unsteered outright — steering was corrupting
-generated code. Tool calling is the third kind of structured generation the
-runtime performs, and it was the one still being steered.
+The generation was never the problem. Whether the eventual REPLY is a good
+answer is judged later, on the reply.
 """
 
 from __future__ import annotations
@@ -22,37 +20,20 @@ import inspect
 
 from core.brain.llm.mlx_client import MLXLocalClient
 
-
-def test_the_tool_loop_asks_for_an_unsteered_decode():
-    source = inspect.getsource(MLXLocalClient.think_and_act)
-    assert "clean_user_surface_steering_alpha=0.0" in source
-    # The worker honours the decode controls only under this contract. Without
-    # it the alpha is carried and ignored, which is how the first attempt at
-    # this fix changed nothing.
-    assert "clean_user_surface_contract=True" in source
-    # The worker's contract requires both controls together; alpha alone is
-    # rejected as invalid runtime controls and silently leaves steering on.
-    assert "clean_user_surface_recurrent_loops=1" in source
+SOURCE = inspect.getsource(MLXLocalClient.think_and_act)
 
 
-def test_the_controls_are_on_the_generation_that_carries_the_tools():
-    """Not on some other call in the same function."""
-    source = inspect.getsource(MLXLocalClient.think_and_act)
-    # The generation now passes `native_tools`, which is the native schema
-    # list or None once the JSON contract takes over.
-    start = source.index("tools=native_tools,")
-    end = source.index(")", source.index("clean_user_surface_recurrent_loops=1"))
-    window = source[start:end]
-    assert "clean_user_surface_steering_alpha=0.0" in window
+def test_a_tool_call_is_not_judged_as_a_user_facing_answer():
+    """The surface quality gate clears anything that is not one."""
+    assert "clean_user_surface_contract=True" not in SOURCE
 
 
 def test_the_empty_generation_is_recorded():
     """An empty generation and a declined call are different faults.
 
     Both end the loop with no tool calls, and only one of them is about tool
-    calling. Without a record they are indistinguishable, which is why the
-    decoding fault was read as a behaviour problem.
+    calling. Without a record they are indistinguishable, which is how a
+    downstream filter read for days as a model that would not call anything.
     """
-    source = inspect.getsource(MLXLocalClient.think_and_act)
-    assert "came back empty" in source
-    assert "none called" in source
+    assert "came back empty" in SOURCE
+    assert "none called" in SOURCE

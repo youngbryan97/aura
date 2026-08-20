@@ -14175,15 +14175,14 @@ class MLXLocalClient:
                 # reason, and the code model is loaded unsteered outright. This
                 # is that rule applied to the third kind of structured
                 # generation the runtime performs.
-                # The worker applies the decode controls ONLY under this
-                # contract, so alpha 0.0 without it is carried and ignored —
-                # which is what happened on the first attempt at this fix. The
-                # flag's effect in the worker is "honour the requested decode
-                # controls", and a tool call needs that for the same reason the
-                # visible surface does: it is structure, not voice.
-                clean_user_surface_contract=True,
-                clean_user_surface_steering_alpha=0.0,
-                clean_user_surface_recurrent_loops=1,
+                # NOT under the clean-user-surface contract. It honours the
+                # decode controls AND turns on user-surface quality
+                # validation, so setting it here pointed the surface quality
+                # gate at a tool call — which is not a user-facing answer and
+                # never passes it. The worker generated 100 tokens and cleared
+                # them: "no text survived to the caller". A tool call must
+                # reach the parser exactly as produced; whether the eventual
+                # REPLY is a good answer is judged later, on the reply.
             )
             if not raw or not raw.strip():
                 # An empty generation in tool mode looks identical from the
