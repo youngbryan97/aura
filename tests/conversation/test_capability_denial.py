@@ -71,6 +71,33 @@ def test_a_refusal_on_principle_is_left_alone(sentence: str) -> None:
     assert denied_registered_capabilities(sentence, engine) == ()
 
 
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        "I cannot guarantee perfect recall tomorrow.",
+        "I can't promise that every memory write will survive a hardware failure.",
+        "I cannot verify for certain that the camera will remain available.",
+    ],
+)
+def test_uncertainty_about_an_outcome_is_not_a_capability_denial(sentence: str) -> None:
+    engine = _Engine(
+        ["memory_ops", "memory_sync", "computer_use", "desktop_task"]
+    )
+
+    assert denied_registered_capabilities(sentence, engine) == ()
+
+
+def test_a_later_operational_denial_still_counts_after_a_fidelity_caveat() -> None:
+    engine = _Engine(["memory_ops", "file_operation"])
+
+    denials = denied_registered_capabilities(
+        "I cannot guarantee perfect recall, but I cannot access your files.",
+        engine,
+    )
+
+    assert [denial.subject for denial in denials] == ["read the filesystem"]
+
+
 def test_a_capability_she_genuinely_lacks_is_not_contradicted() -> None:
     """Nothing registered for it, so the denial is true and stands."""
     engine = _Engine(["memory_write"])

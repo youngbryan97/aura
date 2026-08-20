@@ -32,7 +32,7 @@ _INTERROGATIVE_LINE_RE = re.compile(
 
 _DIRECTIVE_LINE_RE = re.compile(
     r"^\s*(?:then|and then|also|next|after that|give|tell|describe|name|answer|pick|"
-    r"recall|compare|contrast|choose|explain|verify|evaluate|trace|test)\b",
+    r"recall|compare|contrast|choose|explain|include|cover|address|verify|evaluate|trace|test)\b",
     re.IGNORECASE,
 )
 
@@ -40,7 +40,7 @@ _COORDINATED_DIRECTIVE_RE = re.compile(
     r"(?:^|[,;:]\s*(?:and\s+)?|[.!?]\s+|\b(?:and|then|also|next|finally)\s+)"
     r"(?:please\s+)?(?P<directive>"
     r"answer|analyze|build|calculate|choose|compare|contrast|create|debug|define|"
-    r"derive|describe|design|diagnose|discuss|download|enumerate|evaluate|explain|"
+    r"derive|describe|design|diagnose|discuss|download|enumerate|evaluate|explain|include|cover|address|"
     r"export|find|fix|give|identify|implement|inspect|justify|list|name|open|outline|"
     r"plan|prove|provide|read|recommend|remember|report|review|save|select|set|show|"
     r"state|summarize|tell|test|trace|validate|verify|write"
@@ -62,6 +62,27 @@ _REPEATED_CLAUSE_RE = re.compile(
 _NUMBERED_ITEM_RE = re.compile(r"(?:^|\n)\s*\d+[.)]\s+")
 _INLINE_NUMBERED_ITEM_RE = re.compile(
     r"(?<!\w)\((?P<number>[1-9]|1[0-2])\)\s+"
+)
+
+_CONTAINER_DIRECTIVE_RE = re.compile(
+    r"\b(?:include|cover|address)\b(?P<body>[^.!?]+)",
+    re.IGNORECASE,
+)
+_EMPTY_CONTAINER_DIRECTIVE_RE = re.compile(
+    r"^\s*(?:include|cover|address)\s*:?\s*$",
+    re.IGNORECASE,
+)
+_OBLIGATION_ITEM_HEAD = (
+    r"(?:a|an|the|its|one|each|both)\b|"
+    r"(?:algorithm|alternative|analysis|answer|assumption|citation|comparison|"
+    r"complexity|conclusion|constraint|counterexample|definition|example|"
+    r"explanation|failure|invariant|limitation|method|opinion|proof|pseudocode|"
+    r"recommendation|result|risk|source|step|summary|tradeoff)\b"
+)
+_OBLIGATION_ITEM_BOUNDARY_RE = re.compile(
+    rf",\s*(?:and\s+)?(?={_OBLIGATION_ITEM_HEAD})|"
+    rf"\s+and\s+(?={_OBLIGATION_ITEM_HEAD})",
+    re.IGNORECASE,
 )
 
 # --- Supplied material -------------------------------------------------------
@@ -441,6 +462,29 @@ def _coordinated_directive_segments(text: str) -> tuple[str, ...]:
     return tuple(segments)
 
 
+def _container_obligation_segments(text: str) -> tuple[str, ...]:
+    """Split a natural object list carried by one container directive.
+
+    ``Include X, Y, and Z`` contains three independently checkable outcomes
+    even though it has only one verb. Boundaries require a determiner or a
+    semantic obligation head, so named data such as vertices ``A, B, C, D``
+    remains inside the worked-example obligation.
+    """
+
+    match = _CONTAINER_DIRECTIVE_RE.search(str(text or ""))
+    if match is None:
+        return ()
+    body = match.group("body").strip(" \t\r\n,;:")
+    parts = tuple(
+        part.strip(" \t\r\n,;:")
+        for part in _OBLIGATION_ITEM_BOUNDARY_RE.split(body)
+        if part.strip(" \t\r\n,;:")
+    )
+    if len(parts) < 2:
+        return ()
+    return parts
+
+
 def _question_segments(text: str) -> tuple[str, ...]:
     """The individual asks in an utterance, as text.
 
@@ -474,7 +518,11 @@ def _question_segments(text: str) -> tuple[str, ...]:
         coordinated = _coordinated_directive_segments(part)
         if coordinated:
             sentence_asks.extend(coordinated)
-        elif part.endswith("?") or _DIRECTIVE_LINE_RE.match(part):
+        elif container_obligations := _container_obligation_segments(part):
+            sentence_asks.extend(container_obligations)
+        elif (
+            part.endswith("?") or _DIRECTIVE_LINE_RE.match(part)
+        ) and not _EMPTY_CONTAINER_DIRECTIVE_RE.match(part):
             sentence_asks.append(part)
     inline_obligations = _inline_numbered_segments(raw)
     if not inline_obligations:

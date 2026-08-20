@@ -816,6 +816,23 @@ async def test_route_strips_malformed_affordance_control_before_journaling(
                 ),
                 "status": "ok",
                 "response_confidence": "high",
+                "live_turn_contract": {
+                    "answer_delivery_proven": True,
+                    "certification_complete": True,
+                    "authentic_cognitive_reply": True,
+                    "authored_generation_source_proven": True,
+                    "authored_answer_completion_proven": True,
+                    "final_requested_output_contract_evaluated": True,
+                    "final_requested_output_contract_satisfied": True,
+                    "final_requested_output_contract_proven": True,
+                    "model_native_output": True,
+                    "final_text_authorship": "model_native",
+                    "post_generation_repair_applied": False,
+                    "deterministic_repair_applied": False,
+                    "authorship_replacement_applied": False,
+                    "unreceipted_runtime_replacement": False,
+                    "full_mind_missing_proofs": [],
+                },
             }
         )
 
@@ -828,6 +845,20 @@ async def test_route_strips_malformed_affordance_control_before_journaling(
     assert payload["response"] == "I can show that. Done."
     assert payload["status"] == "chat_affordance_control_sanitized"
     assert payload["response_confidence"] == "degraded"
+    contract = payload["live_turn_contract"]
+    assert contract["answer_delivery_proven"] is False
+    assert contract["certification_complete"] is False
+    assert contract["authored_generation_source_proven"] is False
+    assert contract["final_requested_output_contract_proven"] is False
+    assert contract["model_native_output"] is False
+    assert contract["final_text_authorship"] == "delivery_boundary_rewrite"
+    assert contract["authorship_replacement_applied"] is True
+    assert contract["unreceipted_runtime_replacement"] is True
+    assert contract["delivery_payload_mutated_after_proof"] is True
+    assert "delivery_bytes_changed_after_proof" in contract["full_mind_missing_proofs"]
+    assert contract["pre_mutation_response_sha256"] != contract[
+        "delivered_response_sha256"
+    ]
 
     replay = await handler(body=body, request=request)
     replay_payload = _payload(replay)

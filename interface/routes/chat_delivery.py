@@ -650,6 +650,52 @@ def _attach_http_chat_delivery_receipt(
     response.background = BackgroundTask(_after_send)
 
 
+def _invalidate_answer_proof_after_delivery_mutation(
+    payload: dict[str, Any],
+    *,
+    original_text: Any,
+    reason: str,
+) -> None:
+    """Prevent a terminal byte rewrite from inheriting route-level proof."""
+
+    contract = payload.get("live_turn_contract")
+    if not isinstance(contract, dict):
+        return
+    contract = dict(contract)
+    missing = [str(item) for item in contract.get("full_mind_missing_proofs") or ()]
+    marker = "delivery_bytes_changed_after_proof"
+    if marker not in missing:
+        missing.append(marker)
+    contract.update(
+        {
+            "answer_delivery_proven": False,
+            "certification_complete": False,
+            "authentic_cognitive_reply": False,
+            "authored_generation_source_proven": False,
+            "authored_answer_completion_proven": False,
+            "final_requested_output_contract_evaluated": False,
+            "final_requested_output_contract_satisfied": False,
+            "final_requested_output_contract_proven": False,
+            "model_native_output": False,
+            "final_text_authorship": "delivery_boundary_rewrite",
+            "post_generation_repair_applied": True,
+            "deterministic_repair_applied": True,
+            "authorship_replacement_applied": True,
+            "unreceipted_runtime_replacement": True,
+            "delivery_payload_mutated_after_proof": True,
+            "delivery_payload_mutation_reason": str(reason or "terminal_mutation"),
+            "pre_mutation_response_sha256": hashlib.sha256(
+                str(original_text or "").encode("utf-8")
+            ).hexdigest(),
+            "delivered_response_sha256": hashlib.sha256(
+                str(payload.get("response") or "").encode("utf-8")
+            ).hexdigest(),
+            "full_mind_missing_proofs": missing,
+        }
+    )
+    payload["live_turn_contract"] = contract
+
+
 def _paired_chat_response_boundary(handler: Callable[..., Any]) -> Callable[..., Any]:
     """Fence every chat turn before side effects and durably seal its outcome."""
 
@@ -932,6 +978,7 @@ def _paired_chat_response_boundary(handler: Callable[..., Any]) -> Callable[...,
                     str(payload.get("response") or "")
                 )
                 if affordance_sanitization.changed:
+                    pre_sanitization_text = str(payload.get("response") or "")
                     record_degradation(
                         "chat.affordance_visibility_boundary",
                         ValueError("private affordance control syntax reached final delivery"),
@@ -955,6 +1002,11 @@ def _paired_chat_response_boundary(handler: Callable[..., Any]) -> Callable[...,
                         payload["response_confidence"] = "degraded"
                     if str(payload.get("status") or "").casefold() in {"", "ok"}:
                         payload["status"] = "chat_affordance_control_sanitized"
+                    _invalidate_answer_proof_after_delivery_mutation(
+                        payload,
+                        original_text=pre_sanitization_text,
+                        reason="private_affordance_control_removed",
+                    )
             except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
                 unsafe_control_visible = _contains_private_affordance_control_syntax(
                     payload.get("response")
@@ -971,12 +1023,18 @@ def _paired_chat_response_boundary(handler: Callable[..., Any]) -> Callable[...,
                     ),
                 )
                 if unsafe_control_visible:
+                    pre_sanitization_text = str(payload.get("response") or "")
                     payload["response"] = (
                         "I couldn't verify that the action control stayed private, so I "
                         "did not deliver that draft."
                     )
                     payload["status"] = "chat_affordance_visibility_unavailable"
                     payload["response_confidence"] = "failed"
+                    _invalidate_answer_proof_after_delivery_mutation(
+                        payload,
+                        original_text=pre_sanitization_text,
+                        reason="affordance_visibility_unavailable",
+                    )
                     response.status_code = 500 if strict_output_status else 200
 
             terminal_state = _chat_delivery_state_for_response(

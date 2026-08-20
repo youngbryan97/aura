@@ -392,7 +392,7 @@ def test_the_chat_path_runs_bounded_model_authored_completion():
     # Chat must preserve the draft and let the resident model finish it. A
     # punctuation trimmer can make a fragment look syntactically complete by
     # throwing away the answer the user asked for.
-    assert "_MAX_USER_SURFACE_CONTINUATIONS = 1" in code
+    assert "_MAX_USER_SURFACE_CONTINUATIONS = 2" in code
     assert "async def _attempt_repair_retry" in code
     assert "completion_attempt=completion_attempt + 1" in code
     assert "made_progress" in code

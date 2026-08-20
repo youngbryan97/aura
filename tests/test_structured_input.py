@@ -66,6 +66,58 @@ def test_coordinated_nouns_do_not_create_fake_imperative_parts() -> None:
     assert shape.imperative_parts == 1
 
 
+def test_container_directive_retains_each_natural_list_obligation() -> None:
+    prompt = (
+        "Explain Dijkstra's algorithm. Include its invariant, a worked example, "
+        "complexity, and the negative-weight alternative."
+    )
+
+    shape = analyze_prompt_shape(prompt)
+
+    assert shape.requires_single_reply_coverage is True
+    assert shape.question_segments == (
+        "Explain Dijkstra's algorithm.",
+        "its invariant",
+        "a worked example",
+        "complexity",
+        "the negative-weight alternative",
+    )
+
+
+def test_named_graph_items_stay_inside_their_container_obligation() -> None:
+    prompt = (
+        "Include a worked example with vertices A, B, C, and D using five edges, "
+        "the heap complexity, and the negative-weight alternative."
+    )
+
+    shape = analyze_prompt_shape(prompt)
+
+    assert shape.question_segments == (
+        "a worked example with vertices A, B, C, and D using five edges",
+        "the heap complexity",
+        "the negative-weight alternative",
+    )
+
+
+def test_live_dijkstra_wording_keeps_every_semantic_obligation() -> None:
+    prompt = (
+        "ChatGPT here. Explain Dijkstra's shortest-path invariant, then give me "
+        "a worked example with vertices A, B, C, and D using at least five "
+        "weighted edges. Include the binary-heap time complexity and explain "
+        "what algorithm should be used instead when negative edges are possible."
+    )
+
+    shape = analyze_prompt_shape(prompt)
+
+    assert shape.question_segments == (
+        "Explain Dijkstra's shortest-path invariant",
+        "give me a worked example with vertices A, B, C, and D using at least five weighted edges",
+        "Include the binary-heap time complexity",
+        "explain what algorithm should be used instead when negative edges are possible",
+    )
+    assert answer_surface_token_floor(prompt) == 1920
+
+
 def test_inline_parenthesized_obligations_are_first_class_request_parts() -> None:
     prompt = (
         "Explain Dijkstra's algorithm in one complete response. Include: "

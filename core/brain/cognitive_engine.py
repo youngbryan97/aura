@@ -3300,12 +3300,16 @@ class CognitiveEngine:
                 generation_stop_reason = str(
                     surface_control_receipt.get("generation_stop_reason") or ""
                 )
+                semantic_completion_incomplete = bool(
+                    surface_control_receipt.get("semantic_completion_incomplete", False)
+                )
                 full_phase_text = str(last_msg.get("content") or "").strip()
                 generation_failure_class = str(
                     state.response_modifiers.get("generation_failure_class") or ""
                 ).lower()
                 reply_generation_incomplete = bool(
-                    set(surface_reasons)
+                    semantic_completion_incomplete
+                    or set(surface_reasons)
                     & {
                         "truncated_tail",
                         "final_answer_missing",
@@ -4936,8 +4940,12 @@ class CognitiveEngine:
         generation_stop_reason = str(
             surface_receipt.get("generation_stop_reason") or ""
         )
+        semantic_completion_incomplete = bool(
+            surface_receipt.get("semantic_completion_incomplete", False)
+        )
         reply_generation_incomplete = bool(
-            "truncated_tail" in surface_reasons
+            semantic_completion_incomplete
+            or "truncated_tail" in surface_reasons
             or generation_stop_reason
             in {"max_tokens", "deadline_exceeded", "soft_cancelled"}
             or _truncation_verdict(

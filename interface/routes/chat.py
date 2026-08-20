@@ -3954,6 +3954,16 @@ def _only_soft_proofs_missing(contract: Any) -> bool:
     )
 
 
+def _authored_answer_can_serve(contract: Any) -> bool:
+    """Keep a valid answer independent from full-system certification state."""
+
+    return bool(
+        isinstance(contract, dict)
+        and contract.get("answer_delivery_proven")
+        and contract.get("authentic_cognitive_reply")
+    )
+
+
 def _bounded_runtime_grounding_can_serve(contract: Any) -> bool:
     """Keep truthful runtime evidence without mislabeling it as model speech."""
 
@@ -4759,6 +4769,76 @@ def _generation_metadata_consumed_foreground_owner(metadata: Any) -> bool:
     return False
 
 
+def _worker_receipt_transaction_id(receipt: Any, response_text: Any) -> str:
+    """Return the exact MLX generation identity attested by the parent.
+
+    A route-created UUID proves only that the route ran.  Protected foreground
+    delivery needs to prove which resident-worker request authored the bytes it
+    is about to serve.  The MLX parent binds that identity after IPC, including
+    an exact request-id match and the worker generation that produced it.
+    """
+
+    if not isinstance(receipt, dict):
+        return ""
+    authored_text = str(response_text or "").strip()
+    if not authored_text:
+        return ""
+    provenance = receipt.get("provenance")
+    if not isinstance(provenance, dict):
+        return ""
+    request_id = str(provenance.get("request_id") or "").strip()
+    worker_boot_id = str(provenance.get("worker_boot_id") or "").strip()
+    try:
+        worker_generation = int(provenance.get("worker_generation") or 0)
+        request_seq = int(provenance.get("request_seq") or 0)
+    except (TypeError, ValueError):
+        return ""
+    if not (
+        provenance.get("claims") == "worker_attested"
+        and provenance.get("request_id_matches_active") is True
+        and provenance.get("worker_identity_attested") is True
+        and request_id
+        and worker_boot_id
+        and worker_generation > 0
+        and request_seq > 0
+    ):
+        return ""
+    identity = json.dumps(
+        {
+            "request_id": request_id,
+            "request_seq": request_seq,
+            "response_sha256": hashlib.sha256(
+                authored_text.encode("utf-8")
+            ).hexdigest(),
+            "worker_boot_id": worker_boot_id,
+            "worker_generation": worker_generation,
+        },
+        ensure_ascii=True,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    return "mlx-" + hashlib.sha256(identity.encode("utf-8")).hexdigest()
+
+
+def _protected_foreground_bytes_unchanged(
+    turn_trace: Any,
+    *,
+    status: Any,
+    reply_text: Any,
+) -> bool:
+    """Prove that protected-worker bytes survived every route mutation."""
+
+    if not isinstance(turn_trace, dict):
+        return False
+    expected = str(
+        turn_trace.get("foreground_model_generation_output_sha256") or ""
+    ).strip()
+    delivered = hashlib.sha256(
+        str(reply_text or "").encode("utf-8")
+    ).hexdigest()
+    return bool(status == "protected_foreground" and expected and expected == delivered)
+
+
 async def _run_cognitive_engine_chat_turn(
     effective_user_message: str,
     *,
@@ -4779,6 +4859,7 @@ async def _run_cognitive_engine_chat_turn(
     referential_anchor: str = "",
     continuation_partial: str = "",
     continuation_reasons: tuple[str, ...] | list[str] | None = None,
+    continuation_evidence: dict[str, Any] | None = None,
 ) -> str | None:
     """Run a live desktop/user chat turn through CognitiveEngine.
 
@@ -4804,6 +4885,52 @@ async def _run_cognitive_engine_chat_turn(
         else {}
     )
     if turn_trace is not None:
+        continuing_prior_segment = bool(str(continuation_partial or "").strip())
+        prior_evidence = (
+            dict(continuation_evidence)
+            if continuing_prior_segment and isinstance(continuation_evidence, dict)
+            else {}
+        )
+        def _prior_int(key: str, default: int) -> int:
+            try:
+                return int(prior_evidence.get(key, default))
+            except (TypeError, ValueError):
+                return default
+
+        prior_segment_count = max(
+            1,
+            _prior_int("foreground_model_generation_segment_count", 1),
+        ) if continuing_prior_segment else 0
+        prior_generation_count = max(
+            prior_segment_count,
+            _prior_int("foreground_model_generation_count", prior_segment_count),
+        ) if continuing_prior_segment else 0
+        prior_retry_count = max(
+            0,
+            _prior_int("completion_retry_count", 0),
+        ) if continuing_prior_segment else 0
+        prior_transaction_count = max(
+            1,
+            _prior_int("foreground_model_generation_transaction_count", 1),
+        ) if continuing_prior_segment else 0
+        prior_transaction_id = str(
+            prior_evidence.get("foreground_model_generation_transaction_id") or ""
+        ).strip()
+        transaction_id = (
+            prior_transaction_id
+            if continuing_prior_segment
+            else uuid.uuid4().hex
+        )
+        continuation_evidence_valid = bool(
+            not continuing_prior_segment
+            or (
+                prior_transaction_count == 1
+                and prior_generation_count == prior_segment_count
+                and prior_segment_count == prior_retry_count + 1
+                and prior_retry_count <= _MAX_USER_SURFACE_CONTINUATIONS
+                and prior_transaction_id
+            )
+        )
         turn_trace.update(
             {
                 "cognitive_engine_required": bool(require_engine),
@@ -4816,8 +4943,13 @@ async def _run_cognitive_engine_chat_turn(
                 "live_mind_generation_controls": {},
                 "live_mind_surface_control_receipt": {},
                 "live_mind_controls_worker_applied": False,
-                "foreground_model_generation_consumed": False,
-                "foreground_model_generation_count": 0,
+                "foreground_model_generation_consumed": continuing_prior_segment,
+                "foreground_model_generation_count": prior_generation_count,
+                "foreground_model_generation_transaction_count": prior_transaction_count,
+                "foreground_model_generation_segment_count": prior_segment_count,
+                "foreground_model_generation_transaction_id": transaction_id,
+                "completion_retry_count": prior_retry_count,
+                "continuation_evidence_valid": continuation_evidence_valid,
                 "repair_retry_attempt_count": 0,
                 "single_owner_generation_exhausted": False,
                 "response_path": "",
@@ -4832,8 +4964,12 @@ async def _run_cognitive_engine_chat_turn(
         if turn_trace is not None:
             turn_trace.update(fields)
 
-    def _record_foreground_generation(metadata: Any) -> None:
-        """Count proven model work whether or not its text is later accepted."""
+    def _record_foreground_generation(
+        metadata: Any,
+        *,
+        continuation_segment: bool = False,
+    ) -> None:
+        """Record physical decodes without confusing segments with new answers."""
 
         if (
             turn_trace is None
@@ -4845,6 +4981,17 @@ async def _run_cognitive_engine_chat_turn(
         turn_trace["foreground_model_generation_count"] = (
             int(turn_trace.get("foreground_model_generation_count") or 0) + 1
         )
+        turn_trace["foreground_model_generation_segment_count"] = (
+            int(turn_trace.get("foreground_model_generation_segment_count") or 0) + 1
+        )
+        if not continuation_segment:
+            turn_trace["foreground_model_generation_transaction_count"] = (
+                int(turn_trace.get("foreground_model_generation_transaction_count") or 0) + 1
+            )
+        elif int(turn_trace.get("foreground_model_generation_transaction_count") or 0) == 0:
+            # A route-level continuation can resume a durable prior segment. It
+            # still belongs to one logical answer transaction.
+            turn_trace["foreground_model_generation_transaction_count"] = 1
         turn_trace["single_owner_generation_exhausted"] = True
 
     def _adopt_generation_metadata(
@@ -4932,6 +5079,26 @@ async def _run_cognitive_engine_chat_turn(
                 ),
                 "live_mind_required_subsystems_ok_from_thought": bool(
                     metadata.get("live_mind_required_subsystems_ok")
+                ),
+                "semantic_completion_receipt_present": all(
+                    field in receipt
+                    for field in (
+                        "semantic_completion_contract",
+                        "semantic_completion_satisfied",
+                        "semantic_completion_incomplete",
+                    )
+                ),
+                "semantic_completion_contract": bool(
+                    receipt.get("semantic_completion_contract", False)
+                ),
+                "semantic_completion_satisfied": bool(
+                    receipt.get("semantic_completion_satisfied", False)
+                ),
+                "semantic_completion_incomplete": bool(
+                    receipt.get("semantic_completion_incomplete", False)
+                ),
+                "reply_generation_incomplete": bool(
+                    metadata.get("reply_generation_incomplete", False)
                 ),
                 "text_mutations": receipt_mutations,
                 "text_mutation_count": len(receipt_mutations),
@@ -5079,6 +5246,14 @@ async def _run_cognitive_engine_chat_turn(
         sensory_evidence_payload = {}
     mode = _select_cognitive_chat_mode(visible, effective_user_message)
     shape = analyze_prompt_shape(visible)
+    semantic_completion_expected = bool(
+        str(continuation_partial or "").strip()
+        or shape.prefers_extended_answer
+        or shape.requires_single_reply_coverage
+        or shape.question_parts >= 2
+        or answer_surface_token_floor(visible) > 256
+    )
+    _mark_turn_trace(semantic_completion_contract_expected=semantic_completion_expected)
     capability_inventory_contract = _chat_preflight._is_explicit_capability_inventory_request(
         visible
     )
@@ -6119,6 +6294,7 @@ async def _run_cognitive_engine_chat_turn(
                         "completion_retry_exhausted": True,
                         "completion_retry_failure_reason": str(failure_reason or "unknown")[:240],
                         "completion_incumbent_chars": len(incumbent),
+                        "authored_answer_completion_proven": False,
                     }
                 )
             logger.warning(
@@ -6267,6 +6443,8 @@ async def _run_cognitive_engine_chat_turn(
                 repair_timeout,
                 protected_foreground=bool(require_engine),
             )
+            if turn_trace is not None:
+                turn_trace["engine_think_invoked"] = True
             with relational_principal_scope(exact_principal):
                 return await engine.think(
                     visible if completion_only_retry else repair_directive,
@@ -6313,7 +6491,10 @@ async def _run_cognitive_engine_chat_turn(
         # A rejected model draft still consumed the foreground owner. Count it
         # before any visible-text gate returns so the public receipt cannot claim
         # one generation after two resident decodes actually ran.
-        _record_foreground_generation(retry_metadata)
+        _record_foreground_generation(
+            retry_metadata,
+            continuation_segment=completion_only_retry,
+        )
         retry_content = getattr(repair_thought, "content", None)
         if retry_content is None and isinstance(repair_thought, dict):
             retry_content = repair_thought.get("content") or repair_thought.get("response")
@@ -6448,6 +6629,13 @@ async def _run_cognitive_engine_chat_turn(
                     count_foreground_generation=False,
                 )
             if turn_trace is not None:
+                turn_trace.update(
+                    {
+                        "authored_answer_completion_proven": True,
+                        "semantic_completion_incomplete": False,
+                        "reply_generation_incomplete": False,
+                    }
+                )
                 _append_turn_text_mutation(
                     turn_trace,
                     stage="chat.cognitive_engine_repair_retry",
@@ -6616,6 +6804,9 @@ async def _run_cognitive_engine_chat_turn(
         continued = await _attempt_repair_retry(
             str(continuation_partial).strip(),
             tuple(continuation_reasons or ("truncated_tail",)),
+            completion_attempt=int(
+                (continuation_evidence or {}).get("completion_retry_count") or 0
+            ),
         )
         if continued:
             preserved_incumbent = bool(
@@ -15521,6 +15712,11 @@ async def api_chat_regenerate(
             if reply_text:
                 regen_lane = _chat_preflight._collect_conversation_lane_status()
                 reply_source = str(_regen_turn_trace.get("response_path") or "cognitive_engine")
+                reply_text = _enforce_final_requested_output_contract(
+                    _regen_turn_trace,
+                    user_message=user_msg,
+                    reply_text=str(reply_text),
+                )
                 _bind_public_latent_output_quality(
                     _regen_turn_trace,
                     user_message=user_msg,
@@ -15533,7 +15729,7 @@ async def api_chat_regenerate(
                     reply_source=reply_source,
                 )
                 if not bool(regen_contract.get("full_mind_path")):
-                    if bool(regen_contract.get("authentic_cognitive_reply")):
+                    if _authored_answer_can_serve(regen_contract):
                         # Authentic mind-authored regenerate with only
                         # state-completeness proofs missing: serve with the
                         # degradation disclosed, never a fail-closed apology.
@@ -16162,6 +16358,13 @@ def _apply_recorded_answer(user_message: object, response: Any) -> Any:
         reply = data.get("response")
         if not isinstance(reply, str) or not reply.strip():
             return response
+        contract = data.get("live_turn_contract")
+        if isinstance(contract, dict) and contract.get("answer_delivery_proven") is True:
+            # Exact authored bytes have crossed the terminal answer contract.
+            # A wrapper correction after that point would make the proof refer
+            # to different text. Recorded/computed answers must be selected
+            # before proof, or remain a separately typed unproven response.
+            return response
         corrected = str(_append_past_action_record(user_message, reply) or reply)
         # Self-metric honesty belongs here for the same reason the recorded
         # answer does. Applied on the repair branch alone it missed the lane
@@ -16288,6 +16491,7 @@ async def api_chat(
     # to give. Recorded in `finally` so a turn that fails still counts — a
     # failure the user waited forty seconds for is latency they experienced.
     turn_started = time.perf_counter()
+    visible_user_message = str(body.message or "")
     try:
         # One turn, spanning generation AND delivery.
         #
@@ -16325,7 +16529,7 @@ async def api_chat(
                         ),
                     )
                 _served = _apply_recorded_answer(
-                    body.message,
+                    visible_user_message,
                     await _api_chat_turn(body, request),
                 )
                 _mark_http_turn_served(_turn_outcome, _served)
@@ -16367,53 +16571,6 @@ def _requested_output_contract_result(
     required = bool(turn_trace.get("final_requested_output_contract_required"))
     satisfied = bool(turn_trace.get("final_requested_output_contract_satisfied"))
     return final_text, bool(evaluated and (not required or satisfied))
-
-
-async def _background_retry_generate(message: str, *, timeout_s: float) -> str:
-    """One bounded background retry of a turn the foreground gave up on.
-
-    Lifted out of `_api_chat_turn`, where it closed over nothing but the
-    foreground timeout. Everything else it needs it resolves itself, which
-    is why it was extractable: the retry deliberately runs on the BACKGROUND
-    local background lane, so it shares no model operation with the foreground
-    turn that queued it.
-
-    Returns "" when nothing usable came back — the caller treats an empty
-    string as "no continuation", so a failed retry must not raise into the
-    scheduler.
-    """
-    try:
-        gate = ServiceContainer.get("inference_gate", default=None)
-        if gate and hasattr(gate, "generate"):
-            result = await asyncio.wait_for(
-                gate.generate(
-                    message,
-                    context={
-                        "origin": "background_retry",
-                        "is_background": True,
-                        "foreground_request": False,
-                        "background_retry": True,
-                        "prefer_tier": "primary",
-                        "allow_cloud_fallback": False,
-                    },
-                    timeout=timeout_s,
-                ),
-                timeout=timeout_s,
-            )
-            if isinstance(result, str):
-                return result.strip()
-            for attr in ("content", "text", "response"):
-                value = getattr(result, attr, None)
-                if isinstance(value, str) and value.strip():
-                    return value.strip()
-            if isinstance(result, dict):
-                return str(
-                    result.get("content") or result.get("text") or result.get("response") or ""
-                ).strip()
-    except _CHAT_RECOVERABLE_ERRORS as retry_exc:
-        record_degradation("chat", retry_exc)
-        logger.debug("Background retry call failed: %s", retry_exc)
-    return ""
 
 
 def _runtime_shutdown_response(
@@ -16549,8 +16706,6 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
     #    specific-recall / continuity question, prepend response guidance
     #    that fights LLM-default failure modes (confabulation, generic
     #    chat-AI prose on substrate-aware questions).
-    # 3) Auto-resume: deliver any late-answered messages from prior turns
-    #    by prepending the resume preface so the user sees what came back.
     _chat_session_id: str = "default"
     _original_user_message: str = body.message
     from core.conversation.interlocutor_identity import (
@@ -16574,7 +16729,6 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
     # runtime computes exactly.
     set_user_question(_semantic_user_message)
     _declared_interlocutor = _interlocutor_turn.evidence()
-    _resume_prefix_for_response: str = ""
     _grounded_recall_context: str = ""
     _relational_memory_control = getattr(
         getattr(request, "state", None),
@@ -16605,7 +16759,6 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
         is_benchmark,
         _chat_session_id=_chat_session_id,
         _grounded_recall_context=_grounded_recall_context,
-        _resume_prefix_for_response=_resume_prefix_for_response,
         raw_user_message=_original_user_message,
     )
     if _preflight.early_response is not None:
@@ -16614,8 +16767,6 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
         _chat_session_id = _preflight.chat_session_id
     if _preflight.grounded_recall_context is not _UNSET:
         _grounded_recall_context = _preflight.grounded_recall_context
-    if _preflight.resume_prefix_for_response is not _UNSET:
-        _resume_prefix_for_response = _preflight.resume_prefix_for_response
     if _preflight.grounded is not _UNSET:
         _grounded = _preflight.grounded
     if _preflight.shown is not _UNSET:
@@ -17162,6 +17313,27 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                         if completion_recovery
                         else None
                     ),
+                    continuation_evidence=(
+                        {
+                            "foreground_model_generation_count": _live_turn_trace.get(
+                                "foreground_model_generation_count", 1
+                            ),
+                            "foreground_model_generation_segment_count": _live_turn_trace.get(
+                                "foreground_model_generation_segment_count", 1
+                            ),
+                            "foreground_model_generation_transaction_count": _live_turn_trace.get(
+                                "foreground_model_generation_transaction_count", 1
+                            ),
+                            "foreground_model_generation_transaction_id": _live_turn_trace.get(
+                                "foreground_model_generation_transaction_id", ""
+                            ),
+                            "completion_retry_count": _live_turn_trace.get(
+                                "completion_retry_count", 0
+                            ),
+                        }
+                        if completion_recovery
+                        else None
+                    ),
                 )
             except _CHAT_RECOVERABLE_ERRORS as rec_exc:
                 record_degradation("chat", rec_exc)
@@ -17230,7 +17402,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 )
                 return None
             if not bool(recovery_contract.get("full_mind_path")):
-                if bool(recovery_contract.get("authentic_cognitive_reply")):
+                if _authored_answer_can_serve(recovery_contract):
                     # Authentic mind-authored text with only state-completeness
                     # proofs missing (self-healing window): serve with the
                     # degradation disclosed — never an apology over a live mind.
@@ -17351,6 +17523,31 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 _live_turn_trace.get("turn_id") or _live_turn_trace.get("idempotency_key") or "",
             )
             if salvaged:
+                salvaged, salvage_output_proven = _enforce_main_requested_output_contract(
+                    salvaged
+                )
+                salvage_contract = _live_turn_contract(
+                    lane_status=_chat_preflight._collect_conversation_lane_status(),
+                    response_confidence="degraded",
+                    status=str(_live_turn_trace.get("response_path") or response_path),
+                    reply_source=str(
+                        _live_turn_trace.get("response_path") or response_path
+                    ),
+                )
+                if not (
+                    salvage_output_proven
+                    and _authored_answer_can_serve(salvage_contract)
+                ):
+                    logger.warning(
+                        "Preserved draft remained ineligible for delivery; "
+                        "withholding it (missing=%s).",
+                        ",".join(
+                            salvage_contract.get("full_mind_missing_proofs") or ()
+                        )
+                        or "unknown",
+                    )
+                    salvaged = ""
+            if salvaged:
                 logger.warning(
                     "Serving the preserved repairable draft (%d chars) rather "
                     "than refusing: repair could not run for this turn.",
@@ -17358,8 +17555,6 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 )
                 _live_turn_trace.update(
                     {
-                        "response_path": f"{response_path}:served_repairable_draft",
-                        "bounded_contract_used": True,
                         "post_generation_repair_applied": False,
                     }
                 )
@@ -17393,12 +17588,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                         "reason": reason,
                         "conversation_lane": salvage_lane,
                         "response_confidence": "degraded",
-                        "live_turn_contract": _live_turn_contract(
-                            lane_status=salvage_lane,
-                            response_confidence="degraded",
-                            status=f"{response_path}:served_repairable_draft",
-                            reply_source=f"{response_path}:served_repairable_draft",
-                        ),
+                        "live_turn_contract": salvage_contract,
                     },
                     status_code=200,
                 )
@@ -17406,7 +17596,6 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             lane = _mark_conversation_lane_state(status, state="failed")
             _live_turn_trace.update(
                 {
-                    "bounded_contract_used": False,
                     "response_path": response_path,
                     "rejected_reply_len": len(str(rejected_reply or "")),
                 }
@@ -17786,6 +17975,57 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                     reason="requested_output_contract_not_proven",
                 )
 
+            protected_foreground_origin = bool(
+                _live_turn_trace.get("response_path") == "protected_foreground"
+            )
+            if protected_foreground_origin:
+                expected_sha256 = str(
+                    _live_turn_trace.get("foreground_model_generation_output_sha256")
+                    or ""
+                ).strip()
+                delivered_sha256 = hashlib.sha256(
+                    final_text.encode("utf-8")
+                ).hexdigest()
+                if not _protected_foreground_bytes_unchanged(
+                    _live_turn_trace,
+                    status=status,
+                    reply_text=final_text,
+                ):
+                    logger.error(
+                        "Protected foreground bytes changed after worker authorship "
+                        "was bound (status=%s expected=%s delivered=%s).",
+                        status,
+                        expected_sha256[:12] or "missing",
+                        delivered_sha256[:12],
+                    )
+                    return await _fail_closed_degraded_desktop_reply(
+                        final_text,
+                        response_path="protected_foreground_bytes_changed",
+                        status="protected_foreground_bytes_changed",
+                        reason="protected_foreground_bytes_changed",
+                    )
+                protected_contract = _live_turn_contract(
+                    lane_status=_chat_preflight._collect_conversation_lane_status(),
+                    response_confidence=response_confidence,
+                    status=status,
+                    reply_source="protected_foreground",
+                )
+                if not _authored_answer_can_serve(protected_contract):
+                    logger.error(
+                        "Protected foreground answer failed the shared delivery "
+                        "contract; withholding it (missing=%s).",
+                        ",".join(
+                            protected_contract.get("full_mind_missing_proofs") or ()
+                        )
+                        or "unknown",
+                    )
+                    return await _fail_closed_degraded_desktop_reply(
+                        final_text,
+                        response_path="protected_foreground_delivery_unproven",
+                        status="protected_foreground_delivery_unproven",
+                        reason="protected_foreground_delivery_unproven",
+                    )
+
             _record_recent_response(final_text, _semantic_user_message)
 
             lane_status = (
@@ -17838,7 +18078,11 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             )
             return JSONResponse(response_data)
 
-        async def _attempt_protected_foreground_reply(reason: str) -> str | None:
+        async def _attempt_protected_foreground_reply(
+            reason: str,
+            *,
+            budget_override_s: float | None = None,
+        ) -> str | None:
             if is_benchmark:
                 return None
             gate = ServiceContainer.get("inference_gate", default=None)
@@ -17864,12 +18108,18 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 route["deep_handoff"] = False
                 route["protected_downgraded_from_deep"] = True
                 deep_handoff = False
-            direct_budget = min(
-                _PROTECTED_FOREGROUND_SECONDARY_BUDGET_SECONDS
-                if deep_handoff
-                else _PROTECTED_FOREGROUND_PRIMARY_BUDGET_SECONDS,
-                _remaining_foreground_budget(reserve=6.0 if deep_handoff else 4.0),
-            )
+            if budget_override_s is None:
+                direct_budget = min(
+                    _PROTECTED_FOREGROUND_SECONDARY_BUDGET_SECONDS
+                    if deep_handoff
+                    else _PROTECTED_FOREGROUND_PRIMARY_BUDGET_SECONDS,
+                    _remaining_foreground_budget(reserve=6.0 if deep_handoff else 4.0),
+                )
+            else:
+                direct_budget = min(
+                    _PROTECTED_FOREGROUND_PRIMARY_BUDGET_SECONDS,
+                    max(0.0, float(budget_override_s)),
+                )
             minimum_budget = 10.0 if deep_handoff else 5.0
             if direct_budget < minimum_budget:
                 return None
@@ -17885,6 +18135,13 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 reason,
                 route.get("prefer_tier", "primary"),
                 direct_budget,
+            )
+            prompt_shape = analyze_prompt_shape(_semantic_user_message)
+            semantic_completion_expected = bool(
+                prompt_shape.prefers_extended_answer
+                or prompt_shape.requires_single_reply_coverage
+                or prompt_shape.question_parts >= 2
+                or answer_surface_token_floor(_semantic_user_message) > 256
             )
             try:
                 direct_reply = await asyncio.wait_for(
@@ -17905,6 +18162,12 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                             # Aura lane; keep it local so provider quota or a
                             # remote substrate cannot hijack desktop chat.
                             "allow_cloud_fallback": False,
+                            "visible_user_message": _semantic_user_message,
+                            "user_surface_validation_prompt": _semantic_user_message,
+                            "user_surface_completion_floor": answer_surface_token_floor(
+                                _semantic_user_message
+                            ),
+                            "semantic_completion_contract": semantic_completion_expected,
                             "messages": messages,
                             "brief": (
                                 "Protected foreground lane engaged. The kernel is congested or recovering. "
@@ -17925,12 +18188,113 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             if not direct_reply or not str(direct_reply).strip():
                 return None
 
-            stabilized = await _stabilize_user_facing_reply(
-                _semantic_user_message,
-                str(direct_reply).strip(),
-                desktop_cognitive_engine_required=desktop_requires_cognitive_engine,
-                protected_foreground_lane=True,
+            metadata_getter = getattr(gate, "get_last_generation_metadata", None)
+            generation_metadata = (
+                metadata_getter() if callable(metadata_getter) else {}
             )
+            generation_metadata = (
+                dict(generation_metadata)
+                if isinstance(generation_metadata, dict)
+                else {}
+            )
+            raw_receipt = generation_metadata.get("surface_control_receipt")
+            if not isinstance(raw_receipt, dict):
+                receipt_getter = getattr(gate, "get_last_surface_control_receipt", None)
+                raw_receipt = receipt_getter() if callable(receipt_getter) else {}
+            receipt = dict(raw_receipt) if isinstance(raw_receipt, dict) else {}
+            generation_consumed = _generation_metadata_consumed_foreground_owner(
+                generation_metadata
+            )
+            protected_output_sha256 = hashlib.sha256(
+                str(direct_reply).strip().encode("utf-8")
+            ).hexdigest()
+            transaction_id = _worker_receipt_transaction_id(receipt, direct_reply)
+            protected_generation_proven = bool(
+                generation_metadata.get("ok") is True
+                and generation_metadata.get("is_local") is True
+                and generation_consumed
+                and transaction_id
+            )
+            raw_generation_controls = generation_metadata.get(
+                "live_mind_generation_controls"
+            )
+            generation_controls = (
+                dict(raw_generation_controls)
+                if isinstance(raw_generation_controls, dict)
+                else {}
+            )
+            _live_turn_trace.update(
+                {
+                    "response_path": "protected_foreground",
+                    "protected_foreground_generation_proven": (
+                        protected_generation_proven
+                    ),
+                    "foreground_model_generation_consumed": generation_consumed,
+                    "foreground_model_generation_count": 1 if generation_consumed else 0,
+                    "foreground_model_generation_segment_count": (
+                        1 if generation_consumed else 0
+                    ),
+                    "foreground_model_generation_transaction_count": (
+                        1 if generation_consumed else 0
+                    ),
+                    "foreground_model_generation_transaction_id": (
+                        transaction_id if generation_consumed else ""
+                    ),
+                    "foreground_model_generation_output_sha256": (
+                        protected_output_sha256 if generation_consumed else ""
+                    ),
+                    "live_mind_generation_required": True,
+                    "live_mind_controls_bound": bool(
+                        receipt.get("live_mind_controls_bound")
+                    ),
+                    "live_mind_generation_controls": generation_controls,
+                    "live_mind_surface_control_receipt": receipt,
+                    "live_mind_controls_worker_applied": bool(
+                        receipt.get("live_mind_controls_bound")
+                        and receipt.get("applied")
+                    ),
+                    "semantic_completion_contract_expected": (
+                        semantic_completion_expected
+                    ),
+                    "semantic_completion_receipt_present": all(
+                        field in receipt
+                        for field in (
+                            "semantic_completion_contract",
+                            "semantic_completion_satisfied",
+                            "semantic_completion_incomplete",
+                        )
+                    ),
+                    "semantic_completion_contract": bool(
+                        receipt.get("semantic_completion_contract", False)
+                    ),
+                    "semantic_completion_satisfied": bool(
+                        receipt.get("semantic_completion_satisfied", False)
+                    ),
+                    "semantic_completion_incomplete": bool(
+                        receipt.get("semantic_completion_incomplete", False)
+                    ),
+                    "reply_generation_incomplete": bool(
+                        generation_metadata.get("reply_generation_incomplete", False)
+                    ),
+                    "bounded_contract_used": False,
+                    "legacy_fallback_used": False,
+                    "cognitive_engine_reply_failed": False,
+                }
+            )
+            if not protected_generation_proven:
+                logger.error(
+                    "Protected foreground produced text without a valid local generation "
+                    "receipt; withholding it (metadata=%s receipt=%s).",
+                    sorted(generation_metadata),
+                    sorted(receipt),
+                )
+                return None
+
+            # The protected lane used to pass through a second, independently
+            # mutating stabilizer and then skip the normal authorship contract.
+            # Keep the model bytes intact and let the shared terminal path own
+            # quality, requested-output, and delivery admission.
+            stabilized = str(direct_reply).strip()
             recent_user_messages = await _gather_recent_user_messages_for_relevance(
                 _semantic_user_message
             )
@@ -18813,6 +19177,16 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                         or "cognitive_engine"
                     )
                     if desktop_requires_cognitive_engine:
+                        reply_text = _enforce_final_requested_output_contract(
+                            _live_turn_trace,
+                            user_message=_semantic_user_message,
+                            reply_text=str(reply_text),
+                            desktop_execution_contract=(
+                                _chat_preflight._looks_like_desktop_objective(
+                                    _semantic_user_message
+                                )
+                            ),
+                        )
                         contract_lane = _chat_preflight._collect_conversation_lane_status()
                         candidate_contract = _live_turn_contract(
                             lane_status=contract_lane,
@@ -18821,7 +19195,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                             reply_source=reply_source,
                         )
                         if not bool(candidate_contract.get("full_mind_path")):
-                            if bool(candidate_contract.get("authentic_cognitive_reply")):
+                            if _authored_answer_can_serve(candidate_contract):
                                 # Her real mind authored this text (think invoked,
                                 # accepted, high confidence, not repair/legacy) —
                                 # only STATE-COMPLETENESS proofs are missing
@@ -19323,6 +19697,30 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 _semantic_user_message,
                 _live_turn_trace.get("turn_id") or _live_turn_trace.get("idempotency_key") or "",
             )
+            if salvaged_no_reply:
+                (
+                    salvaged_no_reply,
+                    salvage_output_proven,
+                ) = _enforce_main_requested_output_contract(salvaged_no_reply)
+                salvage_contract = _live_turn_contract(
+                    lane_status=_chat_preflight._collect_conversation_lane_status(),
+                    response_confidence="bounded",
+                    status=str(_live_turn_trace.get("response_path") or ""),
+                    reply_source=str(_live_turn_trace.get("response_path") or ""),
+                )
+                if not (
+                    salvage_output_proven
+                    and _authored_answer_can_serve(salvage_contract)
+                ):
+                    logger.warning(
+                        "Preserved no-reply draft remained ineligible for delivery; "
+                        "withholding it (missing=%s).",
+                        ",".join(
+                            salvage_contract.get("full_mind_missing_proofs") or ()
+                        )
+                        or "unknown",
+                    )
+                    salvaged_no_reply = ""
             # A recall question the model could not answer at all.
             #
             # LIVE 2026-08-17: "what was the first thing I said to you in this
@@ -19349,7 +19747,10 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                         "refusing: generation produced no usable text.",
                         len(composed_recall),
                     )
-                    salvaged_no_reply = composed_recall
+                    return await _finalize_fastpath(
+                        composed_recall,
+                        status="conversation_recall_log_repair_after_empty_engine",
+                    )
             # A refusal is not an answer to an instruction she can carry out.
             #
             # Live 2026-07-28: "Open the Notes app and write a new note with
@@ -19405,12 +19806,6 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                     "cognitive_engine_served_repairable_draft",
                     state="recovering",
                 )
-                _live_turn_trace.update(
-                    {
-                        "bounded_contract_used": True,
-                        "response_path": "cognitive_engine_served_repairable_draft",
-                    }
-                )
                 if pending_exchange_id:
                     await _chat_preflight._complete_logged_exchange(
                         pending_exchange_id,
@@ -19434,12 +19829,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                         "status": "cognitive_engine_served_repairable_draft",
                         "conversation_lane": lane,
                         "response_confidence": "bounded",
-                        "live_turn_contract": _live_turn_contract(
-                            lane_status=lane,
-                            response_confidence="bounded",
-                            status="cognitive_engine_served_repairable_draft",
-                            reply_source="cognitive_engine_served_repairable_draft",
-                        ),
+                        "live_turn_contract": salvage_contract,
                     }
                 )
 
@@ -19449,7 +19839,6 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             )
             _live_turn_trace.update(
                 {
-                    "bounded_contract_used": False,
                     "response_path": "desktop_cognitive_engine_required_no_reply",
                 }
             )
@@ -20668,20 +21057,6 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                     deterministic=False,
                     authorship_effect="augmented_by_runtime",
                 )
-        if _resume_prefix_for_response:
-            _pre_resume_prefix_reply = _final_reply
-            _final_reply = _resume_prefix_for_response + _final_reply
-            _append_turn_text_mutation(
-                _live_turn_trace,
-                stage="chat.resume_prefix",
-                method="deterministic_continuity_prefix",
-                reasons=["resumed_prior_turn"],
-                before=_pre_resume_prefix_reply,
-                after=_final_reply,
-                deterministic=True,
-                authorship_effect="augmented_by_runtime",
-            )
-
         _final_reply = _enforce_final_requested_output_contract(
             _live_turn_trace,
             user_message=_semantic_user_message,
@@ -20743,6 +21118,17 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 _final_reply = _custody.text or _final_reply
         except _CHAT_RECOVERABLE_ERRORS as _exc:
             record_degradation("chat.fact_custody", _exc)
+
+        # Grounding and fact custody can change the exact bytes that will be
+        # delivered. Their inputs may have satisfied a word/list/sentence
+        # contract while their outputs do not, so terminal proof is always
+        # recomputed over the post-mutation answer rather than inherited from
+        # an earlier candidate.
+        _final_reply = _enforce_final_requested_output_contract(
+            _live_turn_trace,
+            user_message=_semantic_user_message,
+            reply_text=_final_reply,
+        )
         _bind_public_latent_output_quality(
             _live_turn_trace,
             user_message=_semantic_user_message,
@@ -20806,10 +21192,10 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
         _full_mind_unproven = desktop_requires_cognitive_engine and not bool(
             final_live_turn_contract.get("full_mind_path")
         )
-        if _full_mind_unproven and _only_soft_proofs_missing(final_live_turn_contract):
+        if _full_mind_unproven and _authored_answer_can_serve(final_live_turn_contract):
             # Same treatment the regenerate, recovery and candidate gates already
-            # give an authentic reply: serve it, say the proof was soft, never
-            # replace her own words with an apology.
+            # give an authentic reply: certification state remains visible in
+            # the receipt, but it cannot replace a valid authored answer.
             logger.warning(
                 "Desktop reply served with DEGRADED full-mind proof (her own text; missing: %s).",
                 ",".join(final_live_turn_contract.get("full_mind_missing_proofs") or ())
@@ -21034,45 +21420,21 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 status_code=503,
             )
 
-        # [STABILITY v53] Last-resort: try protected foreground before returning timeout.
-        # The kernel timed out but the LLM might still be responsive for a direct call.
+        # The kernel timed out, but the resident worker may still be responsive.
+        # Recovery stays inside the same protected foreground transaction used
+        # everywhere else; an independent direct generation here used to skip
+        # authorship, semantic-completion, and requested-output proof entirely.
         try:
-            gate = ServiceContainer.get("inference_gate", default=None)
-            if gate and hasattr(gate, "generate"):
-                emergency_reply = await asyncio.wait_for(
-                    gate.generate(
-                        body.message,
-                        context={
-                            "origin": chat_origin,
-                            "foreground_request": True,
-                            "protected_foreground_lane": True,
-                            "protected_foreground_reason": "outer_timeout_emergency",
-                            "prefer_tier": "primary",
-                            "allow_cloud_fallback": False,
-                        },
-                        timeout=15.0,
-                    ),
-                    timeout=15.0,
+            emergency_reply = await _attempt_protected_foreground_reply(
+                "outer_timeout_emergency",
+                budget_override_s=15.0,
+            )
+            if emergency_reply:
+                logger.info("Protected foreground recovery after outer timeout succeeded.")
+                return await _finalize_fastpath(
+                    emergency_reply,
+                    status="protected_foreground",
                 )
-                if emergency_reply and str(emergency_reply).strip():
-                    logger.info(
-                        "✅ [STABILITY v53] Emergency bypass after outer timeout succeeded."
-                    )
-                    emergency_text = str(emergency_reply).strip()
-                    if pending_exchange_id:
-                        await _chat_preflight._complete_logged_exchange(
-                            pending_exchange_id,
-                            body.message,
-                            emergency_text,
-                        )
-                        pending_exchange_id = None
-                    return JSONResponse(
-                        {
-                            "response": emergency_text,
-                            "conversation_lane": _chat_preflight._collect_conversation_lane_status(),
-                            "response_confidence": "degraded",
-                        }
-                    )
         except _CHAT_RECOVERABLE_ERRORS as exc:
             record_degradation("chat", exc)
             logger.warning(
@@ -21080,56 +21442,12 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 exc,
             )
 
-        # [STABILITY v53] Return 200 with status field instead of 503/504.
-        # Non-200 codes can cause frontend retry storms or error displays.
-        # The "status" field tells the frontend it was degraded.
-        #
-        # Auto-resume hook: enqueue the user's original message and spawn a
-        # background retry with an extended budget. When the retry completes
-        # the answer goes into the pending queue; the next chat turn from
-        # this session prepends it to the response so the user sees the
-        # answer that came back, instead of having to re-send the question.
-        try:
-            from core.conversation.chat_preflight import (
-                enqueue,
-                schedule_background_retry,
-            )
-
-            _pending_id = enqueue(
-                _chat_session_id,
-                _original_user_message,
-                reason="outer_timeout",
-            )
-
-            async def _retry_call(msg: str, **kwargs) -> str:
-                return await _background_retry_generate(
-                    msg,
-                    timeout_s=float(kwargs.get("timeout", foreground_timeout)),
-                )
-
-            schedule_background_retry(
-                _chat_session_id,
-                _original_user_message,
-                base_timeout_s=foreground_timeout,
-                retry_callable=_retry_call,
-                pending_id=_pending_id,
-            )
-            logger.info(
-                "Auto-resume: queued '%s' for background retry (session=%s)",
-                _original_user_message[:60],
-                _chat_session_id,
-            )
-            timeout_reply = (
-                _conversation_lane_user_message(lane, timed_out=True)
-                + " A background continuation was queued against this exact message."
-            )
-        except _CHAT_RECOVERABLE_ERRORS as _resume_setup_exc:
-            record_degradation("chat", _resume_setup_exc)
-            logger.debug(
-                "Auto-resume setup failed (falling back to static timeout reply): %s",
-                _resume_setup_exc,
-            )
-            timeout_reply = _conversation_lane_user_message(lane, timed_out=True)
+        # A late model answer is a distinct authored transaction.  The old
+        # background retry stored text without generation provenance, then
+        # prepended it to an unrelated future turn under that turn's receipt.
+        # Do not create ownerless speech. A timeout remains attached to this
+        # exact exchange; a later user turn starts cleanly.
+        timeout_reply = _conversation_lane_user_message(lane, timed_out=True)
 
         if pending_exchange_id:
             await _chat_preflight._complete_logged_exchange(

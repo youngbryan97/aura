@@ -52,6 +52,7 @@ def _bound_live_mind_controls_trace():
     return {
         "foreground_model_generation_consumed": True,
         "foreground_model_generation_count": 1,
+        "foreground_model_generation_transaction_id": "bound-test-transaction",
         "live_mind_controls_bound": True,
         "live_mind_generation_controls": {
             "temperature": 0.61,
@@ -77,6 +78,9 @@ def _bound_live_mind_surface_control_receipt():
         "surface_quality_gate_passed": True,
         "surface_quality_gate_attempts": 1,
         "surface_quality_gate_reasons": [],
+        "semantic_completion_contract": True,
+        "semantic_completion_satisfied": True,
+        "semantic_completion_incomplete": False,
         "applied": True,
     }
 
@@ -97,6 +101,31 @@ def _bound_live_mind_controls_metadata():
     }
 
 
+def _protected_foreground_generation_metadata():
+    receipt = {
+        **_bound_live_mind_surface_control_receipt(),
+        "generated_tokens": 48,
+        "provenance": {
+            "claims": "worker_attested",
+            "worker_boot_id": "test-worker-boot",
+            "worker_generation": 3,
+            "request_id": "test-protected-request",
+            "request_seq": 17,
+            "request_id_matches_active": True,
+            "worker_identity_attested": True,
+        },
+    }
+    return {
+        "ok": True,
+        "is_local": True,
+        "live_mind_generation_controls": {
+            "temperature": 0.61,
+            "top_p": 0.88,
+        },
+        "surface_control_receipt": receipt,
+    }
+
+
 def _proven_latent_cortex_trace():
     quality = {
         "schema": "aura.latent_output_quality.v1",
@@ -109,6 +138,7 @@ def _proven_latent_cortex_trace():
     return {
         "foreground_model_generation_consumed": True,
         "foreground_model_generation_count": 1,
+        "foreground_model_generation_transaction_id": "latent-test-transaction",
         "latent_cortex_selected": True,
         "latent_cortex_selection_reason": "deliberate_cognitive_mode",
         "latent_cortex_depth_worthy": True,
@@ -975,6 +1005,7 @@ def test_full_mind_contract_preserves_proven_generation_when_lane_flips_failed(m
             "response_path": "cognitive_engine",
             "foreground_model_generation_consumed": True,
             "foreground_model_generation_count": 1,
+            "foreground_model_generation_transaction_id": "lane-flip-transaction",
             "live_mind_controls_bound": True,
             "live_mind_generation_controls": {
                 "temperature": 0.58,
@@ -2186,9 +2217,10 @@ async def test_late_regeneration_write_stays_owned_and_publishes_after_commit(
 
     persistence = ConversationPersistence(tmp_path / "regeneration-late.db")
     replace = persistence.replace_aura_turn
+    release_late_write = threading.Event()
 
     def _slow_replace(**kwargs):
-        time.sleep(0.05)
+        assert release_late_write.wait(timeout=1.0)
         return replace(**kwargs)
 
     persistence.replace_aura_turn = _slow_replace
@@ -2228,6 +2260,7 @@ async def test_late_regeneration_write_stays_owned_and_publishes_after_commit(
         entry for entry in chat_routes._conversation_log if entry["id"] == exchange_id
     )["aura"] == "Original late answer"
 
+    release_late_write.set()
     await asyncio.sleep(0.15)
 
     in_memory = next(
@@ -7029,15 +7062,14 @@ async def test_api_chat_desktop_discards_bounded_repair_when_full_mind_path_not_
     # set up.
     assert payload["live_turn_contract"]["bounded_contract_used"] is True
     assert kernel_calls == []
-    # The route may now SALVAGE a genuine preserved draft instead of refusing
-    # outright — see _servable_draft_or_none, which serves only the model's own
-    # output and returns "" for anything carrying something that must not be
-    # spoken. Both outcomes are correct here; pinning one exact string made
-    # this test assert a policy rather than a property.
+    # A repairable draft may be preserved internally, but it cannot become a
+    # successful response unless the same transaction-bound delivery contract
+    # as ordinary cognition proves authorship and completion.
     assert payload["status"] in {
         "desktop_cognitive_engine_unavailable",
-        "cognitive_engine_served_repairable_draft",
+        "desktop_response_quality_failed",
     }, payload["status"]
+    assert payload["status"] != "cognitive_engine_served_repairable_draft"
 
 
 @pytest.mark.asyncio
@@ -11722,6 +11754,13 @@ async def test_route_level_truncated_draft_enters_same_worker_continuation(monke
         turn_trace=trace,
         continuation_partial=partial,
         continuation_reasons=("truncated_tail",),
+        continuation_evidence={
+            "foreground_model_generation_count": 2,
+            "foreground_model_generation_segment_count": 2,
+            "foreground_model_generation_transaction_count": 1,
+            "foreground_model_generation_transaction_id": "durable-answer-transaction",
+            "completion_retry_count": 1,
+        },
     )
 
     assert reply is not None
@@ -11731,6 +11770,35 @@ async def test_route_level_truncated_draft_enters_same_worker_continuation(monke
     assert engine.calls[0][1]["user_surface_continuation_contract"] is True
     assert engine.calls[0][1]["user_surface_continuation_partial"] == partial
     assert trace["response_path"] == "cognitive_engine_completion_retry"
+    assert trace["engine_think_invoked"] is True
+    assert trace["foreground_model_generation_count"] == 3
+    assert trace["foreground_model_generation_segment_count"] == 3
+    assert trace["foreground_model_generation_transaction_count"] == 1
+    assert trace["foreground_model_generation_transaction_id"] == (
+        "durable-answer-transaction"
+    )
+    assert trace["completion_retry_count"] == 2
+    assert trace["continuation_evidence_valid"] is True
+
+    contract = chat_routes._build_live_turn_contract_payload(
+        desktop_required=True,
+        request_surface="desktop-ui",
+        lane_status={"conversation_ready": False, "state": "recovering"},
+        response_confidence="high",
+        status=trace["response_path"],
+        reply_source=trace["response_path"],
+        turn_trace={
+            **trace,
+            "live_mind_context_present": True,
+            "live_mind_snapshot_present": True,
+            "final_requested_output_contract_evaluated": True,
+            "final_requested_output_contract_required": False,
+            "final_requested_output_contract_satisfied": True,
+        },
+    )
+    assert contract["single_owner_model_generation_proven"] is True
+    assert contract["authentic_cognitive_reply"] is True
+    assert contract["answer_delivery_proven"] is True
 
 
 def test_released_reusable_latent_episode_does_not_exhaust_foreground_owner():
@@ -11843,9 +11911,289 @@ async def test_truncated_completion_replacement_cannot_become_authoritative(monk
     assert engine.calls == 3
     assert trace["completion_retry_count"] == 2
     assert trace["foreground_model_generation_count"] == 3
+    assert trace["foreground_model_generation_segment_count"] == 3
+    assert trace["foreground_model_generation_transaction_count"] == 1
     assert trace["completion_incumbent_preserved"] is True
     assert trace["completion_retry_exhausted"] is True
     assert trace["response_path"] == "cognitive_engine_completion_incumbent"
+
+    contract = chat_routes._build_live_turn_contract_payload(
+        desktop_required=True,
+        request_surface="desktop-ui",
+        lane_status={"conversation_ready": False, "state": "recovering"},
+        response_confidence="high",
+        status=trace["response_path"],
+        reply_source=trace["response_path"],
+        turn_trace={
+            **trace,
+            "live_mind_context_present": True,
+            "live_mind_snapshot_present": True,
+            "final_requested_output_contract_evaluated": True,
+            "final_requested_output_contract_required": False,
+            "final_requested_output_contract_satisfied": True,
+        },
+    )
+    assert contract["single_owner_model_generation_proven"] is True
+    assert contract["authentic_cognitive_reply"] is True
+    assert contract["authored_answer_completion_proven"] is False
+    assert contract["answer_delivery_proven"] is False
+    assert "authored_answer_incomplete" in contract["full_mind_missing_proofs"]
+    assert "duplicate_foreground_model_generation" not in contract["full_mind_missing_proofs"]
+
+
+def test_one_answer_with_inconsistent_segment_receipts_is_not_called_a_duplicate() -> None:
+    from interface.routes import chat as chat_routes
+
+    contract = chat_routes._build_live_turn_contract_payload(
+        desktop_required=True,
+        request_surface="desktop-ui",
+        lane_status={"conversation_ready": False, "state": "recovering"},
+        response_confidence="high",
+        status="cognitive_engine_completion_incumbent",
+        reply_source="cognitive_engine_completion_incumbent",
+        turn_trace={
+            "cognitive_engine_required": True,
+            "engine_think_invoked": True,
+            "cognitive_engine_reply_accepted": True,
+            "cognitive_engine_reply_failed": False,
+            "bounded_contract_used": False,
+            "legacy_fallback_used": False,
+            "foreground_model_generation_consumed": True,
+            "foreground_model_generation_count": 3,
+            "foreground_model_generation_segment_count": 2,
+            "foreground_model_generation_transaction_count": 1,
+            "completion_retry_count": 2,
+            "response_path": "cognitive_engine_completion_incumbent",
+            "live_mind_context_present": True,
+            "live_mind_snapshot_present": True,
+            "final_requested_output_contract_evaluated": True,
+            "final_requested_output_contract_required": False,
+            "final_requested_output_contract_satisfied": True,
+        },
+    )
+
+    assert contract["single_owner_model_generation_proven"] is False
+    assert "foreground_model_generation_ownership_unproven" in contract[
+        "full_mind_missing_proofs"
+    ]
+    assert "duplicate_foreground_model_generation" not in contract[
+        "full_mind_missing_proofs"
+    ]
+
+
+def test_resumed_answer_requires_valid_durable_continuation_evidence() -> None:
+    from interface.routes import chat as chat_routes
+
+    contract = chat_routes._build_live_turn_contract_payload(
+        desktop_required=True,
+        request_surface="desktop-ui",
+        lane_status={"conversation_ready": False, "state": "recovering"},
+        response_confidence="high",
+        status="cognitive_engine_completion_retry",
+        reply_source="cognitive_engine_completion_retry",
+        turn_trace={
+            "cognitive_engine_required": True,
+            "engine_think_invoked": True,
+            "cognitive_engine_reply_accepted": True,
+            "foreground_model_generation_consumed": True,
+            "foreground_model_generation_count": 3,
+            "foreground_model_generation_segment_count": 3,
+            "foreground_model_generation_transaction_count": 1,
+            "foreground_model_generation_transaction_id": "durable-answer",
+            "completion_retry_count": 2,
+            "continuation_evidence_valid": False,
+            "response_path": "cognitive_engine_completion_retry",
+            "final_requested_output_contract_evaluated": True,
+            "final_requested_output_contract_required": False,
+            "final_requested_output_contract_satisfied": True,
+            "authored_answer_completion_proven": True,
+        },
+    )
+
+    assert contract["single_owner_model_generation_proven"] is False
+    assert contract["authentic_cognitive_reply"] is False
+    assert contract["answer_delivery_proven"] is False
+    assert "foreground_model_generation_ownership_unproven" in contract[
+        "full_mind_missing_proofs"
+    ]
+
+
+def test_protected_foreground_text_requires_receipted_authorship() -> None:
+    from interface.routes import chat as chat_routes
+
+    base_trace = {
+        "engine_think_invoked": False,
+        "cognitive_engine_reply_accepted": False,
+        "cognitive_engine_reply_failed": False,
+        "bounded_contract_used": False,
+        "legacy_fallback_used": False,
+        "foreground_model_generation_consumed": True,
+        "foreground_model_generation_count": 1,
+        "foreground_model_generation_segment_count": 1,
+        "foreground_model_generation_transaction_count": 1,
+        "foreground_model_generation_transaction_id": "protected-transaction",
+        "response_path": "protected_foreground",
+        "final_requested_output_contract_evaluated": True,
+        "final_requested_output_contract_required": False,
+        "final_requested_output_contract_satisfied": True,
+    }
+    unproven = chat_routes._build_live_turn_contract_payload(
+        desktop_required=True,
+        request_surface="desktop-ui",
+        lane_status={"conversation_ready": False, "state": "recovering"},
+        response_confidence="high",
+        status="protected_foreground",
+        reply_source="protected_foreground",
+        turn_trace=base_trace,
+    )
+    proven = chat_routes._build_live_turn_contract_payload(
+        desktop_required=True,
+        request_surface="desktop-ui",
+        lane_status={"conversation_ready": False, "state": "recovering"},
+        response_confidence="high",
+        status="protected_foreground",
+        reply_source="protected_foreground",
+        turn_trace={
+            **base_trace,
+            "protected_foreground_generation_proven": True,
+        },
+    )
+
+    assert unproven["authentic_cognitive_reply"] is False
+    assert unproven["answer_delivery_proven"] is False
+    assert proven["authentic_cognitive_reply"] is True
+    assert proven["answer_delivery_proven"] is True
+
+
+def test_protected_foreground_transaction_identity_is_worker_bound() -> None:
+    from interface.routes import chat as chat_routes
+
+    receipt = _protected_foreground_generation_metadata()["surface_control_receipt"]
+    reply = "The exact protected reply."
+    transaction_id = chat_routes._worker_receipt_transaction_id(receipt, reply)
+
+    assert transaction_id.startswith("mlx-")
+    assert transaction_id == chat_routes._worker_receipt_transaction_id(receipt, reply)
+    assert transaction_id != chat_routes._worker_receipt_transaction_id(
+        receipt, "A different reply."
+    )
+    assert chat_routes._worker_receipt_transaction_id({}, reply) == ""
+    mismatched = dict(receipt)
+    mismatched["provenance"] = {
+        **receipt["provenance"],
+        "request_id_matches_active": False,
+    }
+    assert chat_routes._worker_receipt_transaction_id(mismatched, reply) == ""
+
+
+def test_protected_foreground_delivery_rejects_any_post_worker_byte_change() -> None:
+    from interface.routes import chat as chat_routes
+
+    reply = "These are the exact worker-authored bytes."
+    trace = {
+        "foreground_model_generation_output_sha256": hashlib.sha256(
+            reply.encode("utf-8")
+        ).hexdigest()
+    }
+
+    assert chat_routes._protected_foreground_bytes_unchanged(
+        trace,
+        status="protected_foreground",
+        reply_text=reply,
+    )
+    assert not chat_routes._protected_foreground_bytes_unchanged(
+        trace,
+        status="protected_foreground",
+        reply_text=reply + " Runtime addition.",
+    )
+    assert not chat_routes._protected_foreground_bytes_unchanged(
+        trace,
+        status="desktop_objective_completed",
+        reply_text=reply,
+    )
+
+
+def test_recorded_answer_wrapper_does_not_rewrite_proven_authored_bytes(
+    monkeypatch,
+) -> None:
+    from fastapi.responses import JSONResponse
+    from interface.routes import chat as chat_routes
+
+    monkeypatch.setattr(
+        chat_routes,
+        "_append_past_action_record",
+        lambda _message, _reply: "A deterministic replacement.",
+    )
+    response = JSONResponse(
+        {
+            "response": "The exact authored answer.",
+            "status": "ok",
+            "live_turn_contract": {"answer_delivery_proven": True},
+        }
+    )
+
+    wrapped = chat_routes._apply_recorded_answer("What happened?", response)
+
+    assert json.loads(wrapped.body)["response"] == "The exact authored answer."
+
+
+@pytest.mark.asyncio
+async def test_resumed_answer_cannot_mint_missing_transaction_identity() -> None:
+    from interface.routes import chat as chat_routes
+
+    trace: dict[str, object] = {}
+    reply = await chat_routes._run_cognitive_engine_chat_turn(
+        "Open Notes.",
+        visible_user_message="Open Notes.",
+        origin="user",
+        lane={"conversation_ready": True, "state": "ready"},
+        source="paired_device",
+        require_engine=True,
+        conversation_only_surface=True,
+        turn_trace=trace,
+        continuation_partial="I started this answer but",
+        continuation_reasons=("truncated_tail",),
+        continuation_evidence={
+            "foreground_model_generation_count": 1,
+            "foreground_model_generation_segment_count": 1,
+            "foreground_model_generation_transaction_count": 1,
+            "completion_retry_count": 0,
+        },
+    )
+
+    assert reply is not None
+    assert trace["continuation_evidence_valid"] is False
+    assert trace["foreground_model_generation_transaction_id"] == ""
+
+
+def test_explicit_zero_ownership_counters_are_not_replaced_by_legacy_count() -> None:
+    from interface.routes import chat as chat_routes
+
+    contract = chat_routes._build_live_turn_contract_payload(
+        desktop_required=True,
+        request_surface="desktop-ui",
+        lane_status={"conversation_ready": False, "state": "recovering"},
+        response_confidence="high",
+        status="cognitive_engine",
+        reply_source="cognitive_engine",
+        turn_trace={
+            "cognitive_engine_required": True,
+            "engine_think_invoked": True,
+            "cognitive_engine_reply_accepted": True,
+            "foreground_model_generation_consumed": True,
+            "foreground_model_generation_count": 1,
+            "foreground_model_generation_segment_count": 0,
+            "foreground_model_generation_transaction_count": 0,
+            "response_path": "cognitive_engine",
+            "final_requested_output_contract_evaluated": True,
+            "final_requested_output_contract_required": False,
+            "final_requested_output_contract_satisfied": True,
+        },
+    )
+
+    assert contract["foreground_model_generation_segment_count"] == 0
+    assert contract["foreground_model_generation_transaction_count"] == 0
+    assert contract["single_owner_model_generation_proven"] is False
 
 
 @pytest.mark.asyncio
@@ -16072,6 +16420,9 @@ async def test_api_chat_uses_protected_foreground_lane_when_kernel_lock_is_held(
             )
             return "I'm here with you. My attention is steady, and the thread is intact."
 
+        def get_last_generation_metadata(self):
+            return _protected_foreground_generation_metadata()
+
     class _FakeKernelInterface:
         def is_ready(self):
             return True
@@ -16126,12 +16477,17 @@ async def test_api_chat_uses_protected_foreground_lane_when_kernel_lock_is_held(
 
     assert response.status_code == 200
     assert b"My attention is steady" in response.body
+    payload = json.loads(response.body)
+    assert payload["live_turn_contract"]["answer_delivery_proven"] is True
+    assert payload["live_turn_contract"]["protected_foreground_generation_proven"] is True
+    assert payload["live_turn_contract"][
+        "foreground_model_generation_transaction_id"
+    ].startswith("mlx-")
     assert gate_calls
     assert gate_calls[0]["context"]["protected_foreground_lane"] is True
     assert gate_calls[0]["context"]["prefer_tier"] == "primary"
     assert gate_calls[0]["context"]["deep_handoff"] is False
-    assert stabilize_calls
-    assert stabilize_calls[0]["protected_foreground_lane"] is True
+    assert stabilize_calls == []
 
 
 @pytest.mark.asyncio
@@ -16200,6 +16556,9 @@ async def test_api_chat_keeps_protected_foreground_deep_prompts_on_primary_lane(
                 "between those two modules before changing anything."
             )
 
+        def get_last_generation_metadata(self):
+            return _protected_foreground_generation_metadata()
+
     class _FakeKernelInterface:
         def is_ready(self):
             return True
@@ -16256,12 +16615,17 @@ async def test_api_chat_keeps_protected_foreground_deep_prompts_on_primary_lane(
 
     assert response.status_code == 200
     assert b"inspect the failing tests first" in response.body
+    payload = json.loads(response.body)
+    assert payload["live_turn_contract"]["answer_delivery_proven"] is True
+    assert payload["live_turn_contract"]["protected_foreground_generation_proven"] is True
+    assert payload["live_turn_contract"][
+        "foreground_model_generation_transaction_id"
+    ].startswith("mlx-")
     assert gate_calls
     assert gate_calls[0]["context"]["protected_foreground_lane"] is True
     assert gate_calls[0]["context"]["prefer_tier"] == "primary"
     assert gate_calls[0]["context"]["deep_handoff"] is False
-    assert stabilize_calls
-    assert stabilize_calls[0]["protected_foreground_lane"] is True
+    assert stabilize_calls == []
 
 
 def test_collect_conversation_lane_status_ignores_router_foreground_override(monkeypatch):
@@ -16838,24 +17202,21 @@ def test_live_desktop_final_repairs_preserve_cognitive_engine_contract():
     assert "protected_foreground_lane=desktop_requires_cognitive_engine" in calls
 
 
-def test_live_desktop_timeout_paths_do_not_enable_cloud_fallback():
+def test_live_desktop_timeout_reuses_single_owned_delivery_path():
     source = (Path(__file__).resolve().parent.parent / "interface" / "routes" / "chat.py").read_text(
         encoding="utf-8"
     )
-    emergency_slice = source.split('protected_foreground_reason": "outer_timeout_emergency"', 1)[1].split(
-        "timeout=15.0",
-        1,
-    )[0]
-    background_retry_slice = source.split('"background_retry": True', 1)[1].split(
-        "timeout=timeout_s",
-        1,
-    )[0]
+    preflight_source = (
+        Path(__file__).resolve().parent.parent / "interface" / "routes" / "chat_preflight.py"
+    ).read_text(encoding="utf-8")
 
-    assert '"prefer_tier": "primary"' in emergency_slice
-    assert '"allow_cloud_fallback": False' in emergency_slice
-    assert '"allow_cloud_fallback": False' in background_retry_slice
-    assert '"allow_cloud_fallback": True' not in emergency_slice
-    assert '"allow_cloud_fallback": True' not in background_retry_slice
+    assert '"outer_timeout_emergency",' in source
+    assert "budget_override_s=15.0" in source
+    assert 'status="protected_foreground"' in source
+    assert "schedule_background_retry(" not in source
+    assert "_background_retry_generate" not in source
+    assert "claim_answered_for_session" not in preflight_source
+    assert "format_resume_prefix" not in preflight_source
 
 
 def test_live_desktop_quality_recovery_does_not_surface_gate_jargon():

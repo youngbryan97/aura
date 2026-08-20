@@ -807,6 +807,15 @@ def _surface_generation_control_receipt(
         "generation_configured_stop_sequence": state.get(
             "generation_configured_stop_sequence"
         ),
+        "semantic_completion_contract": bool(
+            state.get("semantic_completion_contract", False)
+        ),
+        "semantic_completion_satisfied": bool(
+            state.get("semantic_completion_satisfied", False)
+        ),
+        "semantic_completion_incomplete": bool(
+            state.get("semantic_completion_incomplete", False)
+        ),
         "instruction_shape_repair_applied": bool(
             state.get("instruction_shape_repair_applied", False)
         ),
@@ -1103,6 +1112,30 @@ def _semantic_surface_stop_ready(
     return not _surface_quality_failure_reasons(job, response_text)
 
 
+def _semantic_completion_receipt_state(
+    job: dict[str, Any],
+    response_text: Any,
+    *,
+    generated_tokens: int,
+) -> dict[str, bool]:
+    """Describe completion without changing the model's decode distribution."""
+
+    required = bool(job.get("semantic_completion_contract", False))
+    satisfied = bool(
+        required
+        and _semantic_surface_stop_ready(
+            job,
+            response_text,
+            generated_tokens=generated_tokens,
+        )
+    )
+    return {
+        "semantic_completion_contract": required,
+        "semantic_completion_satisfied": satisfied,
+        "semantic_completion_incomplete": bool(required and not satisfied),
+    }
+
+
 def _loop_abort_prefix_is_servable(
     job: dict[str, Any],
     response_text: Any,
@@ -1124,135 +1157,6 @@ def _loop_abort_prefix_is_servable(
     if len(body) < 160 or len(body.split()) < 30:
         return False
     return not _surface_quality_failure_reasons(job, body)
-
-
-def _semantic_completion_terminal_ids(tokenizer: Any) -> tuple[int, ...]:
-    """Return every token that can commit the current assistant message.
-
-    Qwen tokenizers do not consistently expose ``<|im_end|>`` through
-    ``eos_token_id``. The streaming loop still treats that protocol token as a
-    configured stop, so an incomplete compound answer could bypass the
-    semantic completion controller and commit early. Bind both tokenizer EOS
-    ids and exact, single-token assistant terminators to the same controller.
-    """
-
-    raw_ids = getattr(tokenizer, "eos_token_ids", None)
-    if raw_ids is None:
-        raw_ids = getattr(tokenizer, "eos_token_id", None)
-    if isinstance(raw_ids, int):
-        raw_ids = (raw_ids,)
-    try:
-        candidates = tuple(raw_ids or ())
-    except TypeError:
-        candidates = ()
-    terminal_ids = {
-        int(token_id)
-        for token_id in candidates
-        if isinstance(token_id, int) and int(token_id) >= 0
-    }
-    for token_text in ("<|im_end|>", "<|im_start|>"):
-        token_id: Any = None
-        convert = getattr(tokenizer, "convert_tokens_to_ids", None)
-        if callable(convert):
-            try:
-                token_id = convert(token_text)
-            except (AttributeError, KeyError, RuntimeError, TypeError, ValueError):
-                token_id = None
-        if not isinstance(token_id, int) or token_id < 0:
-            encode = getattr(tokenizer, "encode", None)
-            if callable(encode):
-                try:
-                    encoded = encode(token_text, add_special_tokens=False)
-                except TypeError:
-                    encoded = encode(token_text)
-                except (AttributeError, KeyError, RuntimeError, ValueError):
-                    encoded = ()
-                if isinstance(encoded, (list, tuple)) and len(encoded) == 1:
-                    token_id = encoded[0]
-        if not isinstance(token_id, int) or token_id < 0:
-            continue
-        decode = getattr(tokenizer, "decode", None)
-        if callable(decode):
-            try:
-                if str(decode([token_id]) or "") != token_text:
-                    continue
-            except (AttributeError, KeyError, RuntimeError, TypeError, ValueError):
-                continue
-        terminal_ids.add(token_id)
-    return tuple(sorted(terminal_ids))
-
-
-def _build_semantic_completion_eos_guard(
-    tokenizer: Any,
-    job: dict[str, Any],
-    *,
-    prompt_token_count: int,
-    tensor_ops: Any,
-) -> Callable[[Any, Any], Any] | None:
-    """Keep EOS unavailable until the decoded answer satisfies its contract.
-
-    This is decode control, not prompt conditioning. The model retains complete
-    authorship of every visible token; the guard only prevents a terminal token
-    from winning while the same typed coverage predicate used at the public
-    surface still reports missing obligations.
-    """
-
-    if not bool(job.get("semantic_completion_contract", False)):
-        return None
-    terminal_ids = _semantic_completion_terminal_ids(tokenizer)
-    if not terminal_ids:
-        return None
-    prompt_tokens = max(0, int(prompt_token_count))
-    state: dict[str, Any] = {
-        "bucket": -1,
-        "complete": False,
-        "generated_text": "",
-    }
-
-    def semantic_completion_eos_guard(tokens: Any, logits: Any) -> Any:
-        generated_count = max(0, int(len(tokens)) - prompt_tokens)
-        try:
-            top_token = int(tensor_ops.argmax(logits, axis=-1).reshape(-1)[0].item())
-        except (AttributeError, IndexError, RuntimeError, TypeError, ValueError):
-            top_token = -1
-        bucket = generated_count // 8
-        natural_eos = top_token in terminal_ids
-        if generated_count >= 8 and (bucket != state["bucket"] or natural_eos):
-            state["bucket"] = bucket
-            try:
-                generated_ids = tokens[prompt_tokens:].tolist()
-                generated_text = str(tokenizer.decode(generated_ids) or "")
-                state["generated_text"] = generated_text
-                state["complete"] = _semantic_surface_stop_ready(
-                    job,
-                    generated_text,
-                    generated_tokens=generated_count,
-                )
-            except (AttributeError, RuntimeError, TypeError, ValueError):
-                state["complete"] = False
-        if state["complete"]:
-            return logits
-        # EOS is a transaction commit for the visible answer, not a segment
-        # delimiter.  An earlier escape hatch admitted a clean-looking prefix
-        # and relied on the route to notice and append missing obligations.
-        # When the request parser retained only a count (not the asks), a live
-        # four-part answer committed after part one.  Keep EOS unavailable until
-        # the shared typed coverage contract is complete.  Genuine deadline,
-        # cancellation and sentinel interruptions still return their explicit
-        # stop receipts and use the bounded same-owner continuation path.
-        mask = tensor_ops.zeros_like(logits)
-        for token_id in terminal_ids:
-            try:
-                # Last axis: on a one-dimensional logits array `mask[:, id]`
-                # neither raises nor writes, so this contract has been holding
-                # nothing back — which is the same four-part-answer commit it
-                # was written to prevent.
-                mask[..., token_id] = -float("inf")
-            except (IndexError, TypeError, ValueError):
-                continue
-        return logits + mask
-
-    return semantic_completion_eos_guard
 
 
 def _classify_generation_stop_reason(
@@ -7093,22 +6997,12 @@ def _mlx_worker_loop(
                                         # there captured nothing.
                                         final_prompt_cache = cache
 
-                                    semantic_eos_guard = _build_semantic_completion_eos_guard(
-                                        tokenizer,
-                                        job,
-                                        prompt_token_count=(
-                                            len(remaining_tokens)
-                                            if cache is not None
-                                            else len(tokens)
-                                        ),
-                                        tensor_ops=mx,
-                                    )
                                     attempt_logits_processors = list(logits_processors)
-                                    if semantic_eos_guard is not None:
-                                        attempt_logits_processors.append(semantic_eos_guard)
+                                    if bool(job.get("semantic_completion_contract", False)):
                                         logger.info(
-                                            "🧩 [WORKER] Semantic EOS admission ACTIVE; "
-                                            "termination requires complete request coverage."
+                                            "🧩 [WORKER] Semantic completion observer ACTIVE; "
+                                            "natural termination remains available and incomplete "
+                                            "segments use append-only continuation."
                                         )
                                     if attempt_logits_processors:
                                         kwargs["logits_processors"] = attempt_logits_processors
@@ -8393,6 +8287,16 @@ def _mlx_worker_loop(
                             severity="warning",
                         )
                         logger.debug("Affective steering post-generation observation failed: %s", steering_obs_exc)
+
+                    semantic_completion_state = _semantic_completion_receipt_state(
+                        job,
+                        response_text,
+                        generated_tokens=total_generated_tokens,
+                    )
+                    semantic_contract_satisfied = bool(
+                        semantic_completion_state["semantic_completion_satisfied"]
+                    )
+                    surface_control_state.update(semantic_completion_state)
 
                     # Tag with action: "generate" so client can distinguish
                     # from init/heartbeat responses unambiguously.

@@ -26,9 +26,6 @@ from interface.routes.chat_common import (  # noqa: E402
     logger,  # noqa: F401
 )
 from core.conversation.session_scope import (
-    conversation_turn_var as _CHAT_DELIVERY_TURN_ID,  # noqa: N812
-)
-from core.conversation.session_scope import (
     conversation_session_var as _CHAT_REQUEST_SESSION,  # noqa: N812
 )
 from interface.routes import chat_memory_state as _chat_memory_state
@@ -61,8 +58,6 @@ import time
 import uuid
 
 from interface.routes.chat_common import (
-    _CHAT_DELIVERY_IDEMPOTENCY_KEY,
-    _CHAT_PENDING_DELIVERY_CLAIM,
     _CHAT_SESSION_ID_MAX_CHARS,
     _INTERNAL_SURFACE_CONTEXT,
     _UNSET,
@@ -1630,7 +1625,6 @@ class _ChatPreflight:
     early_response: Any = None
     chat_session_id: Any = _UNSET
     grounded_recall_context: Any = _UNSET
-    resume_prefix_for_response: Any = _UNSET
     grounded: Any = _UNSET
     shown: Any = _UNSET
     status: Any = _UNSET
@@ -1647,10 +1641,9 @@ async def _run_chat_preflight(
     *,
     _chat_session_id: Any,
     _grounded_recall_context: Any,
-    _resume_prefix_for_response: Any,
     raw_user_message: Any = None,
 ) -> _ChatPreflight:
-    """Session identity, file references, resume prefix, grounded recall,
+    """Session identity, file references, grounded recall,
     directive composition, affordance menu and context clamp.
 
     Lifted verbatim out of ``_api_chat_turn``, which was 4,830 lines. The
@@ -1666,11 +1659,9 @@ async def _run_chat_preflight(
     try:
         from core.conversation.chat_preflight import (
             build_file_context_block,
-            claim_answered_for_session,
             clamp_composed_chat_context,
             compose_chat_directive_prefix,
             extract_file_references,
-            format_resume_prefix,
         )
 
         device_session_id = paired_device_session_id(request) if conversation_only_surface else None
@@ -1712,53 +1703,12 @@ async def _run_chat_preflight(
                     )
                 )
 
-        # 3) Late-answered messages first — give the cortex the prior thread
-        #    so the new response can acknowledge continuity. The actual late
-        #    reply is also folded into the response by `_resume_prefix_for_response`
-        #    below, so the user sees both "what I came back with" and the
-        #    cortex's reply to their new message.
-        if not is_benchmark:
-            try:
-                _resume_deadline = time.monotonic() + (_CHAT_BLOCKING_PREFLIGHT_TIMEOUT_S * 0.8)
-                _delivered = await _chat_memory_state._await_bounded_chat_blocking(
-                    claim_answered_for_session,
-                    _chat_session_id,
-                    delivery_owner=(
-                        str(_CHAT_DELIVERY_TURN_ID.get() or "").strip()
-                        or str(_CHAT_DELIVERY_IDEMPOTENCY_KEY.get() or "").strip()
-                    ),
-                    deadline_monotonic=_resume_deadline,
-                    timeout_s=_CHAT_BLOCKING_PREFLIGHT_TIMEOUT_S,
-                    operation_name="pending_chat_resume_collection",
-                    completion_grace_s=0.5,
-                )
-                if _delivered:
-                    _CHAT_PENDING_DELIVERY_CLAIM.set(
-                        (
-                            str(_delivered[0].delivery_owner or ""),
-                            tuple(str(item.pending_id) for item in _delivered if item.pending_id),
-                        )
-                    )
-                    _resume_prefix_for_response = format_resume_prefix(_delivered)
-                    # Fold a context-block into body.message so the cortex sees
-                    # the prior thread when generating the new response.
-                    _ctx_lines = ["[Continuity context — earlier in this conversation]"]
-                    for d in _delivered:
-                        _ctx_lines.append(f"User asked: {d.user_message[:300]}")
-                        _ctx_lines.append(
-                            f"You answered (late, delivered to user this turn): {d.answer_text[:600]}"
-                        )
-                    _ctx_lines.append("[End continuity context]")
-                    _ctx_block = "\n".join(_ctx_lines) + "\n\n"
-                    body.message = _ctx_block + body.message
-                    logger.info(
-                        "Chat preflight: delivering %d late-answered message(s) for session %s",
-                        len(_delivered),
-                        _chat_session_id,
-                    )
-            except _CHAT_RECOVERABLE_ERRORS as _resume_exc:
-                record_degradation("chat", _resume_exc)
-                logger.debug("Resume preflight skipped: %s", _resume_exc)
+        # Delayed model speech is never spliced into a later turn. The old
+        # pending-answer queue had no worker receipt and therefore let text
+        # authored by one generation inherit another turn's delivery proof.
+        # Conversation memory remains available through its normal durable
+        # channel; a future late-delivery feature needs its own visible turn
+        # and independently sealed receipt.
 
         # 1) File-reference loading
         if not is_benchmark and not conversation_only_surface:
@@ -2108,7 +2058,6 @@ async def _run_chat_preflight(
     return _ChatPreflight(
         chat_session_id=_chat_session_id,
         grounded_recall_context=_grounded_recall_context,
-        resume_prefix_for_response=_resume_prefix_for_response,
         grounded=_grounded,
         shown=_shown,
         status=status,

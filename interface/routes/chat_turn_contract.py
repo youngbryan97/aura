@@ -706,6 +706,7 @@ def _build_live_turn_contract_payload(
     confidence = str(response_confidence or "").strip().lower()
     accepted_full_mind_response_paths = {
         "cognitive_engine",
+        "protected_foreground",
         "cognitive_engine_completion_retry",
         # A completion retry that ran and then correctly KEPT the original.
         #
@@ -757,13 +758,31 @@ def _build_live_turn_contract_payload(
         not latent_cortex_response_path or latent_cortex_path_proven
     )
     foreground_model_generation_count = int(trace.get("foreground_model_generation_count") or 0)
+    foreground_model_generation_segment_count = int(
+        trace["foreground_model_generation_segment_count"]
+        if "foreground_model_generation_segment_count" in trace
+        else foreground_model_generation_count
+    )
+    foreground_model_generation_transaction_count = int(
+        trace["foreground_model_generation_transaction_count"]
+        if "foreground_model_generation_transaction_count" in trace
+        else foreground_model_generation_count
+    )
+    foreground_model_generation_transaction_id = str(
+        trace.get("foreground_model_generation_transaction_id") or ""
+    ).strip()
     foreground_model_generation_consumed = bool(trace.get("foreground_model_generation_consumed"))
     completion_retry_count = int(trace.get("completion_retry_count") or 0)
     repair_retry_attempt_count = int(trace.get("repair_retry_attempt_count") or 0)
+    continuation_evidence_valid = bool(trace.get("continuation_evidence_valid", True))
     single_owner_model_generation_proven = bool(
         (
             live_mind_generation_required
             and foreground_model_generation_consumed
+            and continuation_evidence_valid
+            and bool(foreground_model_generation_transaction_id)
+            and foreground_model_generation_transaction_count == 1
+            and foreground_model_generation_segment_count == 1
             and foreground_model_generation_count == 1
         )
         or (
@@ -785,42 +804,90 @@ def _build_live_turn_contract_payload(
                 "cognitive_engine_completion_incumbent",
             }
             and foreground_model_generation_consumed
+            and continuation_evidence_valid
+            and bool(foreground_model_generation_transaction_id)
+            and foreground_model_generation_transaction_count == 1
             and 1 <= completion_retry_count <= _MAX_USER_SURFACE_CONTINUATIONS
+            and foreground_model_generation_segment_count == 1 + completion_retry_count
             and foreground_model_generation_count == 1 + completion_retry_count
         )
         or (
             live_mind_generation_required
             and response_path == "cognitive_engine_repair_retry"
             and foreground_model_generation_consumed
+            and bool(foreground_model_generation_transaction_id)
+            and foreground_model_generation_transaction_count == 2
             and repair_retry_attempt_count == 1
+            and foreground_model_generation_segment_count == 2
             and foreground_model_generation_count == 2
         )
     )
     # SPEAKER-IDENTITY proofs: did Aura's real cognitive engine author this
     # text (vs repair machinery / legacy fallback speaking in her voice)?
     # These are never waived — theater must never serve as Aura speech.
+    protected_foreground_generation_proven = bool(
+        trace.get("protected_foreground_generation_proven")
+    )
+    authored_generation_source_proven = bool(
+        (engine_think_invoked and engine_reply_accepted)
+        or (
+            response_path == "protected_foreground"
+            and protected_foreground_generation_proven
+        )
+    )
     authentic_cognitive_reply = bool(
-        engine_think_invoked
-        and engine_reply_accepted
+        authored_generation_source_proven
         and not engine_reply_failed
         and not bounded_contract_used
         and not legacy_fallback_used
-        and confidence == "high"
         and response_path in accepted_full_mind_response_paths
         and latent_cortex_path_requirement_satisfied
         and single_owner_model_generation_proven
         and not authorship_replacement_applied
     )
-    accepted_cognitive_path = bool(
+    semantic_completion_expected = bool(
+        trace.get("semantic_completion_contract_expected")
+        or trace.get("semantic_completion_contract")
+    )
+    semantic_completion_receipt_present = bool(
+        trace.get("semantic_completion_receipt_present")
+    )
+    semantic_completion_satisfied = bool(trace.get("semantic_completion_satisfied"))
+    if "authored_answer_completion_proven" in trace:
+        # A merged append-only answer is assessed as one semantic object after
+        # the final segment, so it may carry a stronger route-level proof than
+        # the receipt for that final segment alone.
+        authored_answer_completion_proven = bool(
+            trace["authored_answer_completion_proven"]
+        )
+    else:
+        authored_answer_completion_proven = bool(
+            not trace.get("completion_retry_exhausted")
+            and not trace.get("semantic_completion_incomplete")
+            and not trace.get("reply_generation_incomplete")
+            and (
+                not semantic_completion_expected
+                or (
+                    semantic_completion_receipt_present
+                    and semantic_completion_satisfied
+                )
+            )
+        )
+    answer_delivery_proven = bool(
         authentic_cognitive_reply
+        and authored_answer_completion_proven
+        and final_output_contract_proven
+    )
+    accepted_cognitive_path = bool(
+        answer_delivery_proven
+        and confidence == "high"
         and architecture_context_bound
         and live_mind_snapshot_bound
         and live_mind_controls_structurally_bound
-        and final_output_contract_proven
     )
     subsystems = _collect_live_chat_required_subsystems(
         lane,
-        generation_proven=accepted_cognitive_path,
+        generation_proven=authentic_cognitive_reply,
     )
     _expected_organs = _collect_expected_turn_organs()
     _note_organ_engagement(_expected_organs)
@@ -855,9 +922,11 @@ def _build_live_turn_contract_payload(
     if not single_owner_model_generation_proven:
         missing_proofs.append(
             "duplicate_foreground_model_generation"
-            if foreground_model_generation_count > 1
+            if foreground_model_generation_transaction_count > 1
             else "foreground_model_generation_ownership_unproven"
         )
+    if not authored_answer_completion_proven:
+        missing_proofs.append("authored_answer_incomplete")
     if not architecture_context_bound:
         missing_proofs.append("architecture_context_unbound")
     if not live_mind_snapshot_bound:
@@ -879,11 +948,32 @@ def _build_live_turn_contract_payload(
         "status": str(status or ""),
         "response_path": response_path,
         "authentic_cognitive_reply": authentic_cognitive_reply,
+        "authored_generation_source_proven": authored_generation_source_proven,
+        "protected_foreground_generation_proven": (
+            protected_foreground_generation_proven
+        ),
+        "authored_answer_completion_proven": authored_answer_completion_proven,
+        "answer_delivery_proven": answer_delivery_proven,
+        "certification_complete": full_mind_path,
         "full_mind_missing_proofs": missing_proofs,
         "engine_think_invoked": engine_think_invoked,
         "foreground_model_generation_consumed": foreground_model_generation_consumed,
         "foreground_model_generation_count": foreground_model_generation_count,
+        "foreground_model_generation_segment_count": foreground_model_generation_segment_count,
+        "foreground_model_generation_transaction_count": (
+            foreground_model_generation_transaction_count
+        ),
+        "foreground_model_generation_transaction_id": (
+            foreground_model_generation_transaction_id
+        ),
+        "foreground_model_generation_output_sha256": str(
+            trace.get("foreground_model_generation_output_sha256") or ""
+        ),
+        "semantic_completion_contract_expected": semantic_completion_expected,
+        "semantic_completion_receipt_present": semantic_completion_receipt_present,
+        "semantic_completion_satisfied": semantic_completion_satisfied,
         "completion_retry_count": completion_retry_count,
+        "continuation_evidence_valid": continuation_evidence_valid,
         "repair_retry_attempt_count": repair_retry_attempt_count,
         "single_owner_model_generation_proven": single_owner_model_generation_proven,
         "cognitive_engine_reply_accepted": engine_reply_accepted,

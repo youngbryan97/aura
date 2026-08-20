@@ -30,7 +30,7 @@ from __future__ import annotations
 
 import pytest
 
-from interface.routes.chat import _only_soft_proofs_missing
+from interface.routes.chat import _authored_answer_can_serve, _only_soft_proofs_missing
 
 
 def _contract(**overrides: object) -> dict:
@@ -144,3 +144,22 @@ def test_a_fully_proven_turn_is_not_routed_through_the_soft_path() -> None:
 def test_a_malformed_contract_is_not_treated_as_permission() -> None:
     assert not _only_soft_proofs_missing(None)
     assert not _only_soft_proofs_missing("contract")
+
+
+def test_authored_answer_survives_hard_certification_gaps() -> None:
+    contract = _contract(
+        full_mind_missing_proofs=["live_mind_controls_unbound", "subsystem:memory"],
+        authentic_cognitive_reply=True,
+        answer_delivery_proven=True,
+    )
+
+    assert _authored_answer_can_serve(contract)
+
+
+def test_authored_answer_still_requires_completed_user_contract() -> None:
+    contract = _contract(
+        authentic_cognitive_reply=True,
+        answer_delivery_proven=False,
+    )
+
+    assert not _authored_answer_can_serve(contract)

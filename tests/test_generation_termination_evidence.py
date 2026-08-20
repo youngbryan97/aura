@@ -1,13 +1,10 @@
 from __future__ import annotations
 
-import math
-
 import pytest
 
 from core.brain.llm.mlx_worker import (
-    _build_semantic_completion_eos_guard,
     _classify_generation_stop_reason,
-    _semantic_completion_terminal_ids,
+    _semantic_completion_receipt_state,
     _semantic_surface_stop_ready,
     _surface_quality_candidate,
 )
@@ -179,120 +176,36 @@ def test_semantic_stop_waits_for_every_compound_request_obligation():
     assert _semantic_surface_stop_ready(job, complete, generated_tokens=120)
 
 
-def test_semantic_eos_guard_blocks_termination_until_coverage_is_complete():
-    mx = pytest.importorskip("mlx.core")
-
-    class Tokenizer:
-        eos_token_ids = {9}
-
-        @staticmethod
-        def decode(token_ids):
-            return "".join(chr(int(token_id)) for token_id in token_ids)
-
+def test_incomplete_semantic_candidate_remains_eligible_for_append_only_completion():
     prompt = (
-        "Explain Dijkstra's algorithm. Include: (1) its core invariant, "
-        "(2) numbered pseudocode, (3) a worked example, (4) heap and array "
-        "complexity, and (5) negative-weight failure and the alternative."
+        "Explain Dijkstra's algorithm. Include its invariant, a worked example, "
+        "complexity, and the negative-weight alternative."
     )
     job = {
         "clean_user_surface_contract": True,
         "semantic_completion_contract": True,
         "user_surface_validation_prompt": prompt,
     }
-    guard = _build_semantic_completion_eos_guard(
-        Tokenizer(),
+    partial = "Dijkstra finalizes the minimum unsettled tentative distance."
+
+    assert not _semantic_surface_stop_ready(job, partial, generated_tokens=32)
+    assert _semantic_completion_receipt_state(
         job,
-        prompt_token_count=2,
-        tensor_ops=mx,
-    )
-    assert guard is not None
-
-    incomplete_text = (
-        "1. Its core invariant finalizes the minimum unsettled distance "
-        "when edge weights are nonnegative."
-    )
-    incomplete = [1, 2, *map(ord, incomplete_text)]
-    logits = mx.zeros((1, 128))
-    blocked = guard(mx.array(incomplete), logits)
-    assert math.isinf(float(blocked[0, 9]))
-    assert float(blocked[0, 9]) < 0
-
-    checkpoint_text = (
-        incomplete_text
-        + " The unsettled queue therefore preserves that invariant after every "
-        + "successful edge relaxation, and finalized distances never decrease."
-    )
-    checkpoint = [1, 2, *map(ord, checkpoint_text)]
-    checkpoint_logits = mx.zeros((1, 128))
-    checkpoint_logits[0, 9] = 4.0
-    checkpoint_blocked = guard(mx.array(checkpoint), checkpoint_logits)
-    assert math.isinf(float(checkpoint_blocked[0, 9]))
-    assert float(checkpoint_blocked[0, 9]) < 0
-
-    complete_text = (
-        incomplete_text
-        + " 2. Numbered pseudocode initializes distances and repeatedly relaxes edges."
-        + " 3. A worked example follows vertices A, B, C, and D."
-        + " 4. The complexity is O((V+E) log V) with a heap and O(V^2) with an array."
-        + " 5. A negative-weight edge invalidates Dijkstra; Bellman-Ford is the alternative."
-    )
-    complete = [1, 2, *map(ord, complete_text)]
-    allowed = guard(mx.array(complete), logits)
-    assert float(allowed[0, 9]) == 0.0
-
-
-def test_semantic_completion_masks_chat_protocol_terminator_not_exposed_as_eos():
-    mx = pytest.importorskip("mlx.core")
-
-    class Tokenizer:
-        eos_token_id = 9
-
-        @staticmethod
-        def convert_tokens_to_ids(token):
-            return {"<|im_end|>": 17, "<|im_start|>": 18}.get(token, -1)
-
-        @staticmethod
-        def decode(token_ids):
-            if token_ids == [17]:
-                return "<|im_end|>"
-            if token_ids == [18]:
-                return "<|im_start|>"
-            return "".join(chr(int(token_id)) for token_id in token_ids)
-
-    tokenizer = Tokenizer()
-    assert _semantic_completion_terminal_ids(tokenizer) == (9, 17, 18)
-
-    prompt = (
-        "Explain Dijkstra's algorithm in one complete response. Include: "
-        "(1) its core invariant, (2) numbered pseudocode, (3) a worked example, "
-        "(4) heap and array complexity, and (5) negative-weight failure and the alternative."
-    )
-    guard = _build_semantic_completion_eos_guard(
-        tokenizer,
-        {
-            "clean_user_surface_contract": True,
-            "semantic_completion_contract": True,
-            "user_surface_validation_prompt": prompt,
-        },
-        prompt_token_count=2,
-        tensor_ops=mx,
-    )
-    assert guard is not None
-    partial = [
-        1,
-        2,
-        *map(
-            ord,
-            (
-                "1. Its core invariant finalizes the minimum unsettled distance "
-                "when edge weights are nonnegative."
-            ),
-        ),
-    ]
-    logits = mx.zeros((1, 128))
-    logits[0, 17] = 4.0
-    blocked = guard(mx.array(partial), logits)
-    assert math.isinf(float(blocked[0, 17]))
-    assert float(blocked[0, 17]) < 0
-    assert math.isinf(float(blocked[0, 18]))
-    assert float(blocked[0, 18]) < 0
+        partial,
+        generated_tokens=32,
+    ) == {
+        "semantic_completion_contract": True,
+        "semantic_completion_satisfied": False,
+        "semantic_completion_incomplete": True,
+    }
+    assert _classify_generation_stop_reason(
+        soft_cancelled=False,
+        deadline_hit=False,
+        sentinel_aborted=False,
+        role_continuation_hit=False,
+        configured_stop_hit=True,
+        hard_token_limit_hit=False,
+        semantic_contract_satisfied=False,
+        generated_tokens=32,
+        max_tokens=512,
+    ) == "configured_stop"

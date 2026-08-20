@@ -50925,3 +50925,92 @@ set passes `29/29`; canonical smoke passes `113/113`; compile and Ruff pass.
 This checkpoint does not claim the live answer is complete. The next gate is an
 installed-app rebuild and a real desktop-path compound answer whose visible
 response, stop receipt, terminal stream and neural stream are all inspected.
+
+## Checkpoint 2026-08-18-812: Separate Answer Delivery from Certification
+
+The CP811 live compound-answer gate produced three substantial resident-model
+segments and a `13,441`-character merged incumbent. The route then rejected that
+text as a duplicate foreground generation because its ownership contract
+treated each append-only continuation as a competing answer. The same contract
+derived inference health from complete certification, then cited inference
+health as a prerequisite for certification. Missing continuation telemetry
+therefore became circular evidence that no authored answer existed.
+
+Foreground accounting now distinguishes physical decode segments from logical
+answer transactions. The initial decode and its bounded append-only segments
+remain one transaction; a true replacement remains a separate transaction.
+`cognitive_engine_completion_incumbent` is an admitted CognitiveEngine path,
+and contract receipts expose segment and transaction counts independently.
+Answer delivery now requires proven cognitive authorship plus the final
+requested-output contract. Full-system certification remains stricter and still
+reports confidence, snapshot, control and subsystem gaps, but those gaps cannot
+replace a valid authored answer with infrastructure prose.
+
+The worker no longer masks natural EOS or ChatML terminators while semantic
+coverage is incomplete. Natural termination ends a segment; the existing
+append-only continuation transaction owns missing obligations. This removes the
+runaway decode that forced the live draft to its token cap. Structured request
+analysis also recognizes natural `include`, `cover` and `address` object lists
+without splitting named data such as vertices `A, B, C, D`. The exact live
+Dijkstra wording now retains all four obligations and reserves a `1,920`-token
+surface floor.
+
+Focused parser, termination and proof contracts pass `73/73`; continuation and
+ownership contracts pass `15/15`. Independent review additionally forced four
+edge contracts into the implementation: an exhausted incomplete incumbent
+cannot be delivered, natural termination carries a typed continuation signal,
+a durable prior segment is counted after route recovery, and explicit zero
+segment/transaction counters cannot be replaced by a legacy aggregate count.
+A second review then closed three deeper bypasses: degraded recovery now uses
+the same answer-delivery proof as the primary route, a semantic-completion turn
+requires a positive worker receipt instead of treating missing evidence as
+success, and recovery carries the durable transaction identity, segment count,
+generation count and consumed retry count without resetting its bounded
+continuation allowance. The route rejects internally inconsistent continuation
+evidence. The normal desktop, regeneration, recovery and final delivery paths
+all use that same predicate, and single-owner proof now requires the durable
+transaction identity rather than counts alone. A timing-sensitive persistence
+regression now uses an explicit worker release event rather than assuming a
+thread will always lose a 10 ms race.
+
+The complete conversation-lane sweep then exposed two adjacent defects instead
+of being treated as a green retry. Candidate delivery was checked before the
+requested-output contract had run, so the now-correct delivery predicate could
+reject complete normal and regenerated replies for missing evidence. Output
+shape is now evaluated at the authoritative candidate boundary and re-evaluated
+after later mutations. Separately, capability reconciliation parsed “I cannot
+guarantee perfect recall tomorrow” as “I cannot use memory” and replaced a
+truthful fidelity limitation with an overclaim. The denial grammar now
+distinguishes operational inability from guarantee/promise/certainty scope
+while still detecting a later real denial in the same sentence.
+
+The final ownership review removed three independent reply lanes that could
+still escape that contract. Protected foreground generation now derives its
+logical transaction identity from the parent-attested MLX worker boot,
+generation, request sequence and exact request ID, plus a digest of the exact
+worker-authored reply. Any later route mutation or status substitution breaks
+that binding and cannot inherit protected authorship. Outer-timeout recovery
+reuses this same protected transaction instead of calling the model directly.
+The text-only background retry and next-turn resume-prefix path have been
+retired from live chat: late speech without a worker receipt can no longer be
+published proactively or spliced into an unrelated future turn.
+
+Two post-route boundaries now obey the same byte-ownership rule. The recorded
+fact wrapper receives the original visible request rather than injected prompt
+context and will not rewrite a response whose answer-delivery proof is already
+true. The final private-control sanitizer remains a defense in depth, but if it
+must change or replace text it explicitly invalidates answer delivery,
+authorship, model-native output, requested-output proof and certification before
+the durable receipt is sealed. A terminal receipt therefore cannot describe
+different bytes from the ones the person receives.
+
+The focused parser, termination and proof suite passes `76/76`; targeted durable
+continuation/recovery contracts pass `7/7`; capability-denial semantics pass
+`33/33`; the combined preflight, delivery-journal and adjacent contract sweep
+passes `219/219`; the complete conversation-lane and self-reading sweep passes
+`434/434` without isolated retries; terminal delivery/preflight passes `87/87`;
+and canonical smoke passes `113/113`. Compilation passes. This is an offline
+and trace-backed repair, not a live success claim.
+The next gate is a graceful installed-app restart and repeated desktop-path
+compound answers with visible text, logical-transaction custody, stop receipts,
+latency, terminal warnings and neural-stream warnings inspected end to end.

@@ -80,6 +80,7 @@ def _green_trace() -> dict:
         # theatre) — required for authentic_cognitive_reply.
         "foreground_model_generation_count": 1,
         "foreground_model_generation_consumed": True,
+        "foreground_model_generation_transaction_id": "full-mind-test-transaction",
     }
 
 
@@ -185,13 +186,67 @@ def test_failed_engine_reply_is_never_authentic(monkeypatch):
     assert "engine_reply_failed" in payload["full_mind_missing_proofs"]
 
 
-def test_low_confidence_is_never_authentic(monkeypatch):
+def test_low_confidence_downgrades_certification_not_authorship(monkeypatch):
     from interface.routes import chat as chat_routes
 
     _force_full_mind_runtime(monkeypatch, chat_routes)
     payload = _payload(chat_routes, _green_trace(), confidence="low")
-    assert payload["authentic_cognitive_reply"] is False
+    assert payload["authentic_cognitive_reply"] is True
+    assert payload["answer_delivery_proven"] is True
+    assert payload["certification_complete"] is False
     assert "confidence:low" in payload["full_mind_missing_proofs"]
+
+
+def test_semantic_completion_requires_positive_worker_receipt(monkeypatch):
+    from interface.routes import chat as chat_routes
+
+    _force_full_mind_runtime(monkeypatch, chat_routes)
+    trace = _green_trace()
+    trace["semantic_completion_contract_expected"] = True
+
+    payload = _payload(chat_routes, trace)
+
+    assert payload["authentic_cognitive_reply"] is True
+    assert payload["authored_answer_completion_proven"] is False
+    assert payload["answer_delivery_proven"] is False
+    assert "authored_answer_incomplete" in payload["full_mind_missing_proofs"]
+
+
+def test_semantic_completion_accepts_positive_worker_receipt(monkeypatch):
+    from interface.routes import chat as chat_routes
+
+    _force_full_mind_runtime(monkeypatch, chat_routes)
+    trace = _green_trace()
+    trace.update(
+        {
+            "semantic_completion_contract_expected": True,
+            "semantic_completion_receipt_present": True,
+            "semantic_completion_satisfied": True,
+            "semantic_completion_incomplete": False,
+        }
+    )
+
+    payload = _payload(chat_routes, trace)
+
+    assert payload["authored_answer_completion_proven"] is True
+    assert payload["answer_delivery_proven"] is True
+
+
+def test_generation_ownership_requires_transaction_identity(monkeypatch):
+    from interface.routes import chat as chat_routes
+
+    _force_full_mind_runtime(monkeypatch, chat_routes)
+    trace = _green_trace()
+    trace.pop("foreground_model_generation_transaction_id")
+
+    payload = _payload(chat_routes, trace)
+
+    assert payload["single_owner_model_generation_proven"] is False
+    assert payload["authentic_cognitive_reply"] is False
+    assert payload["answer_delivery_proven"] is False
+    assert "foreground_model_generation_ownership_unproven" in payload[
+        "full_mind_missing_proofs"
+    ]
 
 
 def test_unknown_response_path_is_never_authentic(monkeypatch):

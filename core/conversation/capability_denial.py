@@ -56,6 +56,29 @@ _DENIAL_RE = re.compile(
     re.IGNORECASE,
 )
 
+_EPISTEMIC_SCOPE_RE = re.compile(
+    r"^(?:guarantee|promise|ensure|certify|verify|know\s+for\s+certain)\b",
+    re.IGNORECASE,
+)
+
+
+def _contains_operational_denial(sentence: str) -> bool:
+    """Distinguish inability from uncertainty about an outcome.
+
+    ``I cannot guarantee perfect recall`` limits fidelity; it does not deny the
+    memory capability. The prior detector matched only ``I cannot`` and then
+    used ``recall`` elsewhere in the sentence as the subject, causing a truthful
+    caveat to be replaced with a claim that the capability never fails. A later
+    explicit denial in the same sentence still counts.
+    """
+
+    for match in _DENIAL_RE.finditer(sentence):
+        suffix = sentence[match.end() :].lstrip()
+        if _EPISTEMIC_SCOPE_RE.match(suffix):
+            continue
+        return True
+    return False
+
 #: Subject → the concrete thing being denied. Each maps to whichever registered
 #: skills could actually do it; the mapping is by capability, not by name, so a
 #: renamed skill does not silently empty a row.
@@ -175,7 +198,7 @@ def denied_registered_capabilities(
 
     found: list[CapabilityDenial] = []
     for sentence in re.split(r"(?<=[.!?])\s+|\n+", text):
-        if not _DENIAL_RE.search(sentence):
+        if not _contains_operational_denial(sentence):
             continue
         claimed = False
         for pattern, subject, skills in _DENIAL_SUBJECTS:
