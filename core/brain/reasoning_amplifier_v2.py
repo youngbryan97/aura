@@ -145,6 +145,55 @@ _LOGIC_HINT = re.compile(
 )
 
 
+#: A problem stated in prose, with quantities and constraints and one answer.
+#:
+#: LIVE DEFECT, 2026-08-19. The bridge-and-torch puzzle — four people, times
+#: 1, 2, 7 and 10, at most two crossing, torch must come back — classified as
+#: `generic`, so the verifier-backed amplifier never saw it. She derived the
+#: correct schedule and then stated the total as 19 where her own steps sum to
+#: 17. Sampling and checking is exactly what catches that, and it was switched
+#: off by vocabulary: every hint above is a keyword list, and a novel problem
+#: uses none of those words. That is the definition of a task outside the
+#: template.
+#:
+#: Recognised by shape instead: several quantities, a rule constraining them,
+#: and a definite question. Conservative on purpose — amplification costs
+#: samples, so a chatty message that merely contains numbers must not trigger
+#: it.
+_CONSTRAINT_HINT = re.compile(
+    r"\b(?:at most|at least|no more than|only|must|cannot|can't|each|every|"
+    r"exactly|per|apiece|both|neither|either|between them|in total)\b",
+    re.I,
+)
+_DEFINITE_QUESTION_HINT = re.compile(
+    r"\b(?:who|which|what|how many|how long|how much|in what order|what order|"
+    r"how do|how would|how can|minimum|maximum|fastest|shortest|optimal)\b",
+    re.I,
+)
+#: Quantities are quantities whether or not they are written as digits: the
+#: three-switches puzzle names none in figures and is no less a puzzle.
+_NUMBER_TOKEN = re.compile(
+    r"(?<![\w.])\d+(?:\.\d+)?(?![\w.])"
+    r"|\b(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|"
+    r"thirteen|fourteen|fifteen|twenty|thirty|forty|fifty|hundred|dozen|"
+    r"once|twice|thrice|single|pair|both)\b",
+    re.I,
+)
+
+
+def _looks_like_a_quantitative_puzzle(text: str) -> bool:
+    """True when a prose problem has quantities, a constraint and one answer."""
+    body = str(text or "")
+    if len(body) < 60:
+        return False
+    numbers = _NUMBER_TOKEN.findall(body)
+    if len(numbers) < 3:
+        return False
+    if not _DEFINITE_QUESTION_HINT.search(body):
+        return False
+    return bool(_CONSTRAINT_HINT.search(body))
+
+
 def classify_task_type(text: str) -> str:
     """Classify a problem, checking the SOURCE-DEPENDENT class first.
 
@@ -172,6 +221,8 @@ def classify_task_type(text: str) -> str:
         return "planning"
     if _LOGIC_HINT.search(t):
         return "logic"
+    if _looks_like_a_quantitative_puzzle(t):
+        return "math"
     if _FACT_HINT.search(t):
         return "factual"
     return "generic"
@@ -1688,6 +1739,14 @@ def is_amplifiable(objective: str) -> str | None:
         from core.brain.executable_reasoning import should_use_executable_reasoning
 
         if should_use_executable_reasoning(q, task_type=task_type):
+            return task_type
+        # A puzzle phrased "how do you ..." is claimed by the planning hint
+        # before anything else looks at it. LIVE 2026-08-19: the three-switches
+        # and burning-rope puzzles both classified as planning and were then
+        # dropped, so the verifier-backed amplifier — the thing that catches a
+        # wrong total in an otherwise correct derivation — never ran on the
+        # kind of question it exists for.
+        if _looks_like_a_quantitative_puzzle(q):
             return task_type
     return None
 
