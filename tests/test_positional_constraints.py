@@ -135,3 +135,28 @@ def test_a_place_is_a_position_not_a_population() -> None:
     problem = parse_positional_problem(A_ROW_PROBLEM)
     assert problem is not None
     assert problem.seats == 5
+
+
+@pytest.mark.parametrize(
+    "possessive",
+    ["Dara's", "Daras", "Dara’s", "Daras'"],
+)
+def test_a_possessive_is_the_same_person_however_it_is_typed(possessive: str) -> None:
+    """LIVE: "Daras two neighbours" put a sixth person at a six-seat table
+    and the answer came out wrong; "Rosas neighbours" made a sixth runner and
+    the parse declined a problem it could settle."""
+    question = (
+        "six people sit around a round table with six seats. Boris sits directly "
+        "opposite Ada. Chen and Dara sit next to each other. Emil sits immediately "
+        "clockwise of Ada. Chen is exactly two seats from Ada. Who sits opposite "
+        f"Chen, and who are {possessive} two neighbours?"
+    )
+    described = describe_positional_answer(answer_positional_problem(question))
+    assert "Opposite Chen: Emil." in described
+    assert "neighbours: Ada and Chen." in described
+
+
+def test_a_name_that_merely_ends_in_s_survives() -> None:
+    from core.reasoning.positional_constraints import _names
+
+    assert "Nils" in _names("Nils is exactly two places from Rosa.")

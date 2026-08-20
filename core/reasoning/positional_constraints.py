@@ -154,7 +154,19 @@ def _names(text: str) -> list[str]:
             continue
         if name not in found:
             found.append(name)
-    return found
+    # A possessive written without its apostrophe is the same person.
+    #
+    # LIVE, 2026-08-20. "who are Daras two neighbours" put a sixth person at
+    # a six-seat table and the answer came out wrong; "Rosas neighbours" made
+    # a sixth runner and the parse declined a problem it could settle. People
+    # type it this way constantly, and a name that is another name plus an s
+    # is not a new name.
+    base = {name.lower() for name in found}
+    return [
+        name
+        for name in found
+        if not (name.lower().endswith("s") and name[:-1].lower() in base)
+    ]
 
 
 def _seat_count(text: str, names: list[str]) -> int:
@@ -189,7 +201,9 @@ def _relations(text: str, names: Iterable[str], seats: int, cyclic: bool) -> lis
         if "?" in sentence or re.match(r"\s*(?:who|which|where)\b", sentence, re.IGNORECASE):
             continue
         pair = re.search(
-            rf"\b({alternation})\b(?P<mid>[^.?!]{{0,60}}?)\b({alternation})\b",
+            rf"\b({alternation})(?:'s|\u2019s|s'|s)?\b"
+            rf"(?P<mid>[^.?!]{{0,60}}?)"
+            rf"\b({alternation})(?:'s|\u2019s|s'|s)?\b",
             sentence,
             re.IGNORECASE,
         )
@@ -267,7 +281,7 @@ def _questions(text: str, names: Iterable[str], seats: int, cyclic: bool) -> lis
     text = interrogative
 
     for match in re.finditer(
-        rf"\bopposite\s+({alternation})\b", text, re.IGNORECASE
+        rf"\bopposite\s+({alternation})(?:'s|\u2019s|s'|s)?\b", text, re.IGNORECASE
     ):
         subject = known[match.group(1).lower()]
         if not cyclic or seats % 2:
@@ -284,9 +298,9 @@ def _questions(text: str, names: Iterable[str], seats: int, cyclic: bool) -> lis
         )
 
     for match in re.finditer(
-        rf"\b({alternation})(?:'s|s')?\s+(?:two\s+)?neighbours?\b"
-        rf"|\bnext\s+to\s+({alternation})\b"
-        rf"|\bneighbou?rs?\s+of\s+({alternation})\b",
+        rf"\b({alternation})(?:'s|\u2019s|s'|s)?\s+(?:two\s+)?neighbou?rs?\b"
+        rf"|\bnext\s+to\s+({alternation})(?:'s|\u2019s|s'|s)?\b"
+        rf"|\bneighbou?rs?\s+of\s+({alternation})(?:'s|\u2019s|s'|s)?\b",
         text,
         re.IGNORECASE,
     ):
