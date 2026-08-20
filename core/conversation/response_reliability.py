@@ -6200,6 +6200,11 @@ def complete_truncated_tail(text: Any) -> str:
 
     repaired = re.sub(r"(?:\.{3,}|…)+$", "", original).rstrip()
     repaired = re.sub(r"[\s,;:—–-]+$", "", repaired).rstrip()
+    # An enumerator with nothing after it is the start of an item that never
+    # arrived. LIVE 2026-08-19: a correct answer ended "...to zero out the
+    # account's balance (credit).\n3." — the third step announced and absent,
+    # which reads as a fault in the answer rather than in the budget.
+    repaired = re.sub(r"\n\s*(?:\d+[.)]|[-*•])\s*$", "", repaired).rstrip()
     for _ in range(3):
         match = re.search(r"\s+([A-Za-z']+)$", repaired)
         if not match:
@@ -6213,6 +6218,16 @@ def complete_truncated_tail(text: Any) -> str:
     if len(repaired) < 24:
         return original
     if repaired.endswith((".", "!", "?", '"', "'", "\u201d", "\u2019", ")", "]")):
+        return repaired
+    # A list item is a complete unit without a full stop.
+    #
+    # The sentence-boundary cut below looks for ". " and finds the enumerator
+    # of the PREVIOUS item, so "1. one\n2. two" was trimmed to "1. one\n2." —
+    # the last item deleted and its marker left behind. Lists are one of the
+    # commonest shapes an answer takes, and this damaged every one of them
+    # whose final item did not happen to end in punctuation.
+    final_line = repaired.rsplit("\n", 1)[-1]
+    if re.match(r"\s*(?:\d+[.)]|[-*\u2022])\s+\S", final_line):
         return repaired
 
     # Nothing here ends a sentence, so the reply is still mid-clause. Adding

@@ -55,3 +55,34 @@ def test_it_runs_after_the_other_corrections():
     trim = source.index("complete_truncated_tail", denials)
     served = source.index('data["response"] = corrected', denials)
     assert denials < trim < served
+
+
+def test_a_complete_list_keeps_its_last_item():
+    """The sentence-boundary cut found the PREVIOUS item's enumerator.
+
+    "1. one\n2. two" was trimmed to "1. one\n2." — the last item deleted and
+    its marker left behind. Lists are one of the commonest shapes an answer
+    takes, so this damaged every one whose final item did not happen to end in
+    punctuation.
+    """
+    for finished in (
+        "A finished list:\n1. one\n2. two",
+        "Steps:\n- first thing\n- second thing",
+        "Options:\n* alpha\n* beta",
+    ):
+        assert complete_truncated_tail(finished) == finished
+
+
+def test_an_announced_item_that_never_arrived_is_removed():
+    """LIVE: a correct answer ended "...(credit).\n3." — a step promised and absent."""
+    cut = "Here is what happens:\n1. Get the account.\n2. Zero the balance.\n3."
+    whole = complete_truncated_tail(cut)
+    assert whole != cut
+    assert not whole.rstrip().endswith("3.")
+    assert "Zero the balance." in whole
+
+
+def test_a_dangling_clause_is_still_repaired():
+    """The behaviour this function existed for must survive the list fix."""
+    cut = "The correction depends on the sign of the amount and"
+    assert not complete_truncated_tail(cut).rstrip().endswith("and")
