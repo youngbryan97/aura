@@ -82,3 +82,52 @@ def test_a_served_answer_replaces_the_whole_reply_so_the_gate_matters():
         assert _known_answer_for_this_turn() == ""
     finally:
         set_user_question("")
+
+
+# Digits that label a thing rather than asking for a sum. LIVE, 2026-08-19:
+# "what is the optimal total time for the classic 1/2/7/10 bridge and torch
+# puzzle" was answered "0.0071428571." — the slashes read as division and,
+# because a computed answer REPLACES the draft, that number became the whole
+# reply to a logic puzzle she had otherwise solved correctly.
+LABELS_NOT_SUMS = [
+    "what is the optimal total time for the classic 1/2/7/10 bridge and torch puzzle",
+    "what is the best 2/3/5 split for a portfolio like mine",
+    "what is the difference between a 4/4 and a 3/4 time signature",
+    "what is the 80/20 rule about",
+]
+
+
+@pytest.mark.parametrize("text", LABELS_NOT_SUMS)
+def test_digits_that_name_a_thing_are_not_a_sum(text: str):
+    assert requested_arithmetic_result(text) is None
+
+
+def test_the_expression_must_be_what_the_question_is_about():
+    """Seven words stood between "what is" and the digits in the live case."""
+    assert requested_arithmetic_result("what is 7919 * 6367?") == 7919 * 6367
+    assert (
+        requested_arithmetic_result(
+            "what is the optimal total time for the classic 1/2/7/10 puzzle"
+        )
+        is None
+    )
+
+
+def test_a_computation_is_followed_by_punctuation_or_nothing():
+    """A trailing noun is the tell: a 2/3/5 SPLIT, an 80/20 RULE."""
+    assert requested_arithmetic_result("what is 250 / 5") == 50
+    assert requested_arithmetic_result("what is 250 / 5?") == 50
+    assert requested_arithmetic_result("what is a 250/5 ratio called") is None
+
+
+def test_both_parsers_apply_the_rule():
+    """Two implementations compute arithmetic; a rule in one is a rule missing.
+
+    The live hijack came from computable_math; the same phrasing then came
+    back through arithmetic_check's own expression parser.
+    """
+    from core.conversation.computable_math import computable_answer
+
+    for text in LABELS_NOT_SUMS:
+        assert computable_answer(text) is None, text
+        assert requested_arithmetic_result(text) is None, text

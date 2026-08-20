@@ -136,6 +136,14 @@ _ARITHMETIC_INTENT_RE = re.compile(
 )
 
 
+#: How far an expression may sit from the words that ask for it.
+#:
+#: "What is 7919 * 6367" has none between; "what is the optimal total time for
+#: the classic 1/2/7/10 bridge and torch puzzle" has seven, and those digits
+#: are a label rather than a sum.
+_MAX_WORDS_BEFORE_EXPRESSION = 3
+
+
 def _arithmetic_expression_in(text: str) -> str | None:
     """The arithmetic expression a turn is asking about, in symbol form."""
     raw = str(text or "")
@@ -147,8 +155,30 @@ def _arithmetic_expression_in(text: str) -> str | None:
         re.fullmatch(r"[\d\s.,+\-*/x×÷()]+[?=.]*", raw.strip())
         and re.search(r"\d", raw)
     )
-    if not bare_only and not _ARITHMETIC_INTENT_RE.search(raw):
+    asked_to_compute = _ARITHMETIC_INTENT_RE.search(raw)
+    if not bare_only and not asked_to_compute:
         return None
+    if not bare_only and asked_to_compute:
+        # The expression has to be what the question is ABOUT, not something
+        # inside the noun phrase it asks about.
+        #
+        # LIVE DEFECT, 2026-08-19. "what is the optimal total time for the
+        # classic 1/2/7/10 bridge and torch puzzle" was answered with
+        # "0.0071428571." — the slashes read as division, "what is" satisfied
+        # the intent gate, and the computed number replaced the entire reply.
+        # Seven words stood between the question and those digits; in a real
+        # arithmetic question there are almost none.
+        found = _BARE_EXPRESSION_RE.search(raw)
+        if found and found.start() > asked_to_compute.end():
+            between = raw[asked_to_compute.end() : found.start()]
+            if len(between.split()) > _MAX_WORDS_BEFORE_EXPRESSION:
+                return None
+        if found and re.match(r"\s*[A-Za-z]", raw[found.end() :]):
+            # Digits that MODIFY a noun are a label, not a sum: a 2/3/5 split,
+            # a 4/4 time signature, the 80/20 rule. LIVE 2026-08-19 the second
+            # of those was answered "0.1333…". A real computation is followed
+            # by punctuation or by nothing.
+            return None
 
     for pattern, operator in _PREFIX_OPERATION_RES:
         match = pattern.search(raw)

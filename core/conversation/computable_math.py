@@ -224,6 +224,10 @@ _ASKS_TO_COMPUTE_RE = re.compile(
 )
 
 
+#: How far an expression may sit from the words that ask for it.
+_MAX_WORDS_BEFORE_EXPRESSION = 3
+
+
 class _ArithmeticPattern:
     """Normalises words to operators before looking for an expression.
 
@@ -250,6 +254,22 @@ class _ArithmeticPattern:
             return found
         asked = _ASKS_TO_COMPUTE_RE.search(body)
         if asked is None or asked.start() > found.start():
+            return None
+        # The expression has to be what the question is ABOUT, not something
+        # inside the noun phrase it asks about.
+        #
+        # LIVE, 2026-08-19: "what is the optimal total time for the classic
+        # 1/2/7/10 bridge and torch puzzle" was answered "0.0071428571." — the
+        # slashes read as division, "what is" satisfied the gate, and because a
+        # computed answer replaces the draft, that number became the entire
+        # reply to a logic puzzle. Seven words stood between the question and
+        # those digits; a real arithmetic question has almost none.
+        if len(body[asked.end() : found.start()].split()) > _MAX_WORDS_BEFORE_EXPRESSION:
+            return None
+        # Digits that MODIFY a noun are a label, not a sum: a 2/3/5 split, a
+        # 4/4 time signature, the 1/2/7/10 puzzle. A real computation is
+        # followed by punctuation or by nothing at all.
+        if re.match(r"\s*[A-Za-z]", body[found.end() :]):
             return None
         return found
 
