@@ -38,7 +38,9 @@ def test_the_tool_loop_asks_for_an_unsteered_decode():
 def test_the_controls_are_on_the_generation_that_carries_the_tools():
     """Not on some other call in the same function."""
     source = inspect.getsource(MLXLocalClient.think_and_act)
-    start = source.index("tools=template_tools")
+    # The generation now passes `native_tools`, which is the native schema
+    # list or None once the JSON contract takes over.
+    start = source.index("tools=native_tools,")
     end = source.index(")", source.index("clean_user_surface_recurrent_loops=1"))
     window = source[start:end]
     assert "clean_user_surface_steering_alpha=0.0" in window
