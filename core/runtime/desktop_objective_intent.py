@@ -419,6 +419,22 @@ def looks_like_desktop_objective(user_message: str) -> bool:
     if looks_like_filesystem_observation(user_message):
         return False
 
+    # Building software is not driving the screen.
+    #
+    # LIVE 2026-08-20: "build me a small web app: a single HTML page that
+    # tracks how long I've been sitting… tell me where you put it" was routed
+    # here and came back "os_automation refused to act because the objective
+    # has no complete observable acceptance contract. Completed 0/1 steps."
+    # It never could have one: nothing appears on a screen when a file is
+    # written. build_app was ranked FIRST by capability selection and never
+    # asked.
+    #
+    # Same rule as the read above, in the other direction: the actuation lane
+    # is for what a screen shows, and a program that does not exist yet shows
+    # nothing.
+    if asks_to_build_software(user_message):
+        return False
+
     try:
         from core.conversation.page_interaction import asks_to_act_on_a_page
 
@@ -586,6 +602,39 @@ _FILESYSTEM_MUTATION_RE = re.compile(
 )
 
 
+#: Making a program, as opposed to running one that already exists.
+_BUILDS_SOFTWARE_RE = re.compile(
+    r"\b(?:build|make|write|create|code|implement|generate|scaffold|knock\s+up|"
+    r"put\s+together)\b[^.?!]{0,80}?"
+    r"\b(?:web\s*app|webapp|app|site|website|web\s*page|html|page|game|tool|"
+    r"script|program|widget|dashboard|prototype|demo|utility)\b",
+    re.IGNORECASE,
+)
+
+#: What the request is about is the screen, not a program: "open the app",
+#: "close that window". These share the nouns above and are actuation.
+_DRIVES_THE_SCREEN_RE = re.compile(
+    r"\b(?:open|close|quit|switch\s+to|click|type\s+into|scroll|drag|"
+    r"minimi[sz]e|maximi[sz]e|focus)\b",
+    re.IGNORECASE,
+)
+
+
+def asks_to_build_software(user_message: str) -> bool:
+    """True when the request is to CONSTRUCT a program rather than drive one.
+
+    Narrow: it has to name making something AND name the kind of thing, and it
+    must not also be asking for the screen to be operated — "open the app and
+    build a new project in it" is still desktop work.
+    """
+    text = normalize_memory_intent_text(user_message)
+    if not text.strip():
+        return False
+    if _DRIVES_THE_SCREEN_RE.search(text):
+        return False
+    return bool(_BUILDS_SOFTWARE_RE.search(text))
+
+
 def looks_like_filesystem_observation(user_message: str) -> bool:
     """True when the turn asks to READ something on disk and report back.
 
@@ -706,6 +755,7 @@ def asks_to_be_shown_where(user_message: str) -> str:
 __all__ = [
     "asks_to_be_shown_where",
     "looks_like_desktop_objective",
+    "asks_to_build_software",
     "looks_like_filesystem_observation",
     "looks_like_screen_observation",
 ]
