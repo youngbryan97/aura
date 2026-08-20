@@ -99,3 +99,39 @@ def test_it_declines_when_the_answer_is_not_determined() -> None:
 
 def test_nothing_settled_says_nothing() -> None:
     assert describe_positional_answer(None) == ""
+
+
+A_ROW_PROBLEM = (
+    "Five runners finish in a line: Nils, Petra, Quinn, Rosa and Sven. Nils is "
+    "exactly two places from Rosa. Quinn is not next to Nils. Quinn is exactly "
+    "four places from Sven. Who are Rosa's neighbours?"
+)
+
+
+def test_a_row_problem_it_had_not_been_built_against() -> None:
+    """Written after the solver, brute-forced separately: Petra and Quinn."""
+    answer = answer_positional_problem(A_ROW_PROBLEM)
+    assert answer is not None
+    assert describe_positional_answer(answer) == "Rosa's neighbours: Petra and Quinn."
+
+
+def test_the_answer_is_settled_even_when_the_order_is_not() -> None:
+    """Two arrangements satisfy it and both give the same neighbours.
+
+    What has to be unique is the ANSWER. Requiring one arrangement would
+    have declined a question that is completely determined.
+    """
+    answer = answer_positional_problem(A_ROW_PROBLEM)
+    assert answer is not None
+    assert answer.arrangements == 2
+
+
+def test_a_place_is_a_position_not_a_population() -> None:
+    """"exactly two places from Rosa" read as a party of two.
+
+    The count rule matched the distance phrase, so a five-runner problem
+    parsed as two seats and was abandoned.
+    """
+    problem = parse_positional_problem(A_ROW_PROBLEM)
+    assert problem is not None
+    assert problem.seats == 5

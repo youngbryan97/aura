@@ -92,9 +92,12 @@ _NOT_A_NAME = frozenset(
     }
 )
 
+#: How many take part. "places" is deliberately absent: in these problems a
+#: place is a POSITION, so "exactly two places from Rosa" read as a
+#: population of two and the parse gave up on a five-runner problem.
 _COUNT_RE = re.compile(
     r"\b(two|three|four|five|six|seven|eight|nine|\d{1,2})\s+"
-    r"(?:people|persons?|friends?|students?|guests?|players?|seats?|chairs?|places?)\b",
+    r"(?:people|persons?|friends?|students?|guests?|players?|seats?|chairs?)\b",
     re.IGNORECASE,
 )
 
