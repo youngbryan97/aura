@@ -55,6 +55,20 @@ async def _read_computed_text(prompt: str) -> str:
     )
 
 
+# ── every capability this build actually registers ───────────────────────────
+
+def _matches_capability_inventory(prompt: str) -> bool:
+    from core.self.capability_inventory import asks_what_she_can_do
+
+    return asks_what_she_can_do(prompt)
+
+
+async def _read_capability_inventory(prompt: str) -> str:
+    from core.self.capability_inventory import capability_inventory_block
+
+    return await asyncio.to_thread(capability_inventory_block, prompt)
+
+
 # ── the exact statistic, computed ────────────────────────────────────────────
 
 def _matches_computed_statistic(prompt: str) -> bool:
@@ -248,6 +262,11 @@ async def _read_file(prompt: str) -> str:
     read = await asyncio.to_thread(requested_file_read, prompt)
     if read is None:
         return ""
+    if read.refusal:
+        # Containment is not absence. Reporting "no file exists" for a file
+        # that does taught the model it cannot read files, which is what she
+        # then told the person.
+        return f"{read.path}: {read.refusal}."
     if not read.exists:
         return f"No file exists at {read.path}."
     if not read.text.strip():
@@ -1018,6 +1037,26 @@ def install_default_observables() -> None:
                 "what do you think about jazz?",
                 "what is 2 + 2",
                 "how does a lock work in general?",
+            ),
+        ),
+        Observable(
+            "capability_inventory",
+            "## EVERY CAPABILITY REGISTERED IN THIS BUILD",
+            _matches_capability_inventory,
+            _read_capability_inventory,
+            examples=(
+                "how many skills are registered in your capability engine?",
+                "what can you do?",
+                "list your capabilities",
+                "how many capabilities do you have?",
+                "what tools do you have?",
+            ),
+            counter_examples=(
+                # A question about ONE capability, which the capability
+                # lexicon answers with that capability's own status.
+                "can you reverse a string for me?",
+                "how are you doing",
+                "what is 2 + 2",
             ),
         ),
         Observable(

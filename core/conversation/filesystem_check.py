@@ -211,6 +211,24 @@ def _allowed_roots() -> list[Path]:
     return [r for r in roots if r.exists()]
 
 
+#: Places a named path may never reach, however it was named.
+#:
+#: A person naming a file in their own request is the authority to read that
+#: file — it is their machine and their sentence. These are excluded anyway,
+#: because a request that names one is far more likely to be a mistake, a
+#: paste, or something quoted from elsewhere than a genuine intention.
+_NEVER_READ = (
+    ".ssh", ".aws", ".gnupg", ".kube", "keychain", "id_rsa", "id_ed25519",
+    ".env", "credentials", "shadow", "secrets", ".netrc", "cookies.sqlite",
+)
+
+
+def _named_path_is_permitted(target: Path) -> bool:
+    """True when a path the person spelled out may be read."""
+    lowered = str(target).lower()
+    return not any(marker in lowered for marker in _NEVER_READ)
+
+
 def _resolve(path_text: str) -> Path | None:
     """Resolve a mentioned path inside an allowed root, or None."""
 
@@ -553,6 +571,11 @@ class FileRead:
     text: str
     exists: bool
     truncated: bool = False
+    #: Why a read did not happen, when it did not. A file outside her roots
+    #: was reported as "No file exists at <path>" — false, and it taught the
+    #: model that it cannot read files at all, which is what she then told the
+    #: person. Containment and absence are different facts.
+    refusal: str = ""
     #: The topic the question asked about, and how often the WHOLE file uses
     #: it. A file that mentions a subject once, in a path, does not discuss it.
     topic: str = ""
@@ -623,6 +646,7 @@ def requested_file_read(user_message: Any) -> FileRead | None:
     if not text:
         return None
     missing: str | None = None
+    denied = ""
     for candidate in _named_paths(text):
         if ".." in candidate:
             # Refused on the token itself. Containment below is the real
@@ -638,7 +662,16 @@ def requested_file_read(user_message: Any) -> FileRead | None:
             except (OSError, ValueError, RuntimeError):
                 continue
             if not str(target).startswith(str(root)):
-                continue
+                # Outside her roots. An ABSOLUTE path the person wrote out in
+                # their own request is different from one she went looking
+                # for: naming it is the grant, and refusing it means she can
+                # never read a paper, a spreadsheet or an unfamiliar
+                # repository anywhere but two directories.
+                if not (raw.is_absolute() and target.is_file()):
+                    continue
+                if not _named_path_is_permitted(target):
+                    denied = str(target)
+                    continue
             if not target.is_file():
                 continue
             try:
@@ -659,6 +692,13 @@ def requested_file_read(user_message: Any) -> FileRead | None:
         # which is how "I estimated" became an acceptable answer.
         if missing is None:
             missing = candidate
+    if denied:
+        return FileRead(
+            path=denied,
+            text="",
+            exists=True,
+            refusal="that path is one I do not read from",
+        )
     if missing is not None:
         return FileRead(path=missing, text="", exists=False)
     return None
