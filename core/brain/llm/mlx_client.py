@@ -2812,6 +2812,36 @@ _TOOL_LOOP_EVIDENCE_CHARS = 6000
 
 _TOOL_CALL_TOKEN_FLOOR = 320
 
+#: Argument names that hold a whole document rather than a phrase. Read from
+#: the tool's own advertised schema, so a tool added later is measured by what
+#: it declares instead of by a list kept somewhere else.
+_DOCUMENT_ARGUMENT_NAMES = frozenset(
+    {"code", "content", "text", "body", "source", "script", "html", "patch", "program"}
+)
+
+
+def _tools_can_carry_a_document(tools: Any) -> bool:
+    """Whether any offered tool takes an argument the size of a file."""
+    if not tools:
+        return False
+    definitions = tools.values() if isinstance(tools, Mapping) else tools
+    for definition in definitions:
+        if not isinstance(definition, Mapping):
+            continue
+        schema = definition.get("parameters")
+        if isinstance(definition.get("function"), Mapping):
+            schema = definition["function"].get("parameters", schema)
+        properties = schema.get("properties") if isinstance(schema, Mapping) else None
+        if not isinstance(properties, Mapping):
+            continue
+        for name, spec in properties.items():
+            if str(name).strip().lower() not in _DOCUMENT_ARGUMENT_NAMES:
+                continue
+            declared = spec.get("type") if isinstance(spec, Mapping) else None
+            if declared in (None, "string") or declared == ["string"]:
+                return True
+    return False
+
 
 def _apply_memory_pressure_generation_controls(
     options: dict[str, Any],
@@ -2871,10 +2901,24 @@ def _apply_memory_pressure_generation_controls(
         # token, because a tool generation matched none of the protected
         # contracts and took the raw pressure cap. Days of "she will not use
         # her tools" was a token budget.
+        # How big a call can be depends on what it carries.
+        #
+        # LIVE, 2026-08-20. Asked to build a single-file web app, the model
+        # emitted exactly the right call — code_repl with the program as its
+        # argument — and the generation stopped mid-string at the 384-token
+        # pressure cap. An incomplete JSON object is not a call, so the loop
+        # reported "none called", and the turn ended by claiming a file had
+        # been saved to Downloads that was never written.
+        #
+        # A call cut in half is not cheaper: it costs the whole turn and then
+        # the retry. Where an offered tool takes a document as an argument,
+        # the call gets the budget the caller asked for.
         effective_cap = max(
             pressure_cap,
             int(options.get("tool_call_token_floor", 0) or _TOOL_CALL_TOKEN_FLOOR),
         )
+        if _tools_can_carry_a_document(options.get("tools")):
+            effective_cap = max(effective_cap, requested_max_tokens)
     elif clean_user_surface and completion_floor > 0 and pressure_cap >= 192:
         # The resident model's normal RSS places the process-ratio probe in its
         # `high` band even when the host still has ample available memory. The
