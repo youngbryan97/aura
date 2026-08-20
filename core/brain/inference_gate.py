@@ -6478,7 +6478,18 @@ class InferenceGate:
             result = await asyncio.wait_for(
                 client.think_and_act(
                     objective=text,
-                    system_prompt=str(system_prompt or ""),
+                    # An execution turn is not a conversation turn.
+                    #
+                    # The foreground system prompt is the full conversational
+                    # scaffold — persona, instruments, present moment, running
+                    # to five thousand tokens. Wrapped around a tool call it
+                    # produced an immediate end-of-turn: one token, no text,
+                    # every time. A call needs the objective and the tools; the
+                    # voice belongs to the reply, which is generated
+                    # separately.
+                    #
+                    # It is also most of the latency of a tool turn.
+                    system_prompt="",
                     tools=tools,
                     # A step, a look at what it returned, and a chance to do
                     # something else because of it — three is one attempt with
