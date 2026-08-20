@@ -531,6 +531,37 @@ def _token_budget_calibration_evidence(tokenizer: Any) -> dict[str, Any]:
     }
 
 
+def _name_tokens(tokenizer: Any, token_ids: Any) -> str:
+    """What the decoder actually emitted, by name where one exists.
+
+    Special tokens decode to nothing, so a log that reports only a count
+    describes an empty string and an end-of-turn marker identically.
+    """
+    try:
+        ids = [int(token) for token in (token_ids or [])]
+    except (TypeError, ValueError):
+        return "unreadable"
+    if not ids:
+        return "none"
+    named: list[str] = []
+    for token_id in ids:
+        text = ""
+        try:
+            text = tokenizer.decode([token_id])
+        except (AttributeError, IndexError, RuntimeError, TypeError, ValueError):
+            text = ""
+        if text.strip():
+            named.append(repr(text))
+            continue
+        label = ""
+        try:
+            label = str(tokenizer.convert_ids_to_tokens(token_id))
+        except (AttributeError, IndexError, RuntimeError, TypeError, ValueError):
+            label = ""
+        named.append(label or f"id:{token_id}")
+    return ", ".join(named)
+
+
 def _render_messages_fallback(messages: Any, prompt: Any) -> str:
     """Deterministic role-labeled rendering when the native template fails.
 
@@ -8238,11 +8269,20 @@ def _mlx_worker_loop(
                             # here sent every investigation at the sampler and
                             # the KV cache, which were both working — measured
                             # live as "yielded ZERO tokens ... token_count: 75".
+                            # Naming the tokens is the difference between a
+                            # diagnosis and a guess. "1 token, no text" reads
+                            # as a decode fault; "1 token, and it was
+                            # <|im_end|>" says the model ended the turn
+                            # immediately, which is a prompt or template
+                            # problem and nothing to do with the sampler.
                             logger.warning(
                                 "⚠️ [WORKER] Generation produced %d token(s) but no text "
                                 "survived to the caller — discarded downstream, not a decode "
-                                "failure. Prompt length: %d, stop_sequences: %s",
-                                token_count, len(prompt), list(stop_sequences)[:4],
+                                "failure. Prompt length: %d, stop_sequences: %s, tokens: %s",
+                                token_count,
+                                len(prompt),
+                                list(stop_sequences)[:4],
+                                _name_tokens(tokenizer, tokens[:8]),
                             )
                         else:
                             logger.warning(
