@@ -6998,6 +6998,25 @@ def _adds_nothing_to_the_question(user_message: Any, reply_text: Any) -> bool:
     return not contributed
 
 
+#: What sits between a number and its unit: nothing, a space, or a degree
+#: sign. Anything else and the short word is a word.
+_MEASUREMENT_LEAD_RE = re.compile(r"\d\s*[°º]?\s?$")
+
+
+def _terminal_word_is_a_unit(body: str, terminal_start: int) -> bool:
+    """True when the short word ending the reply is a unit on a number.
+
+    LIVE, 2026-08-20. "The temperature reported by the API is 11.6°C." was
+    refused as a truncated tail and the person got "I couldn't get to an
+    answer I'd stand behind on that one." The answer was right, and the rule
+    was right in general: a reply ending in a one- or two-letter word is
+    usually cut mid-word. A unit is the exception, and it is not a vocabulary
+    question — °C, km, m, ft, kg, Hz and every unit nobody has thought of are
+    identified by the number they attach to.
+    """
+    return bool(_MEASUREMENT_LEAD_RE.search(body[:terminal_start]))
+
+
 def _has_truncated_tail(
     reply_text: Any,
     *,
@@ -7054,6 +7073,7 @@ def _has_truncated_tail(
             len(terminal_word) <= 2
             and terminal_word not in _ALLOWED_SHORT_TAIL_WORDS
             and not possessive_suffix
+            and not _terminal_word_is_a_unit(body, terminal_start)
         ):
             return True
     if body.endswith(("...", "…")):
