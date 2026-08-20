@@ -3119,6 +3119,38 @@ def _first_token_suppression_ids(tokenizer: Any) -> list[int]:
     return sorted(banned)
 
 
+def build_nonempty_start_processor(tokenizer: Any, *, positions: int = 1) -> Any:
+    """A logits processor that stops a turn from ending before it begins.
+
+    Control tokens are structural markers. A model never needs one to BEGIN an
+    answer, and when it emits one first the decode halts on a stop sequence
+    with no text — which every layer above reads as "the model produced
+    nothing", the one description that sends the investigation somewhere else.
+
+    Returns None when the tokenizer names no control tokens, so a caller can
+    install it unconditionally.
+    """
+    import mlx.core as mx
+
+    banned = tuple(_first_token_suppression_ids(tokenizer))
+    if not banned:
+        return None
+    limit = max(1, int(positions))
+
+    def nonempty_start_processor(tokens, logits, banned_ids=banned, limit=limit):
+        if len(tokens) >= limit:
+            return logits
+        mask = mx.zeros_like(logits)
+        for token_id in banned_ids:
+            try:
+                mask[:, token_id] = -float("inf")
+            except (IndexError, TypeError, ValueError):
+                continue
+        return logits + mask
+
+    return nonempty_start_processor
+
+
 def _schema_root_openers(schema: Any) -> tuple[str, ...]:
     """The characters that can legitimately open THIS schema's root value.
 
@@ -6648,40 +6680,11 @@ def _mlx_worker_loop(
                 elif not _expected_empty_warmup_precompile(job):
                     # An assistant turn that ends before it says anything is not
                     # a completion, on any lane.
-                    #
-                    # LIVE, 2026-08-20. A conversational turn whose tool had
-                    # already fetched the right document produced exactly one
-                    # token — <|im_start|> — which is a stop sequence, so the
-                    # decode halted with no text and the runtime reported
-                    # "produced 1 token but no text survived". The person got
-                    # "I couldn't get to an answer I'd stand behind on that
-                    # one" while the answer sat in working memory.
-                    #
-                    # The guard for this already existed and was fitted only to
-                    # strict contracts. Control tokens are structural markers;
-                    # the model never needs one to BEGIN an answer, and banning
-                    # them at the first position costs nothing when the model
-                    # had something to say.
                     try:
-                        empty_start_ids = _first_token_suppression_ids(tokenizer)
-                        if empty_start_ids:
-                            def nonempty_start_processor(
-                                tokens,
-                                logits,
-                                banned_ids=tuple(empty_start_ids),
-                            ):
-                                if len(tokens) == 0:
-                                    mask = mx.zeros_like(logits)
-                                    for token_id in banned_ids:
-                                        try:
-                                            mask[:, token_id] = -float("inf")
-                                        except (IndexError, TypeError, ValueError):
-                                            continue
-                                    return logits + mask
-                                return logits
-
-                            logits_processors.append(nonempty_start_processor)
-                    except (AttributeError, RuntimeError, TypeError, ValueError) as e:
+                        guard = build_nonempty_start_processor(tokenizer)
+                        if guard is not None:
+                            logits_processors.append(guard)
+                    except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as e:
                         _record_mlx_degradation(
                             e,
                             action="continued generation without the non-empty start guard",
@@ -8638,6 +8641,27 @@ def _mlx_worker_loop(
                     logger.debug("Suppressed %s in core.brain.llm.mlx_worker: %s", type(_exc).__name__, _exc)
                 except (AttributeError, RuntimeError, TypeError) as e:
                     logger.warning("Could not apply penalty logits processors: %s", e)
+
+                # The same guard the generate path installs.
+                #
+                # LIVE, 2026-08-20. This assembly carries only the repetition
+                # penalty, so a conversational turn streamed here produced
+                # exactly one token — <|im_start|>, a stop sequence — and the
+                # person got "I couldn't get to an answer I'd stand behind on
+                # that one" while the fetched answer sat in working memory. The
+                # guard had been added to the other assembly an hour earlier
+                # and this one never saw it, which is why it is a function now.
+                if not _expected_empty_warmup_precompile(job):
+                    try:
+                        guard = build_nonempty_start_processor(tokenizer)
+                        if guard is not None:
+                            logits_processors.append(guard)
+                    except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as e:
+                        _record_mlx_degradation(
+                            e,
+                            action="continued streamed generation without the non-empty start guard",
+                            severity="warning",
+                        )
 
                 if logits_processors:
                     kwargs["logits_processors"] = logits_processors

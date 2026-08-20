@@ -56,23 +56,34 @@ def test_ordinary_tokens_are_untouched() -> None:
     assert 1 not in banned and 2 not in banned
 
 
-def test_the_guard_is_not_limited_to_strict_contracts() -> None:
+def test_every_decode_path_installs_the_guard() -> None:
+    """The worker assembles logits processors twice, once per decode path.
+
+    The guard went into the generate path and the streaming path never saw
+    it, so the same turn failed the same way an hour later. Both now call one
+    function, and this counts the assemblies against the installs.
+    """
     source = WORKER.read_text(encoding="utf-8")
-    assert "nonempty_start_processor" in source
-    assert "elif not _expected_empty_warmup_precompile(job):" in source
+    assemblies = source.count("logits_processors = []")
+    installs = source.count("guard = build_nonempty_start_processor(tokenizer)")
+    assert installs >= assemblies, (
+        f"{assemblies} processor assemblies but only {installs} install the guard"
+    )
 
 
 def test_a_warmup_precompile_may_still_produce_nothing() -> None:
     """Warmup deliberately generates one token and expects no visible text."""
     source = WORKER.read_text(encoding="utf-8")
-    guard = source[source.index("elif not _expected_empty_warmup_precompile(job):") :]
-    guard = guard[: guard.index("# Foreground non-parametric memory")]
-    assert "logits_processors.append(nonempty_start_processor)" in guard
+    for index, _ in enumerate(source.split("guard = build_nonempty_start_processor(tokenizer)")[:-1]):
+        preceding = source.split("guard = build_nonempty_start_processor(tokenizer)")[index]
+        assert "_expected_empty_warmup_precompile(job)" in preceding[-600:]
 
 
-def test_the_guard_only_constrains_the_first_position() -> None:
-    """After one real token the model must be free to end its turn."""
+def test_the_guard_only_constrains_the_opening_positions() -> None:
+    """After a real token the model must be free to end its turn."""
     source = WORKER.read_text(encoding="utf-8")
-    guard = source[source.index("def nonempty_start_processor(") :]
-    guard = guard[: guard.index("logits_processors.append(nonempty_start_processor)")]
-    assert "if len(tokens) == 0:" in guard
+    body = source[source.index("def build_nonempty_start_processor(") :]
+    body = body[: body.index("def _schema_root_openers(")]
+    assert "if len(tokens) >= limit:" in body
+    assert "positions: int = 1" in body
+    assert "return None" in body
