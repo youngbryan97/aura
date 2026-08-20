@@ -45,6 +45,9 @@ from . import BasePhase
 
 from core.intent.opaque_spans import first_named_url as _first_named_url
 
+#: Enough of a rejected draft to judge the rejection by.
+_REJECTED_DRAFT_LOG_CHARS = 400
+
 logger = logging.getLogger(__name__)
 
 # Explicit tool compositions (e.g. composing an outbound message to ANOTHER AI
@@ -2745,10 +2748,17 @@ class ResponseGenerationPhase(BasePhase):
                             and len(response_text_s) >= 48
                             and len(response_text_s.split()) >= 8
                         ):
+                            # The draft itself, bounded. A reason and a length
+                            # describe a rejection without saying what was
+                            # rejected, and the two questions a reader has are
+                            # "was the gate right?" and "what did she nearly
+                            # say?" — neither answerable from a number. The
+                            # file sink redacts, and this stays local.
                             logger.warning(
-                                "🛡️ ResponseGeneration kept repairable foreground draft for final reply repair (%s, len=%d).",
+                                "🛡️ ResponseGeneration kept repairable foreground draft for final reply repair (%s, len=%d): %r",
                                 ",".join(reliability.reasons) or "unknown",
                                 len(response_text_s),
+                                response_text_s[:_REJECTED_DRAFT_LOG_CHARS],
                             )
                             try:
                                 from core.conversation.surface_disposition import (
@@ -2760,9 +2770,10 @@ class ResponseGenerationPhase(BasePhase):
                                 pass
                         else:
                             logger.warning(
-                                "🛡️ ResponseGeneration rejected unsafe user-facing draft (%s, len=%d).",
+                                "🛡️ ResponseGeneration rejected unsafe user-facing draft (%s, len=%d): %r",
                                 ",".join(reliability.reasons) or "unknown",
                                 len(str(response_text or "")),
+                                str(response_text or "")[:_REJECTED_DRAFT_LOG_CHARS],
                             )
                             return state
 
