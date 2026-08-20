@@ -48,6 +48,47 @@ from core.intent.opaque_spans import first_named_url as _first_named_url
 #: Enough of a rejected draft to judge the rejection by.
 _REJECTED_DRAFT_LOG_CHARS = 400
 
+#: What a skill result may carry into the prompt.
+#:
+#: LIVE, 2026-08-20. http_request returned {ok, url, status, text, ...}. The
+#: sanitizer kept `url` and dropped `text`, and the renderer showed the one it
+#: was given — so she was handed proof that a fetch had happened with no trace
+#: of what it said, and answered 10.5, then 12.4, against a real 11.9. Nothing
+#: was hallucinating; there was nothing to read.
+_EVIDENCE_SCALAR_KEYS: tuple[str, ...] = (
+    "ok",
+    "query",
+    "answer",
+    "summary",
+    "message",
+    "source",
+    "url",
+    "title",
+    "provenance",
+    "offline_fallback",
+    "web_error",
+    "confidence",
+    "count",
+    "mode",
+    "status",
+    "text",
+    "body",
+)
+
+#: The order they are shown in, which puts the result after its address.
+_EVIDENCE_RENDERED_KEYS: tuple[str, ...] = (
+    "query",
+    "answer",
+    "summary",
+    "message",
+    "title",
+    "source",
+    "url",
+    "content",
+    "text",
+    "body",
+)
+
 logger = logging.getLogger(__name__)
 
 # Explicit tool compositions (e.g. composing an outbound message to ANOTHER AI
@@ -172,23 +213,7 @@ class ResponseGenerationPhase(BasePhase):
             return {"ok": False, "result": str(payload or "")[:1200]}
 
         compact: dict[str, Any] = {}
-        scalar_keys = (
-            "ok",
-            "query",
-            "answer",
-            "summary",
-            "message",
-            "source",
-            "url",
-            "title",
-            "provenance",
-            "offline_fallback",
-            "web_error",
-            "confidence",
-            "count",
-            "mode",
-        )
-        for key in scalar_keys:
+        for key in _EVIDENCE_SCALAR_KEYS:
             if key not in payload:
                 continue
             value = payload.get(key)
@@ -235,6 +260,11 @@ class ResponseGenerationPhase(BasePhase):
             compact["content"] = content[:6000]
         return compact
 
+    # The keys a skill result may carry through to the prompt. Written once:
+    # the sanitizer and the renderer both read it, and when only the renderer
+    # learned about "text" the sanitizer had already dropped the body.
+
+
     @classmethod
     def _render_skill_result_block(
         cls,
@@ -244,7 +274,15 @@ class ResponseGenerationPhase(BasePhase):
     ) -> str:
         status = "✅" if payload.get("ok") else "⚠️"
         parts: list[str] = []
-        for key in ("query", "answer", "summary", "message", "title", "source", "url", "content"):
+        # "text" and "body" are where a fetched document actually lands.
+        #
+        # LIVE, 2026-08-20. http_request returned {ok, url, status, text, ...}
+        # and this rendered "Url: https://…" and stopped, because `url` was a
+        # recognised key and the body was not. She was handed proof that a
+        # fetch had happened with no trace of what it said, and answered
+        # 10.5, then 12.4, against a real 11.9 — inventing, because there was
+        # nothing to read. One recognised key was suppressing the result.
+        for key in _EVIDENCE_RENDERED_KEYS:
             value = str(payload.get(key) or "").strip()
             if value:
                 label = key.replace("_", " ").title()
