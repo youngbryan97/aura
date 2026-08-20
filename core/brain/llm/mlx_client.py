@@ -2802,6 +2802,14 @@ def _requested_output_contract_generation_floor(contract: Any) -> int:
         return 0
 
 
+#: The smallest generation that can still contain a tool call.
+#:
+#: A native call is a name, an arguments object and its delimiters. Below this
+#: the model cannot finish one, and a half-emitted call is indistinguishable
+#: downstream from a model that chose not to call anything.
+_TOOL_CALL_TOKEN_FLOOR = 320
+
+
 def _apply_memory_pressure_generation_controls(
     options: dict[str, Any],
     snapshot: Any,
@@ -2849,6 +2857,21 @@ def _apply_memory_pressure_generation_controls(
     if bool(options.get("desktop_execution_contract", False)):
         plan_floor = int(options.get("desktop_plan_token_floor", 1024) or 1024)
         effective_cap = max(pressure_cap, plan_floor)
+    elif options.get("tools"):
+        # A tool call is an execution turn, and the paragraph above applies to
+        # it word for word: clamped below the size of a call, she cannot
+        # express the call, so nothing runs.
+        #
+        # LIVE, 2026-08-19. Every tool-using turn came back "Generation
+        # produced 1 token(s) but no text survived to the caller". The prompt
+        # was correct and ended in an open assistant turn; the budget was one
+        # token, because a tool generation matched none of the protected
+        # contracts and took the raw pressure cap. Days of "she will not use
+        # her tools" was a token budget.
+        effective_cap = max(
+            pressure_cap,
+            int(options.get("tool_call_token_floor", 0) or _TOOL_CALL_TOKEN_FLOOR),
+        )
     elif clean_user_surface and completion_floor > 0 and pressure_cap >= 192:
         # The resident model's normal RSS places the process-ratio probe in its
         # `high` band even when the host still has ample available memory. The
