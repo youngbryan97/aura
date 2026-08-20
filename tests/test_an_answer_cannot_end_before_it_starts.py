@@ -15,6 +15,8 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+import pytest
+
 WORKER = Path(__file__).resolve().parents[1] / "core" / "brain" / "llm" / "mlx_worker.py"
 
 
@@ -87,3 +89,52 @@ def test_the_guard_only_constrains_the_opening_positions() -> None:
     assert "if len(tokens) >= limit:" in body
     assert "positions: int = 1" in body
     assert "return None" in body
+
+
+def _build_guard():
+    """The real processor, built without importing the worker's job loop."""
+    tree = ast.parse(WORKER.read_text(encoding="utf-8"))
+    wanted = {"_first_token_suppression_ids", "build_nonempty_start_processor"}
+    body = [
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef) and node.name in wanted
+    ]
+    namespace: dict[str, object] = {"Any": object}
+    exec(compile(ast.Module(body=body, type_ignores=[]), "<worker>", "exec"), namespace)
+    return namespace["build_nonempty_start_processor"](_Tokenizer())
+
+
+def test_the_mask_reaches_the_vocabulary_on_either_logits_shape() -> None:
+    """The defect that made the guard a no-op while logging ACTIVE.
+
+    mlx_lm hands the processor logits sometimes as (1, vocab) and sometimes as
+    (vocab,). ``mask[:, id]`` on the one-dimensional case neither raises nor
+    writes, so every banned id was silently skipped — installed, logged
+    active, banning nothing. Both shapes are checked because only one of them
+    was ever wrong.
+    """
+    mx = pytest.importorskip("mlx.core")
+    guard = _build_guard()
+    empty = mx.array([], dtype=mx.int32)
+
+    two_dimensional = guard(empty, mx.zeros((1, 152000)))
+    assert float(two_dimensional[0, 151644]) == float("-inf")
+    assert float(two_dimensional[0, 5]) == 0.0
+
+    one_dimensional = guard(empty, mx.zeros((152000,)))
+    assert float(one_dimensional[151644]) == float("-inf")
+    assert float(one_dimensional[5]) == 0.0
+
+
+def test_the_guard_lets_go_after_the_first_token() -> None:
+    mx = pytest.importorskip("mlx.core")
+    guard = _build_guard()
+    after = guard(mx.array([7], dtype=mx.int32), mx.zeros((152000,)))
+    assert float(after[151644]) == 0.0
+
+
+def test_no_mask_indexes_by_the_second_axis() -> None:
+    """All three processors in the worker had the same assumption."""
+    source = WORKER.read_text(encoding="utf-8")
+    assert "mask[:, token_id]" not in source

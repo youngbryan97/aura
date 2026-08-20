@@ -1243,7 +1243,11 @@ def _build_semantic_completion_eos_guard(
         mask = tensor_ops.zeros_like(logits)
         for token_id in terminal_ids:
             try:
-                mask[:, token_id] = -float("inf")
+                # Last axis: on a one-dimensional logits array `mask[:, id]`
+                # neither raises nor writes, so this contract has been holding
+                # nothing back — which is the same four-part-answer commit it
+                # was written to prevent.
+                mask[..., token_id] = -float("inf")
             except (IndexError, TypeError, ValueError):
                 continue
         return logits + mask
@@ -3143,7 +3147,12 @@ def build_nonempty_start_processor(tokenizer: Any, *, positions: int = 1) -> Any
         mask = mx.zeros_like(logits)
         for token_id in banned_ids:
             try:
-                mask[:, token_id] = -float("inf")
+                # The LAST axis, not the second. mlx_lm hands this array
+                # sometimes as (1, vocab) and sometimes as (vocab,), and
+                # `mask[:, id]` on the one-dimensional case neither raises nor
+                # writes: the guard installed, logged ACTIVE, and banned
+                # nothing. Ellipsis indexes the vocabulary axis either way.
+                mask[..., token_id] = -float("inf")
             except (IndexError, TypeError, ValueError):
                 continue
         return logits + mask
@@ -6629,7 +6638,7 @@ def _mlx_worker_loop(
                                 # `encode("{")[0]` happened to return.
                                 mask = mx.full_like(logits, -float("inf"))
                                 for token_id in start_ids:
-                                    mask[:, token_id] = 0.0
+                                    mask[..., token_id] = 0.0
                                 return mask
                             return logits
                         logits_processors.append(json_start_processor)
@@ -6659,7 +6668,9 @@ def _mlx_worker_loop(
                                     mask = mx.zeros_like(logits)
                                     for token_id in banned_ids:
                                         try:
-                                            mask[:, token_id] = -float("inf")
+                                            # Last axis: see
+                                            # build_nonempty_start_processor.
+                                            mask[..., token_id] = -float("inf")
                                         except (IndexError, TypeError, ValueError):
                                             continue
                                     return logits + mask
@@ -6684,6 +6695,10 @@ def _mlx_worker_loop(
                         guard = build_nonempty_start_processor(tokenizer)
                         if guard is not None:
                             logits_processors.append(guard)
+                        logger.info(
+                            "🎯 [WORKER] Non-empty start guard %s (generate path).",
+                            "ACTIVE" if guard is not None else "UNAVAILABLE",
+                        )
                     except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as e:
                         _record_mlx_degradation(
                             e,
@@ -8656,6 +8671,10 @@ def _mlx_worker_loop(
                         guard = build_nonempty_start_processor(tokenizer)
                         if guard is not None:
                             logits_processors.append(guard)
+                        logger.info(
+                            "🎯 [WORKER] Non-empty start guard %s (stream path).",
+                            "ACTIVE" if guard is not None else "UNAVAILABLE",
+                        )
                     except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as e:
                         _record_mlx_degradation(
                             e,
