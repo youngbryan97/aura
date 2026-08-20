@@ -6645,6 +6645,48 @@ def _mlx_worker_loop(
                             severity="warning",
                         )
                         logger.warning("Failed to setup strict non-empty start guard: %s", e)
+                elif not _expected_empty_warmup_precompile(job):
+                    # An assistant turn that ends before it says anything is not
+                    # a completion, on any lane.
+                    #
+                    # LIVE, 2026-08-20. A conversational turn whose tool had
+                    # already fetched the right document produced exactly one
+                    # token — <|im_start|> — which is a stop sequence, so the
+                    # decode halted with no text and the runtime reported
+                    # "produced 1 token but no text survived". The person got
+                    # "I couldn't get to an answer I'd stand behind on that
+                    # one" while the answer sat in working memory.
+                    #
+                    # The guard for this already existed and was fitted only to
+                    # strict contracts. Control tokens are structural markers;
+                    # the model never needs one to BEGIN an answer, and banning
+                    # them at the first position costs nothing when the model
+                    # had something to say.
+                    try:
+                        empty_start_ids = _first_token_suppression_ids(tokenizer)
+                        if empty_start_ids:
+                            def nonempty_start_processor(
+                                tokens,
+                                logits,
+                                banned_ids=tuple(empty_start_ids),
+                            ):
+                                if len(tokens) == 0:
+                                    mask = mx.zeros_like(logits)
+                                    for token_id in banned_ids:
+                                        try:
+                                            mask[:, token_id] = -float("inf")
+                                        except (IndexError, TypeError, ValueError):
+                                            continue
+                                    return logits + mask
+                                return logits
+
+                            logits_processors.append(nonempty_start_processor)
+                    except (AttributeError, RuntimeError, TypeError, ValueError) as e:
+                        _record_mlx_degradation(
+                            e,
+                            action="continued generation without the non-empty start guard",
+                            severity="warning",
+                        )
 
                 # Foreground non-parametric memory (KV-cache-correct): the tap captures the
                 # hidden state the generation forward already computes, so the processor adds
