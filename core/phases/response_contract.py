@@ -1099,77 +1099,29 @@ _DEFAULT_CAPABILITY_SET = 5
 def derive_capability_set(objective: str, *, limit: int = _DEFAULT_CAPABILITY_SET) -> list[str]:
     """The capabilities this request plausibly needs, most relevant first.
 
-    A single skill cannot carry a task with steps in it. This returns the
-    working set for the turn, chosen from what each skill declares about
-    itself and restricted to effects that are recoverable without the person
-    having authorised them.
+    The selection itself lives in :mod:`core.intent.capability_selection`,
+    shared with the capability router — two mechanisms answering this question
+    disagreed live, and the router nominated a skill that could not do the job
+    while the tool loop had the right ones.
     """
     text = str(objective or "").strip()
     if not text:
         return []
     try:
         from core.container import ServiceContainer
-        from core.intent.declared_capability import (
-            declared_vocabulary,
-            distinctive_objects,
-            rank_declaration_matches,
-        )
+        from core.intent.capability_selection import select_capabilities
 
         engine = ServiceContainer.get("capability_engine", default=None)
         skills = getattr(engine, "skills", None)
         if not skills:
             return []
-        catalogue = {
-            name: declared_vocabulary(name, str(getattr(meta, "description", "") or ""))
-            for name, meta in skills.items()
-            if getattr(meta, "enabled", True)
-        }
-        if not catalogue:
-            return []
-        from core.intent.declared_capability import (
-            foundational_capabilities,
-            looks_like_a_request,
+        return select_capabilities(
+            text,
+            skills,
+            ceiling=_SELF_SERVICE_CEILING,
+            admissible_scopes=_SELF_SERVICE_EFFECT_SCOPES,
+            limit=limit,
         )
-        from core.skills.action_scope import (
-            resolve_skill_target,
-            skill_has_action_within,
-        )
-
-        ranked = [
-            name
-            for name, _score in rank_declaration_matches(
-                text, catalogue, distinctive_objects(catalogue)
-            )
-        ]
-        # Lexical ranking can only match words a skill declared, and nouns are
-        # an open class: "read README.md" names nothing any skill has heard of,
-        # so a real task was handed no capability at all. A request-shaped turn
-        # also gets the skills that work in the domains every computer task
-        # passes through — reading, computing, looking things up — with the
-        # ranked matches first because they are the specific ones.
-        if looks_like_a_request(text):
-            for name in foundational_capabilities(catalogue):
-                if name not in ranked:
-                    ranked.append(name)
-
-        chosen: list[str] = []
-        for name in ranked:
-            meta = skills.get(name)
-            scope = str(getattr(meta, "effect_scope", "") or "").strip().lower()
-            target = resolve_skill_target(meta)
-            # A skill whose worst action is dangerous may still have a safe
-            # one. `file_operation` can delete, which is why reading a file
-            # used to require permission to destroy one — and every real task
-            # starts by reading something. The dispatch refuses the actions
-            # that are out of scope, so offering the skill offers only the
-            # part that was admissible.
-            if scope in _SELF_SERVICE_EFFECT_SCOPES or skill_has_action_within(
-                target, scope, _SELF_SERVICE_CEILING
-            ):
-                chosen.append(name)
-            if len(chosen) >= max(1, int(limit)):
-                break
-        return chosen
     except Exception as exc:  # noqa: BLE001 - reported, never silent
         from core.runtime.errors import record_degradation
 

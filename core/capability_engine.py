@@ -2195,6 +2195,42 @@ class CapabilityEngine(AuraBaseModule):
             )
             return []
 
+    def _foundational_candidates(self, message: str) -> list[str]:
+        """The capabilities every request-shaped turn needs, whatever its nouns.
+
+        Reading, computing and looking things up are the primitives a computer
+        task is built from, and lexical matching cannot find them: "read
+        README.md" names nothing any skill declares. Shared with the tool
+        handoff so the router and the loop cannot disagree about what a turn
+        needs.
+        """
+        try:
+            from core.intent.capability_selection import (
+                DEFAULT_CAPABILITY_SET,
+                select_capabilities,
+            )
+            from core.phases.response_contract import (
+                _SELF_SERVICE_CEILING,
+                _SELF_SERVICE_EFFECT_SCOPES,
+            )
+
+            return select_capabilities(
+                message,
+                self.skills,
+                ceiling=_SELF_SERVICE_CEILING,
+                admissible_scopes=_SELF_SERVICE_EFFECT_SCOPES,
+                limit=DEFAULT_CAPABILITY_SET,
+            )
+        except Exception as exc:  # noqa: BLE001 - reported, never silent
+            record_degradation(
+                "capability_engine",
+                exc,
+                severity="debug",
+                action="routed without the foundational capabilities",
+                enforce_failure_policy=False,
+            )
+            return []
+
     def detect_intent(self, message: str) -> list[str]:
         """Aura's 'Cognitive Proprioception': Detects which skills match the user's intent."""
         triggered = []
@@ -2240,6 +2276,22 @@ class CapabilityEngine(AuraBaseModule):
         #
         # Additive on purpose: the patterns above still decide everything they
         # already decided, and this only ever adds a candidate they missed.
+        # One question, one answer.
+        #
+        # Two mechanisms decided "which capabilities does this turn need" —
+        # this router, and the tool handoff's `derive_capability_set` — and
+        # they disagreed. Live 2026-08-19, a request to read a repository and
+        # find a failing test nominated `uplink_local` (its description
+        # mentions a state-repository) and omitted `file_operation`, so the
+        # router picked a skill that could not do the job while the handoff
+        # had the right five. The foundational capabilities a request-shaped
+        # turn needs are the same set in both places, so they come from the
+        # same place.
+        if not mentions_without_asking:
+            for name in self._foundational_candidates(msg):
+                if name not in triggered:
+                    triggered.append(name)
+
         if not mentions_without_asking:
             for name in self._declaration_matched_skills(msg):
                 if name in triggered:
@@ -2537,6 +2589,33 @@ class CapabilityEngine(AuraBaseModule):
         # computer_use read duplicates that with less. So for an observation
         # the governed lane owns it, and computer_use stays available for
         # everything else.
+        # Reading a file is an observation, and none of the actuation skills
+        # can perform one. Live 2026-08-19, "read the code at <path> and work
+        # out why the test is failing" nominated desktop_task, which spent
+        # 37 seconds per attempt failing to verify an effect no screen would
+        # ever show — while file_operation sat READY with a read action. The
+        # screen case below is the same rule, written after the same mistake.
+        try:
+            from core.runtime.desktop_objective_intent import (
+                looks_like_filesystem_observation,
+            )
+
+            if looks_like_filesystem_observation(objective_lower):
+                heuristic_candidates = [
+                    name
+                    for name in heuristic_candidates
+                    if name not in {"desktop_task", "os_automation", "computer_use",
+                                    "os_manipulation", "pursue_on_screen"}
+                ]
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:
+            record_degradation(
+                "capability_engine",
+                exc,
+                severity="debug",
+                action="left the actuation skills as candidates for a file read",
+                enforce_failure_policy=False,
+            )
+
         if "desktop_task" in heuristic_candidates and "computer_use" in heuristic_candidates:
             try:
                 from core.runtime.desktop_objective_intent import (
