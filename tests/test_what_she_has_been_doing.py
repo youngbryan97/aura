@@ -96,3 +96,42 @@ def test_a_bare_address_is_not_a_description_of_work() -> None:
     assert _readable("https://api.open-meteo.com/v1/forecast?latitude=64.15") == ""
     assert _readable("/Users/bryan/.aura/live-source/core/config.py") == ""
     assert _readable("read https://api.open-meteo.com/v1/forecast for the temperature") != ""
+
+
+def test_the_spoken_form_is_a_sentence_not_a_status_page() -> None:
+    window = ActivityWindow(
+        completed=33,
+        failed=19,
+        span_seconds=5400.0,
+        tools=(("web_search", 6), ("http_request", 5)),
+        subjects=("research curiosity topic: who wrote Solaris",),
+        for_them=17,
+        her_own=32,
+    )
+    from core.self.recent_activity import narrate_recent_activity
+
+    spoken = narrate_recent_activity(window)
+    assert "\n" not in spoken
+    assert "##" not in spoken and "- " not in spoken
+    assert "33 things" in spoken
+    assert "1.5 hours" in spoken
+    assert "web search" in spoken
+    assert "Solaris" in spoken
+
+
+def test_a_failure_is_counted_and_never_named_as_work() -> None:
+    """"The ones worth naming" read as a fault list: Reddit inbox unavailable,
+    login required, blocked, or provider validation failed."""
+    from core.self.recent_activity import narrate_recent_activity
+
+    window = ActivityWindow(completed=2, failed=3, span_seconds=600.0, subjects=())
+    spoken = narrate_recent_activity(window)
+    assert "3 of them did not work" in spoken
+    assert "worth naming" not in spoken
+
+
+def test_an_empty_record_says_nothing_in_either_voice() -> None:
+    from core.self.recent_activity import narrate_recent_activity
+
+    assert narrate_recent_activity(ActivityWindow()) == ""
+    assert describe_recent_activity(ActivityWindow()) == ""

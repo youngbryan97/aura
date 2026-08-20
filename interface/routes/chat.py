@@ -14382,14 +14382,18 @@ def _serve_recent_activity(user_message: object, reply: object) -> object:
     """
     try:
         from core.self.recent_activity import (
-            describe_recent_activity,
             looks_like_a_question_about_recent_activity,
+            narrate_recent_activity,
             read_recent_activity,
         )
 
         if not looks_like_a_question_about_recent_activity(str(user_message or "")):
             return reply
-        described = describe_recent_activity(read_recent_activity())
+        # Said, not displayed. The block form belongs in a prompt, where
+        # headings separate evidence from everything around it; served to
+        # somebody who asked what she had been up to tonight it reads as a
+        # status page — the right facts in the wrong voice.
+        described = narrate_recent_activity(read_recent_activity())
         if not described:
             return reply
         logger.info("🗂️ Served the activity record from the intention log.")

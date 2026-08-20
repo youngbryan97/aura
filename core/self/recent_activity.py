@@ -32,6 +32,7 @@ __all__ = [
     "ActivityWindow",
     "describe_recent_activity",
     "looks_like_a_question_about_recent_activity",
+    "narrate_recent_activity",
     "read_recent_activity",
 ]
 
@@ -171,6 +172,11 @@ def read_recent_activity(limit: int = _SAMPLE) -> ActivityWindow:
             failed += 1
         else:
             continue
+        # A failed intention's outcome is the error it hit, not work she did.
+        # Naming those made "the ones worth naming" read as a fault list:
+        # "Reddit inbox unavailable; login required, blocked, or provider
+        # validation failed."
+        naming = state == "completed"
         drive_name = str(drive or "").strip().lower()
         drives[drive_name or "unattributed"] += 1
         if drive_name in _HER_OWN_DRIVES:
@@ -186,6 +192,8 @@ def read_recent_activity(limit: int = _SAMPLE) -> ActivityWindow:
         # to do, and is worth naming as itself. The outcome is preferred when
         # it reads like a sentence; a serialised payload says less about the
         # work than the intention that produced it does.
+        if not naming:
+            continue
         subject = _readable(outcome) or _readable(text)
         if subject and subject not in subjects:
             subjects.append(subject)
@@ -275,3 +283,44 @@ def looks_like_a_question_about_recent_activity(prompt: object) -> bool:
     if not _ABOUT_HER.search(text):
         return False
     return bool(_ASKS_RECENT_ACTIVITY.search(text))
+
+
+def narrate_recent_activity(window: ActivityWindow | None = None) -> str:
+    """The same record, said rather than displayed.
+
+    Two renderings because there are two readers. The block form goes into a
+    prompt, where headings and bullets are how evidence is separated from
+    everything else around it. Served straight to a person who asked what she
+    had been up to tonight, that same block reads as a status page — the
+    right facts in the wrong voice, which is its own kind of wrong answer.
+    """
+    reading = window if window is not None else read_recent_activity()
+    if reading is None or reading.is_empty():
+        return ""
+
+    span = _humanise(reading.span_seconds) if reading.span_seconds > 0 else ""
+    opening = f"In the last {span} I finished {reading.completed}" if span else (
+        f"I have finished {reading.completed}"
+    )
+    opening += " things" if reading.completed != 1 else " thing"
+    if reading.failed:
+        opening += f", and {reading.failed} of them did not work"
+    sentences = [opening + "."]
+
+    if reading.tools:
+        named = [name.replace("_", " ") for name, _count in reading.tools[:3]]
+        if len(named) == 1:
+            sentences.append(f"Most of that was {named[0]}.")
+        else:
+            sentences.append(
+                "Most of that was " + ", ".join(named[:-1]) + f" and {named[-1]}."
+            )
+
+    if reading.her_own and reading.for_them:
+        sentences.append(
+            f"{reading.her_own} of them I started myself; {reading.for_them} came from you."
+        )
+
+    if reading.subjects:
+        sentences.append("The ones worth naming: " + "; ".join(reading.subjects[:3]) + ".")
+    return " ".join(sentences)
