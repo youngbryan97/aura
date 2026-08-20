@@ -717,17 +717,6 @@ def build_agentic_tool_map(
         if not cap or not hasattr(cap, "get_tool_definitions"):
             return None
 
-        if hasattr(cap, "select_tool_definitions"):
-            tool_defs = (
-                cap.select_tool_definitions(
-                    objective=str(objective or ""),
-                    required_skill=required_skill,
-                    max_tools=max_tools,
-                )
-                or []
-            )
-        else:
-            tool_defs = cap.get_tool_definitions() or []
         # `required_skill` may name one capability or the working set for the
         # turn. Filtering to exactly one made every multi-step task impossible
         # by construction: reading a file and then running what it says needs
@@ -738,6 +727,36 @@ def build_agentic_tool_map(
             wanted = {required_skill}
         else:
             wanted = {str(item) for item in required_skill if str(item).strip()}
+
+        # The registry's selector takes ONE name. Handed a set it matched
+        # nothing and the turn was offered no tools at all — the working set
+        # was derived correctly and then thrown away one call later. Ask it
+        # for a wide slate and do the membership filtering here, which is
+        # where the set is understood.
+        if hasattr(cap, "select_tool_definitions"):
+            tool_defs = (
+                cap.select_tool_definitions(
+                    objective=str(objective or ""),
+                    required_skill=next(iter(wanted)) if len(wanted) == 1 else None,
+                    max_tools=max(int(max_tools or 1), len(wanted) or 1, 8),
+                )
+                or []
+            )
+        else:
+            tool_defs = cap.get_tool_definitions() or []
+
+        # A named capability must survive the selector's own ranking: it was
+        # asked for, so it cannot be dropped for being less relevant.
+        if wanted and not {
+            str((entry.get("function", {}) or {}).get("name"))
+            for entry in tool_defs
+            if isinstance(entry, dict)
+        } >= wanted:
+            for entry in cap.get_tool_definitions() or []:
+                if not isinstance(entry, dict):
+                    continue
+                if str((entry.get("function", {}) or {}).get("name")) in wanted:
+                    tool_defs.append(entry)
 
         tools: dict[str, Any] = {}
         for entry in tool_defs:

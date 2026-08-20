@@ -178,3 +178,37 @@ def test_a_task_shaped_turn_is_recognised_whatever_nouns_it_uses(task: str):
     from core.intent.declared_capability import looks_like_a_request
 
     assert looks_like_a_request(task)
+
+
+def test_the_named_set_survives_the_registrys_own_ranking(monkeypatch):
+    """The selector takes ONE name; handed a set it matched nothing.
+
+    Live 2026-08-19: the working set was derived correctly —
+    "wanted=internal_sandbox,code_repl,web_search,run_code,file_operation" —
+    and then thrown away one call later, so the turn was offered no tools at
+    all. A capability that was asked for cannot be dropped for ranking below
+    something else.
+    """
+    from core.brain.llm import runtime_wiring
+
+    wanted = ["code_repl", "file_operation"]
+
+    class _Engine:
+        def get_tool_definitions(self):
+            return [
+                {"function": {"name": name}}
+                for name in ("code_repl", "file_operation", "web_search")
+            ]
+
+        def select_tool_definitions(self, *, objective, required_skill, max_tools):
+            # Ranks by its own idea of relevance and never returns the reader.
+            return [{"function": {"name": "web_search"}}]
+
+    from core import container as container_module
+
+    monkeypatch.setattr(
+        container_module.ServiceContainer, "get", staticmethod(lambda *a, **k: _Engine())
+    )
+    offered = runtime_wiring.build_agentic_tool_map(wanted, objective="x", max_tools=2)
+    assert offered is not None
+    assert set(wanted) <= set(offered)
