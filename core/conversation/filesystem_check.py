@@ -26,6 +26,8 @@ Deliberately narrow:
 
 from __future__ import annotations
 
+import contextvars
+
 import os
 import re
 from collections import Counter
@@ -596,6 +598,52 @@ class FileRead:
 _PATH_TOKEN_RE = re.compile(r"(?:[~/]|\b)[\w./\-]*[\w\-]\.[A-Za-z0-9]{1,6}\b")
 
 
+#: Files this conversation has actually read, newest first.
+#:
+#: LIVE DEFECT, 2026-08-19. She read accounts.py by full path and answered
+#: correctly. The next turn — "in that accounts.py you just read, the close()
+#: method has a sign error, which line?" — named the file by BASENAME, which
+#: resolves nowhere outside her roots, so nothing was read and she invented an
+#: implementation: a close() over DebitEntry and CreditEntry objects that do
+#: not exist anywhere in the file.
+#:
+#: A file that has been read is a file she is entitled to read again, and a
+#: follow-up naming it by its short name means the one she just opened. Every
+#: multi-step task on a real artifact depends on this — the second question
+#: about a file is the normal case, not the exception.
+_READ_HISTORY: contextvars.ContextVar[tuple[str, ...]] = contextvars.ContextVar(
+    "aura_files_read", default=()
+)
+
+#: Bounded: a conversation is not a file manager.
+_READ_HISTORY_LIMIT = 12
+
+
+def remember_file_read(path: str) -> None:
+    """Record a file as readable by its short name for the rest of the session."""
+    resolved = str(path or "").strip()
+    if not resolved:
+        return
+    history = tuple(item for item in _READ_HISTORY.get() if item != resolved)
+    _READ_HISTORY.set((resolved, *history)[:_READ_HISTORY_LIMIT])
+
+
+def files_already_read() -> tuple[str, ...]:
+    """The files this conversation has opened, newest first."""
+    return tuple(_READ_HISTORY.get())
+
+
+def _remembered_match(candidate: str) -> str | None:
+    """A previously read file this name refers to, or None."""
+    name = str(candidate or "").strip().strip("'\"").lstrip("./")
+    if not name or "/" in name:
+        return None
+    for remembered in _READ_HISTORY.get():
+        if Path(remembered).name == name:
+            return remembered
+    return None
+
+
 def _named_paths(text: str) -> list[str]:
     """Every path-shaped token in the message, in the order written."""
     seen: set[str] = set()
@@ -648,6 +696,25 @@ def requested_file_read(user_message: Any) -> FileRead | None:
     missing: str | None = None
     denied = ""
     for candidate in _named_paths(text):
+        # A file already opened this conversation, named by its short name.
+        remembered = _remembered_match(candidate)
+        if remembered:
+            target = Path(remembered)
+            if target.is_file():
+                try:
+                    body = target.read_text(encoding="utf-8", errors="replace")
+                except OSError:
+                    body = ""
+                if body:
+                    topic, mentions = _topic_coverage(body, text, filename=candidate)
+                    return FileRead(
+                        path=str(target),
+                        text=_relevant_span(body, text, filename=candidate),
+                        exists=True,
+                        truncated=len(body) > READ_CHAR_BUDGET,
+                        topic=topic,
+                        topic_mentions=mentions,
+                    )
         if ".." in candidate:
             # Refused on the token itself. Containment below is the real
             # guard, but a token that is trying to escape is not worth
@@ -679,6 +746,7 @@ def requested_file_read(user_message: Any) -> FileRead | None:
             except OSError:
                 continue
             topic, mentions = _topic_coverage(body, text, filename=candidate)
+            remember_file_read(str(target))
             return FileRead(
                 path=str(target),
                 text=_relevant_span(body, text, filename=candidate),
