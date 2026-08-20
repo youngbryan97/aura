@@ -14143,6 +14143,16 @@ class MLXLocalClient:
                 else None
             )
             if not tool_call:
+                # What it said INSTEAD is the only way to tell a malformed
+                # call from a model that simply answered. Without this the two
+                # are indistinguishable from the outside, and they need
+                # opposite fixes: a parser change versus a decoding one.
+                if tools and not tool_calls_made:
+                    logger.info(
+                        "🔧 Tools offered (%s) and none called; model produced: %s",
+                        ",".join(sorted(tools)),
+                        " ".join(response_text.split())[:200],
+                    )
                 return {
                     "content": response_text,
                     "turns": turn + 1,
