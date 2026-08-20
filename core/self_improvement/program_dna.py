@@ -30,6 +30,14 @@ from typing import Any
 
 from core.governance_context import local_internal_governed_scope
 from core.runtime.file_write_gateway import get_file_write_gateway
+from core.runtime.payload_values import payload_path
+
+#: A generated directory name stays short enough to read at a glance.
+_SLUG_WORDS = 6
+_SLUG_CHARS = 48
+
+#: Configuration may be unavailable during isolated construction.
+_WORKSPACE_LOOKUP_FAILURES = (ImportError, AttributeError, OSError, ValueError)
 
 AUTHORIZED_SCOPES = frozenset(
     {
@@ -418,11 +426,12 @@ class ProgramDNAReconstructionEngine:
 
         scaffold_path = None
         if bool(payload.get("emit_scaffold", False)):
-            output_dir = payload.get("output_dir")
-            resolved_output_dir = (
-                await asyncio.to_thread(self._expanded_path, output_dir)
-                if output_dir
-                else None
+            resolved_output_dir = await asyncio.to_thread(
+                payload_path,
+                payload,
+                "output_dir",
+                root=self._generated_workspace(),
+                default=None,
             )
             scaffold_path = await asyncio.to_thread(
                 self._emit_scaffold,
@@ -2497,7 +2506,7 @@ def reconstructed(case):
         stack: str,
     ) -> str:
         slug = self._slug(target_name)
-        root = (output_dir or (self.project_root / "artifacts" / "program_dna")) / slug
+        root = (output_dir or self._generated_workspace()) / slug
         src = root / "src"
         tests = root / "tests"
         gateway = get_file_write_gateway()
@@ -2902,9 +2911,34 @@ def reconstructed(case):
                 h.update(chunk)
         return h.hexdigest()
 
+    def _generated_workspace(self) -> Path:
+        """Where scaffolds go: outside the source tree, by this engine's own rule.
+
+        The standards review this engine emits asserts that a generated
+        workspace is separate from the runtime. Defaulting to ``project_root``
+        broke that assertion silently, so the default now comes from the
+        configured generated-code directory and falls back to the project only
+        when configuration is unavailable.
+        """
+        try:
+            from core.config import get_config
+
+            return Path(get_config().paths.generated_dir)
+        except _WORKSPACE_LOOKUP_FAILURES:
+            return self.project_root / "artifacts" / "program_dna"
+
     def _slug(self, value: str) -> str:
-        slug = re.sub(r"[^a-zA-Z0-9_.-]+", "-", value.strip()).strip("-").lower()
-        return slug or "program"
+        """A directory name from a target name.
+
+        Capped at :data:`_SLUG_WORDS` words. A model that fills ``target``
+        with a clause instead of a name once produced a 71-character directory
+        beginning mid-word, and a name nobody can read is a name nobody can
+        find again.
+        """
+        words = re.split(r"[^a-zA-Z0-9_.]+", str(value or "").strip())
+        kept = [word for word in words if word][:_SLUG_WORDS]
+        slug = "-".join(kept).strip("-.").lower()
+        return slug[:_SLUG_CHARS].strip("-.") or "program"
 
     @staticmethod
     def _expanded_path(value: str | os.PathLike[str]) -> Path:

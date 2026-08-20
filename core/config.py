@@ -125,6 +125,17 @@ class Paths(BaseModel):
         return self.data_dir / "generated_images"
 
     @property
+    def generated_dir(self) -> Path:
+        """Where code Aura writes goes.
+
+        Separate from ``project_root`` on purpose: a synthesised program that
+        lands in the source tree is indistinguishable from a source file, and
+        program synthesis already declares that separation as one of its own
+        invariants.
+        """
+        return self.data_dir / "generated_programs"
+
+    @property
     def memory_dir(self) -> Path:
         return self.data_dir / "memory"
 
