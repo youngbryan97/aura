@@ -87,3 +87,12 @@ def test_the_live_record_reads_without_writing() -> None:
 
     window = read_recent_activity(limit=5)
     assert isinstance(window, ActivityWindow)
+
+
+def test_a_bare_address_is_not_a_description_of_work() -> None:
+    """It names where she looked, not what she was doing there."""
+    from core.self.recent_activity import _readable
+
+    assert _readable("https://api.open-meteo.com/v1/forecast?latitude=64.15") == ""
+    assert _readable("/Users/bryan/.aura/live-source/core/config.py") == ""
+    assert _readable("read https://api.open-meteo.com/v1/forecast for the temperature") != ""

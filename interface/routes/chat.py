@@ -14365,6 +14365,46 @@ def _serve_lifetime(user_message: object, reply: object) -> object:
     return reply
 
 
+def _serve_recent_activity(user_message: object, reply: object) -> object:
+    """Answer "what have you been working on" from the record of doing it.
+
+    LIVE, 2026-08-20. The reading was taken — the log records "took 2
+    reading(s): work you have actually done" — and the answer was "I've been
+    analyzing my cognitive architecture, looking at how information flows
+    between different systems." Thirty-three finished pieces of work sat in
+    the block in front of her, with the tools she ran and the topics she
+    chased, and one of them reached the reply.
+
+    Same treatment as the queue, for the same reason: evidence informs, it
+    does not enforce, and what she did is not a matter of opinion. The reply
+    she wrote is kept after the record, because why one piece of work was
+    interesting IS hers to say — only the list of what happened is not.
+    """
+    try:
+        from core.self.recent_activity import (
+            describe_recent_activity,
+            looks_like_a_question_about_recent_activity,
+            read_recent_activity,
+        )
+
+        if not looks_like_a_question_about_recent_activity(str(user_message or "")):
+            return reply
+        described = describe_recent_activity(read_recent_activity())
+        if not described:
+            return reply
+        logger.info("🗂️ Served the activity record from the intention log.")
+        return described
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        record_degradation(
+            "chat.recent_activity",
+            exc,
+            severity="debug",
+            action="left the activity answer to the model",
+            enforce_failure_policy=False,
+        )
+        return reply
+
+
 def _serve_queued_work(user_message: object, reply: object) -> object:
     """Answer "what are you going to do next" from the coordinator's list.
 
@@ -16136,6 +16176,7 @@ def _apply_recorded_answer(user_message: object, response: Any) -> Any:
         corrected = str(_serve_measured_belief_history(corrected) or corrected)
         corrected = str(_serve_earlier_conversation(user_message, corrected) or corrected)
         corrected = str(_serve_queued_work(user_message, corrected) or corrected)
+        corrected = str(_serve_recent_activity(user_message, corrected) or corrected)
         corrected = str(_serve_lifetime(user_message, corrected) or corrected)
         corrected = str(_serve_tabular_answer(user_message, corrected) or corrected)
         corrected = str(_correct_false_capability_denials(corrected) or corrected)

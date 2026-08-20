@@ -67,6 +67,13 @@ def _readable(value: object) -> str:
         return ""
     if text[:1] in "{[" or text.startswith(("b'", 'b"')):
         return ""
+    # An address is not a sentence. "https://api.open-meteo.com/v1/forecast?…"
+    # names where she looked and says nothing about what she was doing there,
+    # and read back as a bullet it is the same leak as the payload above.
+    from core.intent.opaque_spans import without_opaque_spans
+
+    if not without_opaque_spans(text).strip(" .,:;-"):
+        return ""
     return text[:160]
 
 
