@@ -6438,6 +6438,7 @@ class InferenceGate:
         visible: Any,
         system_prompt: Any,
         timeout_s: float,
+        evidence: Any = None,
     ) -> str | None:
         """Answer by running the capability the request needs, or return None.
 
@@ -6515,6 +6516,10 @@ class InferenceGate:
                         # dangerous ones.
                         "authorised_effect_scope": _SELF_SERVICE_CEILING,
                     },
+                    # What the turn has already read. Without it the loop
+                    # fetched the same document a second time, from a URL it
+                    # rebuilt from memory, and got a 400.
+                    evidence=evidence,
                 ),
                 timeout=max(20.0, float(timeout_s)),
             )
@@ -12485,6 +12490,7 @@ class InferenceGate:
                             visible=(initial_visible_user_prompt or visible_user_prompt),
                             system_prompt=system_prompt,
                             timeout_s=float(timeout_val),
+                            evidence=messages,
                         )
                     if tool_grounded:
                         text = tool_grounded

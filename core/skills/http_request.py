@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import ipaddress
 import json
+import logging
 import socket
 from typing import Any, Literal
 from urllib.parse import urlparse
@@ -206,4 +207,15 @@ class HttpRequestSkill(BaseSkill):
                 pass
         if not result["ok"]:
             result["error"] = f"HTTP {response.status_code}"
+            # What was actually requested. Without it a 400 is unattributable:
+            # live 2026-08-20 the model narrated "something about the longitude
+            # parameter" to the person because that was the only guess
+            # available to it, and the log said only "HTTP 400".
+            logging.getLogger("Skills.http_request").warning(
+                "http_request %s %s -> %d; body begins %r",
+                method,
+                str(response.url)[:300],
+                response.status_code,
+                text[:200],
+            )
         return result

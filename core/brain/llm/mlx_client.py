@@ -2807,6 +2807,9 @@ def _requested_output_contract_generation_floor(contract: Any) -> int:
 #: A native call is a name, an arguments object and its delimiters. Below this
 #: the model cannot finish one, and a half-emitted call is indistinguishable
 #: downstream from a model that chose not to call anything.
+#: How much already-read evidence a tool prompt may carry.
+_TOOL_LOOP_EVIDENCE_CHARS = 6000
+
 _TOOL_CALL_TOKEN_FLOOR = 320
 
 
@@ -14134,6 +14137,7 @@ class MLXLocalClient:
         tools: dict[str, Any] | None = None,
         max_turns: int = 5,
         context: dict | None = None,
+        evidence: Any = None,
         **kwargs,
     ) -> dict[str, Any]:
         """ReAct agentic loop: think → parse tool call → execute → repeat.
@@ -14183,15 +14187,26 @@ class MLXLocalClient:
         augmented_system = system_prompt if native_tools else system_prompt + tool_block
         messages: list[dict[str, Any]] = [
             {"role": "system", "content": augmented_system},
-            {"role": "user", "content": objective},
         ]
+        # What the turn has already read.
+        #
+        # LIVE, 2026-08-20. The evidence step fetched the document the person
+        # named, and this loop received the objective alone — so the model
+        # fetched it again, got a 400 on a URL it rebuilt from memory, and
+        # told the person about the failure before giving the answer. It was
+        # not being redundant on purpose; nothing had told it the read had
+        # happened.
+        messages.extend(_tool_loop_evidence_messages(evidence))
+        messages.append({"role": "user", "content": objective})
         tool_calls_made: list[dict[str, Any]] = []
         last_response_text = ""
 
         logger.info(
-            "🔧 Tool loop payload: system=%d chars, objective=%d chars, tools=%d",
+            "🔧 Tool loop payload: system=%d chars, objective=%d chars, "
+            "evidence=%d blocks, tools=%d",
             len(augmented_system),
             len(str(objective or "")),
+            len(messages) - 2,
             len(template_tools or []),
         )
         for turn in range(max_turns):
@@ -15757,6 +15772,36 @@ def _balanced_json_object(text: str, start: int) -> str | None:
             if depth == 0:
                 return text[opening : index + 1]
     return None
+
+
+def _tool_loop_evidence_messages(evidence: Any) -> list[dict[str, Any]]:
+    """Grounding blocks the turn already holds, as messages the loop can read.
+
+    Only blocks a skill actually produced are carried: the conversational
+    scaffold belongs to the reply, and wrapping a tool call in it produced an
+    immediate end-of-turn. Bounded, because a document can be large and a tool
+    prompt that outgrows its deadline answers nothing.
+    """
+    if not isinstance(evidence, (list, tuple)):
+        return []
+    carried: list[dict[str, Any]] = []
+    budget = _TOOL_LOOP_EVIDENCE_CHARS
+    for item in evidence:
+        if not isinstance(item, Mapping):
+            continue
+        metadata = item.get("metadata")
+        kind = str((metadata or {}).get("type") or "") if isinstance(metadata, Mapping) else ""
+        if kind != "skill_result":
+            continue
+        content = str(item.get("content") or "").strip()
+        if not content:
+            continue
+        content = content[:budget]
+        budget -= len(content)
+        carried.append({"role": "system", "content": content})
+        if budget <= 0:
+            break
+    return carried
 
 
 def _code_execution_tool(allowed_tools: set[str] | None) -> str | None:
