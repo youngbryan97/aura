@@ -109,8 +109,21 @@ _PREFIX_OPERATION_RES: tuple[tuple[re.Pattern[str], str], ...] = (
     ),
 )
 #: A bare expression anywhere in the turn: "2+2", "7919 * 6421".
+#: An expression has to stand on its own, not sit inside a name.
+#:
+#: LIVE DEFECT, 2026-08-19. "there's a python project at
+#: /private/tmp/claude-501/-Users-bryan--.../7a6cdc9e-da7f-47f7-8c38-.../ledger
+#: - one of its tests is failing. read the code, work out why..." was answered
+#: with a bare number. "work out" satisfied the intent gate and this pattern
+#: found "7-8" INSIDE the UUID `47f7-8c38`, so a request to debug a repository
+#: came back as arithmetic.
+#:
+#: Paths, UUIDs, version strings and hyphenated names are full of digits with
+#: operators between them. The guards say the expression may not begin or end
+#: flush against a word character, a dot, a slash or a hyphen — which is what
+#: separates "2+2" from the middle of an identifier.
 _BARE_EXPRESSION_RE = re.compile(
-    r"\d[\d.]*(?:\s*[-+*/^]\s*\d[\d.]*)+"
+    r"(?<![\w./-])\d[\d.]*(?:\s*[-+*/^]\s*\d[\d.]*)+(?![\w./-])"
 )
 #: Only compute when the turn is actually ASKING for a computation. Numbers with
 #: operators between them appear in version strings, dates and ranges, and a
