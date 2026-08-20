@@ -6375,9 +6375,24 @@ def _mlx_worker_loop(
                                 # <|im_end|> as its first token, which reads
                                 # downstream as "produced nothing". The tail is
                                 # the only thing that tells those apart.
+                                #
+                                # The per-message sizes are here because the
+                                # client sent 150 characters and 5 tools and
+                                # the rendered prompt measured 5,144 tokens:
+                                # something between the two was adding the
+                                # difference, and nothing recorded what.
                                 logger.info(
-                                    "🎯 [WORKER] Tool prompt tail: %r",
-                                    prompt[-160:] if isinstance(prompt, str) else type(prompt),
+                                    "🎯 [WORKER] Tool prompt: %d chars from %s | tail=%r",
+                                    len(prompt) if isinstance(prompt, str) else -1,
+                                    [
+                                        (
+                                            str(m.get("role"))[:9],
+                                            len(str(m.get("content") or "")),
+                                        )
+                                        for m in (messages or [])
+                                        if isinstance(m, dict)
+                                    ],
+                                    prompt[-90:] if isinstance(prompt, str) else type(prompt),
                                 )
                     except (RuntimeError, AttributeError, TypeError, ValueError) as e:
                         if tools:
