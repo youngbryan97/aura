@@ -20701,8 +20701,19 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
         if _full_mind_unproven:
             logger.warning(
                 "⚠️ Required desktop full-mind contract was not proven; failing "
-                "closed instead of serving partial/raw speech (path=%s).",
+                "closed instead of serving partial/raw speech (path=%s, missing=%s).",
                 final_live_turn_contract.get("response_path") or "",
+                # WHICH proof failed is the whole diagnosis. Without it this
+                # says only that something did, and the person gets "I couldn't
+                # get my full attention onto that one" with no way to find out
+                # why — which cost several rounds of guessing.
+                ",".join(
+                    str(item)
+                    for item in (
+                        final_live_turn_contract.get("full_mind_missing_proofs") or ()
+                    )
+                )
+                or "unrecorded",
             )
             fail_closed_reply = (
                 "I couldn't get my full attention onto that one, and I'd rather "
