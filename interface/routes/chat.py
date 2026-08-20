@@ -16360,6 +16360,15 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
 
     _interlocutor_turn = parse_interlocutor_introduction(_original_user_message)
     _semantic_user_message = _interlocutor_turn.utterance
+    # Bound HERE because a nested helper closes over it.
+    #
+    # `_try_serve_grounded_recovery` is defined around line 16800 and reads
+    # this, while the assignment sat a thousand lines further down — so any
+    # turn that reached the helper by an earlier path died on "cannot access
+    # free variable 'preflight_context_message'", and the person got "I hit an
+    # error before a coherent answer formed". A closure variable has to be
+    # bound before the closure can be called, not before it is written.
+    preflight_context_message = str(body.message or "")
     # Every degraded path from here on can now see what was asked. Without it
     # they answer about the LANE — live, "what is 7919 * 6367?" came back as
     # "the live answer lane could not finish preparing", for a product the
@@ -18257,7 +18266,6 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
         # Crash-safe persistence: persist the user's message BEFORE calling
         # the LLM. If the process dies mid-inference, the message is preserved
         # and the conversation can be resumed. (Pattern from Claude Code.)
-        preflight_context_message = str(body.message or "")
         effective_user_message = _semantic_user_message
         referential_anchor = (
             await _resolve_referential_followup_anchor(
