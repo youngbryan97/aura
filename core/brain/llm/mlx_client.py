@@ -12814,12 +12814,25 @@ class MLXLocalClient:
             return {"tool": name, "args": args}
 
         # 1. Native structured channel — an explicit tool-intent envelope.
-        native = re.search(r"<tool_call>\s*(\{.*?\})\s*</tool_call>", stripped, re.DOTALL)
+        #
+        # LIVE, 2026-08-20. Six calls in one session were dropped as "none
+        # called" while the model had emitted exactly the right thing:
+        #
+        #     <tool_call> {"name": "web_search", "arguments": {"query": "..."}}
+        #
+        # The closing </tool_call> is a stop sequence, so it is consumed rather
+        # than generated, and the pattern here required it. Reading the JSON by
+        # brace balance instead accepts the call whether or not the tag closed,
+        # and still refuses anything that is not a complete object.
+        native = re.search(r"<tool_call>", stripped)
         if native:
-            try:
-                call = _normalize(json.loads(native.group(1)))
-            except json.JSONDecodeError:
-                call = None
+            body = _balanced_json_object(stripped, native.end())
+            call = None
+            if body:
+                try:
+                    call = _normalize(json.loads(body))
+                except json.JSONDecodeError:
+                    call = None
             if call is not None:
                 return call
 
@@ -15704,6 +15717,46 @@ def _truncate_tool_result(result: Any, *, limit: int = 4000) -> str:
     if limit <= len(marker):
         return marker[:limit]
     return text[: limit - len(marker)] + marker
+
+
+def _balanced_json_object(text: str, start: int) -> str | None:
+    """The first complete ``{...}`` at or after ``start``, or None.
+
+    A lazy regex cannot do this. ``{"name": "x", "arguments": {"q": "y"}}``
+    stops at the inner brace, and only a following literal anchor forces the
+    backtrack that recovers the rest — which is exactly the anchor a stop
+    sequence removes. Counting braces needs no anchor, so a tool call is read
+    the same whether or not its closing tag survived generation.
+
+    Braces inside JSON strings do not count, and a backslash escapes the next
+    character.
+    """
+    opening = text.find("{", start)
+    if opening < 0:
+        return None
+    depth = 0
+    in_string = False
+    escaped = False
+    for index in range(opening, len(text)):
+        char = text[index]
+        if escaped:
+            escaped = False
+            continue
+        if char == "\\":
+            escaped = in_string
+            continue
+        if char == '"':
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return text[opening : index + 1]
+    return None
 
 
 def _code_execution_tool(allowed_tools: set[str] | None) -> str | None:
