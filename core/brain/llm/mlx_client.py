@@ -14144,6 +14144,12 @@ class MLXLocalClient:
         tool_calls_made: list[dict[str, Any]] = []
         last_response_text = ""
 
+        logger.info(
+            "🔧 Tool loop payload: system=%d chars, objective=%d chars, tools=%d",
+            len(augmented_system),
+            len(str(objective or "")),
+            len(template_tools or []),
+        )
         for turn in range(max_turns):
             raw = await self.generate_text_async(
                 "",
