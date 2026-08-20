@@ -780,7 +780,14 @@ def _names_marker(clause: str, markers: tuple[str, ...]) -> bool:
 
 
 def _looks_like_web_interlocutor_execution_request(user_message: str) -> bool:
-    lowered = str(user_message or "").lower()
+    # A path is an address, not a sentence. LIVE 2026-08-19: a request to
+    # debug a Python file was routed into an eight-turn browser dialogue
+    # because the file sat under /private/tmp/claude-501/ — the target marker
+    # came from a directory name the person never spoke. "claude.ai" said out
+    # loud still matches; the same characters inside a path no longer do.
+    from core.intent.opaque_spans import without_opaque_spans
+
+    lowered = without_opaque_spans(str(user_message or "")).lower()
     # A caller may identify itself before asking Aura to do unrelated work.
     # Without removing that discourse prefix, "I'm ChatGPT, open Notes" combines
     # the target marker from one clause with the action marker from another and
