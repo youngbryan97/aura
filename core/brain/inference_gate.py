@@ -9767,6 +9767,22 @@ class InferenceGate:
         )
         if requested_tier == "secondary":
             deep_handoff = True
+        if deep_handoff and not local_deep_solver_enabled():
+            # The lane does not exist on this host, so routing to it spends a
+            # load admission that cannot be granted and comes back with
+            # nothing. The router stopped registering the endpoint at boot;
+            # this is the same fact reaching the other decision that can
+            # select it. Measured live 2026-08-20: "Routing to Solver" on a
+            # foreground chat turn, followed by "lane_budget_exceeded:solver
+            # request 48.4GB + committed 25.3GB > budget 46.1GB" and an empty
+            # generation, twice, ending in an apology.
+            logger.debug(
+                "Deep handoff requested where the deep solver cannot load; "
+                "keeping this turn on the resident cortex."
+            )
+            deep_handoff = False
+            if requested_tier == "secondary":
+                requested_tier = "primary"
         if deep_handoff and not explicit_background:
             # Explicit deep handoffs are foreground reasoning requests even if
             # the caller forgot to stamp a user-facing origin.

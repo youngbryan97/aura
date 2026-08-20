@@ -46,3 +46,34 @@ def test_the_router_registration_asks_before_it_builds() -> None:
     assert registration.index("local_deep_solver_enabled") < registration.index(
         "router.register"
     )
+
+
+def test_every_site_that_can_select_the_deep_lane_asks_first() -> None:
+    """Two decisions can route to the solver, and only one was gated.
+
+    Stopping the registration at boot left the inference gate's own
+    deep_handoff untouched, so a foreground chat turn still logged "Routing
+    to Solver", spent a load admission that could not be granted, and came
+    back empty — twice — ending in an apology.
+    """
+    from pathlib import Path
+
+    gate = Path("core/brain/inference_gate.py").read_text(encoding="utf-8")
+    assert "if deep_handoff and not local_deep_solver_enabled():" in gate
+
+    decision = gate[gate.index('if requested_tier == "secondary":') :]
+    decision = decision[: decision.index("strict_primary_proof_lane = False")]
+    assert "local_deep_solver_enabled()" in decision
+    assert decision.index("local_deep_solver_enabled()") < decision.index(
+        "if deep_handoff and not explicit_background:"
+    )
+
+
+def test_a_refused_deep_handoff_falls_back_to_the_resident_lane() -> None:
+    from pathlib import Path
+
+    gate = Path("core/brain/inference_gate.py").read_text(encoding="utf-8")
+    block = gate[gate.index("if deep_handoff and not local_deep_solver_enabled():") :]
+    block = block[: block.index("if deep_handoff and not explicit_background:")]
+    assert "deep_handoff = False" in block
+    assert 'requested_tier = "primary"' in block
