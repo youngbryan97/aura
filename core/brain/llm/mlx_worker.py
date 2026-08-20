@@ -1011,15 +1011,34 @@ def _surface_quality_failure_reasons(
         candidate,
         is_proof=False,
     )
+    self_claim_contradiction = False
+    self_claim_verification_unavailable = False
+    try:
+        from core.conversation.self_claim_verifier import verify_self_claims
+
+        self_claim_contradiction = not verify_self_claims(candidate).ok
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        self_claim_verification_unavailable = True
+        _record_mlx_degradation(
+            exc,
+            action="continued surface validation after self-claim verification failed",
+            severity="error",
+        )
     if (
         assessment.ok
         and not assessment.retryable
         and not assessment.hard_failure
         and not sanitizer_reasons
+        and not self_claim_contradiction
+        and not self_claim_verification_unavailable
     ):
         return []
     reasons = list(assessment.reasons)
     reasons.extend(sanitizer_reasons)
+    if self_claim_contradiction:
+        reasons.append("self_claim_contradiction")
+    if self_claim_verification_unavailable:
+        reasons.append("self_claim_verification_unavailable")
     reasons = list(dict.fromkeys(reasons))
     if not reasons:
         reasons = ["surface_quality_gate_failed"]
@@ -1615,7 +1634,12 @@ def _salvage_exhausted_user_surface(
 
 
 def _repair_live_user_surface_self_claims(response_text: Any) -> str:
-    """Ground false or over-strong self-claims before worker quality retries."""
+    """Keep the diagnostic API without using it in the worker decode path.
+
+    Older diagnostics import this helper directly. Worker-owned quality control
+    may reject an unsupported claim, but it cannot substitute canned prose for
+    an authored candidate.
+    """
 
     text = str(response_text or "").strip()
     if not text:
@@ -1627,7 +1651,7 @@ def _repair_live_user_surface_self_claims(response_text: Any) -> str:
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
         _record_mlx_degradation(
             exc,
-            action="continued with unmodified draft after self-claim grounding failed",
+            action="continued with unmodified draft after self-claim analysis failed",
             severity="error",
         )
         return text
@@ -2224,6 +2248,30 @@ def _prepare_clean_retry_kwargs(kwargs: dict[str, Any], *, structured: bool = Fa
     kwargs["repetition_context_size"] = max(
         _safe_int(kwargs.get("repetition_context_size"), 64),
         96,
+    )
+
+
+def _self_claim_retry_uses_original_context(reasons: Any) -> bool:
+    """Self-claim correction resamples; it never adds a behavior instruction."""
+
+    return "self_claim_contradiction" in {
+        str(reason) for reason in (reasons or ()) if str(reason)
+    }
+
+
+def _surface_retry_is_futile(reasons: Any) -> bool:
+    """Return whether regeneration cannot repair the failed contract.
+
+    Prompt provenance and self-claim verification are external integrity
+    dependencies. Asking the model for another answer cannot restore either
+    dependency, so retrying only adds latency and risks replacing useful text.
+    """
+
+    normalized = {str(reason) for reason in (reasons or ()) if str(reason)}
+    return "self_claim_verification_unavailable" in normalized or any(
+        reason.startswith("surface_validation_prompt_binding")
+        or reason == "surface_validation_prompt_missing"
+        for reason in normalized
     )
 
 
@@ -7671,25 +7719,14 @@ def _mlx_worker_loop(
                                                 break
 
                                     if surface_quality_gate_enabled and response_text.strip():
-                                        grounded_surface = _repair_live_user_surface_self_claims(
-                                            response_text
-                                        )
-                                        if grounded_surface != response_text:
-                                            logger.info(
-                                                "🛡️ [WORKER] Grounded user-surface self-claim "
-                                                "before quality validation."
-                                            )
-                                            append_text_mutation(
-                                                surface_control_state,
-                                                stage="mlx_worker.self_claim_grounding",
-                                                method="deterministic_self_claim_repair",
-                                                reasons=["unsupported_self_claim"],
-                                                before=response_text,
-                                                after=grounded_surface,
-                                                deterministic=True,
-                                                authorship_effect="replaced_by_runtime",
-                                            )
-                                            response_text = grounded_surface
+                                        # Content provenance is immutable at the worker
+                                        # boundary. A detector may reject a draft, but it
+                                        # cannot replace Aura's words with canned runtime
+                                        # prose and still call the result model-authored.
+                                        # Self-claim verification remains downstream where
+                                        # it can request a new authored candidate or fail
+                                        # honestly; this layer performs only authorship-
+                                        # preserving normalization.
                                         # Normalise whitespace-only defects
                                         # BEFORE judging quality. The local
                                         # model welds its list markers and
@@ -8005,19 +8042,21 @@ def _mlx_worker_loop(
                                                 # cutoff authoritative merely because the
                                                 # first decode itself took twenty seconds.
                                                 surface_wall_exceeded = False
-                                            binding_failure = any(
-                                                reason.startswith(
-                                                    "surface_validation_prompt_binding"
-                                                )
-                                                or reason
-                                                == "surface_validation_prompt_missing"
-                                                for reason in rejection_reasons
+                                            futile_retry = _surface_retry_is_futile(
+                                                rejection_reasons
                                             )
-                                            if binding_failure:
+                                            if futile_retry:
                                                 surface_wall_exceeded = True
+                                                failure_contract = (
+                                                    "self-claim verification"
+                                                    if "self_claim_verification_unavailable"
+                                                    in rejection_reasons
+                                                    else "surface prompt provenance"
+                                                )
                                                 logger.error(
-                                                    "🛑 [WORKER] Surface prompt provenance "
-                                                    "contract failed; refusing futile model retries."
+                                                    "🛑 [WORKER] %s contract failed; refusing "
+                                                    "futile model retries.",
+                                                    failure_contract,
                                                 )
                                             if surface_wall_exceeded and internal_attempt < max_internal_retries:
                                                 logger.warning(
@@ -8041,14 +8080,19 @@ def _mlx_worker_loop(
                                                         "after structural truncation.",
                                                         kwargs.get("max_tokens"),
                                                     )
-                                                prompt = _build_user_surface_quality_retry_prompt(
-                                                    tokenizer=tokenizer,
-                                                    messages=original_messages,
-                                                    tools=tools,
-                                                    fallback_prompt=original_prompt,
-                                                    reasons=rejection_reasons,
-                                                    job=job,
-                                                )
+                                                if _self_claim_retry_uses_original_context(
+                                                    rejection_reasons
+                                                ):
+                                                    prompt = original_prompt
+                                                else:
+                                                    prompt = _build_user_surface_quality_retry_prompt(
+                                                        tokenizer=tokenizer,
+                                                        messages=original_messages,
+                                                        tools=tools,
+                                                        fallback_prompt=original_prompt,
+                                                        reasons=rejection_reasons,
+                                                        job=job,
+                                                    )
                                                 _prepare_clean_retry_kwargs(
                                                     kwargs,
                                                     structured=bool(

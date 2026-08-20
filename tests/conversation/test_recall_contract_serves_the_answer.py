@@ -59,9 +59,11 @@ def test_a_recall_question_with_no_draft_at_all_still_gets_the_answer() -> None:
 
     assert marker in source
     index = source.find(marker)
-    tail = source[index : index + 500]
+    end = source.find("# A refusal is not an answer", index)
+    recall_branch = source[index:end]
 
-    assert "salvaged_no_reply = composed_recall" in tail
+    assert "return await _finalize_fastpath(" in recall_branch
+    assert "composed_recall," in recall_branch
 
 
 def test_the_composed_recall_is_only_used_when_nothing_was_salvaged() -> None:

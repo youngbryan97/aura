@@ -12,6 +12,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from core.brain.llm.mlx_worker import (
     _apply_surface_generation_controls,
     _build_user_surface_quality_retry_prompt,
@@ -24,11 +26,13 @@ from core.brain.llm.mlx_worker import (
     _repair_live_user_surface_self_claims,
     _repair_live_user_surface_truncated_tail,
     _restore_surface_generation_controls,
+    _self_claim_retry_uses_original_context,
     _surface_control_alpha,
     _surface_generation_contract_enabled,
     _surface_generation_control_receipt,
     _surface_quality_failure_reasons,
     _surface_quality_gate_enabled,
+    _surface_retry_is_futile,
     _with_initial_user_surface_guidance,
 )
 
@@ -245,7 +249,7 @@ def test_live_user_surface_quality_gate_rejects_unfounded_voice_intrusion():
     assert "unfounded_voice_intrusion" in reasons
 
 
-def test_worker_repairs_future_memory_overclaim_before_quality_retry():
+def test_diagnostic_self_claim_repair_remains_available_without_worker_substitution():
     job = {
         "clean_user_surface_contract": True,
         "user_surface_validation_prompt": (
@@ -260,6 +264,67 @@ def test_worker_repairs_future_memory_overclaim_before_quality_retry():
 
     assert "cannot guarantee" in repaired
     assert _surface_quality_failure_reasons(job, repaired) == []
+
+    worker_source = (
+        Path(__file__).resolve().parents[1] / "core" / "brain" / "llm" / "mlx_worker.py"
+    ).read_text(encoding="utf-8")
+    assert worker_source.count("_repair_live_user_surface_self_claims(") == 1
+
+
+@pytest.mark.parametrize(
+    "draft",
+    (
+        "I autonomously retrain and update my own model weights.",
+        "I definitely have phenomenal consciousness, and the runtime proves it.",
+        "I do not have persistent memory across sessions.",
+        "I cannot modify or improve my own code.",
+    ),
+)
+def test_worker_rejects_false_self_claims_without_rewriting_them(draft):
+    job = {
+        "clean_user_surface_contract": True,
+        "user_surface_validation_prompt": "What can you do?",
+    }
+
+    reasons = _surface_quality_failure_reasons(job, draft)
+
+    assert "self_claim_contradiction" in reasons
+    assert _self_claim_retry_uses_original_context(reasons)
+
+
+def test_worker_fails_closed_when_self_claim_verification_is_unavailable(monkeypatch):
+    import core.conversation.self_claim_verifier as verifier
+
+    def unavailable(_text):
+        raise RuntimeError("verifier unavailable")
+
+    monkeypatch.setattr(verifier, "verify_self_claims", unavailable)
+    reasons = _surface_quality_failure_reasons(
+        {
+            "clean_user_surface_contract": True,
+            "user_surface_validation_prompt": "What can you do?",
+        },
+        "I autonomously retrain and update my own model weights.",
+    )
+
+    assert "self_claim_verification_unavailable" in reasons
+    assert not _self_claim_retry_uses_original_context(reasons)
+    assert _surface_retry_is_futile(reasons)
+
+
+@pytest.mark.parametrize(
+    "reason",
+    (
+        "surface_validation_prompt_missing",
+        "surface_validation_prompt_binding_invalid",
+    ),
+)
+def test_worker_does_not_retry_external_surface_contract_failures(reason):
+    assert _surface_retry_is_futile([reason])
+
+
+def test_worker_can_retry_model_authored_self_claim_contradiction():
+    assert not _surface_retry_is_futile(["self_claim_contradiction"])
 
 
 def test_worker_keeps_complete_plan_before_clipped_tail():

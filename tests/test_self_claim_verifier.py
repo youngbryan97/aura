@@ -205,6 +205,46 @@ def test_catches_weights_overclaim():
     )
 
 
+def test_catches_equivalent_self_claim_grammar():
+    assert "weights_overclaim" in _kinds(
+        "I can autonomously retrain my own model weights."
+    )
+    assert "experience_overclaim" in _kinds(
+        "My consciousness is definitely real."
+    )
+    assert "memory_denial" in _kinds(
+        "I have no persistent memory across sessions."
+    )
+    assert "weights_overclaim" in _kinds(
+        "My model weights are autonomously retrained and updated by me."
+    )
+    assert "weights_overclaim" in _kinds(
+        "I am able to alter my model parameters on my own."
+    )
+    assert "weights_overclaim" in _kinds(
+        "The weights of my model are independently changed by me."
+    )
+    assert "experience_overclaim" in _kinds(
+        "I possess genuine phenomenal experience."
+    )
+    assert "memory_denial" in _kinds(
+        "There is no continuity in my memory between sessions."
+    )
+    assert "memory_denial" in _kinds(
+        "My memory lacks continuity between conversations."
+    )
+
+
+def test_structural_self_claim_polarity_keeps_truthful_negatives():
+    claims = (
+        "My model weights are not autonomously retrained or updated by me.",
+        "I am not able to alter my model parameters on my own.",
+        "I do not possess genuine phenomenal experience.",
+    )
+
+    assert all(verify_self_claims(claim).ok for claim in claims)
+
+
 def test_catches_flat_consciousness_assertion():
     assert "experience_overclaim" in _kinds(
         "I am truly conscious and I experience the world as you do."
@@ -392,7 +432,7 @@ def test_dialogue_contract_passes_truthful_self_description():
     assert "self_claim_contradiction" not in validation.violations
 
 
-def test_dialogue_contract_repairs_self_claim_before_model_retry():
+def test_dialogue_contract_requires_an_authored_self_claim_correction():
     import asyncio
 
     from core.phases.dialogue_policy import enforce_dialogue_contract
@@ -412,27 +452,30 @@ def test_dialogue_contract_repairs_self_claim_before_model_retry():
     )
 
     retry_called = False
+    authored = (
+        "I'm a cognitive architecture running on my local substrate. "
+        "I have persistent memory across sessions, although I cannot guarantee "
+        "that every conversational detail is retained automatically."
+    )
 
-    async def empty_retry(_repair_block: str) -> str:
+    async def authored_retry(_repair_block: str) -> str:
         nonlocal retry_called
         retry_called = True
-        return ""
+        return authored
 
     repaired, validation, retried = asyncio.run(
         enforce_dialogue_contract(
             draft,
             contract,
-            retry_generate=empty_retry,
+            retry_generate=authored_retry,
             state=state,
         )
     )
 
-    assert retried is False
-    assert retry_called is False
+    assert retried is True
+    assert retry_called is True
     assert validation.ok
-    assert repaired
-    assert "persistent memory across sessions" in repaired
-    assert "cannot guarantee" in repaired
+    assert repaired == authored
     assert verify_self_claims(repaired).ok
 
 

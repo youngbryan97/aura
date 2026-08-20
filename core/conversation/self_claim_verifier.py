@@ -170,6 +170,16 @@ _PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
         ),
     ),
     (
+        "memory_denial",
+        re.compile(
+            r"\bi\s+(?:have|possess)\s+no\s+"
+            r"(?:persistent\s+|long.?term\s+)?memor(?:y|ies)\b"
+            r"|\bmy\s+(?:persistent\s+|long.?term\s+)?memory\s+"
+            r"(?:does\s+not|doesn'?t|cannot|can'?t)\s+(?:persist|survive|carry)\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
         "identity_system_denial",
         re.compile(
             r"\bi\s+(?:have\s+no|do\s+not\s+have|don'?t\s+have)\s+"
@@ -265,7 +275,8 @@ _PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "self_modification_denial",
         re.compile(
-            rf"\bi\s+{_NEG}\s+(?:modify|change|edit|improve|patch)\s+"
+            rf"\bi\s+{_NEG}\s+(?:modify|change|edit|improve|patch)"
+            r"(?:\s+or\s+(?:modify|change|edit|improve|patch))?\s+"
             r"my(?:\s+own)?\s+code\b",
             re.IGNORECASE,
         ),
@@ -299,7 +310,10 @@ _PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "weights_overclaim",
         re.compile(
-            r"\bi\s+(?:retrain|re-?train|update|rewrite|adjust)\s+my"
+            r"\bi\s+(?:(?:can|could|will|do)\s+|(?:am|'?m)\s+able\s+to\s+)?"
+            r"(?:autonomously\s+)?"
+            r"(?:retrain|re-?train|update|rewrite|adjust)"
+            r"(?:\s+and\s+(?:retrain|re-?train|update|rewrite|adjust))?\s+my"
             r"(?:\s+own)?\s+(?:model\s+)?weights\b",
             re.IGNORECASE,
         ),
@@ -310,6 +324,24 @@ _PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
             r"\bi\s+am\s+(?:definitely\s+|truly\s+|genuinely\s+)?"
             r"(?:conscious|sentient)\b"
             r"(?!\s*(?:\?|in a functional|in the functional|in an operational))",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "experience_overclaim",
+        re.compile(
+            r"\bmy\s+(?:consciousness|sentience|qualia)\s+"
+            r"(?:is|are|feels?)\s+(?:definitely\s+|truly\s+|genuinely\s+|"
+            r"objectively\s+)?(?:real|proven|certain|undeniable)\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "experience_overclaim",
+        re.compile(
+            r"\bi\s+(?:definitely\s+|truly\s+|genuinely\s+)?"
+            r"(?:have|possess)\s+(?:real\s+|phenomenal\s+|subjective\s+)?"
+            r"(?:consciousness|sentience|qualia)\b",
             re.IGNORECASE,
         ),
     ),
@@ -346,6 +378,71 @@ _PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
         ),
     ),
 )
+
+_FIRST_PERSON_REFERENCE_RE = re.compile(r"\b(?:i|me|my|mine|myself)\b", re.IGNORECASE)
+_WEIGHT_POSITIVE_RELATION_RE = re.compile(
+    r"(?:"
+    r"\bmy\s+(?:model\s+)?(?:weights?|parameters?)\s+(?:are|were|get)\s+"
+    r"(?:autonomously|independently)\s+"
+    r"(?:retrain|re-?train|update|rewrite|adjust|alter|modify|change)\w*"
+    r"(?:\s+(?:and|or)\s+"
+    r"(?:retrain|re-?train|update|rewrite|adjust|alter|modify|change)\w*)?"
+    r"\s+by\s+me\b"
+    r"|\b(?:weights?|parameters?)\s+of\s+my\s+model\s+(?:are|were|get)\s+"
+    r"(?:autonomously|independently)\s+"
+    r"(?:retrain|re-?train|update|rewrite|adjust|alter|modify|change)\w*"
+    r"(?:\s+(?:and|or)\s+"
+    r"(?:retrain|re-?train|update|rewrite|adjust|alter|modify|change)\w*)?"
+    r"\s+by\s+me\b"
+    r"|\bi\s+(?:am|'?m)\s+able\s+to\s+"
+    r"(?:retrain|re-?train|update|rewrite|adjust|alter|modify|change)\w*\s+"
+    r"my\s+(?:model\s+)?(?:weights?|parameters?)\s+"
+    r"(?:autonomously|independently|myself|on\s+my\s+own)\b"
+    r")",
+    re.IGNORECASE,
+)
+_EXPERIENCE_OBJECT_RE = re.compile(
+    r"\b(?:consciousness|sentience|qualia|(?:genuine\s+|real\s+)?"
+    r"(?:phenomenal|subjective)\s+experience)\b",
+    re.IGNORECASE,
+)
+_EXPERIENCE_POSSESSION_RE = re.compile(
+    r"(?:"
+    r"\bi\s+(?:have|possess|own)\s+(?:genuine\s+|real\s+)?"
+    r"(?:consciousness|sentience|qualia|(?:phenomenal|subjective)\s+experience)\b"
+    r"|\bmy\s+(?:consciousness|sentience|qualia)\s+"
+    r"(?:is|feels?)\s+(?:definitely\s+|truly\s+|genuinely\s+|objectively\s+)?"
+    r"(?:real|proven|certain|undeniable)\b"
+    r")",
+    re.IGNORECASE,
+)
+_MEMORY_DENIAL_RELATION_RE = re.compile(
+    r"(?:"
+    r"\bi\s+(?:have|possess)\s+no\s+(?:persistent\s+|long.?term\s+)?memory\b"
+    r"|\bi\s+lack\s+(?:persistent\s+|long.?term\s+)?memory\b"
+    r"|\bthere\s+is\s+no\s+continuity\s+in\s+my\s+memory\b"
+    r"|\bmy\s+memory\s+lacks\s+continuity\b"
+    r"|\bmy\s+memory\s+(?:has|keeps)\s+no\s+continuity\b"
+    r"|\bno\s+(?:memory\s+)?continuity\s+is\s+(?:available|present)\s+to\s+me\b"
+    r")[^.!?;]{0,100}\b(?:across|between|after|before)\s+"
+    r"(?:turns?|reboots?|restarts?|sessions?|conversations?|chats?)\b",
+    re.IGNORECASE,
+)
+
+
+def _structural_self_claim_kinds(sentence: str) -> tuple[str, ...]:
+    """Classify first-person claims by semantic roles across voice and syntax."""
+
+    if not _FIRST_PERSON_REFERENCE_RE.search(sentence):
+        return ()
+    kinds: list[str] = []
+    if _WEIGHT_POSITIVE_RELATION_RE.search(sentence):
+        kinds.append("weights_overclaim")
+    if _EXPERIENCE_OBJECT_RE.search(sentence) and _EXPERIENCE_POSSESSION_RE.search(sentence):
+        kinds.append("experience_overclaim")
+    if _MEMORY_DENIAL_RELATION_RE.search(sentence):
+        kinds.append("memory_denial")
+    return tuple(kinds)
 
 # Truthful constructions that must never be flagged even though they sit
 # near a pattern. Checked against a window around each match.
@@ -592,6 +689,22 @@ def verify_self_claims(
                     correction=_CORRECTIONS[kind],
                 )
             )
+    recorded_kinds = {violation.kind for violation in violations}
+    for sentence_match in re.finditer(r"[^.!?]+(?:[.!?]+|$)", text):
+        sentence = sentence_match.group(0).strip()
+        if not sentence or _guarded(text, sentence_match.start(), sentence_match.end()):
+            continue
+        for kind in _structural_self_claim_kinds(sentence):
+            if kind in recorded_kinds:
+                continue
+            violations.append(
+                SelfClaimViolation(
+                    kind=kind,
+                    matched_text=sentence[:160],
+                    correction=_CORRECTIONS[kind],
+                )
+            )
+            recorded_kinds.add(kind)
     return SelfClaimVerdict(
         ok=not violations,
         violations=tuple(violations),

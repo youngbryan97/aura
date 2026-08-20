@@ -48,6 +48,63 @@ from core.intent.opaque_spans import first_named_url as _first_named_url
 #: Enough of a rejected draft to judge the rejection by.
 _REJECTED_DRAFT_LOG_CHARS = 400
 
+
+def _dialogue_mutation_provenance(
+    before: Any,
+    after: Any,
+    *,
+    retry_attempted: bool,
+    selected_source: str = "",
+) -> dict[str, Any]:
+    """Describe the selected text, not merely the work attempted around it."""
+
+    before_text = str(before or "")
+    after_text = str(after or "")
+    declared_source = str(selected_source or "").strip()
+    if declared_source in {
+        "incumbent",
+        "suppressed",
+        "model_retry",
+        "deterministic_repair",
+    }:
+        selected_source = declared_source
+    elif after_text == before_text:
+        selected_source = "incumbent"
+    elif not after_text:
+        selected_source = "suppressed"
+    elif retry_attempted:
+        selected_source = "model_retry"
+    else:
+        selected_source = "deterministic_repair"
+    model_replaced = selected_source == "model_retry"
+    runtime_suppressed = selected_source == "suppressed"
+    return {
+        "stage": (
+            "response_generation.dialogue_contract_retry"
+            if model_replaced
+            else "response_generation.dialogue_contract_suppression"
+            if runtime_suppressed
+            else "response_generation.dialogue_contract_repair"
+        ),
+        "method": (
+            "model_dialogue_replacement"
+            if model_replaced
+            else "dialogue_contract_suppression"
+            if runtime_suppressed
+            else "deterministic_dialogue_repair"
+        ),
+        "deterministic": not model_replaced,
+        "authorship_effect": (
+            "replaced_by_model"
+            if model_replaced
+            else "replaced_by_runtime"
+            if runtime_suppressed
+            else "preserved"
+        ),
+        "model_replaced": model_replaced,
+        "selected_source": selected_source,
+    }
+
 #: What a skill result may carry into the prompt.
 #:
 #: LIVE, 2026-08-20. http_request returned {ok, url, status, text, ...}. The
@@ -3127,27 +3184,23 @@ class ResponseGenerationPhase(BasePhase):
                 user_message=user_surface_validation_prompt,
             )
             state.response_modifiers["dialogue_validation"] = dialogue_validation.to_dict()
+            dialogue_provenance = _dialogue_mutation_provenance(
+                pre_dialogue_text,
+                cleaned_response,
+                retry_attempted=dialogue_retried,
+                selected_source=getattr(dialogue_validation, "selected_source", ""),
+            )
             append_text_mutation(
                 response_mutation_receipt,
-                stage=(
-                    "response_generation.dialogue_contract_retry"
-                    if dialogue_retried
-                    else "response_generation.dialogue_contract_repair"
-                ),
-                method=(
-                    "model_dialogue_replacement"
-                    if dialogue_retried
-                    else "deterministic_dialogue_repair"
-                ),
+                stage=dialogue_provenance["stage"],
+                method=dialogue_provenance["method"],
                 reasons=list(getattr(dialogue_validation, "violations", []) or []),
                 before=pre_dialogue_text,
                 after=cleaned_response,
-                deterministic=not dialogue_retried,
-                authorship_effect=(
-                    "replaced_by_model" if dialogue_retried else "preserved"
-                ),
+                deterministic=dialogue_provenance["deterministic"],
+                authorship_effect=dialogue_provenance["authorship_effect"],
             )
-            if dialogue_retried:
+            if dialogue_provenance["model_replaced"]:
                 generation_metadata = {
                     **self._generation_metadata_snapshot(router),
                     **latent_trace,

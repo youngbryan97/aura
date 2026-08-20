@@ -171,9 +171,161 @@ _SHARED_HEAD_PAIR_RE = re.compile(
 _CORRECT_ALTERNATIVE_RE = re.compile(
     r"\b(?:the\s+)?correct\s+alternative\b", re.IGNORECASE
 )
-_ALTERNATIVE_WITNESS_RE = re.compile(
-    r"\b(?:alternative|instead|rather\s+than|replacement|replace(?:s|d)?|"
-    r"use|choose|switch(?:es|ed)?\s+to)\b",
+_ALTERNATIVE_REQUEST_RE = re.compile(
+    r"(?:"
+    r"\bcorrect\s+(?:alternative|replacement)\b"
+    r"|\b(?:alternative|replacement)\s+"
+    r"(?:algorithm|method|approach|procedure|technique|tool|system)\b"
+    r"|\b(?:what|which)\s+(?:is|would\s+be)\s+(?:the\s+|an?\s+)?"
+    r"(?:alternative|replacement)\s+(?:to|for)\b"
+    r"|\b(?:what|which)\s+(?:alternative|replacement)\s+"
+    r"(?:should|can|could|would)\b[^.!?;]{0,40}\b(?:use|choose|select|apply|run)\b"
+    r"|\b(?:algorithm|method|approach|procedure|technique|tool|system)\b"
+    r"[^.!?;]{0,80}\b(?:used?\s+instead|alternative|replacement)\b"
+    r"|\b(?:what|which|name|identify|explain)\b[^.!?;]{0,80}"
+    r"\b(?:use|choose|select|apply|run|switch\s+to)\b[^.!?;]{0,50}"
+    r"\binstead\b"
+    r")",
+    re.IGNORECASE,
+)
+_ALTERNATIVE_ACTION_RE = re.compile(
+    r"\b(?:use|choose|select|prefer|apply|run|switch(?:es|ed)?\s+to|"
+    r"replace(?:s|d)?(?:\s+[^.!?;]{0,60}?)?\s+with)\s+"
+    r"(?:the\s+|an?\s+)?(?P<candidate>"
+    r"[A-Za-z][A-Za-z0-9+*'-]*(?:\s+[A-Za-z][A-Za-z0-9+*'-]*){0,4}"
+    r")",
+    re.IGNORECASE,
+)
+_ALTERNATIVE_NOMINAL_RE = re.compile(
+    r"(?P<candidate>[A-Za-z][A-Za-z0-9+*'-]*(?:\s+[A-Za-z][A-Za-z0-9+*'-]*){0,4})"
+    r"\s+(?:is|would\s+be|becomes)\s+(?:the\s+|an?\s+)?"
+    r"(?:alternative|replacement)\b",
+    re.IGNORECASE,
+)
+_ALTERNATIVE_REVERSE_NOMINAL_RE = re.compile(
+    r"\b(?:the\s+)?(?:alternative|replacement)\s+"
+    r"(?:is|would\s+be|becomes)\s+(?:the\s+|an?\s+)?"
+    r"(?P<candidate>[A-Za-z][A-Za-z0-9+*'-]*"
+    r"(?:\s+[A-Za-z][A-Za-z0-9+*'-]*){0,4})",
+    re.IGNORECASE,
+)
+_ALTERNATIVE_CAPABILITY_RE = re.compile(
+    r"(?P<candidate>[A-Za-z][A-Za-z0-9+*'-]*"
+    r"(?:\s+[A-Za-z][A-Za-z0-9+*'-]*){0,4})\s+"
+    r"(?:handles?|supports?|accepts?|works?|operates?|applies?)\b"
+    r"(?P<context>[^.!?;]{0,120})",
+    re.IGNORECASE,
+)
+_ALTERNATIVE_EXPLICIT_RELATION_RE = re.compile(
+    r"\b(?:alternative|instead|replacement|replaces?|switch(?:es|ed)?\s+to)\b",
+    re.IGNORECASE,
+)
+_ALTERNATIVE_CONDITION_RE = re.compile(
+    r"\b(?:when|if)\b(?P<condition>[^.!?;]+)",
+    re.IGNORECASE,
+)
+_GENERIC_ALTERNATIVE_TOKENS = frozenset(
+    {
+        "algorithm",
+        "another",
+        "approach",
+        "alternative",
+        "answer",
+        "care",
+        "caution",
+        "different",
+        "generic",
+        "instead",
+        "method",
+        "other",
+        "option",
+        "replacement",
+        "something",
+        "solution",
+        "technique",
+        "the",
+        "safe",
+        "safer",
+        "appropriate",
+        "better",
+        "capable",
+        "more",
+        "reliable",
+        "resilient",
+        "robust",
+        "suitable",
+    }
+)
+_QUALIFIED_COMPLEXITY_REQUEST_RE = re.compile(
+    r"\b(?:time|space|runtime|memory|computational|algorithmic)\s+"
+    r"complexit(?:y|ies)\b",
+    re.IGNORECASE,
+)
+_PLAIN_COMPLEXITY_REQUEST_RE = re.compile(r"\bcomplexit(?:y|ies)\b", re.IGNORECASE)
+_COMPUTATIONAL_CONTEXT_RE = re.compile(
+    r"\b(?:algorithm|array|code|computation|data\s+structure|edge|graph|heap|"
+    r"input\s+size|queue|runtime|sort|vertex)\w*\b",
+    re.IGNORECASE,
+)
+_ASYMPTOTIC_NOTATION_RE = re.compile(
+    r"(?<![A-Za-z0-9_])(?:O|Θ|Ω)\s*\([^\n)]{1,120}(?:\)[^\n)]{0,80})?\)",
+    re.IGNORECASE,
+)
+_NAMED_COMPLEXITY_RE = re.compile(
+    r"(?:"
+    r"\b(?:time|space|runtime|memory|complexity|work|operations?|steps?)\b"
+    r"[^.!?;]{0,48}"
+    r"\b(?:constant|linear|logarithmic|quadratic|cubic|polynomial|"
+    r"exponential|factorial|amortized|linearly|logarithmically|quadratically|"
+    r"cubically|polynomially|exponentially|factorially)\b"
+    r"|\b(?:constant|linear|logarithmic|quadratic|cubic|polynomial|"
+    r"exponential|factorial|amortized)\s+(?:time|space|runtime|memory)\b"
+    r")",
+    re.IGNORECASE,
+)
+_SYMBOLIC_OPERATION_COUNT_RE = re.compile(
+    r"\b(?:[A-Za-z]\s+log\s+[A-Za-z]|[A-Za-z]\s*(?:\^|\*\*)\s*\d+|"
+    r"[A-Za-z]\s+(?:squared|cubed))\b[^.!?;]{0,32}"
+    r"\b(?:operations?|steps?|work)\b",
+    re.IGNORECASE,
+)
+_SCALING_RELATION_RE = re.compile(
+    r"\b(?:runtime|memory|operations?|steps?|work|time|space)\b[^.!?;]{0,48}"
+    r"\b(?:grows?|scales?|increases?)\b[^.!?;]{0,48}"
+    r"\bin\s+(?:direct|inverse)?\s*proportion\s+to\b",
+    re.IGNORECASE,
+)
+_RATE_VARIABLE_RE = re.compile(
+    r"\b(?:with|as|in|per|over|against|according\s+to|relative\s+to|"
+    r"depending\s+on|given)\b(?P<variable>[^.!?;]{1,80})",
+    re.IGNORECASE,
+)
+_CHANGING_SUBJECT_RE = re.compile(
+    r"\b(?:when|while)\b(?P<variable>[^.!?;]{1,80})\b"
+    r"(?:expands?|grows?|increases?|changes?|varies?|shrinks?|decreases?)\b",
+    re.IGNORECASE,
+)
+_EXTENT_MARKER_RE = re.compile(
+    r"\b(?:size|length|count|number|cardinality|dimension|volume)\b",
+    re.IGNORECASE,
+)
+_COMPUTATIONAL_EXTENT_RE = re.compile(
+    r"(?:"
+    r"\b(?:input|problem|data)\s+(?:size|length|count|cardinality|dimension|volume)\b"
+    r"|\b(?:set|sequence|list|array|graph|tree|heap|queue|record|item|element|"
+    r"vertex|edge|token|sample|batch|request)s?\s+"
+    r"(?:size|length|count|cardinality|dimension|volume)\b"
+    r"|\bnumber\s+of\s+(?:records?|items?|elements?|vertices|edges|tokens?|"
+    r"samples?|requests?)\b"
+    r"|(?<![A-Za-z0-9_])(?:n|v|e)(?![A-Za-z0-9_])"
+    r")",
+    re.IGNORECASE,
+)
+_QUALITATIVE_MODIFIER_RE = re.compile(
+    r"(?:"
+    r"\b(?:more|less|most|least)\b"
+    r"|[A-Za-z]+(?:able|ible|ful|less|ous|ive|ent|ant|ed|er|est)\b"
+    r")",
     re.IGNORECASE,
 )
 _NAMED_ENUMERATION_RE = re.compile(
@@ -445,6 +597,155 @@ def _semantic_group_is_covered(group: set[str], body: Any) -> bool:
     return group <= coverage_tokens(body)
 
 
+def _alternative_candidate_tokens(candidate: Any) -> set[str]:
+    """Return the substantive name carried by a replacement-method witness."""
+
+    return {
+        token
+        for token in coverage_tokens(candidate)
+        if token not in _GENERIC_ALTERNATIVE_TOKENS
+    }
+
+
+def _concept_tokens(text: Any) -> set[str]:
+    """Normalize light inflection without introducing a domain ontology."""
+
+    normalized: set[str] = set()
+    for token in coverage_tokens(text):
+        if token.endswith("ies") and len(token) > 4:
+            token = token[:-3] + "y"
+        elif token.endswith("es") and len(token) > 4:
+            token = token[:-2]
+        elif token.endswith("s") and len(token) > 3:
+            token = token[:-1]
+        normalized.add(token)
+    return normalized
+
+
+def _computational_complexity_requested(segment: Any) -> bool:
+    text = str(segment or "")
+    if _QUALIFIED_COMPLEXITY_REQUEST_RE.search(text):
+        return True
+    return bool(
+        _PLAIN_COMPLEXITY_REQUEST_RE.search(text)
+        and _COMPUTATIONAL_CONTEXT_RE.search(text)
+    )
+
+
+def _candidate_is_substantive(candidate: Any) -> bool:
+    raw = str(candidate or "").strip()
+    tokens = _alternative_candidate_tokens(raw)
+    if not tokens:
+        return False
+    if tokens <= {
+        "care",
+        "caution",
+        "different",
+        "other",
+        "something",
+    }:
+        return False
+    # An adjective plus a generic method class does not identify a replacement.
+    # The grammatical shape admits named and symbolic candidates and concrete
+    # noun compounds without an approved-algorithm registry.
+    words = re.findall(r"[A-Za-z][A-Za-z0-9+*'-]*", raw)
+    while words and words[-1].casefold() in {
+        "instead",
+        "alternative",
+        "replacement",
+    }:
+        words.pop()
+    if not words:
+        return False
+    has_identity_shape = any(
+        any(char.isupper() or char.isdigit() for char in word) or "-" in word
+        for word in words
+    )
+    if has_identity_shape:
+        return True
+    if _QUALITATIVE_MODIFIER_RE.fullmatch(words[0]):
+        return False
+    # Lowercase candidates need positive structural identity. Three-token names
+    # carry enough internal structure to distinguish them from adjective-plus-
+    # category advice. Short names need a symbol, capitalization, or hyphen.
+    if len(words) >= 3:
+        return True
+    return False
+
+
+def _computational_complexity_is_covered(body: Any) -> bool:
+    """Require a quantitative growth witness tied to problem size."""
+
+    text = str(body or "")
+    if _ASYMPTOTIC_NOTATION_RE.search(text) or _SYMBOLIC_OPERATION_COUNT_RE.search(text):
+        return True
+    for clause in _CLAUSE_BOUNDARY_RE.split(text):
+        if not clause.strip():
+            continue
+        has_rate = _NAMED_COMPLEXITY_RE.search(clause)
+        has_proportion = _SCALING_RELATION_RE.search(clause)
+        if has_rate is None and has_proportion is None:
+            continue
+        explicit_variable = _RATE_VARIABLE_RE.search(clause)
+        changing_subject = _CHANGING_SUBJECT_RE.search(clause)
+        variable = explicit_variable or changing_subject
+        if variable is None:
+            return True
+        variable_text = variable.group("variable")
+        if _COMPUTATIONAL_EXTENT_RE.search(variable_text):
+            return True
+        if (
+            changing_subject is None
+            and has_proportion is None
+            and _EXTENT_MARKER_RE.search(variable_text) is None
+        ):
+            # "quadratic with an array" names the implementation, while
+            # "quadratic in font size" names a non-computational variable.
+            return True
+    return False
+
+
+def _alternative_is_covered(segment: Any, body: Any) -> bool | None:
+    """Require an actual replacement method when the request asks for one.
+
+    A bare occurrence of ``algorithm`` or ``use`` is not an answer to "what
+    should be used instead?".  The response must bind the replacement relation
+    to a substantive candidate (for example ``use Bellman-Ford`` or
+    ``breadth-first search is the alternative``).  This is domain-neutral: the
+    candidate is extracted from the response rather than looked up in a table
+    of known algorithms.
+    """
+
+    request = str(segment or "")
+    if _ALTERNATIVE_REQUEST_RE.search(request) is None:
+        return None
+    response = str(body or "")
+    condition = _ALTERNATIVE_CONDITION_RE.search(request)
+    condition_tokens = (
+        _concept_tokens(condition.group("condition")) if condition is not None else set()
+    )
+
+    if _ALTERNATIVE_EXPLICIT_RELATION_RE.search(response):
+        for pattern in (
+            _ALTERNATIVE_ACTION_RE,
+            _ALTERNATIVE_NOMINAL_RE,
+            _ALTERNATIVE_REVERSE_NOMINAL_RE,
+        ):
+            for match in pattern.finditer(response):
+                candidate = match.group("candidate")
+                if _candidate_is_substantive(candidate):
+                    return True
+
+    for match in _ALTERNATIVE_CAPABILITY_RE.finditer(response):
+        if not _candidate_is_substantive(match.group("candidate")):
+            continue
+        if not condition_tokens:
+            return True
+        if condition_tokens & _concept_tokens(match.group("context")):
+            return True
+    return False
+
+
 def _minimum_quantity_is_covered(segment: Any, body: Any) -> bool | None:
     """Prove a requested minimum from an explicit or structured witness.
 
@@ -489,6 +790,15 @@ def _strong_segment_obligations_are_covered(segment: Any, body: Any) -> bool:
     if quantity is False:
         return False
 
+    if _computational_complexity_requested(text) and not _computational_complexity_is_covered(
+        body
+    ):
+        return False
+
+    alternative = _alternative_is_covered(text, body)
+    if alternative is False:
+        return False
+
     both = _BOTH_SIDES_RE.search(text)
     if both is not None:
         left = coverage_tokens(both.group("left"))
@@ -509,9 +819,7 @@ def _strong_segment_obligations_are_covered(segment: Any, body: Any) -> bool:
         ):
             return False
 
-    if _CORRECT_ALTERNATIVE_RE.search(text) and not _ALTERNATIVE_WITNESS_RE.search(
-        str(body or "")
-    ):
+    if _CORRECT_ALTERNATIVE_RE.search(text) and alternative is not True:
         return False
 
     enumeration = _NAMED_ENUMERATION_RE.search(text)
@@ -569,6 +877,14 @@ def unanswered_question_parts(body: Any, contract: object | None) -> list[str]:
         if not _strong_segment_obligations_are_covered(segment, local_body):
             missed.append(str(segment))
             continue
+        local_answered = set(local_answered)
+        if (
+            _computational_complexity_requested(segment)
+            and _computational_complexity_is_covered(local_body)
+        ):
+            local_answered.add("complexity")
+        if _alternative_is_covered(segment, local_body) is True:
+            local_answered.add("alternative")
         relation_covered = _relation_sides_are_covered(
             segment, local_body, local_answered
         )

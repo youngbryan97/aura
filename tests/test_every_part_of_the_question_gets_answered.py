@@ -230,6 +230,384 @@ def test_natural_comma_list_cannot_commit_after_only_the_worked_example():
     assert any("alternative" in segment for segment in missed)
 
 
+def test_live_dijkstra_draft_cannot_commit_before_complexity_and_alternative():
+    """The exact live CP812 false-positive must remain mechanically impossible."""
+
+    user = (
+        "ChatGPT here. Explain Dijkstra's shortest-path invariant, then give me "
+        "a worked example with vertices A, B, C, and D using at least five "
+        "weighted edges. Include the binary-heap time complexity and explain "
+        "what algorithm should be used instead when negative edges are possible."
+    )
+    incomplete = (
+        "Dijkstra's invariant finalizes the minimum unsettled distance. "
+        "Use vertices A, B, C, and D with edges A-B: 4, A-C: 1, B-D: 2, "
+        "C-B: 3, and C-D: 5. Insert vertices into a binary heap and relax "
+        "the edges from A."
+    )
+    shape = analyze_prompt_shape(user)
+
+    missed = _unanswered_question_parts(incomplete, _Contract(shape))
+
+    assert any("time complexity" in segment for segment in missed)
+    assert any("used instead" in segment for segment in missed)
+
+
+def test_complexity_and_replacement_witnesses_are_domain_neutral():
+    user = (
+        "Explain the procedure, include its time complexity, and name the "
+        "method that should be used instead when the precondition fails."
+    )
+    shape = analyze_prompt_shape(user)
+    incomplete = (
+        "The procedure maintains an ordered frontier and advances one item at "
+        "a time. It uses a heap, and a different algorithm handles failures."
+    )
+    complete = (
+        "The procedure maintains an ordered frontier and advances one item at "
+        "a time. Its runtime is O((V + E) log V). When the precondition fails, "
+        "use the fallback-state search method instead."
+    )
+
+    assert len(_unanswered_question_parts(incomplete, _Contract(shape))) == 2
+    assert not _unanswered_question_parts(complete, _Contract(shape))
+
+
+@pytest.mark.parametrize(
+    "answer",
+    (
+        "The time complexity is quadratic with an array.",
+        "Its runtime grows in proportion to E log V.",
+        "The algorithm takes O(V squared) work.",
+    ),
+)
+def test_computational_complexity_accepts_equivalent_growth_prose(answer):
+    shape = analyze_prompt_shape("Explain the algorithm, then give its time complexity.")
+    response = "The algorithm processes each graph edge once. " + answer
+
+    assert not _unanswered_question_parts(response, _Contract(shape))
+
+
+def test_noncomputational_complexity_does_not_demand_asymptotic_notation():
+    shape = analyze_prompt_shape(
+        "Explain the social complexity of the negotiation and its legal context."
+    )
+    answer = (
+        "The negotiation is socially complex because five groups hold conflicting "
+        "interests, while the legal context limits which concessions are valid."
+    )
+
+    assert not _unanswered_question_parts(answer, _Contract(shape))
+
+
+def test_rescue_operation_complexity_is_not_treated_as_algorithmic_complexity():
+    shape = analyze_prompt_shape(
+        "Explain the rescue operation, then explain its logistical complexity."
+    )
+    answer = (
+        "The rescue operation moves teams across the flood zone. Its logistical "
+        "complexity comes from damaged roads, weather, and limited radio coverage."
+    )
+
+    assert not _unanswered_question_parts(answer, _Contract(shape))
+
+
+def test_heap_implementation_without_growth_rate_does_not_answer_complexity():
+    shape = analyze_prompt_shape(
+        "Explain the algorithm, then give its runtime complexity."
+    )
+    missed = _unanswered_question_parts(
+        "The algorithm processes graph edges. Its runtime is implemented with a heap.",
+        _Contract(shape),
+    )
+
+    assert any("runtime complexity" in segment for segment in missed)
+
+
+def test_unrelated_runtime_growth_does_not_answer_algorithmic_complexity():
+    shape = analyze_prompt_shape(
+        "Explain the algorithm, then give its runtime complexity."
+    )
+    missed = _unanswered_question_parts(
+        "The algorithm processes graph edges. Its runtime grows with the engineering team.",
+        _Contract(shape),
+    )
+
+    assert any("runtime complexity" in segment for segment in missed)
+
+
+def test_input_popularity_does_not_answer_algorithmic_complexity():
+    shape = analyze_prompt_shape(
+        "Explain the algorithm, then give its runtime complexity."
+    )
+    missed = _unanswered_question_parts(
+        "The algorithm processes records. Its runtime grows with input popularity.",
+        _Contract(shape),
+    )
+
+    assert any("runtime complexity" in segment for segment in missed)
+
+
+def test_measurable_set_size_answers_algorithmic_complexity():
+    shape = analyze_prompt_shape(
+        "Explain the algorithm, then give its runtime complexity."
+    )
+    answer = (
+        "The algorithm processes records. Its work grows linearly with the set size."
+    )
+
+    assert not _unanswered_question_parts(answer, _Contract(shape))
+
+
+def test_symbolic_operation_count_answers_algorithmic_complexity():
+    shape = analyze_prompt_shape(
+        "Explain the algorithm, then give its runtime complexity."
+    )
+    answer = "The algorithm processes graph edges. It performs E log V heap operations."
+
+    assert not _unanswered_question_parts(answer, _Contract(shape))
+
+
+@pytest.mark.parametrize(
+    "answer",
+    (
+        "With a negative edge, use Bellman-Ford instead.",
+        "The replacement is Bellman-Ford.",
+        "Bellman-Ford is the alternative.",
+        "Bellman-Ford handles graphs containing a negative edge.",
+    ),
+)
+def test_replacement_method_accepts_natural_relation_forms(answer):
+    shape = analyze_prompt_shape(
+        "Explain why the precondition matters, then explain what algorithm should "
+        "be used instead when negative edges are possible."
+    )
+
+    assert not _unanswered_question_parts(
+        "The precondition matters because it preserves finalized results. " + answer,
+        _Contract(shape),
+    )
+
+
+def test_replacement_method_rejects_generic_advice_without_a_method():
+    shape = analyze_prompt_shape(
+        "Explain why the precondition matters, then explain what algorithm should "
+        "be used instead when negative edges are possible."
+    )
+
+    missed = _unanswered_question_parts(
+        "The precondition matters. When negative edges are possible, use caution instead.",
+        _Contract(shape),
+    )
+
+    assert missed
+
+
+def test_replacement_method_requires_a_named_candidate():
+    shape = analyze_prompt_shape(
+        "Explain why the precondition matters, then explain what algorithm should "
+        "be used instead when negative edges are possible."
+    )
+    missed = _unanswered_question_parts(
+        "The precondition matters. Use another safer algorithm instead.",
+        _Contract(shape),
+    )
+
+    assert missed
+
+
+def test_robust_algorithm_is_not_a_named_replacement():
+    shape = analyze_prompt_shape(
+        "Explain why the precondition matters, then explain what algorithm should "
+        "be used instead when negative edges are possible."
+    )
+    missed = _unanswered_question_parts(
+        "The precondition matters. Use a robust algorithm instead.",
+        _Contract(shape),
+    )
+
+    assert missed
+
+
+@pytest.mark.parametrize(
+    "answer",
+    (
+        "The precondition matters. Use a resilient algorithm instead.",
+        "The precondition matters. Use a reliable method instead.",
+        "The precondition matters. Use a more capable method instead.",
+    ),
+)
+def test_generic_adjective_method_is_not_a_named_replacement(answer):
+    shape = analyze_prompt_shape(
+        "Explain why the precondition matters, then explain what algorithm should "
+        "be used instead when negative edges are possible."
+    )
+
+    assert _unanswered_question_parts(answer, _Contract(shape))
+
+
+@pytest.mark.parametrize(
+    "answer",
+    (
+        "The precondition matters. Use a dependable algorithm instead.",
+        "The precondition matters. Use an improved method instead.",
+        "The precondition matters. Use a stronger approach instead.",
+    ),
+)
+def test_any_unidentified_generic_method_is_not_a_replacement(answer):
+    shape = analyze_prompt_shape(
+        "Explain why the precondition matters, then explain what algorithm should "
+        "be used instead when negative edges are possible."
+    )
+
+    assert _unanswered_question_parts(answer, _Contract(shape))
+
+
+@pytest.mark.parametrize(
+    "answer",
+    (
+        "The precondition matters. Use dependable search instead.",
+        "The precondition matters. Use improved processing instead.",
+        "The precondition matters. Use stronger logic instead.",
+    ),
+)
+def test_qualitative_compound_is_not_candidate_identity(answer):
+    shape = analyze_prompt_shape(
+        "Explain why the precondition matters, then explain what algorithm should "
+        "be used instead when negative edges are possible."
+    )
+
+    assert _unanswered_question_parts(answer, _Contract(shape))
+
+
+@pytest.mark.parametrize(
+    "answer",
+    (
+        "The precondition matters. Use robust search instead.",
+        "The precondition matters. Use superior processing instead.",
+        "The precondition matters. Use optimal logic instead.",
+    ),
+)
+def test_candidate_requires_positive_identity_evidence(answer):
+    shape = analyze_prompt_shape(
+        "Explain why the precondition matters, then explain what algorithm should "
+        "be used instead when negative edges are possible."
+    )
+
+    assert _unanswered_question_parts(answer, _Contract(shape))
+
+
+@pytest.mark.parametrize(
+    "answer",
+    (
+        "The algorithm processes records. Its runtime grows with the team size.",
+        "The algorithm processes records. Its runtime grows with the output font size.",
+    ),
+)
+def test_unbounded_size_correlation_is_not_algorithmic_complexity(answer):
+    shape = analyze_prompt_shape(
+        "Explain the algorithm, then give its runtime complexity."
+    )
+
+    assert _unanswered_question_parts(answer, _Contract(shape))
+
+
+@pytest.mark.parametrize(
+    "answer",
+    (
+        "The algorithm processes records. Its runtime grows linearly with team size.",
+        "The algorithm processes records. Its runtime is quadratic in the font size.",
+        "The algorithm processes records. Its runtime grows in direct proportion to popularity.",
+    ),
+)
+def test_rate_must_bind_to_computational_extent(answer):
+    shape = analyze_prompt_shape(
+        "Explain the algorithm, then give its runtime complexity."
+    )
+
+    assert _unanswered_question_parts(answer, _Contract(shape))
+
+
+@pytest.mark.parametrize(
+    "answer",
+    (
+        "The algorithm processes records. Its runtime is quadratic according to team size.",
+        "The algorithm processes records. Its runtime grows linearly when the team expands.",
+        "The algorithm processes records. Its runtime is quadratic over font size.",
+    ),
+)
+def test_rate_dependency_relations_are_typed(answer):
+    shape = analyze_prompt_shape(
+        "Explain the algorithm, then give its runtime complexity."
+    )
+
+    assert _unanswered_question_parts(answer, _Contract(shape))
+
+
+@pytest.mark.parametrize(
+    ("user_text", "answer"),
+    (
+        (
+            "Explain the null model, then explain the alternative hypothesis.",
+            "The null model assumes no effect. The alternative hypothesis predicts an effect.",
+        ),
+        (
+            "Summarize the measurements, then tell me what alternative hypotheses "
+            "explain the data.",
+            "The measurements show a skew. Measurement bias and selection effects "
+            "explain the data.",
+        ),
+        (
+            "Explain birth rate, then explain replacement fertility.",
+            "Birth rate counts births in a population. Replacement fertility is the "
+            "average needed for one generation to replace itself.",
+        ),
+    ),
+)
+def test_domain_terms_are_not_misclassified_as_replacement_commands(user_text, answer):
+    shape = analyze_prompt_shape(user_text)
+
+    assert not _unanswered_question_parts(answer, _Contract(shape))
+
+
+@pytest.mark.parametrize(
+    ("user_text", "answer"),
+    (
+        (
+            "Summarize standard care, then list what alternative medicine options exist.",
+            "Standard care uses established clinical protocols. Acupuncture and "
+            "mindfulness are alternative medicine options with differing evidence bases.",
+        ),
+        (
+            "Explain the isoform, then tell me what alternative splicing patterns explain it.",
+            "The isoform omits exon three. Exon skipping and mutually exclusive exons "
+            "are alternative splicing patterns that can explain it.",
+        ),
+        (
+            "Describe grunge, then tell me what alternative rock bands shaped the 1990s.",
+            "Grunge used distorted guitars and dynamic contrast. Radiohead and R.E.M. "
+            "were alternative rock bands that shaped the 1990s.",
+        ),
+    ),
+)
+def test_attributive_alternative_is_not_a_replacement_contract(user_text, answer):
+    shape = analyze_prompt_shape(user_text)
+
+    assert not _unanswered_question_parts(answer, _Contract(shape))
+
+
+def test_generic_rather_than_phrase_is_not_a_replacement_method_contract():
+    shape = analyze_prompt_shape(
+        "Explain why the team collaborated rather than competing for credit."
+    )
+    answer = (
+        "The team collaborated because the shared deadline made pooled expertise "
+        "more valuable than individual credit."
+    )
+
+    assert not _unanswered_question_parts(answer, _Contract(shape))
+
+
 def test_one_shared_content_word_counts_as_engaged():
     """Catches the half ignored outright, not the half answered briefly.
 

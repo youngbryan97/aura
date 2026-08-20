@@ -4,7 +4,7 @@ import logging
 import re
 from collections import Counter
 from collections.abc import Awaitable, Callable
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 
 from core.conversation.ontology_grounding import detect_unsupported_embodiment_claim
 from core.conversation.request_coverage import unanswered_question_parts
@@ -302,6 +302,7 @@ def contains_corrupted_language(text: str) -> bool:
 class DialogueValidation:
     ok: bool
     violations: list[str] = field(default_factory=list)
+    selected_source: str = "incumbent"
 
     def to_dict(self) -> dict[str, object]:
         return asdict(self)
@@ -876,7 +877,7 @@ async def enforce_dialogue_contract(
 
     validation = validate_dialogue_response(text, contract, state)
     if validation.ok:
-        return text, validation, False
+        return text, replace(validation, selected_source="incumbent"), False
 
     repaired = repair_dialogue_surface(text, contract)
     repaired_validation = validate_dialogue_response(repaired, contract, state)
@@ -886,32 +887,15 @@ async def enforce_dialogue_contract(
         validation.violations,
     )
     if repaired_validation.ok and deterministic_repair_improves:
-        return repaired, repaired_validation, False
-
-    # Self-claim contradictions are grounded facts, not a creative-writing
-    # problem. Correct them deterministically before spending another 32B
-    # foreground generation and risking a timeout or worker recycle.
-    if "self_claim_contradiction" in repaired_validation.violations:
-        try:
-            from core.conversation.self_claim_verifier import repair_self_claim_surface
-
-            grounded = repair_self_claim_surface(repaired)
-            grounded_validation = validate_dialogue_response(grounded, contract, state)
-            if (
-                grounded
-                and grounded_validation.ok
-                and _improves(text, grounded, validation.violations)
-            ):
-                return grounded, grounded_validation, False
-        except (ImportError, RuntimeError, TypeError, ValueError) as exc:
-            logger.debug("Deterministic self-claim repair unavailable: %s", exc)
+        return repaired, replace(repaired_validation, selected_source="deterministic_repair"), False
 
     if not deterministic_repair_improves:
         repaired = text
         repaired_validation = validation
 
     if retry_generate is None:
-        return repaired, repaired_validation, False
+        selected_source = "deterministic_repair" if repaired != text else "incumbent"
+        return repaired, replace(repaired_validation, selected_source=selected_source), False
 
     logger.info(
         "Dialogue contract deterministic repair still failed before retry: initial=%s repaired=%s",
@@ -932,30 +916,17 @@ async def enforce_dialogue_contract(
 
     retry_improves_incumbent = _improves_incumbent(retried)
     if retried_validation.ok and retry_improves_incumbent:
-        return retried, retried_validation, True
+        return retried, replace(retried_validation, selected_source="model_retry"), True
 
     retried_repaired = repair_dialogue_surface(retried, contract)
     retried_repaired_validation = validate_dialogue_response(retried_repaired, contract, state)
     retry_repair_improves_incumbent = _improves_incumbent(retried_repaired)
     if retried_repaired_validation.ok and retry_repair_improves_incumbent:
-        return retried_repaired, retried_repaired_validation, True
-
-    # A rejected draft must never become the user-facing fallback merely
-    # because the model retry timed out or returned no text. For self-claim
-    # contradictions, replace only the contradicted sentences with bounded
-    # runtime facts and validate the complete surface again.
-    try:
-        from core.conversation.self_claim_verifier import repair_self_claim_surface
-
-        for candidate in (retried_repaired, repaired, text):
-            grounded = repair_self_claim_surface(candidate)
-            if not grounded:
-                continue
-            grounded_validation = validate_dialogue_response(grounded, contract, state)
-            if grounded_validation.ok and _improves_incumbent(grounded):
-                return grounded, grounded_validation, True
-    except (ImportError, RuntimeError, TypeError, ValueError) as exc:
-        logger.debug("Self-claim surface repair unavailable: %s", exc)
+        return (
+            retried_repaired,
+            replace(retried_repaired_validation, selected_source="model_retry"),
+            True,
+        )
 
     # A retry is a candidate, not overwrite authority.  Preserve substantive
     # authored work when the remaining issue is completeness/style; only
@@ -977,5 +948,17 @@ async def enforce_dialogue_contract(
         str(incumbent or "").strip()
         and not (set(incumbent_validation.violations) & destructive_violations)
     ):
-        return str(incumbent).strip(), incumbent_validation, True
-    return "", validate_dialogue_response(failed, contract, state), True
+        selected_source = "deterministic_repair" if incumbent != text else "incumbent"
+        return (
+            str(incumbent).strip(),
+            replace(incumbent_validation, selected_source=selected_source),
+            True,
+        )
+    return (
+        "",
+        replace(
+            validate_dialogue_response(failed, contract, state),
+            selected_source="suppressed",
+        ),
+        True,
+    )

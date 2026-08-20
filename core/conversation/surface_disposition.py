@@ -468,6 +468,8 @@ UNSPEAKABLE_REASONS: frozenset[str] = frozenset(
         "sensory_evidence_contradiction",
         "unsupported_sensor_scope_claim",
         "unsupported_embodiment_claim",
+        "self_claim_contradiction",
+        "self_claim_verification_unavailable",
         "unsupported_affection_claim",
         "unsupported_self_telemetry_claim",
         "unsupported_external_provider_path_claim",

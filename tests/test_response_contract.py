@@ -1,4 +1,5 @@
 import inspect
+
 import pytest
 
 from core.brain.llm.runtime_wiring import prepare_runtime_payload
@@ -436,6 +437,41 @@ def test_dialogue_policy_repairs_generic_closer_without_touching_statement():
     )
 
     assert repaired == "For me it's the ocean."
+
+
+def test_dialogue_retry_provenance_tracks_the_selected_candidate():
+    from core.phases.response_generation import _dialogue_mutation_provenance
+
+    unchanged = _dialogue_mutation_provenance(
+        "substantive incumbent",
+        "substantive incumbent",
+        retry_attempted=True,
+    )
+    replaced = _dialogue_mutation_provenance(
+        "substantive incumbent",
+        "complete authored retry",
+        retry_attempted=True,
+    )
+    suppressed = _dialogue_mutation_provenance(
+        "false destructive incumbent",
+        "",
+        retry_attempted=True,
+    )
+    deterministic_after_rejected_retry = _dialogue_mutation_provenance(
+        "untrimmed incumbent",
+        "trimmed incumbent",
+        retry_attempted=True,
+        selected_source="deterministic_repair",
+    )
+
+    assert unchanged["model_replaced"] is False
+    assert unchanged["authorship_effect"] == "preserved"
+    assert replaced["model_replaced"] is True
+    assert replaced["authorship_effect"] == "replaced_by_model"
+    assert suppressed["selected_source"] == "suppressed"
+    assert suppressed["authorship_effect"] == "replaced_by_runtime"
+    assert deterministic_after_rejected_retry["selected_source"] == "deterministic_repair"
+    assert deterministic_after_rejected_retry["authorship_effect"] == "preserved"
 
 
 @pytest.mark.asyncio

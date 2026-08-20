@@ -176,6 +176,33 @@ def test_semantic_stop_waits_for_every_compound_request_obligation():
     assert _semantic_surface_stop_ready(job, complete, generated_tokens=120)
 
 
+def test_semantic_stop_rejects_shared_words_without_required_semantics():
+    prompt = (
+        "Explain Dijkstra's invariant, then give a worked example with vertices "
+        "A, B, C, and D using at least five weighted edges. Include the binary-heap "
+        "time complexity and explain what algorithm should be used instead when "
+        "negative edges are possible."
+    )
+    incomplete = (
+        "Dijkstra's invariant finalizes the minimum unsettled distance. "
+        "Use A-B: 4, A-C: 1, B-D: 2, C-B: 3, and C-D: 5. Insert vertices "
+        "into a binary heap and relax the edges from A."
+    )
+    complete = (
+        incomplete
+        + " The binary-heap time complexity is O((V + E) log V). "
+        + "With negative edges, use Bellman-Ford instead."
+    )
+    job = {
+        "clean_user_surface_contract": True,
+        "semantic_completion_contract": True,
+        "user_surface_validation_prompt": prompt,
+    }
+
+    assert not _semantic_surface_stop_ready(job, incomplete, generated_tokens=160)
+    assert _semantic_surface_stop_ready(job, complete, generated_tokens=192)
+
+
 def test_incomplete_semantic_candidate_remains_eligible_for_append_only_completion():
     prompt = (
         "Explain Dijkstra's algorithm. Include its invariant, a worked example, "
