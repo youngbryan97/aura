@@ -34,7 +34,9 @@ from typing import Any
 __all__ = [
     "EFFECT_SCOPE_RANK",
     "action_effect_scope",
+    "action_field_and_default",
     "action_within_scope",
+    "declared_action_name",
     "declared_action_scopes",
     "resolve_skill_target",
     "skill_class_named",
@@ -112,6 +114,67 @@ def resolve_skill_target(meta: Any) -> Any:
     if by_name is not None:
         return by_name
     return meta
+
+def _literal_choices(annotation: Any) -> set[str]:
+    """The string values a Literal annotation allows, at any nesting."""
+    from typing import Literal, Union, get_args, get_origin
+
+    origin = get_origin(annotation)
+    if origin is Literal:
+        return {str(value).strip().lower() for value in get_args(annotation) if isinstance(value, str)}
+    if origin is Union:
+        found: set[str] = set()
+        for argument in get_args(annotation):
+            found |= _literal_choices(argument)
+        return found
+    return set()
+
+
+def action_field_and_default(target: Any) -> tuple[str, str]:
+    """Which input field names the action, and what it means when omitted.
+
+    Found by matching the input model against the action table rather than by
+    a list of field names: the field whose allowed values ARE the declared
+    actions is the one that selects them, whatever it is called. file_operation
+    calls it ``action`` and http_request calls it ``method``, and neither has
+    to say so twice.
+
+    The default matters as much as the name. A model that omits an optional
+    field means the default, so a fetch with no method named is a GET — and
+    reading the field as absent scoped that GET as the skill's worst action
+    and refused it.
+    """
+    declared = set(declared_action_scopes(target))
+    if not declared:
+        return "", ""
+    model = getattr(target, "input_model", None)
+    fields = getattr(model, "model_fields", None) or {}
+    for name, field in fields.items():
+        choices = _literal_choices(getattr(field, "annotation", None))
+        if choices and choices <= declared:
+            default = getattr(field, "default", None)
+            return str(name), str(default).strip().lower() if isinstance(default, str) else ""
+    return "", ""
+
+
+def declared_action_name(target: Any, args: Any) -> str:
+    """Which of the skill's actions this call performs.
+
+    Empty only when the call names no action the skill declares and the skill
+    has no default, which is the case that must keep the skill's own scope.
+    """
+    field, default = action_field_and_default(target)
+    arguments = args if isinstance(args, dict) else {}
+    if field:
+        value = arguments.get(field)
+        if isinstance(value, str) and value.strip():
+            return value.strip().lower()
+    declared = set(declared_action_scopes(target))
+    for value in arguments.values():
+        if isinstance(value, str) and value.strip().lower() in declared:
+            return value.strip().lower()
+    return default
+
 
 #: Containment, least to most dangerous. A call is admissible when its scope
 #: ranks no higher than what the turn is authorised for.

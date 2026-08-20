@@ -73,3 +73,27 @@ def test_the_skill_is_in_the_catalogue() -> None:
 
     names = {declaration.name for declaration in build_skill_catalog().accepted}
     assert "http_request" in names
+
+
+def test_an_omitted_method_is_the_default_not_the_worst_case() -> None:
+    """LIVE, 2026-08-20: the model chose http_request and was refused.
+
+    It sent ``{"url": ...}`` with no method, meaning GET. Scope resolution
+    read a field literally named "action", found nothing, and fell back to the
+    skill's worst action — so the one call the turn was entitled to make was
+    the one it was denied.
+    """
+    from core.skills.action_scope import action_field_and_default, declared_action_name, skill_class_named
+
+    target = skill_class_named("http_request")
+    assert action_field_and_default(target) == ("method", "get")
+    assert declared_action_name(target, {"url": "https://example.com"}) == "get"
+    assert resolve_execution_effect_scope("http_request", {"url": "https://example.com"}) == "read_only"
+
+
+def test_the_action_field_is_found_by_what_it_allows_not_by_its_name() -> None:
+    """file_operation calls it `action`, http_request calls it `method`."""
+    from core.skills.action_scope import action_field_and_default, skill_class_named
+
+    assert action_field_and_default(skill_class_named("file_operation"))[0] == "action"
+    assert action_field_and_default(skill_class_named("http_request"))[0] == "method"

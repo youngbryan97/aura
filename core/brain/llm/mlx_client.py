@@ -15799,15 +15799,18 @@ def _refuse_action_beyond_authority(
         from core.skills.action_scope import (
             action_effect_scope,
             action_within_scope,
+            declared_action_name,
             resolve_skill_target,
         )
 
         meta = (getattr(engine, "skills", None) or {}).get(tool_name)
         target = resolve_skill_target(meta)
         skill_scope = str(getattr(meta, "effect_scope", "") or "unknown")
-        action = ""
-        if isinstance(tool_args, dict):
-            action = str(tool_args.get("action") or "").strip()
+        # Not tool_args["action"]: a skill names its action field whatever
+        # suits it, and an omitted optional field means that field's default.
+        # Reading only a literal "action" scoped every http_request as its
+        # worst method and refused a GET the turn was entitled to.
+        action = declared_action_name(target, tool_args)
         if action_within_scope(target, action, skill_scope, authorised):
             return None
         needed = action_effect_scope(target, action, skill_scope)

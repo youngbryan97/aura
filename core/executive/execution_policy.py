@@ -468,16 +468,16 @@ def resolve_execution_effect_scope(
     # true at the moment of the call, so a reader added tomorrow is scoped as a
     # read without an edit to this chain.
     from core.skills.action_scope import (
+        declared_action_name,
         declared_action_scopes,
         resolve_skill_target,
         skill_class_named,
     )
 
-    action = _declared_action_name(name, arguments)
-    if action:
-        target = resolve_skill_target(_skill_meta_for(name)) or skill_class_named(name)
-        scopes = declared_action_scopes(target) or declared_action_scopes(skill_class_named(name))
-        scoped = scopes.get(action)
+    target = resolve_skill_target(_skill_meta_for(name)) or skill_class_named(name)
+    scopes = declared_action_scopes(target) or declared_action_scopes(skill_class_named(name))
+    if scopes:
+        scoped = scopes.get(declared_action_name(target, arguments))
         if scoped:
             return scoped
 
@@ -486,18 +486,6 @@ def resolve_execution_effect_scope(
         return policy.effect_scope
     return _GENERIC_EFFECT_SCOPES.get(name, "unknown")
 
-
-#: Fields a skill uses to name which of its actions this call performs.
-_ACTION_FIELDS: tuple[str, ...] = ("action", "method", "mode", "operation", "command")
-
-
-def _declared_action_name(name: str, arguments: dict[str, Any]) -> str:
-    """The action this call names, in the spelling the skill declares."""
-    for field in _ACTION_FIELDS:
-        value = arguments.get(field)
-        if isinstance(value, str) and value.strip():
-            return value.strip().lower()
-    return ""
 
 
 def _skill_meta_for(name: str) -> Any:
