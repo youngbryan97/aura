@@ -8282,7 +8282,11 @@ def _mlx_worker_loop(
                                 token_count,
                                 len(prompt),
                                 list(stop_sequences)[:4],
-                                _name_tokens(tokenizer, tokens[:8]),
+                                # The GENERATED tail. `tokens` starts as the
+                                # encoded prompt and the decoder appends to it,
+                                # so tokens[:8] is the system block and says
+                                # nothing about what the model produced.
+                                _name_tokens(tokenizer, tokens[-token_count:][:8]),
                             )
                         else:
                             logger.warning(

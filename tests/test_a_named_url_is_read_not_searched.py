@@ -1,0 +1,58 @@
+"""When the person names a document, that document is the evidence.
+
+LIVE, 2026-08-20. Asked to read a specific API endpoint, the required-evidence
+step searched the web for the endpoint's own address. The results described
+somebody else's example for New York, and the reply spent itself arguing with
+its own evidence: "the results I have are for New York City ... but you asked
+for 64.15, -21.94."
+"""
+
+from __future__ import annotations
+
+import pytest
+
+from core.phases.response_generation import _first_named_url
+
+
+@pytest.mark.parametrize(
+    ("message", "expected"),
+    [
+        (
+            "read https://api.open-meteo.com/v1/forecast?latitude=64.15&current=temp and tell me",
+            "https://api.open-meteo.com/v1/forecast?latitude=64.15&current=temp",
+        ),
+        ("see https://example.com/docs.", "https://example.com/docs"),
+        ("check http://x.test/a/b) now", "http://x.test/a/b"),
+        ("first https://one.test then https://two.test", "https://one.test"),
+        ("what is 2+2", ""),
+        ("the file /tmp/x is here", ""),
+        ("ftp://legacy.test/file", ""),
+        ("", ""),
+    ],
+)
+def test_the_url_somebody_typed(message: str, expected: str) -> None:
+    assert _first_named_url(message) == expected
+
+
+def test_sentence_punctuation_is_not_part_of_the_address() -> None:
+    for suffix in (".", ",", ";", ":", "!", "?"):
+        assert _first_named_url(f"go to https://a.test/b{suffix}") == "https://a.test/b"
+
+
+def test_the_evidence_step_tries_the_document_before_the_search() -> None:
+    """Order matters: a search that has already run has already leaked."""
+    from pathlib import Path
+
+    source = Path("core/phases/response_generation.py").read_text(encoding="utf-8")
+    body = source[source.index("named_url = _first_named_url(objective)") :]
+    assert body.index("_fetch_named_url_evidence") < body.index('skill_name = "web_search"')
+
+
+def test_the_fetch_falls_back_rather_than_leaving_the_turn_empty() -> None:
+    from pathlib import Path
+
+    source = Path("core/phases/response_generation.py").read_text(encoding="utf-8")
+    body = source[source.index("async def _fetch_named_url_evidence") :]
+    body = body[: body.index("\n    @staticmethod")]
+    assert "return False" in body
+    assert 'if not bool(payload.get("ok")):' in body

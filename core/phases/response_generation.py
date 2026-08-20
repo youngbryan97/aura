@@ -43,6 +43,18 @@ from core.utils.injected_blocks import stamp_grounding
 from ..state.aura_state import AuraState, CognitiveMode
 from . import BasePhase
 
+#: A URL somebody typed. Trailing punctuation is sentence punctuation, not
+#: part of the address.
+_NAMED_URL_RE = re.compile(r"https?://[^\s<>\"'\]})]+", re.IGNORECASE)
+
+
+def _first_named_url(text: object) -> str:
+    """The first http(s) URL the person named, or empty."""
+    match = _NAMED_URL_RE.search(str(text or ""))
+    if not match:
+        return ""
+    return match.group(0).rstrip(".,;:!?")
+
 logger = logging.getLogger(__name__)
 
 # Explicit tool compositions (e.g. composing an outbound message to ANOTHER AI
@@ -427,6 +439,19 @@ class ResponseGenerationPhase(BasePhase):
             )
             return False
 
+        # A named URL is not a search term. Asked to read a specific endpoint,
+        # this searched for the address and handed back somebody else's pages
+        # about it — evidence for New York on a turn about Reykjavik, which she
+        # then had to argue with. When the person names a document, the
+        # evidence is that document.
+        named_url = _first_named_url(objective)
+        if named_url:
+            fetched = await self._fetch_named_url_evidence(
+                state, cap, named_url, origin=origin, runtime_context=runtime_context
+            )
+            if fetched:
+                return True
+
         skill_name = "web_search"
         matched = state.response_modifiers.get("matched_skills") or []
         if isinstance(matched, str):
@@ -539,6 +564,107 @@ class ResponseGenerationPhase(BasePhase):
             skill_name,
             ok,
             query[:120],
+        )
+        return True
+
+
+    async def _fetch_named_url_evidence(
+        self,
+        state: AuraState,
+        cap: object,
+        url: str,
+        *,
+        origin: str,
+        runtime_context: dict,
+    ) -> bool:
+        """Read the document the person named and stamp it as this turn's evidence.
+
+        Same custody as the search path: the result is sanitized, recorded as
+        the turn's skill result, and stamped so the inference gate gives it
+        grounding placement. Returns False when the fetch is unavailable or
+        fails, so the search path still runs and the turn is never left with
+        nothing.
+        """
+        context = {
+            "origin": origin,
+            "source": origin,
+            "route": "response_generation.named_url_evidence",
+            "objective": url,
+            "message": url,
+            "user_requested_action": True,
+            "risk_level": "low",
+            "effect_scope": "read_only",
+            "skill_name": "http_request",
+            "tool_name": "http_request",
+            "foreground_request": True,
+            "desktop_cognitive_engine_required": bool(
+                runtime_context.get("desktop_cognitive_engine_required")
+                or runtime_context.get("cognitive_engine_required")
+            ),
+        }
+        try:
+            result = await asyncio.wait_for(
+                cap.execute("http_request", {"url": url, "method": "GET"}, context),
+                timeout=35.0,
+            )
+        except (
+            OSError,
+            ConnectionError,
+            TimeoutError,
+            RuntimeError,
+            AttributeError,
+            TypeError,
+            ValueError,
+        ) as exc:
+            _record_response_generation_degradation(
+                exc,
+                action="fell back to search evidence after the named URL could not be read",
+                severity="info",
+            )
+            return False
+
+        payload = self._sanitize_grounding_payload(result)
+        if not bool(payload.get("ok")):
+            return False
+        payload.setdefault("query", url)
+
+        state.response_modifiers["last_skill_run"] = "http_request"
+        state.response_modifiers["last_skill_ok"] = True
+        state.response_modifiers["last_skill_turn_marker"] = state.response_modifiers.get(
+            "evidence_turn_marker"
+        )
+        state.response_modifiers["last_skill_result_payload"] = payload
+        state.response_modifiers["required_search_evidence_executed"] = {
+            "skill": "http_request",
+            "ok": True,
+            "query": url[:240],
+        }
+        state.cognition.working_memory.append(
+            stamp_grounding(
+                {
+                    "role": "system",
+                    "content": self._render_skill_result_block(
+                        skill_name="http_request",
+                        payload=payload,
+                    ),
+                    "metadata": {
+                        "type": "skill_result",
+                        "skill": "http_request",
+                        "ok": True,
+                        "query": url[:240],
+                        "turn_marker": state.response_modifiers.get("evidence_turn_marker"),
+                    },
+                    "timestamp": time.time(),
+                }
+            )
+        )
+        try:
+            state.cognition.trim_working_memory()
+        except AttributeError:
+            pass
+        logger.info(
+            "🔎 ResponseGeneration: read the named document instead of searching for it (%s).",
+            url[:120],
         )
         return True
 

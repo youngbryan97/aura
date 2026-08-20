@@ -59,6 +59,14 @@ def test_a_tokenizer_that_raises_does_not_break_the_log() -> None:
     assert _load_helper()(_Broken(), [7]) == "id:7"
 
 
-def test_the_warning_reports_them() -> None:
+def test_the_warning_reports_the_generated_tail_not_the_prompt() -> None:
+    """`tokens` is the encoded prompt with generated ids appended.
+
+    The first version of this diagnostic printed tokens[:8] and reported
+    "'<|im_start|>', 'system', '#', ' Tools'" — the start of the prompt — for
+    a generation that had produced one token. A diagnostic that names the
+    wrong thing is worse than the count it replaced.
+    """
     source = WORKER.read_text(encoding="utf-8")
-    assert "_name_tokens(tokenizer, tokens[:8])" in source
+    assert "_name_tokens(tokenizer, tokens[-token_count:][:8])" in source
+    assert "_name_tokens(tokenizer, tokens[:8])" not in source
