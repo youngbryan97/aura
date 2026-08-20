@@ -991,6 +991,31 @@ def _observable_dispatch_markers() -> tuple[tuple[str, str], ...]:
         return ()
 
 
+def local_deep_solver_enabled(total_gb: float | None = None) -> bool:
+    """Whether a 72B second lane can exist on this host at all.
+
+    Read before anything is built on the answer. The lane was registered
+    unconditionally and the check lived downstream, so a 64GB machine carried
+    an endpoint whose model needed 48.4GB beside a resident 25.3GB cortex
+    against a 46.1GB budget. Every route that reached it spent a load attempt
+    on an admission that could not be granted, and returned nothing.
+    """
+    setting = str(_FLAG_ENABLE_LOCAL_DEEP_SOLVER.value()).strip().lower()
+    if setting in {"1", "true", "yes", "on"}:
+        return True
+    if setting in {"0", "false", "no", "off"}:
+        return False
+    try:
+        detected_total = (
+            float(total_gb)
+            if total_gb is not None
+            else float(InferenceGate._recent_virtual_memory().total) / float(1024**3)
+        )
+    except (AttributeError, OSError, TypeError, ValueError):
+        detected_total = 0.0
+    return detected_total >= float(_FLAG_LOCAL_DEEP_AUTO_MIN_TOTAL_GB.value())
+
+
 class InferenceGate:
     """Isolated inference gateway for Aura's managed local runtime."""
 
@@ -2969,22 +2994,7 @@ class InferenceGate:
 
     @staticmethod
     def _local_deep_solver_enabled(total_gb: float | None = None) -> bool:
-        setting = str(_FLAG_ENABLE_LOCAL_DEEP_SOLVER.value()).strip().lower()
-        if setting in {"1", "true", "yes", "on"}:
-            return True
-        if setting in {"0", "false", "no", "off"}:
-            return False
-        try:
-            detected_total = (
-                float(total_gb)
-                if total_gb is not None
-                else float(InferenceGate._recent_virtual_memory().total) / float(1024**3)
-            )
-        except (AttributeError, OSError, TypeError, ValueError):
-            detected_total = 0.0
-        return detected_total >= float(
-            _FLAG_LOCAL_DEEP_AUTO_MIN_TOTAL_GB.value()
-        )
+        return local_deep_solver_enabled(total_gb)
 
     def _local_deep_solver_block_reason(self) -> str | None:
         snapshot = self._headroom_snapshot("secondary")

@@ -473,6 +473,10 @@ def _record_router_degradation(
     record_degradation("llm_health_router", exc, severity=severity, action=action)
 
 
+class _DeepLaneUnavailable(RuntimeError):
+    """This host cannot admit the deep solver, so no lane is built for it."""
+
+
 _ROUTER_CLIENT_ERRORS = (
     httpx.HTTPError,
     OSError,
@@ -4734,9 +4738,31 @@ def build_router_from_config(config) -> HealthAwareLLMRouter:
         )
         return router
 
-    # Deep solver (72B) — on-demand secondary lane.
+    # Deep solver (72B) — on-demand secondary lane, where one can exist.
+    #
+    # LIVE, 2026-08-20. Registered unconditionally on a 64GB host, where the
+    # 72B needs 48.4GB beside a resident 25.3GB cortex against a 46.1GB lane
+    # budget. Admission refused every load, correctly, and the route that
+    # asked came back with nothing — so a chat turn offered five tools
+    # generated no text at all and ended in an apology. A lane that cannot
+    # load is not a fallback; it is a hole every route falls through.
+    try:
+        from core.brain.inference_gate import local_deep_solver_enabled
+
+        deep_lane_possible = local_deep_solver_enabled()
+    except _ROUTER_CLIENT_ERRORS:
+        deep_lane_possible = False
+    if not deep_lane_possible:
+        logger.info(
+            "⏭️  %s not registered: this host cannot admit the deep solver "
+            "beside the resident cortex.",
+            DEEP_ENDPOINT,
+        )
     try:
         from core.brain.llm.model_registry import get_deep_model_path
+
+        if not deep_lane_possible:
+            raise _DeepLaneUnavailable(DEEP_ENDPOINT)
         deep_model_path = get_deep_model_path()
         router.register(
             name=DEEP_ENDPOINT,
@@ -4748,6 +4774,8 @@ def build_router_from_config(config) -> HealthAwareLLMRouter:
             failure_threshold=3,
         )
         logger.info("✅ %s registered with lazy 72B client.", DEEP_ENDPOINT)
+    except _DeepLaneUnavailable:
+        pass
     except (ImportError, AttributeError, RuntimeError) as e:
         _record_router_degradation(
             e,
