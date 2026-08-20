@@ -543,6 +543,26 @@ async def _read_reminder_lines() -> list[str]:
     return lines
 
 
+def _matches_recent_activity(prompt: str) -> bool:
+    from core.self.recent_activity import looks_like_a_question_about_recent_activity
+
+    return looks_like_a_question_about_recent_activity(prompt)
+
+
+async def _read_recent_activity(_prompt: str) -> str:
+    """What she has actually done, from her own record of intending it.
+
+    queued_work answers the forward half of this and refuses the backward half
+    outright — its matcher returns False on a past-tense question — so
+    "anything planned?" was grounded and "what have you been working on?"
+    reached nothing at all and was answered from the model.
+    """
+    from core.self.recent_activity import describe_recent_activity, read_recent_activity
+
+    window = await asyncio.to_thread(read_recent_activity)
+    return describe_recent_activity(window)
+
+
 async def _read_queued_work(_prompt: str) -> str:
     reminder_lines = await _read_reminder_lines()
 
@@ -877,6 +897,33 @@ def install_default_observables() -> None:
                 # nothing about it, and "after" appears in both.
                 "what did you do after the update?",
                 "what did I ask you earlier today?",
+            ),
+        ),
+        Observable(
+            "completed_work",
+            "## WORK YOU HAVE ACTUALLY DONE",
+            _matches_recent_activity,
+            _read_recent_activity,
+            examples=(
+                # Live 2026-08-20: answered with her own interest in modelling
+                # consciousness, which is true about her and is not what was
+                # asked, while four thousand recorded intentions sat unread.
+                "what's actually been the most interesting thing you've worked "
+                "on lately, and why that one rather than something else?",
+                "what have you been doing?",
+                "what have you been up to?",
+                "what did you do today?",
+                "been busy?",
+                "how was your night?",
+                "what have you been working on lately?",
+                "what did you get done while I was away?",
+            ),
+            counter_examples=(
+                "what do you do?",
+                "anything planned?",
+                "what will you be doing next?",
+                "what did I ask you earlier today?",
+                "what is 2 + 2",
             ),
         ),
         Observable(
