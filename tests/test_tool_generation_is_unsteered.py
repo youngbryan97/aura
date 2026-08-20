@@ -26,6 +26,10 @@ from core.brain.llm.mlx_client import MLXLocalClient
 def test_the_tool_loop_asks_for_an_unsteered_decode():
     source = inspect.getsource(MLXLocalClient.think_and_act)
     assert "clean_user_surface_steering_alpha=0.0" in source
+    # The worker honours the decode controls only under this contract. Without
+    # it the alpha is carried and ignored, which is how the first attempt at
+    # this fix changed nothing.
+    assert "clean_user_surface_contract=True" in source
     # The worker's contract requires both controls together; alpha alone is
     # rejected as invalid runtime controls and silently leaves steering on.
     assert "clean_user_surface_recurrent_loops=1" in source

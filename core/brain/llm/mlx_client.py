@@ -14141,6 +14141,13 @@ class MLXLocalClient:
                 # reason, and the code model is loaded unsteered outright. This
                 # is that rule applied to the third kind of structured
                 # generation the runtime performs.
+                # The worker applies the decode controls ONLY under this
+                # contract, so alpha 0.0 without it is carried and ignored —
+                # which is what happened on the first attempt at this fix. The
+                # flag's effect in the worker is "honour the requested decode
+                # controls", and a tool call needs that for the same reason the
+                # visible surface does: it is structure, not voice.
+                clean_user_surface_contract=True,
                 clean_user_surface_steering_alpha=0.0,
                 clean_user_surface_recurrent_loops=1,
             )
