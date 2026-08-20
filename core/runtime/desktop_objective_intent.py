@@ -409,6 +409,16 @@ def looks_like_desktop_objective(user_message: str) -> bool:
     # A questionnaire, a checkout and a signup wizard are the same request as
     # "open Notes and write something": a thing to be DONE, whose result does
     # not exist until it is done. Reading a page is not, and stays a lookup.
+    # Reading something on disk is an observation, and the actuation lane
+    # cannot perform it. Live 2026-08-19, "read the code at <path> and work out
+    # why the test fails" was routed here and came back "os_automation failed:
+    # TimeoutError ... Completed 0/1 steps" — the screen driver spending a turn
+    # trying to verify an effect no screen would ever show, while
+    # file_operation sat READY with a read action. Asked first, because a path
+    # read matches several of the terms below.
+    if looks_like_filesystem_observation(user_message):
+        return False
+
     try:
         from core.conversation.page_interaction import asks_to_act_on_a_page
 
@@ -547,6 +557,56 @@ _MUTATING_ACTION_TERMS: tuple[str, ...] = tuple(
 )
 
 
+#: Reading a file is an observation. Writing one is an actuation.
+#:
+#: LIVE DEFECT, 2026-08-19. "there's a python project at /private/tmp/.../ledger
+#: - one of its tests is failing. read the code, work out why, and tell me
+#: exactly which line is wrong" was routed to the actuation lane and came back:
+#:
+#:     os_automation failed: Skill error: TimeoutError ... Completed 0/1 steps.
+#:
+#: os_automation drives the screen. It cannot read a file, so it spent the turn
+#: failing to verify an effect that was never going to happen, while
+#: file_operation sat READY with a read action that is pure observation.
+#:
+#: This module already draws exactly this line for the screen — see
+#: :func:`looks_like_screen_observation`, written after a screen READ was sent
+#: to the actuation lane and refused. The same mistake, one surface over.
+_FILESYSTEM_OBSERVATION_RE = re.compile(
+    r"\b(?:read|list|show|display|inspect|examine|count|check|look\s+at|"
+    r"cat|view|open)\b",
+    re.IGNORECASE,
+)
+
+#: Anything that changes what is on disk.
+_FILESYSTEM_MUTATION_RE = re.compile(
+    r"\b(?:write|save|create|make|append|edit|modify|patch|fix|update|"
+    r"delete|remove|rename|move|copy|touch|mkdir|chmod)\b",
+    re.IGNORECASE,
+)
+
+
+def looks_like_filesystem_observation(user_message: str) -> bool:
+    """True when the turn asks to READ something on disk and report back.
+
+    The read lane is file_operation, whose read/list/exists actions are pure
+    observation. Sending that to os_automation asks the screen driver to
+    verify an effect no screen will ever show.
+
+    A turn that also asks for a change ("read it and fix the bug") is not an
+    observation: only the lane that can write can finish it.
+    """
+    text = normalize_memory_intent_text(user_message).lower()
+    if not text:
+        return False
+    if not _CONCRETE_PATH_RE.search(text) and not _NAMED_ON_SURFACE_RE.search(text):
+        return False
+    sanitized = strip_negated_action_spans(text).lower()
+    if not _FILESYSTEM_OBSERVATION_RE.search(sanitized):
+        return False
+    return not _FILESYSTEM_MUTATION_RE.search(sanitized)
+
+
 def looks_like_screen_observation(user_message: str) -> bool:
     """True when the request is to READ the screen and report, not to act on it.
 
@@ -646,5 +706,6 @@ def asks_to_be_shown_where(user_message: str) -> str:
 __all__ = [
     "asks_to_be_shown_where",
     "looks_like_desktop_objective",
+    "looks_like_filesystem_observation",
     "looks_like_screen_observation",
 ]
