@@ -6369,6 +6369,16 @@ def _mlx_worker_loop(
                                 add_generation_prompt=True,
                                 enable_thinking=thinking_enabled_for_model(model_path),
                             )
+                            if tools:
+                                # A tool prompt that ends without an open
+                                # assistant turn makes the model emit
+                                # <|im_end|> as its first token, which reads
+                                # downstream as "produced nothing". The tail is
+                                # the only thing that tells those apart.
+                                logger.info(
+                                    "🎯 [WORKER] Tool prompt tail: %r",
+                                    prompt[-160:] if isinstance(prompt, str) else type(prompt),
+                                )
                     except (RuntimeError, AttributeError, TypeError, ValueError) as e:
                         if tools:
                             # A tool-calling contract cannot degrade to prose:
