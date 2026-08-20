@@ -14120,7 +14120,10 @@ class MLXLocalClient:
 
         template_tools = self._normalize_tool_definitions_for_template(tools)
         tool_block = ""
-        if tools and not template_tools:
+        # Both protocols are built. The native one is preferred, and the JSON
+        # contract is the fallback for a checkpoint that will not emit native
+        # calls — see the retry below.
+        if tools:
             tool_lines = []
             for name, defn in list(tools.items())[:20]:  # cap to avoid bloat
                 desc = defn.get("description", "")
@@ -14136,7 +14139,9 @@ class MLXLocalClient:
                 + "When you have your final answer, respond normally — no JSON block."
             )
 
-        augmented_system = system_prompt + tool_block
+        # Native first: the schema goes in the template, not in prose.
+        native_tools: list[dict[str, Any]] | None = template_tools or None
+        augmented_system = system_prompt if native_tools else system_prompt + tool_block
         messages: list[dict[str, Any]] = [
             {"role": "system", "content": augmented_system},
             {"role": "user", "content": objective},
@@ -14154,7 +14159,7 @@ class MLXLocalClient:
             raw = await self.generate_text_async(
                 "",
                 messages=messages,
-                tools=template_tools,
+                tools=native_tools,
                 max_tokens=kwargs.get("max_tokens", self.max_tokens),
                 # A tool call is structured output, and affective steering
                 # destroys structured output.
@@ -14193,6 +14198,23 @@ class MLXLocalClient:
                         ",".join(sorted(tools)),
                         turn + 1,
                     )
+                # A checkpoint that ends its turn on a native tool prompt has
+                # not refused the work — it has refused the PROTOCOL. Live
+                # 2026-08-19 this model emitted <|im_end|> as its first token
+                # against a correct, small, well-formed ChatML tool prompt,
+                # every time, so nothing could ever be executed from chat.
+                #
+                # The JSON contract asks for the same call as an ordinary
+                # answer, which needs no native tool-calling behaviour at all.
+                # Both protocols were already built here; only one was reachable.
+                if native_tools and tools:
+                    logger.info(
+                        "🔧 Native tool protocol produced nothing; retrying on the "
+                        "JSON tool contract."
+                    )
+                    native_tools = None
+                    messages[0]["content"] = system_prompt + tool_block
+                    continue
                 break
 
             response_text = raw.strip()
