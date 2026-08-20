@@ -6,14 +6,26 @@ import hashlib
 import logging
 import os
 import tempfile
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Literal, Optional
 from pydantic import BaseModel, Field
 
 from core.skills.base_skill import BaseSkill
 
 
+#: The actions this skill performs. Declared once, so the schema, the
+#: governance check and the code that dispatches them cannot disagree.
+FILE_ACTIONS: tuple[str, ...] = (
+    "read", "list", "exists", "write", "append", "patch", "move", "copy", "delete",
+)
+
+
 class FileOpInput(BaseModel):
-    action: str = Field(..., description="Action to perform: 'read', 'write', 'append', 'list', 'exists', 'delete', 'move', 'copy', 'patch'")
+    # An unenumerated required string makes the caller guess. These nine were
+    # named only inside a description, so the generated tool schema carried
+    # `type: string, enum: None` and the model had to invent an action name.
+    action: Literal[
+        "read", "list", "exists", "write", "append", "patch", "move", "copy", "delete"
+    ] = Field(..., description="Action to perform.")
     path: str = Field(..., description="Target file or directory path.")
     content: Optional[str] = Field(None, description="Content for write, append, or patch actions.")
     destination: Optional[str] = Field(None, description="Destination path for move or copy actions.")
@@ -23,6 +35,25 @@ class FileOpInput(BaseModel):
 class FileOperationSkill(BaseSkill):
     name = "file_operation"
     description = "Read, write, append, or list files in the allowed workspace."
+
+    #: What each action actually does.
+    #:
+    #: The skill's own effect_scope is state_mutation, because it CAN delete.
+    #: Scoping the whole skill by its worst action meant reading a file
+    #: required permission to destroy one — and every real task begins by
+    #: reading something, so the cheapest safe step in computing sat behind
+    #: the most dangerous grant in the system.
+    ACTION_EFFECT_SCOPES = {
+        "read": "read_only",
+        "list": "read_only",
+        "exists": "read_only",
+        "write": "state_mutation",
+        "append": "state_mutation",
+        "patch": "state_mutation",
+        "move": "state_mutation",
+        "copy": "state_mutation",
+        "delete": "state_mutation",
+    }
     input_model = FileOpInput
 
     def __init__(self):

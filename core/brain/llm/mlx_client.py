@@ -14188,7 +14188,12 @@ class MLXLocalClient:
                 from core.container import ServiceContainer
 
                 adapter_or_cap = ServiceContainer.get("capability_engine", default=None)
-                if adapter_or_cap:
+                refusal = _refuse_action_beyond_authority(
+                    adapter_or_cap, tool_name, tool_args, context
+                )
+                if refusal:
+                    raw_result = refusal
+                elif adapter_or_cap:
                     raw_result = await adapter_or_cap.execute(
                         tool_name,
                         tool_args,
@@ -15578,6 +15583,57 @@ def _truncate_tool_result(result: Any, *, limit: int = 4000) -> str:
     if limit <= len(marker):
         return marker[:limit]
     return text[: limit - len(marker)] + marker
+
+
+def _refuse_action_beyond_authority(
+    engine: Any, tool_name: str, tool_args: Any, context: Any
+) -> dict[str, Any] | None:
+    """Refuse a call more dangerous than this turn was authorised for.
+
+    A skill's effect_scope is the worst thing it can do, so scoping by skill
+    put reading a file behind permission to delete one. Scoping by ACTION lets
+    the reader be offered while the destroyer stays refused — but only if the
+    refusal actually happens, so it happens here, at the one place a
+    foreground turn executes anything.
+
+    Returns a tool result to hand back to the model, or None to proceed. The
+    refusal goes back INTO the loop rather than ending the turn: being told
+    "delete is not authorised here" is something an agent can act on, and
+    ending the turn silently is not.
+    """
+    authorised = ""
+    if isinstance(context, dict):
+        authorised = str(context.get("authorised_effect_scope") or "").strip()
+    if not authorised:
+        return None
+    try:
+        from core.skills.action_scope import (
+            action_effect_scope,
+            action_within_scope,
+            resolve_skill_target,
+        )
+
+        meta = (getattr(engine, "skills", None) or {}).get(tool_name)
+        target = resolve_skill_target(meta)
+        skill_scope = str(getattr(meta, "effect_scope", "") or "unknown")
+        action = ""
+        if isinstance(tool_args, dict):
+            action = str(tool_args.get("action") or "").strip()
+        if action_within_scope(target, action, skill_scope, authorised):
+            return None
+        needed = action_effect_scope(target, action, skill_scope)
+    except (AttributeError, ImportError, TypeError, ValueError):
+        return None
+    return {
+        "ok": False,
+        "status": "refused",
+        "error": (
+            f"'{tool_name}' with action '{action or 'unspecified'}' needs "
+            f"{needed} authority; this turn has {authorised}. Ask for it "
+            "explicitly, or use an action that stays within scope."
+        ),
+        "engine": "capability_engine",
+    }
 
 
 def _serialize_tool_result_for_model(

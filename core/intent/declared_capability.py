@@ -46,6 +46,8 @@ from functools import lru_cache
 __all__ = [
     "declared_vocabulary",
     "distinctive_objects",
+    "foundational_capabilities",
+    "looks_like_a_request",
     "rank_declaration_matches",
     "request_matches_declaration",
     "verb_class_of",
@@ -467,3 +469,80 @@ def rank_declaration_matches(
         scored.append((name, float(covered) + named + (0.75 * spoken)))
     scored.sort(key=lambda row: (-row[1], row[0]))
     return scored
+
+
+#: The domains every computer task passes through, whatever it is about.
+#:
+#: A request to "read README.md and tell me what it says" names no word any
+#: skill declares — README.md is not "file", a repo is not "directory" — so
+#: lexical ranking finds nothing and the turn is handed no capability at all.
+#: Nouns are an open class and no vocabulary will ever contain every one.
+#:
+#: What is closed is the set of things a machine can act ON. Reading
+#: something, computing something, and looking something up are the primitives
+#: every task on a computer is built from, so a request-shaped turn is offered
+#: the skills that work in those domains regardless of which words it used.
+#: Which ACTIONS of those skills it may use is a separate question, answered
+#: by scope at dispatch.
+_FOUNDATIONAL_DOMAINS: tuple[str, ...] = ("file", "code", "web")
+
+
+def foundational_capabilities(
+    catalogue: Mapping[str, tuple[frozenset[str], frozenset[str]]],
+) -> list[str]:
+    """Skills that work in the domains every task passes through.
+
+    Chosen by what each skill declares it acts on, so no skill is named here
+    and one registered tomorrow joins the set by describing itself.
+    """
+    # One primitive per domain, not a flat ranking. Ranked flat, the code
+    # domain declares four matching words and the file domain one, so every
+    # slot went to interpreters and the FILE READER fell off the end — on a
+    # task whose first step is reading a file.
+    best_per_domain: list[list[str]] = []
+    for domain in _FOUNDATIONAL_DOMAINS:
+        wanted: set[str] = set()
+        for members in _OBJECT_CLASSES:
+            if domain in members:
+                wanted |= members
+        folded = {_fold(word) for word in wanted}
+        scored: list[tuple[int, str]] = []
+        for name, (_verbs, objects) in catalogue.items():
+            overlap = len({_fold(word) for word in objects} & folded)
+            if overlap:
+                scored.append((-overlap, name))
+        scored.sort()
+        best_per_domain.append([name for _rank, name in scored])
+
+    # Round-robin, so every domain is represented before any is doubled.
+    ordered: list[str] = []
+    for position in range(max((len(column) for column in best_per_domain), default=0)):
+        for column in best_per_domain:
+            if position < len(column) and column[position] not in ordered:
+                ordered.append(column[position])
+    return ordered
+
+
+def looks_like_a_request(message: object) -> bool:
+    """True when the turn asks for something to be done.
+
+    Mood only, with no object required: "read README.md" is a request whether
+    or not any skill has ever heard of that file. Conversation is left alone,
+    which is what keeps the tool set off an ordinary turn.
+    """
+    body = str(message or "").strip().lower()
+    if not body:
+        return False
+    every_verb = {member for members in _VERB_CLASSES for member in members} | _PRO_VERBS
+    for clause in _CLAUSE_SPLIT_RE.split(body):
+        present = _words(clause)
+        if not present:
+            continue
+        positions = {
+            index
+            for index, word in enumerate(present)
+            if word in every_verb or (_act_named_by(word) & every_verb)
+        }
+        if positions and _asks_rather_than_mentions(present, positions):
+            return True
+    return False

@@ -1,0 +1,139 @@
+"""What a CALL does, not what its skill is capable of.
+
+A skill's ``effect_scope`` is the worst thing it can do. ``file_operation``
+declares ``state_mutation`` because it can write, append, move and delete —
+and so reading a file requires write authority, which is how a runtime with a
+file reader ends up unable to look at anything.
+
+    "Before she can debug an unfamiliar repository, analyse a paper, or check
+    a spreadsheet, she has to be able to READ a file without being granted
+    permission to destroy one."
+
+Every one of those tasks begins by reading something. Scoping by skill rather
+than by action put the cheapest, safest step in computing behind the most
+dangerous grant in the system.
+
+So a skill may declare what each of its actions actually does. The declared
+skill scope stays the CEILING — an action can never claim less containment
+than its skill was admitted for in a stricter direction — and anything the
+skill does not describe keeps the skill's own scope, so silence is never read
+as safety.
+
+This is the mechanism only. Offering a skill because one of its actions is
+harmless is safe only when the dispatch refuses the actions that are
+not, so :func:`action_within_scope` is checked at execution, not merely
+consulted when choosing what to offer.
+"""
+
+from __future__ import annotations
+
+import importlib
+from functools import lru_cache
+from typing import Any
+
+__all__ = [
+    "EFFECT_SCOPE_RANK",
+    "action_effect_scope",
+    "action_within_scope",
+    "declared_action_scopes",
+    "resolve_skill_target",
+    "skill_has_action_within",
+]
+
+
+@lru_cache(maxsize=256)
+def _import_class(module_path: str, class_name: str) -> Any:
+    try:
+        return getattr(importlib.import_module(module_path), class_name, None)
+    except Exception:  # noqa: BLE001 - a skill that cannot import declares nothing
+        return None
+
+
+def resolve_skill_target(meta: Any) -> Any:
+    """The class that declares the actions, without instantiating the skill.
+
+    Registry metadata carries `skill_class` and `instance` as None until the
+    skill is first used, so reading the declaration off either of them finds
+    nothing and every action falls back to the skill's worst-case scope — which
+    is exactly the failure this module exists to remove. The module path is
+    populated from registration, so the class is reachable by import.
+    """
+    for candidate in (getattr(meta, "skill_class", None), getattr(meta, "instance", None)):
+        if candidate is not None and declared_action_scopes(candidate):
+            return candidate
+    module_path = str(getattr(meta, "module_path", "") or "").strip()
+    class_name = str(getattr(meta, "class_name", "") or "").strip()
+    if module_path and class_name:
+        resolved = _import_class(module_path, class_name)
+        if resolved is not None:
+            return resolved
+    return meta
+
+#: Containment, least to most dangerous. A call is admissible when its scope
+#: ranks no higher than what the turn is authorised for.
+EFFECT_SCOPE_RANK: dict[str, int] = {
+    "status": 0,
+    "pure_compute": 1,
+    "read_only": 2,
+    "sandboxed_compute": 3,
+    "read_write_artifacts": 4,
+    "state_mutation": 5,
+    "foreground_browser_dialogue": 5,
+    "foreground_desktop_control": 6,
+    "external_io": 7,
+    "privileged_mutation": 8,
+    "unknown": 9,
+}
+
+
+def _rank(scope: Any) -> int:
+    return EFFECT_SCOPE_RANK.get(str(scope or "unknown").strip().lower(), 9)
+
+
+def declared_action_scopes(target: Any) -> dict[str, str]:
+    """What the skill says each of its actions does, or an empty map.
+
+    Read off the skill itself so the answer lives beside the code that
+    performs the action, rather than in a table somewhere else that drifts.
+    """
+    declared = getattr(target, "ACTION_EFFECT_SCOPES", None)
+    if not isinstance(declared, dict):
+        return {}
+    return {
+        str(action).strip().lower(): str(scope).strip().lower()
+        for action, scope in declared.items()
+        if str(action).strip() and str(scope).strip()
+    }
+
+
+def action_effect_scope(target: Any, action: Any, skill_scope: Any) -> str:
+    """The effect scope of THIS call.
+
+    Falls back to the skill's own scope for an action it never described,
+    because an undescribed action is unknown rather than safe.
+    """
+    declared = declared_action_scopes(target)
+    key = str(action or "").strip().lower()
+    if not key or key not in declared:
+        return str(skill_scope or "unknown").strip().lower()
+    return declared[key]
+
+
+def action_within_scope(target: Any, action: Any, skill_scope: Any, authorised: Any) -> bool:
+    """True when this call is no more dangerous than what was authorised."""
+    return _rank(action_effect_scope(target, action, skill_scope)) <= _rank(authorised)
+
+
+def skill_has_action_within(target: Any, skill_scope: Any, authorised: Any) -> bool:
+    """True when at least one of the skill's actions is admissible.
+
+    What makes offering a mixed skill defensible: the reader is available and
+    the destroyer is refused, rather than the whole skill being withheld
+    because part of it is dangerous.
+    """
+    if _rank(skill_scope) <= _rank(authorised):
+        return True
+    return any(
+        _rank(scope) <= _rank(authorised)
+        for scope in declared_action_scopes(target).values()
+    )

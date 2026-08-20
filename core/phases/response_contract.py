@@ -1059,6 +1059,11 @@ _SELF_SERVICE_EFFECT_SCOPES = frozenset(
     {"sandboxed_compute", "pure_compute", "read_only", "status"}
 )
 
+#: The most a turn may do without the person having asked for that effect.
+#: Sandboxed computation is the ceiling: it can calculate anything and change
+#: nothing outside its own sandbox.
+_SELF_SERVICE_CEILING = "sandboxed_compute"
+
 
 def derive_required_skill(objective: str) -> str | None:
     """The one capability this request needs, or None.
@@ -1076,9 +1081,32 @@ def derive_required_skill(objective: str) -> str | None:
     from a list kept here, so a capability registered tomorrow is reachable
     with nothing to add.
     """
+    chosen = derive_capability_set(objective, limit=1)
+    return chosen[0] if chosen else None
+
+
+#: How many capabilities one turn may be handed at once.
+#:
+#: One was the old answer, and it makes every multi-step task impossible by
+#: construction: reading a file and then running what it says needs two, and
+#: checking the result needs a third. Every capacity offered is also context
+#: the model has to hold, so this is a working set rather than the catalogue —
+#: the ranking decides which ones, and the ranking is the same relation the
+#: router uses, so nothing here is task-specific.
+_DEFAULT_CAPABILITY_SET = 5
+
+
+def derive_capability_set(objective: str, *, limit: int = _DEFAULT_CAPABILITY_SET) -> list[str]:
+    """The capabilities this request plausibly needs, most relevant first.
+
+    A single skill cannot carry a task with steps in it. This returns the
+    working set for the turn, chosen from what each skill declares about
+    itself and restricted to effects that are recoverable without the person
+    having authorised them.
+    """
     text = str(objective or "").strip()
     if not text:
-        return None
+        return []
     try:
         from core.container import ServiceContainer
         from core.intent.declared_capability import (
@@ -1090,21 +1118,58 @@ def derive_required_skill(objective: str) -> str | None:
         engine = ServiceContainer.get("capability_engine", default=None)
         skills = getattr(engine, "skills", None)
         if not skills:
-            return None
+            return []
         catalogue = {
             name: declared_vocabulary(name, str(getattr(meta, "description", "") or ""))
             for name, meta in skills.items()
             if getattr(meta, "enabled", True)
         }
         if not catalogue:
-            return None
-        ranked = rank_declaration_matches(text, catalogue, distinctive_objects(catalogue))
-        for name, _score in ranked:
+            return []
+        from core.intent.declared_capability import (
+            foundational_capabilities,
+            looks_like_a_request,
+        )
+        from core.skills.action_scope import (
+            resolve_skill_target,
+            skill_has_action_within,
+        )
+
+        ranked = [
+            name
+            for name, _score in rank_declaration_matches(
+                text, catalogue, distinctive_objects(catalogue)
+            )
+        ]
+        # Lexical ranking can only match words a skill declared, and nouns are
+        # an open class: "read README.md" names nothing any skill has heard of,
+        # so a real task was handed no capability at all. A request-shaped turn
+        # also gets the skills that work in the domains every computer task
+        # passes through — reading, computing, looking things up — with the
+        # ranked matches first because they are the specific ones.
+        if looks_like_a_request(text):
+            for name in foundational_capabilities(catalogue):
+                if name not in ranked:
+                    ranked.append(name)
+
+        chosen: list[str] = []
+        for name in ranked:
             meta = skills.get(name)
             scope = str(getattr(meta, "effect_scope", "") or "").strip().lower()
-            if scope in _SELF_SERVICE_EFFECT_SCOPES:
-                return name
-        return None
+            target = resolve_skill_target(meta)
+            # A skill whose worst action is dangerous may still have a safe
+            # one. `file_operation` can delete, which is why reading a file
+            # used to require permission to destroy one — and every real task
+            # starts by reading something. The dispatch refuses the actions
+            # that are out of scope, so offering the skill offers only the
+            # part that was admissible.
+            if scope in _SELF_SERVICE_EFFECT_SCOPES or skill_has_action_within(
+                target, scope, _SELF_SERVICE_CEILING
+            ):
+                chosen.append(name)
+            if len(chosen) >= max(1, int(limit)):
+                break
+        return chosen
     except Exception as exc:  # noqa: BLE001 - reported, never silent
         from core.runtime.errors import record_degradation
 
@@ -1115,7 +1180,7 @@ def derive_required_skill(objective: str) -> str | None:
             action="built the contract without an inferred capability",
             enforce_failure_policy=False,
         )
-        return None
+        return []
 
 
 def build_response_contract(

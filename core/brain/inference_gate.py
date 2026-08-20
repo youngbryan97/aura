@@ -6453,27 +6453,47 @@ class InferenceGate:
             return None
         try:
             from core.brain.llm.runtime_wiring import build_agentic_tool_map
-            from core.phases.response_contract import derive_required_skill
+            from core.phases.response_contract import (
+                _SELF_SERVICE_CEILING,
+                derive_capability_set,
+            )
 
-            required = derive_required_skill(text)
+            required = derive_capability_set(text)
             if not required:
                 return None
-            tools = build_agentic_tool_map(required, objective=text, max_tools=1)
+            tools = build_agentic_tool_map(
+                required, objective=text, max_tools=len(required)
+            )
             if not tools:
                 logger.info(
-                    "🔧 Tool handoff: skill=%s offered=NONE (no tool definition)", required
+                    "🔧 Tool handoff: skill=%s offered=NONE (no tool definition)",
+                    ",".join(required),
                 )
                 return None
             logger.info(
-                "🔧 Tool handoff: skill=%s offered=%s", required, ",".join(sorted(tools))
+                "🔧 Tool handoff: wanted=%s offered=%s",
+                ",".join(required),
+                ",".join(sorted(tools)),
             )
             result = await asyncio.wait_for(
                 client.think_and_act(
                     objective=text,
                     system_prompt=str(system_prompt or ""),
                     tools=tools,
-                    max_turns=3,
-                    context={"required_skill": required, "foreground_request": True},
+                    # A step, a look at what it returned, and a chance to do
+                    # something else because of it — three is one attempt with
+                    # no room to be wrong. Scaled to the working set so a
+                    # single-capability turn stays cheap.
+                    max_turns=max(3, 2 * len(tools) + 1),
+                    context={
+                        "required_skills": list(required),
+                        "foreground_request": True,
+                        # What this turn may do. The dispatch refuses any
+                        # action ranked above it, so a skill can be offered
+                        # for its safe actions without offering its
+                        # dangerous ones.
+                        "authorised_effect_scope": _SELF_SERVICE_CEILING,
+                    },
                 ),
                 timeout=max(20.0, float(timeout_s)),
             )

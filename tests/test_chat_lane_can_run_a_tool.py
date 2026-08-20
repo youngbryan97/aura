@@ -55,7 +55,7 @@ def gate() -> InferenceGate:
 def test_a_request_needing_no_capability_never_reaches_the_tool_loop(gate, monkeypatch):
     """Ordinary conversation must not pay for this, nor be changed by it."""
     monkeypatch.setattr(
-        "core.phases.response_contract.derive_required_skill", lambda _text: None
+        "core.phases.response_contract.derive_capability_set", lambda _text, **_k: []
     )
     client = _Client({"content": "hello", "tool_calls": [{"tool": "code_repl"}]})
     assert _answer(gate, client, "how are you feeling today") is None
@@ -65,7 +65,7 @@ def test_a_request_needing_no_capability_never_reaches_the_tool_loop(gate, monke
 def test_an_answer_with_no_tool_call_is_not_used(gate, monkeypatch):
     """The exact live failure: handed the tool, declined it, invented output."""
     monkeypatch.setattr(
-        "core.phases.response_contract.derive_required_skill", lambda _text: "code_repl"
+        "core.phases.response_contract.derive_capability_set", lambda _text, **_k: ["code_repl"]
     )
     monkeypatch.setattr(
         "core.brain.llm.runtime_wiring.build_agentic_tool_map",
@@ -77,7 +77,7 @@ def test_an_answer_with_no_tool_call_is_not_used(gate, monkeypatch):
 
 def test_a_tool_that_ran_produces_the_answer(gate, monkeypatch):
     monkeypatch.setattr(
-        "core.phases.response_contract.derive_required_skill", lambda _text: "code_repl"
+        "core.phases.response_contract.derive_capability_set", lambda _text, **_k: ["code_repl"]
     )
     monkeypatch.setattr(
         "core.brain.llm.runtime_wiring.build_agentic_tool_map",
@@ -93,7 +93,7 @@ def test_a_tool_that_ran_produces_the_answer(gate, monkeypatch):
 def test_a_failing_tool_loop_falls_back_to_ordinary_generation(gate, monkeypatch):
     """Never turn a working answer into no answer."""
     monkeypatch.setattr(
-        "core.phases.response_contract.derive_required_skill", lambda _text: "code_repl"
+        "core.phases.response_contract.derive_capability_set", lambda _text, **_k: ["code_repl"]
     )
     monkeypatch.setattr(
         "core.brain.llm.runtime_wiring.build_agentic_tool_map",
@@ -109,7 +109,7 @@ def test_a_failing_tool_loop_falls_back_to_ordinary_generation(gate, monkeypatch
 
 def test_no_tool_definition_means_no_loop(gate, monkeypatch):
     monkeypatch.setattr(
-        "core.phases.response_contract.derive_required_skill", lambda _text: "code_repl"
+        "core.phases.response_contract.derive_capability_set", lambda _text, **_k: ["code_repl"]
     )
     monkeypatch.setattr(
         "core.brain.llm.runtime_wiring.build_agentic_tool_map", lambda *a, **k: None
@@ -133,11 +133,11 @@ def test_the_persons_own_words_are_what_gets_read(gate, monkeypatch):
     """
     seen: list[str] = []
 
-    def _derive(text: str) -> str | None:
+    def _derive(text: str, **_kwargs: Any) -> list[str]:
         seen.append(text)
-        return "code_repl"
+        return ["code_repl"]
 
-    monkeypatch.setattr("core.phases.response_contract.derive_required_skill", _derive)
+    monkeypatch.setattr("core.phases.response_contract.derive_capability_set", _derive)
     monkeypatch.setattr(
         "core.brain.llm.runtime_wiring.build_agentic_tool_map",
         lambda *a, **k: {"code_repl": {"name": "code_repl"}},

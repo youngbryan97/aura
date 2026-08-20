@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import asyncio
 import inspect
 import logging
@@ -701,7 +703,7 @@ def derive_substrate_generation_overrides(
 
 
 def build_agentic_tool_map(
-    required_skill: str | None = None,
+    required_skill: str | Sequence[str] | None = None,
     *,
     objective: str | None = None,
     max_tools: int = 8,
@@ -726,15 +728,25 @@ def build_agentic_tool_map(
             )
         else:
             tool_defs = cap.get_tool_definitions() or []
+        # `required_skill` may name one capability or the working set for the
+        # turn. Filtering to exactly one made every multi-step task impossible
+        # by construction: reading a file and then running what it says needs
+        # two, and checking the result needs a third.
+        if required_skill is None:
+            wanted: set[str] = set()
+        elif isinstance(required_skill, str):
+            wanted = {required_skill}
+        else:
+            wanted = {str(item) for item in required_skill if str(item).strip()}
+
         tools: dict[str, Any] = {}
         for entry in tool_defs:
             fn = entry.get("function", {}) if isinstance(entry, dict) else {}
             name = fn.get("name")
             if not name:
                 continue
-            if required_skill and name != required_skill:
-                if str(name) != str(required_skill):
-                    continue
+            if wanted and str(name) not in wanted:
+                continue
             tools[name] = fn
         return tools or None
     except _SOFT_RUNTIME_FAILURES as exc:
