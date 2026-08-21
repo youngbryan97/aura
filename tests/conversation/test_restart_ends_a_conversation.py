@@ -12,11 +12,14 @@ from them misattributes what the person said in a session that has ended.
 
 from __future__ import annotations
 
+import os
+
 from core.conversation.grounded_recall import (
     _CONVERSATION_GAP_S,
     _process_start_time,
     _within_current_conversation,
 )
+from core.runtime.resource_observation import ProcessObservation
 
 
 def test_turns_from_before_this_process_are_excluded() -> None:
@@ -32,6 +35,33 @@ def test_turns_from_before_this_process_are_excluded() -> None:
     )
 
     assert [entry["content"] for entry in kept] == ["this run first", "this run second"]
+
+
+def test_process_start_uses_the_attributed_resource_observer(resource_observer) -> None:
+    resource_observer.configure_processes(
+        [
+            ProcessObservation(
+                provenance=resource_observer.provenance,
+                pid=os.getpid(),
+                ppid=1,
+                create_time=1234.5,
+                status="running",
+                name="aura-test",
+                cmdline=("aura-test",),
+                rss_bytes=1,
+            )
+        ]
+    )
+
+    assert _process_start_time() == 1234.5
+
+
+def test_unavailable_process_observation_does_not_invent_a_boundary(
+    resource_observer,
+) -> None:
+    resource_observer.configure_processes([])
+
+    assert _process_start_time() is None
 
 
 def test_a_short_gap_within_one_run_stays_one_conversation() -> None:

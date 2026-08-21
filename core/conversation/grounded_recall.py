@@ -20,8 +20,11 @@ from __future__ import annotations
 
 import contextvars
 import logging
+import os
 import re
 from typing import Any, Literal
+
+from core.runtime.resource_observation import get_resource_observer
 
 logger = logging.getLogger("Aura.Conversation.GroundedRecall")
 
@@ -436,12 +439,12 @@ def _process_start_time() -> float | None:
     """
 
     try:
-        import os
-
-        import psutil
-
-        return float(psutil.Process(os.getpid()).create_time())
-    except Exception:  # noqa: BLE001 - a boundary probe must not break recall
+        process = get_resource_observer().process(os.getpid())
+        if process is None:
+            return None
+        started_at = float(process.create_time)
+        return started_at if started_at > 0.0 else None
+    except (AttributeError, OSError, RuntimeError, TypeError, ValueError):
         return None
 
 
