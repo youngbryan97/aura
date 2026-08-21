@@ -696,7 +696,11 @@ def test_desktop_background_headroom_defers_brainstem_before_memory_spike(monkey
 
     import core.brain.llm_health_router as router_module
 
-    monkeypatch.setattr(router_module, "desktop_resource_guard_enabled", lambda env=None: True)
+    monkeypatch.setattr(
+        router_module,
+        "desktop_resource_guard_enabled",
+        lambda env=None: True,
+    )
     # Genuine pre-spike headroom: high pressure AND low available. The old values
     # here (58% / 26.5GB) were actually the desktop STEADY STATE with the 32B
     # resident — deferring there meant background cognition could never run, so
@@ -777,6 +781,34 @@ def test_desktop_background_headroom_allows_reflex_with_moderate_headroom(monkey
     )
 
     assert HealthAwareLLMRouter._desktop_background_endpoint_deferral_reason(ep) is None
+
+
+def test_shared_background_admission_reports_every_closed_lane(monkeypatch):
+    from types import SimpleNamespace
+
+    import core.brain.llm_health_router as router_module
+
+    monkeypatch.setattr(router_module, "desktop_resource_guard_enabled", lambda env=None: True)
+    monkeypatch.setattr(
+        "core.utils.memory_monitor.get_memory_pressure_snapshot",
+        lambda: SimpleNamespace(
+            pressure_pct=77.0,
+            available_gb=14.0,
+            process_rss_gb=20.0,
+            process_rss_limit_gb=42.0,
+        ),
+    )
+    monkeypatch.setattr(
+        "core.utils.memory_monitor.kernel_memory_pressure_level", lambda: "warn"
+    )
+
+    reasons = router_module.desktop_background_endpoint_deferral_reasons(
+        ("Brainstem", "Reflex")
+    )
+
+    assert set(reasons) == {"Brainstem", "Reflex"}
+    assert reasons["Brainstem"].startswith("desktop_background_headroom:Brainstem:")
+    assert reasons["Reflex"].startswith("desktop_background_headroom:Reflex:")
 
 
 @pytest.mark.asyncio

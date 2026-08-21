@@ -620,7 +620,11 @@ async def test_background_requests_stay_off_cortex():
     def _fake_get_mlx_client(model_path=None, **kwargs):
         return clients[model_path]
 
-    with replace.object(InferenceGate, "_background_local_deferral_reason", return_value=None):
+    with replace.object(
+        InferenceGate,
+        "_background_local_deferral_reason",
+        return_value=None,
+    ):
         with replace("core.brain.llm.mlx_client.get_mlx_client", side_effect=_fake_get_mlx_client):
             with replace("core.brain.llm.model_registry.get_brainstem_path", return_value="/models/brainstem"):
                 with replace("core.brain.llm.model_registry.get_fallback_path", return_value="/models/fallback"):
@@ -2376,13 +2380,27 @@ async def test_background_primary_downgrades_timeout_and_tier():
         return clients[model_path]
 
     with replace.object(InferenceGate, "_background_local_deferral_reason", return_value=None):
-        with replace("core.brain.llm.mlx_client.get_mlx_client", side_effect=_fake_get_mlx_client):
-            with replace("core.brain.llm.model_registry.get_brainstem_path", return_value="/models/brainstem"):
-                with replace("core.brain.llm.model_registry.get_fallback_path", return_value="/models/fallback"):
-                    result = await gate.generate(
-                        "background reflection",
-                        context={"origin": "system", "prefer_tier": "primary"},
-                    )
+        with replace.object(
+            InferenceGate,
+            "_background_endpoint_headroom_deferral",
+            return_value=(None, {}),
+        ):
+            with replace(
+                "core.brain.llm.mlx_client.get_mlx_client",
+                side_effect=_fake_get_mlx_client,
+            ):
+                with replace(
+                    "core.brain.llm.model_registry.get_brainstem_path",
+                    return_value="/models/brainstem",
+                ):
+                    with replace(
+                        "core.brain.llm.model_registry.get_fallback_path",
+                        return_value="/models/fallback",
+                    ):
+                        result = await gate.generate(
+                            "background reflection",
+                            context={"origin": "system", "prefer_tier": "primary"},
+                        )
 
     assert result == brainstem_reply
     assert not cortex.deadlines
@@ -2402,6 +2420,42 @@ async def test_background_primary_downgrades_timeout_and_tier():
         is_background=True,
     )
     assert brainstem.kwargs[0]["max_tokens"] == expected_tokens
+
+
+@pytest.mark.asyncio
+async def test_background_endpoint_deferral_precedes_prompt_construction(monkeypatch):
+    gate = InferenceGate()
+    touched: list[str] = []
+
+    def _prompt_work(*_args, **_kwargs):
+        touched.append("prompt")
+        raise AssertionError("background prompt construction must not run")
+
+    monkeypatch.setattr(gate, "_background_local_deferral_reason", lambda **_kw: None)
+    monkeypatch.setattr(
+        gate,
+        "_background_endpoint_headroom_deferral",
+        lambda: (
+            "all_background_endpoints_deferred",
+            {
+                "Brainstem": "desktop_background_headroom:Brainstem:test",
+                "Reflex": "desktop_background_headroom:Reflex:test",
+            },
+        ),
+    )
+    monkeypatch.setattr(gate, "_build_system_prompt", _prompt_work)
+    monkeypatch.setattr(gate, "_build_compact_system_prompt", _prompt_work)
+    context = {"origin": "system", "prefer_tier": "primary"}
+
+    result = await gate.generate("background reflection", context=context)
+
+    assert result is None
+    assert touched == []
+    assert context["inference_refusal"]["reason"] == "all_background_endpoints_deferred"
+    assert context["inference_refusal"]["detail"]["endpoint_deferrals"] == {
+        "Brainstem": "desktop_background_headroom:Brainstem:test",
+        "Reflex": "desktop_background_headroom:Reflex:test",
+    }
 
 
 def test_routing_user_origin_is_treated_as_human_input():

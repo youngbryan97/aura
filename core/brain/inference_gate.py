@@ -5340,6 +5340,40 @@ class InferenceGate:
                 return "memory_pressure"
         return None
 
+    @staticmethod
+    def _background_endpoint_headroom_deferral() -> tuple[str | None, dict[str, str]]:
+        """Refuse before prompt work only when every background lane is closed.
+
+        The router remains dispatch authority. This preflight reuses its exact
+        endpoint policy so a background request cannot spend CPU and memory on
+        state collection, grounding, and prompt construction only to discover
+        at dispatch that neither Brainstem nor Reflex can be admitted.
+        """
+        try:
+            from core.brain.llm_health_router import (
+                desktop_background_endpoint_deferral_reasons,
+            )
+
+            reasons = desktop_background_endpoint_deferral_reasons(
+                (BRAINSTEM_ENDPOINT, FALLBACK_ENDPOINT)
+            )
+        except _INFERENCE_RECOVERABLE_ERRORS as exc:
+            _record_inference_degradation(
+                exc,
+                action=(
+                    "failed closed before background prompt construction after "
+                    "endpoint admission probe failed"
+                ),
+                severity="warning",
+            )
+            reasons = {
+                BRAINSTEM_ENDPOINT: "desktop_background_endpoint_probe_failed",
+                FALLBACK_ENDPOINT: "desktop_background_endpoint_probe_failed",
+            }
+        if not all(name in reasons for name in (BRAINSTEM_ENDPOINT, FALLBACK_ENDPOINT)):
+            return None, reasons
+        return "all_background_endpoints_deferred", reasons
+
     async def _shed_background_workers_for_memory_pressure(
         self,
         *,
@@ -9894,6 +9928,11 @@ class InferenceGate:
             requested_tier = "tertiary"
             deep_handoff = False
             background_deferral = self._background_local_deferral_reason(origin=origin)
+            endpoint_deferrals: dict[str, str] = {}
+            if not background_deferral:
+                background_deferral, endpoint_deferrals = (
+                    self._background_endpoint_headroom_deferral()
+                )
             if background_deferral:
                 if background_deferral == "memory_pressure":
                     logger.info(
@@ -9930,6 +9969,11 @@ class InferenceGate:
                     str(background_deferral or "foreground_lane_reserved"),
                     context=context,
                     origin=origin,
+                    detail=(
+                        {"endpoint_deferrals": endpoint_deferrals}
+                        if endpoint_deferrals
+                        else None
+                    ),
                 )
 
         if protected_foreground_lane and not is_background:

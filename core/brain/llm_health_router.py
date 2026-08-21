@@ -24,7 +24,7 @@ import os
 import re
 import threading
 import time
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from contextvars import ContextVar
 from dataclasses import dataclass
 from enum import Enum
@@ -471,6 +471,30 @@ def _record_router_degradation(
     severity: str = "warning",
 ) -> None:
     record_degradation("llm_health_router", exc, severity=severity, action=action)
+
+
+def desktop_background_endpoint_deferral_reasons(
+    endpoint_names: Iterable[str],
+) -> dict[str, str]:
+    """Evaluate the router's endpoint admission policy for named local lanes.
+
+    The router remains the policy owner. This public, non-actuating adapter
+    lets an upstream caller make the same decision before doing expensive
+    prompt assembly; it must not grow independent thresholds or assumptions.
+    Only deferred endpoints are returned, so an omitted recognized endpoint is
+    currently admissible.
+    """
+    reasons: dict[str, str] = {}
+    for name in dict.fromkeys(str(item or "").strip() for item in endpoint_names):
+        if name not in {BRAINSTEM_ENDPOINT, FALLBACK_ENDPOINT}:
+            continue
+        endpoint = EndpointHealth(name=name, url="internal", model="admission-probe")
+        reason = HealthAwareLLMRouter._desktop_background_endpoint_deferral_reason(
+            endpoint
+        )
+        if reason:
+            reasons[name] = reason
+    return reasons
 
 
 class _DeepLaneUnavailable(RuntimeError):
