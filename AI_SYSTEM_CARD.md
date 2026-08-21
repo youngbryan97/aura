@@ -70,7 +70,7 @@ receive an AuthorityGateway receipt. No silent side paths.
 | Cortex (foreground) | 32B parameter LLM (8-bit) | Local (MLX) | Main reasoning and conversation |
 | Solver (deep) | 72B parameter LLM (4-bit) | Local (MLX) | Deep-reasoning hot-swap for hard problems |
 | Reflex (fast lane) | 1.5B parameter LLM | Local (MLX) | Low-latency replies and routing |
-| Brainstem (background) | 7B parameter LLM | Local (MLX) | Background / maintenance tasks |
+| Brainstem (background) | 9B parameter LLM (`Qwen3.5-9B-4bit`) | Local (MLX) | Background / maintenance tasks |
 
 See `MODEL_CARD.md` for detailed model information.
 

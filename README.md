@@ -368,7 +368,7 @@ also carries the operational subcommands (`doctor`, `conformance`,
 `migrate`, `chaos`, `plugin`).
 
 Requirements: Python 3.12+, macOS on Apple Silicon, 64 GB RAM recommended. The
-primary model is Qwen 2.5 32B at 8-bit with a personality LoRA on top; a 7B
+primary model is Qwen 2.5 32B at 8-bit with a personality LoRA on top; a 9B
 fallback loads on demand. First boot takes 30–60 seconds while Metal compiles
 shaders.
 
@@ -376,7 +376,8 @@ Hardware honesty: Bryan's target machine is an M5-class Apple Silicon Mac with
 64 GB unified memory. The 32B Cortex is viable there as a primary conversation
 lane, while heartbeat/background work still belongs to the substrate, Brainstem,
 or Reflex lanes. On lower-memory machines, the hardware auditor rejects 32B
-4-bit and 32B 8-bit as real-time heartbeat tiers; use 1.5B/7B lanes there.
+4-bit and 32B 8-bit as real-time heartbeat tiers; use the 1.5B or 9B lanes
+there.
 
 There's also a `Dockerfile` and `docker-compose.yml` if you want Redis and Celery
 running alongside. The tracked workspace defaults to an explicit

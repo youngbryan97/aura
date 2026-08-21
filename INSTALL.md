@@ -7,7 +7,7 @@
 - 32 GB RAM to run it at all. 64 GB to run it the way it's built.
 
 That second line is the honest one. The tracked target is an M5-class Mac
-with 64 GB unified memory, which has room for the 32B Cortex plus the 7B
+with 64 GB unified memory, which has room for the 32B Cortex plus the 9B
 Brainstem on demand. At 32 GB it works, but you're downshifting model lanes
 and you should not expect the latency numbers quoted elsewhere in this repo
 — those were measured on the 64 GB machine.
@@ -105,7 +105,7 @@ download. After that the cache is warm and boots are quick.
 
 State loads from SQLite. Nothing saved, and she starts fresh.
 
-The 7B Brainstem does not load at boot. That's deliberate — it's lazy so
+The 9B Brainstem does not load at boot. That's deliberate — it's lazy so
 the 32B Cortex gets the memory it wants, and that's about 5 GB of
 difference on a machine where 5 GB decides whether the Cortex loads at all.
 
