@@ -1540,8 +1540,28 @@ Respond ONLY with a JSON array, no other text:
             selected_defs = []
             try:
                 if hasattr(cap, "select_tool_definitions"):
+                    # The capabilities this goal asks for, named.
+                    #
+                    # LIVE, 2026-08-20: "⚖️ [COST] build_app (cost 3)
+                    # withheld: this turn allows 2." The chat lane already
+                    # exempts a capability the person asked for from the
+                    # metabolic throttle; the engine planning that same
+                    # request did not, so the tool built for the job was
+                    # withheld from the plan that needed it.
+                    requested_for_goal: list[str] = []
+                    try:
+                        from core.phases.response_contract import derive_capability_set
+
+                        requested_for_goal = list(derive_capability_set(goal) or [])
+                    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+                        requested_for_goal = []
                     selected_defs = list(
-                        cap.select_tool_definitions(objective=goal, max_tools=10) or []
+                        cap.select_tool_definitions(
+                            objective=goal,
+                            max_tools=10,
+                            requested=requested_for_goal,
+                        )
+                        or []
                     )
                 else:
                     selected_defs = list(cap.get_tool_definitions() or [])

@@ -77,3 +77,18 @@ def test_an_empty_ranking_is_not_an_empty_answer() -> None:
     body = body[: body.index("\n    def ", 10)]
     assert "if not ordered and not asked_for:" in body
     assert body.index("asked_for = {") < body.index("if not ordered and not asked_for:")
+
+
+def test_the_planner_asks_for_what_the_goal_needs() -> None:
+    """LIVE: "[COST] build_app (cost 3) withheld: this turn allows 2."
+
+    The chat lane exempts a capability the person asked for from the metabolic
+    throttle. The engine planning that same request did not, so the tool built
+    for the job was withheld from the plan that needed it.
+    """
+    engine = Path(__file__).resolve().parents[1] / "core" / "agency" / "autonomous_task_engine.py"
+    source = engine.read_text(encoding="utf-8")
+    body = source[source.index("if hasattr(cap, \"select_tool_definitions\")") :]
+    body = body[: body.index("selected_defs = list(cap.get_tool_definitions()")]
+    assert "derive_capability_set(goal)" in body
+    assert "requested=requested_for_goal" in body
