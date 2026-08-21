@@ -208,6 +208,7 @@ class _DurableConversationWrite:
     state: str = "pending"
     attempt: int = 1
     error: str = ""
+    failure_observed: bool = False
     started_at: float = dataclasses.field(default_factory=time.monotonic)
     finished_at: float | None = None
 
@@ -328,9 +329,16 @@ async def _drain_durable_conversation_writes() -> None:
         if record.task.done():
             _settle_durable_conversation_write(record.operation_id, record.task)
     failed = [
-        record for record in records if record.state == "failed" and record.finished_at is not None
+        record
+        for record in records
+        if record.state == "failed"
+        and record.finished_at is not None
+        and not record.failure_observed
     ]
     if failed:
+        with _DURABLE_CONVERSATION_WRITES_LOCK:
+            for record in failed:
+                record.failure_observed = True
         raise RuntimeError(
             "durable conversation write failure during shutdown: "
             + ", ".join(f"{record.operation_id}={record.error}" for record in failed[-8:])
@@ -407,6 +415,9 @@ async def _await_durable_conversation_write(
     await asyncio.wait({record.task}, timeout=max(0.01, wait_budget))
     if record.task.done():
         _settle_durable_conversation_write(record.operation_id, record.task)
+    if record.state == "failed":
+        with _DURABLE_CONVERSATION_WRITES_LOCK:
+            record.failure_observed = True
     return record.state
 
 
@@ -421,6 +432,7 @@ def _durable_conversation_write_snapshot(operation_id: str) -> dict[str, Any] | 
             "state": record.state,
             "attempt": record.attempt,
             "error": record.error,
+            "failure_observed": record.failure_observed,
             "task_done": record.task.done(),
         }
 

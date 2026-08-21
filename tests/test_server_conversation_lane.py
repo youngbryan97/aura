@@ -13555,6 +13555,14 @@ async def test_failed_outbox_enqueue_restores_direct_experience_path(monkeypatch
 
     assert state == "failed"
     experience.assert_awaited_once()
+    failed = chat_routes._durable_conversation_write_snapshot(
+        f"{exchange_id}:exchange"
+    )
+    assert failed is not None
+    assert failed["failure_observed"] is True
+    # The foreground path already surfaced and handled this failure. A later
+    # shutdown drain must not attribute it to an unrelated pending write.
+    await chat_routes._drain_durable_conversation_writes()
 
 
 @pytest.mark.asyncio
@@ -13763,6 +13771,43 @@ async def test_completed_exchange_timeout_settles_after_response_budget(monkeypa
     async with chat_routes._get_convo_lock():
         entry = next(row for row in chat_routes._conversation_log if row["id"] == exchange_id)
         assert entry["durability_state"] == "committed"
+
+
+@pytest.mark.asyncio
+async def test_late_unobserved_persistence_failure_is_reported_once_at_shutdown():
+    from interface.routes import chat as chat_routes
+
+    started = threading.Event()
+    release = threading.Event()
+    operation_id = f"late-failure-{time.time_ns()}:exchange"
+
+    def _fail_after_response_budget():
+        started.set()
+        release.wait(2.0)
+        raise OSError("late disk failure")
+
+    record = chat_routes._start_durable_conversation_write(
+        operation_id=operation_id,
+        payload={"kind": "late_failure_probe"},
+        operation=_fail_after_response_budget,
+    )
+    try:
+        state = await chat_routes._await_durable_conversation_write(
+            record,
+            timeout_s=0.02,
+        )
+        assert state == "pending"
+        assert started.is_set()
+    finally:
+        release.set()
+
+    with pytest.raises(RuntimeError, match=operation_id):
+        await chat_routes._drain_durable_conversation_writes()
+    failed = chat_routes._durable_conversation_write_snapshot(operation_id)
+    assert failed is not None
+    assert failed["state"] == "failed"
+    assert failed["failure_observed"] is True
+    await chat_routes._drain_durable_conversation_writes()
 
 
 @pytest.mark.asyncio
