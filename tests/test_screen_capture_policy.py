@@ -73,9 +73,7 @@ def test_browser_with_unreadable_title_fails_closed(monkeypatch):
     from core.security import screen_capture_policy as policy
 
     monkeypatch.setattr(policy, "screen_allowed", lambda: True)
-    admission = policy.evaluate_screen_capture_admission(
-        context=("Google Chrome", "")
-    )
+    admission = policy.evaluate_screen_capture_admission(context=("Google Chrome", ""))
     assert admission.allowed is False
     assert admission.reason is policy.ScreenCaptureDenial.BROWSER_TITLE_UNKNOWN
 
@@ -84,9 +82,7 @@ def test_ordinary_foreground_is_admitted(monkeypatch):
     from core.security import screen_capture_policy as policy
 
     monkeypatch.setattr(policy, "screen_allowed", lambda: True)
-    admission = policy.evaluate_screen_capture_admission(
-        context=("Terminal", "pytest")
-    )
+    admission = policy.evaluate_screen_capture_admission(context=("Terminal", "pytest"))
     assert admission.allowed is True
     assert admission.to_receipt()["reason"] == "none"
 
@@ -103,9 +99,7 @@ def test_shared_privacy_policy_is_valid_and_bundled_once():
 
     root = Path(__file__).resolve().parents[1]
     payload = json.loads(
-        (root / "config" / "screen_capture_privacy_policy.json").read_text(
-            encoding="utf-8"
-        )
+        (root / "config" / "screen_capture_privacy_policy.json").read_text(encoding="utf-8")
     )
     assert payload["schema"] == "aura.security.screen_capture_privacy_policy.v1"
 
@@ -194,26 +188,120 @@ def test_production_admission_prefers_resident_bridge_over_python_probe(monkeypa
     assert policy.evaluate_screen_capture_admission() is resident
 
 
-def test_unavailable_resident_bridge_fails_closed_without_weaker_macos_fallback(
+def test_unavailable_resident_bridge_uses_complete_visible_window_authority(
     monkeypatch,
 ):
     from core.security import screen_capture_policy as policy
 
+    visible = policy.ScreenCaptureAdmission(
+        allowed=True,
+        context_known=True,
+        authority="python_visible_windows",
+    )
     monkeypatch.setattr(policy, "screen_allowed", lambda: True)
     monkeypatch.setattr(policy.sys, "platform", "darwin")
     monkeypatch.setattr(policy, "_resident_bridge_capture_admission", lambda: None)
+    monkeypatch.setattr(policy, "_python_macos_capture_admission", lambda: visible)
     monkeypatch.setattr(
         "core.senses.screen_context.frontmost_window_hint",
         lambda: (_ for _ in ()).throw(
-            AssertionError("macOS cannot downgrade to a frontmost-only privacy probe")
+            AssertionError("complete visible-window authority must avoid frontmost-only probe")
         ),
     )
 
     admission = policy.evaluate_screen_capture_admission()
 
+    assert admission is visible
+
+
+def test_all_visible_windows_are_checked_when_bridge_is_unavailable():
+    from core.security import screen_capture_policy as policy
+
+    admission = policy._admission_from_visible_windows(
+        [
+            {
+                "kCGWindowLayer": 0,
+                "kCGWindowOwnerPID": 41,
+                "kCGWindowOwnerName": "Terminal",
+                "kCGWindowName": "pytest",
+            },
+            {
+                "kCGWindowLayer": 0,
+                "kCGWindowOwnerPID": 42,
+                "kCGWindowOwnerName": "Google Chrome",
+                "kCGWindowName": "Private material - Incognito",
+            },
+        ],
+        foreground_pid=41,
+        authority="python_visible_windows",
+    )
+
+    assert admission.allowed is False
+    assert admission.reason is policy.ScreenCaptureDenial.PRIVATE_VISIBLE
+    assert "Chrome" not in str(admission.to_receipt()) + admission.public_error
+
+
+def test_visible_browser_without_title_fails_closed():
+    from core.security import screen_capture_policy as policy
+
+    admission = policy._admission_from_visible_windows(
+        [
+            {
+                "kCGWindowLayer": 0,
+                "kCGWindowOwnerPID": 42,
+                "kCGWindowOwnerName": "Safari",
+                "kCGWindowName": "",
+            }
+        ],
+        foreground_pid=42,
+        authority="python_visible_windows",
+    )
+
+    assert admission.allowed is False
+    assert admission.reason is policy.ScreenCaptureDenial.BROWSER_TITLE_UNKNOWN
+
+
+@pytest.mark.parametrize(
+    "windows",
+    [
+        [object()],
+        [{"kCGWindowLayer": "not-an-integer"}],
+        [
+            {
+                "kCGWindowLayer": 0,
+                "kCGWindowOwnerPID": 42,
+                "kCGWindowOwnerName": "",
+                "kCGWindowName": "unattributed",
+            }
+        ],
+    ],
+)
+def test_incomplete_visible_window_inventory_fails_closed(windows):
+    from core.security import screen_capture_policy as policy
+
+    admission = policy._admission_from_visible_windows(
+        windows,
+        foreground_pid=42,
+        authority="python_visible_windows",
+    )
+
     assert admission.allowed is False
     assert admission.reason is policy.ScreenCaptureDenial.FOREGROUND_UNKNOWN
-    assert admission.authority == "resident_bridge_unavailable"
+
+
+def test_missing_complete_window_authority_still_fails_closed(monkeypatch):
+    from core.security import screen_capture_policy as policy
+
+    monkeypatch.setattr(policy, "screen_allowed", lambda: True)
+    monkeypatch.setattr(policy.sys, "platform", "darwin")
+    monkeypatch.setattr(policy, "_resident_bridge_capture_admission", lambda: None)
+    monkeypatch.setattr(policy, "_python_macos_capture_admission", lambda: None)
+
+    admission = policy.evaluate_screen_capture_admission()
+
+    assert admission.allowed is False
+    assert admission.reason is policy.ScreenCaptureDenial.FOREGROUND_UNKNOWN
+    assert admission.authority == "visible_window_authority_unavailable"
 
 
 def test_resident_bridge_can_refuse_private_content_visible_off_foreground(
@@ -277,9 +365,7 @@ def test_missing_shared_policy_fails_closed(monkeypatch):
     monkeypatch.setattr(policy, "screen_allowed", lambda: True)
     monkeypatch.setattr(policy, "_load_privacy_policy", lambda: None)
 
-    admission = policy.evaluate_screen_capture_admission(
-        context=("Terminal", "Public work")
-    )
+    admission = policy.evaluate_screen_capture_admission(context=("Terminal", "Public work"))
 
     assert admission.allowed is False
     assert admission.reason is policy.ScreenCaptureDenial.POLICY_UNAVAILABLE
@@ -505,9 +591,7 @@ async def test_continuous_vision_retries_transient_unknown_context_quickly(monke
         ServiceContainer,
         "get",
         classmethod(
-            lambda cls, name, default=None: _Guard()
-            if name == "permission_guard"
-            else default
+            lambda cls, name, default=None: _Guard() if name == "permission_guard" else default
         ),
     )
     buffer = ContinuousSensoryBuffer.__new__(ContinuousSensoryBuffer)
@@ -964,10 +1048,14 @@ def test_computer_use_helper_refuses_unknown_foreground(monkeypatch):
     from core.security import screen_capture_policy as policy
     from core.skills.computer_use import ComputerUseSkill
 
-    monkeypatch.setattr(policy, "screen_allowed", lambda: True)
     monkeypatch.setattr(
-        "core.senses.screen_context.frontmost_window_hint",
-        lambda: ("", ""),
+        policy,
+        "evaluate_screen_capture_admission",
+        lambda: policy.ScreenCaptureAdmission(
+            allowed=False,
+            reason=policy.ScreenCaptureDenial.FOREGROUND_UNKNOWN,
+            authority="test_visible_windows",
+        ),
     )
     called = False
 

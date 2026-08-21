@@ -17,6 +17,7 @@ import asyncio
 import json
 import re
 import sys
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 from functools import lru_cache
@@ -28,11 +29,7 @@ from core.runtime.permission_gates import screen_allowed
 _POLICY_SCHEMA = "aura.security.screen_capture_privacy_policy.v1"
 SCREEN_CAPTURE_ADMISSION_SCHEMA = "aura.security.screen_capture_admission.v1"
 _ADMISSION_SCHEMA = SCREEN_CAPTURE_ADMISSION_SCHEMA
-_POLICY_PATH = (
-    Path(__file__).resolve().parents[2]
-    / "config"
-    / "screen_capture_privacy_policy.json"
-)
+_POLICY_PATH = Path(__file__).resolve().parents[2] / "config" / "screen_capture_privacy_policy.json"
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,9 +47,7 @@ def _normalized_policy_values(payload: Any, key: str) -> tuple[str, ...]:
     if not isinstance(raw_values, list):
         return ()
     values = tuple(
-        value.strip().lower()
-        for value in raw_values
-        if isinstance(value, str) and value.strip()
+        value.strip().lower() for value in raw_values if isinstance(value, str) and value.strip()
     )
     if len(values) != len(raw_values) or len(values) != len(set(values)):
         return ()
@@ -72,9 +67,7 @@ def _load_privacy_policy() -> _ScreenCapturePrivacyPolicy | None:
 
     markers = _normalized_policy_values(payload, "private_window_markers")
     private_apps = _normalized_policy_values(payload, "private_apps")
-    private_browsing_apps = _normalized_policy_values(
-        payload, "private_browsing_apps"
-    )
+    private_browsing_apps = _normalized_policy_values(payload, "private_browsing_apps")
     if not markers or not private_apps or not private_browsing_apps:
         return None
     return _ScreenCapturePrivacyPolicy(
@@ -225,10 +218,7 @@ def _resident_bridge_capture_admission() -> ScreenCaptureAdmission | None:
     receipt = result.get("capture_admission")
     if not isinstance(receipt, dict):
         return None
-    if (
-        receipt.get("schema") != _ADMISSION_SCHEMA
-        or receipt.get("authority") != "resident_bridge"
-    ):
+    if receipt.get("schema") != _ADMISSION_SCHEMA or receipt.get("authority") != "resident_bridge":
         return None
     try:
         reason = ScreenCaptureDenial(str(receipt.get("reason", "")))
@@ -247,6 +237,148 @@ def _resident_bridge_capture_admission() -> ScreenCaptureAdmission | None:
         reason=reason,
         context_known=context_known,
         authority="resident_bridge",
+    )
+
+
+def _admission_from_visible_windows(
+    windows: Any,
+    *,
+    foreground_pid: int = 0,
+    authority: str,
+) -> ScreenCaptureAdmission:
+    """Evaluate a complete macOS on-screen window inventory.
+
+    A full-display screenshot can expose any visible window, not only the
+    foreground one. This is the Python equivalent of the signed Swift bridge's
+    admission pass: every ordinary layer-zero window is checked against the
+    same repository policy before pixels are acquired. No owner or title is
+    retained in the receipt.
+    """
+
+    policy = _load_privacy_policy()
+    if policy is None:
+        return ScreenCaptureAdmission(
+            allowed=False,
+            reason=ScreenCaptureDenial.POLICY_UNAVAILABLE,
+            authority=authority,
+        )
+    if not isinstance(windows, (list, tuple)) or not windows:
+        return ScreenCaptureAdmission(
+            allowed=False,
+            reason=ScreenCaptureDenial.FOREGROUND_UNKNOWN,
+            authority=authority,
+        )
+
+    inspected = 0
+    for raw_window in windows:
+        if not isinstance(raw_window, Mapping):
+            return ScreenCaptureAdmission(
+                allowed=False,
+                reason=ScreenCaptureDenial.FOREGROUND_UNKNOWN,
+                authority=authority,
+            )
+        try:
+            layer = int(raw_window.get("kCGWindowLayer", raw_window.get("layer", 0)) or 0)
+            owner_pid = int(
+                raw_window.get("kCGWindowOwnerPID", raw_window.get("owner_pid", 0)) or 0
+            )
+        except (TypeError, ValueError):
+            return ScreenCaptureAdmission(
+                allowed=False,
+                reason=ScreenCaptureDenial.FOREGROUND_UNKNOWN,
+                authority=authority,
+            )
+        if layer != 0:
+            continue
+        owner = str(raw_window.get("kCGWindowOwnerName", raw_window.get("owner", "")) or "").strip()
+        title = str(raw_window.get("kCGWindowName", raw_window.get("title", "")) or "").strip()
+        if not owner:
+            # An unnamed layer-zero window cannot be checked against the app
+            # denylist. Treat an incomplete inventory as unknown, never public.
+            return ScreenCaptureAdmission(
+                allowed=False,
+                reason=ScreenCaptureDenial.FOREGROUND_UNKNOWN,
+                authority=authority,
+            )
+        inspected += 1
+        normalized_owner = owner.lower()
+        combined = f"{owner} {title}"
+        if normalized_owner in policy.private_apps or policy.private_pattern.search(combined):
+            return ScreenCaptureAdmission(
+                allowed=False,
+                reason=(
+                    ScreenCaptureDenial.PRIVATE_FOREGROUND
+                    if foreground_pid > 0 and owner_pid == foreground_pid
+                    else ScreenCaptureDenial.PRIVATE_VISIBLE
+                ),
+                context_known=True,
+                authority=authority,
+            )
+        if normalized_owner in policy.private_browsing_apps and not title:
+            return ScreenCaptureAdmission(
+                allowed=False,
+                reason=ScreenCaptureDenial.BROWSER_TITLE_UNKNOWN,
+                authority=authority,
+            )
+
+    if inspected == 0:
+        return ScreenCaptureAdmission(
+            allowed=False,
+            reason=ScreenCaptureDenial.FOREGROUND_UNKNOWN,
+            authority=authority,
+        )
+    return ScreenCaptureAdmission(
+        allowed=True,
+        context_known=True,
+        authority=authority,
+    )
+
+
+def _python_macos_capture_admission() -> ScreenCaptureAdmission | None:
+    """Use the host process's complete CoreGraphics inventory when available."""
+
+    if sys.platform != "darwin":
+        return None
+    authority = "python_visible_windows"
+    try:
+        import Quartz
+        from AppKit import NSWorkspace
+
+        session = Quartz.CGSessionCopyCurrentDictionary() or {}
+        if bool(session.get("CGSSessionScreenIsLocked", False)):
+            return ScreenCaptureAdmission(
+                allowed=False,
+                reason=ScreenCaptureDenial.SESSION_LOCKED,
+                authority=authority,
+            )
+        on_console = session.get("kCGSSessionOnConsoleKey")
+        login_done = session.get("kCGSessionLoginDoneKey")
+        if (on_console is not None and not bool(on_console)) or (
+            login_done is not None and not bool(login_done)
+        ):
+            return ScreenCaptureAdmission(
+                allowed=False,
+                reason=ScreenCaptureDenial.SESSION_LOCKED,
+                authority=authority,
+            )
+
+        foreground = NSWorkspace.sharedWorkspace().frontmostApplication()
+        foreground_pid = int(foreground.processIdentifier()) if foreground is not None else 0
+        options = Quartz.kCGWindowListOptionOnScreenOnly
+        options |= Quartz.kCGWindowListExcludeDesktopElements
+        windows = (
+            Quartz.CGWindowListCopyWindowInfo(
+                options,
+                Quartz.kCGNullWindowID,
+            )
+            or []
+        )
+    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
+        return None
+    return _admission_from_visible_windows(
+        list(windows),
+        foreground_pid=foreground_pid,
+        authority=authority,
     )
 
 
@@ -274,13 +406,16 @@ def evaluate_screen_capture_admission(
     if resident_admission is not None:
         return resident_admission
     if sys.platform == "darwin":
+        visible_windows_admission = _python_macos_capture_admission()
+        if visible_windows_admission is not None:
+            return visible_windows_admission
         # A full-display capture can include visible windows on every monitor.
-        # The Python fallback sees only the frontmost title, so it cannot prove
-        # that a background incognito/password-manager window is absent.
+        # If neither authority can enumerate all of them, a frontmost-only
+        # probe is not strong enough to permit capture.
         return ScreenCaptureAdmission(
             allowed=False,
             reason=ScreenCaptureDenial.FOREGROUND_UNKNOWN,
-            authority="resident_bridge_unavailable",
+            authority="visible_window_authority_unavailable",
         )
 
     try:
