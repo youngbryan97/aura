@@ -253,6 +253,37 @@ def test_live_dijkstra_draft_cannot_commit_before_complexity_and_alternative():
     assert any("used instead" in segment for segment in missed)
 
 
+def test_negative_capability_clause_is_not_a_named_replacement():
+    """The exact CP813 live answer cannot satisfy its missing alternative."""
+
+    user = (
+        "Explain Dijkstra's shortest-path invariant, give a worked example, "
+        "include the binary-heap complexity, and explain what algorithm should "
+        "be used instead when negative edges are possible."
+    )
+    answer = (
+        "Dijkstra finalizes the nearest unsettled distance. Its binary-heap "
+        "complexity is O((V + E) log V). Dijkstra's algorithm does not work "
+        "with negative weights because finalization can become invalid."
+    )
+    shape = analyze_prompt_shape(user)
+
+    missed = _unanswered_question_parts(answer, _Contract(shape))
+
+    assert any("used instead" in segment for segment in missed)
+
+
+def test_affirmative_same_line_capability_names_a_replacement():
+    user = (
+        "Explain what algorithm should be used instead when negative edges "
+        "are possible."
+    )
+    answer = "Bellman-Ford handles negative edges and detects reachable negative cycles."
+    shape = analyze_prompt_shape(user)
+
+    assert not _unanswered_question_parts(answer, _Contract(shape))
+
+
 def test_complexity_and_replacement_witnesses_are_domain_neutral():
     user = (
         "Explain the procedure, include its time complexity, and name the "

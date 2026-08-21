@@ -282,16 +282,15 @@ def find_unevidenced_action_claims(
             continue
         has_referent = bool(_WORLD_REFERENT_RE.search(sentence))
 
-        # The impersonal forms carry their own completion. "It has been
-        # written", "the file is now on your Desktop", "file writing was
-        # successful" assert a finished effect in the grammar itself, so they
-        # need neither a named place nor a separate marker to qualify — which
-        # matters, because these are the shapes both live failures used to
-        # defeat every first-person pattern.
+        # Passive grammar alone does not establish an external effect. In an
+        # algorithm explanation, "vertices have been finalized" is a property
+        # of the described procedure, not a claim that Aura changed the world.
+        # Impersonal completion therefore needs either an observable world
+        # referent or a turn whose classified intent requested an action.
         verb = ""
         basis = ""
         impersonal = _IMPERSONAL_COMPLETION_RE.search(sentence)
-        if impersonal is not None:
+        if impersonal is not None and (has_referent or action_requested):
             passive = str(impersonal.group("passive") or "").lower()
             # "it has been discussed / explained / said" is the reply
             # describing itself, and the closed class already knows that.

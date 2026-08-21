@@ -211,10 +211,26 @@ _ALTERNATIVE_REVERSE_NOMINAL_RE = re.compile(
 )
 _ALTERNATIVE_CAPABILITY_RE = re.compile(
     r"(?P<candidate>[A-Za-z][A-Za-z0-9+*'-]*"
-    r"(?:\s+[A-Za-z][A-Za-z0-9+*'-]*){0,4})\s+"
+    r"(?:[ \t]+[A-Za-z][A-Za-z0-9+*'-]*){0,4})[ \t]+"
     r"(?:handles?|supports?|accepts?|works?|operates?|applies?)\b"
     r"(?P<context>[^.!?;]{0,120})",
     re.IGNORECASE,
+)
+
+_ALTERNATIVE_PREDICATE_SCAFFOLD = frozenset(
+    {
+        "cannot",
+        "can't",
+        "did",
+        "didn't",
+        "do",
+        "does",
+        "doesn't",
+        "never",
+        "no",
+        "not",
+        "won't",
+    }
 )
 _ALTERNATIVE_EXPLICIT_RELATION_RE = re.compile(
     r"\b(?:alternative|instead|replacement|replaces?|switch(?:es|ed)?\s+to)\b",
@@ -656,6 +672,13 @@ def _candidate_is_substantive(candidate: Any) -> bool:
     }:
         words.pop()
     if not words:
+        return False
+    # A negative capability clause is not the name of a replacement. Regex
+    # backtracking can otherwise reinterpret "Dijkstra's algorithm does not
+    # work" as candidate="Dijkstra's algorithm does not", predicate="work".
+    # Keep this grammar-level: it rejects auxiliary/negation scaffolding
+    # without maintaining a registry of valid algorithms or tools.
+    if {word.casefold() for word in words} & _ALTERNATIVE_PREDICATE_SCAFFOLD:
         return False
     has_identity_shape = any(
         any(char.isupper() or char.isdigit() for char in word) or "-" in word

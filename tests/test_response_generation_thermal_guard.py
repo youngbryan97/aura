@@ -1513,6 +1513,64 @@ async def test_response_generation_leaves_user_surface_retry_to_route_owner(monk
 
 
 @pytest.mark.asyncio
+async def test_user_facing_phase_never_opens_full_dialogue_regeneration(monkeypatch):
+    state = AuraState()
+    visible = (
+        "Explain Dijkstra's invariant, give a worked example, include the "
+        "binary-heap complexity, and name the negative-weight alternative."
+    )
+    state.cognition.current_objective = visible
+    state.cognition.current_origin = "desktop_ui"
+    state.cognition.current_mode = CognitiveMode.REACTIVE
+
+    router = _Router()
+    phase = ResponseGenerationPhase(_Container({"llm_router": router}))
+    monkeypatch.setattr(
+        "core.phases.response_generation.ContextAssembler.build_messages",
+        lambda *_args, **_kwargs: [
+            {"role": "system", "content": "base live Aura context"},
+            {"role": "user", "content": visible},
+        ],
+    )
+    monkeypatch.setattr(
+        "core.phases.response_generation.get_executive_guard",
+        lambda: SimpleNamespace(align=lambda text: (text, False, [])),
+    )
+
+    async def _observe_retry_owner(
+        response,
+        contract,
+        *,
+        retry_generate,
+        state,
+        user_message=None,
+    ):
+        assert contract.is_user_facing is True
+        assert retry_generate is None
+        return response, SimpleNamespace(to_dict=lambda: {"valid": False}), False
+
+    monkeypatch.setattr(
+        "core.phases.response_generation.enforce_dialogue_contract",
+        _observe_retry_owner,
+    )
+
+    await phase.execute(
+        state,
+        context={
+            "desktop_cognitive_engine_required": True,
+            "cognitive_engine_required": True,
+            "visible_user_message": visible,
+            "user_surface_validation_prompt": visible,
+            # The ownership invariant does not depend on an optional caller
+            # flag surviving every intermediate adapter.
+            "clean_user_surface_contract": False,
+        },
+    )
+
+    assert len(router.calls) == 1
+
+
+@pytest.mark.asyncio
 async def test_response_generation_ledgers_executive_guard_visible_replacement(monkeypatch):
     state = AuraState()
     state.cognition.current_objective = "Summarize the architectural audit."

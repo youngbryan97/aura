@@ -3176,7 +3176,13 @@ class ResponseGenerationPhase(BasePhase):
                         and not is_test_run
                         and not latent_response_owned
                         and amplifier_promotion_authority == "none"
-                        and not clean_user_surface_contract
+                        # Foreground chat has one completion owner: the route's
+                        # typed append-only continuation. A second full decode
+                        # here recomputes a substantial incumbent, doubles
+                        # latency, and can replace it with a thinner answer.
+                        # Non-user-facing compositions still own their local
+                        # retry because no chat route exists above them.
+                        and not bool(getattr(contract, "is_user_facing", False))
                     )
                     else None
                 ),

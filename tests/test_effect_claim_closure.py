@@ -198,6 +198,10 @@ _INNOCENT_REPLIES = [
     "It has been explained above and I stand by that.",
     "I remembered that you prefer the shorter form, so I kept it brief.",
     "I would have opened Notes, but I do not have permission.",
+    (
+        "The invariant holds once the vertices with minimum tentative distance "
+        "have been finalized; no shorter path can reach them later."
+    ),
 ]
 
 
