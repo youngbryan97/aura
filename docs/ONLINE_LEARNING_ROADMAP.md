@@ -162,10 +162,19 @@ is a parameter.
 declared examples alone, scored on twenty-four held-out wordings that are
 never examples, against the live resident model:
 
-| Feature space | AUROC | Boundary gap | Spread | Trustworthy | Abstain |
-| :-- | --: | --: | --: | :-- | --: |
-| topical embedding | 0.693 | −0.693 | 0.193 | no | 1.00 |
-| model hidden state | **0.771** | −0.034 | 0.018 | no | 1.00 |
+| Decision | Feature space | AUROC | Coverage | F1 on decided | False positives |
+| :-- | :-- | --: | --: | --: | --: |
+| action claim | topical embedding | 0.693 | 4% | 1.00 | none decided |
+| action claim | model hidden state | **0.771** | **50%** | 0.80 | 0.00 |
+| desktop routing | topical embedding | **0.979** | 14% | 1.00 | 0.00 |
+
+Read the F1 with the coverage beside it. 0.80 is measured among the cases the
+surface was WILLING to decide — about half of twenty-four — not accuracy over
+all of them. For a surface built to abstain that is the number that matters,
+and it is a different claim from 0.80 across the set.
+
+Twelve fitted examples and twenty-four held out is a signal, not a solved
+problem.
 
 Two things follow, and both matter.
 

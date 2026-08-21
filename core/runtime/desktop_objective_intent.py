@@ -543,10 +543,18 @@ def looks_like_desktop_objective(user_message: str) -> bool:
         return True
     if _EXPLANATORY_DESKTOP_QUESTION_RE.search(text):
         return False
-    if not _contains_desktop_objective_term(sanitized_text, _DESKTOP_OBJECTIVE_ACTION_TERMS):
-        return False
-    if not _contains_desktop_objective_term(sanitized_text, _DESKTOP_OBJECTIVE_SURFACE_TERMS):
-        return False
+    # The vocabulary check is where a phrasing nobody enumerated dies.
+    #
+    # A request with no term from either list returns False here, before
+    # anything else looks at it — and that is precisely the case the learned
+    # surface exists for. Consulted after this point it was never reached on
+    # the turns that needed it.
+    if not _contains_desktop_objective_term(
+        sanitized_text, _DESKTOP_OBJECTIVE_ACTION_TERMS
+    ) or not _contains_desktop_objective_term(
+        sanitized_text, _DESKTOP_OBJECTIVE_SURFACE_TERMS
+    ):
+        return _learned_actuation_decision(user_message) is True
 
     try:
         from core.phases.action_intent import detect_action_intent
@@ -579,8 +587,7 @@ def looks_like_desktop_objective(user_message: str) -> bool:
     # is confident, the phrasing is one nobody enumerated — which is how every
     # one of these rules has been wrong before.
     if not by_pattern:
-        learned = _learned_actuation_decision(user_message)
-        if learned is True:
+        if _learned_actuation_decision(user_message) is True:
             return True
     elif _learned_actuation_decision(user_message) is False:
         logger.info(

@@ -41,6 +41,7 @@ class Measurement:
     false_positive_rate: float | None
     abstain_rate: float
     decided: int
+    coverage: float
     boundary_gap: float | None
     boundary_spread: float | None
     trustworthy: bool
@@ -55,6 +56,11 @@ class Measurement:
             "false_positive_rate": self.false_positive_rate,
             "abstain_rate": self.abstain_rate,
             "decided": self.decided,
+            # F1 is measured among the cases it was WILLING to decide. Read
+            # without coverage it looks like accuracy over the whole set,
+            # which it is not: 0.80 on half of twenty-four is a different
+            # claim from 0.80 on twenty-four.
+            "coverage": self.coverage,
             "boundary_gap": self.boundary_gap,
             "boundary_spread": self.boundary_spread,
             "trustworthy": self.trustworthy,
@@ -157,6 +163,7 @@ def measure_separation(
         false_positive_rate=(false_positive / negatives_seen) if negatives_seen else None,
         abstain_rate=abstained / total,
         decided=decided,
+        coverage=decided / total,
         boundary_gap=round(boundary.gap, 4) if boundary else None,
         boundary_spread=round(boundary.spread, 4) if boundary else None,
         trustworthy=bool(boundary.trustworthy) if boundary else False,

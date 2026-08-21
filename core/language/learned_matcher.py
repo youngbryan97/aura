@@ -46,6 +46,8 @@ from core.runtime.errors import record_degradation
 
 __all__ = [
     "Boundary",
+    "registered_surfaces",
+    "warm_all",
     "FeatureSource",
     "LearnedMatcher",
     "cosine",
@@ -98,6 +100,36 @@ def embed_sentences(sentences: Iterable[str]) -> list[list[float]]:
             enforce_failure_policy=False,
         )
         return []
+
+
+#: Every surface a live turn has asked. Warming reads this, so a surface
+#: cannot be consulted without also being maintained.
+_SURFACES: list[LearnedMatcher] = []
+_SURFACES_LOCK = threading.Lock()
+
+
+def _register(surface: LearnedMatcher) -> None:
+    with _SURFACES_LOCK:
+        if not any(existing is surface for existing in _SURFACES):
+            _SURFACES.append(surface)
+
+
+def registered_surfaces() -> tuple[LearnedMatcher, ...]:
+    """The surfaces live turns have consulted."""
+    with _SURFACES_LOCK:
+        return tuple(_SURFACES)
+
+
+def warm_all(limit: int = 8) -> int:
+    """Settle what every consulted surface deferred, and write it down.
+
+    Returns how many phrasings were settled across all of them.
+    """
+    settled = 0
+    for surface in registered_surfaces():
+        settled += surface.warm(limit=limit)
+        surface.save()
+    return settled
 
 
 def _cache_key(sentence: str) -> str:
@@ -438,6 +470,17 @@ class LearnedMatcher:
         text = str(sentence or "").strip()
         if len(text) < _MIN_CHARS:
             return None
+        # Consulted on a live turn means it needs a warmer, so asking IS the
+        # registration.
+        #
+        # LIVE, 2026-08-20. The routing surface was wired to this method and
+        # nothing warmed it: it queued every novel request, abstained, and
+        # could never turn a queued request into a decision. Verdicts are
+        # deliberately not restored across restarts either, so it had nothing
+        # to fall back on. It was inert in production while measuring 0.979
+        # offline. A second hardcoded warm call would have fixed this one
+        # surface and left the next with the same bug.
+        _register(self)
         self.load()
         key = _cache_key(text)
         with self._lock:

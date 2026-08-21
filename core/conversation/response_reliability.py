@@ -6208,9 +6208,12 @@ def warm_language_matchers(limit: int = 8) -> int:
     Whatever was learned is written down before returning, because this
     runtime restarts often and a lesson held only in memory is not learning.
     """
-    settled = _ACTION_CLAIM_MATCHER.warm(limit=limit)
-    _ACTION_CLAIM_MATCHER.save()
-    return settled
+    # Every surface a live turn has consulted, not one named here. The
+    # routing surface was wired to the non-blocking path and warmed by
+    # nothing, so it queued every novel request and could never decide one.
+    from core.language.learned_matcher import warm_all
+
+    return warm_all(limit=limit)
 
 
 def _has_unfounded_tool_execution_claim(

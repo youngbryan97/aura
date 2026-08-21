@@ -92,3 +92,56 @@ def test_routing_only_adds_and_never_removes() -> None:
     assert "if not by_pattern:" in body
     assert "keeping the patterns" in body
     assert "return by_pattern" in body
+
+
+def test_a_surface_consulted_on_a_live_turn_is_warmed() -> None:
+    """The integration bug this caught.
+
+    The routing surface was wired to the non-blocking path and warmed by
+    nothing: it queued every novel request, abstained, and could never turn a
+    queued request into a decision. Verdicts are deliberately not restored
+    across restarts, so it had nothing to fall back on — inert in production
+    while measuring 0.979 offline.
+
+    Asking IS the registration now, so a second surface cannot repeat it.
+    """
+    from core.language.learned_matcher import registered_surfaces
+    from core.runtime.desktop_objective_intent import looks_like_desktop_objective
+
+    looks_like_desktop_objective("tell me something interesting about octopuses")
+    assert "desktop_actuation" in {surface.name for surface in registered_surfaces()}
+
+
+def test_the_warmer_covers_every_consulted_surface() -> None:
+    from pathlib import Path
+
+    source = Path("core/conversation/response_reliability.py").read_text(encoding="utf-8")
+    body = source[source.index("def warm_language_matchers") :]
+    body = body[: body.index("\ndef ", 10)]
+    assert "warm_all" in body
+    assert "_ACTION_CLAIM_MATCHER.warm" not in body
+
+
+def test_the_queue_becomes_a_decision() -> None:
+    """First sighting queues and abstains; after warming it decides."""
+    from core.language.learned_matcher import warm_all
+
+    surface = actuation_surface()
+    if not surface.positives:
+        return
+    probe = "put the phrase VESSEL-88 onto my clipboard for me"
+    surface._decided.pop(probe, None)
+    assert surface.decide_without_waiting(probe) is None
+    warm_all(limit=8)
+    assert surface.decide_without_waiting(probe) is not None
+
+
+def test_the_surface_is_asked_before_the_vocabulary_gate_gives_up() -> None:
+    """A request with no enumerated term returned False before anything else
+    looked at it — precisely the case the surface exists for."""
+    from pathlib import Path
+
+    source = Path("core/runtime/desktop_objective_intent.py").read_text(encoding="utf-8")
+    gate = source[source.index("_DESKTOP_OBJECTIVE_ACTION_TERMS\n    ) or not") - 400 :]
+    gate = gate[: gate.index("try:")]
+    assert "_learned_actuation_decision(user_message) is True" in gate
