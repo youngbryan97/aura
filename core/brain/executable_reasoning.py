@@ -22,6 +22,7 @@ import re
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from enum import StrEnum
 from typing import Any
 
 from core.brain.generation_provenance import attributed_text, generation_metadata_of
@@ -169,6 +170,64 @@ _STRUCTURED_OUTPUT_REQUEST = re.compile(
 )
 
 
+class ReasoningObjectiveRole(StrEnum):
+    """Semantic role of the requested answer, independent of its topic.
+
+    A tutorial can mention algorithms, traces, examples, and graphs without
+    asking Aura to discover one machine-checkable result.  Conversely, a
+    puzzle or concrete calculation may use none of those domain words.  The
+    role prevents a verbal deliverable from being mistaken for an executable
+    objective merely because its subject is technical.
+    """
+
+    ANSWER_BEARING = "answer_bearing"
+    EXPOSITORY = "expository"
+
+
+_REQUEST_OPERATOR_BOUNDARY = r"(?:^|[.!?;]\s+|,\s*|\band\s+)"
+_REQUEST_POLITENESS = (
+    r"(?:(?:chatgpt|aura)\s+here[,:.]?\s*)?"
+    r"(?:(?:please|kindly)\s+|(?:can|could|would|will)\s+you\s+)?"
+)
+_EXPOSITORY_REQUEST_OPERATOR_RE = re.compile(
+    _REQUEST_OPERATOR_BOUNDARY
+    + _REQUEST_POLITENESS
+    + r"(?:explain|describe|summari[sz]e|compare|contrast|discuss|"
+    r"walk\s+(?:me\s+)?through)\b",
+    re.IGNORECASE,
+)
+_ANSWER_REQUEST_OPERATOR_RE = re.compile(
+    _REQUEST_OPERATOR_BOUNDARY
+    + _REQUEST_POLITENESS
+    + r"(?:solve|calculate|compute|count|determine|infer|deduce|predict|"
+    r"derive|prove|verify|debug|fix|implement|write|build|generate|produce|"
+    r"find|select|choose|optimi[sz]e|minimi[sz]e|maximi[sz]e)\b",
+    re.IGNORECASE,
+)
+
+
+def classify_reasoning_objective_role(objective: str) -> ReasoningObjectiveRole:
+    """Classify what the reply must *do*, rather than what nouns it contains.
+
+    The first explicit request operator owns the turn.  This supports natural
+    speaker preambles and coordinated requests while avoiding a domain-word
+    proxy such as ``algorithm => execute``.  Requests without an expository
+    operator remain answer-bearing; amplifier admission supplies the separate
+    hard-task and checkability requirements.
+    """
+
+    text = str(objective or "").strip()
+    if not text:
+        return ReasoningObjectiveRole.ANSWER_BEARING
+    expository = _EXPOSITORY_REQUEST_OPERATOR_RE.search(text)
+    answer = _ANSWER_REQUEST_OPERATOR_RE.search(text)
+    if expository is not None and (
+        answer is None or expository.start() < answer.start()
+    ):
+        return ReasoningObjectiveRole.EXPOSITORY
+    return ReasoningObjectiveRole.ANSWER_BEARING
+
+
 @dataclass(frozen=True, slots=True)
 class ExecutableReasoningResult:
     candidate: str
@@ -198,6 +257,8 @@ def should_use_executable_reasoning(
         return False
     if explicitly_enabled:
         return True
+    if classify_reasoning_objective_role(text) is ReasoningObjectiveRole.EXPOSITORY:
+        return False
     normalized_type = str(task_type or "").strip().lower()
     if normalized_type == "math":
         return True

@@ -214,6 +214,30 @@ async def test_phase_skips_casual_turn():
 
 
 @pytest.mark.asyncio
+async def test_phase_does_not_reopen_an_expository_draft_as_candidate_search():
+    llm = _StubLLM("a competing draft that must never be requested")
+    draft = "Dijkstra's invariant and complete worked example are already here."
+    out = await UnitaryResponsePhase._maybe_amplify_response(
+        _self_stub(),
+        objective=(
+            "ChatGPT here. Explain Dijkstra's shortest-path algorithm in one "
+            "complete response. Include its invariant, pseudocode, a worked "
+            "example, complexity, and the negative-weight limitation."
+        ),
+        draft=draft,
+        llm=llm,
+        state=_state_stub(),
+        request_timeout=180.0,
+        is_user_facing=True,
+        is_background=False,
+        proof_or_benchmark=False,
+    )
+
+    assert out == draft
+    assert llm.calls == 0
+
+
+@pytest.mark.asyncio
 async def test_phase_skips_background_and_proof():
     llm = _StubLLM("12 * 12 = 144")
     for kwargs in ({"is_background": True}, {"proof_or_benchmark": True}, {"is_user_facing": False}):

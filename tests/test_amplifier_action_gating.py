@@ -77,12 +77,20 @@ def test_plain_fact_lookup_stays_on_the_low_latency_path():
     assert is_amplifiable("what is the capital of France") is None
 
 
-def test_requested_worked_trace_is_amplifiable_without_numeric_input():
+def test_requested_worked_trace_is_one_expository_deliverable():
     text = (
         "Explain Dijkstra's invariant and give a worked example using vertices "
         "A, B, C, and D with weighted edges."
     )
-    assert is_amplifiable(text) == "factual"
+    assert is_amplifiable(text) is None
+
+
+def test_concrete_shortest_path_result_remains_amplifiable():
+    text = (
+        "Given edges A-B=2, A-C=5, B-C=1, B-D=6, and C-D=2, compute "
+        "the shortest path from A to D and return its total weight."
+    )
+    assert is_amplifiable(text) == "math"
 
 
 @pytest.mark.parametrize(

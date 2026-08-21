@@ -83,12 +83,16 @@ def test_semantic_admission_is_general_and_honors_no_execution() -> None:
         task_type="code",
         explicitly_enabled=True,
     )
-    assert should_use_executable_reasoning(
+    assert not should_use_executable_reasoning(
         "Explain a shortest-path algorithm with a worked trace over named vertices.",
         task_type="factual",
     )
-    assert should_use_executable_reasoning(
+    assert not should_use_executable_reasoning(
         "Walk through a scheduling example and show each execution step.",
+        task_type="planning",
+    )
+    assert should_use_executable_reasoning(
+        "Given jobs A=2 and B=3, compute the minimum makespan.",
         task_type="planning",
     )
 

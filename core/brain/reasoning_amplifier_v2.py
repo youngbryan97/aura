@@ -1733,6 +1733,21 @@ def is_amplifiable(objective: str) -> str | None:
     if is_action_request(q):
         return None
     task_type = classify_task_type(q)
+    from core.brain.executable_reasoning import (
+        ReasoningObjectiveRole,
+        classify_reasoning_objective_role,
+    )
+
+    # A verbal explanation is one authored deliverable, even when it discusses
+    # algorithms, asks for a worked example, or has several coverage facets.
+    # Reopening it as a serial answer search creates competing drafts without a
+    # verifier capable of judging the whole deliverable. Mutable-source audits
+    # remain eligible because their claims have independent repository evidence.
+    if (
+        task_type != "repo_audit"
+        and classify_reasoning_objective_role(q) is ReasoningObjectiveRole.EXPOSITORY
+    ):
+        return None
     if task_type in {"code", "math", "repo_audit", "architecture"}:
         return task_type
     if task_type in {"logic", "planning", "factual"}:
