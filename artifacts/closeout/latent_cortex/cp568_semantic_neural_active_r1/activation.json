@@ -1,5 +1,5 @@
 {
-  "activation_sha256": "6d0cb5c7815085a4cb40b56e6caf912b0110f07bb7ff189da85e9398d1a54561",
+  "activation_sha256": "2595df13e455ce601c10dd59327282c834eb53b2630e0fca3aa33e3e790310c3",
   "active_by_default": true,
   "allowed_families": [
     "frontier_calibration",
@@ -46,8 +46,8 @@
     "verification_sha256": "2fbe760ba0fdb8402ed4097eebcb4cc5ecedc7ac26416dbbe8edd0c3ae1ac2f4"
   },
   "integration_contract_sha256s": {
-    "core/brain/foreground_latent_runtime.py::symbol:run_foreground_latent_episode": "af579df7f862ea56d0401f84778155cec1880f740356acfd3b074500a9f96482",
-    "core/brain/latent_cortex_service.py::symbol:LatentCortexService.qualified_recurrent_reason": "48d911ad1abb8a86ca326f672f787f04fefae79652b71c17b139ef0a53ebe8f5"
+    "core/brain/foreground_latent_runtime.py::symbol:run_foreground_latent_episode": "016a3a86da9286f0e9dac9e49544c9af2cb45fb0bb4cafba603167c4e9fad2dc",
+    "core/brain/latent_cortex_service.py::symbol:LatentCortexService.qualified_recurrent_reason": "9185718f0fd7fced57a311eebb95de1c2032bd0b19f082a55133852b4a3cbc12"
   },
   "mode": "qualified_exact_semantic_v1",
   "model_identity": {
@@ -67,16 +67,18 @@
     "tag": "crsm-closeout-jul1"
   },
   "runtime_qualification": {
-    "candidate_activation_sha256": "18dde97baced592db536042c9a6126fb0ce1222767708630450e5032df6ff93a",
+    "candidate_activation_sha256": "916af38548aa5c6613b864b64428bf8c12de422331bde7403c7ab01166e0156a",
     "exact_count": 120,
+    "foreground_integration_count": 120,
     "lesion_disruption_count": 120,
-    "max_latency_ms": 14.91,
+    "max_latency_ms": 17.102,
     "measured_backend_receipt_equivalence_count": 120,
     "path": "artifacts/closeout/latent_cortex/cp568_semantic_neural_active_r1/runtime_verification.json",
-    "sha256": "65f3bd166eb7fcc434b84eaa52ebcfbfbfcd8907d4add6b80c190e86d417b82c",
+    "service_integration_count": 120,
+    "sha256": "f264dacfe79d9c67ba634583c26b10cfb0ba69fa1a387a45a3a3ce964dd9b68a",
     "task_count": 120,
     "unsupported_language_refused": true,
-    "verification_receipt_sha256": "a3ea66ab9a42d3c58b75f48a1e5a2fddd3713b92882c64656851b0bd899ed333"
+    "verification_receipt_sha256": "0e94939642966a45145787c1bdd8d04bfdc101c8edd5822a984ed0b30cfa6bd8"
   },
   "schema": "aura.semantic_neural_serving.v2",
   "source_sha256s": {

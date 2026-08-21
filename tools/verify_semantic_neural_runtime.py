@@ -18,6 +18,10 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from core.brain.foreground_latent_runtime import (  # noqa: E402
+    run_foreground_latent_episode,
+)
+from core.brain.latent_cortex_service import LatentCortexService  # noqa: E402
 from core.brain.llm.latent_cortex.semantic_neural_decode_context import (  # noqa: E402
     execute_semantic_neural_decode_state,
 )
@@ -31,6 +35,7 @@ from core.brain.llm.qualified_recurrent_ingress import (  # noqa: E402
 )
 from core.brain.llm.semantic_neural_serving import (  # noqa: E402
     DEFAULT_ACTIVATION_PATH,
+    SEMANTIC_NEURAL_RUNTIME_VERIFICATION_SCHEMA,
     semantic_neural_serving_status,
 )
 from core.learning.frontier_process_supervision import (  # noqa: E402
@@ -41,7 +46,7 @@ from core.learning.semantic_neural_controls import (  # noqa: E402
 )
 from core.runtime.atomic_writer import atomic_write_text  # noqa: E402
 
-SCHEMA = "aura.semantic_neural_runtime_verification.v2"
+SCHEMA = SEMANTIC_NEURAL_RUNTIME_VERIFICATION_SCHEMA
 RUNTIME_DOMAINS = (
     "coding",
     "calibration",
@@ -137,29 +142,62 @@ async def _verify(*, seed: int, tasks_per_difficulty: int) -> dict[str, Any]:
     exact_by_domain = {domain: 0 for domain in RUNTIME_DOMAINS}
     lesions_by_domain = {domain: 0 for domain in RUNTIME_DOMAINS}
     surface_profiles = {profile: 0 for profile in SEMANTIC_SURFACE_PROFILES}
+    foreground_integration_count = 0
+    service_integration_count = 0
+
+    class _ObservedLatentCortexService(LatentCortexService):
+        async def qualified_recurrent_reason(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
+            result = await super().qualified_recurrent_reason(*args, **kwargs)
+            self.verification_call_count += 1
+            return result
+
+    service = _ObservedLatentCortexService.__new__(_ObservedLatentCortexService)
+    service.verification_call_count = 0
     for task in tasks:
+        service_calls_before = service.verification_call_count
         started = time.perf_counter()
-        result = await execute_qualified_recurrent_objective(
-            None,
-            task.prompt,
-            timeout_s=30.0,
+        outcome = await run_foreground_latent_episode(
+            orchestrator=None,
+            messages=[{"role": "user", "content": task.prompt}],
+            visible_objective=task.prompt,
+            foreground=True,
+            desktop_required=False,
+            cognitive_mode="deliberate",
+            request_timeout_s=30.0,
+            service=service,
         )
         latency_ms = (time.perf_counter() - started) * 1000.0
         latencies.append(latency_ms)
-        grade = task.grade(str(result.get("text") or ""))
-        if result.get("ok") is not True or grade.get("correct") is not True:
-            raise RuntimeError(f"semantic runtime failed {task.task_id}: {result}")
+        qualified_receipt = outcome.trace.get("qualified_recurrent_receipt")
+        grade = task.grade(outcome.text)
+        if (
+            outcome.succeeded is not True
+            or outcome.fallback_allowed is not False
+            or not isinstance(qualified_receipt, dict)
+            or outcome.trace.get("qualified_recurrent_attempted") is not True
+            or outcome.trace.get("qualified_recurrent_succeeded") is not True
+            or outcome.trace.get("latent_cortex_selection_reason")
+            != "qualified_semantic_neural_exact_domain"
+            or outcome.evidence != ("qualified_semantic_neural_execution",)
+            or service.verification_call_count != service_calls_before + 1
+            or grade.get("correct") is not True
+        ):
+            raise RuntimeError(
+                f"semantic foreground runtime failed {task.task_id}: {outcome}"
+            )
+        foreground_integration_count += 1
+        service_integration_count = service.verification_call_count
         domain = task.family.removeprefix("frontier_")
         if domain not in exact_by_domain:
             raise RuntimeError(f"semantic runtime emitted an unexpected family: {task.family}")
         exact_by_domain[domain] += 1
         expected_state, expected_surface_receipt = _expected_state(task)
-        if result["receipt"].get("semantic_state_receipt") != expected_state.receipt():
+        if qualified_receipt.get("semantic_state_receipt") != expected_state.receipt():
             raise RuntimeError(
                 f"semantic runtime backend differs from measured tissue for {task.task_id}"
             )
         measured_backend_receipt_equivalence_count += 1
-        runtime_surface_receipt = result["receipt"].get("surface_decode_receipt")
+        runtime_surface_receipt = qualified_receipt.get("surface_decode_receipt")
         runtime_surface_receipt_sha = (
             runtime_surface_receipt.get("receipt_sha256")
             if isinstance(runtime_surface_receipt, dict)
@@ -167,7 +205,7 @@ async def _verify(*, seed: int, tasks_per_difficulty: int) -> dict[str, Any]:
         )
         if runtime_surface_receipt_sha != expected_surface_receipt:
             raise RuntimeError(f"semantic runtime surface receipt differs for {task.task_id}")
-        parser_id = str(result["receipt"]["admission"]["parser_id"])
+        parser_id = str(qualified_receipt["admission"]["parser_id"])
         surface_profile = None
         if expected_surface_receipt is not None:
             surface_profile = parser_id.removeprefix("semantic_scientific_surface.").removesuffix(
@@ -193,9 +231,9 @@ async def _verify(*, seed: int, tasks_per_difficulty: int) -> dict[str, Any]:
                 "family": task.family,
                 "depth": task.depth,
                 "latency_ms": round(latency_ms, 3),
-                "answer_sha256": hashlib.sha256(str(result["text"]).encode("ascii")).hexdigest(),
-                "runtime_receipt_sha256": result["receipt"]["receipt_sha256"],
-                "semantic_state_receipt_sha256": result["receipt"]["semantic_state_receipt"][
+                "answer_sha256": hashlib.sha256(outcome.text.encode("ascii")).hexdigest(),
+                "runtime_receipt_sha256": qualified_receipt["receipt_sha256"],
+                "semantic_state_receipt_sha256": qualified_receipt["semantic_state_receipt"][
                     "receipt_sha256"
                 ],
                 "surface_profile": surface_profile,
@@ -239,6 +277,8 @@ async def _verify(*, seed: int, tasks_per_difficulty: int) -> dict[str, Any]:
         "exact_by_domain": exact_by_domain,
         "lesion_disruption_count": lesion_disruptions,
         "measured_backend_receipt_equivalence_count": (measured_backend_receipt_equivalence_count),
+        "foreground_integration_count": foreground_integration_count,
+        "service_integration_count": service_integration_count,
         "lesion_disruptions_by_domain": lesions_by_domain,
         "scientific_surface_profiles": surface_profiles,
         "unsupported_language_refused": True,

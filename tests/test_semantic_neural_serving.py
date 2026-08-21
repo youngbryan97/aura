@@ -106,6 +106,14 @@ def test_active_semantic_activation_requires_runtime_qualification():
     )
 
 
+def test_runtime_qualification_proves_the_full_serving_chain():
+    activation = _activation()
+    qualification = activation["runtime_qualification"]
+
+    assert qualification["foreground_integration_count"] == 120
+    assert qualification["service_integration_count"] == 120
+
+
 def test_semantic_serving_kill_switch_is_fail_closed(monkeypatch):
     activation = _activation()
     model_path = activation["model_identity"]["path"]

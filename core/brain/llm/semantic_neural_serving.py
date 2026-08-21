@@ -13,6 +13,9 @@ from pathlib import Path
 from typing import Any, Final
 
 SEMANTIC_NEURAL_SERVING_SCHEMA: Final = "aura.semantic_neural_serving.v2"
+SEMANTIC_NEURAL_RUNTIME_VERIFICATION_SCHEMA: Final = (
+    "aura.semantic_neural_runtime_verification.v3"
+)
 SEMANTIC_NEURAL_SERVING_MODE: Final = "qualified_exact_semantic_v1"
 PACKAGE_ID: Final = "cp568-resident-semantic-neural-active-r1"
 PROMOTION_MODE: Final = "active"
@@ -87,6 +90,7 @@ ACTIVATION_CLAIM_BOUNDARY: Final = (
     "fusion, frontier performance, consciousness evidence, or unrestricted promotion"
 )
 _FALSE_VALUES: Final = frozenset({"0", "false", "no", "off", "disabled"})
+_OPTIONAL_AST_FIELDS: Final = frozenset({"type_params"})
 
 
 def _sha(value: Any) -> str:
@@ -138,20 +142,44 @@ def _symbol_node(tree: ast.Module, qualified_name: str) -> ast.AST:
     return current
 
 
+def _canonical_ast(value: Any) -> Any:
+    """Serialize Python syntax without binding seals to an interpreter AST schema."""
+
+    if isinstance(value, ast.AST):
+        fields = {}
+        for name, child in ast.iter_fields(value):
+            # Python 3.12 and 3.14 expose different AST field inventories.
+            # Empty optional syntax carries no program semantics, so omit it;
+            # non-empty generic parameters remain part of the contract.
+            if name in _OPTIONAL_AST_FIELDS and not child:
+                continue
+            fields[name] = _canonical_ast(child)
+        return {"node": type(value).__name__, "fields": fields}
+    if isinstance(value, list):
+        return [_canonical_ast(item) for item in value]
+    if isinstance(value, tuple):
+        return {"tuple": [_canonical_ast(item) for item in value]}
+    if isinstance(value, bytes):
+        return {"bytes_hex": value.hex()}
+    if isinstance(value, complex):
+        return {"complex": [value.real, value.imag]}
+    if value is Ellipsis:
+        return {"ellipsis": True}
+    if value is None or isinstance(value, (bool, int, float, str)):
+        return value
+    raise RuntimeError(f"unsupported semantic integration AST value: {type(value).__name__}")
+
+
 def _integration_contract_sha(path: Path, selector: str) -> str:
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     kind, separator, target = selector.partition(":")
     if not separator or not target:
         raise RuntimeError(f"semantic integration selector is invalid: {selector}")
     if kind == "symbol":
-        payload: Any = ast.dump(
-            _symbol_node(tree, target),
-            annotate_fields=True,
-            include_attributes=False,
-        )
+        payload: Any = _canonical_ast(_symbol_node(tree, target))
     elif kind == "call":
         calls = sorted(
-            ast.dump(node, annotate_fields=True, include_attributes=False)
+            _sha(_canonical_ast(node))
             for node in ast.walk(tree)
             if isinstance(node, ast.Call) and _call_name(node) == target
         )
@@ -403,11 +431,16 @@ def build_semantic_neural_activation(
         }
         runtime_receipt = runtime_verification.get("activation_receipt")
         if (
+            runtime_verification.get("schema")
+            != SEMANTIC_NEURAL_RUNTIME_VERIFICATION_SCHEMA
+            or
             runtime_verification.get("verified") is not True
             or runtime_verification.get("task_count") != 120
             or runtime_verification.get("exact_count") != 120
             or runtime_verification.get("lesion_disruption_count") != 120
             or runtime_verification.get("measured_backend_receipt_equivalence_count") != 120
+            or runtime_verification.get("foreground_integration_count") != 120
+            or runtime_verification.get("service_integration_count") != 120
             or runtime_verification.get("unsupported_language_refused") is not True
             or runtime_verification.get("verification_receipt_sha256") != _sha(runtime_body)
             or not isinstance(runtime_receipt, dict)
@@ -426,6 +459,12 @@ def build_semantic_neural_activation(
             "lesion_disruption_count": runtime_verification["lesion_disruption_count"],
             "measured_backend_receipt_equivalence_count": runtime_verification[
                 "measured_backend_receipt_equivalence_count"
+            ],
+            "foreground_integration_count": runtime_verification[
+                "foreground_integration_count"
+            ],
+            "service_integration_count": runtime_verification[
+                "service_integration_count"
             ],
             "unsupported_language_refused": runtime_verification["unsupported_language_refused"],
             "max_latency_ms": runtime_verification["max_latency_ms"],
@@ -518,6 +557,9 @@ def semantic_neural_activation_errors(
             }
             runtime_receipt = runtime_verification.get("activation_receipt")
             if (
+                runtime_verification.get("schema")
+                != SEMANTIC_NEURAL_RUNTIME_VERIFICATION_SCHEMA
+                or
                 hashlib.sha256(runtime_raw).hexdigest() != runtime_qualification.get("sha256")
                 or runtime_verification.get("verification_receipt_sha256")
                 != runtime_qualification.get("verification_receipt_sha256")
@@ -537,6 +579,10 @@ def semantic_neural_activation_errors(
                     "measured_backend_receipt_equivalence_count"
                 )
                 != 120
+                or runtime_verification.get("foreground_integration_count") != 120
+                or runtime_qualification.get("foreground_integration_count") != 120
+                or runtime_verification.get("service_integration_count") != 120
+                or runtime_qualification.get("service_integration_count") != 120
                 or runtime_verification.get("unsupported_language_refused") is not True
             ):
                 errors.append("runtime_qualification_drift")
