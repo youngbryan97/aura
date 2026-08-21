@@ -11979,6 +11979,12 @@ def test_certified_recurrent_typed_answer_has_non_generative_delivery_ownership(
     assert contract["single_owner_model_generation_proven"] is True
     assert contract["authentic_cognitive_reply"] is True
     assert contract["answer_delivery_proven"] is True
+    assert contract["model_native_output"] is False
+    assert contract["state_native_output"] is True
+    assert contract["semantic_completion_receipt_present"] is True
+    assert contract["semantic_completion_satisfied"] is True
+    assert contract["semantic_completion_mode"] == "certified_state_serialization"
+    assert contract["final_text_authorship"] == "certified_recurrent_state_serialization"
     assert "live_mind_controls_unbound" not in contract["full_mind_missing_proofs"]
 
     mutated_answer = task.answer + " downstream-grounding-mutation"
@@ -12212,6 +12218,15 @@ async def test_desktop_chat_delivers_certified_recurrent_answer_without_prose_pi
     assert payload["response"] == task.answer
     assert payload["live_turn_contract"]["qualified_recurrent_path_proven"] is True
     assert payload["live_turn_contract"]["foreground_model_generation_count"] == 0
+    assert payload["live_turn_contract"]["model_native_output"] is False
+    assert payload["live_turn_contract"]["state_native_output"] is True
+    assert payload["live_turn_contract"]["semantic_completion_satisfied"] is True
+    assert payload["live_turn_contract"]["latent_cortex_public_output_quality"][
+        "policy"
+    ] == "qualified_recurrent_state_serialization_quality_v1"
+    assert payload["live_turn_contract"][
+        "qualified_recurrent_public_output_quality_proven"
+    ] is True
     assert quality_calls == []
 
 

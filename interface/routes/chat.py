@@ -43,7 +43,10 @@ from core.brain.live_mind_contract import (
     summarize_text_mutation_authorship,
     verify_text_mutation_chain,
 )
-from core.brain.llm.latent_cortex.output_quality import evaluate_latent_output
+from core.brain.llm.latent_cortex.output_quality import (
+    OUTPUT_QUALITY_SCHEMA,
+    evaluate_latent_output,
+)
 from core.container import ServiceContainer
 from core.conversation.continuation import continuation_state_text
 from core.conversation.persistence import ConversationRevisionConflictError
@@ -3868,6 +3871,53 @@ def _bind_public_latent_output_quality(
 
     if trace.get("latent_cortex_succeeded") is not True:
         return {}
+    qualified_recurrent = (
+        str(trace.get("response_path") or "").strip()
+        == "cognitive_engine_qualified_recurrent"
+    )
+    if qualified_recurrent:
+        try:
+            from core.brain.llm.qualified_recurrent_ingress import (
+                qualified_recurrent_result_receipt_errors,
+            )
+
+            reasons = qualified_recurrent_result_receipt_errors(
+                trace.get("qualified_recurrent_receipt"),
+                answer_text=str(reply_text or ""),
+                expected_family=str(trace.get("qualified_recurrent_family") or ""),
+            )
+        except (ImportError, TypeError, ValueError) as exc:
+            reasons = [
+                f"qualified_recurrent_result_validation_unavailable:{type(exc).__name__}"
+            ]
+        quality = {
+            "schema": OUTPUT_QUALITY_SCHEMA,
+            "policy": "qualified_recurrent_state_serialization_quality_v1",
+            "passed": not reasons,
+            "text_sha256": hashlib.sha256(
+                str(reply_text or "").encode("utf-8")
+            ).hexdigest(),
+            "objective_sha256": hashlib.sha256(
+                str(user_message or "").encode("utf-8")
+            ).hexdigest(),
+            "serialization": "canonical_json_from_authenticated_semantic_state",
+            "state_serialization": True,
+            "generated_token_count": None,
+            "receipt_sha256": str(
+                (trace.get("qualified_recurrent_receipt") or {}).get("receipt_sha256")
+                or ""
+            ),
+            "reasons": list(reasons),
+        }
+        trace["latent_cortex_public_output_quality"] = quality
+        trace["qualified_recurrent_public_output_quality"] = dict(quality)
+        if reasons:
+            trace["latent_cortex_public_output_quality_failure"] = (
+                "qualified_state_serialization_failed:" + ",".join(reasons)
+            )[:500]
+        else:
+            trace.pop("latent_cortex_public_output_quality_failure", None)
+        return quality
     raw_receipt = trace.get("latent_cortex_receipt")
     raw_receipt = dict(raw_receipt) if isinstance(raw_receipt, dict) else {}
     quality = evaluate_latent_output(

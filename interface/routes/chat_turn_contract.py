@@ -287,6 +287,9 @@ def _build_live_turn_contract_payload(
     lane = dict(lane_status or {})
     trace = dict(turn_trace or {})
     response_path = str(trace.get("response_path") or reply_source or status or "").strip()
+    qualified_recurrent_response_path = (
+        response_path == "cognitive_engine_qualified_recurrent"
+    )
     engine_think_invoked = bool(trace.get("engine_think_invoked"))
     engine_reply_failed = bool(trace.get("cognitive_engine_reply_failed"))
     engine_reply_accepted = (
@@ -398,16 +401,35 @@ def _build_live_turn_contract_payload(
     latent_cortex_public_output_quality = (
         dict(raw_public_output_quality) if isinstance(raw_public_output_quality, dict) else {}
     )
-    latent_cortex_public_output_quality_proven = bool(
-        latent_cortex_public_output_quality.get("schema") == "aura.latent_output_quality.v1"
+    qualified_recurrent_public_output_quality_proven = bool(
+        qualified_recurrent_response_path
+        and latent_cortex_public_output_quality.get("schema")
+        == "aura.latent_output_quality.v1"
         and latent_cortex_public_output_quality.get("policy")
-        == "resident_latent_product_quality_v1"
+        == "qualified_recurrent_state_serialization_quality_v1"
         and latent_cortex_public_output_quality.get("passed") is True
+        and latent_cortex_public_output_quality.get("state_serialization") is True
+        and latent_cortex_public_output_quality.get("serialization")
+        == "canonical_json_from_authenticated_semantic_state"
         and _sha256(latent_cortex_public_output_quality.get("text_sha256"))
         and _sha256(latent_cortex_public_output_quality.get("objective_sha256"))
-        and latent_cortex_public_output_quality.get("objective_sha256")
-        == raw_latent_output_quality.get("objective_sha256")
+        and _sha256(latent_cortex_public_output_quality.get("receipt_sha256"))
         and latent_cortex_public_output_quality.get("reasons") == []
+    )
+    latent_cortex_public_output_quality_proven = bool(
+        qualified_recurrent_public_output_quality_proven
+        or (
+            latent_cortex_public_output_quality.get("schema")
+            == "aura.latent_output_quality.v1"
+            and latent_cortex_public_output_quality.get("policy")
+            == "resident_latent_product_quality_v1"
+            and latent_cortex_public_output_quality.get("passed") is True
+            and _sha256(latent_cortex_public_output_quality.get("text_sha256"))
+            and _sha256(latent_cortex_public_output_quality.get("objective_sha256"))
+            and latent_cortex_public_output_quality.get("objective_sha256")
+            == raw_latent_output_quality.get("objective_sha256")
+            and latent_cortex_public_output_quality.get("reasons") == []
+        )
     )
     raw_surface_receipt_for_quality = trace.get("live_mind_surface_control_receipt")
     raw_surface_receipt_for_quality = (
@@ -464,14 +486,17 @@ def _build_live_turn_contract_payload(
         )
     )
     latent_cortex_output_quality_proven = bool(
-        latent_cortex_raw_output_quality_proven
-        and latent_cortex_final_output_quality_proven
-        and latent_cortex_public_output_quality_proven
-        and raw_final_quality_transition_proven
-        and final_public_quality_transition_proven
-        and (
-            raw_public_quality_hash_match
-            or latent_cortex_output_mutation_chain.get("passed") is True
+        qualified_recurrent_public_output_quality_proven
+        or (
+            latent_cortex_raw_output_quality_proven
+            and latent_cortex_final_output_quality_proven
+            and latent_cortex_public_output_quality_proven
+            and raw_final_quality_transition_proven
+            and final_public_quality_transition_proven
+            and (
+                raw_public_quality_hash_match
+                or latent_cortex_output_mutation_chain.get("passed") is True
+            )
         )
     )
     latent_cortex_receipt = {
@@ -736,12 +761,11 @@ def _build_live_turn_contract_payload(
         and (not final_output_contract_required or final_output_contract_satisfied)
     )
     model_native_output = bool(
-        not post_generation_repair_applied and not unreceipted_runtime_replacement
+        not qualified_recurrent_response_path
+        and not post_generation_repair_applied
+        and not unreceipted_runtime_replacement
     )
     confidence = str(response_confidence or "").strip().lower()
-    qualified_recurrent_response_path = (
-        response_path == "cognitive_engine_qualified_recurrent"
-    )
     qualified_recurrent_path_proven = bool(
         qualified_recurrent_response_path
         and trace.get("qualified_recurrent_path_proven") is True
@@ -913,8 +937,18 @@ def _build_live_turn_contract_payload(
     )
     semantic_completion_receipt_present = bool(
         trace.get("semantic_completion_receipt_present")
+        or qualified_recurrent_path_proven
     )
-    semantic_completion_satisfied = bool(trace.get("semantic_completion_satisfied"))
+    semantic_completion_satisfied = bool(
+        trace.get("semantic_completion_satisfied")
+        or qualified_recurrent_path_proven
+    )
+    state_native_output = bool(
+        qualified_recurrent_path_proven
+        and not post_generation_repair_applied
+        and not unreceipted_runtime_replacement
+        and not authorship_replacement_applied
+    )
     if "authored_answer_completion_proven" in trace:
         # A merged append-only answer is assessed as one semantic object after
         # the final segment, so it may carry a stronger route-level proof than
@@ -1043,6 +1077,11 @@ def _build_live_turn_contract_payload(
         "semantic_completion_contract_expected": semantic_completion_expected,
         "semantic_completion_receipt_present": semantic_completion_receipt_present,
         "semantic_completion_satisfied": semantic_completion_satisfied,
+        "semantic_completion_mode": (
+            "certified_state_serialization"
+            if qualified_recurrent_path_proven
+            else "model_generation"
+        ),
         "completion_retry_count": completion_retry_count,
         "continuation_evidence_valid": continuation_evidence_valid,
         "repair_retry_attempt_count": repair_retry_attempt_count,
@@ -1068,6 +1107,9 @@ def _build_live_turn_contract_payload(
         "latent_cortex_raw_output_quality_proven": (latent_cortex_raw_output_quality_proven),
         "latent_cortex_final_output_quality_proven": (latent_cortex_final_output_quality_proven),
         "latent_cortex_public_output_quality_proven": (latent_cortex_public_output_quality_proven),
+        "qualified_recurrent_public_output_quality_proven": (
+            qualified_recurrent_public_output_quality_proven
+        ),
         "latent_cortex_raw_final_quality_hash_match": (raw_final_quality_hash_match),
         "latent_cortex_raw_public_quality_hash_match": (raw_public_quality_hash_match),
         "latent_cortex_final_public_quality_hash_match": (final_public_quality_hash_match),
@@ -1125,16 +1167,21 @@ def _build_live_turn_contract_payload(
         "unreceipted_runtime_replacement": unreceipted_runtime_replacement,
         "runtime_grounding_response_path": bool(response_path in _RUNTIME_GROUNDING_RESPONSE_PATHS),
         "model_native_output": model_native_output,
+        "state_native_output": state_native_output,
         "final_text_authorship": (
             "non_cognitive_replacement"
             if authorship_replacement_applied
             else (
-                "cognitive_generation_with_runtime_evidence"
-                if authorship_augmentation_applied
+                "certified_recurrent_state_serialization"
+                if state_native_output
                 else (
-                    "model_native"
-                    if model_native_output
-                    else "cognitive_generation_with_recorded_transformations"
+                    "cognitive_generation_with_runtime_evidence"
+                    if authorship_augmentation_applied
+                    else (
+                        "model_native"
+                        if model_native_output
+                        else "cognitive_generation_with_recorded_transformations"
+                    )
                 )
             )
         ),
