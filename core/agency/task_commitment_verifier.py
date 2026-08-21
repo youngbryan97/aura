@@ -667,6 +667,17 @@ class TaskCommitmentVerifier:
             succeeded = self._result_counts_as_success(result)
             summary = getattr(result, "summary", str(result))
             deferred = "" if succeeded else self._deferral_reason(result)
+            if not succeeded:
+                # Which of the two it is decides whether the person is told to
+                # wait or told it broke, and the two looked identical from the
+                # ledger: "failed" beside error=None.
+                logger.info(
+                    "TaskCommitmentVerifier: inline result %s succeeded=%s deferred=%r summary=%r",
+                    type(result).__name__,
+                    succeeded,
+                    deferred,
+                    str(getattr(result, "summary", ""))[:80],
+                )
             outcome = DispatchOutcome.COMPLETED if succeeded else DispatchOutcome.FAILED
             tracking_updates, evidence = self._extract_result_tracking_fields(result)
             self._update_task_entry(

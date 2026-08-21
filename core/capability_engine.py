@@ -2742,13 +2742,17 @@ class CapabilityEngine(AuraBaseModule):
             required_skill=required_skill,
             max_tools=max_tools,
         )
-        if not ordered:
-            return []
-
         allowed_max_cost = self._allowed_max_tool_cost()
         asked_for = {str(name) for name in (requested or ())} | (
             {str(required_skill)} if required_skill else set()
         )
+        # An empty ranking is not an empty answer when the turn named what it
+        # needs. This returned [] before reaching the requested set, so a turn
+        # whose working set was decided correctly was offered nothing at all:
+        # "skill=improve_own_code,build_app,internal_sandbox,http_request,
+        # code_repl offered=NONE (no tool definition)".
+        if not ordered and not asked_for:
+            return []
         selected: list[dict[str, Any]] = []
         # What the turn asked for comes first and is fetched by name. Ranking
         # a set that was already decided is how build_app survived selection

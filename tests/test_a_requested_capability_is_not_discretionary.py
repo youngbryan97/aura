@@ -62,3 +62,18 @@ def test_the_tool_map_hands_over_what_it_decided() -> None:
     body = body[body.index("def build_agentic_tool_map") :]
     body = body[: body.index("\ndef ", 10)]
     assert "requested=sorted(wanted)" in body
+
+
+def test_an_empty_ranking_is_not_an_empty_answer() -> None:
+    """LIVE: "skill=improve_own_code,build_app,internal_sandbox,http_request,
+    code_repl offered=NONE (no tool definition)".
+
+    The working set was decided correctly and the selector returned [] before
+    it ever reached the requested names, because the relevance ranker found
+    nothing.
+    """
+    source = ENGINE.read_text(encoding="utf-8")
+    body = source[source.index("def select_tool_definitions") :]
+    body = body[: body.index("\n    def ", 10)]
+    assert "if not ordered and not asked_for:" in body
+    assert body.index("asked_for = {") < body.index("if not ordered and not asked_for:")
