@@ -592,6 +592,11 @@ must come from recurrence-native training (the objective + curriculum
 losses are the entry point) — exactly what this harness was built to be
 able to say without flinching.
 
+That prediction held. Recurrence-native training is where the dividend came
+from, on four named executable families, at CP566 on 2026-08-15. The section
+above is the frozen loop's verdict and stays as written;
+[INTRINSIC_RECURRENCE.md](INTRINSIC_RECURRENCE.md) carries what replaced it.
+
 ## Calibrated heterogeneous integration (SPARK-034)
 
 The final candidate boundary no longer assumes that a retained correction
