@@ -13,7 +13,7 @@ import subprocess
 import sys
 import threading
 import time
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -2727,6 +2727,7 @@ class CapabilityEngine(AuraBaseModule):
         objective: str = "",
         required_skill: str | None = None,
         max_tools: int = 8,
+        requested: Sequence[str] | None = None,
     ) -> list[dict[str, Any]]:
         """
         Return a bounded, relevance-ranked tool subset for agentic LLM calls.
@@ -2745,11 +2746,25 @@ class CapabilityEngine(AuraBaseModule):
             return []
 
         allowed_max_cost = self._allowed_max_tool_cost()
+        asked_for = {str(name) for name in (requested or ())} | (
+            {str(required_skill)} if required_skill else set()
+        )
         selected: list[dict[str, Any]] = []
-        for name in ordered:
+        # What the turn asked for comes first and is fetched by name. Ranking
+        # a set that was already decided is how build_app survived selection
+        # and vanished one call later.
+        for name in [*sorted(asked_for), *ordered]:
             if len(selected) >= max_tools:
                 break
-            tool = self._tool_definition_for_skill(name, allowed_max_cost=allowed_max_cost)
+            if any(
+                str((entry.get("function") or {}).get("name")) == name for entry in selected
+            ):
+                continue
+            tool = self._tool_definition_for_skill(
+                name,
+                allowed_max_cost=allowed_max_cost,
+                requested=name in asked_for,
+            )
             if tool:
                 selected.append(tool)
         return selected
@@ -4827,6 +4842,9 @@ class CapabilityEngine(AuraBaseModule):
         urgency = mods.urgency_flag if mods else False
 
         if health_score < 0.3:
+            # Panic. Nothing is exempt here, including a capability the person
+            # asked for by name: below this line the question is whether the
+            # runtime survives the turn.
             allowed_max_cost = 0  # Panic/Shutdown: Core/Reflex only
         elif health_score < 0.6:
             # If urgent, we allow light tools (1) even when stressed
@@ -4850,6 +4868,7 @@ class CapabilityEngine(AuraBaseModule):
         skill_name: str,
         *,
         allowed_max_cost: int | None = None,
+        requested: bool = False,
     ) -> dict[str, Any] | None:
         meta = self.skills.get(skill_name)
         if meta is None:
@@ -4870,7 +4889,25 @@ class CapabilityEngine(AuraBaseModule):
         is_core = bool(getattr(meta, "is_core_personality", False))
         if allowed_max_cost is None:
             allowed_max_cost = self._allowed_max_tool_cost()
-        if cost > allowed_max_cost and not is_core:
+        if cost > allowed_max_cost and not is_core and not requested:
+            # LIVE, 2026-08-20. "build me a small web app" reached selection
+            # with build_app first — and build_app is a heavy tool, live
+            # vitality was 0.683, and the tier below 0.8 caps cost at 2. The
+            # one capability built for the request was dropped here without a
+            # word, and the turn spent itself on code_repl instead, which
+            # governance then vetoed.
+            #
+            # The throttle exists so Aura does not CHOOSE expensive work while
+            # tired. A capability the person asked for by name is not
+            # discretionary spending. Panic still refuses everything, because
+            # below that line the question is whether the runtime survives the
+            # turn.
+            logger.info(
+                "⚖️ [COST] %s (cost %d) withheld: this turn allows %d.",
+                skill_name,
+                cost,
+                allowed_max_cost,
+            )
             return None
 
         return {

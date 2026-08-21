@@ -534,6 +534,14 @@ async def prepare_runtime_payload(
         try:
             payload_state.cognition.current_objective = objective
             payload_state.cognition.current_origin = str(origin or "system")
+            # What she is attending to on THIS turn.
+            #
+            # The snapshot carried the objective and left attention_focus at
+            # whatever a background loop had last written, so a reader asking
+            # what the turn was about could get an answer from a different
+            # one. The clone exists to be turn-consistent; a field that
+            # survives the clone unchanged is the part that is not.
+            payload_state.cognition.attention_focus = objective
         except _SOFT_RUNTIME_FAILURES as _exc:
             _record_runtime_wiring_degradation(
                 _exc,
@@ -739,6 +747,12 @@ def build_agentic_tool_map(
                     objective=str(objective or ""),
                     required_skill=next(iter(wanted)) if len(wanted) == 1 else None,
                     max_tools=max(int(max_tools or 1), len(wanted) or 1, 8),
+                    # The working set was already decided. Handing it over
+                    # means the registry fetches those definitions by name
+                    # instead of ranking the same objective a second time and
+                    # intersecting the two answers — which is how build_app
+                    # was wanted and never offered.
+                    requested=sorted(wanted),
                 )
                 or []
             )
