@@ -104,6 +104,13 @@ _CONVERSATION_MEMORY_PRODUCER_TYPES = {
     "memory_facade": frozenset({"interaction_commit"}),
 }
 _EXPLICIT_MEMORY_PRODUCERS = frozenset({"session_memory_pin"})
+_INTERNAL_EVIDENCE_MEMORY_PRODUCERS = {
+    # Direct observations of completed actions are append-only evidence, not
+    # speculative beliefs.  Binding the lane to both producer and memory type
+    # prevents arbitrary callers from turning an untrusted memory write into
+    # "runtime evidence" with metadata booleans alone.
+    "action_consequence_graph": frozenset({"causal_outcome"}),
+}
 _HIGH_RISK_MEMORY_MARKERS = (
     "belief",
     "identity",
@@ -518,12 +525,21 @@ class AuthorityGateway:
                 or str(payload.get("provenance_source") or "").strip().lower() in {"user", "user_explicit"}
             )
         )
+        internal_evidence_write = bool(
+            memory_type_l
+            in _INTERNAL_EVIDENCE_MEMORY_PRODUCERS.get(source_l, frozenset())
+            and not high_risk
+            and payload.get("empirical_observation") is True
+            and payload.get("runtime_evidence") is True
+            and payload.get("tool_result_evidence") is True
+        )
         context: dict[str, Any] = {
             "memory_type": memory_type_l,
             "memory_source": source_l,
             "memory_metadata": payload,
             "conversation_continuity": continuity_write,
             "explicit_observational_memory_write": explicit_observational_write,
+            "internal_evidence_memory_write": internal_evidence_write,
             "user_facing_memory_write": user_facing,
             "high_risk_memory_write": high_risk,
             "objective": str(payload.get("objective") or payload.get("message") or content or "")[:400],
@@ -543,17 +559,25 @@ class AuthorityGateway:
         # judgement is exactly what the token is supposed to attest, so the
         # gateway mints one, short-lived and scoped to this write. The flag
         # still cannot be self-granted by a caller — only the gateway can issue.
-        if continuity_write or explicit_observational_write:
+        if continuity_write or explicit_observational_write or internal_evidence_write:
             binding = cls._memory_write_binding(
                 memory_type_l,
                 source_l,
                 payload,
                 content,
             )
-            token = cls._issue_continuity_capability(
-                memory_type_l,
-                source_l,
-                binding,
+            token = (
+                cls._issue_internal_evidence_capability(
+                    memory_type_l,
+                    source_l,
+                    binding,
+                )
+                if internal_evidence_write
+                else cls._issue_continuity_capability(
+                    memory_type_l,
+                    source_l,
+                    binding,
+                )
             )
             if token:
                 context["capability_token"] = token
@@ -608,6 +632,24 @@ class AuthorityGateway:
             action=f"continuity_memory_write:{binding}",
             scope=f"memory_write:{memory_type}:{source}:{binding}",
             unattested_action="continuity memory write proceeds unattested (falls back to defer)",
+        )
+
+    @classmethod
+    def _issue_internal_evidence_capability(
+        cls,
+        memory_type: str,
+        source: str,
+        binding: str,
+    ) -> str:
+        """Attest one append-only observation emitted by a known producer."""
+
+        return cls._issue_gateway_capability(
+            domain="memory_write",
+            action=f"internal_evidence_memory_write:{binding}",
+            scope=f"memory_write:{memory_type}:{source}:{binding}",
+            unattested_action=(
+                "internal evidence write proceeds unattested (falls back to defer)"
+            ),
         )
 
     @classmethod

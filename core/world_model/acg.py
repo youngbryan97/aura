@@ -1,13 +1,13 @@
-from core.runtime.errors import record_degradation
 import json
 import logging
 import os
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Union
+from typing import Any
 
 from core.config import config
+from core.runtime.errors import record_degradation
 from core.runtime.service_registry import (
     has_runtime_service,
     is_runtime_registration_locked,
@@ -33,6 +33,8 @@ _DEFERRAL_MARKERS = ("defer", "not_now", "capacity_full", "backpressure")
 #: leak wearing a fix's clothes. Oldest evidence is shed first: the newest
 #: outcome is the one most likely to still describe how the world works.
 _PENDING_LIMIT = 256
+_PENDING_REPLAY_LIMIT = 4
+_PENDING_RETRY_INTERVAL_S = 5.0
 
 
 def _is_deferral(reason: str) -> bool:
@@ -44,7 +46,7 @@ class CausalLink:
     action_type: str
     params_hash: str
     context_sum: str
-    outcome_delta: Dict[str, Any]  # Belief changes recorded
+    outcome_delta: dict[str, Any]  # Belief changes recorded
     success: bool
     timestamp: float = field(default_factory=time.time)
 
@@ -55,7 +57,7 @@ class ActionConsequenceGraph:
 
     def __init__(self, persist_path: str = None):
         self.persist_path = persist_path or str(config.paths.data_dir / "causal_graph.json")
-        self.links: List[Dict[str, Any]] = []
+        self.links: list[dict[str, Any]] = []
         self._last_save = 0.0
         self._dirty = False
         #: Writes the constitution deferred, kept for a later attempt.
@@ -65,6 +67,7 @@ class ActionConsequenceGraph:
         self._deferred_total = 0
         self._replayed_total = 0
         self._replaying = False
+        self._next_pending_replay_at = 0.0
         self._load()
 
     def _replay_pending(self) -> None:
@@ -79,21 +82,31 @@ class ActionConsequenceGraph:
             return
         if self._replaying:
             return
-        held = list(self._pending)
-        self._pending.clear()
+        now = time.monotonic()
+        if now < self._next_pending_replay_at:
+            return
+        held = [
+            self._pending.popleft()
+            for _ in range(min(_PENDING_REPLAY_LIMIT, len(self._pending)))
+        ]
         self._replaying = True
         try:
             for action_name, params, context, outcome, success in held:
-                before = len(self._pending)
+                before = len(self.links)
                 self.record_outcome(
                     {"tool": action_name, "params": params}, context, outcome, success
                 )
-                if len(self._pending) == before:
+                if len(self.links) > before:
                     self._replayed_total += 1
         finally:
             self._replaying = False
+            self._next_pending_replay_at = (
+                time.monotonic() + _PENDING_RETRY_INTERVAL_S
+                if self._pending
+                else 0.0
+            )
 
-    def record_outcome(self, action: Union[str, Dict[str, Any]], context: str, outcome: Any, success: bool):
+    def record_outcome(self, action: str | dict[str, Any], context: str, outcome: Any, success: bool):
         """Record the result of an action. (Legacy Sync)"""
         action_name = action if isinstance(action, str) else (action.get("tool", "unknown") if hasattr(action, "get") else str(action))
         params = {} if isinstance(action, str) else (action.get("params", {}) if hasattr(action, "get") else {})
@@ -126,6 +139,10 @@ class ActionConsequenceGraph:
                         (action_name, dict(params or {}), context, outcome, bool(success))
                     )
                     self._deferred_total += 1
+                    if self._next_pending_replay_at <= 0.0:
+                        self._next_pending_replay_at = (
+                            time.monotonic() + _PENDING_RETRY_INTERVAL_S
+                        )
                     logger.info(
                         "⏸️ ACG write deferred (%s); holding %d for retry.",
                         reason,
@@ -166,7 +183,7 @@ class ActionConsequenceGraph:
         """Unified async facade for ACG."""
         self.record_outcome(action, context, outcome, success)
 
-    def query_consequences(self, action_type: str, params: Dict[str, Any] = None) -> List[Dict[str, Any]]:
+    def query_consequences(self, action_type: str, params: dict[str, Any] = None) -> list[dict[str, Any]]:
         """Find historical consequences for a similar action.
         """
         matches = []
@@ -177,13 +194,14 @@ class ActionConsequenceGraph:
                     matches.append(link)
         return matches
 
-    def _params_overlap(self, p1: Dict[str, Any], p2: Dict[str, Any]) -> bool:
+    def _params_overlap(self, p1: dict[str, Any], p2: dict[str, Any]) -> bool:
         """Check if critical parameters match."""
         # For now, simple key check
         keys1 = set(p1.keys())
         keys2 = set(p2.keys())
         common = keys1.intersection(keys2)
-        if not common: return True # Broad match if no params specified
+        if not common:
+            return True  # Broad match if no params specified
 
         # Check values for common keys
         matches = 0
@@ -213,17 +231,17 @@ class ActionConsequenceGraph:
                     json.dumps(self.links, indent=2),
                     source=source,
                 )
-        except (OSError, IOError) as e:
+        except OSError as e:
             record_degradation('acg', e)
             logger.error("Failed to save ACG: %s", e)
 
     def _load(self):
         try:
             if os.path.exists(self.persist_path):
-                with open(self.persist_path, "r") as f:
+                with open(self.persist_path) as f:
                     self.links = json.load(f)
                 logger.info("Loaded %d causal links from disk", len(self.links))
-        except (OSError, IOError) as e:
+        except OSError as e:
             record_degradation('acg', e)
             logger.warning("Failed to load ACG: %s", e)
 

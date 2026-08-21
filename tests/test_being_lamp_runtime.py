@@ -463,6 +463,97 @@ def test_aura_now_constrains_low_risk_interaction_memory_instead_of_dropping_it(
     assert replay_policy["outcome"] == "defer"
 
 
+def test_runtime_evidence_commit_survives_recovery_without_forged_bypass() -> None:
+    from core.executive.authority_gateway import AuthorityGateway
+
+    def high_recovery() -> SimpleNamespace:
+        return SimpleNamespace(
+            action_inhibition=0.0,
+            integrity_guard=0.2,
+            recovery_drive=0.9,
+            self_report_confidence=0.8,
+            welfare_score=0.5,
+            distress=0.2,
+            truth_protection=0.4,
+            should_protect_integrity=lambda: False,
+            should_verify_before_claiming=lambda: False,
+        )
+
+    runtime = BeingRuntime()
+    now = runtime.sample(AuraState.default(), objective="record completed action")
+    runtime._last_welfare = high_recovery()
+    metadata = {
+        "empirical_observation": True,
+        "runtime_evidence": True,
+        "tool_result_evidence": True,
+        "success": True,
+    }
+    context = AuthorityGateway._memory_write_context(
+        "causal_outcome",
+        "action_consequence_graph",
+        metadata,
+        "open_notes: completed",
+    )
+
+    assert context["internal_evidence_memory_write"] is True
+    assert context.get("capability_token")
+    policy = runtime.action_policy(
+        now,
+        domain="memory_write",
+        priority=0.55,
+        context=context,
+    )
+    assert policy["outcome"] == "constrain"
+    assert "welfare_recovery_required_before_action" not in policy["defers"]
+    assert any(
+        item.startswith("internal_evidence_commit_lane:")
+        for item in policy["constraints"]
+    )
+
+    # Metadata booleans and the right source name are not authority. The
+    # gateway-issued, write-bound capability is required and single-use.
+    forged = runtime.action_policy(
+        now,
+        domain="memory_write",
+        priority=0.55,
+        context={
+            "internal_evidence_memory_write": True,
+            "memory_write_binding": context["memory_write_binding"],
+            "memory_type": "causal_outcome",
+            "memory_source": "action_consequence_graph",
+            "memory_metadata": metadata,
+        },
+    )
+    assert "welfare_recovery_required_before_action" in forged["defers"]
+
+
+def test_untrusted_or_high_risk_memory_cannot_claim_evidence_commit_lane() -> None:
+    from core.executive.authority_gateway import AuthorityGateway
+
+    evidence = {
+        "empirical_observation": True,
+        "runtime_evidence": True,
+        "tool_result_evidence": True,
+    }
+    untrusted = AuthorityGateway._memory_write_context(
+        "causal_outcome",
+        "arbitrary_caller",
+        evidence,
+        "claim",
+    )
+    high_risk = AuthorityGateway._memory_write_context(
+        "causal_outcome",
+        "action_consequence_graph",
+        dict(evidence, belief_update=True),
+        "claim",
+    )
+
+    assert untrusted["internal_evidence_memory_write"] is False
+    assert not untrusted.get("capability_token")
+    assert high_risk["internal_evidence_memory_write"] is False
+    assert not high_risk.get("capability_token")
+
+
 def test_introspection_verifier_rejects_unsupported_overclaim() -> None:
     runtime = BeingRuntime()
     now = runtime.sample(AuraState.default(), objective="simple status")

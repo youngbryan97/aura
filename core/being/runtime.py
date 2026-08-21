@@ -3,9 +3,9 @@ from __future__ import annotations
 import logging
 import threading
 import time
+from collections.abc import Mapping
 from dataclasses import asdict, replace
 from typing import Any
-from collections.abc import Mapping
 
 from core.governance.recovery_authority import (
     is_internal_recovery_context,
@@ -664,6 +664,25 @@ class BeingRuntime:
             )
             and not context.get("high_risk_memory_write")
         )
+        evidence_binding = str(context.get("memory_write_binding") or "").strip()
+        evidence_action = (
+            f"internal_evidence_memory_write:{evidence_binding}"
+            if evidence_binding
+            else ""
+        )
+        internal_evidence_memory_write = bool(
+            domain_name == "memory_write"
+            and evidence_action
+            and attested_context_flag(
+                context,
+                "internal_evidence_memory_write",
+                domain=domain_name,
+                action=evidence_action,
+                consume=True,
+                child_receipt=f"being_runtime:evidence:{evidence_binding}",
+            )
+            and not context.get("high_risk_memory_write")
+        )
         foreground_continuity_state = bool(
             domain_name == "state_mutation"
             and attested_context_flag(
@@ -714,6 +733,11 @@ class BeingRuntime:
             context,
         )
         consequential = nominally_consequential and not passive_observation
+        # A source-bound append of already-observed runtime evidence is still a
+        # consequential write, so body and integrity accounting remain active.
+        # It does not require deliberative workspace, prediction, or agency to
+        # reconstruct an answer: those gates can only discard the observation.
+        deliberative_consequential = consequential and not internal_evidence_memory_write
         unknown_domain = bool(domain_name) and domain_name not in KNOWN_ACTION_DOMAINS
         if unknown_domain:
             constraints.append(
@@ -761,6 +785,11 @@ class BeingRuntime:
                 }:
                     constraints.append(
                         f"restorative_consolidation_lane: recovery_drive={welfare.recovery_drive:.3f}"
+                    )
+                elif internal_evidence_memory_write:
+                    constraints.append(
+                        "internal_evidence_commit_lane:"
+                        f"recovery_drive={welfare.recovery_drive:.3f}"
                     )
                 elif _is_explicit_owner_request(context):
                     # Rest instead of doing MORE OF YOUR OWN WORK is sound.
@@ -817,21 +846,21 @@ class BeingRuntime:
 
         if ignition < 0.12:
             constraints.append(f"aura_now_workspace_low: ignition={ignition:.3f}")
-            if consequential and not repair_lane:
+            if deliberative_consequential and not repair_lane:
                 defers.append("workspace_not_ignited")
         elif ignition < 0.35:
             constraints.append(f"aura_now_workspace_strained: ignition={ignition:.3f}")
 
         if agency < 0.28:
             constraints.append(f"aura_now_ownership_low: agency={agency:.3f}")
-            if consequential and not repair_lane:
+            if deliberative_consequential and not repair_lane:
                 blocks.append("ownership_too_low_for_consequential_action")
         elif agency < 0.50:
             constraints.append(f"aura_now_ownership_mixed: agency={agency:.3f}")
 
         if controllability < 0.18:
             constraints.append(f"aura_now_controllability_low: controllability={controllability:.3f}")
-            if consequential and not repair_lane:
+            if deliberative_consequential and not repair_lane:
                 defers.append("action_controllability_too_low")
         elif controllability < 0.35:
             constraints.append(f"aura_now_controllability_strained: controllability={controllability:.3f}")
@@ -854,10 +883,14 @@ class BeingRuntime:
             constraints.append(
                 f"aura_now_prediction_error_high: free_energy={free_energy:.3f} controllability={controllability:.3f}"
             )
-            if consequential and not repair_lane:
+            if deliberative_consequential and not repair_lane:
                 defers.append("prediction_error_requires_observation_or_plan")
 
-        if not now.workspace.broadcast_targets and consequential and not repair_lane:
+        if (
+            not now.workspace.broadcast_targets
+            and deliberative_consequential
+            and not repair_lane
+        ):
             constraints.append("aura_now_no_workspace_broadcast")
             defers.append("no_workspace_broadcast_for_consequential_action")
 
@@ -868,7 +901,7 @@ class BeingRuntime:
         unified = getattr(self, "_last_unified_felt", None)
         if unified is not None and not unified.coherent:
             constraints.append(f"aura_now_felt_incoherent: coherence={unified.coherence:.3f}")
-            if consequential and not repair_lane:
+            if deliberative_consequential and not repair_lane:
                 defers.append("felt_state_incoherent_resolve_before_action")
 
         if explicit_foreground_desktop_tool and defers and not blocks:
