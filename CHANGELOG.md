@@ -24,6 +24,48 @@ without evidence to back a claim yet.
 ## 2026-08
 
 ### Added
+- **A bounded resident-32B reasoning gain, replicated and lesion-dependent**
+  (`core/brain/llm/semantic_neural_serving.py`) — on a frozen four-domain
+  cohort of 60 typed tasks, the trained recurrent controller answered 60/60
+  exactly against 16/60 for ordinary decode, with a matched wire base at 7 and
+  a coefficient lesion at 5. No family regressed, one gained nothing, paired
+  one-sided exact *p* = 5.7 × 10⁻¹⁴. Adjudicated `BOUNDED_WOW_SIGNAL`. It runs
+  in the live path — 120/120 exact and 120/120 lesion-disrupted at a median
+  47 ms — and CP824 removed the `desktop_required` coupling that had kept an
+  active certified package unreachable from ordinary chat turns. It still
+  cannot answer ordinary chat: `ordinary_chat_authorized` stays pinned
+  `False`, and admission runs an answer-blind parser over the task grammar.
+  Two entries left the programme's "not established" list as a result, and
+  [docs/INTRINSIC_RECURRENCE.md](docs/INTRINSIC_RECURRENCE.md) names which.
+- **Meaning decided from examples rather than word lists**
+  (`core/language/learned_matcher.py`) — every matcher in the runtime was a
+  regex with a list of words in it, and every one had been wrong the same way:
+  a phrasing nobody thought of. "I saved it as sitting_timer.html" missed an
+  action-claim rule by four characters. The labels already existed and nothing
+  read them — each Observable declares examples and counter-examples, and the
+  registry test fails a matcher that gets its own examples wrong. The boundary
+  is measured by leave-one-out rather than chosen, the surface abstains
+  between the worst positive and the best negative, and it needs an embedding
+  rather than a generation, so there is nothing to steer. The desktop-routing
+  decision measures AUROC 0.979 on held-out paraphrases.
+- **A closed observe-decide-act loop for the browser**
+  (`core/skills/sovereign_browser.py`, `pursue` mode) — a scripted action list
+  presumes every selector is known before the first click, which fails for any
+  flow whose next screen depends on the last answer. The loop carries a
+  standing understanding across rounds rather than re-deciding from nothing,
+  batches genuinely independent decisions, and bounds itself on progress
+  rather than a clock — a working pursuit had been cancelled at 181 seconds
+  mid-form and the person told the page had not responded. It takes no
+  authority of its own; execution goes through the same lease, receipt, and
+  effect verification a scripted interaction uses. New page:
+  [docs/BROWSER_PURSUIT.md](docs/BROWSER_PURSUIT.md).
+- **One registry for readings** (`core/brain/observable_registry.py`) — 26
+  observables, each declaring how it is recognised, how it is read, and the
+  examples that hold the recogniser honest. It was never about files: the
+  clipboard, the screen, the clock, her own queued and completed work, her
+  transcript, her lifetime, and what she has actually validated are all the
+  same shape of question, and each was previously answered from weights or not
+  at all.
 - **She speaks while she thinks** (`core/conversation/reply_stream.py`) — the
   governed pipeline already produced its reply incrementally; nothing could
   read *its own turn's* chunks, because the telemetry topic they ride on is
@@ -141,6 +183,16 @@ not readings taken on this host — what *is* established is the asymmetry that
 makes them safe, that a wrong reading can only add patience.
 
 ### Documentation
+- **A gate for references** (`tools/lint_doc_drift.py`, `make doc-drift`) —
+  `make writing` read the prose and `make claim-constants` read the numbers a
+  claim cites; nothing read the paths, links, `make` targets, environment
+  names, or counts, which is what a reader follows first. Baseline zero, wired
+  into `make quality` and the ratchets workflow, with its own 31-case suite
+  because a gate that cannot match reports green forever. What it found on the
+  first run is recorded in [docs/DOC_STATUS.md](docs/DOC_STATUS.md) under
+  2026-08-21 — including a threat-model control for a capability that does not
+  exist, nine operator kill switches nothing reads, and a test suite eight
+  documents sized identically and wrongly.
 Full reconciliation of all 179 living docs against the tree. Corrected a
 documented test count that was 3× low, an architecture map ~400 files stale,
 four documented environment variables and files that did not exist, and a

@@ -268,6 +268,21 @@ real token stream re-enter the middle block, so a 64-layer checkpoint runs 160
 layers deep at T=4 with the same weights, and trains it on typed, exactly
 checkable program traces instead of answers.
 
+That follow-on has since returned a positive result, and the bounds on it
+matter more than the headline. On a frozen four-domain cohort of 60 typed
+tasks — coding, calibration, misleading premise, scientific inference — the
+trained controller answered 60/60 exactly against 16/60 for ordinary decode,
+with a matched wire base at 7 and a coefficient lesion at 5. No family
+regressed; one gained nothing. Paired one-sided exact *p* = 5.7 × 10⁻¹⁴, and
+the gain disappears under lesion, which is what makes it a claim about the
+trained coefficients rather than about extra decode budget. It runs in the
+live serving path today, verified 120/120 at a median 47 ms.
+
+It is still not a broad reasoning gain, not static fusion, not frontier
+performance, and it still cannot answer ordinary chat — admission is decided
+by an answer-blind parser over the task grammar, and unsupported language
+never reaches the lane.
+
 Before you read either page: two clean negative results from early August were
 **void**, because the promotion gate had been wired to the one decode policy
 that removes the vanilla floor. A win had been structurally impossible. Every

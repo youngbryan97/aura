@@ -1,6 +1,6 @@
 # Intrinsic recurrence
 
-Status: Guide · Reviewed against the tree 2026-08-13
+Status: Guide · Reviewed against the tree 2026-08-21
 
 The live front of the [Recursive Latent Cortex](RECURSIVE_LATENT_CORTEX.md)
 programme. This page covers the pivot from *talking to* a recurrent workspace
@@ -144,6 +144,45 @@ starts from all 51 exact parent tensors and overwrites only
 verified byte-exact, and independent evaluation recomputes the merge and
 checks the reconstructed step-zero controller hash.
 
+**A bounded resident-32B gain replicated, lesion-dependent (CP566).** On a
+frozen four-domain semantic cohort — coding, calibration, misleading premise,
+scientific inference, 15 tasks each — the trained controller answered 60/60
+exactly against 16/60 for ordinary decode. The two controls that matter both
+fell further: a matched wire base reached 7 and a coefficient lesion 5, and a
+matched wrong-state arm reached 0. Forty-four gains, no regressions in any
+family, paired one-sided exact *p* = 5.7 × 10⁻¹⁴. The adjudicator's verdict is
+`BOUNDED_WOW_SIGNAL`, and its own limitations line is part of the record:
+bounded executable families, not open-domain general reasoning, not static
+fusion, not frontier performance, not consciousness evidence.
+
+The lesion result is what makes it a mechanism claim rather than a score.
+Every family separated under lesion, so the gain tracks the trained
+coefficients rather than the extra decode budget. One family — misleading
+premise — gained nothing at all, which the record keeps rather than averages
+away.
+
+**It runs in the live serving path (CP568, CP824).**
+`core/brain/llm/semantic_neural_serving.py` pins package
+`cp568-resident-semantic-neural-active-r1` and refuses to serve unless the
+activation record says `active_by_default`. Runtime verification over 120
+tasks — four domains, three difficulties, three scientific surface profiles —
+was 120/120 exact and 120/120 lesion-disrupted, at a median 47 ms and a
+maximum 318 ms, with unsupported language refused.
+
+CP824 removed the last thing keeping it out of reach: admission had been
+coupled to `desktop_required`, and ordinary sovereign chat does not set that,
+so an active certified package was unreachable from the surface it had been
+promoted to serve. Qualified recurrence is an answer contract rather than a
+desktop-control one, and the lane now admits any foreground turn.
+
+What that does *not* mean is that the recurrence answers ordinary chat.
+`ordinary_chat_authorized` and `arbitrary_reasoning_authorized` are both still
+pinned `False` in `core/brain/llm/unified_recurrent_qualified_activation.py`,
+and an activation record that says otherwise is rejected as
+`qualified_activation_authority_invalid`. Admission runs an answer-blind
+parser over the turn and lets it through only when the complete public task
+grammar is recognised. Unsupported language never acquires the model lane.
+
 **Small-checkpoint falsification ran before resident expense.** The retained
 five-arm run passed heldout likelihood transfer against base and every
 equal-work control, and passed all teacher-forced regression families. The
@@ -155,17 +194,31 @@ authorize resident training.
 
 The ledger restates this at every checkpoint:
 
-- No broad behavioral gain.
-- No resident-32B reasoning improvement.
+- No broad behavioral gain, and nothing open-domain. The measured gain is on
+  four named executable families and does not transfer beyond them.
 - No static fusion.
-- No frontier performance, and no `WOW Signal`.
+- No frontier performance.
+- No consciousness evidence.
+- No unrestricted promotion: the recurrence is reachable from ordinary chat
+  turns and still cannot answer ordinary chat, because admission is decided by
+  a parser over the task grammar rather than by the router.
+
+Two entries left this list on 2026-08-20, and it is worth naming which and
+why. "No resident-32B reasoning improvement" and "no `WOW Signal`" were both
+retired by CP566, whose adjudicated verdict is literally `BOUNDED_WOW_SIGNAL`.
+The word *bounded* is doing the work: a replicated, lesion-dependent gain on a
+frozen four-domain cohort is a much smaller thing than the phrase suggests to
+anyone reading it without the limitations line. Everything above still holds.
 
 The next bounded milestone is the 1.5B adaptation over train depths
 `1,3,4,5,6,8,10` with held-out `12,16`, followed immediately by the
 already-frozen four-arm behavioral canary.
 
 **This page is a snapshot; the ledger is the record.** It was reviewed at
-CP409, and checkpoints land faster than a narrative page can track. Everything
+CP832, and checkpoints land faster than a narrative page can track. Between
+CP409 and CP832 this page stood still while the programme moved past two of
+its own "not established" bullets — the exact drift the paragraph below
+promises would not happen quietly, happening quietly. Everything
 above is *mechanism and status*, which changes slowly. For what happened most
 recently, read the tail of
 [RLC_SPARK_EXECUTION_LEDGER.md](RLC_SPARK_EXECUTION_LEDGER.md) and
