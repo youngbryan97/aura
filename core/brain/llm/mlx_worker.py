@@ -3177,26 +3177,49 @@ def build_nonempty_start_processor(tokenizer: Any, *, positions: int = 1) -> Any
 
 
 def build_semantic_completion_terminal_guard(tokenizer: Any, job: dict[str, Any]) -> Any:
-    """Hold a continuation open until the assembled answer is complete.
+    """Hold a contract-bearing answer open until its obligations are complete.
 
-    The initial branch keeps natural EOS. Masking its terminator caused a model
-    that had finished one answer to author a second and third answer in the same
-    sequence. An append-only continuation is different: it already owns an
-    incomplete assistant prefix, so accepting EOS before the *combined* prefix
-    and tail satisfy the request contract merely creates another tiny fragment
-    and another expensive prefill.
+    Simple answers retain natural EOS. A typed append-only continuation always
+    needs this guard, while an initial branch needs it only when prompt analysis
+    proved that several substantive asks must be served in one reply. The
+    owning decode loop evaluates the assembled candidate every eight tokens and
+    exits as soon as the same coverage contract is satisfied.
 
-    This processor therefore exists only for typed continuation jobs. The
-    generation loop evaluates the same assembled candidate every eight tokens
-    and exits as soon as it is complete; the token cap remains the absolute
-    bound if the contract cannot be satisfied.
+    This closes the single-decode ownership gap where a model had ample token
+    capacity but emitted EOS after item three of a five-item request. The route
+    previously paid for a second heavyweight decode, whose reconstructed prompt
+    could repeat the request and lose the valid incumbent. Enforcing completion
+    where tokens are sampled keeps one owner and one answer without changing
+    the answer's wording.
     """
-    if not (
-        bool(job.get("clean_user_surface_contract", False))
-        and bool(job.get("semantic_completion_contract", False))
-        and bool(job.get("user_surface_continuation_contract", False))
-    ):
+    clean_surface = bool(job.get("clean_user_surface_contract", False))
+    semantic_contract = bool(job.get("semantic_completion_contract", False))
+    continuation_contract = bool(job.get("user_surface_continuation_contract", False))
+    if not (clean_surface and semantic_contract):
         return None
+
+    if not continuation_contract:
+        try:
+            from core.runtime.structured_input import analyze_prompt_shape
+
+            shape = analyze_prompt_shape(
+                str(job.get("user_surface_validation_prompt") or "")
+            )
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            _record_mlx_degradation(
+                exc,
+                action=(
+                    "left natural EOS available because multipart completion "
+                    "admission could not be established"
+                ),
+                severity="warning",
+            )
+            return None
+        if not (
+            shape.requires_single_reply_coverage
+            and len(shape.question_segments) >= 2
+        ):
+            return None
 
     import mlx.core as mx
 
@@ -3209,7 +3232,7 @@ def build_semantic_completion_terminal_guard(tokenizer: Any, job: dict[str, Any]
         terminal_ids=terminal_ids,
     ):
         del tokens
-        # The owning decode loop evaluates the assembled head+tail every eight
+        # The owning decode loop evaluates the assembled answer every eight
         # tokens and stops generation once the semantic contract is satisfied.
         # Re-decoding and re-grading the entire tail here made sampling O(n^2)
         # while duplicating that owner. This processor has one job: prevent a
