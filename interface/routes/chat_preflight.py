@@ -72,6 +72,68 @@ _EXPRESSIVE_AFFORDANCES_FLAG = declare(
     owner="interface.routes.chat",
 )
 
+_CHAT_EVIDENCE_PROFILE_CONTEXTUAL_LANGUAGE = "contextual_language_generation"
+_CHAT_EVIDENCE_PROFILE_QUALIFIED_RECURRENT = (
+    "qualified_recurrent_state_serialization"
+)
+_QUALIFIED_RECURRENT_SKIPPED_PREFLIGHT_COMPONENTS = (
+    "file_context",
+    "directive_context",
+    "media_resolution",
+    "sight",
+    "self_knowledge",
+    "arithmetic",
+    "grounded_recall",
+    "profile_context",
+    "operational_self_context",
+    "affordance_context",
+    "context_clamp",
+)
+
+
+def _chat_evidence_profile(user_message: str, *, bounded_surface: bool) -> tuple[str, Any]:
+    """Resolve which answer owner is allowed to consume evidence this turn."""
+
+    if bounded_surface:
+        return _CHAT_EVIDENCE_PROFILE_CONTEXTUAL_LANGUAGE, None
+    try:
+        from core.brain.llm.qualified_recurrent_ingress import (
+            admit_qualified_recurrent_objective,
+        )
+        from core.brain.llm.semantic_neural_serving import (
+            semantic_neural_default_serving_status,
+        )
+
+        admission = admit_qualified_recurrent_objective(user_message)
+        status = semantic_neural_default_serving_status() if admission is not None else None
+    except (ImportError, OSError, RuntimeError, TypeError, ValueError):
+        admission = None
+        status = None
+    if admission is None or not isinstance(status, dict) or status.get("active") is not True:
+        return _CHAT_EVIDENCE_PROFILE_CONTEXTUAL_LANGUAGE, None
+    receipt = status.get("receipt")
+    if not isinstance(receipt, dict):
+        return _CHAT_EVIDENCE_PROFILE_CONTEXTUAL_LANGUAGE, None
+    allowed_families = receipt.get("allowed_families")
+    if (
+        not isinstance(allowed_families, (list, tuple))
+        or admission.family not in allowed_families
+    ):
+        return _CHAT_EVIDENCE_PROFILE_CONTEXTUAL_LANGUAGE, None
+    if admission.parser_id.startswith("semantic_scientific_surface."):
+        profile = admission.parser_id.removeprefix(
+            "semantic_scientific_surface."
+        ).removesuffix(".v1")
+        allowed_profiles = receipt.get("allowed_surface_profiles")
+        if (
+            not isinstance(allowed_profiles, (list, tuple))
+            or profile not in allowed_profiles
+        ):
+            return _CHAT_EVIDENCE_PROFILE_CONTEXTUAL_LANGUAGE, None
+    if not admission.parser_id.startswith("semantic_"):
+        return _CHAT_EVIDENCE_PROFILE_CONTEXTUAL_LANGUAGE, None
+    return _CHAT_EVIDENCE_PROFILE_QUALIFIED_RECURRENT, admission
+
 
 async def _apply_camera_control(turn_on: bool) -> dict[str, Any]:
     """Work her own camera control, rather than explaining where it is.
@@ -1757,6 +1819,9 @@ class _ChatPreflight:
     status: Any = _UNSET
     turn_sensory_evidence: Any = None
     timing_ms: dict[str, float] = dataclasses.field(default_factory=dict)
+    evidence_profile: str = _CHAT_EVIDENCE_PROFILE_CONTEXTUAL_LANGUAGE
+    evidence_owner_receipt: dict[str, Any] | None = None
+    skipped_components: tuple[str, ...] = ()
 
 
 async def _run_chat_preflight(
@@ -1787,6 +1852,13 @@ async def _run_chat_preflight(
     _timing_started_at = time.perf_counter()
     _timing_cursor = _timing_started_at
     _timing_ms: dict[str, float] = {}
+    _evidence_profile, _evidence_owner = _chat_evidence_profile(
+        str(_original_user_message or ""),
+        bounded_surface=bool(is_benchmark or conversation_only_surface),
+    )
+    _state_native_owner = (
+        _evidence_profile == _CHAT_EVIDENCE_PROFILE_QUALIFIED_RECURRENT
+    )
 
     def _finish_timing(name: str) -> None:
         nonlocal _timing_cursor
@@ -1855,7 +1927,7 @@ async def _run_chat_preflight(
         # and independently sealed receipt.
 
         # 1) File-reference loading
-        if not is_benchmark and not conversation_only_surface:
+        if not is_benchmark and not conversation_only_surface and not _state_native_owner:
             try:
                 _refs = extract_file_references(body.message)
                 if _refs:
@@ -1882,7 +1954,7 @@ async def _run_chat_preflight(
         _finish_timing("file_context")
 
         # 2) Directive injection
-        if not is_benchmark:
+        if not is_benchmark and not _state_native_owner:
             try:
                 _directive_prefix = compose_chat_directive_prefix(_original_user_message)
                 if _directive_prefix:
@@ -2223,4 +2295,13 @@ async def _run_chat_preflight(
         status=status,
         turn_sensory_evidence=_turn_sensory_evidence,
         timing_ms=_timing_ms,
+        evidence_profile=_evidence_profile,
+        evidence_owner_receipt=(
+            _evidence_owner.receipt() if _evidence_owner is not None else None
+        ),
+        skipped_components=(
+            _QUALIFIED_RECURRENT_SKIPPED_PREFLIGHT_COMPONENTS
+            if _state_native_owner
+            else ()
+        ),
     )

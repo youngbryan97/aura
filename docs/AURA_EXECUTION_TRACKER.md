@@ -51045,3 +51045,42 @@ Ruff, compilation and diff hygiene pass. These are offline contracts. The next
 gate remains a graceful installed-app restart and repeated live desktop turns
 with visible output, latency, stop receipts, terminal and neural-stream evidence
 inspected end to end.
+
+## Checkpoint 2026-08-21-834: Give Qualified Recurrent Answers One Evidence Owner
+
+The qualified recurrent lane was model-free after admission, but the desktop
+route still prepared it as if a resident 32B prose generation were imminent.
+An exact recurrent state program therefore loaded file and directive context,
+resolved media and sight, sampled self-state, arithmetic and recall, consulted
+profiles and affordances, dispatched capability and desktop fast paths, queried
+conversation and retained memory, assembled the live-mind snapshot, and waited
+for the 32B foreground-readiness barrier. None of those inputs could affect the
+authenticated state machine or its canonical serializer. They added latency,
+contention and independent failure surfaces before a sub-second CPU result.
+
+Chat preflight now assigns one answer-blind evidence profile. Only a grammar-
+qualified admission whose signed semantic-neural package is active, whose
+family is authorized, and whose surface profile is permitted can acquire the
+`qualified_recurrent_state_serialization` owner. That owner retains session,
+surface, principal and security custody while explicitly skipping evidence that
+its computation cannot consume. The decision does not inspect serving artifacts
+for ordinary language. CognitiveEngine still owns state derivation, the turn
+ledger, recurrent execution, durable completion and delivery, but it no longer
+collects language, memory, perception, source or 32B-generation evidence for a
+state-native answer. Execution independently re-admits and revalidates the
+signed result, so the optimization does not replace the serving or delivery
+proof.
+
+The terminal contract publishes the selected evidence profile, a bounded owner
+receipt and every skipped component. It accurately reports that a proven
+state-native answer does not require or possess a 32B live-mind snapshot instead
+of manufacturing one to satisfy the generic prose contract. Cold ownership
+selection measured `39.25 ms`; four warm selections measured `1.30-1.42 ms`.
+Focused ownership, serving and full-mind contracts pass `82/82`; the complete
+conversation lane passes `363/363` under the bounded pytest plugin environment.
+The unbounded plugin environment segfaulted in native extensions and background
+threads before reporting a product assertion, while the repository gate
+configuration completed cleanly. These remain offline and route-level results;
+the next gate is still a graceful installed-app restart followed by repeated
+desktop turns with visible latency, terminal, neural-stream and stop receipts
+inspected end to end.

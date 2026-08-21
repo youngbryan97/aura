@@ -12236,7 +12236,9 @@ async def test_desktop_chat_delivers_certified_recurrent_answer_without_prose_pi
 ):
     from core.brain.llm import qualified_recurrent_ingress as ingress
     from core.learning.frontier_process_supervision import frontier_process_task_battery
+    from core.perception import observation_evidence
     from core.providers import engine_connection_pool as pool_module
+    from core.self import source_excerpt
     from interface import server as server_module
     from interface.routes import chat as chat_routes
 
@@ -12294,6 +12296,12 @@ async def test_desktop_chat_delivers_certified_recurrent_answer_without_prose_pi
     async def _forbidden_stabilizer(*_args, **_kwargs):
         raise AssertionError("receipt-bound exact output must not enter prose stabilization")
 
+    async def _forbidden_context_collector(*_args, **_kwargs):
+        raise AssertionError("state-native output must not collect unrelated language evidence")
+
+    async def _forbidden_foreground_gate(*_args, **_kwargs):
+        raise AssertionError("state-native output must not wait for resident text generation")
+
     def _forbidden_terminal_transform(*_args, **_kwargs):
         trace_arg = _args[0] if _args and isinstance(_args[0], dict) else {}
         raise AssertionError(
@@ -12304,10 +12312,22 @@ async def test_desktop_chat_delivers_certified_recurrent_answer_without_prose_pi
         )
 
     quality_calls = []
+    unrelated_evidence_calls = []
 
     def _record_quality_call(*_args, **_kwargs):
         quality_calls.append(True)
         return False
+
+    original_observation_memory = observation_evidence.get_observation_memory
+    original_source_evidence_brief = source_excerpt.source_evidence_brief
+
+    def _record_observation_memory(*_args, **_kwargs):
+        unrelated_evidence_calls.append("perception")
+        return original_observation_memory(*_args, **_kwargs)
+
+    def _record_source_evidence(*_args, **_kwargs):
+        unrelated_evidence_calls.append("source")
+        return original_source_evidence_brief(*_args, **_kwargs)
 
     def _fake_get(name, default=None):
         if name == "cognitive_engine":
@@ -12320,6 +12340,54 @@ async def test_desktop_chat_delivers_certified_recurrent_answer_without_prose_pi
     monkeypatch.setattr(_chat_preflight, "_complete_logged_exchange", _fake_complete_exchange)
     monkeypatch.setattr(chat_routes, "_emit_chat_output_receipt", _fake_output_receipt)
     monkeypatch.setattr(chat_routes, "_stabilize_user_facing_reply", _forbidden_stabilizer)
+    monkeypatch.setattr(
+        chat_routes,
+        "_build_retained_memory_evidence_context",
+        _forbidden_context_collector,
+    )
+    monkeypatch.setattr(
+        _chat_memory_state,
+        "_build_conversation_recall_reply",
+        _forbidden_context_collector,
+    )
+    monkeypatch.setattr(
+        chat_routes,
+        "_collect_desktop_required_search_evidence",
+        _forbidden_context_collector,
+    )
+    monkeypatch.setattr(
+        chat_routes,
+        "_await_foreground_gate",
+        _forbidden_foreground_gate,
+    )
+    monkeypatch.setattr(
+        chat_routes,
+        "_turn_may_concern_perception",
+        lambda *_args, **_kwargs: True,
+    )
+    monkeypatch.setattr(
+        chat_routes,
+        "_turn_may_concern_own_source",
+        lambda *_args, **_kwargs: True,
+    )
+    monkeypatch.setattr(
+        observation_evidence,
+        "get_observation_memory",
+        _record_observation_memory,
+    )
+    monkeypatch.setattr(
+        source_excerpt,
+        "source_evidence_brief",
+        _record_source_evidence,
+    )
+    monkeypatch.setattr(
+        _chat_preflight,
+        "_chat_evidence_profile",
+        lambda *_args, **_kwargs: (
+            _chat_preflight._CHAT_EVIDENCE_PROFILE_QUALIFIED_RECURRENT,
+            admission,
+        ),
+    )
     monkeypatch.setattr(
         chat_routes,
         "_strip_user_visible_context_leaks",
@@ -12348,11 +12416,11 @@ async def test_desktop_chat_delivers_certified_recurrent_answer_without_prose_pi
         monkeypatch,
         "_collect_conversation_lane_status",
         lambda: {
-            "conversation_ready": True,
-            "state": "ready",
+            "conversation_ready": False,
+            "state": "recovering",
             "desired_model": "Cortex (32B)",
             "desired_endpoint": "Cortex",
-            "foreground_endpoint": "Cortex",
+            "foreground_endpoint": "",
             "background_endpoint": "Brainstem",
         },
     )
@@ -12387,7 +12455,23 @@ async def test_desktop_chat_delivers_certified_recurrent_answer_without_prose_pi
     ] is True
     assert payload["live_turn_contract"]["final_requested_output_contract_satisfied"] is True
     assert payload["live_turn_contract"]["qualified_recurrent_terminal_bytes_preserved"] is True
+    assert payload["live_turn_contract"]["preflight_evidence_profile"] == (
+        _chat_preflight._CHAT_EVIDENCE_PROFILE_QUALIFIED_RECURRENT
+    )
+    assert payload["live_turn_contract"]["preflight_evidence_owner"]["family"] == task.family
+    assert payload["live_turn_contract"]["preflight_skipped_components"] == list(
+        _chat_preflight._QUALIFIED_RECURRENT_SKIPPED_PREFLIGHT_COMPONENTS
+    )
+    assert payload["live_turn_contract"]["live_mind_context_required"] is False
+    assert payload["live_turn_contract"]["live_mind_context_present"] is False
+    assert "architecture_context_unbound" not in payload["live_turn_contract"][
+        "full_mind_missing_proofs"
+    ]
+    assert "live_mind_snapshot_not_ready" not in payload["live_turn_contract"][
+        "full_mind_missing_proofs"
+    ]
     assert quality_calls == []
+    assert unrelated_evidence_calls == []
 
 
 @pytest.mark.asyncio

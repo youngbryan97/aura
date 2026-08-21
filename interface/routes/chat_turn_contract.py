@@ -596,7 +596,30 @@ def _build_live_turn_contract_payload(
         )
         if key in raw_runtime_identity
     }
-    live_mind_context_required = bool(desktop_required)
+    preflight_evidence_profile = str(trace.get("preflight_evidence_profile") or "")
+    raw_preflight_evidence_owner = trace.get("preflight_evidence_owner_receipt")
+    preflight_evidence_owner = (
+        {
+            key: raw_preflight_evidence_owner.get(key)
+            for key in (
+                "schema",
+                "family",
+                "task_depth",
+                "parser_id",
+                "public_source_sha256",
+                "syntax_sha256",
+                "receipt_sha256",
+            )
+            if key in raw_preflight_evidence_owner
+        }
+        if isinstance(raw_preflight_evidence_owner, dict)
+        else {}
+    )
+    state_native_evidence_owner = bool(
+        preflight_evidence_profile == "qualified_recurrent_state_serialization"
+        and preflight_evidence_owner
+    )
+    live_mind_context_required = bool(desktop_required and not state_native_evidence_owner)
     live_mind_context_present = bool(trace.get("live_mind_context_present"))
     live_mind_snapshot_present = bool(trace.get("live_mind_snapshot_present"))
     live_mind_snapshot_ready = bool(trace.get("live_mind_snapshot_ready"))
@@ -1123,6 +1146,11 @@ def _build_live_turn_contract_payload(
         "qualified_recurrent_path_proven": qualified_recurrent_path_proven,
         "qualified_recurrent_terminal_bytes_preserved": bool(
             trace.get("qualified_recurrent_terminal_bytes_preserved")
+        ),
+        "preflight_evidence_profile": preflight_evidence_profile,
+        "preflight_evidence_owner": preflight_evidence_owner,
+        "preflight_skipped_components": list(
+            trace.get("preflight_skipped_components") or []
         ),
         "qualified_recurrent_path_requirement_satisfied": (
             qualified_recurrent_path_requirement_satisfied

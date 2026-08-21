@@ -5037,6 +5037,7 @@ async def _run_cognitive_engine_chat_turn(
     continuation_partial: str = "",
     continuation_reasons: tuple[str, ...] | list[str] | None = None,
     continuation_evidence: dict[str, Any] | None = None,
+    evidence_profile: str = _chat_preflight._CHAT_EVIDENCE_PROFILE_CONTEXTUAL_LANGUAGE,
 ) -> str | None:
     """Run a live desktop/user chat turn through CognitiveEngine.
 
@@ -5054,6 +5055,9 @@ async def _run_cognitive_engine_chat_turn(
     - Strict fail-closed support for CognitiveEngine-required callers
     """
     preparation_started_at = time.perf_counter()
+    state_native_output_owner = bool(
+        evidence_profile == _chat_preflight._CHAT_EVIDENCE_PROFILE_QUALIFIED_RECURRENT
+    )
     visible = str(visible_user_message or effective_user_message or "")
     raw_visible = str(raw_user_message or visible)
     interlocutor_evidence = (
@@ -5612,9 +5616,10 @@ async def _run_cognitive_engine_chat_turn(
         _proven_this_turn: list[str] = []
         if "[WEB SEARCH EVIDENCE]" in str(effective_user_message or ""):
             _proven_this_turn.append("web_search")
-        live_capability_condition = capability_condition_evidence(
-            visible, already_used=_proven_this_turn
-        )
+        if not state_native_output_owner:
+            live_capability_condition = capability_condition_evidence(
+                visible, already_used=_proven_this_turn
+            )
     except _CHAT_RECOVERABLE_ERRORS as exc:
         record_degradation("chat.capability_condition", exc)
         logger.debug("Live capability condition unavailable: %s", exc)
@@ -5677,19 +5682,24 @@ async def _run_cognitive_engine_chat_turn(
 
         mode = ThinkingMode.FAST
         preflight_context = ""
-    compact_desktop_chat_contract = _is_compact_desktop_chat_contract(
-        visible,
-        effective_user_message,
-        desktop_execution_contract=desktop_execution_contract,
-        capability_inventory_contract=capability_inventory_contract,
-        identity_continuity_contract=identity_continuity_contract,
+    compact_desktop_chat_contract = bool(
+        not state_native_output_owner
+        and _is_compact_desktop_chat_contract(
+            visible,
+            effective_user_message,
+            desktop_execution_contract=desktop_execution_contract,
+            capability_inventory_contract=capability_inventory_contract,
+            identity_continuity_contract=identity_continuity_contract,
+        )
     )
     prompt_shape_payload = shape.to_dict()
     # Required live desktop turns must exercise CognitiveEngine, but they do not
     # all need the heavyweight phase stack. Simple conversation uses the compact
     # live-mind speech contract; execution, identity/self-process, long, and
     # multi-part turns are still excluded above and flow through deeper planning.
-    recent_context_needed = _desktop_turn_needs_recent_context(visible)
+    recent_context_needed = bool(
+        not state_native_output_owner and _desktop_turn_needs_recent_context(visible)
+    )
     # A multi-part task that happens to say "you" is still a task. Asking her to
     # compare two locking strategies, choose one, justify it and verify it with a
     # failure scenario is not a question about her condition — but it contains
@@ -5759,7 +5769,9 @@ async def _run_cognitive_engine_chat_turn(
         recent_context_limit = min(4, _RECENT_CONVERSATION_CONTEXT_EXCHANGES)
     else:
         recent_context_limit = 0
-    if memory_state_contract:
+    if state_native_output_owner:
+        recent_exchanges = []
+    elif memory_state_contract:
         # Canonical memory-state evidence already answers this turn exactly.
         # Recent history alongside it is not extra context, it is a competing
         # account: the live failure was a stale pitch answer riding in next to
@@ -5779,13 +5791,17 @@ async def _run_cognitive_engine_chat_turn(
     recent_conversation_context = (
         _format_recent_conversation_context(recent_exchanges) if recent_exchanges else ""
     )
-    live_mind_context = await _collect_live_mind_context_payload(
-        user_message=visible,
-        lane=lane,
-        recent_conversation_context=recent_conversation_context,
-        recent_context_needed=recent_context_needed,
-        require_engine=require_engine,
-        conversation_only_surface=conversation_only_surface,
+    live_mind_context = (
+        {}
+        if state_native_output_owner
+        else await _collect_live_mind_context_payload(
+            user_message=visible,
+            lane=lane,
+            recent_conversation_context=recent_conversation_context,
+            recent_context_needed=recent_context_needed,
+            require_engine=require_engine,
+            conversation_only_surface=conversation_only_surface,
+        )
     )
     context = {
         "route": "desktop_chat",
@@ -5795,14 +5811,17 @@ async def _run_cognitive_engine_chat_turn(
         "declared_interlocutor": interlocutor_evidence,
         "foreground_request": True,
         "user_facing": True,
+        "evidence_profile": evidence_profile,
         "preflight_context_message": preflight_context[:8000],
         "turn_sensory_evidence": sensory_evidence_payload,
         "recent_completed_exchanges": recent_exchanges,
         "recent_conversation_context": recent_conversation_context,
         "recent_context_needed": recent_context_needed,
         "live_mind_context": live_mind_context,
-        "live_mind_context_required": bool(require_engine),
-        "require_full_foreground_mind_reply": bool(require_engine),
+        "live_mind_context_required": bool(require_engine and not state_native_output_owner),
+        "require_full_foreground_mind_reply": bool(
+            require_engine and not state_native_output_owner
+        ),
         "live_mind_required_subsystems": dict(live_mind_context.get("required_subsystems") or {}),
         "live_mind_required_subsystems_ok": bool(live_mind_context.get("required_subsystems_ok")),
         "cognitive_engine_required": bool(require_engine),
@@ -5887,7 +5906,7 @@ async def _run_cognitive_engine_chat_turn(
         )[:3000]
     conversation_recall_context = (
         ""
-        if capability_inventory_contract
+        if capability_inventory_contract or state_native_output_owner
         else await _chat_memory_state._build_conversation_recall_reply(
             visible,
             session_id=session_id,
@@ -5897,7 +5916,7 @@ async def _run_cognitive_engine_chat_turn(
         context["conversation_recall_evidence"] = conversation_recall_context[:3000]
     retained_memory_evidence_context = (
         ""
-        if capability_inventory_contract or conversation_only_surface
+        if capability_inventory_contract or conversation_only_surface or state_native_output_owner
         else await _build_retained_memory_evidence_context(
             visible,
             session_id=session_id,
@@ -5909,7 +5928,7 @@ async def _run_cognitive_engine_chat_turn(
         context["retained_memory_evidence_context"] = retained_memory_evidence_context
     context_challenge_context = (
         ""
-        if capability_inventory_contract
+        if capability_inventory_contract or state_native_output_owner
         else await _build_context_challenge_repair_reply(
             visible,
             session_id=session_id,
@@ -5924,7 +5943,9 @@ async def _run_cognitive_engine_chat_turn(
     if context_challenge_context:
         context["contextual_relevance_evidence"] = context_challenge_context[:2500]
     deep_memory_context = (
-        "" if capability_inventory_contract else await _fetch_deep_memory_context(visible)
+        ""
+        if capability_inventory_contract or state_native_output_owner
+        else await _fetch_deep_memory_context(visible)
     )
     if deep_memory_context:
         context["deep_memory_context"] = deep_memory_context[:3000]
@@ -5935,8 +5956,10 @@ async def _run_cognitive_engine_chat_turn(
             {
                 "recent_context_needed": recent_context_needed,
                 "recent_context_exchanges": len(recent_exchanges),
-                "live_mind_context_present": True,
-                "live_mind_context_required": bool(require_engine),
+                "live_mind_context_present": bool(live_mind_context),
+                "live_mind_context_required": bool(
+                    require_engine and not state_native_output_owner
+                ),
                 "live_mind_snapshot_present": bool(mind_snapshot_quality.get("present")),
                 "live_mind_snapshot_ready": bool(mind_snapshot_quality.get("ready")),
                 "live_mind_snapshot_missing_services": list(
@@ -5981,14 +6004,15 @@ async def _run_cognitive_engine_chat_turn(
                 "deep_handoff": False,
                 "allow_deep_handoff": False,
                 "allow_cloud_fallback": False,
-                "live_runtime_payload_required": True,
-                "mind_context_contract": (
-                    "Use live_mind_context as causal grounding for this reply. "
-                    "Do not answer as a raw assistant, do not ignore the current user turn, "
-                    "and do not claim a subsystem state that contradicts live_mind_context."
-                ),
+                "live_runtime_payload_required": not state_native_output_owner,
             }
         )
+        if not state_native_output_owner:
+            context["mind_context_contract"] = (
+                "Use live_mind_context as causal grounding for this reply. "
+                "Do not answer as a raw assistant, do not ignore the current user turn, "
+                "and do not claim a subsystem state that contradicts live_mind_context."
+            )
     if capability_inventory_contract:
         context.update(
             {
@@ -6232,7 +6256,7 @@ async def _run_cognitive_engine_chat_turn(
 
         _perception_brief = (
             get_observation_memory().sensory_brief()
-            if _turn_may_concern_perception(visible)
+            if not state_native_output_owner and _turn_may_concern_perception(visible)
             else ""
         )
         if _perception_brief:
@@ -6261,7 +6285,9 @@ async def _run_cognitive_engine_chat_turn(
         from core.self.source_excerpt import source_evidence_brief
 
         _source_brief = (
-            source_evidence_brief(visible) if _turn_may_concern_own_source(visible) else ""
+            source_evidence_brief(visible)
+            if not state_native_output_owner and _turn_may_concern_own_source(visible)
+            else ""
         )
         if _source_brief:
             engine_user_message = f"{engine_user_message}\n\n{_source_brief}"
@@ -6276,7 +6302,7 @@ async def _run_cognitive_engine_chat_turn(
         )
     evidence_binding_finished_at = time.perf_counter()
 
-    if require_engine:
+    if require_engine and not state_native_output_owner:
         engine_directives: list[str] = []
         if _chat_memory_state._normalize_user_message(visible).startswith(
             "you with me"
@@ -17116,6 +17142,11 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
     if _preflight.status is not _UNSET:
         status = _preflight.status
     _turn_sensory_evidence = _preflight.turn_sensory_evidence
+    _qualified_state_serialization_owner = bool(
+        _preflight.evidence_profile
+        == _chat_preflight._CHAT_EVIDENCE_PROFILE_QUALIFIED_RECURRENT
+        and _preflight.evidence_owner_receipt
+    )
 
     # Keep user-facing judgment anchored to the text Bryan actually typed.
     # `body.message` may now contain continuity blocks, file payloads, and
@@ -17224,6 +17255,9 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
         "response_path": "",
         "post_generation_repair_applied": False,
         "deterministic_repair_applied": False,
+        "preflight_evidence_profile": _preflight.evidence_profile,
+        "preflight_evidence_owner_receipt": _preflight.evidence_owner_receipt,
+        "preflight_skipped_components": list(_preflight.skipped_components),
     }
     _prime_requested_output_contract_trace(
         _live_turn_trace,
@@ -18720,7 +18754,11 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                     )
             return None
 
-        if not is_benchmark and not conversation_only_surface:
+        if (
+            not is_benchmark
+            and not conversation_only_surface
+            and not _qualified_state_serialization_owner
+        ):
             governed_capability_response = await _chat_capability_inventory._execute_governed_capability_request_from_chat(
                 _semantic_user_message
             )
@@ -18732,11 +18770,20 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                     status=str(governed_capability_response.get("status") or "governed_capability"),
                 )
 
-        desktop_objective_response = await _execute_narrow_desktop_objective_before_cognition()
+        desktop_objective_response = (
+            None
+            if _qualified_state_serialization_owner
+            else await _execute_narrow_desktop_objective_before_cognition()
+        )
         if desktop_objective_response is not None:
             return desktop_objective_response
 
-        if not is_benchmark and desktop_requires_cognitive_engine and not conversation_only_surface:
+        if (
+            not is_benchmark
+            and desktop_requires_cognitive_engine
+            and not conversation_only_surface
+            and not _qualified_state_serialization_owner
+        ):
             desktop_memory_state_evidence = (
                 await _chat_memory_state._build_memory_state_fastpath_reply(
                     _semantic_user_message,
@@ -19175,7 +19222,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 _semantic_user_message,
                 session_id=_chat_session_id,
             )
-            if allow_chat_fastpaths
+            if allow_chat_fastpaths and not _qualified_state_serialization_owner
             else None
         )
         if referential_anchor:
@@ -19185,9 +19232,13 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 "The user is referring to this earlier user question/request:\n"
                 f"{referential_anchor}"
             )
-        conversation_recall_evidence = await _chat_memory_state._build_conversation_recall_reply(
-            _semantic_user_message,
-            session_id=_chat_session_id,
+        conversation_recall_evidence = (
+            None
+            if _qualified_state_serialization_owner
+            else await _chat_memory_state._build_conversation_recall_reply(
+                _semantic_user_message,
+                session_id=_chat_session_id,
+            )
         )
         if conversation_recall_evidence:
             from core.conversation.turn_evidence_custody import record_turn_grounding
@@ -19202,7 +19253,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             )
         retained_memory_evidence = (
             ""
-            if conversation_only_surface
+            if conversation_only_surface or _qualified_state_serialization_owner
             else await _build_retained_memory_evidence_context(
                 _semantic_user_message,
                 session_id=_chat_session_id,
@@ -19237,7 +19288,12 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 "through CognitiveEngine in Aura's normal desktop voice."
             )
         desktop_required_search_evidence = None
-        if not is_benchmark and desktop_requires_cognitive_engine and not conversation_only_surface:
+        if (
+            not is_benchmark
+            and desktop_requires_cognitive_engine
+            and not conversation_only_surface
+            and not _qualified_state_serialization_owner
+        ):
             desktop_required_search_evidence = await _collect_desktop_required_search_evidence(
                 _semantic_user_message,
                 session_id=_chat_session_id,
@@ -19273,6 +19329,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
         if (
             not is_benchmark
             and desktop_requires_cognitive_engine
+            and not _qualified_state_serialization_owner
             and not bool(lane.get("conversation_ready", False))
         ):
             gate = await _await_foreground_gate(
@@ -19504,6 +19561,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                     principal_id=_profile_user_id,
                     turn_trace=_live_turn_trace,
                     referential_anchor=str(referential_anchor or ""),
+                    evidence_profile=_preflight.evidence_profile,
                 )
                 _cognitive_reply_returned_at = time.monotonic()
                 if reply_text:
