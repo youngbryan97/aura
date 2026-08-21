@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from pathlib import Path
+
 from pydantic import BaseModel, Field
 
 from core.skills.base_skill import BaseSkill
@@ -15,7 +17,10 @@ from core.skills.base_skill import BaseSkill
 
 class BuildAppInput(BaseModel):
     spec: str = Field(..., description="What app to build, e.g. 'a playable checkers game'.")
-    out_dir: str = Field("artifacts/live_apps", description="Where to write the app file.")
+    # Empty means the runtime's own place for built apps, the same way
+    # max_tokens=0 means the code lane's own ceiling. Naming the default here
+    # made it a relative path that then nested under itself.
+    out_dir: str = Field("", description="Subdirectory for the app file; empty uses the standard one.")
     # 0 means "whatever the code lane allows". A number here that the lane
     # refuses is a skill that cannot run: 9000 against a policy ceiling of
     # 2048 raised local_code_model_max_tokens_out_of_policy on every call.
@@ -58,9 +63,24 @@ class BuildAppSkill(BaseSkill):
         requested_tokens = int(params.max_tokens or 0)
         budget = min(requested_tokens, ceiling) if requested_tokens > 0 else ceiling
 
+        # Where the file goes, confined.
+        #
+        # LIVE, 2026-08-21: PermissionError: [Errno 13] Permission denied:
+        # '/Users/user'. The model filled out_dir with a home directory that
+        # does not exist on this machine, and the path was used as given. A
+        # path from a model-authored payload is confined to a root the
+        # runtime chose, which is the rule core/runtime/payload_values.py
+        # already states for every other skill.
+        from core.runtime.payload_values import payload_path
+
+        root = (Path(__file__).resolve().parents[2] / "artifacts" / "live_apps").resolve()
+        out_dir = payload_path(
+            {"out_dir": params.out_dir}, "out_dir", root=root, default=root
+        )
+
         result = await build_app_verified(
             params.spec,
-            out_dir=params.out_dir,
+            out_dir=str(out_dir or root),
             max_tokens=budget,
             max_iters=max(1, min(int(params.max_iters or 3), 6)),
         )

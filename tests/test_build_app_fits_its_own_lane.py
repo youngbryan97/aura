@@ -76,3 +76,37 @@ def test_a_failed_build_never_claims_a_path() -> None:
     failure = failure[: failure.index("return {\n            \"ok\": True")]
     assert "Could not build" in failure
     assert "Built '" not in failure
+
+
+def test_a_model_invented_home_directory_cannot_escape() -> None:
+    """LIVE: PermissionError: [Errno 13] Permission denied: '/Users/user'.
+
+    The model filled out_dir with a home directory that does not exist on
+    this machine and the path was used as given.
+    """
+    from pathlib import Path
+
+    from core.runtime.payload_values import payload_path
+
+    root = Path("/tmp/live_apps_root")
+    for invented in ("/Users/user/Desktop", "../../etc", "None", ""):
+        resolved = payload_path({"out_dir": invented}, "out_dir", root=root, default=root)
+        assert str(resolved).startswith(str(root))
+
+
+def test_a_named_subdirectory_still_works() -> None:
+    from pathlib import Path
+
+    from core.runtime.payload_values import payload_path
+
+    # resolve(): /tmp is a symlink to /private/tmp on macOS, and payload_path
+    # resolves what it returns.
+    root = Path("/tmp/live_apps_root").resolve()
+    assert payload_path({"out_dir": "timers"}, "out_dir", root=root, default=root) == (
+        root / "timers"
+    )
+
+
+def test_the_default_is_the_runtime_s_own_place() -> None:
+    """Naming a relative default here made it nest under itself."""
+    assert BuildAppInput(spec="x").out_dir == ""
