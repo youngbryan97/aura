@@ -1001,7 +1001,12 @@ class AutonomousSelfModificationEngine:
 
             if not refinements:
                 logger.info("✨ Kernel is optimal. No refinements proposed.")
-                return {"success": True, "refinements_applied": 0}
+                return {
+                    "success": True,
+                    "refinements_applied": 0,
+                    "changed_files": [],
+                    "reload_required": False,
+                }
 
             top_refinement = refinements[0]
             logger.info("🚀 Targeted Refinement: %s", top_refinement["message"])
@@ -1030,6 +1035,8 @@ class AutonomousSelfModificationEngine:
             return {
                 "success": proposal,
                 "refinements_applied": 1 if proposal else 0,
+                "changed_files": [str(top_refinement.get("file") or "")] if proposal else [],
+                "reload_required": bool(proposal),
                 "duration": duration,
             }
         except SELF_MOD_RECOVERABLE_ERRORS as exc:
@@ -1043,6 +1050,8 @@ class AutonomousSelfModificationEngine:
             return {
                 "success": False,
                 "refinements_applied": 0,
+                "changed_files": [],
+                "reload_required": False,
                 "duration": duration,
                 "degraded_step": "refinement_cycle",
                 "error": failure["error"],

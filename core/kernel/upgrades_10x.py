@@ -367,7 +367,16 @@ class TrueEvolutionPhase(Phase):
             get_task_tracker().create_task(_background_explore())
 
         # 3. Governed self-modification proposal path.
-        if getattr(state.identity, "evolution_score", 0.0) > 0.70:
+        if (
+            getattr(state.identity, "evolution_score", 0.0) > 0.70
+            and background_activity_allowed(
+                getattr(self.kernel, "orchestrator", None),
+                min_idle_seconds=1800.0,
+                max_memory_percent=76.0,
+                max_failure_pressure=0.05,
+                require_conversation_ready=True,
+            )
+        ):
             await self._safe_self_modify(state)
 
         return state
@@ -387,14 +396,41 @@ class TrueEvolutionPhase(Phase):
         # This hunts for bottlenecks in CognitiveKernel and optimizes them
         try:
             result = await self.engine.run_refinement_cycle()
-            if result.get("success"):
+            refinements_applied = int(result.get("refinements_applied", 0) or 0)
+            changed_files = tuple(
+                str(path or "").strip()
+                for path in (result.get("changed_files") or ())
+                if str(path or "").strip()
+            )
+            reload_required = bool(result.get("reload_required", False))
+            if (
+                result.get("success")
+                and refinements_applied > 0
+                and changed_files
+                and reload_required
+            ):
                 logger.info(
-                    "✅ Evolution: Optimization applied successfully. Triggering Hot Reboot."
+                    "✅ Evolution: %d optimization(s) applied to %d file(s); "
+                    "requesting a bounded code refresh.",
+                    refinements_applied,
+                    len(changed_files),
                 )
-                # Increment narrative version to reflect evolution
-                state.identity.narrative_version += 1
-                # Trigger hot reboot to load new logic
-                await self.kernel.hot_reboot()
+                refresh = await self.kernel.hot_reboot(changed_files=changed_files)
+                if refresh.get("reloaded"):
+                    # Identity advances only when the new implementation became
+                    # part of this running organism. A source edit that requires
+                    # restart is durable work, but is not yet a lived transition.
+                    state.identity.narrative_version += 1
+                else:
+                    logger.info(
+                        "Evolution: source change retained for restart; live "
+                        "identity remains on the active implementation."
+                    )
+            elif result.get("success"):
+                logger.info(
+                    "Evolution: refinement cycle completed without an applied "
+                    "source change; identity and runtime remain unchanged."
+                )
             else:
                 logger.warning("⚠️ Evolution: Refinement cycle completed with no applied changes.")
         except (OSError, ConnectionError, TimeoutError) as e:

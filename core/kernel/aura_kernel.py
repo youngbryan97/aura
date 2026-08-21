@@ -1990,68 +1990,78 @@ class AuraKernel:
                 action="skipped runtime hygiene shutdown after singleton lookup failed",
             )
 
-    async def hot_reboot(self):
+    async def hot_reboot(self, *, changed_files: tuple[str, ...] = ()):
         """
         Bounded hot-reload trigger for the local runtime.
         Re-initializes the phase pipeline and reloads changed modules without stopping the process.
         """
-        logger.info("⚡ [HOT-RELOAD] Initiating bounded hot reboot (bytecode-aware).")
+        from core.runtime.backpressure import primary_inference_active
 
-        # 1. Stop background loops
-        for task in self._background_tasks:
-            task.cancel()
+        changed = tuple(str(path or "").strip() for path in changed_files if str(path or "").strip())
+        if not changed:
+            logger.info("⚡ [HOT-RELOAD] No applied source files were receipted; runtime unchanged.")
+            return {
+                "ok": True,
+                "reloaded": [],
+                "skipped": [],
+                "restart_required": False,
+                "reason": "no_applied_source_changes",
+            }
+        if primary_inference_active():
+            logger.info(
+                "⚡ [HOT-RELOAD] Deferred %d applied file(s) while foreground "
+                "or primary cognition owns the model lane.",
+                len(changed),
+            )
+            return {
+                "ok": False,
+                "reloaded": [],
+                "skipped": list(changed),
+                "restart_required": True,
+                "reason": "primary_inference_active",
+            }
 
-        # 2. Bytecode-aware Module Reloading
-        import importlib
-        import sys
+        logger.info("⚡ [HOT-RELOAD] Applying %d receipted source change(s).", len(changed))
 
-        if not hasattr(self, "_module_mtimes"):
-            self._module_mtimes = {}
+        # Reload only the files the mutation receipt names, through the
+        # canonical reloader. It rejects runtime-owned modules and inheritance
+        # anchors; direct importlib.reload here used to bypass both protections
+        # and mint duplicate class identities throughout the live process.
+        from core.ops.hot_reload import get_hot_reloader
 
-        # Identify core modules currently in the pipeline
-        modules_to_check = set()
-        for phase in self._phases:
-            mod_name = phase.__class__.__module__
-            if mod_name.startswith("core."):
-                modules_to_check.add(mod_name)
+        reloaded: list[str] = []
+        skipped: list[str] = []
+        failures: list[dict[str, str]] = []
+        restart_required = False
+        reloader = get_hot_reloader()
+        for filepath in changed:
+            result = await asyncio.to_thread(reloader.reload_file, filepath)
+            reloaded.extend(result.reloaded)
+            skipped.extend(result.skipped)
+            failures.extend(result.failed)
+            restart_required = bool(
+                restart_required or result.skipped or result.orphan_risks or result.failed
+            )
 
-        # Add the kernel's own sub-packages if they changed
-        for mod_name in list(sys.modules.keys()):
-            if mod_name.startswith("core.phases") or mod_name.startswith("core.kernel"):
-                modules_to_check.add(mod_name)
-
-        reloaded_count = 0
-        for mod_name in sorted(list(modules_to_check)):
-            mod = sys.modules.get(mod_name)
-            if mod and hasattr(mod, "__file__") and mod.__file__:
-                try:
-                    mtime = await asyncio.to_thread(
-                        lambda path=mod.__file__: Path(path).stat().st_mtime
-                    )
-                    # If file is newer than our last record, reload it
-                    if mtime > self._module_mtimes.get(mod_name, 0):
-                        logger.info("♻️ [REBOOT] Reloading modified module: %s", mod_name)
-                        importlib.reload(mod)
-                        self._module_mtimes[mod_name] = mtime
-                        reloaded_count += 1
-                except (OSError, ConnectionError, TimeoutError) as e:
-                    _record_kernel_degradation(
-                        e,
-                        action=f"continued hot reboot without reloading module {mod_name}",
-                    )
-                    logger.warning("⚠️ [REBOOT] Could not reload %s: %s", mod_name, e)
-
-        # 3. Re-setup phases (In case of code modifications)
-        self._setup_phases()
-
-        # 4. Re-start background loops
-        self._background_tasks = []
-        self._spawn_background_task(self._supervise_background_loops(), name="aura.supervisor")
+        # Re-setup phases only when a phase implementation actually changed.
+        # Rebuilding the pipeline for a protected/no-op change discards live
+        # phase-local state while making no new code active.
+        if any(name.startswith("core.phases.") for name in reloaded):
+            self._setup_phases()
 
         logger.info(
-            "✅ [HOT-RELOAD] Hot reboot complete. %d modules reloaded.",
-            reloaded_count,
+            "✅ [HOT-RELOAD] Refresh complete. %d reloaded, %d require restart.",
+            len(reloaded),
+            len(skipped) + len(failures),
         )
+        return {
+            "ok": not failures,
+            "reloaded": reloaded,
+            "skipped": skipped,
+            "failures": failures,
+            "restart_required": restart_required,
+            "reason": "restart_required" if restart_required else "applied",
+        }
 
     async def _supervise_background_loops(self):
         """
