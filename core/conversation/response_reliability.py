@@ -6044,6 +6044,13 @@ _SCREEN_PERCEPTION_CLAIM_RE = re.compile(
 
 #: Acting on the machine. Evidence is a tool receipt: nothing observes an
 #: action into existence.
+#: A file, named as one: something with an extension, or a path.
+_FILE_ARTIFACT_PATTERN = (
+    r"(?:\b[\w][\w.\-]{0,60}\.(?:html?|css|js|jsx|ts|tsx|py|json|csv|tsv|txt|md|"
+    r"pdf|sh|zsh|ya?ml|toml|xml|sql|ini|cfg|log|png|jpe?g|svg|zip)\b"
+    r"|(?<![\w])~?/[\w.\-~]+/[\w.\-~/]*)"
+)
+
 _DESKTOP_ACTION_CLAIM_RE = re.compile(
     r"(?:"
     r"\bi\s+(?:opened|launched|clicked|closed|dragged)\s+"
@@ -6063,10 +6070,22 @@ _DESKTOP_ACTION_CLAIM_RE = re.compile(
     # was policed.
     r"|\bi(?:'ve| have)?\s+(?:just\s+)?"
     r"(?:set|scheduled|created|added|saved|booked|registered|queued|"
-    r"made|started)\s+(?:up\s+)?(?:a|an|the|that|it|your|you)\b"
+    r"made|started|wrote|written|put|placed|generated|exported)\s+"
+    r"(?:up\s+)?(?:a|an|the|that|it|your|you)\b"
     r"[^.?!]{0,40}?\b(?:reminder|reminders|alarm|timer|event|meeting|"
     r"appointment|calendar|note|task|todo|to-do|entry|file|folder|"
     r"document|backup|job)\b"
+    # A file names itself.
+    #
+    # LIVE 2026-08-20: "I saved it as `sitting_timer.html` in your Downloads
+    # folder" claimed a file that was never written, and this pattern missed
+    # it by four characters — "folder" sat 44 characters from the determiner
+    # and the window is 40. A distance is the wrong test for a claim whose
+    # object is right there with an extension on it.
+    r"|\bi(?:'ve| have)?\s+(?:just\s+)?"
+    r"(?:set|scheduled|created|added|saved|booked|registered|queued|"
+    r"made|started|wrote|written|put|placed|generated|exported)\b"
+    r"[^.?!]{0,80}?" + _FILE_ARTIFACT_PATTERN +
     r")",
     re.IGNORECASE,
 )
