@@ -30,7 +30,7 @@ can't earn that word doesn't appear in this table.
 
 | subsystem | status | tests that exercise it |
 |---|---|---|
-| `core/consciousness/phi_core.py` (16-node φ) | **real** (1,837 lines) | causal exclusion suite, phi reference validation, null hypothesis suite |
+| `core/consciousness/phi_core.py` (16-node φ) | **real** (2,939 lines) | causal exclusion suite, phi reference validation, null hypothesis suite |
 | `core/consciousness/hierarchical_phi.py` (32-node) | **real** | causal exclusion suite, scale sweep |
 | `core/consciousness/affective_steering.py` (CAA injection) | **real injection mechanism** | CAA 32B validation harness, A/B steering tests, geometry controls |
 | `training/caa_32b_validation.py` | **real production-model artifact validator** | vector/PCA/permutation/prompt-hygiene proof bundle output |

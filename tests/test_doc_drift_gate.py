@@ -210,6 +210,24 @@ def test_a_stale_line_count_is_reported(scan, tmp_path):
     assert "stale_line_count" in scan("`core/m.py` (99 lines) does the work.")
 
 
+def test_a_line_count_stated_away_from_the_name_is_read(scan, tmp_path):
+    """TESTING.md put the count at the far end of a table row."""
+    (tmp_path / "core").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "core" / "m.py").write_text("a\nb\nc\n")
+    body = "| `core/m.py` (16-node) | **real** (999 lines) | the suite |"
+    assert "stale_line_count" in scan(body)
+
+
+def test_two_modules_on_one_line_are_not_guessed_between(scan, tmp_path):
+    """With the count next to a name the strict rule attributes it; with two
+    names and no adjacency there is nothing to attribute, so the loose rule
+    declines rather than picking one."""
+    (tmp_path / "core").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "core" / "m.py").write_text("a\n")
+    (tmp_path / "core" / "n.py").write_text("a\n")
+    assert scan("Together (999 lines) across `core/m.py` and `core/n.py`.") == set()
+
+
 def test_an_accurate_line_count_passes(scan, tmp_path):
     (tmp_path / "core").mkdir(parents=True, exist_ok=True)
     (tmp_path / "core" / "m.py").write_text("a\nb\nc\n")

@@ -75,6 +75,12 @@ PATH_CLAIM = re.compile(
     r"\.(?:py|md|json|ya?ml|toml|sh|txt|cfg|ini|js|ts|tsx|html|css|rs))(?::\d+)?$"
 )
 LINE_COUNT = re.compile(r"`([^`\n]+\.py)`\s*\((\d[\d,]*)\s+lines\)")
+#: The same claim with the count somewhere else on the line. TESTING.md wrote
+#: "`core/consciousness/phi_core.py` (16-node φ) | **real** (1,837 lines)" —
+#: 2,939 by then. Only fires when the line names exactly one module and states
+#: exactly one count, so there is nothing to guess about which belongs to which.
+LOOSE_PATH = re.compile(r"`([A-Za-z0-9_./-]+\.py)`")
+LOOSE_COUNT = re.compile(r"\(([\d,]{3,})\s+lines\)")
 #: A document that cites a test is claiming that test holds the thing it just
 #: said. The threat model cited `tests/test_steering_injection.py` as its proof
 #: of prompt-injection defence; that file tests activation steering, a
@@ -478,6 +484,18 @@ def scan(rel: str, targets: set[str], anchor_cache: dict[str, set[str]],
             actual = len(f.read_text(errors="replace").splitlines())
             if actual != claimed:
                 note(i, "stale_line_count", f"{path}: says {claimed:,}, is {actual:,}", line)
+
+        # A module's length, stated away from its name.
+        loose_paths, loose_counts = LOOSE_PATH.findall(line), LOOSE_COUNT.findall(line)
+        if (len(loose_paths) == 1 and len(loose_counts) == 1
+                and not LINE_COUNT.search(line) and not names_an_absence(i)):
+            target = ROOT / loose_paths[0]
+            if target.exists():
+                claimed = int(loose_counts[0].replace(",", ""))
+                actual = len(target.read_text(errors="replace").splitlines())
+                if actual != claimed:
+                    note(i, "stale_line_count",
+                         f"{loose_paths[0]}: says {claimed:,}, is {actual:,}", line)
 
         # How big the test suite is. A count inside quotation marks is a
         # citation of what some document said, not a claim about the tree —
