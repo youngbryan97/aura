@@ -123,3 +123,23 @@ def test_the_description_states_what_was_counted(expenses: Path):
     assert "By team" in described
     assert "approved is yes" in described
     assert "of 60 rows" in described
+
+
+def test_a_question_about_both_sides_of_a_column_returns_nothing(expenses: Path):
+    """LIVE, 2026-08-21: asked for the gap between approved and unapproved
+    spend, she served the unfiltered total by category and badged it computed.
+
+    The negation was seen, which stopped the approved-only filter, and then no
+    filter was applied at all. A question naming both senses of a column is
+    asking about the difference between them, which this form cannot express.
+    """
+    assert (
+        answer_tabular_question(
+            expenses, "which team has the biggest gap between approved and unapproved spend"
+        )
+        is None
+    )
+    assert answer_tabular_question(expenses, "approved vs unapproved totals by team") is None
+    # One sense alone still resolves.
+    assert answer_tabular_question(expenses, "total approved spend by team") is not None
+    assert answer_tabular_question(expenses, "unapproved spend by team") is not None

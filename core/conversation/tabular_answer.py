@@ -204,6 +204,28 @@ def _affirmative_value(values: set[str]) -> str | None:
     return positives[0] if len(positives) == 1 and negatives else None
 
 
+def _names_both_senses(question: str, column: str) -> bool:
+    """True when the question asks about a column's yes AND its no.
+
+    LIVE, 2026-08-21. "which category has the biggest gap between approved and
+    unapproved spend?" was answered with total spend by category — the right
+    arithmetic for a question nobody asked, badged as computed. The negation
+    was detected, which correctly stopped the approved-only filter, and then
+    no filter was applied at all and the unfiltered total was served with
+    authority.
+
+    A question naming both senses is asking about the difference between
+    them, which this form cannot express. Declining sends it to the model,
+    which is what the contract at the top of this file promises.
+    """
+    lowered = str(question or "").lower()
+    if not _negated_near(lowered, column):
+        return False
+    return any(
+        re.search(rf"\b{re.escape(word)}\b", lowered) for word in _words(column)
+    )
+
+
 def _negated_near(question: str, column: str) -> bool:
     """True when the question asks for the column's NEGATIVE case."""
     lowered = str(question or "").lower()
@@ -246,6 +268,15 @@ def answer_tabular_question(path: str | Path, question: str) -> TabularAnswer | 
         group_column = _group_column(header, rows, question, value_column)
         if not group_column:
             return None
+        # A question about the difference between a column's two values is not
+        # a question this form can answer, and answering the unfiltered table
+        # instead is the failure the docstring above exists to prevent.
+        for column in header:
+            if column not in {value_column, group_column} and _names_both_senses(
+                question, column
+            ):
+                return None
+
         applied = _filters(header, rows, question, {value_column, group_column})
         kept = [
             row
