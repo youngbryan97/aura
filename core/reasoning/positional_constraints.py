@@ -131,13 +131,20 @@ class PositionalProblem:
 
 @dataclass(frozen=True, slots=True)
 class PositionalAnswer:
-    """What every valid arrangement agrees on."""
+    """What every valid arrangement agrees on, and what they do not.
+
+    A puzzle with two consistent seatings has a real answer — "these two fit"
+    — and reporting only unanimous findings returned nothing at all for it.
+    Silence is the wrong answer to ambiguity: it reads as inability where the
+    truth is that the clues do not decide.
+    """
 
     findings: tuple[tuple[str, tuple[str, ...]], ...]
     arrangements: int
     entities: tuple[str, ...]
     seats: int
     cyclic: bool
+    alternatives: tuple[tuple[str, tuple[tuple[str, ...], ...]], ...] = ()
 
 
 def _gap(a: int, b: int, seats: int, cyclic: bool) -> int:
@@ -200,6 +207,35 @@ def _relations(text: str, names: Iterable[str], seats: int, cyclic: bool) -> lis
         # nothing satisfied it.
         if "?" in sentence or re.match(r"\s*(?:who|which|where)\b", sentence, re.IGNORECASE):
             continue
+        clause_text = " ".join(sentence.split())
+        lowered = clause_text.lower()
+        sentence_negated = bool(re.search(r"\b(?:not|never|n't|no)\b", lowered))
+
+        # A constraint about ONE person.
+        #
+        # This required two names in a sentence, so "Tomas sits at one of the
+        # two ends" and "Wen is not at either end" were dropped without a
+        # trace — and a puzzle missing two of its five premises has more
+        # solutions than it should, or none.
+        solo = re.findall(rf"\b({alternation})\b", sentence, re.IGNORECASE)
+        if not cyclic and len(set(name.lower() for name in solo)) == 1:
+            who = known[solo[0].lower()]
+            if re.search(r"\b(?:either\s+end|one\s+of\s+the\s+(?:two\s+)?ends|an?\s+end)\b", lowered):
+                if sentence_negated:
+                    add(sentence, lambda s, n, a=who: 0 < s[a] < n - 1)
+                else:
+                    add(sentence, lambda s, n, a=who: s[a] in (0, n - 1))
+                continue
+            if re.search(r"\b(?:far\s+left|leftmost|first\s+(?:seat|chair))\b", lowered):
+                add(sentence, lambda s, n, a=who: s[a] == 0)
+                continue
+            if re.search(r"\b(?:far\s+right|rightmost|last\s+(?:seat|chair))\b", lowered):
+                add(sentence, lambda s, n, a=who: s[a] == n - 1)
+                continue
+            if re.search(r"\b(?:middle|centre|center)\b", lowered):
+                add(sentence, lambda s, n, a=who: s[a] == (n - 1) // 2)
+                continue
+
         pair = re.search(
             rf"\b({alternation})(?:'s|\u2019s|s'|s)?\b"
             rf"(?P<mid>[^.?!]{{0,60}}?)"
@@ -249,6 +285,46 @@ def _relations(text: str, names: Iterable[str], seats: int, cyclic: bool) -> lis
                 _gap(s[a], s[b], n, c) == d
             ))
             continue
+        # X sits between A and B — a three-name relation, so the pair match
+        # above found only the first two and the premise was lost.
+        if not cyclic and re.search(r"\bbetween\b", clause):
+            trio = re.findall(rf"\b({alternation})\b", sentence, re.IGNORECASE)
+            unique = list(dict.fromkeys(name.lower() for name in trio))
+            if len(unique) == 3:
+                middle_name = known[unique[0]]
+                left_name, right_name = known[unique[1]], known[unique[2]]
+                directly = bool(re.search(r"\b(?:directly|immediately|right)\b", clause))
+                if directly:
+                    add(sentence, lambda s, n, m=middle_name, a=left_name, b=right_name: (
+                        abs(s[m] - s[a]) == 1
+                        and abs(s[m] - s[b]) == 1
+                        and min(s[a], s[b]) < s[m] < max(s[a], s[b])
+                    ))
+                else:
+                    add(sentence, lambda s, n, m=middle_name, a=left_name, b=right_name: (
+                        min(s[a], s[b]) < s[m] < max(s[a], s[b])
+                    ))
+                continue
+
+        # Which side of whom, in a row. "somewhere to the left of" is an
+        # ordering; "directly to the left of" is adjacency with a direction.
+        if not cyclic:
+            left_of = re.search(r"\bto\s+the\s+left\s+of\b|\bleft\s+of\b", middle)
+            right_of = re.search(r"\bto\s+the\s+right\s+of\b|\bright\s+of\b", middle)
+            immediate = bool(re.search(r"\b(?:directly|immediately)\b", middle))
+            if left_of or right_of:
+                if left_of:
+                    if immediate:
+                        add(sentence, lambda s, n, a=first, b=second: s[a] + 1 == s[b])
+                    else:
+                        add(sentence, lambda s, n, a=first, b=second: s[a] < s[b])
+                else:
+                    if immediate:
+                        add(sentence, lambda s, n, a=first, b=second: s[a] - 1 == s[b])
+                    else:
+                        add(sentence, lambda s, n, a=first, b=second: s[a] > s[b])
+                continue
+
         if re.search(r"\b(?:next\s+to|beside|adjacent|alongside)\b", clause):
             if negated:
                 add(sentence, lambda s, n, a=first, b=second, c=cyclic: (
@@ -313,6 +389,31 @@ def _questions(text: str, names: Iterable[str], seats: int, cyclic: bool) -> lis
                 "neighbours",
                 lambda s, n, a=subject, c=cyclic: tuple(
                     sorted(name for name, seat in s.items() if _gap(seat, s[a], n, c) == 1)
+                ),
+            )
+        )
+
+    # The whole arrangement — the plainest question a seating puzzle has, and
+    # the one form that was missing. "Who sits where?" parsed no question at
+    # all, so a problem whose premises all read correctly was still rejected
+    # as unparseable and went to the model, which spent 103 seconds on it and
+    # was cut off mid-reasoning.
+    if re.search(
+        r"\bwho\s+sits\s+where\b"
+        r"|\bwhat\s+is\s+the\s+(?:order|arrangement|seating)\b"
+        r"|\bwhere\s+(?:does|do)\s+(?:each|everyone|everybody)\b"
+        r"|\bwork\s+out\s+the\s+(?:order|arrangement|seating)\b"
+        r"|\b(?:give|tell)\s+me\s+the\s+(?:order|arrangement|seating)\b",
+        text,
+        re.IGNORECASE,
+    ):
+        asked.append(
+            Question(
+                "the seating order",
+                "",
+                "arrangement",
+                lambda s, n: tuple(
+                    name for name, _seat in sorted(s.items(), key=lambda item: item[1])
                 ),
             )
         )
@@ -398,17 +499,25 @@ def answer_positional_problem(text: object) -> PositionalAnswer | None:
         return None
 
     findings: list[tuple[str, tuple[str, ...]]] = []
+    alternatives: list[tuple[str, tuple[tuple[str, ...], ...]]] = []
     for question in problem.questions:
         readings = {question.read(arrangement, seats) for arrangement in solutions}
-        if len(readings) != 1:
+        if len(readings) == 1:
+            answer = readings.pop()
+            if answer:
+                findings.append((question.text, answer))
             continue
-        answer = readings.pop()
-        if answer:
-            findings.append((question.text, answer))
-    if not findings:
+        # Few enough to state. Past that the honest report is the count, which
+        # the answer already carries.
+        if len(readings) <= _MOST_ALTERNATIVES_WORTH_STATING:
+            ordered = tuple(sorted(reading for reading in readings if reading))
+            if ordered:
+                alternatives.append((question.text, ordered))
+    if not findings and not alternatives:
         return None
     return PositionalAnswer(
         findings=tuple(findings),
+        alternatives=tuple(alternatives),
         arrangements=len(solutions),
         entities=problem.entities,
         seats=seats,
@@ -416,9 +525,13 @@ def answer_positional_problem(text: object) -> PositionalAnswer | None:
     )
 
 
+#: More than this and listing them says less than counting them.
+_MOST_ALTERNATIVES_WORTH_STATING = 4
+
+
 def describe_positional_answer(answer: PositionalAnswer | None) -> str:
     """The findings as sentences, or "" when there is nothing settled."""
-    if answer is None or not answer.findings:
+    if answer is None or (not answer.findings and not answer.alternatives):
         return ""
     lines: list[str] = []
     for asked, names in answer.findings:
@@ -430,4 +543,12 @@ def describe_positional_answer(answer: PositionalAnswer | None) -> str:
             lines.append(f"{label}: {spoken[0]}.")
         else:
             lines.append(f"{label}: {' and '.join(spoken)}.")
+    for asked, readings in answer.alternatives:
+        label = asked[:1].upper() + asked[1:]
+        shown = "; ".join(
+            ", ".join(_spoken(name) for name in reading) for reading in readings
+        )
+        lines.append(
+            f"{label} is not settled by these clues — {len(readings)} fit: {shown}."
+        )
     return " ".join(lines)

@@ -87,14 +87,26 @@ def test_it_declines_what_it_cannot_settle(text: str) -> None:
     assert answer_positional_problem(text) is None
 
 
-def test_it_declines_when_the_answer_is_not_determined() -> None:
-    """Two constraints and six seats leave the neighbours open."""
+def test_it_never_asserts_an_answer_the_clues_do_not_determine() -> None:
+    """Two constraints and six seats leave the neighbours open.
+
+    This asserted None, and returning nothing reads as inability when the
+    truth is that the clues do not decide. The stronger contract: it settles
+    nothing it cannot settle, and says which possibilities remain.
+    """
     loose = (
         "six people sit around a round table with six seats. Boris sits "
         "directly opposite Ada. Chen sits next to Dara. Who are Dara's two "
         "neighbours?"
     )
-    assert answer_positional_problem(loose) is None
+    answer = answer_positional_problem(loose)
+    assert answer is not None
+    assert answer.findings == ()
+    assert len(answer.alternatives) == 1
+
+    spoken = describe_positional_answer(answer)
+    assert "not settled" in spoken
+    assert "Chen" in spoken
 
 
 def test_nothing_settled_says_nothing() -> None:
