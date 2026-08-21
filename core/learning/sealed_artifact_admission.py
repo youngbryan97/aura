@@ -29,6 +29,8 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import threading
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
@@ -47,6 +49,17 @@ _SEALED_ARTIFACTS: tuple[tuple[str, str, str], ...] = (
     ),
 )
 
+# Health polls are frequent, while a strict artifact admission verifies every
+# pinned source byte.  Cache only the *health projection*, and only while the
+# complete dependency metadata signature is unchanged.  Real capability use
+# continues through ``artifact_admission_status`` below and never consults this
+# memo.  ``ctime_ns`` is included so preserving a file's mtime cannot conceal a
+# rewrite on the local filesystem.
+_HEALTH_ADMISSION_LOCK = threading.Lock()
+_HEALTH_ADMISSION_CACHE: dict[
+    tuple[str, str, str], tuple[tuple[Any, ...], dict[str, Any]]
+] = {}
+
 
 def _file_sha256(path: Path) -> str:
     digest = hashlib.sha256()
@@ -58,6 +71,87 @@ def _file_sha256(path: Path) -> str:
 
 def _repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
+
+
+def _path_metadata(path: Path) -> tuple[Any, ...]:
+    """Cheap identity for one dependency, including missing/unreadable state."""
+    try:
+        stat = path.stat()
+    except FileNotFoundError:
+        return (str(path), "missing")
+    except OSError as exc:
+        return (str(path), "unreadable", type(exc).__name__)
+    return (
+        str(path),
+        stat.st_dev,
+        stat.st_ino,
+        stat.st_mode,
+        stat.st_size,
+        stat.st_mtime_ns,
+        stat.st_ctime_ns,
+    )
+
+
+def _artifact_dependency_signature(module: str, attribute: str) -> tuple[Any, ...]:
+    """Metadata signature for everything a strict admission reads.
+
+    This deliberately parses the small manifest on every health poll.  It
+    avoids hashing model/source bytes, while still discovering a changed
+    pinned-source set before a cached verdict can be reused.
+    """
+    try:
+        import importlib
+
+        directory = Path(getattr(importlib.import_module(module), attribute))
+    except (ImportError, AttributeError, TypeError, ValueError) as exc:
+        return ("unresolvable", module, attribute, type(exc).__name__)
+
+    manifest_path = directory / "manifest.json"
+    dependencies: list[tuple[Any, ...]] = [
+        ("artifact-root", *_path_metadata(directory)),
+        ("manifest", *_path_metadata(manifest_path)),
+    ]
+    try:
+        manifest = json.loads(manifest_path.read_text("utf-8"))
+    except (OSError, ValueError) as exc:
+        dependencies.append(("manifest-error", type(exc).__name__))
+        return tuple(dependencies)
+
+    # The sealed loader may consume any file in the artifact directory.  Track
+    # every descendant, including directories, so additions/removals and
+    # replacements invalidate the verdict without reading large tensor files.
+    try:
+        for candidate in sorted(directory.rglob("*"), key=lambda item: str(item)):
+            dependencies.append(("artifact-entry", *_path_metadata(candidate)))
+    except OSError as exc:
+        dependencies.append(("artifact-scan-error", type(exc).__name__))
+
+    pinned = (manifest.get("canary") or {}).get("source_sha256s") or {}
+    root = _repo_root()
+    for relative in sorted(pinned):
+        dependencies.append(("pinned-source", *_path_metadata(root / str(relative))))
+    return tuple(dependencies)
+
+
+def _health_artifact_admission_status(
+    name: str,
+    module: str,
+    attribute: str,
+) -> dict[str, Any]:
+    """Strict verdict memoized until any consumed dependency changes."""
+    key = (name, module, attribute)
+    signature = _artifact_dependency_signature(module, attribute)
+    with _HEALTH_ADMISSION_LOCK:
+        cached = _HEALTH_ADMISSION_CACHE.get(key)
+        if cached is not None and cached[0] == signature:
+            return deepcopy(cached[1])
+
+        # Singleflight the expensive verification. Health polling is the only
+        # caller of this helper; capability admission remains independently
+        # strict on every use.
+        status = artifact_admission_status(name, module, attribute)
+        _HEALTH_ADMISSION_CACHE[key] = (signature, deepcopy(status))
+        return status
 
 
 def artifact_admission_status(name: str, module: str, attribute: str) -> dict[str, Any]:
@@ -125,7 +219,7 @@ _ANNOUNCED_REFUSALS: tuple[tuple[str, str], ...] = ()
 def sealed_artifact_admission_report() -> dict[str, Any]:
     """Every sealed artifact, admitted or not, for a health surface to publish."""
     artifacts = [
-        artifact_admission_status(name, module, attribute)
+        _health_artifact_admission_status(name, module, attribute)
         for name, module, attribute in _SEALED_ARTIFACTS
     ]
     refused = [a for a in artifacts if not a["admitted"]]

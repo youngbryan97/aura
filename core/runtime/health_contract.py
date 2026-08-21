@@ -1584,14 +1584,12 @@ def _runtime_integrity_block() -> dict[str, Any]:
     except Exception as exc:  # noqa: BLE001 — each health add-on is isolated
         block["observability_error"] = repr(exc)
     try:
-        from core.ontogeny.service import ontogeny_report
+        from core.ontogeny.service import ontogeny_health_report
 
-        ontogeny = ontogeny_report()
-        # Deliberately narrow. The full report is large; what health needs is
-        # what a learned controller is currently allowed to do, whether it is
-        # still honest about itself, and whether the corpus it learns from is
-        # actually seeing outcomes. A control point at AUTHORITY whose
-        # observation rate has collapsed is the failure worth catching early.
+        ontogeny = ontogeny_health_report()
+        # The owner supplies this bounded projection. The full diagnostic
+        # report includes per-control-point corpus aggregates and must never be
+        # pulled into a high-frequency health probe.
         block["ontogeny"] = {
             "episodes_seen": ontogeny.get("episodes_seen"),
             "novelty": ontogeny.get("novelty"),
@@ -1599,12 +1597,9 @@ def _runtime_integrity_block() -> dict[str, Any]:
                 k: (ontogeny.get("state") or {}).get(k)
                 for k in ("steps", "era", "fingerprint", "age_days")
             },
-            "stages": {
-                cp: detail.get("stage")
-                for cp, detail in (ontogeny.get("control_points") or {}).items()
-            },
-            "frozen": (ontogeny.get("authority") or {}).get("frozen"),
-            "observation_rate": (ontogeny.get("resolution") or {}).get("observation_rate"),
+            "stages": dict(ontogeny.get("stages") or {}),
+            "frozen": ontogeny.get("frozen"),
+            "observation_rate": ontogeny.get("observation_rate"),
             "calibration": {
                 cp: {"ece": rep.get("ece"), "overconfidence": rep.get("overconfidence")}
                 for cp, rep in (ontogeny.get("calibration") or {}).items()

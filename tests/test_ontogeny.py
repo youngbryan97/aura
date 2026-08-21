@@ -702,6 +702,24 @@ class TestOrganEndToEnd:
             self_model_available=True, source="autonomous", action_type="spawn_task",
         )
 
+    def test_health_report_never_scans_the_experience_corpus(
+        self,
+        sandbox: Path,
+        monkeypatch,
+    ):
+        core = self._core(sandbox)
+
+        def corpus_scan_is_a_bug(*_args, **_kwargs):
+            raise AssertionError("health polled the experience database")
+
+        monkeypatch.setattr(core._spine, "stats", corpus_scan_is_a_bug)
+        report = core.health_report()
+
+        assert report["schema"] == "aura.ontogeny.health.v1"
+        assert "executive.admission" in report["stages"]
+        assert "observation_rate" in report
+        core.stop()
+
     def test_the_organ_defers_to_the_incumbent_before_it_has_learned(self, sandbox: Path):
         core = self._core(sandbox)
         rng = np.random.default_rng(0)

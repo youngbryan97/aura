@@ -925,6 +925,49 @@ class OntogenyCore(AuthorityObservationMixin):
 
     # ── reporting ────────────────────────────────────────────────────────
 
+    def health_report(self) -> dict[str, Any]:
+        """Bounded in-memory state for high-frequency health polling.
+
+        ``report()`` is a diagnostic surface: its corpus section performs
+        SQLite aggregates for every registered control point.  Boot health
+        needs neither those aggregates nor the training and history payloads,
+        and polling them made the health worker compete with the live mind.
+        Keep this projection at the owner so health cannot accidentally grow
+        another database dependency by slicing the full report downstream.
+        """
+        with self._lock:
+            control_points = tuple(self._control_points)
+            state = self._state
+            episodes_seen = self._episodes_seen
+            last_reading = self._last_reading
+            world_model = self._world_model
+
+        authority = self._authority.report()
+        calibration = self._candidate_calibration.all_reports()
+        resolution = self._resolvers.report()
+        return {
+            "schema": "aura.ontogeny.health.v1",
+            "episodes_seen": episodes_seen,
+            "novelty": round(last_reading.novelty if last_reading else 0.5, 4),
+            "state": state.report() if state else None,
+            "stages": {
+                name: str(self._authority.stage(name)) for name in control_points
+            },
+            "frozen": authority.get("frozen"),
+            "observation_rate": resolution.get("observation_rate"),
+            "calibration": {
+                name: {
+                    "ece": report.get("ece"),
+                    "overconfidence": report.get("overconfidence"),
+                }
+                for name, report in calibration.items()
+            },
+            "world_model": (
+                world_model.get_status()
+                if world_model not in (None, False) else None
+            ),
+        }
+
     def report(self) -> dict[str, Any]:
         """Everything the organ knows about itself, for health and for Bryan."""
         with self._lock:
@@ -1037,6 +1080,20 @@ def ontogeny_report() -> dict[str, Any]:
         return {"available": False, "error": type(exc).__name__}
 
 
+def ontogeny_health_report() -> dict[str, Any]:
+    """Bounded module-level projection for runtime health polling."""
+    try:
+        return get_ontogeny().health_report()
+    except (RuntimeError, OSError, ValueError, TypeError, AttributeError) as exc:
+        record_degradation(
+            "ontogeny",
+            exc,
+            severity="warning",
+            action="ontogeny health report unavailable",
+        )
+        return {"available": False, "error": type(exc).__name__}
+
+
 def reset_ontogeny_for_test(core: OntogenyCore | None = None) -> None:
     global _core
     with _core_lock:
@@ -1052,6 +1109,7 @@ __all__ = [
     "OntogenyCore",
     "Verdict",
     "get_ontogeny",
+    "ontogeny_health_report",
     "ontogeny_report",
     "reset_ontogeny_for_test",
 ]

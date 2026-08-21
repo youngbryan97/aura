@@ -19,6 +19,7 @@ provenance break, so nothing here re-seals anything.
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 
 import pytest
@@ -29,7 +30,6 @@ from core.learning.sealed_artifact_admission import (
     mathematics_memory_admitted,
     sealed_artifact_admission_report,
 )
-import logging
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -241,6 +241,65 @@ def test_a_polled_health_query_announces_a_refusal_once() -> None:
             ) == 2, "a changed refusal reason was swallowed by the announce-once memo"
     finally:
         admission.logger.removeHandler(handler)
+
+
+def test_health_reuses_a_strict_verdict_only_while_dependencies_are_unchanged(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    """Polling is cheap, but a changed seal dependency is checked immediately."""
+    import core.learning.recurrent_work_memory_tissue as tissue
+    import core.learning.sealed_artifact_admission as admission
+
+    artifact = tmp_path / "artifact"
+    artifact.mkdir()
+    manifest = artifact / "manifest.json"
+    manifest.write_text('{"canary":{"source_sha256s":{}}}', encoding="utf-8")
+    monkeypatch.setattr(
+        tissue,
+        "DEFAULT_MATHEMATICS_MEMORY_ARTIFACT",
+        artifact,
+        raising=False,
+    )
+    admission._HEALTH_ADMISSION_CACHE.clear()
+    strict = admission.artifact_admission_status
+    calls = 0
+
+    def counted(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return strict(*args, **kwargs)
+
+    monkeypatch.setattr(admission, "artifact_admission_status", counted)
+    admission.sealed_artifact_admission_report()
+    admission.sealed_artifact_admission_report()
+    assert calls == 1, "an unchanged health poll repeated strict source hashing"
+
+    manifest.write_text(
+        '{"canary":{"source_sha256s":{}},"revision":2}',
+        encoding="utf-8",
+    )
+    admission.sealed_artifact_admission_report()
+    assert calls == 2, "a changed manifest reused the prior admission verdict"
+    admission._HEALTH_ADMISSION_CACHE.clear()
+
+
+def test_capability_admission_never_uses_the_health_memo(monkeypatch) -> None:
+    """The optimization belongs to observability, not execution authority."""
+    import core.learning.sealed_artifact_admission as admission
+
+    strict = admission.artifact_admission_status
+    calls = 0
+
+    def counted(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return strict(*args, **kwargs)
+
+    monkeypatch.setattr(admission, "artifact_admission_status", counted)
+    admission.mathematics_memory_admitted()
+    admission.mathematics_memory_admitted()
+    assert calls == 2
 
 
 def test_a_skip_for_a_refused_seal_names_the_reason() -> None:
