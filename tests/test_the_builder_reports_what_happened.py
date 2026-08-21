@@ -53,3 +53,24 @@ def test_the_repair_hint_carries_no_advice_from_another_domain() -> None:
     assert "data-row" not in loop
     assert "closest(" not in loop
     assert "console_errors" in loop
+
+
+def test_the_builder_can_use_the_model_already_loaded() -> None:
+    """LIVE: "local code model unavailable (ModelLaneControlError:
+    in_process_model_admission_refused:lane_budget_exceeded:cortex request
+    21.5GB + committed 25.3GB > budget)".
+
+    A second code model cannot fit beside the resident cortex on this host,
+    so build_app depended on something that could never load — while the
+    cortex writes HTML perfectly well.
+    """
+    body = _generate_body()
+    assert 'ServiceContainer.get("inference_gate"' in body
+    assert "resident cortex returned %d chars" in body
+
+
+def test_the_resident_path_is_tried_before_the_python_only_one() -> None:
+    """The last fallback extracts PYTHON source, so it can never return an
+    HTML page however well it generates one."""
+    body = _generate_body()
+    assert body.index("inference_gate") < body.index("LLMCodeGenerator")

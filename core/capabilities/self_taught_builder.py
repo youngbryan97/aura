@@ -213,6 +213,43 @@ async def _generate(prompt: str, *, max_tokens: int) -> str:
             type(exc).__name__,
             str(exc)[:160],
         )
+    # The model that is already loaded.
+    #
+    # LIVE, 2026-08-21: "local code model unavailable
+    # (ModelLaneControlError: in_process_model_admission_refused:
+    # lane_budget_exceeded:cortex request 21.5GB + committed 25.3GB > budget)"
+    # — a second code model cannot fit beside the resident cortex on this
+    # host, so build_app depended on something that could never load. The
+    # cortex writes HTML perfectly well; asked directly in a chat turn it
+    # produced this same page in 33 seconds.
+    try:
+        from core.container import ServiceContainer
+
+        gate = ServiceContainer.get("inference_gate", default=None)
+        if gate is not None and hasattr(gate, "think"):
+            resident = str(
+                await gate.think(
+                    prompt,
+                    system_prompt=(
+                        "You are a meticulous front-end engineer. You output ONE complete HTML "
+                        "document and nothing else. Standard browser APIs only."
+                    ),
+                    max_tokens=max_tokens,
+                    temperature=0.2,
+                    origin="self_taught_builder",
+                )
+                or ""
+            )
+            logger.info("🎓 build: resident cortex returned %d chars.", len(resident))
+            if resident.strip():
+                return resident
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError, OSError) as exc:
+        logger.warning(
+            "🎓 build: resident cortex unavailable (%s: %s).",
+            type(exc).__name__,
+            str(exc)[:160],
+        )
+
     try:
         from core.brain.llm.code_generator import LLMCodeGenerator
 
