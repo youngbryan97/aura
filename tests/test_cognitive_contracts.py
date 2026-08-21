@@ -337,6 +337,28 @@ def test_declared_write_is_not_a_violation() -> None:
     assert graph.receipts[-1].honoured_contract is True
 
 
+def test_phase_derivation_does_not_inherit_tick_boundary_cleanup() -> None:
+    """Lineage copying cannot make an unrelated phase look like a goal writer."""
+
+    from core.phases.proprioceptive_loop import ProprioceptiveLoop  # noqa: F401
+    from core.state.aura_state import AuraState
+
+    state = AuraState.default()
+    state.cognition.current_objective = (
+        "Researching The Unix Philosophy and the Art of Minimalist Tooling"
+    )
+    state.cognition.current_origin = "system"
+
+    with recording_tick(objective="contract attribution") as graph:
+        transformation = begin_transformation("ProprioceptiveLoop", state)
+        derived = state.derive("proprioceptive_loop")
+        transformation.complete(derived, publish_violation=False)
+
+    receipt = graph.receipts[-1]
+    assert "cognition.current_objective" not in receipt.observed_writes
+    assert "cognition.current_objective" not in receipt.undeclared_writes
+
+
 def test_uncontracted_phase_still_reports_what_it_wrote() -> None:
     """The productive half of the ratchet: measurement before declaration."""
 

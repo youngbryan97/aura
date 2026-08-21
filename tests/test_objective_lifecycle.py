@@ -240,6 +240,30 @@ def test_ordinary_state_derivation_preserves_live_foreground_turn():
     assert derived.cognition.current_origin == "desktop_ui"
 
 
+def test_state_derivation_does_not_own_autonomy_cleanup():
+    prompt = "Researching The Unix Philosophy and the Art of Minimalist Tooling"
+    state = AuraState.default()
+    state.cognition.current_objective = prompt
+    state.cognition.current_origin = "system"
+
+    derived = state.derive("proprioceptive_loop")
+
+    assert derived.cognition.current_objective == prompt
+    assert derived.cognition.current_origin == "system"
+
+
+def test_tick_boundary_owns_autonomy_cleanup():
+    prompt = "Researching The Unix Philosophy and the Art of Minimalist Tooling"
+    state = AuraState.default()
+    state.cognition.current_objective = prompt
+    state.cognition.current_origin = "system"
+
+    state.prepare_tick_boundary()
+
+    assert state.cognition.current_objective is None
+    assert state.cognition.current_origin == "system"
+
+
 def test_restored_state_preserves_actionable_question_and_ambiguous_goal():
     state = AuraState.default()
     state.cognition.current_objective = "Can you investigate the health poll?"

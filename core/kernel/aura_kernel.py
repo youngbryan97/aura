@@ -1149,6 +1149,11 @@ class AuraKernel:
 
             # Initial derivation for the tick itself
             state = await state.derive_async(f"tick_start: {objective[:50]}", origin="tick")
+            # Objective/initiative hygiene is a tick-lifecycle operation. It
+            # must happen before phase provenance starts; doing it inside
+            # AuraState.derive() falsely attributed the cleanup to whichever
+            # phase happened to derive next.
+            state.prepare_tick_boundary()
             # Clear per-turn prompt/runtime modifiers from previous ticks so
             # stale tool results, open social-thread directives, recovery
             # flags, or proof contracts cannot leak into an unrelated turn.

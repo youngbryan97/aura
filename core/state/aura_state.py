@@ -1,16 +1,15 @@
 from __future__ import annotations
 
-import re
-
 import asyncio
 import copy
 import hashlib
 import math
+import re
 import time
 import uuid
 from dataclasses import dataclass, field, fields
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Dict, Final, Optional
+from typing import TYPE_CHECKING, Any, Final
 
 from core.goals.objective_lifecycle import is_foreground_objective_origin
 from core.memory.retention_policy import working_history_retention_policy
@@ -359,7 +358,7 @@ class AffectVector:
     markers: dict[str, Any] = field(default_factory=dict)
     
     updated_at: float = field(default_factory=time.time)
-    resonance: Dict[str, float] = field(default_factory=dict)
+    resonance: dict[str, float] = field(default_factory=dict)
 
     def get_resonance_string(self) -> str:
         """Returns a formatted string representing the current personality blend."""
@@ -423,7 +422,7 @@ class AffectVector:
             ),
         )
 
-    def get_cognitive_signature(self) -> Dict[str, Any]:
+    def get_cognitive_signature(self) -> dict[str, Any]:
         top = self.top_emotions(limit=4)
         return {
             "dominant_emotion": self.dominant_emotion,
@@ -523,17 +522,17 @@ class IdentityKernel:
 @dataclass
 class CognitiveContext:
     """The working memory — what Aura is currently thinking about."""
-    active_thread_id: Optional[str] = None
+    active_thread_id: str | None = None
     current_mode: CognitiveMode = CognitiveMode.REACTIVE
     working_memory: list[dict] = field(default_factory=list)  # Recent exchanges
     long_term_memory: list[str] = field(default_factory=list) # Retrieved RAG context
     active_goals: list[dict] = field(default_factory=list)
     pending_initiatives: list[dict] = field(default_factory=list)
-    attention_focus: Optional[str] = None   # What is Aura attending to right now
-    phenomenal_state: Optional[PhenomenalField | str] = None  # Layer 8: Structured phenomenal claim
-    unity_state: Optional["UnityState"] = None
-    mind_moment: Optional[Any] = None       # One reconstructible active-present frame
-    current_objective: Optional[str] = None # The specific goal of the current cognitive cycle
+    attention_focus: str | None = None   # What is Aura attending to right now
+    phenomenal_state: PhenomenalField | str | None = None  # Layer 8: Structured phenomenal claim
+    unity_state: UnityState | None = None
+    mind_moment: Any | None = None       # One reconstructible active-present frame
+    current_objective: str | None = None # The specific goal of the current cognitive cycle
     current_origin: str = "system"        # Source of the current objective (user, motivation, etc.)
     rolling_summary: str = ""             # Rolling compacted summary of older context
     # Durable, non-decaying record of what the conversation established.
@@ -546,14 +545,14 @@ class CognitiveContext:
     fragmentation_score: float = 0.0
     contradiction_count: int = 0
     # Discourse State — lightweight topic threading for natural conversation flow
-    discourse_topic: Optional[str] = None        # Current conversation thread/topic
+    discourse_topic: str | None = None        # Current conversation thread/topic
     discourse_depth: int = 0                     # Turns spent on this thread
     discourse_branches: list[str] = field(default_factory=list)  # Adjacent topics available
     user_emotional_trend: str = "neutral"        # "warming_up"|"engaged"|"cooling_off"|"neutral"
     conversation_energy: float = 0.5             # 0-1: low=winding down, high=building momentum
 
     # Constitutional Closure — kernel-level arbitration trace
-    last_kernel_cycle_id: Optional[str] = None   # ID of the last kernel tick that touched this state
+    last_kernel_cycle_id: str | None = None   # ID of the last kernel tick that touched this state
     last_action_source: str = ""                  # Which subsystem's proposal won the tick
     last_veto_reasons: list[str] = field(default_factory=list)  # Why proposals were rejected
     kernel_decision_count: int = 0                # Running count of approved proposals
@@ -562,7 +561,7 @@ class CognitiveContext:
     # Transients (Not persisted, but allowed in runtime state)
     pending_intents: list[dict] = field(default_factory=list)
     last_thought_at: float = field(default_factory=time.time)
-    last_response: Optional[str] = None
+    last_response: str | None = None
     modifiers: dict[str, Any] = field(default_factory=dict) # Homeostatic modifiers (temp, depth, etc.)
 
     @property
@@ -619,10 +618,10 @@ class CognitiveContext:
         """Repair stale foreground projections only at a restore boundary."""
 
         from core.goals.objective_lifecycle import (
+            has_explicit_durable_binding,
             is_ephemeral_conversation_turn,
             is_transient_foreground_projection,
         )
-        from core.goals.objective_lifecycle import has_explicit_durable_binding
         from core.goals.standing_objective import (
             is_valid_standing_objective,
             standing_objective_rejection_for_bound_work,
@@ -682,7 +681,7 @@ class CognitiveContext:
             modifiers.pop("executive_hysteresis", None)
         self.modifiers = modifiers
 
-    def trim_working_memory(self, limit: Optional[int] = None):
+    def trim_working_memory(self, limit: int | None = None):
         self.sanitize_autonomy_state()
         self._prune_stale_entries()
         self._deduplicate_summaries()
@@ -888,7 +887,7 @@ class CognitiveContext:
 class WorldModel:
     """Aura's current model of her environment and relationships."""
     known_entities: dict[str, dict] = field(default_factory=dict)  # People, objects
-    spatial_context: Optional[dict] = None                          # What she can see
+    spatial_context: dict | None = None                          # What she can see
     recent_percepts: list[dict] = field(default_factory=list)
     relationship_graph: dict[str, dict] = field(default_factory=dict)
     # Durable user preferences — learned from conversation, not re-discovered each time
@@ -921,7 +920,7 @@ class CurriculumItem:
     synthesis_level: str = "none"  # none, shallow, moderate, deep
     synthesis_summary: str = ""
     added_at: float = field(default_factory=time.time)
-    completed_at: Optional[float] = None
+    completed_at: float | None = None
 
 @dataclass
 class ColdStore:
@@ -978,8 +977,8 @@ class AuraState:
     response_modifiers: dict[str, Any] = field(default_factory=dict)
 
     # Lineage — every state knows what state it came from
-    parent_state_id: Optional[str] = None
-    transition_cause: Optional[str] = None  # What caused this state change
+    parent_state_id: str | None = None
+    transition_cause: str | None = None  # What caused this state change
     transition_origin: str = "system"       # Which phase/agent caused it
 
     # Signed lineage. The chain above was strong and anchored to nothing: the
@@ -1032,7 +1031,7 @@ class AuraState:
                 self.world.facts = {"value": value}
 
     @classmethod
-    def default(cls) -> "AuraState":
+    def default(cls) -> AuraState:
         """Get a default starting state for first boot (BUG-12)."""
         return cls()
 
@@ -1216,7 +1215,7 @@ class AuraState:
         encoded = repr(payload).encode("utf-8", errors="ignore")
         return hashlib.sha256(encoded).hexdigest()
 
-    def get_audit_signature(self) -> Dict[str, Any]:
+    def get_audit_signature(self) -> dict[str, Any]:
         return {
             "continuity_hash": self.get_continuity_hash(),
             "cognitive_signature": (
@@ -1351,8 +1350,14 @@ class AuraState:
         self._refresh_cognitive_health()
         return True
 
-    async def derive_async(self, cause: str, origin: str = "system") -> "AuraState":
-        """[ZENITH-v2] Thread-safe derivation for intelligent growth."""
+    async def derive_async(self, cause: str, origin: str = "system") -> AuraState:
+        """Create an isolated lineage successor without applying policy.
+
+        Objective and initiative sanitation belongs to a lifecycle boundary,
+        not to whichever cognitive phase happened to derive the next state.
+        Applying it here made unrelated phases appear to write goals they had
+        never touched and made contract receipts depend on stale input shape.
+        """
         new_state = await asyncio.to_thread(lambda: copy.deepcopy(self))
         
         # Increment version and update lineage
@@ -1377,11 +1382,6 @@ class AuraState:
         if origin in ("user", "voice", "admin") or "evolution" in cause:
             new_state.cognition.reflect(f"Transitioned to v{new_state.version} via {origin}: {cause}")
 
-        new_state.cognition.sanitize_autonomy_state()
-
-        if len(new_state.cognition.working_memory) > MAX_WORKING_MEMORY:
-            new_state.compact()
-        
         return new_state
 
     def snapshot_hot(self) -> dict[str, Any]:
@@ -1399,7 +1399,11 @@ class AuraState:
 
     def derive(self, cause: str, origin: str = "system") -> AuraState:
         """
-        Create a new state derived from this one.
+        Create a new state derived from this one without applying policy.
+
+        The copy preserves objectives, initiatives and goals exactly. Their
+        lifecycle owner must sanitize them at an explicit boundary; otherwise
+        every phase that calls ``derive`` is falsely credited with cleanup.
         [ZENITH-v3] Optimized: Uses shallow copy + selective deepcopy of mutable fields
         to prevent O(n) event loop lag during cognitive phase transitions.
         """
@@ -1442,9 +1446,11 @@ class AuraState:
         if origin in ("user", "voice", "admin") or "evolution" in cause:
             new_state.cognition.reflect(f"Transitioned to v{new_state.version} via {origin}: {cause}")
 
-        new_state.cognition.sanitize_autonomy_state()
-
-        if len(new_state.cognition.working_memory) > MAX_WORKING_MEMORY:
-            new_state.compact()
-        
         return new_state
+
+    def prepare_tick_boundary(self) -> None:
+        """Apply transient autonomy cleanup once, before phase attribution."""
+
+        self.cognition.sanitize_autonomy_state()
+        if len(self.cognition.working_memory) > MAX_WORKING_MEMORY:
+            self.compact()
