@@ -473,6 +473,16 @@ private let bridgeScreenCapturePrivacyPolicy: BridgeScreenCapturePrivacyPolicy? 
 private func bridgeScreenCaptureAdmission(
     context suppliedContext: BridgeForegroundWindowContext? = nil
 ) -> BridgeScreenCaptureAdmission {
+    // A locked or switched-away session is an intentional no-read state, not
+    // evidence that the capture backend failed. Preserve that distinction in
+    // the signed receipt before attempting to resolve window metadata.
+    if bridgeScreenSessionLocked() {
+        return BridgeScreenCaptureAdmission(
+            allowed: false,
+            reason: "session_locked",
+            contextKnown: false
+        )
+    }
     guard let policy = bridgeScreenCapturePrivacyPolicy else {
         return BridgeScreenCaptureAdmission(
             allowed: false,

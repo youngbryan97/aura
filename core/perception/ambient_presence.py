@@ -115,6 +115,9 @@ class SkipReason(StrEnum):
     HIDDEN = "hidden_by_user"
     UNCHANGED = "context_unchanged"
     NO_FOREGROUND = "no_foreground_window"
+    PRIVACY_DEFERRED = "privacy_deferred"
+    SESSION_LOCKED = "session_locked"
+    SCREEN_DISABLED = "screen_disabled"
     NO_PERMISSION = "no_permission"
     CAPTURE_FAILED = "capture_failed"
 
@@ -124,6 +127,14 @@ class SkipReason(StrEnum):
 #: never raise an alarm, or the alarm becomes noise and stops being read.
 _BROKEN_SKIP_REASONS = frozenset(
     {SkipReason.CAPTURE_FAILED, SkipReason.NO_PERMISSION}
+)
+
+_DEFERRED_SKIP_REASONS = frozenset(
+    {
+        SkipReason.PRIVACY_DEFERRED,
+        SkipReason.SESSION_LOCKED,
+        SkipReason.SCREEN_DISABLED,
+    }
 )
 
 #: How many consecutive broken ticks mean "blind" rather than "unlucky".
@@ -235,6 +246,7 @@ class AmbientPresence:
         self._skip_details: dict[str, str] = {}
         self._last_skip: tuple[str, str, float] | None = None
         self._consecutive_broken_skips = 0
+        self._observation_deferred_reason = ""
         self._private_skips = 0
         self._running = False
         self._last_spoke_at = 0.0
@@ -664,6 +676,13 @@ class AmbientPresence:
 
         if hasattr(reading, "success"):
             if not bool(getattr(reading, "success", False)):
+                deferred = self._capture_deferral(reading)
+                if deferred is not None:
+                    reason, detail = deferred
+                    if reason is SkipReason.PRIVACY_DEFERRED:
+                        with self._lock:
+                            self._private_skips += 1
+                    return self._skip(reason, context=context, detail=detail)
                 return self._skip(
                     SkipReason.CAPTURE_FAILED,
                     context=context,
@@ -728,6 +747,7 @@ class AmbientPresence:
             # blind. Clearing the run here, and not only on a benign skip,
             # keeps "blind" meaning "has not seen anything recently".
             self._consecutive_broken_skips = 0
+            self._observation_deferred_reason = ""
         return TickResult(
             observed=True,
             context=context,
@@ -736,6 +756,50 @@ class AmbientPresence:
             capture_receipt_id=capture_receipt_id,
             capture_duration_ms=capture_duration_ms,
         )
+
+    @staticmethod
+    def _capture_deferral(reading: Any) -> tuple[SkipReason, str] | None:
+        """Map a typed capture admission to ambient semantics.
+
+        Only a schema-valid policy receipt can turn a failed capture into a
+        benign deferral. Backend errors and malformed/untyped failures remain
+        broken skips so privacy handling cannot accidentally hide an outage.
+        """
+        try:
+            from core.security.screen_capture_policy import (
+                SCREEN_CAPTURE_ADMISSION_SCHEMA,
+                ScreenCaptureDenial,
+            )
+        except ImportError:
+            return None
+
+        evidence = getattr(reading, "evidence", None)
+        if not isinstance(evidence, dict):
+            return None
+        admission = evidence.get("capture_admission")
+        if not isinstance(admission, dict):
+            return None
+        if admission.get("schema") != SCREEN_CAPTURE_ADMISSION_SCHEMA:
+            return None
+        if admission.get("allowed") is not False:
+            return None
+        try:
+            denial = ScreenCaptureDenial(str(admission.get("reason", "")))
+        except ValueError:
+            return None
+        authority = str(admission.get("authority", "") or "unknown")
+        detail = f"capture admission deferred by {authority}: {denial.value}"
+        if denial in {
+            ScreenCaptureDenial.PRIVATE_FOREGROUND,
+            ScreenCaptureDenial.PRIVATE_VISIBLE,
+            ScreenCaptureDenial.BROWSER_TITLE_UNKNOWN,
+        }:
+            return SkipReason.PRIVACY_DEFERRED, detail
+        if denial is ScreenCaptureDenial.SESSION_LOCKED:
+            return SkipReason.SESSION_LOCKED, detail
+        if denial is ScreenCaptureDenial.RUNTIME_SETTING_DISABLED:
+            return SkipReason.SCREEN_DISABLED, detail
+        return None
 
     async def _current_context(self) -> ScreenContext | None:
         self._context_lookup_failure = ""
@@ -828,12 +892,16 @@ class AmbientPresence:
             self._last_skip = (reason.value, detail[:300], time.time())
             if reason in _BROKEN_SKIP_REASONS:
                 self._consecutive_broken_skips += 1
+                self._observation_deferred_reason = ""
                 # Total, not merely frequent: nothing has ever been observed,
                 # or nothing has been observed for a long run of ticks.
                 if self._consecutive_broken_skips == _BROKEN_SKIP_ESCALATION:
                     escalate = True
             else:
                 self._consecutive_broken_skips = 0
+                self._observation_deferred_reason = (
+                    reason.value if reason in _DEFERRED_SKIP_REASONS else ""
+                )
 
         if escalate:
             record_degradation(
@@ -995,6 +1063,8 @@ class AmbientPresence:
                 "blind": (
                     self._consecutive_broken_skips >= _BROKEN_SKIP_ESCALATION
                 ),
+                "observation_deferred": bool(self._observation_deferred_reason),
+                "observation_deferred_reason": self._observation_deferred_reason,
                 # Surfaced, because a person should be able to see that the
                 # privacy rule is doing something rather than trusting that
                 # it is.

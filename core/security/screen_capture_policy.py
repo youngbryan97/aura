@@ -26,7 +26,8 @@ from typing import Any
 from core.runtime.permission_gates import screen_allowed
 
 _POLICY_SCHEMA = "aura.security.screen_capture_privacy_policy.v1"
-_ADMISSION_SCHEMA = "aura.security.screen_capture_admission.v1"
+SCREEN_CAPTURE_ADMISSION_SCHEMA = "aura.security.screen_capture_admission.v1"
+_ADMISSION_SCHEMA = SCREEN_CAPTURE_ADMISSION_SCHEMA
 _POLICY_PATH = (
     Path(__file__).resolve().parents[2]
     / "config"
@@ -96,6 +97,7 @@ class ScreenCaptureDenial(StrEnum):
     PRIVATE_VISIBLE = "private_visible"
     FOREGROUND_UNKNOWN = "foreground_unknown"
     BROWSER_TITLE_UNKNOWN = "browser_title_unknown"
+    SESSION_LOCKED = "session_locked"
     POLICY_UNAVAILABLE = "policy_unavailable"
 
 
@@ -119,6 +121,8 @@ class ScreenCaptureAdmission:
             ScreenCaptureDenial.PRIVATE_VISIBLE,
         }:
             return "screen capture refused because private content is visible"
+        if self.reason is ScreenCaptureDenial.SESSION_LOCKED:
+            return "screen capture deferred while the interactive session is unavailable"
         return "screen capture refused because foreground privacy could not be verified"
 
     def to_receipt(self) -> dict[str, str | bool]:
@@ -312,6 +316,7 @@ async def require_screen_capture_admission_async() -> ScreenCaptureAdmission:
 
 
 __all__ = [
+    "SCREEN_CAPTURE_ADMISSION_SCHEMA",
     "ScreenCaptureAdmission",
     "ScreenCaptureDeniedError",
     "ScreenCaptureDenial",

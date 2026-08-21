@@ -108,6 +108,9 @@ class AutomationReceipt:
     #: reading with its geometry intact, which is the difference between
     #: knowing a screen says "2048" and knowing where on the screen it says it.
     layout: list[dict[str, Any]] = field(default_factory=list)
+    #: Machine-readable evidence carried across composed automation actions.
+    #: Human error strings are presentation, not a stable control interface.
+    evidence: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not self.receipt_id:
@@ -1427,6 +1430,7 @@ class HostAutomationProvider:
                 success=False,
                 error=admission.public_error,
                 duration_ms=(time.time() - start) * 1000,
+                evidence={"capture_admission": admission.to_receipt()},
             )
         if not save_path:
             ts = time.strftime("%Y%m%d_%H%M%S")
@@ -1727,9 +1731,10 @@ class HostAutomationProvider:
         if not ss.success or not ss.result:
             return AutomationReceipt(
                 action="get_screen_text", target="",
-                adapter="ocr", success=False,
+                adapter=ss.adapter or "ocr", success=False,
                 error=f"Screenshot failed: {ss.error}",
                 duration_ms=(time.time() - start) * 1000,
+                evidence=dict(ss.evidence),
             )
 
         text = ""

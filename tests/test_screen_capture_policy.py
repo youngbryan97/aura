@@ -123,6 +123,7 @@ def test_shared_privacy_policy_is_valid_and_bundled_once():
     assert "onConsole.boolValue" in swift
     assert "loginDone.boolValue" in swift
     assert "ownerApplication.activationPolicy == .regular" in swift
+    assert 'reason: "session_locked"' in swift
     assert "return bridgeScreenCaptureRefusal(bridgeScreenCaptureAdmission())" in swift
 
 
@@ -349,6 +350,37 @@ async def test_host_automation_denies_before_creating_capture_path(monkeypatch):
     assert receipt.success is False
     assert receipt.adapter == "screen_capture_policy"
     assert "private" in receipt.error
+    assert receipt.evidence["capture_admission"] == denial.to_receipt()
+
+
+@pytest.mark.asyncio
+async def test_ocr_composition_preserves_typed_capture_denial(monkeypatch):
+    from core.capabilities.host_automation import (
+        AutomationReceipt,
+        HostAutomationProvider,
+    )
+    from core.security import screen_capture_policy as policy
+
+    denial = _denied(policy.ScreenCaptureDenial.SESSION_LOCKED)
+    provider = HostAutomationProvider()
+
+    async def _screenshot(*_args, **_kwargs):
+        return AutomationReceipt(
+            action="take_screenshot",
+            target="",
+            adapter="screen_capture_policy",
+            success=False,
+            error=denial.public_error,
+            evidence={"capture_admission": denial.to_receipt()},
+        )
+
+    monkeypatch.setattr(provider, "take_screenshot", _screenshot)
+
+    receipt = await provider.get_screen_text(retain_screenshot=False)
+
+    assert receipt.success is False
+    assert receipt.adapter == "screen_capture_policy"
+    assert receipt.evidence["capture_admission"] == denial.to_receipt()
 
 
 @pytest.mark.asyncio
