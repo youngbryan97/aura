@@ -15,7 +15,7 @@ services:
       - ./logs:/app/logs
     environment:
       - REDIS_URL=redis://redis-broker:6379/0
-      - AURA_ENV=production
+      - AURA_MODE=production
     depends_on:
       - redis-broker
     restart: unless-stopped
@@ -28,11 +28,13 @@ services:
       - ./data:/app/data
       - ./logs:/app/logs
     environment:
-      - AURA_ENV=production
+      # AURA_MODE is the posture the runtime reads (core/runtime/mode.py).
+      # AURA_ENV, AURA_HOST and AURA_PORT were set here and no Python reads
+      # any of them; the port comes from aura_main's --port default of 8000,
+      # which is what the mapping and the healthcheck above both assume.
+      - AURA_MODE=production
       - AURA_INTERNAL_ONLY=1
       - REDIS_URL=redis://redis-broker:6379/0
-      - AURA_HOST=0.0.0.0
-      - AURA_PORT=8000
     depends_on:
       - redis-broker
     restart: unless-stopped

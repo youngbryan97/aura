@@ -47,9 +47,10 @@ RUN mkdir -p data logs artifacts/current \
 USER aura
 
 # ── Runtime configuration ───────────────────────────────────────────────
-ENV AURA_HOST=0.0.0.0 \
-    AURA_PORT=8000 \
-    AURA_MODE=production \
+# AURA_MODE is read by core/runtime/mode.py. AURA_HOST and AURA_PORT are not
+# read anywhere; the port is aura_main's --port default of 8000, which the
+# EXPOSE and the healthcheck below both assume.
+ENV AURA_MODE=production \
     AURA_ENVIRONMENT=container \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1

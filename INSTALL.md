@@ -146,7 +146,7 @@ requests outright.
 
 | Variable | Default | What it does |
 |----------|---------|--------------|
-| `AURA_PORT` | `8000` | Port |
+| `--port PORT` | `8000` | Bind the local API to PORT. This is a flag on `launch_aura.sh`, not an environment variable — the script assigns `AURA_PORT` itself before reading your environment, so exporting it has no effect |
 | `AURA_INTERNAL_ONLY` | from security profile | `1` rejects non-localhost requests |
 | `AURA_API_TOKEN` | unset | Bearer token for the local API |
 | `AURA_LORA_PATH` | auto-detected | Path to the LoRA adapter directory |
@@ -160,14 +160,14 @@ requests outright.
 | `AURA_ONLINE_LORA` | `1` | Enable governed reflection-to-LoRA update attempts |
 | `AURA_ROOT` | auto-detected | Project root |
 | `AURA_SAFE_BOOT_DESKTOP` | `0` | Set to `1` for a lightweight boot |
-| `AURA_ENV` | `development` | Use `production` inside Docker |
+| `AURA_MODE` | `production` | Runtime posture. `safe` disables autonomy and tools, `dev` is the only mode permitting self-modification. `core/runtime/mode.py` holds the capability matrix |
 | `AURA_LOG_DIR` | `~/.aura/logs` | Log sink. **Set this for anything test-like** so you never write into the live instance's logs. |
 | `AURA_LATENT_CORTEX` | off | Enable the recursive latent-cortex lane |
 | `AURA_STRICT_RUNTIME` | `0` | Fail closed on degradations that would otherwise be recorded and survived |
 | `AURA_GOVERNANCE_MODE` | profile default | Governance posture for consequential actions |
-| `AURA_PROCESS_RSS_LIMIT_GB` | derived | Hard RSS ceiling for the main process |
-| `AURA_MLX_MEMORY_LIMIT_GB` | derived | MLX allocator ceiling |
-| `AURA_MLX_32B_LOAD_MIN_AVAILABLE_GB` | derived | Refuse a 32B load below this free memory |
+| `AURA_PROCESS_RSS_LIMIT_GB` | derived from total RAM | Hard RSS ceiling for the main process. A value you set is still capped by the safe-boot ceiling unless unsafe limits are explicitly allowed |
+| `AURA_MLX_MEMORY_LIMIT_GB` | derived from total RAM | MLX allocator ceiling, capped the same way |
+| `AURA_MLX_32B_LOAD_MIN_AVAILABLE_GB` | `24.0` | Refuse a 32B load below this much free memory |
 
 ### Debugging entry points
 
