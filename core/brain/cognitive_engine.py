@@ -2476,10 +2476,22 @@ class CognitiveEngine:
         """
         self._refuse_if_stopped("think")
         origin = self._resolve_origin(origin, context)
+        context = context if isinstance(context, dict) else {}
         mode = self._normalize_mode(mode)
         is_background = self._is_background_request(
             origin, bool(kwargs.get("is_background", False))
         )
+
+        from core.runtime.cognitive_execution_scope import (
+            bind_cognitive_execution_scope,
+            resolve_cognitive_execution_scope,
+        )
+
+        execution_scope = resolve_cognitive_execution_scope(
+            origin=origin,
+            context=context,
+        )
+        context["cognitive_execution_scope"] = execution_scope.value
 
         if is_background:
             suppression_reason = self._background_suppression_reason()
@@ -2550,6 +2562,12 @@ class CognitiveEngine:
         # a background motivation message instead of the user's input.
         state.cognition.current_objective = objective
         state.cognition.current_origin = origin
+        bind_cognitive_execution_scope(
+            state,
+            objective,
+            execution_scope,
+            source=f"cognitive_engine:{origin}",
+        )
         _record_objective_binding(
             state,
             objective,
@@ -2567,7 +2585,6 @@ class CognitiveEngine:
         # thinking loop as a direct thought so user memory, durable state,
         # foreground closure, the turn ledger, and delivery all use the same
         # machinery as every other accepted response.
-        context = context if isinstance(context, dict) else {}
         qualified_reply = await self._qualified_recurrent_direct_reply(
             state,
             objective,

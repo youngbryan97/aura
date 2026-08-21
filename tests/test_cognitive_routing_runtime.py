@@ -95,7 +95,10 @@ def test_matched_skill_cache_failure_does_not_break_chat_route():
         phase = CognitiveRoutingPhase(RouteContainer(capability_engine))
 
         result = await phase.execute(
-            _state_with_user_text("Compare two calm ways to organize a release checklist.")
+            _state_with_user_text(
+                "Analyze the tradeoffs between release checklist structures and "
+                "explain the decision criteria."
+            )
         )
 
         assert capability_engine.calls == 2

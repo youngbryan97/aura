@@ -5,6 +5,10 @@ import time
 from typing import Any
 
 from core.conversation.request_mood import assess_request_mood
+from core.runtime.cognitive_execution_scope import (
+    CognitiveExecutionScope,
+    bound_cognitive_execution_scope,
+)
 from core.runtime.errors import FallbackClassification, record_degradation
 from core.runtime.proof_policy import (
     is_strict_proof_answer_prompt,
@@ -12,10 +16,8 @@ from core.runtime.proof_policy import (
     proof_run_active,
 )
 from core.runtime.skill_task_bridge import (
-    _DIRECT_EXECUTION_PREFIX_RE,
     looks_like_capability_inventory_dialogue_request,
     looks_like_execution_report,
-    looks_like_explanatory_dialogue_request,
     looks_like_multi_step_skill_request,
 )
 from core.runtime.structured_input import looks_like_learning_resource_bundle
@@ -24,6 +26,9 @@ from core.runtime.turn_analysis import (
     canonical_turn_text,
     looks_like_deep_mind_probe,
     previous_user_turn_text,
+)
+from core.utils.conversational_shape import (
+    looks_like_simple_dialogue_request as _looks_like_simple_dialogue_request,
 )
 from core.utils.queues import decode_stringified_priority_message, role_for_origin
 from core.utils.task_tracker import get_task_tracker
@@ -38,16 +43,6 @@ _URL_PATTERN = re.compile(
     r"https?://[^\s<>\"\')\]]+",
     re.IGNORECASE,
 )
-
-# The conversational-vs-work judgement lives in one place now:
-# core/utils/conversational_shape.py. Two routing phases each carried
-# their own literal phrase list, and two copies of a judgement is how
-# one phase answers a question the other answers differently.
-from core.utils.conversational_shape import (  # noqa: E402
-    _SIMPLE_DIALOGUE_RE,
-    looks_like_simple_dialogue_request as _looks_like_simple_dialogue_request,
-)
-
 
 def _looks_like_conversational_memory_question(text: str) -> bool:
     lowered = " ".join(str(text or "").strip().lower().split())
@@ -394,6 +389,23 @@ class CognitiveRoutingPhase(BasePhase):
         if not input_text.strip():
             return new_state
         new_state.response_modifiers.pop("auto_browse_urls", None)
+
+        execution_scope = bound_cognitive_execution_scope(new_state, input_text)
+        if execution_scope is CognitiveExecutionScope.REASONING_ONLY:
+            new_state.cognition.current_mode = CognitiveMode.DELIBERATE
+            new_state.cognition.current_objective = input_text
+            new_state.cognition.current_origin = routing_origin
+            new_state.response_modifiers["intent_type"] = "CHAT"
+            new_state.response_modifiers["semantic_intent"] = "internal_reasoning"
+            new_state.response_modifiers["model_tier"] = str(
+                new_state.response_modifiers.get("model_tier") or "tertiary"
+            )
+            new_state.response_modifiers["deep_handoff"] = False
+            new_state.response_modifiers.pop("matched_skills", None)
+            logger.info(
+                "🧭 Routing: reasoning-only cognitive request kept out of TASK/SKILL dispatch."
+            )
+            return new_state
 
         # Deduplicate residual/internal routing churn so background cognition
         # doesn't keep reclassifying the exact same synthetic objective.

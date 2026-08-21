@@ -16,6 +16,7 @@ from core.phases.response_contract import (
     build_response_contract,
 )
 from core.runtime.background_policy import background_activity_allowed
+from core.runtime.cognitive_execution_scope import cognitive_request_allows_actions
 from core.runtime.desktop_objective_intent import looks_like_desktop_objective
 from core.runtime.errors import record_degradation
 from core.runtime.skill_task_bridge import (
@@ -1228,6 +1229,17 @@ class GodModeToolPhase(Phase):
         # (multi-step goals that need the AutonomousTaskEngine + CommitmentEngine).
         intent_type = state.response_modifiers.get("intent_type", "CHAT")
         if intent_type not in ("SKILL", "TASK"):
+            return state
+        if not cognitive_request_allows_actions(state, objective):
+            state.response_modifiers["intent_type"] = "CHAT"
+            state.response_modifiers.pop("matched_skills", None)
+            state.response_modifiers["execution_suppressed"] = {
+                "reason": "cognitive_request_reasoning_only",
+                "owner": "cognitive_execution_binding",
+            }
+            logger.info(
+                "⚡ GodMode: reasoning-only cognitive request kept out of tool/task dispatch."
+            )
             return state
         try:
             from core.runtime.proof_policy import is_strict_proof_answer_prompt
