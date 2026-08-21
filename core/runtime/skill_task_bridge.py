@@ -157,6 +157,13 @@ _EXPLANATORY_PREFIX_RE = re.compile(
     r"^\s*(?:answer|explain|describe|tell me|walk me through|give me your take)\b",
     re.IGNORECASE,
 )
+_ANSWER_SURFACE_REQUEST_RE = re.compile(
+    r"(?:^|[.!?;:]\s+)"
+    r"(?:(?:please|kindly)\s+|(?:can|could|would|will)\s+you\s+)?"
+    r"(?:answer|explain|describe|tell\s+me|walk\s+me\s+through|compare|"
+    r"contrast|summari[sz]e|state|name|give\s+me|show\s+me)\b",
+    re.IGNORECASE,
+)
 _QUESTION_WORD_RE = re.compile(r"\b(?:what|why|how|when|where|which)\b", re.IGNORECASE)
 _CONCEPTUAL_SHOULD_RE = re.compile(
     r"\b(?:what|why|how|when)\s+(?:should|would|is|are|do|does|can|could)\b",
@@ -200,13 +207,19 @@ _EXTERNAL_EFFECT_RE = re.compile(
     r"\b(?:open|launch|run|execute|install|download|save|create|build|make|"
     r"write|draft|generate|compose|organize|automate|set\s+up|fix|refactor|"
     r"rename|move|delete|remove|clean\s+up|sort|schedule|send|email|browse|"
-    r"navigate|visit|click|type|edit|update|research)\b"
+    r"navigate|visit|click|type|edit|update|research|search|find|look\s+up|"
+    r"check|read)\b"
     r"[^.?!\n]{0,50}?"
     r"\b(?:files?|folders?|director(?:y|ies)|apps?|applications?|scripts?|"
     r"notes?|documents?|docs?|repos?|repositor(?:y|ies)|projects?|"
     r"screenshots?|downloads?|desktop|computer|browsers?|tabs?|windows?|"
     r"emails?|calendar|terminal|websites?|pages?|urls?|spreadsheets?|"
-    r"presentations?|reminders?)\b",
+    r"presentations?|reminders?|web|internet|online|articles?|sources?)\b",
+    re.IGNORECASE,
+)
+_EXTERNAL_MEDIUM_RE = re.compile(
+    r"\b(?:using|via|with)\s+(?:the\s+)?(?:web|internet|browser|web\s+search|"
+    r"online\s+(?:search|sources?))\b",
     re.IGNORECASE,
 )
 
@@ -296,17 +309,19 @@ def looks_like_explanatory_dialogue_request(text: str) -> bool:
         return False
     if looks_like_capability_inventory_dialogue_request(normalized):
         return True
-    if len(normalized.split()) > 25:
-        return False
     lowered = normalized.lower()
-    has_question_shape = "?" in lowered or _EXPLANATORY_PREFIX_RE.search(lowered)
+    answer_surface = bool(
+        _EXPLANATORY_PREFIX_RE.search(lowered)
+        or _ANSWER_SURFACE_REQUEST_RE.search(lowered)
+    )
+    has_question_shape = "?" in lowered or answer_surface
     if not has_question_shape:
         return False
-    if _DIRECT_EXECUTION_PREFIX_RE.search(lowered) and not _EXPLANATORY_PREFIX_RE.search(lowered):
+    if _DIRECT_EXECUTION_PREFIX_RE.search(lowered) and not answer_surface:
         return False
     if _CONCEPTUAL_SHOULD_RE.search(lowered):
         return True
-    if _EXPLANATORY_PREFIX_RE.search(lowered) and _QUESTION_WORD_RE.search(lowered):
+    if answer_surface:
         return True
     if (
         "operational evidence" in lowered
@@ -352,11 +367,14 @@ def looks_like_inline_answer_request(text: str) -> bool:
     sanitized = strip_negated_action_spans(normalized).lower()
     if (
         _EXTERNAL_EFFECT_RE.search(sanitized)
+        or _EXTERNAL_MEDIUM_RE.search(sanitized)
         or _DIRECT_EXECUTION_PREFIX_RE.search(sanitized)
         or any(re.search(pattern, sanitized, re.IGNORECASE) for pattern in _DESKTOP_PATTERNS)
     ):
         return False
     if _INTROSPECTIVE_STATE_RE.search(lowered):
+        return True
+    if looks_like_explanatory_dialogue_request(normalized):
         return True
     # "Tell me about yourself", "tell me something", "tell me a story".
     # The deliverable is words in THIS reply. Without this the last-resort

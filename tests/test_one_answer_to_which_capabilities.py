@@ -82,6 +82,49 @@ def test_conversation_is_offered_nothing(skills):
         ), talk
 
 
+@pytest.mark.parametrize(
+    "prompt",
+    (
+        "ChatGPT here. Could you walk me through Dijkstra's shortest-path "
+        "algorithm using a small four-node weighted graph of your own? Explain "
+        "why its greedy choice is safe, show the distance updates, give the heap "
+        "and array runtimes, and tell me what changes when negative edges are allowed.",
+        "Describe how a shortest-path method maintains its invariant, compare its "
+        "two common implementations, and illustrate the failure boundary with a "
+        "complete example in your reply.",
+    ),
+)
+def test_long_explanation_requests_do_not_nominate_external_tools(skills, prompt):
+    assert select_capabilities(
+        prompt,
+        skills,
+        ceiling="sandboxed_compute",
+        admissible_scopes=frozenset({"read_only", "sandboxed_compute"}),
+    ) == []
+
+
+def test_mixed_research_then_explain_request_keeps_the_web_capability(skills):
+    chosen = select_capabilities(
+        "Find three recent articles online, read them, and explain what they agree on.",
+        skills,
+        ceiling="read_only",
+        admissible_scopes=frozenset({"read_only"}),
+    )
+
+    assert "web_search" in chosen
+
+
+def test_explicit_compute_then_explain_request_keeps_the_compute_capability(skills):
+    chosen = select_capabilities(
+        "Run Python to calculate 2**40 and explain the printed result.",
+        skills,
+        ceiling="sandboxed_compute",
+        admissible_scopes=frozenset({"sandboxed_compute"}),
+    )
+
+    assert "code_repl" in chosen
+
+
 def test_the_router_and_the_contract_ask_the_same_function():
     """Structural, because agreement by coincidence is what broke."""
     import inspect

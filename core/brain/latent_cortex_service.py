@@ -3076,7 +3076,11 @@ class LatentCortexService:
                         raise ValueError(
                             "incumbent floor output differs from the bound baseline"
                         )
-            except (ImportError, KeyError, TypeError, ValueError):
+            except (ImportError, KeyError, TypeError, ValueError) as exc:
+                logger.warning(
+                    "Answer replacement contract validation failed: %s",
+                    str(exc)[:400],
+                )
                 errors.append("answer_replacement_unproven")
             # Hidden benchmark answers are deliberately unavailable in the
             # serving trust domain. A research-oracle receipt is valid only in
@@ -5491,6 +5495,7 @@ class LatentCortexService:
                 action_policy_matches = False
         contract_errors: list[str] = []
         quality_receipt: dict[str, Any] | None = None
+        host_incumbent: tuple[str, list[int]] | None = None
         private_answer_replacement = result.pop(
             "answer_replacement_private",
             None,
@@ -5531,6 +5536,59 @@ class LatentCortexService:
                 expected_request_payload_sha256=expected_request_sha256,
                 allocated_budget=budget,
             )
+            if contract_errors == ["answer_replacement_unproven"]:
+                raw_flags = result_receipt.get("honest_flags")
+                flags = (
+                    {
+                        str(flag or "").strip()
+                        for flag in raw_flags
+                        if str(flag or "").strip()
+                    }
+                    if isinstance(raw_flags, list)
+                    else set()
+                )
+                if "vanilla_incumbent_captured_before_adaptation" in flags:
+                    try:
+                        from core.brain.llm.latent_cortex.answer_replacement import (
+                            validate_pre_adaptation_incumbent,
+                        )
+
+                        (
+                            incumbent_text,
+                            incumbent_tokens,
+                            incumbent_disposition,
+                        ) = validate_pre_adaptation_incumbent(
+                            result_receipt.get("answer_replacement"),
+                            private_evidence=private_answer_replacement,
+                            expected_objective=visible_objective,
+                        )
+                        incumbent_quality = evaluate_latent_output(
+                            incumbent_text,
+                            generated_tokens=len(incumbent_tokens),
+                            termination=result_receipt.get("decode_termination"),
+                            objective=visible_objective,
+                        )
+                        if incumbent_quality.get("passed") is not True:
+                            raise ValueError(
+                                "pre-adaptation incumbent failed output quality: "
+                                + ",".join(incumbent_quality.get("reasons") or [])
+                            )
+                    except (ImportError, KeyError, TypeError, ValueError) as exc:
+                        logger.warning(
+                            "Pre-adaptation incumbent could not be reconstructed: %s",
+                            str(exc)[:400],
+                        )
+                    else:
+                        host_incumbent = (incumbent_text, incumbent_tokens)
+                        result_receipt["host_incumbent_disposition"] = (
+                            incumbent_disposition
+                        )
+                        result_receipt["host_incumbent_output_quality"] = (
+                            incumbent_quality
+                        )
+                        result["text"] = incumbent_text
+                        result["tokens"] = incumbent_tokens
+                        result["receipt"] = result_receipt
             if not contract_errors and adaptive_plan is not None:
                 try:
                     from core.brain.llm.latent_cortex.adaptive_compute import (
@@ -5697,6 +5755,8 @@ class LatentCortexService:
                     )
                 failed = dict(result)
                 failed.update(self._record_failure(reason))
+                if host_incumbent is not None:
+                    failed["text"], failed["tokens"] = host_incumbent
                 failed["receipt"] = result_receipt
                 self._last_failure_receipt = result_receipt
                 return failed

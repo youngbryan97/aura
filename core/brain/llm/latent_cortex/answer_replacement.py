@@ -40,6 +40,7 @@ from core.brain.llm.latent_cortex.neural_objective_producer import (
 
 ANSWER_REPLACEMENT_SCHEMA = "aura.rlc.answer_replacement.v5"
 ANSWER_REPLACEMENT_PRIVATE_SCHEMA = "aura.rlc.answer_replacement_private.v3"
+HOST_INCUMBENT_DISPOSITION_SCHEMA = "aura.rlc.host_incumbent_disposition.v1"
 DEFAULT_REPLACEMENT_MARGIN = 0.05
 MAX_REPLACEMENT_OUTPUT_TOKENS = 1024
 # Baseline evidence binds output that was already admitted by the engine's
@@ -62,6 +63,45 @@ _SHA256_RE = re.compile(r"[0-9a-f]{64}\Z")
 _FULL_INTEGER_ARITHMETIC_RE = re.compile(
     r"\s*-?\d{1,12}\s*[+\-*/x×]\s*-?\d{1,12}\s*=\s*-?\d{1,12}\s*[.!?]?\s*\Z"
 )
+_ANSWER_REPLACEMENT_FIELDS = {
+    "schema",
+    "disagreement_graph_sha256",
+    "diagnostic_selection_sha256",
+    "local_repair_sha256",
+    "private_evidence_required",
+    "private_evidence_sha256",
+    "selected_branch",
+    "policy",
+    "baseline_decomposition",
+    "baseline_routes",
+    "baseline_quality",
+    "selected_branch_quality",
+    "candidates",
+    "intended_decision",
+    "decision",
+    "reason",
+    "selected_request_id",
+    "baseline_decode",
+    "accepted_output",
+    "answer_selection_effect",
+    "latent_state_effect",
+    "authority",
+    "receipt_sha256",
+}
+_HOST_INCUMBENT_DISPOSITION_FIELDS = {
+    "schema",
+    "authority",
+    "source_answer_replacement_sha256",
+    "private_evidence_sha256",
+    "objective_sha256",
+    "text_sha256",
+    "token_count",
+    "tokens_sha256",
+    "baseline_decomposition_sha256",
+    "baseline_routes_sha256",
+    "baseline_quality_sha256",
+    "receipt_sha256",
+}
 
 
 def _sha(value: Any) -> str:
@@ -82,6 +122,21 @@ def _text_sha(value: str) -> str:
 
 def _token_sha(tokens: Sequence[int]) -> str:
     return _sha(list(tokens))
+
+
+def _validate_public_receipt_commitment(value: Any) -> dict[str, Any]:
+    if not isinstance(value, Mapping) or set(value) != _ANSWER_REPLACEMENT_FIELDS:
+        raise ValueError("answer replacement receipt fields differ")
+    payload = {
+        key: value[key]
+        for key in _ANSWER_REPLACEMENT_FIELDS - {"receipt_sha256"}
+    }
+    if (
+        value["schema"] != ANSWER_REPLACEMENT_SCHEMA
+        or value["receipt_sha256"] != _sha(payload)
+    ):
+        raise ValueError("answer replacement receipt commitment mismatch")
+    return dict(value)
 
 
 def _margin(value: Any) -> float:
@@ -803,38 +858,7 @@ def validate_answer_replacement_receipt(
 ) -> dict[str, Any]:
     """Rebuild baseline and repair evidence in the validating trust domain."""
 
-    if not isinstance(value, Mapping):
-        raise ValueError("answer replacement receipt is missing")
-    fields = {
-        "schema",
-        "disagreement_graph_sha256",
-        "diagnostic_selection_sha256",
-        "local_repair_sha256",
-        "private_evidence_required",
-        "private_evidence_sha256",
-        "selected_branch",
-        "policy",
-        "baseline_decomposition",
-        "baseline_routes",
-        "baseline_quality",
-        "selected_branch_quality",
-        "candidates",
-        "intended_decision",
-        "decision",
-        "reason",
-        "selected_request_id",
-        "baseline_decode",
-        "accepted_output",
-        "answer_selection_effect",
-        "latent_state_effect",
-        "authority",
-        "receipt_sha256",
-    }
-    if set(value) != fields:
-        raise ValueError("answer replacement receipt fields differ")
-    payload = {key: value[key] for key in fields - {"receipt_sha256"}}
-    if value["receipt_sha256"] != _sha(payload):
-        raise ValueError("answer replacement receipt commitment mismatch")
+    value = _validate_public_receipt_commitment(value)
     if type(expected_enabled) is not bool or not isinstance(
         expected_objective,
         str,
@@ -1051,12 +1075,139 @@ def validate_answer_replacement_receipt(
     return dict(value)
 
 
+def validate_pre_adaptation_incumbent(
+    value: Any,
+    *,
+    private_evidence: Any,
+    expected_objective: str,
+) -> tuple[str, list[int], dict[str, Any]]:
+    """Reconstruct only the ordinary incumbent bound before adaptation.
+
+    This authority is deliberately independent of replacement promotion. It
+    exists for the case where the worker produced and committed an ordinary
+    answer, then a later optional replacement check failed. The failed
+    recurrent candidate stays failed; this function can authorize only the
+    exact pre-adaptation text and tokens already committed by the receipt.
+    """
+
+    public = _validate_public_receipt_commitment(value)
+    if not isinstance(expected_objective, str):
+        raise ValueError("host incumbent objective is invalid")
+    if public.get("private_evidence_required") is not True:
+        raise ValueError("host incumbent private evidence is unavailable")
+    private = _normalize_private_evidence(private_evidence)
+    if (
+        private["objective"] != expected_objective
+        or public.get("private_evidence_sha256") != _sha(private)
+    ):
+        raise ValueError("host incumbent private evidence binding differs")
+
+    baseline_text = private["baseline_text"]
+    baseline_tokens = private["baseline_tokens"]
+    if not baseline_text.strip() or not baseline_tokens:
+        raise ValueError("host incumbent is empty")
+    decomposition = build_atomic_decomposition(
+        baseline_text,
+        objective=expected_objective,
+    )
+    routes = build_deterministic_router_receipt(
+        baseline_text,
+        objective=expected_objective,
+        atomic_receipt=decomposition,
+    )
+    quality = _quality_interval(
+        decomposition,
+        routes,
+        candidate=baseline_text,
+        objective=expected_objective,
+    )
+    expected_binding = {
+        "text_sha256": _text_sha(baseline_text),
+        "token_count": len(baseline_tokens),
+        "tokens_sha256": _token_sha(baseline_tokens),
+    }
+    if (
+        public.get("baseline_decomposition") != decomposition
+        or public.get("baseline_routes") != routes
+        or public.get("baseline_quality") != quality
+        or public.get("baseline_decode") != expected_binding
+    ):
+        raise ValueError("host incumbent reconstruction differs")
+
+    payload = {
+        "schema": HOST_INCUMBENT_DISPOSITION_SCHEMA,
+        "authority": "host_reconstructed_pre_adaptation_incumbent",
+        "source_answer_replacement_sha256": public["receipt_sha256"],
+        "private_evidence_sha256": public["private_evidence_sha256"],
+        "objective_sha256": _text_sha(expected_objective),
+        "text_sha256": expected_binding["text_sha256"],
+        "token_count": expected_binding["token_count"],
+        "tokens_sha256": expected_binding["tokens_sha256"],
+        "baseline_decomposition_sha256": decomposition["receipt_sha256"],
+        "baseline_routes_sha256": routes["receipt_sha256"],
+        "baseline_quality_sha256": quality["interval_sha256"],
+    }
+    return baseline_text, list(baseline_tokens), {
+        **payload,
+        "receipt_sha256": _sha(payload),
+    }
+
+
+def validate_host_incumbent_disposition(
+    value: Any,
+    *,
+    answer_replacement_receipt: Any,
+    expected_text: str,
+    expected_tokens: Sequence[int],
+) -> dict[str, Any]:
+    """Validate the host's exact baseline disposition at the serving boundary."""
+
+    if (
+        not isinstance(value, Mapping)
+        or set(value) != _HOST_INCUMBENT_DISPOSITION_FIELDS
+    ):
+        raise ValueError("host incumbent disposition fields differ")
+    payload = {
+        key: value[key]
+        for key in _HOST_INCUMBENT_DISPOSITION_FIELDS - {"receipt_sha256"}
+    }
+    public = _validate_public_receipt_commitment(answer_replacement_receipt)
+    tokens = list(expected_tokens)
+    if (
+        value["schema"] != HOST_INCUMBENT_DISPOSITION_SCHEMA
+        or value["authority"]
+        != "host_reconstructed_pre_adaptation_incumbent"
+        or value["receipt_sha256"] != _sha(payload)
+        or value["source_answer_replacement_sha256"]
+        != public["receipt_sha256"]
+        or value["private_evidence_sha256"]
+        != public["private_evidence_sha256"]
+        or any(
+            _SHA256_RE.fullmatch(str(value[field])) is None
+            for field in (
+                "objective_sha256",
+                "baseline_decomposition_sha256",
+                "baseline_routes_sha256",
+                "baseline_quality_sha256",
+            )
+        )
+        or value["text_sha256"] != _text_sha(expected_text)
+        or value["token_count"] != len(tokens)
+        or value["tokens_sha256"] != _token_sha(tokens)
+    ):
+        raise ValueError("host incumbent disposition binding differs")
+    return dict(value)
+
+
 __all__ = [
     "ANSWER_REPLACEMENT_PRIVATE_SCHEMA",
     "ANSWER_REPLACEMENT_SCHEMA",
+    "HOST_INCUMBENT_DISPOSITION_SCHEMA",
     "DEFAULT_REPLACEMENT_MARGIN",
     "MAX_BASELINE_EVIDENCE_TOKENS",
     "MAX_REPLACEMENT_OUTPUT_TOKENS",
     "build_answer_replacement_receipt",
     "validate_answer_replacement_receipt",
+    "validate_host_incumbent_disposition",
+    "validate_pre_adaptation_incumbent",
 ]

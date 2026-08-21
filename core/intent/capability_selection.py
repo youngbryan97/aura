@@ -58,6 +58,16 @@ def select_capabilities(
     if not text or not skills:
         return []
 
+    # The deliverable owner is shared with turn analysis. A request to explain,
+    # compare, describe, or otherwise answer in this reply is not an external
+    # effect merely because its grammar is imperative. Without this boundary,
+    # "show the distance updates" in a Dijkstra explanation nominated five
+    # unrelated tools after the resident model had already produced an answer.
+    from core.runtime.skill_task_bridge import looks_like_inline_answer_request
+
+    if looks_like_inline_answer_request(text):
+        return []
+
     from core.intent.declared_capability import (
         computation_capabilities,
         declared_vocabulary,

@@ -10,6 +10,8 @@ from core.brain.llm.latent_cortex.answer_replacement import (
     MAX_REPLACEMENT_OUTPUT_TOKENS,
     build_answer_replacement_receipt,
     validate_answer_replacement_receipt,
+    validate_host_incumbent_disposition,
+    validate_pre_adaptation_incumbent,
 )
 from core.brain.llm.latent_cortex.atomic_decomposition import (
     build_atomic_decomposition,
@@ -187,6 +189,82 @@ def _build(
         max_output_tokens=64,
     )
     return receipt, tokens, graph, selector, local_repair, private, objective
+
+
+def test_pre_adaptation_incumbent_survives_independent_replacement_policy_failure():
+    (
+        receipt,
+        tokens,
+        graph,
+        selector,
+        local_repair,
+        private,
+        objective,
+    ) = _build()
+
+    with pytest.raises(ValueError, match="reconstruction differs"):
+        validate_answer_replacement_receipt(
+            receipt,
+            disagreement_graph=graph,
+            diagnostic_selection=selector,
+            local_repair=local_repair,
+            private_evidence=private,
+            expected_objective=objective,
+            expected_selected_branch=0,
+            expected_enabled=True,
+            expected_margin=0.05,
+            expected_max_output_tokens=63,
+            expected_output_text=_decode(tokens),
+            expected_output_tokens=tokens,
+        )
+
+    text, baseline_tokens, disposition = validate_pre_adaptation_incumbent(
+        receipt,
+        private_evidence=private,
+        expected_objective=objective,
+    )
+
+    assert text == private["baseline_text"]
+    assert baseline_tokens == private["baseline_tokens"]
+    validate_host_incumbent_disposition(
+        disposition,
+        answer_replacement_receipt=receipt,
+        expected_text=text,
+        expected_tokens=baseline_tokens,
+    )
+
+
+def test_pre_adaptation_incumbent_rejects_private_or_serving_tampering():
+    receipt, _tokens, _graph, _selector, _repair, private, objective = _build()
+    tampered_private = copy.deepcopy(private)
+    tampered_private["baseline_text"] += " altered"
+
+    with pytest.raises(ValueError, match="private evidence binding differs"):
+        validate_pre_adaptation_incumbent(
+            receipt,
+            private_evidence=tampered_private,
+            expected_objective=objective,
+        )
+
+    text, baseline_tokens, disposition = validate_pre_adaptation_incumbent(
+        receipt,
+        private_evidence=private,
+        expected_objective=objective,
+    )
+    with pytest.raises(ValueError, match="disposition binding differs"):
+        validate_host_incumbent_disposition(
+            disposition,
+            answer_replacement_receipt=receipt,
+            expected_text=text + " altered",
+            expected_tokens=baseline_tokens,
+        )
+    with pytest.raises(ValueError, match="disposition binding differs"):
+        validate_host_incumbent_disposition(
+            disposition,
+            answer_replacement_receipt=receipt,
+            expected_text=text,
+            expected_tokens=[*baseline_tokens, 1],
+        )
 
 
 def test_complete_exact_repair_replaces_only_after_nonoverlap_margin():

@@ -259,9 +259,9 @@ def materialized_latent_incumbent(
 
     if not isinstance(result, dict) or result.get("ok") is True:
         return None
-    text = str(result.get("text") or "").strip()
+    text = str(result.get("text") or "")
     receipt = result.get("receipt")
-    if not text or not isinstance(receipt, dict):
+    if not text.strip() or not isinstance(receipt, dict):
         return None
     raw_flags = receipt.get("honest_flags")
     flags = (
@@ -277,7 +277,30 @@ def materialized_latent_incumbent(
         "fallback_reused_materialized_incumbent",
         "vanilla_incumbent_captured_before_adaptation",
     }
-    if not required.issubset(flags):
+    worker_materialized = required.issubset(flags)
+    host_materialized = False
+    if (
+        not worker_materialized
+        and "vanilla_incumbent_captured_before_adaptation" in flags
+    ):
+        try:
+            from core.brain.llm.latent_cortex.answer_replacement import (
+                validate_host_incumbent_disposition,
+            )
+
+            tokens = result.get("tokens")
+            if not isinstance(tokens, list):
+                raise ValueError("host incumbent tokens are unavailable")
+            validate_host_incumbent_disposition(
+                receipt.get("host_incumbent_disposition"),
+                answer_replacement_receipt=receipt.get("answer_replacement"),
+                expected_text=text,
+                expected_tokens=tokens,
+            )
+            host_materialized = True
+        except (ImportError, TypeError, ValueError):
+            return None
+    if not worker_materialized and not host_materialized:
         return None
     if receipt.get("resident_owner_released") is not True:
         return None

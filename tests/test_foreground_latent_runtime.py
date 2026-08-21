@@ -4,6 +4,7 @@ import pytest
 
 from core.brain.foreground_latent_runtime import (
     latent_owner_exhausted,
+    materialized_latent_incumbent,
     run_foreground_latent_episode,
 )
 
@@ -196,6 +197,66 @@ async def test_foreground_latent_runner_allows_fallback_after_terminal_receipt_f
     assert outcome.succeeded is False
     assert outcome.fallback_allowed is True
     assert outcome.trace["latent_cortex_fallback_used"] is True
+
+
+def test_host_reconstructed_incumbent_is_served_without_worker_fallback_flag(
+    monkeypatch,
+):
+    result = {
+        "ok": False,
+        "text": "A complete ordinary answer.",
+        "tokens": [1, 2, 3],
+        "receipt": {
+            "honest_flags": ["vanilla_incumbent_captured_before_adaptation"],
+            "resident_owner_released": True,
+            "resident_state_reusable": True,
+            "answer_replacement": {"receipt_sha256": "source"},
+            "host_incumbent_disposition": {"receipt_sha256": "host"},
+        },
+    }
+    observed = {}
+
+    def _validate(value, **kwargs):
+        observed["value"] = value
+        observed.update(kwargs)
+        return dict(value)
+
+    monkeypatch.setattr(
+        "core.brain.llm.latent_cortex.answer_replacement.validate_host_incumbent_disposition",
+        _validate,
+    )
+
+    incumbent = materialized_latent_incumbent(result)
+
+    assert incumbent == (result["text"], result["receipt"])
+    assert observed["expected_text"] == result["text"]
+    assert observed["expected_tokens"] == result["tokens"]
+    assert observed["answer_replacement_receipt"] == result["receipt"]["answer_replacement"]
+
+
+def test_host_reconstructed_incumbent_rejects_invalid_disposition(monkeypatch):
+    result = {
+        "ok": False,
+        "text": "Unbound text.",
+        "tokens": [1],
+        "receipt": {
+            "honest_flags": ["vanilla_incumbent_captured_before_adaptation"],
+            "resident_owner_released": True,
+            "resident_state_reusable": True,
+            "answer_replacement": {},
+            "host_incumbent_disposition": {},
+        },
+    }
+
+    def _reject(*_args, **_kwargs):
+        raise ValueError("tampered")
+
+    monkeypatch.setattr(
+        "core.brain.llm.latent_cortex.answer_replacement.validate_host_incumbent_disposition",
+        _reject,
+    )
+
+    assert materialized_latent_incumbent(result) is None
 
 
 @pytest.mark.asyncio
