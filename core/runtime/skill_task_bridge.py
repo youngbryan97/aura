@@ -169,7 +169,15 @@ _CONCEPTUAL_SHOULD_RE = re.compile(
     r"\b(?:what|why|how|when)\s+(?:should|would|is|are|do|does|can|could)\b",
     re.IGNORECASE,
 )
+_ASKS_INVENTORY_DIRECTLY_RE = re.compile(
+    r"\bhow\s+many\s+(?:tools?|skills?|capabilit(?:y|ies)|things?)\b"
+    r"|\bwhat\s+(?:can|could)\s+you\s+do\b"
+    r"|\bwhat\s+are\s+you\s+(?:able\s+to\s+do|capable\s+of)\b"
+    r"|\bwhat(?:'s| is)\s+in\s+your\s+(?:toolkit|inventory|repertoire)\b",
+    re.IGNORECASE,
+)
 _CAPABILITY_INVENTORY_RE = re.compile(
+    r"\bhow\s+many\b.{0,60}\b(?:tools?|skills?|capabilit(?:y|ies))\b|"
     r"\b(?:what|which|list|tell me|describe|explain|show)\b.{0,100}"
     r"\b(?:tools?|skills?|capabilit(?:y|ies)|things? you can do|what you can do)\b|"
     r"\b(?:can|could|do|does|are|is|have|has)\b.{0,100}\b(?:you|aura)\b.{0,100}"
@@ -274,7 +282,11 @@ def looks_like_capability_inventory_dialogue_request(text: str) -> bool:
         _DIRECT_EXECUTION_PREFIX_RE.search(sanitized)
         or _DIRECT_EXECUTION_CLAUSE_RE.search(sanitized)
     )
-    return bool(_CAPABILITY_INVENTORY_RE.search(normalized)) and not direct_execution
+    asks_inventory = bool(
+        _CAPABILITY_INVENTORY_RE.search(normalized)
+        or _ASKS_INVENTORY_DIRECTLY_RE.search(normalized)
+    )
+    return asks_inventory and not direct_execution
 
 
 def looks_like_execution_report(text: str) -> bool:

@@ -12,12 +12,27 @@ from core.capability_engine import CapabilityEngine
 from core.kernel.upgrades_10x import GodModeToolPhase
 from core.phases.cognitive_routing import CognitiveRoutingPhase
 from core.runtime.skill_task_bridge import (
+    looks_like_capability_inventory_dialogue_request,
     looks_like_execution_report,
     looks_like_explanatory_dialogue_request,
     looks_like_multi_step_skill_request,
 )
 from core.runtime.turn_analysis import analyze_turn
 from core.state.aura_state import AuraState, CognitiveMode
+
+
+@pytest.mark.parametrize(
+    "prompt",
+    (
+        "How many skills are registered in your capability engine?",
+        "What can you do?",
+        "What are you capable of?",
+        "What's in your toolkit?",
+    ),
+)
+def test_direct_capability_inventory_questions_stay_dialogue(prompt):
+    assert looks_like_capability_inventory_dialogue_request(prompt) is True
+    assert analyze_turn(prompt).intent_type == "CHAT"
 
 
 def test_analyze_turn_upgrades_multi_step_skill_chain_to_task():
