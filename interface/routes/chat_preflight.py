@@ -579,6 +579,11 @@ async def _complete_logged_exchange(
         user_already_persisted=bool(target.get("user_persisted")),
         enqueue_memory_log=learning_owned_by_outbox,
     )
+    if learning_owned_by_outbox and durability_state == "failed":
+        # Method presence is not custody. If the atomic transcript/outbox
+        # write failed, retain the historical direct path rather than dropping
+        # the turn's semantic effects on the floor.
+        learning_owned_by_outbox = False
     user_write = _durable_conversation_write_snapshot(
         f"{str(target.get('id') or exchange_id or '')[:64]}:user"
     )
@@ -694,14 +699,6 @@ async def _run_chat_turn_memory_log_item(
             user_message,
             aura_response,
         )
-        if not admission.ok:
-            logger.warning(
-                "Conversation learning rejected a non-admissible reply (%s); "
-                "durable transcript remains available for audit.",
-                ",".join(admission.reasons) or "unknown",
-            )
-            return "rejected", ",".join(admission.reasons) or "learning_admission_rejected"
-
         from core.memory.chat_turn_logger import (
             local_chat_turn_learning_rejection_reason,
             log_chat_turn_auto,
@@ -711,43 +708,56 @@ async def _run_chat_turn_memory_log_item(
             user_message,
             aura_response,
         )
-        if local_rejection:
-            return "rejected", local_rejection
-
-        logged = await asyncio.wait_for(
-            log_chat_turn_auto(
-                user_message=user_message,
-                aura_response=aura_response,
-                session_id=session_id,
-                emotional_valence=0.0,
-                metadata={
-                    "conversation_lane": True,
-                    "origin": chat_origin,
-                    "user_id": user_id,
-                    "principal_id": user_id,
-                    "principal_surface": principal_surface,
-                    "memory_log_operation_id": operation_id,
-                    "conversation_revision": revision,
-                    "conversation_exchange_id": str(payload.get("exchange_id") or "")[:128],
-                },
-            ),
-            timeout=_CHAT_TURN_MEMORY_LOG_TIMEOUT_S,
-        )
-        if not logged:
-            return "retry", "episodic_memory_did_not_commit"
+        if admission.ok and not local_rejection and not bool(payload.get("episodic_logged")):
+            logged = await asyncio.wait_for(
+                log_chat_turn_auto(
+                    user_message=user_message,
+                    aura_response=aura_response,
+                    session_id=session_id,
+                    emotional_valence=0.0,
+                    metadata={
+                        "conversation_lane": True,
+                        "origin": chat_origin,
+                        "user_id": user_id,
+                        "principal_id": user_id,
+                        "principal_surface": principal_surface,
+                        "memory_log_operation_id": operation_id,
+                        "conversation_revision": revision,
+                        "conversation_exchange_id": str(payload.get("exchange_id") or "")[:128],
+                    },
+                ),
+                timeout=_CHAT_TURN_MEMORY_LOG_TIMEOUT_S,
+            )
+            if not logged:
+                return "retry", "episodic_memory_did_not_commit"
+            await _mark_chat_turn_memory_log_stage(operation_id, "episodic")
 
         # Keep the complete conversation-experience fanout under the same
         # durable owner: semantic continuity, shared ground, coding-session
         # memory and relationship state must not depend on HTTP response time.
         from core.runtime.conversation_support import record_conversation_experience
 
-        await record_conversation_experience(
-            user_message,
-            aura_response,
-            principal_id=user_id or None,
-        )
+        if not bool(payload.get("experience_recorded")):
+            await record_conversation_experience(
+                user_message,
+                aura_response,
+                principal_id=user_id or None,
+            )
+            await _mark_chat_turn_memory_log_stage(operation_id, "experience")
+
+        if not admission.ok:
+            logger.warning(
+                "Conversation learning rejected a non-admissible reply (%s); "
+                "continuity-safe effects were evaluated and the durable transcript remains available.",
+                ",".join(admission.reasons) or "unknown",
+            )
+            return "rejected", ",".join(admission.reasons) or "learning_admission_rejected"
+        if local_rejection:
+            return "rejected", local_rejection
 
         try:
+            if bool(payload.get("consciousness_updated")):
+                return "completed", ""
             from core.consciousness.coordinator import get_consciousness_coordinator
 
             coordinator = await get_consciousness_coordinator()
@@ -758,6 +768,7 @@ async def _run_chat_turn_memory_log_item(
         except _CHAT_RECOVERABLE_ERRORS as exc:
             record_degradation("chat.consciousness_update", exc)
             logger.debug("Consciousness update skipped: %s", exc)
+        await _mark_chat_turn_memory_log_stage(operation_id, "consciousness")
         return "completed", ""
     except TimeoutError as exc:
         record_degradation("chat.memory_log_timeout", exc)
@@ -770,6 +781,14 @@ async def _run_chat_turn_memory_log_item(
         record_degradation("chat", exc)
         logger.debug("Chat turn logging failed: %s", exc)
         return "retry", f"{type(exc).__name__}:{exc}"
+
+
+async def _mark_chat_turn_memory_log_stage(operation_id: str, stage: str) -> None:
+    persistence = ServiceContainer.get("persistence", default=None)
+    mark = getattr(persistence, "mark_memory_log_stage", None)
+    if not callable(mark):
+        return
+    await asyncio.to_thread(mark, operation_id, stage=stage)
 
 
 async def _drain_chat_turn_memory_log_queue() -> None:
@@ -923,6 +942,7 @@ def _conversation_memory_outbox_available() -> bool:
             callable(getattr(persistence, "record_exchange", None))
             and callable(getattr(persistence, "claim_memory_log_batch", None))
             and callable(getattr(persistence, "settle_memory_log_item", None))
+            and callable(getattr(persistence, "mark_memory_log_stage", None))
         )
     except _CHAT_RECOVERABLE_ERRORS as exc:
         record_degradation("chat.memory_log_outbox_availability", exc)

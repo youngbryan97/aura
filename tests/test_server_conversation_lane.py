@@ -2,6 +2,7 @@ import asyncio
 import contextlib
 import hashlib
 import json
+import sqlite3
 import tempfile
 import threading
 import time
@@ -11891,10 +11892,18 @@ def test_certified_recurrent_typed_answer_has_non_generative_delivery_ownership(
     assert contract["answer_delivery_proven"] is True
     assert "live_mind_controls_unbound" not in contract["full_mind_missing_proofs"]
 
-    assert chat_routes._bind_qualified_recurrent_public_answer(
+    mutated_answer = task.answer + " downstream-grounding-mutation"
+    chat_routes._append_turn_text_mutation(
         trace,
-        task.answer + " tampered",
-    ) is False
+        stage="chat.grounded_recall_attribution",
+        method="grounded_attribution_repair",
+        reasons=["speaker_attribution_changed"],
+        before=task.answer,
+        after=mutated_answer,
+        deterministic=True,
+        authorship_effect="preserved",
+    )
+    assert chat_routes._bind_qualified_recurrent_public_answer(trace, mutated_answer) is False
     rejected = chat_routes._build_live_turn_contract_payload(
         desktop_required=True,
         request_surface="desktop-ui",
@@ -13125,6 +13134,9 @@ async def test_completed_exchange_delegates_learning_to_durable_outbox(monkeypat
         def settle_memory_log_item(self, *_args, **_kwargs):
             return "completed"
 
+        def mark_memory_log_stage(self, *_args, **_kwargs):
+            return True
+
     persistence = _Persistence()
     monkeypatch.setattr(
         chat_routes.ServiceContainer,
@@ -13191,6 +13203,156 @@ async def test_memory_outbox_applies_complete_conversation_experience_once(monke
     logged.assert_awaited_once()
     experience.assert_awaited_once()
     assert experience.await_args[1] == {"principal_id": "bryan"}
+
+
+@pytest.mark.asyncio
+async def test_memory_outbox_retry_skips_durably_completed_effect_stages(
+    monkeypatch,
+    tmp_path,
+):
+    from core.consciousness import coordinator as consciousness_coordinator
+    from core.conversation.persistence import ConversationPersistence
+    from core.memory import chat_turn_logger
+    from core.runtime import conversation_support
+    from core.runtime.sqlite_support import connecting
+    from interface.routes import chat as chat_routes
+
+    logged = AsyncCallFixture(return_value=True)
+    experience = AsyncCallFixture()
+    consciousness_calls = AsyncCallFixture()
+
+    class _Coordinator:
+        async def on_chat_turn(self, *args, **kwargs):
+            return await consciousness_calls(*args, **kwargs)
+
+    async def _coordinator():
+        return _Coordinator()
+
+    persistence = ConversationPersistence(tmp_path / "staged-retry.db")
+    session_id = persistence.start_session()
+    persistence.record_exchange(
+        "Apply these effects once.",
+        "A settlement retry must not replay them.",
+        cid="staged-retry",
+        session_id=session_id,
+        enqueue_memory_log=True,
+    )
+    operation_id = f"{session_id}:staged-retry:r1"
+    monkeypatch.setattr(
+        chat_routes.ServiceContainer,
+        "get",
+        staticmethod(
+            lambda name, default=None: persistence if name == "persistence" else default
+        ),
+    )
+    monkeypatch.setattr(chat_turn_logger, "log_chat_turn_auto", logged)
+    monkeypatch.setattr(conversation_support, "record_conversation_experience", experience)
+    monkeypatch.setattr(
+        consciousness_coordinator,
+        "get_consciousness_coordinator",
+        _coordinator,
+    )
+
+    first = persistence.claim_memory_log_batch(limit=1)[0]
+    assert await chat_routes._run_chat_turn_memory_log_item(first) == ("completed", "")
+
+    # Model a process death after all effects completed but before settlement.
+    with connecting(sqlite3.connect(tmp_path / "staged-retry.db")) as con:
+        con.execute(
+            "UPDATE conversation_memory_outbox SET claimed_at = 0 WHERE operation_id = ?",
+            (operation_id,),
+        )
+        con.commit()
+    replay = persistence.claim_memory_log_batch(limit=1, lease_s=1.0)[0]
+    assert await chat_routes._run_chat_turn_memory_log_item(replay) == ("completed", "")
+
+    logged.assert_awaited_once()
+    experience.assert_awaited_once()
+    consciousness_calls.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_memory_outbox_preserves_continuity_evaluation_for_rejected_reply(
+    monkeypatch,
+):
+    from core.conversation import response_reliability
+    from core.memory import chat_turn_logger
+    from core.runtime import conversation_support
+    from interface.routes import chat as chat_routes
+
+    experience = AsyncCallFixture()
+    logger_call = AsyncCallFixture(return_value=True)
+    monkeypatch.setattr(
+        response_reliability,
+        "assess_conversation_learning_admission",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            ok=False,
+            reasons=("pseudo_internal_jargon",),
+        ),
+    )
+    monkeypatch.setattr(
+        chat_turn_logger,
+        "local_chat_turn_learning_rejection_reason",
+        lambda *_args, **_kwargs: "",
+    )
+    monkeypatch.setattr(chat_turn_logger, "log_chat_turn_auto", logger_call)
+    monkeypatch.setattr(conversation_support, "record_conversation_experience", experience)
+
+    outcome, reason = await chat_routes._run_chat_turn_memory_log_item(
+        {
+            "user_content": "Keep the user's side of this turn.",
+            "aura_content": "[internal-looking wording]",
+            "operation_id": "rejected:r1",
+            "revision": 1,
+        }
+    )
+
+    assert outcome == "rejected"
+    assert reason == "pseudo_internal_jargon"
+    experience.assert_awaited_once()
+    logger_call.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_failed_outbox_enqueue_restores_direct_experience_path(monkeypatch):
+    from core.runtime import conversation_support
+    from interface.routes import chat as chat_routes
+
+    experience = AsyncCallFixture()
+
+    class _Persistence:
+        def record_exchange(self, *_args, **_kwargs):
+            raise OSError("disk unavailable")
+
+        def claim_memory_log_batch(self, **_kwargs):
+            return []
+
+        def settle_memory_log_item(self, *_args, **_kwargs):
+            return "completed"
+
+        def mark_memory_log_stage(self, *_args, **_kwargs):
+            return True
+
+    monkeypatch.setattr(
+        chat_routes.ServiceContainer,
+        "get",
+        staticmethod(
+            lambda name, default=None: _Persistence() if name == "persistence" else default
+        ),
+    )
+    monkeypatch.setattr(conversation_support, "record_conversation_experience", experience)
+    async with chat_routes._get_convo_lock():
+        chat_routes._conversation_log.clear()
+
+    exchange_id = await chat_routes._begin_logged_exchange("Retain this turn despite disk failure")
+    state = await chat_routes._complete_logged_exchange(
+        exchange_id,
+        "Retain this turn despite disk failure",
+        "The direct compatibility path still applies the experience.",
+    )
+
+    assert state == "failed"
+    experience.assert_awaited_once()
 
 
 @pytest.mark.asyncio

@@ -104,6 +104,9 @@ CREATE TABLE IF NOT EXISTS conversation_memory_outbox (
     available_at    REAL NOT NULL,
     claimed_at      REAL,
     completed_at    REAL,
+    episodic_logged INTEGER NOT NULL DEFAULT 0 CHECK (episodic_logged IN (0,1)),
+    experience_recorded INTEGER NOT NULL DEFAULT 0 CHECK (experience_recorded IN (0,1)),
+    consciousness_updated INTEGER NOT NULL DEFAULT 0 CHECK (consciousness_updated IN (0,1)),
     last_error      TEXT NOT NULL DEFAULT '',
     created_at      REAL NOT NULL,
     updated_at      REAL NOT NULL
@@ -257,6 +260,21 @@ class ConversationPersistence:
         with self._write_lock, connecting(self._connect()) as con:
             con.execute("PRAGMA journal_mode=WAL")
             con.executescript(_SCHEMA)
+            existing_columns = {
+                str(row[1])
+                for row in con.execute("PRAGMA table_info(conversation_memory_outbox)")
+            }
+            for column in (
+                "episodic_logged",
+                "experience_recorded",
+                "consciousness_updated",
+            ):
+                if column not in existing_columns:
+                    con.execute(
+                        f"ALTER TABLE conversation_memory_outbox ADD COLUMN {column} "
+                        "INTEGER NOT NULL DEFAULT 0 CHECK ("
+                        f"{column} IN (0,1))"
+                    )
             con.commit()
 
     def start_session(self, metadata: dict[str, Any] | None = None) -> str:
@@ -963,6 +981,45 @@ class ConversationPersistence:
             )
             con.commit()
         return terminal_state
+
+    def mark_memory_log_stage(self, operation_id: str, *, stage: str) -> bool:
+        """Durably checkpoint one idempotent outbox stage before settlement.
+
+        A leased item can be replayed after process death or a settlement
+        failure. Persisting each completed stage keeps that replay from
+        reapplying profile, memory, relationship, or consciousness effects.
+        """
+
+        safe_operation_id = _safe_text(operation_id, max_chars=160)
+        column = {
+            "episodic": "episodic_logged",
+            "experience": "experience_recorded",
+            "consciousness": "consciousness_updated",
+        }.get(str(stage or "").strip().casefold())
+        if column is None:
+            raise ValueError("invalid conversation memory outbox stage")
+        now = time.time()
+        with self._write_lock, connecting(self._connect()) as con:
+            con.execute("BEGIN IMMEDIATE")
+            row = con.execute(
+                f"SELECT state, {column} FROM conversation_memory_outbox "
+                "WHERE operation_id=?",
+                (safe_operation_id,),
+            ).fetchone()
+            if row is None:
+                raise KeyError(f"unknown conversation memory outbox item: {safe_operation_id}")
+            if int(row[column] or 0) == 1:
+                con.commit()
+                return False
+            if str(row["state"] or "") != "processing":
+                raise RuntimeError("conversation memory outbox item is not leased")
+            con.execute(
+                f"UPDATE conversation_memory_outbox SET {column}=1, updated_at=? "
+                "WHERE operation_id=? AND state='processing'",
+                (now, safe_operation_id),
+            )
+            con.commit()
+        return True
 
     def memory_log_outbox_status(self) -> dict[str, int]:
         with connecting(self._connect()) as con:

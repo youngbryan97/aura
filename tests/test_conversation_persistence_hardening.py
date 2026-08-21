@@ -160,6 +160,63 @@ def test_memory_log_outbox_reclaims_expired_lease_and_bounds_poison_retry(tmp_pa
     assert store.memory_log_outbox_status()["failed"] == 1
 
 
+def test_memory_log_outbox_persists_individual_effect_stages(tmp_path):
+    store = ConversationPersistence(tmp_path / "memory-outbox-stages.db")
+    session_id = store.start_session()
+    store.record_exchange(
+        "Stage this turn",
+        "Each completed effect survives a worker retry.",
+        cid="outbox-stages",
+        session_id=session_id,
+        enqueue_memory_log=True,
+    )
+    operation_id = f"{session_id}:outbox-stages:r1"
+    first = store.claim_memory_log_batch(limit=1)[0]
+    assert first["episodic_logged"] == 0
+    assert first["experience_recorded"] == 0
+    assert first["consciousness_updated"] == 0
+
+    assert store.mark_memory_log_stage(operation_id, stage="episodic") is True
+    assert store.mark_memory_log_stage(operation_id, stage="experience") is True
+    assert store.mark_memory_log_stage(operation_id, stage="experience") is False
+
+    with connecting(sqlite3.connect(tmp_path / "memory-outbox-stages.db")) as con:
+        con.execute(
+            "UPDATE conversation_memory_outbox SET claimed_at = 0 WHERE operation_id = ?",
+            (operation_id,),
+        )
+        con.commit()
+    replay = store.claim_memory_log_batch(limit=1, lease_s=1.0)[0]
+    assert replay["episodic_logged"] == 1
+    assert replay["experience_recorded"] == 1
+    assert replay["consciousness_updated"] == 0
+
+
+def test_memory_log_outbox_migrates_stage_columns_for_existing_database(tmp_path):
+    db_path = tmp_path / "memory-outbox-migration.db"
+    ConversationPersistence(db_path)
+    with connecting(sqlite3.connect(db_path)) as con:
+        con.execute("ALTER TABLE conversation_memory_outbox DROP COLUMN episodic_logged")
+        con.execute("ALTER TABLE conversation_memory_outbox DROP COLUMN experience_recorded")
+        con.execute("ALTER TABLE conversation_memory_outbox DROP COLUMN consciousness_updated")
+        con.commit()
+
+    store = ConversationPersistence(db_path)
+    session_id = store.start_session()
+    store.record_exchange(
+        "Migrate existing durable state",
+        "The outbox now checkpoints each effect stage.",
+        cid="migrated-stage-columns",
+        session_id=session_id,
+        enqueue_memory_log=True,
+    )
+
+    claimed = store.claim_memory_log_batch(limit=1)[0]
+    assert claimed["episodic_logged"] == 0
+    assert claimed["experience_recorded"] == 0
+    assert claimed["consciousness_updated"] == 0
+
+
 def test_regenerated_revision_gets_distinct_memory_log_identity(tmp_path):
     store = ConversationPersistence(tmp_path / "memory-outbox-revision.db")
     session_id = store.start_session()
