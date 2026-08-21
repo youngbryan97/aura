@@ -184,15 +184,61 @@ Recorded in [MODEL_ROSTER.md](MODEL_ROSTER.md) because they are code, not docs:
 and `LLMConfig.embedding_model = "nomic-embed-text"` is read by nothing and
 names a model this repository does not load.
 
+## What was corrected on 2026-08-21
+
+981 commits landed since the previous reconciliation. This pass differs from
+the two before it in one way: the check is now executable. `make doc-drift`
+reads every reference in every current document — paths written as paths,
+`make` written as a command, relative links, heading anchors, environment
+variable names, and four numeric claims — and fails on any that no longer
+resolves. The baseline is zero and only shrinks.
+
+| Was | Is |
+|---|---|
+| ARTIFACT_INDEX.md, twelve links into `artifacts/current/` | That directory is ignored at `.gitignore:143`; every link was a 404 for anyone but the person who ran the proof. Rewritten as a map from artifact to producing command |
+| Six of ARCHITECTURE.md's nineteen contents links | Truncated slugs GitHub never generated (`#0-the-unified-will` against `#0-the-unified-will-decision-authority`) |
+| "cloud fallback is opt-in with privacy classification" (threat model T05, T11, controls table) | There is no cloud fallback. Every router lane is local; `allow_cloud_fallback` is coerced to `False` in `core/brain/request_contract.py`; the cited test covers local lane failover; the named runbook was never written |
+| `AURA_TOOLS_ENABLED`, `AURA_TOOLS_ALLOWLIST`, `AURA_TOOLS_BLOCKLIST`, `AURA_WORKSPACE_ROOT`, `AURA_ROLE`, `AURA_CONFIRM_HIGH_RISK`, `AURA_TOOL_CONFIRM_HIGH_RISK`, `AURA_SELF_REPAIR`, `AURA_CLOUD_FALLBACK_POLICY` (5 documents) | None is read anywhere in the tree. Prohibitions are standing directives; posture is `AURA_MODE` / `AURA_AUTONOMY_LEVEL` / `AURA_FOREGROUND_ONLY` / `AURA_FLAG_<NAME>` |
+| `tests/test_steering_injection.py` cited as the prompt-injection control | That file tests activation steering. The control is `ContextGuard`, held by `tests/test_prompt_sanitizer_cp126.py` and `tests/test_injection_canary.py` |
+| "Checksum verification" for model loading | Identity is measured from the safetensors index, explicitly not a weight hash |
+| "34,382 tests across 2,373 files" (8 documents) | **40,139 across 2,697**; `make test` runs 40,123. Now recorded in `config/test_inventory.json` and gated |
+| 153 subsystems / 2,741 files / 1,190,736 lines (arch map) | **155 / 2,871 / 1,264,625**; edges 1,198 → 1,237 |
+| Machine-certified completion 7.33% (AURA_PROGRESS) | **0.33%** — 59 of 64 ledger entries are stale-evidence after 981 commits. The control plane working, not failing |
+| `export AURA_SELF_REPAIR=false` and `download_model` (disaster-recovery runbook) | Neither exists. Mode decides `allows_self_modification`; the entry point is `get_model_lifecycle_manager().ensure_present()` |
+| Safe Surf "EXTEND, live in `core/guardians/conversational_guard.py`" | That file never existed, and the delta it listed as missing shipped as `core/guardians/threat_watch.py` |
+| "the nine patterns" (docs/README) | Eighteen, in both WRITING_RULES.md and the linter |
+| `latent_cortex/types.py`, `engine.py` (RLC handoff) | Prefixed `core/brain/llm/latent_cortex/` — the defect class corrected on 2026-08-01 and again on 08-13 |
+| `scratchpad/prod_soak_env.sh` (COHERENCE_LEVERS) | Never existed; the twelve variables are read at call time from the launching shell |
+
+### Documents added
+
+| Document | Why it did not exist |
+|---|---|
+| [BROWSER_PURSUIT.md](BROWSER_PURSUIT.md) | Twenty-nine commits built a closed observe-decide-act browser loop and it lived only in module docstrings and the tracker |
+| [runbooks/local-inference-boundary.md](runbooks/local-inference-boundary.md) | Two documents named it as the incident procedure for a capability that does not exist. It now documents the boundary that does |
+
+### Why `make architecture-map` had not been run
+
+It had. The target wrote `artifacts/architecture/latest.md` and a JSON file in
+`/tmp` and never touched `docs/ARCHITECTURE_MAP.md`, so following the
+instruction on this page produced no change. `arch_map.py --write-doc` now
+writes the page, and the target passes it.
+
 ## Maintaining this
 
-Re-run the reference check before publishing docs:
+Re-run the checks before publishing docs:
 
 ```bash
-make architecture-map
+make doc-drift          # every reference resolves; baseline only shrinks
+make architecture-map   # regenerates docs/ARCHITECTURE_MAP.md
+make test-inventory     # refreshes the recorded suite size (slow)
 python tools/render_fmea.py --check
 python tools/render_health_contract.py --check
 ```
+
+`make doc-drift` runs inside `make quality`. It skips append-only records, and
+it reads a paragraph rather than a line, so a document that names a file in
+order to say the file is absent is not asked to correct itself.
 
 When adding a document, put its category in a status line at the top. When a
 document records a run, put the date in its **filename** — that is what keeps

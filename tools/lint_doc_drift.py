@@ -100,6 +100,12 @@ ENV_NEGATED = re.compile(
     r"\b(no|not|never|does not exist|doesn't exist|removed|retired|"
     r"unused|nothing reads)\b", re.I)
 MODULE_COUNT = re.compile(r"(\d[\d,]*)\s+modules? in\s+`([^`\n]+/)`")
+#: An index that says how many pages a directory holds. docs/README.md opened
+#: with "Eighty-eight files live here" and with a table row promising 38
+#: runbooks, against 91 and 39 — the count nobody rereads because a directory
+#: listing is the last thing anyone checks.
+DIR_LINK_COUNT = re.compile(
+    r"\[[^\]]*\]\((?!https?:)([A-Za-z0-9_./-]+/)\)[^|\n]*\|\s*(\d[\d,]*)\s+[a-z]")
 #: The size of the test suite, which eight documents stated and all eight got
 #: wrong together. config/test_inventory.json is the one recorded value;
 #: `make test-inventory` refreshes it.
@@ -118,6 +124,7 @@ ABSENT_CUE = re.compile(
     r"\b(never (existed|built|shipped)|no such file|does not exist|do not exist|"
     r"is absent|are absent|was absent|as deleted|retired|removed|deleted|"
     r"not built|never had|no longer exists?|proposes? building|"
+    r"none is read|none are read|nothing reads|neither exists|"
     r"until something runs|runtime-created|generated outputs?)\b", re.I)
 
 #: A path with a placeholder in it names a shape, not a file:
@@ -294,7 +301,7 @@ def scan(rel: str, targets: set[str], anchor_cache: dict[str, set[str]],
         spans = [m.group(1) for m in CODE_SPAN.finditer(line)]
 
         # A lever the operator can set has to be a lever something reads.
-        if not ENV_NEGATED.search(line):
+        if not ENV_NEGATED.search(line) and not names_an_absence(i):
             literal, built = env_names
             for scope in ([line] if in_fence else []) + spans:
                 for m in ENV_VAR.finditer(scope):
@@ -347,6 +354,19 @@ def scan(rel: str, targets: set[str], anchor_cache: dict[str, set[str]],
                     note(i, "stale_suite_size",
                          f"says {tests:,} tests / {files:,} files, "
                          f"recorded {suite[0]:,} / {suite[1]:,}", line)
+
+        # How many pages a linked directory holds.
+        if not in_fence and not names_an_absence(i):
+            for m in DIR_LINK_COUNT.finditer(line):
+                rel_dir, claimed = m.group(1), int(m.group(2).replace(",", ""))
+                target_dir = (ROOT / doc.parent / rel_dir).resolve()
+                if not target_dir.is_dir():
+                    continue
+                pages = [f for f in target_dir.glob("*.md")
+                         if f.name.upper() != "README.MD"]
+                if pages and abs(len(pages) - claimed) > 0:
+                    note(i, "stale_dir_count",
+                         f"{rel_dir}: says {claimed}, holds {len(pages)}", line)
 
         # How many modules a named directory holds.
         for m in MODULE_COUNT.finditer(line):

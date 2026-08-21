@@ -1,6 +1,6 @@
 # docs/
 
-Eighty-eight files live here. This is what's in them.
+Ninety-one files live here. This is what's in them.
 
 If what you actually need to know is *whether a given file is still true*,
 that's [DOC_STATUS.md](DOC_STATUS.md) — it splits everything into current,
@@ -13,7 +13,7 @@ you.
 |---|---|
 | [USER_GUIDE.md](USER_GUIDE.md) | Using the app |
 | [OPERATOR_GUIDE.md](OPERATOR_GUIDE.md) | Running it on your own hardware — gates, diagnostics, tuning, debugging entry points |
-| [runbooks/](runbooks/) | 38 incident procedures, one per known failure mode. Written against `aura doctor --bundle` fields |
+| [runbooks/](runbooks/) | 39 incident procedures, one per known failure mode. Written against `aura doctor --bundle` fields |
 | [SLO.md](SLO.md) | What the runtime promises, measured by `slo/` and gated in CI |
 | [PLATFORM_POSTURE.md](PLATFORM_POSTURE.md) | The five deliberate platform decisions (no RBAC, no SSO, single-tenant, manual DR, hash-allowlist plugins) and what enforces each |
 
@@ -29,7 +29,8 @@ you.
 | [ENGINEERING_ADOPTION.md](ENGINEERING_ADOPTION.md) | The seven clean-room adoption waves and why each landed |
 | [COGNITIVE_ARCHITECTURE_ADOPTION.md](COGNITIVE_ARCHITECTURE_ADOPTION.md) | What was taken from Soar and ACT-R, the equation that fitted, and the one that didn't |
 | [MODEL_ROSTER.md](MODEL_ROSTER.md) | Every model lane — LLM, ASR, embeddings — and the measurement that put it there |
-| [WRITING_RULES.md](WRITING_RULES.md) | The nine patterns that read as machine-written, and the `make writing` gate that checks for them |
+| [BROWSER_PURSUIT.md](BROWSER_PURSUIT.md) | The closed observe-decide-act loop: who may drive a browser, what the loop carries between rounds, and what ends a run |
+| [WRITING_RULES.md](WRITING_RULES.md) | The eighteen patterns that read as machine-written, and the `make writing` gate that checks for them |
 
 ## The claim surface
 
