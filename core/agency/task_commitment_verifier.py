@@ -252,6 +252,10 @@ class TaskCommitmentVerifier:
         state: Any,
         force_async: bool = False,
     ) -> TaskAcceptance:
+        # The state a retry would need. Read for phi and context and never
+        # mutated, so holding it costs nothing and asking again without one
+        # would be asking blind.
+        self._remember_dispatch_state(objective, state)
         """Check capability, then execute or register commitment.
 
         Args:
@@ -662,13 +666,15 @@ class TaskCommitmentVerifier:
             )
             succeeded = self._result_counts_as_success(result)
             summary = getattr(result, "summary", str(result))
+            deferred = "" if succeeded else self._deferral_reason(result)
             outcome = DispatchOutcome.COMPLETED if succeeded else DispatchOutcome.FAILED
             tracking_updates, evidence = self._extract_result_tracking_fields(result)
             self._update_task_entry(
                 task_id,
-                status=outcome.value,
+                status="deferred" if deferred else outcome.value,
                 completed_at=time.time(),
                 summary=summary,
+                error=deferred or ("" if succeeded else str(summary or "")[:400]),
                 **tracking_updates,
             )
             await self._update_goal_dispatch(
@@ -890,6 +896,101 @@ class TaskCommitmentVerifier:
             updates["evidence"] = evidence
         return updates, evidence
 
+    #: How long to wait before asking again, and how many times. Admission
+    #: clears when a foreground turn finishes, which is seconds to minutes.
+    DEFERRED_RETRY_DELAY_S = 45.0
+    DEFERRED_RETRY_LIMIT = 4
+
+    def _remember_dispatch_state(self, objective: str, state: Any) -> None:
+        """Hold the state this objective was dispatched with, bounded."""
+        if not isinstance(getattr(self, "_deferred_states", None), dict):
+            self._deferred_states = {}
+        key = str(objective or "")[:120]
+        self._deferred_states[key] = state
+        while len(self._deferred_states) > 32:
+            self._deferred_states.pop(next(iter(self._deferred_states)), None)
+
+    async def _retry_deferred_task(
+        self,
+        *,
+        task_id: str,
+        objective: str,
+        commitment_id: Optional[str],
+        reason: str,
+    ) -> None:
+        """Ask again once admission has had time to clear.
+
+        A deferral that is never retried is a failure with better manners. The
+        engine defers because a foreground turn holds the lane, and that ends
+        on its own, so the work only needs to be asked for again.
+
+        Bounded: after DEFERRED_RETRY_LIMIT attempts the task is recorded as
+        failed with the reason it kept waiting for, because something that
+        never clears is not a deferral.
+        """
+        with self._lock:
+            entry = dict(self._active_tasks.get(task_id) or {})
+        attempts = int(entry.get("deferred_attempts", 0) or 0) + 1
+        self._update_task_entry(task_id, deferred_attempts=attempts)
+        if attempts > self.DEFERRED_RETRY_LIMIT:
+            logger.warning(
+                "TaskCommitmentVerifier: task %s still deferred after %d attempts (%s)",
+                task_id,
+                attempts,
+                reason,
+            )
+            self._update_task_entry(
+                task_id,
+                status="failed",
+                error=f"still waiting on {reason} after {attempts} attempts",
+                completed_at=time.time(),
+            )
+            return
+
+        async def _ask_again() -> None:
+            try:
+                await asyncio.sleep(self.DEFERRED_RETRY_DELAY_S)
+                logger.info(
+                    "TaskCommitmentVerifier: retrying deferred task %s (attempt %d)",
+                    task_id,
+                    attempts,
+                )
+                states = getattr(self, "_deferred_states", {}) or {}
+                state = states.pop(str(objective or "")[:120], None)
+                if state is None:
+                    logger.info(
+                        "TaskCommitmentVerifier: no state kept for %s; not retrying blind.",
+                        task_id,
+                    )
+                    return
+                await self.verify_and_dispatch(objective, state, force_async=True)
+            except asyncio.CancelledError:
+                raise
+            except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+                record_degradation('task_commitment_verifier', exc)
+                logger.warning(
+                    "TaskCommitmentVerifier: deferred retry for %s failed: %s", task_id, exc
+                )
+
+        get_task_tracker().create_task(_ask_again(), name=f"deferred_retry_{task_id}")
+
+    @staticmethod
+    def _deferral_reason(result: Any) -> str:
+        """Why this result is waiting rather than finished, or "".
+
+        LIVE, 2026-08-20. "build me a small web app" was accepted into
+        governed background execution and recorded as FAILED 58 milliseconds
+        later, with no error and nothing in the log. The engine had returned
+        `deferred_reason="background inference admission"` — planning was
+        queued, not broken — and nothing here read that field. A writer with
+        no reader.
+
+        The person was told work was underway while the task was already dead,
+        which is the worst of both: no answer, and no way to know there would
+        not be one.
+        """
+        return str(getattr(result, "deferred_reason", "") or "").strip()
+
     @staticmethod
     def _result_counts_as_success(result: Any) -> bool:
         if not getattr(result, "succeeded", bool(result)):
@@ -979,12 +1080,39 @@ class TaskCommitmentVerifier:
             result = future.result()
             succeeded = self._result_counts_as_success(result)
             summary = getattr(result, "summary", str(result))
+            deferred = "" if succeeded else self._deferral_reason(result)
             tracking_updates, evidence = self._extract_result_tracking_fields(result)
+            if deferred:
+                # Waiting, not broken. Recorded as its own state so a person
+                # asking is told the truth, and kept out of the failure count
+                # it was inflating.
+                logger.info(
+                    "TaskCommitmentVerifier: task %s deferred — %s", task_id, deferred
+                )
+                self._update_task_entry(
+                    task_id,
+                    status="deferred",
+                    error=deferred,
+                    summary=summary,
+                    updated_at=time.time(),
+                    **tracking_updates,
+                )
+                await self._retry_deferred_task(
+                    task_id=task_id,
+                    objective=objective,
+                    commitment_id=commitment_id,
+                    reason=deferred,
+                )
+                return
             self._update_task_entry(
                 task_id,
                 status="completed" if succeeded else "failed",
                 completed_at=time.time(),
                 summary=summary,
+                # The reason a task failed lived only in its summary, so the
+                # ledger showed "failed" beside error=None and nothing said
+                # why.
+                error="" if succeeded else str(summary or "")[:400],
                 **tracking_updates,
             )
             try:
