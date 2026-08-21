@@ -32,6 +32,12 @@ from core.brain.llm.mlx_worker import (
     _should_emit_generation_progress,
     _trim_complete_operator_evidence,
 )
+from core.brain.llm.token_budget_evidence import (
+    CALIBRATION_SCHEMA,
+)
+from core.brain.llm.token_budget_evidence import (
+    MIN_OBSERVATIONS as MIN_CALIBRATION_OBSERVATIONS,
+)
 from core.brain.llm.unified_recurrent_qualified_activation import (
     seal_qualified_activation_load_receipt,
 )
@@ -47,13 +53,6 @@ from tests.fixtures.rlc_runtime_integrity import complete_serving_stack
 TMP_ROOT = Path(tempfile.gettempdir())
 QWEN32_MODEL = str(TMP_ROOT / "Qwen2.5-32B-Instruct-8bit")
 TEST_MODEL = str(TMP_ROOT / "test-model")
-
-
-from core.brain.llm.token_budget_evidence import (
-    CALIBRATION_SCHEMA,
-    MIN_OBSERVATIONS as MIN_CALIBRATION_OBSERVATIONS,
-)
-
 
 def ready_init_receipt(
     model_path: str = TEST_MODEL,
@@ -1390,6 +1389,75 @@ class TestMLXClientResilience(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(result["action"], "init")
         self.assertEqual(result["message"], "Init failed: boom")
+
+    async def test_listener_attests_capture_identity_before_ready(self):
+        client = MLXLocalClient(model_path=TEST_MODEL)
+        self._attach_local_ipc_queues(client)
+        process = ProcessProbe(alive=True)
+        authority = build_worker_capture_launch_authority()
+        identity = build_worker_capture_identity(
+            worker_boot_id="a" * 32,
+            worker_pid=process.pid,
+            launch_challenge=authority.challenge,
+        )
+        client._process = process
+        client._worker_capture_launch_authority = authority
+        client._init_future = asyncio.get_running_loop().create_future()
+
+        listener = asyncio.create_task(client._response_listener_loop())
+        try:
+            client._res_q.put(
+                {
+                    "status": "ok",
+                    "action": "capture_identity_bootstrap",
+                    "worker_action_capture_identity": identity.public_identity,
+                }
+            )
+            for _ in range(100):
+                if client._worker_capture_origin_binding:
+                    break
+                await asyncio.sleep(0.01)
+        finally:
+            listener.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await listener
+
+        self.assertEqual(
+            client._worker_capture_origin_binding["worker_identity"],
+            identity.public_identity,
+        )
+        self.assertFalse(client._init_future.done())
+
+    def test_handshake_age_is_anchored_to_process_birth(self):
+        client = MLXLocalClient(model_path=TEST_MODEL)
+        client._process_started_at = 100.0
+        client._set_lane_state("handshaking")
+
+        first_age = client._handshake_age_s(now=500.0)
+        client._set_lane_state("handshaking")
+        second_age = client._handshake_age_s(now=501.0)
+
+        self.assertEqual(first_age, 400.0)
+        self.assertEqual(second_age, 401.0)
+
+    async def test_invalid_ready_receipt_retires_worker_without_replaying_frame(self):
+        client = MLXLocalClient(model_path=TEST_MODEL)
+        process = ProcessProbe(alive=True)
+        client._process = process
+        client._process_started_at = time.time()
+        client._set_lane_state("handshaking")
+        client._init_future = asyncio.get_running_loop().create_future()
+        client._init_future.set_result({"status": "ok", "action": "init"})
+        reboot = AsyncCallProbe(return_value=None)
+
+        with ReplaceAttr(client, "reboot_worker", reboot):
+            result = await client._ensure_worker_alive_inner(_init_retry=True)
+
+        self.assertFalse(result)
+        reboot.assert_awaited_once_with(
+            reason="init_receipt_invalid",
+            mark_failed=False,
+        )
 
     async def test_listener_replacement_refuses_second_reader_on_same_queue(self):
         client = MLXLocalClient(model_path=TEST_MODEL)

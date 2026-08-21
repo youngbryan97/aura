@@ -5942,6 +5942,21 @@ def _mlx_worker_loop(
     ipc_writer = IPCWriterThread(response_queue)
     ipc_writer.start()
 
+    # Bind this worker's capture key to the parent-owned launch challenge
+    # before model loading begins. Heavy checkpoints can take longer to load
+    # than the launch challenge is valid; delaying this identity until the
+    # READY receipt made a legitimate child impossible to attest after a slow
+    # load. The READY identity must later present this exact same key.
+    ipc_writer.put(
+        {
+            "status": "ok",
+            "action": "capture_identity_bootstrap",
+            "worker_action_capture_identity": dict(
+                worker_capture_signing_identity.public_identity
+            ),
+        }
+    )
+
     # Watchdog before heartbeat: the heartbeat publishes the watchdog's
     # job-progress snapshot so liveness claims carry inference evidence.
     watchdog = JobWatchdog(timeout=360.0, writer=ipc_writer)  # Align with the protected foreground solver envelope.

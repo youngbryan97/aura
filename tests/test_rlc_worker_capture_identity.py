@@ -234,6 +234,60 @@ def test_mlx_parent_attests_spawned_worker_before_exposing_identity():
     ]
 
 
+def test_mlx_parent_reuses_early_binding_after_launch_challenge_expires():
+    from core.brain.llm.mlx_client import MLXLocalClient
+
+    authority, identity, _ = _launch_case()
+    client = object.__new__(MLXLocalClient)
+    client._worker_capture_launch_authority = authority
+    client._worker_capture_origin_binding = {}
+    client._process = SimpleNamespace(pid=4242)
+
+    bootstrap = client._accept_worker_capture_bootstrap(
+        identity.public_identity,
+        attested_at_unix=NOW + 2,
+    )
+    bound = client._attest_worker_capture_origin(
+        {"worker_action_capture_identity": identity.public_identity},
+        # A fresh attestation would now be refused. The early binding remains
+        # valid historical evidence for the same process and capture key.
+        attested_at_unix=NOW + 121,
+    )
+
+    assert bound["worker_action_capture_origin_binding"] == bootstrap
+    assert validate_worker_capture_origin_binding(
+        bound["worker_action_capture_origin_binding"],
+        expected_supervisor_public_key=authority.private_key.public_key(),
+    ) == bootstrap
+
+
+def test_mlx_parent_refuses_ready_identity_that_differs_from_bootstrap():
+    from core.brain.llm.mlx_client import MLXLocalClient
+
+    authority, identity, _ = _launch_case()
+    substituted = build_worker_capture_identity(
+        worker_boot_id="b" * 32,
+        worker_pid=4242,
+        private_key=_private("worker:substituted"),
+        launch_challenge=authority.challenge,
+        now_unix=NOW + 1,
+    )
+    client = object.__new__(MLXLocalClient)
+    client._worker_capture_launch_authority = authority
+    client._worker_capture_origin_binding = {}
+    client._process = SimpleNamespace(pid=4242)
+    client._accept_worker_capture_bootstrap(
+        identity.public_identity,
+        attested_at_unix=NOW + 2,
+    )
+
+    with pytest.raises(ValueError, match="bootstrap_ready_identity_mismatch"):
+        client._attest_worker_capture_origin(
+            {"worker_action_capture_identity": substituted.public_identity},
+            attested_at_unix=NOW + 3,
+        )
+
+
 def test_mlx_parent_refuses_identity_from_a_different_child_pid():
     from core.brain.llm.mlx_client import MLXLocalClient
 

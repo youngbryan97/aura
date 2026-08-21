@@ -4460,6 +4460,10 @@ class MLXLocalClient:
         # Parent-private signer for one MLX worker spawn. Only the public
         # challenge crosses the process boundary.
         self._worker_capture_launch_authority: Any = None
+        # Parent-signed binding established as soon as the child IPC channel
+        # comes up. Model loading may outlive the launch challenge; READY is
+        # accepted only when it carries the same capture identity.
+        self._worker_capture_origin_binding: dict[str, Any] = {}
         self._latent_progress_by_request: dict[str, dict[str, Any]] = {}
         # Explicit drop accounting for the latent progress channel: state that
         # was refused (uncorrelated id) and state that aged out (window
@@ -6844,6 +6848,16 @@ class MLXLocalClient:
             return True
         return bool((time.time() - last_progress) > stale_after)
 
+    def _handshake_age_s(self, now: float | None = None) -> float:
+        """Return startup age without allowing status retries to reset it."""
+
+        now = float(time.time() if now is None else now)
+        process_started_at = float(getattr(self, "_process_started_at", 0.0) or 0.0)
+        anchor = process_started_at or float(
+            getattr(self, "_lane_transition_at", now) or now
+        )
+        return max(0.0, now - anchor)
+
     def _check_lane_state_staleness(self) -> None:
         """[STABILITY v51] Auto-reset stuck non-terminal lane states.
 
@@ -6855,7 +6869,11 @@ class MLXLocalClient:
         if self._lane_state not in {"warming", "recovering", "handshaking", "spawning"}:
             return
         now = time.time()
-        stuck_duration = now - self._lane_transition_at
+        stuck_duration = (
+            self._handshake_age_s(now)
+            if self._lane_state in {"spawning", "handshaking"}
+            else now - self._lane_transition_at
+        )
         # State-aware budget: a heavy-lane spawn/handshake legitimately runs
         # for minutes while 20-40GB of weights load. The old flat 120s reset
         # cancelled LIVE handshakes from a mere status poll, well inside the
@@ -8008,6 +8026,7 @@ class MLXLocalClient:
 
         from core.brain.llm.latent_cortex.worker_capture_identity import (
             build_worker_capture_origin_binding,
+            validate_worker_capture_origin_binding,
         )
 
         authority = self._worker_capture_launch_authority
@@ -8015,9 +8034,24 @@ class MLXLocalClient:
         expected_pid = getattr(process, "pid", None)
         if authority is None or type(expected_pid) is not int or expected_pid <= 0:
             raise RuntimeError("worker_capture_launch_authority_unavailable")
+        capture_identity = worker_identity.get("worker_action_capture_identity")
+        bootstrap_binding = getattr(self, "_worker_capture_origin_binding", {})
+        if isinstance(bootstrap_binding, Mapping) and bootstrap_binding:
+            validated = validate_worker_capture_origin_binding(
+                bootstrap_binding,
+                expected_supervisor_public_key=authority.private_key.public_key(),
+            )
+            if validated.get("worker_identity") != capture_identity:
+                raise ValueError("worker_capture_bootstrap_ready_identity_mismatch")
+            if validated["worker_identity"].get("worker_pid") != expected_pid:
+                raise ValueError("worker_capture_bootstrap_process_mismatch")
+            return {
+                **dict(worker_identity),
+                "worker_action_capture_origin_binding": copy.deepcopy(validated),
+            }
         binding = build_worker_capture_origin_binding(
             authority,
-            worker_identity.get("worker_action_capture_identity"),
+            capture_identity,
             attested_at_unix=(
                 int(time.time()) if attested_at_unix is None else attested_at_unix
             ),
@@ -8027,6 +8061,39 @@ class MLXLocalClient:
             **dict(worker_identity),
             "worker_action_capture_origin_binding": binding,
         }
+
+    def _accept_worker_capture_bootstrap(
+        self,
+        worker_capture_identity: Mapping[str, Any],
+        *,
+        attested_at_unix: int | None = None,
+    ) -> dict[str, Any]:
+        """Attest the child's capture key while its launch challenge is live."""
+
+        from core.brain.llm.latent_cortex.worker_capture_identity import (
+            build_worker_capture_origin_binding,
+        )
+
+        authority = self._worker_capture_launch_authority
+        process = self._process
+        expected_pid = getattr(process, "pid", None)
+        if authority is None or type(expected_pid) is not int or expected_pid <= 0:
+            raise RuntimeError("worker_capture_launch_authority_unavailable")
+        existing = getattr(self, "_worker_capture_origin_binding", {})
+        if isinstance(existing, Mapping) and existing:
+            if existing.get("worker_identity") != worker_capture_identity:
+                raise ValueError("worker_capture_bootstrap_identity_changed")
+            return copy.deepcopy(dict(existing))
+        binding = build_worker_capture_origin_binding(
+            authority,
+            worker_capture_identity,
+            attested_at_unix=(
+                int(time.time()) if attested_at_unix is None else attested_at_unix
+            ),
+            expected_worker_pid=expected_pid,
+        )
+        self._worker_capture_origin_binding = copy.deepcopy(binding)
+        return copy.deepcopy(binding)
 
     def get_worker_capture_supervisor_public_key(self) -> bytes:
         """Return the parent key expected by independent capture verification."""
@@ -10914,6 +10981,7 @@ class MLXLocalClient:
         worker's evidence.
         """
         self._worker_identity = {}
+        self._worker_capture_origin_binding = {}
         self._recurrent_depth_status = {}
         self._recurrent_adapter_activation = {}
         self._unified_recurrent_shadow_status = {}
@@ -11285,6 +11353,51 @@ class MLXLocalClient:
                 status = res.get("status")
                 action = res.get("action")
                 req_id = res.get("id")
+
+                if action == "capture_identity_bootstrap":
+                    try:
+                        if (
+                            self._init_done
+                            or self._init_future is None
+                            or self._init_future.done()
+                        ):
+                            raise RuntimeError(
+                                "worker_capture_bootstrap_outside_initialization"
+                            )
+                        raw_capture_identity = res.get(
+                            "worker_action_capture_identity"
+                        )
+                        if not isinstance(raw_capture_identity, Mapping):
+                            raise TypeError("worker_capture_bootstrap_identity_missing")
+                        self._accept_worker_capture_bootstrap(raw_capture_identity)
+                        self._mark_progress()
+                    except (
+                        ImportError,
+                        RuntimeError,
+                        TypeError,
+                        ValueError,
+                    ) as capture_bootstrap_exc:
+                        _record_mlx_degradation(
+                            capture_bootstrap_exc,
+                            action=(
+                                "refused worker initialization because its early "
+                                "capture identity was not bound to this spawn"
+                            ),
+                            severity="critical",
+                        )
+                        if self._init_future and not self._init_future.done():
+                            _set_shared_future_result(
+                                self._init_future,
+                                {
+                                    "status": "error",
+                                    "action": "init",
+                                    "message": (
+                                        "worker_capture_bootstrap_invalid:"
+                                        f"{type(capture_bootstrap_exc).__name__}"
+                                    ),
+                                },
+                            )
+                    continue
 
                 # Only a terminal frame correlated to work this parent owns
                 # may shape its budget evidence. A stale/unknown worker frame
@@ -11998,7 +12111,7 @@ class MLXLocalClient:
                 # never-resolving future and the lane stays in "handshaking"
                 # for hours, which is what produced the cascading damasio
                 # timeout / "Worker alive but still handshaking" loop.
-                handshake_age = time.time() - getattr(self, "_lane_transition_at", time.time())
+                handshake_age = self._handshake_age_s()
                 handshake_budget = max(60.0, 2.0 * self._handshake_timeout())
                 if (
                     self._init_future is not None
@@ -12296,8 +12409,25 @@ class MLXLocalClient:
                                 "failed",
                                 "init_receipt_invalid",
                             )
-                            if handshake_attempt == 0:
-                                continue
+                            # This is terminal evidence from this exact
+                            # worker. Re-reading the same completed future
+                            # cannot repair it and used to leave an alive,
+                            # permanently handshaking process behind. Retire
+                            # the untrusted generation and perform at most one
+                            # real spawn retry.
+                            await self.reboot_worker(
+                                reason="init_receipt_invalid",
+                                mark_failed=False,
+                            )
+                            if not _init_retry:
+                                return await self._ensure_worker_alive_inner(
+                                    request_is_background=request_is_background,
+                                    foreground_request=foreground_request,
+                                    init_timeout=init_timeout,
+                                    soft_timeout=soft_timeout,
+                                    skip_swap_cooldown=True,
+                                    _init_retry=True,
+                                )
                             return False
                         self._init_done = True
                         self._last_heartbeat = time.time()
