@@ -1121,6 +1121,9 @@ def _build_live_turn_contract_payload(
         "latent_cortex_path_proven": latent_cortex_path_proven,
         "latent_cortex_path_requirement_satisfied": (latent_cortex_path_requirement_satisfied),
         "qualified_recurrent_path_proven": qualified_recurrent_path_proven,
+        "qualified_recurrent_terminal_bytes_preserved": bool(
+            trace.get("qualified_recurrent_terminal_bytes_preserved")
+        ),
         "qualified_recurrent_path_requirement_satisfied": (
             qualified_recurrent_path_requirement_satisfied
         ),

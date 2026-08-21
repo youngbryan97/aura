@@ -4895,6 +4895,57 @@ def _bind_qualified_recurrent_public_answer(
     return proven
 
 
+def _bind_qualified_recurrent_terminal_contract(
+    trace: dict[str, Any] | None,
+    response_text: Any,
+) -> bool:
+    """Make authenticated state serialization the terminal byte owner.
+
+    Qualified recurrent output is not draft prose. Its receipt binds the exact
+    serialization of an authenticated semantic state to the admitted task.
+    Passing those bytes through generic prose repair would either invalidate
+    the receipt or let later code inherit authority for different bytes. The
+    qualified receipt therefore owns both content and output shape.
+    """
+
+    if not _bind_qualified_recurrent_public_answer(trace, response_text):
+        return False
+    assert isinstance(trace, dict)
+    trace.update(
+        {
+            "qualified_recurrent_terminal_bytes_preserved": True,
+            "qualified_recurrent_prose_pipeline_bypassed": True,
+            "final_requested_output_contract_evaluated": True,
+            "final_requested_output_contract_required": True,
+            "final_requested_output_contract_kind": (
+                "certified_recurrent_state_serialization"
+            ),
+            "final_requested_output_contract_satisfied": True,
+            "final_requested_output_contract_reasons": [],
+        }
+    )
+    return True
+
+
+def _enforce_or_bind_terminal_output_contract(
+    trace: dict[str, Any],
+    *,
+    user_message: str,
+    reply_text: str,
+    desktop_execution_contract: bool | None = None,
+) -> str:
+    """Use the receipt-owned shape contract before generic prose repair."""
+
+    if _bind_qualified_recurrent_terminal_contract(trace, reply_text):
+        return str(reply_text or "")
+    return _enforce_final_requested_output_contract(
+        trace,
+        user_message=user_message,
+        reply_text=reply_text,
+        desktop_execution_contract=desktop_execution_contract,
+    )
+
+
 def _worker_receipt_transaction_id(receipt: Any, response_text: Any) -> str:
     """Return the exact MLX generation identity attested by the parent.
 
@@ -7095,6 +7146,20 @@ async def _run_cognitive_engine_chat_turn(
         source_label="desktop_chat_preflight_live_mind_controls",
         response_text=raw_text,
     )
+    # Authenticated semantic-state serialization is already the completed
+    # answer, not a prose draft. Bind it before any generic stripping,
+    # self-condition projection, failure-envelope classification, quality
+    # repair, or retry can reinterpret its bytes. The outer route validates
+    # the same receipt again at the delivery boundary.
+    if _bind_qualified_recurrent_terminal_contract(turn_trace, raw_text):
+        _mark_turn_trace(
+            cognitive_engine_reply_accepted=True,
+            cognitive_engine_reply_failed=False,
+            bounded_contract_used=False,
+            legacy_fallback_used=False,
+            response_path="cognitive_engine_qualified_recurrent",
+        )
+        return raw_text
     text = _strip_user_visible_context_leaks(raw_text)
     if turn_trace is not None:
         _append_turn_text_mutation(
@@ -15934,7 +15999,7 @@ async def api_chat_regenerate(
             if reply_text:
                 regen_lane = _chat_preflight._collect_conversation_lane_status()
                 reply_source = str(_regen_turn_trace.get("response_path") or "cognitive_engine")
-                reply_text = _enforce_final_requested_output_contract(
+                reply_text = _enforce_or_bind_terminal_output_contract(
                     _regen_turn_trace,
                     user_message=user_msg,
                     reply_text=str(reply_text),
@@ -16043,24 +16108,28 @@ async def api_chat_regenerate(
                 user_msg, origin="user", timeout_sec=foreground_timeout
             )
 
-        _pre_regen_stabilization_reply = str(reply_text or "")
-        reply_text = await _stabilize_user_facing_reply(
-            user_msg,
-            reply_text,
-            desktop_cognitive_engine_required=desktop_requires_cognitive_engine,
-            protected_foreground_lane=desktop_requires_cognitive_engine,
-        )
-        _append_turn_text_mutation(
+        if not _bind_qualified_recurrent_terminal_contract(
             _regen_turn_trace,
-            stage="chat.regenerate_stabilization",
-            method="stabilize_user_facing_reply",
-            reasons=["regenerate_final_stabilization"],
-            before=_pre_regen_stabilization_reply,
-            after=reply_text,
-            deterministic=False,
-            authorship_effect="replaced_by_runtime",
-        )
-        reply_text = _enforce_final_requested_output_contract(
+            reply_text,
+        ):
+            _pre_regen_stabilization_reply = str(reply_text or "")
+            reply_text = await _stabilize_user_facing_reply(
+                user_msg,
+                reply_text,
+                desktop_cognitive_engine_required=desktop_requires_cognitive_engine,
+                protected_foreground_lane=desktop_requires_cognitive_engine,
+            )
+            _append_turn_text_mutation(
+                _regen_turn_trace,
+                stage="chat.regenerate_stabilization",
+                method="stabilize_user_facing_reply",
+                reasons=["regenerate_final_stabilization"],
+                before=_pre_regen_stabilization_reply,
+                after=reply_text,
+                deterministic=False,
+                authorship_effect="replaced_by_runtime",
+            )
+        reply_text = _enforce_or_bind_terminal_output_contract(
             _regen_turn_trace,
             user_message=user_msg,
             reply_text=str(reply_text or ""),
@@ -16603,6 +16672,18 @@ def _apply_recorded_answer(user_message: object, response: Any) -> Any:
             return response
         contract = data.get("live_turn_contract")
 
+        # The exact response bytes have already been checked against the
+        # qualified recurrent receipt at both cognition and terminal delivery.
+        # A record lookup here is not stronger evidence for this task; it is a
+        # different answer owner. Do not let the outer catch-all wrapper mutate
+        # an authenticated state serialization after its final contract.
+        if (
+            isinstance(contract, dict)
+            and contract.get("qualified_recurrent_path_proven") is True
+            and contract.get("answer_delivery_proven") is True
+        ):
+            return response
+
         # A recorded answer outranks a proven one, and is typed as itself.
         #
         # LIVE, 2026-08-20. "what have you been up to tonight?" was answered
@@ -16820,7 +16901,7 @@ def _requested_output_contract_result(
     the enforced text, and whether the contract was satisfied, which are
     separate questions the trace answers in three separate keys.
     """
-    final_text = _enforce_final_requested_output_contract(
+    final_text = _enforce_or_bind_terminal_output_contract(
         turn_trace,
         user_message=user_message,
         reply_text=str(reply_text or ""),
@@ -17638,7 +17719,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                     ",".join(getattr(recovered_assessment, "reasons", ()) or ()),
                 )
 
-            recovered = _enforce_final_requested_output_contract(
+            recovered = _enforce_or_bind_terminal_output_contract(
                 recovery_trace,
                 user_message=_semantic_user_message,
                 reply_text=recovered,
@@ -19439,7 +19520,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                         or "cognitive_engine"
                     )
                     if desktop_requires_cognitive_engine:
-                        reply_text = _enforce_final_requested_output_contract(
+                        reply_text = _enforce_or_bind_terminal_output_contract(
                             _live_turn_trace,
                             user_message=_semantic_user_message,
                             reply_text=str(reply_text),
@@ -20628,6 +20709,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             _live_turn_trace,
             reply_text,
         )
+        _qualified_exact_reply = str(reply_text or "") if _qualified_exact_delivery else ""
         if _qualified_exact_delivery:
             # Exact recurrent output is a canonical serialization of
             # authenticated semantic state. Prose stabilization cannot improve
@@ -20644,7 +20726,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
         _delivery_timing["stabilizer_ms"] = (
             time.monotonic() - _delivery_stage_started_at
         ) * 1000.0
-        if _grounded_recall_context:
+        if _grounded_recall_context and not _qualified_exact_delivery:
             from core.conversation.grounded_recall import (
                 grounded_quote_from_context,
                 repair_grounded_recall_speaker_attribution,
@@ -20673,7 +20755,8 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             time.monotonic() - _delivery_stage_started_at
         ) * 1000.0
         if (
-            allow_chat_fastpaths
+            not _qualified_exact_delivery
+            and allow_chat_fastpaths
             and _chat_preflight._is_explicit_capability_inventory_request(_semantic_user_message)
             and _chat_desktop_repair._capability_inventory_reply_is_inadequate(
                 _semantic_user_message,
@@ -20686,13 +20769,18 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             reply_text = _chat_desktop_repair._build_grounded_capability_inventory_reply(
                 _semantic_user_message
             )
-        if _chat_preflight._is_explicit_capability_inventory_request(_semantic_user_message):
+        if (
+            not _qualified_exact_delivery
+            and _chat_preflight._is_explicit_capability_inventory_request(
+                _semantic_user_message
+            )
+        ):
             reply_text = _ensure_capability_inventory_non_execution_boundary(
                 _semantic_user_message,
                 reply_text,
             )
         repaired_recall = False
-        if not desktop_requires_cognitive_engine:
+        if not _qualified_exact_delivery and not desktop_requires_cognitive_engine:
             repaired_recall_reply, repaired_recall = await _repair_conversation_recall_if_needed(
                 _semantic_user_message,
                 reply_text,
@@ -20707,7 +20795,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
         # ── Response confidence assessment ────────────────────────
         _pending_affordance_intents: list[Any] = []
         _affordance_registry = None
-        if "⟦affordance:" in (reply_text or ""):
+        if not _qualified_exact_delivery and "⟦affordance:" in (reply_text or ""):
             try:
                 from core.cognition.expressive_affordances import get_affordance_registry
 
@@ -21301,7 +21389,11 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
         # context in body.message above, so the reply already acknowledges
         # the thread.
         _pre_context_strip_reply = reply_text
-        _final_reply = _strip_user_visible_context_leaks(reply_text) or "…"
+        _final_reply = (
+            _qualified_exact_reply
+            if _qualified_exact_delivery
+            else (_strip_user_visible_context_leaks(reply_text) or "…")
+        )
         # The recorded answer is applied HERE, after every repair, regeneration
         # and shaping pass, because everywhere earlier it was discarded.
         #
@@ -21313,12 +21405,13 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
         # and which no amount of correcting an earlier draft can fix.
         #
         # A correction that a later stage can overwrite is not a correction.
-        _final_reply = str(
-            _append_past_action_record(_semantic_user_message, _final_reply) or _final_reply
-        )
-        _final_reply = str(
-            _append_runtime_authored_why(_semantic_user_message, _final_reply) or _final_reply
-        )
+        if not _qualified_exact_delivery:
+            _final_reply = str(
+                _append_past_action_record(_semantic_user_message, _final_reply) or _final_reply
+            )
+            _final_reply = str(
+                _append_runtime_authored_why(_semantic_user_message, _final_reply) or _final_reply
+            )
         _append_turn_text_mutation(
             _live_turn_trace,
             stage="chat.final_context_leak_strip",
@@ -21330,20 +21423,21 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             authorship_effect="preserved",
         )
         _final_status = reply_source or "ok"
-        _pre_objective_chokepoint_reply = _final_reply
-        _final_reply, _final_status = await _apply_desktop_objective_chokepoint(
-            _final_reply, _final_status
-        )
-        _append_turn_text_mutation(
-            _live_turn_trace,
-            stage="chat.desktop_objective_chokepoint",
-            method="desktop_objective_result_replacement",
-            reasons=[str(_final_status or "desktop_objective")],
-            before=_pre_objective_chokepoint_reply,
-            after=_final_reply,
-            deterministic=False,
-            authorship_effect="replaced_by_runtime",
-        )
+        if not _qualified_exact_delivery:
+            _pre_objective_chokepoint_reply = _final_reply
+            _final_reply, _final_status = await _apply_desktop_objective_chokepoint(
+                _final_reply, _final_status
+            )
+            _append_turn_text_mutation(
+                _live_turn_trace,
+                stage="chat.desktop_objective_chokepoint",
+                method="desktop_objective_result_replacement",
+                reasons=[str(_final_status or "desktop_objective")],
+                before=_pre_objective_chokepoint_reply,
+                after=_final_reply,
+                deterministic=False,
+                authorship_effect="replaced_by_runtime",
+            )
 
         _affordance_results: list[dict[str, Any]] = []
         if _pending_affordance_intents and _affordance_registry is not None:
@@ -21375,11 +21469,17 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                     deterministic=False,
                     authorship_effect="augmented_by_runtime",
                 )
-        _final_reply = _enforce_final_requested_output_contract(
-            _live_turn_trace,
-            user_message=_semantic_user_message,
-            reply_text=_final_reply,
-        )
+        if _qualified_exact_delivery:
+            _bind_qualified_recurrent_terminal_contract(
+                _live_turn_trace,
+                _final_reply,
+            )
+        else:
+            _final_reply = _enforce_or_bind_terminal_output_contract(
+                _live_turn_trace,
+                user_message=_semantic_user_message,
+                reply_text=_final_reply,
+            )
 
         # Claims this process can measure are settled by the measurement, not
         # by whether the model read the grounding it was handed. The prompt
@@ -21388,8 +21488,12 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
         try:
             from core.conversation.grounded_claim_guard import verify_grounded_claims
 
-            _grounded = verify_grounded_claims(_final_reply)
-            if _grounded.changed:
+            _grounded = (
+                verify_grounded_claims(_final_reply)
+                if not _qualified_exact_delivery
+                else None
+            )
+            if _grounded is not None and _grounded.changed:
                 _append_turn_text_mutation(
                     _live_turn_trace,
                     stage="chat.grounded_claim_guard",
@@ -21421,8 +21525,12 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
         try:
             from core.runtime.fact_custody import restore_held_facts
 
-            _custody = restore_held_facts(_final_reply)
-            if _custody.changed:
+            _custody = (
+                restore_held_facts(_final_reply)
+                if not _qualified_exact_delivery
+                else None
+            )
+            if _custody is not None and _custody.changed:
                 _append_turn_text_mutation(
                     _live_turn_trace,
                     stage="chat.fact_custody",
@@ -21442,11 +21550,18 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
         # contract while their outputs do not, so terminal proof is always
         # recomputed over the post-mutation answer rather than inherited from
         # an earlier candidate.
-        _final_reply = _enforce_final_requested_output_contract(
-            _live_turn_trace,
-            user_message=_semantic_user_message,
-            reply_text=_final_reply,
-        )
+        if _qualified_exact_delivery:
+            _final_reply = _qualified_exact_reply
+            _bind_qualified_recurrent_terminal_contract(
+                _live_turn_trace,
+                _final_reply,
+            )
+        else:
+            _final_reply = _enforce_or_bind_terminal_output_contract(
+                _live_turn_trace,
+                user_message=_semantic_user_message,
+                reply_text=_final_reply,
+            )
         _bind_public_latent_output_quality(
             _live_turn_trace,
             user_message=_semantic_user_message,

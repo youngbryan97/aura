@@ -12097,6 +12097,51 @@ def test_certified_recurrent_typed_answer_has_non_generative_delivery_ownership(
     assert "qualified_recurrent_path_unproven" in rejected["full_mind_missing_proofs"]
 
 
+def test_certified_recurrent_terminal_contract_owns_exact_bytes_and_shape():
+    from core.brain.llm import qualified_recurrent_ingress as ingress
+    from core.learning.frontier_process_supervision import frontier_process_task_battery
+    from interface.routes import chat as chat_routes
+
+    task = frontier_process_task_battery(("calibration",), (1,), 1, seed=2026082111)[0]
+    admission = ingress.admit_qualified_recurrent_objective(task.prompt)
+    assert admission is not None
+    body = {
+        "schema": ingress.QUALIFIED_RECURRENT_RESULT_SCHEMA,
+        "admission": admission.receipt(),
+        "semantic_state_receipt": {"state_sha256": "s" * 64},
+        "surface_decode_receipt": None,
+        "activation_receipt": {
+            "promotion_mode": "active",
+            "activation_sha256": "a" * 64,
+        },
+        "serialization": "canonical_json_from_authenticated_semantic_state",
+        "answer_sha256": hashlib.sha256(task.answer.encode("utf-8")).hexdigest(),
+    }
+    receipt = {**body, "receipt_sha256": ingress._canonical_sha256(body)}
+    trace = {
+        "response_path": "cognitive_engine_qualified_recurrent",
+        "qualified_recurrent_succeeded": True,
+        "qualified_recurrent_family": task.family,
+        "qualified_recurrent_receipt": receipt,
+        "model_generation_used": False,
+        "live_mind_generation_required": False,
+    }
+
+    assert chat_routes._bind_qualified_recurrent_terminal_contract(trace, task.answer)
+    assert trace["qualified_recurrent_terminal_bytes_preserved"] is True
+    assert trace["final_requested_output_contract_evaluated"] is True
+    assert trace["final_requested_output_contract_required"] is True
+    assert trace["final_requested_output_contract_satisfied"] is True
+    assert (
+        trace["final_requested_output_contract_kind"]
+        == "certified_recurrent_state_serialization"
+    )
+    assert not chat_routes._bind_qualified_recurrent_terminal_contract(
+        trace,
+        task.answer + " changed",
+    )
+
+
 @pytest.mark.asyncio
 async def test_desktop_chat_adopts_certified_recurrent_answer_without_fake_decode(
     monkeypatch,
@@ -12249,6 +12294,15 @@ async def test_desktop_chat_delivers_certified_recurrent_answer_without_prose_pi
     async def _forbidden_stabilizer(*_args, **_kwargs):
         raise AssertionError("receipt-bound exact output must not enter prose stabilization")
 
+    def _forbidden_terminal_transform(*_args, **_kwargs):
+        trace_arg = _args[0] if _args and isinstance(_args[0], dict) else {}
+        raise AssertionError(
+            "receipt-bound exact output must not enter terminal prose shaping: "
+            f"path={trace_arg.get('response_path')!r} "
+            f"qualified={trace_arg.get('qualified_recurrent_succeeded')!r} "
+            f"errors={trace_arg.get('qualified_recurrent_delivery_errors')!r}"
+        )
+
     quality_calls = []
 
     def _record_quality_call(*_args, **_kwargs):
@@ -12266,6 +12320,26 @@ async def test_desktop_chat_delivers_certified_recurrent_answer_without_prose_pi
     monkeypatch.setattr(_chat_preflight, "_complete_logged_exchange", _fake_complete_exchange)
     monkeypatch.setattr(chat_routes, "_emit_chat_output_receipt", _fake_output_receipt)
     monkeypatch.setattr(chat_routes, "_stabilize_user_facing_reply", _forbidden_stabilizer)
+    monkeypatch.setattr(
+        chat_routes,
+        "_strip_user_visible_context_leaks",
+        _forbidden_terminal_transform,
+    )
+    monkeypatch.setattr(
+        chat_routes,
+        "_append_past_action_record",
+        _forbidden_terminal_transform,
+    )
+    monkeypatch.setattr(
+        chat_routes,
+        "_append_runtime_authored_why",
+        _forbidden_terminal_transform,
+    )
+    monkeypatch.setattr(
+        chat_routes,
+        "_enforce_final_requested_output_contract",
+        _forbidden_terminal_transform,
+    )
     monkeypatch.setattr(chat_routes, "_is_actionably_stale_response", _record_quality_call)
     monkeypatch.setattr(chat_routes, "_is_same_answer_different_prompt", _record_quality_call)
     monkeypatch.setattr(chat_routes.ServiceContainer, "get", staticmethod(_fake_get))
@@ -12311,6 +12385,8 @@ async def test_desktop_chat_delivers_certified_recurrent_answer_without_prose_pi
     assert payload["live_turn_contract"][
         "qualified_recurrent_public_output_quality_proven"
     ] is True
+    assert payload["live_turn_contract"]["final_requested_output_contract_satisfied"] is True
+    assert payload["live_turn_contract"]["qualified_recurrent_terminal_bytes_preserved"] is True
     assert quality_calls == []
 
 

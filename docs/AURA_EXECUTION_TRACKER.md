@@ -51014,3 +51014,34 @@ and trace-backed repair, not a live success claim.
 The next gate is a graceful installed-app restart and repeated desktop-path
 compound answers with visible text, logical-transaction custody, stop receipts,
 latency, terminal warnings and neural-stream warnings inspected end to end.
+
+## Checkpoint 2026-08-21-833: Preserve Certified Recurrent Bytes End to End
+
+The qualified semantic-neural lane already bypassed the first prose
+stabilizer, but its authenticated state serialization could still enter later
+generic route stages. Cognitive-engine context stripping, requested-output
+repair, grounded-recall attribution, capability and recall repair, affordance
+parsing, terminal context stripping, runtime record appenders, desktop result
+shaping, grounded-claim correction, fact custody, regenerate stabilization and
+the outer recorded-answer wrapper could each replace exact receipt-bound bytes.
+The route would then discover that the receipt no longer matched and reject a
+correct certified answer after doing the work.
+
+Certified recurrent state serialization is now one immutable answer
+transaction. The cognitive-engine boundary verifies the admission, family,
+answer digest and receipt before generic prose handling; the same receipt owns
+the requested-output shape and is revalidated at candidate, terminal and outer
+delivery boundaries. Generic prose repair and effect realization remain active
+for ordinary generated conversation, but cannot acquire or mutate this answer
+owner. Regenerate and recovery use the same terminal contract. The live-turn
+receipt exposes whether exact terminal bytes were preserved.
+
+The full conversation and qualified-serving regression set passes `399/399`
+with one environment-dependent skip. Its desktop end-to-end contract traps
+every generic prose transformer and proves none is invoked for certified
+state-native output. The bounded-WOW serving alarm remains active and the
+activation seal remains valid. Canonical smoke passes `120/120` with one skip;
+Ruff, compilation and diff hygiene pass. These are offline contracts. The next
+gate remains a graceful installed-app restart and repeated live desktop turns
+with visible output, latency, stop receipts, terminal and neural-stream evidence
+inspected end to end.
