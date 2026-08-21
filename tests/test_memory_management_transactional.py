@@ -5,11 +5,14 @@ from __future__ import annotations
 import json
 import math
 import threading
+from copy import deepcopy
 from pathlib import Path
 
 import pytest
 
 from core.brain.cognitive.memory_management import MemoryConsolidator
+from core.memory.black_hole_vault import BlackHoleVault
+from core.memory.rag import compute_term_freq, tokenize
 from core.memory.sqlite_vector_store import SQLiteVectorStore
 
 
@@ -105,6 +108,44 @@ class _ChromaMemory:
         self.embedding_metric = "cosine"
         self.embedding_version = "test-v1"
         self._embed_fn = lambda texts: [[1.0, 0.0] for _ in texts]
+
+
+class _BlackHoleMemory:
+    memory_consolidation_backend = "black_hole_vault"
+    collection_name = "black_hole_vault"
+    embedding_metric = "cosine"
+    embedding_version = "black-hole-tfhash384-v1"
+    single_principal_collection = True
+
+    def __init__(self, records):
+        self.memories = deepcopy(records)
+        self._mutation_lock = threading.RLock()
+        self._dirty = False
+        self.saved = []
+        self.fail_save_once = False
+
+    _memory_id = staticmethod(BlackHoleVault._memory_id)
+
+    def _ensure_memory_ids(self, *, persist=False):
+        return BlackHoleVault._ensure_memory_ids(self, persist=persist)
+
+    def _save_vault(self):
+        if self.fail_save_once:
+            self.fail_save_once = False
+            raise OSError("simulated vault write failure")
+        self.saved.append(deepcopy(self.memories))
+        self._dirty = False
+
+
+def _black_hole_record(record_id, content, metadata=None):
+    return {
+        "id": record_id,
+        "text": content,
+        "metadata": metadata or _meta(),
+        "vec": compute_term_freq(tokenize(content)),
+        "created": 1,
+        "access_count": 0,
+    }
 
 
 def _record(record_id, content, vector, metadata=None):
@@ -339,6 +380,64 @@ async def test_unsupported_backend_is_not_reported_as_a_merge():
     assert report.duplicates_merged == 0
     assert report.transactions_committed == 0
     assert "unsupported_memory_backend" in report.errors
+
+
+@pytest.mark.asyncio
+async def test_black_hole_vault_uses_native_backend_not_chroma_alias():
+    memory = _BlackHoleMemory(
+        [
+            _black_hole_record("a", "alpha shared fact"),
+            _black_hole_record("b", "alpha shared fact"),
+        ]
+    )
+
+    consolidator = MemoryConsolidator(memory, similarity_threshold=0.99)
+    assert consolidator._backend_kind() == "black_hole_vault"
+
+    report = await consolidator.consolidate()
+
+    assert report.backend == "black_hole_vault"
+    assert report.scan_complete is True
+    assert report.transactions_committed == 1
+    assert report.duplicates_merged == 1
+    assert len(memory.memories) == 1
+    assert memory.memories[0]["metadata"]["consolidation_receipt_id"]
+    assert memory.saved
+
+
+@pytest.mark.asyncio
+async def test_black_hole_vault_merge_rolls_back_after_persistence_failure():
+    records = [
+        _black_hole_record("a", "alpha shared fact"),
+        _black_hole_record("b", "alpha shared fact"),
+    ]
+    memory = _BlackHoleMemory(records)
+    memory.fail_save_once = True
+
+    report = await MemoryConsolidator(
+        memory,
+        similarity_threshold=0.99,
+    ).consolidate()
+
+    assert report.transactions_committed == 0
+    assert report.transactions_rolled_back == 1
+    assert memory.memories == records
+    assert memory.saved[-1] == records
+
+
+def test_collection_alias_without_complete_chroma_contract_is_unsupported():
+    class CompatibilityAlias:
+        _sqlite_vectors = None
+
+        def __init__(self):
+            self._collection = self
+
+        def get(self, **_kwargs):
+            return {}
+
+    assert MemoryConsolidator(
+        CompatibilityAlias(), allow_unscoped=True
+    )._backend_kind() == "unsupported"
 
 
 @pytest.mark.asyncio

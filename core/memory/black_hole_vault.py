@@ -1,25 +1,27 @@
 import asyncio
+import hashlib
 import json
 import logging
 import math
 import os
 import threading
 import time
+import uuid
 from typing import Any, Dict, List, Optional
 
 from core.governance_context import local_internal_governed_scope
+from core.memory import embedding_model
 from core.memory.black_hole import BlackHoleDecodeError, decode_payload, encode_payload
 from core.memory.horcrux import HorcruxManager
 from core.memory.physics import bekenstein_check, hawking_decay
-from core.memory import embedding_model
 from core.memory.retention_policy import MemoryRetentionPolicy, black_hole_retention_policy
 from core.runtime.errors import record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
 
 try:
-    from core.memory.rag import chunk_text, compute_term_freq, retrieve_memories, tokenize
+    from core.memory.rag import compute_term_freq, retrieve_memories, tokenize
 except (ImportError, AttributeError, RuntimeError):
-    from core.memory.rag import chunk_text, compute_term_freq, tokenize
+    from core.memory.rag import compute_term_freq, tokenize
     def retrieve_memories(query, memories, top_k=5, threshold=0.01, **kwargs):
         return []
 
@@ -49,6 +51,13 @@ class BlackHoleVault:
     with TF-IDF — see core/memory/rag.py), Horcrux for keys, and Black
     Hole algorithms for storage.
     """
+
+    memory_consolidation_backend = "black_hole_vault"
+    collection_name = "black_hole_vault"
+    embedding_metric = "cosine"
+    embedding_version = "black-hole-tfhash384-v1"
+    single_principal_collection = True
+
     def __init__(self, data_dir: str = "~/.aura/vault"):
         self.data_dir = os.path.expanduser(data_dir)
         os.makedirs(self.data_dir, exist_ok=True)
@@ -61,7 +70,8 @@ class BlackHoleVault:
         self._max_memories = self._retention_policy.max_items
         self._dirty = False
         self._fallback_mode = False
-        self._collection = self # Shim for SemanticDefragmenter
+        self._collection = self  # Compatibility surface, not a Chroma collection.
+        self._mutation_lock = threading.RLock()
         self._initialized = False
         self._init_error: Optional[str] = None
         self._ensure_ready()
@@ -139,6 +149,7 @@ class BlackHoleVault:
             res = decode_payload(encrypted_data, self.key, strict=True)
             raw_json = res.get("decoded", "")
             self.memories = json.loads(raw_json) if raw_json else []
+            self._ensure_memory_ids(persist=True)
         except BlackHoleDecodeError as exc:
             quarantined = self._quarantine_unreadable_vault(reason=type(exc).__name__)
             logger.warning(
@@ -186,6 +197,47 @@ class BlackHoleVault:
                 source="black_hole_vault.save_vault",
             )
         self._dirty = False
+
+    @staticmethod
+    def _memory_id(memory: Dict[str, Any]) -> str:
+        return str(memory.get("id") or memory.get("created") or "").strip()
+
+    def _ensure_memory_ids(self, *, persist: bool = False) -> bool:
+        """Migrate legacy timestamp identities to stable per-record identities."""
+        changed = False
+        occupied = {
+            str(memory.get("id"))
+            for memory in self.memories
+            if str(memory.get("id") or "").strip()
+        }
+        for ordinal, memory in enumerate(self.memories):
+            if str(memory.get("id") or "").strip():
+                continue
+            seed = json.dumps(
+                {
+                    "created": memory.get("created"),
+                    "text": memory.get("text"),
+                    "metadata": memory.get("metadata"),
+                    "ordinal": ordinal,
+                },
+                sort_keys=True,
+                default=str,
+                separators=(",", ":"),
+            )
+            candidate = f"bhv-{hashlib.sha256(seed.encode('utf-8')).hexdigest()[:24]}"
+            suffix = 1
+            unique = candidate
+            while unique in occupied:
+                suffix += 1
+                unique = f"{candidate}-{suffix}"
+            memory["id"] = unique
+            occupied.add(unique)
+            changed = True
+        if changed:
+            self._dirty = True
+            if persist:
+                self._save_vault()
+        return changed
             
     def add_memory(
         self,
@@ -224,6 +276,7 @@ class BlackHoleVault:
             vec = compute_term_freq(tokens)
             
             self.memories.append({
+                "id": f"bhv-{uuid.uuid4().hex}",
                 "text": c,
                 "metadata": semantic_meta,
                 "vec": vec,
@@ -372,7 +425,7 @@ class BlackHoleVault:
         if isinstance(ids, str) and not limit and not include:
             memory_id = ids
             for m in self.memories:
-                if str(m.get("created")) == str(memory_id):
+                if self._memory_id(m) == str(memory_id) or str(m.get("created")) == str(memory_id):
                     return m
             return None
 
@@ -380,7 +433,11 @@ class BlackHoleVault:
         found = []
         if ids:
             id_set = set(str(i) for i in ids)
-            found = [m for m in self.memories if str(m.get("created")) in id_set]
+            found = [
+                m
+                for m in self.memories
+                if self._memory_id(m) in id_set or str(m.get("created")) in id_set
+            ]
         else:
             found = self.memories
             
@@ -389,7 +446,7 @@ class BlackHoleVault:
             found = sequence[:limit] if ids else sequence[-limit:]
             
         ret: Dict[str, Any] = {
-            "ids": [str(m.get("created")) for m in found] if isinstance(found, list) else [],
+            "ids": [self._memory_id(m) for m in found] if isinstance(found, list) else [],
             "documents": [str(m.get("text", "")) for m in found] if isinstance(found, list) else [],
             "metadatas": [m.get("metadata", {}) for m in found] if isinstance(found, list) else []
         }
@@ -434,7 +491,12 @@ class BlackHoleVault:
 
     def delete(self, ids: List[str]):
         """Standard interface: Delete memories by ID."""
-        self.memories = [m for m in self.memories if str(m.get("created")) not in ids]
+        id_set = {str(memory_id) for memory_id in ids}
+        self.memories = [
+            m
+            for m in self.memories
+            if self._memory_id(m) not in id_set and str(m.get("created")) not in id_set
+        ]
         self._dirty = True
         self._save_vault()
         logger.info("BlackHoleVault: Deleted %d memories.", len(ids))
@@ -461,7 +523,7 @@ class BlackHoleVault:
             normalized_filters[str(key)] = values
 
         def _matches(memory: Dict[str, Any]) -> bool:
-            if str(memory.get("created")) in id_set:
+            if self._memory_id(memory) in id_set or str(memory.get("created")) in id_set:
                 return True
             metadata = memory.get("metadata", {}) or {}
             if not isinstance(metadata, dict):

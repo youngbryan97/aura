@@ -118,6 +118,7 @@ class MemoryConsolidator:
 
     JOURNAL_SCHEMA = "aura.memory.consolidation.rollback.v1"
     MAX_BATCH_SIZE = 10_000
+    BLACK_HOLE_VECTOR_DIM = 384
 
     def __init__(
         self,
@@ -218,11 +219,40 @@ class MemoryConsolidator:
         return lock
 
     def _backend_kind(self) -> str:
-        if getattr(self.vector_memory, "_sqlite_vectors", None) is not None:
+        declared = str(
+            getattr(self.vector_memory, "memory_consolidation_backend", "") or ""
+        ).strip()
+        if declared == "black_hole_vault":
+            memories = getattr(self.vector_memory, "memories", None)
+            if isinstance(memories, list) and callable(
+                getattr(self.vector_memory, "_save_vault", None)
+            ):
+                return declared
+            return "unsupported"
+
+        sqlite = getattr(self.vector_memory, "_sqlite_vectors", None)
+        if sqlite is not None and self._has_methods(
+            sqlite,
+            "count",
+            "iter_records",
+            "merge_records_atomic",
+        ):
             return "sqlite"
-        if getattr(self.vector_memory, "_collection", None) is not None:
+        collection = getattr(self.vector_memory, "_collection", None)
+        if collection is not None and self._has_methods(
+            collection,
+            "count",
+            "get",
+            "update",
+            "delete",
+            "upsert",
+        ):
             return "chroma"
         return "unsupported"
+
+    @staticmethod
+    def _has_methods(candidate: Any, *names: str) -> bool:
+        return all(callable(getattr(candidate, name, None)) for name in names)
 
     def _fetch_memories(self, report: ConsolidationReport) -> list[MemoryRecord]:
         report.backend = self._backend_kind()
@@ -230,6 +260,8 @@ class MemoryConsolidator:
             raw, complete = self._fetch_sqlite(report)
         elif report.backend == "chroma":
             raw, complete = self._fetch_chroma(report)
+        elif report.backend == "black_hole_vault":
+            raw, complete = self._fetch_black_hole(report)
         else:
             report.errors.append("unsupported_memory_backend")
             report.scan_complete = False
@@ -298,6 +330,81 @@ class MemoryConsolidator:
                 f"scan_changed_or_incomplete:before={expected}:unique={len(by_id)}:after={observed_after}"
             )
         return list(by_id.values()), complete
+
+    def _fetch_black_hole(
+        self,
+        report: ConsolidationReport,
+    ) -> tuple[list[dict[str, Any]], bool]:
+        ensure_ids = getattr(self.vector_memory, "_ensure_memory_ids", None)
+        if callable(ensure_ids):
+            ensure_ids(persist=True)
+        memories = getattr(self.vector_memory, "memories", None)
+        if not isinstance(memories, list):
+            raise TypeError("black_hole_memories_not_a_list")
+        expected = len(memories)
+        snapshot = deepcopy(memories)
+        raw: list[dict[str, Any]] = []
+        memory_id = getattr(self.vector_memory, "_memory_id", None)
+        for memory in snapshot:
+            metadata = dict(memory.get("metadata") or {})
+            metadata.setdefault("embedding_metric", "cosine")
+            metadata.setdefault("embedding_version", "black-hole-tfhash384-v1")
+            identifier = (
+                str(memory_id(memory))
+                if callable(memory_id)
+                else str(memory.get("id") or memory.get("created") or "")
+            )
+            raw.append(
+                {
+                    "id": identifier,
+                    "content": str(memory.get("text") or ""),
+                    "metadata": metadata,
+                    "embedding": self._black_hole_embedding(
+                        str(memory.get("text") or ""),
+                        memory.get("vec"),
+                    ),
+                }
+            )
+        report.pages_scanned = (
+            math.ceil(expected / self.batch_size) if expected else 0
+        )
+        observed_after = len(getattr(self.vector_memory, "memories", []))
+        complete = expected == observed_after == len(raw)
+        if not complete:
+            report.errors.append(
+                f"scan_changed_during_read:before={expected}:read={len(raw)}:after={observed_after}"
+            )
+        return raw, complete
+
+    @classmethod
+    def _black_hole_embedding(
+        cls,
+        content: str,
+        raw_vector: Any = None,
+    ) -> list[float]:
+        """Bound sparse lexical vectors without corpus-sized dense allocation."""
+        if isinstance(raw_vector, Mapping):
+            term_map: dict[str, float] = {}
+            for term, raw_weight in raw_vector.items():
+                try:
+                    weight = float(raw_weight)
+                except (TypeError, ValueError, OverflowError):
+                    continue
+                if math.isfinite(weight):
+                    term_map[str(term)] = weight
+        else:
+            from core.memory.rag import compute_term_freq, tokenize
+
+            term_map = compute_term_freq(tokenize(content))
+
+        embedding = [0.0] * cls.BLACK_HOLE_VECTOR_DIM
+        for term, weight in term_map.items():
+            digest = hashlib.blake2b(term.encode("utf-8"), digest_size=8).digest()
+            encoded = int.from_bytes(digest, "big")
+            slot = encoded % cls.BLACK_HOLE_VECTOR_DIM
+            sign = -1.0 if encoded & (1 << 63) else 1.0
+            embedding[slot] += sign * weight
+        return embedding
 
     def _validated_record(self, raw: Mapping[str, Any], backend: str) -> MemoryRecord:
         record_id = str(raw.get("id") or "").strip()
@@ -480,6 +587,13 @@ class MemoryConsolidator:
                     merged_metadata,
                     receipt_id,
                 )
+            elif backend == "black_hole_vault":
+                self._commit_black_hole(
+                    winner,
+                    losers,
+                    merged_content,
+                    merged_metadata,
+                )
             else:
                 raise RuntimeError("unsupported_memory_backend")
 
@@ -526,6 +640,8 @@ class MemoryConsolidator:
     ) -> tuple[float, ...]:
         if content == winner.content:
             return winner.embedding
+        if self._backend_kind() == "black_hole_vault":
+            return tuple(self._black_hole_embedding(content))
         if getattr(self.vector_memory, "_fallback_mode", False):
             from core.memory.vector_memory import AuraEmbeddingFunction
 
@@ -688,6 +804,84 @@ class MemoryConsolidator:
             journal_path.unlink(missing_ok=True)
             raise ClusterMergeError(
                 f"chroma transaction rolled back after {type(exc).__name__}: {exc}",
+                rolled_back=True,
+            ) from exc
+
+    def _commit_black_hole(
+        self,
+        winner: MemoryRecord,
+        losers: list[MemoryRecord],
+        content: str,
+        metadata: dict[str, Any],
+    ) -> None:
+        vault = self.vector_memory
+        memories = getattr(vault, "memories", None)
+        memory_id = getattr(vault, "_memory_id", None)
+        if not isinstance(memories, list) or not callable(memory_id):
+            raise RuntimeError("black_hole_transaction_contract_missing")
+
+        originals = deepcopy(memories)
+        by_id = {str(memory_id(memory)): memory for memory in memories}
+        expected = {item.id: item.revision for item in [winner, *losers]}
+        if not set(expected).issubset(by_id):
+            raise RuntimeError("black_hole_cluster_changed_before_merge")
+
+        current_raw, complete = self._fetch_black_hole(ConsolidationReport())
+        if not complete:
+            raise RuntimeError("black_hole_cluster_changed_before_merge")
+        current = {
+            item.id: item
+            for item in (
+                self._validated_record(raw, "black_hole_vault")
+                for raw in current_raw
+            )
+        }
+        if any(
+            current.get(record_id) is None
+            or current[record_id].revision != revision
+            for record_id, revision in expected.items()
+        ):
+            raise RuntimeError("black_hole_revision_changed_before_merge")
+
+        loser_ids = {item.id for item in losers}
+        replacement = deepcopy(by_id[winner.id])
+        replacement.update(
+            {
+                "id": winner.id,
+                "text": content,
+                "metadata": metadata,
+            }
+        )
+        from core.memory.rag import compute_term_freq, tokenize
+
+        replacement["vec"] = compute_term_freq(tokenize(content))
+        vault.memories = [
+            replacement if str(memory_id(memory)) == winner.id else memory
+            for memory in memories
+            if str(memory_id(memory)) not in loser_ids
+        ]
+        vault._dirty = True
+        try:
+            vault._save_vault()
+            final_ids = {str(memory_id(memory)) for memory in vault.memories}
+            final_winner = next(
+                memory
+                for memory in vault.memories
+                if str(memory_id(memory)) == winner.id
+            )
+            if loser_ids & final_ids or final_winner.get("metadata", {}).get(
+                "consolidation_receipt_id"
+            ) != metadata.get("consolidation_receipt_id"):
+                raise RuntimeError("black_hole_merge_postcondition_failed")
+        except _STORAGE_ERRORS as exc:
+            vault.memories = originals
+            vault._dirty = True
+            try:
+                vault._save_vault()
+            except _STORAGE_ERRORS as rollback_exc:
+                raise RuntimeError("black_hole_rollback_failed") from rollback_exc
+            raise ClusterMergeError(
+                f"black-hole transaction rolled back after {type(exc).__name__}: {exc}",
                 rolled_back=True,
             ) from exc
 
