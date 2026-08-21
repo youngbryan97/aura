@@ -1314,15 +1314,19 @@ def test_voice_ready_is_withheld_until_both_process_models_are_warm():
 
 def test_tts_warmup_is_singleflight_across_sessions(monkeypatch):
     async def exercise() -> None:
+        from core.runtime.lockdep import assert_no_locks_held
+
         tts = StreamingTts()
         tts._state.kokoro = object()
         calls = 0
 
         async def loaded():
+            assert_no_locks_held("TTS warmup model load", strict=True)
             return True
 
         async def synthesize(_text, _spec, _token):
             nonlocal calls
+            assert_no_locks_held("TTS warmup synthesis", strict=True)
             calls += 1
             await asyncio.sleep(0)
             return object()
@@ -1335,6 +1339,80 @@ def test_tts_warmup_is_singleflight_across_sessions(monkeypatch):
         tts.shutdown()
 
     asyncio.run(exercise())
+
+
+def test_tts_model_lane_effects_run_outside_the_lifecycle_lock(monkeypatch):
+    from core.runtime import model_lane_control
+    from core.runtime.lockdep import assert_no_locks_held
+
+    released: list[str] = []
+
+    class Lease:
+        def release(self, *, reason):
+            assert_no_locks_held("TTS model lane release", strict=True)
+            released.append(reason)
+            return True
+
+    def acquire(**_kwargs):
+        assert_no_locks_held("TTS model lane acquire", strict=True)
+        return Lease()
+
+    monkeypatch.setattr(
+        model_lane_control,
+        "acquire_synchronous_in_process_model_lane",
+        acquire,
+    )
+    tts = StreamingTts()
+
+    assert isinstance(tts._acquire_model_lane(), Lease)
+    tts.shutdown()
+
+    assert released == ["voice_tts_shutdown"]
+
+
+def test_tts_releases_a_model_lane_that_arrives_after_shutdown(monkeypatch):
+    from core.runtime import model_lane_control
+
+    admission_started = threading.Event()
+    finish_admission = threading.Event()
+    released: list[str] = []
+    failures: list[BaseException] = []
+
+    class Lease:
+        def release(self, *, reason):
+            released.append(reason)
+            return True
+
+    def acquire(**_kwargs):
+        admission_started.set()
+        assert finish_admission.wait(timeout=2.0)
+        return Lease()
+
+    monkeypatch.setattr(
+        model_lane_control,
+        "acquire_synchronous_in_process_model_lane",
+        acquire,
+    )
+    tts = StreamingTts()
+
+    def admit() -> None:
+        try:
+            tts._acquire_model_lane()
+        except BaseException as exc:  # noqa: BLE001 - crossing a test thread
+            failures.append(exc)
+
+    thread = threading.Thread(target=admit, name="late-tts-admission")
+    thread.start()
+    assert admission_started.wait(timeout=1.0)
+    tts.shutdown()
+    finish_admission.set()
+    thread.join(timeout=2.0)
+
+    assert not thread.is_alive()
+    assert len(failures) == 1
+    assert isinstance(failures[0], RuntimeError)
+    assert released == ["voice_tts_closed_during_model_admission"]
+    assert tts._lane_lease is None
 
 
 def test_cancelled_native_tts_retains_model_owner_until_worker_returns():

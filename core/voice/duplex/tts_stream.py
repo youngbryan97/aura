@@ -33,10 +33,10 @@ from typing import Any
 import numpy as np
 
 from core.runtime.errors import record_degradation
+from core.runtime.lockdep import LockRank, checked_lock
 from core.utils.task_tracker import get_task_tracker
 from core.voice.duplex.config import OUTPUT_RATE, TtsConfig
 from core.voice.duplex.prosody import ProsodySpec
-from core.runtime.lockdep import LockRank, checked_async_lock, checked_lock
 
 logger = logging.getLogger("Aura.Voice.Tts")
 
@@ -328,7 +328,7 @@ class StreamingTts:
         self._accepting_synthesis = False
         self._closing = False
         self._load_retry_after = 0.0
-        self._warm_lock = checked_async_lock("voice.tts.warm", rank=LockRank.LEAF)
+        self._warm_task: asyncio.Task[bool] | None = None
         self._warmed = False
         self._pool = ThreadPoolExecutor(
             max_workers=max(1, self._config.workers),
@@ -339,38 +339,56 @@ class StreamingTts:
         with self._lifecycle_lock:
             if self._lane_lease is not None:
                 return self._lane_lease
-            from core.runtime.model_lane_control import (
-                acquire_synchronous_in_process_model_lane,
-            )
+            if self._closing:
+                raise RuntimeError("voice TTS is closing")
 
-            clone_enabled = bool(
-                self._config.prefer_clone and self._config.clone_reference
-            )
-            lease = acquire_synchronous_in_process_model_lane(
-                owner_id=f"voice-duplex-tts:{id(self)}",
-                model_path=(
-                    "voice-duplex/tts/xtts-kokoro-piper"
-                    if clone_enabled
-                    else "voice-duplex/tts/kokoro-piper"
-                ),
-                purpose="serve",
-                request_gb=3.0 if clone_enabled else 0.75,
-                priority=30,
-                preemptible=False,
-                evict=self._evict_model_lane,
-                compensate=self._compensate_model_lane,
-                metadata={
-                    "engine": "voice_duplex",
-                    "model_role": "tts",
-                    "clone_enabled": clone_enabled,
-                    "lifecycle_state": "loading",
-                },
-                controller=self._model_lane_controller,
-            )
-            self._lane_lease = lease
-            return lease
+        from core.runtime.model_lane_control import (
+            acquire_synchronous_in_process_model_lane,
+        )
 
-    def _release_model_lane_locked(self, *, reason: str) -> bool:
+        clone_enabled = bool(
+            self._config.prefer_clone and self._config.clone_reference
+        )
+        candidate = acquire_synchronous_in_process_model_lane(
+            owner_id=f"voice-duplex-tts:{id(self)}",
+            model_path=(
+                "voice-duplex/tts/xtts-kokoro-piper"
+                if clone_enabled
+                else "voice-duplex/tts/kokoro-piper"
+            ),
+            purpose="serve",
+            request_gb=3.0 if clone_enabled else 0.75,
+            priority=30,
+            preemptible=False,
+            evict=self._evict_model_lane,
+            compensate=self._compensate_model_lane,
+            metadata={
+                "engine": "voice_duplex",
+                "model_role": "tts",
+                "clone_enabled": clone_enabled,
+                "lifecycle_state": "loading",
+            },
+            controller=self._model_lane_controller,
+        )
+
+        release_reason = ""
+        with self._lifecycle_lock:
+            if self._closing:
+                release_reason = "voice_tts_closed_during_model_admission"
+                authoritative = None
+            elif self._lane_lease is None:
+                self._lane_lease = candidate
+                return candidate
+            else:
+                release_reason = "voice_tts_duplicate_model_admission"
+                authoritative = self._lane_lease
+
+        candidate.release(reason=release_reason)
+        if authoritative is not None:
+            return authoritative
+        raise RuntimeError("voice TTS closed during model admission")
+
+    def _detach_model_lane_locked(self) -> tuple[Any, bool]:
         self._accepting_synthesis = False
         self._state.clone = None
         self._state.kokoro = None
@@ -378,15 +396,16 @@ class StreamingTts:
         self._state.loaded = False
         self._warmed = False
         lease, self._lane_lease = self._lane_lease, None
-        if lease is not None:
-            lease.release(reason=reason)
-        return self._active_syntheses == 0 and self._lane_lease is None
+        return lease, self._active_syntheses == 0 and self._lane_lease is None
 
     def _release_model_lane_if_idle(self, *, reason: str) -> bool:
         with self._lifecycle_lock:
             if self._active_syntheses:
                 return False
-            return self._release_model_lane_locked(reason=reason)
+            lease, released = self._detach_model_lane_locked()
+        if lease is not None:
+            lease.release(reason=reason)
+        return released
 
     async def _evict_model_lane(self, _owner: Any, reason: str) -> bool:
         released = await asyncio.to_thread(
@@ -454,8 +473,11 @@ class StreamingTts:
             if neural_available:
                 if not lease.set_preemptible(True):
                     with self._lifecycle_lock:
-                        self._release_model_lane_locked(
-                            reason="voice_tts_model_activation_fence_lost"
+                        detached, _released = self._detach_model_lane_locked()
+                    if detached is not None:
+                        await asyncio.to_thread(
+                            detached.release,
+                            reason="voice_tts_model_activation_fence_lost",
                         )
                     self._load_retry_after = time.monotonic() + 2.0
                     logger.error("TTS model lane lost its activation fence")
@@ -465,8 +487,11 @@ class StreamingTts:
                 self._load_retry_after = 0.0
             else:
                 with self._lifecycle_lock:
-                    self._release_model_lane_locked(
-                        reason="voice_tts_no_neural_engine_loaded"
+                    detached, _released = self._detach_model_lane_locked()
+                if detached is not None:
+                    await asyncio.to_thread(
+                        detached.release,
+                        reason="voice_tts_no_neural_engine_loaded",
                     )
                 # The configured assets are absent or unusable. This is a
                 # stable state until settings/files change, not a reason to
@@ -521,20 +546,37 @@ class StreamingTts:
         Measured cold-start on this host is ~635 ms versus ~190 ms warm —
         the difference between a natural opening and an awkward one.
         """
-        async with self._warm_lock:
-            if self._warmed and self.available:
-                return True
-            if not await self.ensure_loaded():
-                return False
-            try:
-                result = await self.synthesize("Okay.", spec, CancellationToken())
-            except (RuntimeError, ValueError, OSError) as exc:
-                record_degradation(
-                    "voice_duplex.tts",
-                    exc,
-                    action="warmup synthesis failed; first utterance pays cold-start cost",
-                    severity="warning",
-                )
+        if self._warmed and self.available:
+            return True
+        task = self._warm_task
+        if task is None or task.done():
+            task = get_task_tracker().create_task(
+                self._run_warm_up(spec),
+                name="VoiceTTS.warm_up",
+            )
+            self._warm_task = task
+        try:
+            return await asyncio.shield(task)
+        finally:
+            if task.done() and self._warm_task is task:
+                self._warm_task = None
+
+    async def _run_warm_up(self, spec: ProsodySpec) -> bool:
+        if not await self.ensure_loaded():
+            return False
+        try:
+            result = await self.synthesize("Okay.", spec, CancellationToken())
+        except (RuntimeError, ValueError, OSError) as exc:
+            await asyncio.to_thread(
+                record_degradation,
+                "voice_duplex.tts",
+                exc,
+                action="warmup synthesis failed; first utterance pays cold-start cost",
+                severity="warning",
+            )
+            return False
+        with self._lifecycle_lock:
+            if self._closing:
                 return False
             self._warmed = result is not None
             return self._warmed
@@ -641,10 +683,13 @@ class StreamingTts:
                 self._finish_synthesis()
 
     def _finish_synthesis(self) -> None:
+        detached = None
         with self._lifecycle_lock:
             self._active_syntheses = max(0, self._active_syntheses - 1)
             if self._closing and self._active_syntheses == 0:
-                self._release_model_lane_locked(reason="voice_tts_shutdown")
+                detached, _released = self._detach_model_lane_locked()
+        if detached is not None:
+            detached.release(reason="voice_tts_shutdown")
 
     def _cancelled_synthesis_done(self, synthesis: asyncio.Future[Any]) -> None:
         try:
@@ -712,9 +757,12 @@ class StreamingTts:
                     await pending
 
     def shutdown(self) -> None:
+        detached = None
         with self._lifecycle_lock:
             self._closing = True
             self._accepting_synthesis = False
             if self._active_syntheses == 0:
-                self._release_model_lane_locked(reason="voice_tts_shutdown")
+                detached, _released = self._detach_model_lane_locked()
+        if detached is not None:
+            detached.release(reason="voice_tts_shutdown")
         self._pool.shutdown(wait=False, cancel_futures=True)

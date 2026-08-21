@@ -51248,3 +51248,35 @@ TTS lifecycle-lock/dependency defect in six speech-engine-dependent cases; that
 is the next bounded repair rather than evidence against this authority change.
 The running pre-checkpoint process was intentionally not restarted, so live
 confirmation belongs to the next normal installed-app restart.
+
+## Checkpoint 2026-08-21-887: Make TTS Warmup and Model Ownership True Singleflights
+
+The first exploratory voice sweep after CP886 used a Python 3.14 test
+interpreter without Aura's installed Kokoro, Piper or Silero dependencies. Its
+six speech failures were therefore environment artifacts, not product
+failures; the production Python 3.12 environment reran that surface `6/6`.
+That correction did not invalidate the lock evidence the run exposed. TTS
+warmup held a checked async lock across model admission and synthesis, then
+entered the equal-ranked lifecycle lock. Model-lane admission and release also
+performed external receipt-bearing effects while that lifecycle mutex was
+held. Missing-engine and shutdown paths could consequently report lock-order
+inversions or blocking persistence under locks.
+
+Warmup is now one shared tracked task. Concurrent sessions await the same
+shielded result without carrying a lock through model load, native synthesis or
+degradation recording. Model-lane ownership uses a two-phase transaction:
+short lifecycle critical sections inspect, publish or detach local state, while
+admission and release execute outside every checked lock. A candidate arriving
+after shutdown is released without publication, duplicate candidates are
+released in favor of the authoritative owner, and native cancellation retains
+the lease until its worker really returns.
+
+Deterministic contracts assert no checked lock is held during warmup load,
+warmup synthesis, model admission or model release, and reproduce the
+shutdown-during-admission race. The focused lifecycle set passes `4/4`; duplex,
+model-lane, streaming, disconnect and audio-service contracts pass `143/143`;
+the production-matched broad voice surface passes `232/232`; canonical smoke
+passes `120/120` with one environment-dependent skip. Ruff, compilation and
+diff hygiene pass. The running pre-checkpoint process was intentionally not
+restarted, so live confirmation belongs to the next normal installed-app
+restart.
