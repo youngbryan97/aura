@@ -1,9 +1,13 @@
 import logging
 import time
-from typing import Any, Optional
+from typing import Any
 
 from core.runtime.background_policy import background_activity_allowed
-from core.runtime.cognitive_contract import BranchSpec, CognitiveTransformContract, register_contract
+from core.runtime.cognitive_contract import (
+    BranchSpec,
+    CognitiveTransformContract,
+    register_contract,
+)
 from core.runtime.cognitive_provenance import note_branch
 from core.runtime.errors import record_degradation
 from core.runtime.proposal_governance import propose_governed_initiative_to_state
@@ -77,6 +81,7 @@ INITIATIVE_GENERATION_CONTRACT = register_contract(
             "affect.social_hunger",
             "affect.arousal",
             "cognition.pending_initiatives",
+            "transition_cause",
         ),
         preconditions=(
             "autonomous actions admitted by runtime settings",
@@ -203,7 +208,7 @@ class InitiativeGenerationPhase(BasePhase):
             logger.debug("Suppressed Exception: %s", _exc)
         return ""
 
-    async def execute(self, state: AuraState, objective: Optional[str] = None, **kwargs) -> AuraState:
+    async def execute(self, state: AuraState, objective: str | None = None, **kwargs) -> AuraState:
         """
         Decide whether Aura should generate an autonomous initiative this tick.
 

@@ -164,6 +164,7 @@ def test_initiative_generation_has_an_exhaustive_contract() -> None:
     assert contract is not None, "the exemplar contract must exist"
     assert contract.thresholds_exhaustive is True
     assert contract.thresholds, "an exhaustive contract with no thresholds says nothing"
+    assert "transition_cause" in contract.writes
 
 
 @pytest.mark.parametrize(
