@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
@@ -36,6 +39,39 @@ class _Tokenizer:
         return list(text.encode("utf-8"))
 
     eos_token_id = 0
+
+
+@pytest.mark.asyncio
+async def test_qualified_cpu_lane_survives_default_executor_saturation():
+    loop = asyncio.get_running_loop()
+    shared_executor = ThreadPoolExecutor(
+        max_workers=1,
+        thread_name_prefix="test-saturated-default",
+    )
+    loop.set_default_executor(shared_executor)
+    blocker_started = threading.Event()
+    release_blocker = threading.Event()
+
+    def _occupy_shared_pool() -> None:
+        blocker_started.set()
+        assert release_blocker.wait(timeout=5.0)
+
+    blocked = asyncio.create_task(asyncio.to_thread(_occupy_shared_pool))
+    try:
+        for _ in range(100):
+            if blocker_started.is_set():
+                break
+            await asyncio.sleep(0.001)
+        assert blocker_started.is_set()
+
+        worker_name = await ingress._run_qualified_cpu_bound(
+            lambda: threading.current_thread().name,
+            timeout_s=0.5,
+        )
+        assert worker_name.startswith("aura-qualified-recurrent")
+    finally:
+        release_blocker.set()
+        await blocked
 
 
 @pytest.mark.parametrize(

@@ -12,9 +12,11 @@ import asyncio
 import hashlib
 import json
 import re
+import threading
 from collections.abc import Mapping, Sequence
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
-from functools import lru_cache
+from functools import lru_cache, partial
 from pathlib import Path
 from typing import Any, Final
 
@@ -22,6 +24,9 @@ QUALIFIED_RECURRENT_INGRESS_SCHEMA: Final = "aura.unified_intrinsic.qualified_in
 QUALIFIED_RECURRENT_RESULT_SCHEMA: Final = "aura.unified_intrinsic.qualified_foreground_result.v1"
 QUALIFIED_ANSWER_BRIDGE: Final = "\n\nFINAL_ANSWER: "
 _HEX: Final = frozenset("0123456789abcdef")
+_QUALIFIED_CPU_WORKERS: Final = 2
+_qualified_cpu_executor_instance: ThreadPoolExecutor | None = None
+_qualified_cpu_executor_lock = threading.Lock()
 
 _TERMINAL = (
     r" You may reason before answering\. Finish with exactly one final line using the "
@@ -68,6 +73,38 @@ def _canonical_sha256(value: Any) -> str:
             allow_nan=False,
         ).encode("ascii")
     ).hexdigest()
+
+
+def _qualified_cpu_executor() -> ThreadPoolExecutor:
+    """Return the isolated executor for short certified recurrent programs."""
+
+    global _qualified_cpu_executor_instance
+    if _qualified_cpu_executor_instance is None:
+        with _qualified_cpu_executor_lock:
+            if _qualified_cpu_executor_instance is None:
+                _qualified_cpu_executor_instance = ThreadPoolExecutor(
+                    max_workers=_QUALIFIED_CPU_WORKERS,
+                    thread_name_prefix="aura-qualified-recurrent",
+                )
+    return _qualified_cpu_executor_instance
+
+
+async def _run_qualified_cpu_bound(
+    function: Any,
+    /,
+    *args: Any,
+    timeout_s: float,
+) -> Any:
+    """Run certified bounded work without competing for asyncio's shared pool."""
+
+    bounded_timeout = float(timeout_s)
+    if not 0.0 < bounded_timeout <= 30.0:
+        raise ValueError("qualified recurrent CPU timeout is invalid")
+    future = asyncio.get_running_loop().run_in_executor(
+        _qualified_cpu_executor(),
+        partial(function, *args),
+    )
+    return await asyncio.wait_for(future, timeout=bounded_timeout)
 
 
 @dataclass(frozen=True, slots=True)
@@ -494,9 +531,10 @@ async def execute_qualified_recurrent_objective(
                     "reason": "semantic_neural_surface_profile_not_activated",
                     "admission": admission.receipt(),
                 }
-            surface_decode = await asyncio.wait_for(
-                asyncio.to_thread(execute_scientific_surface, prompt),
-                timeout=max(1.0, min(30.0, timeout_s)),
+            surface_decode = await _run_qualified_cpu_bound(
+                execute_scientific_surface,
+                prompt,
+                timeout_s=max(1.0, min(30.0, timeout_s)),
             )
             surface_receipt = surface_decode.program.receipt()
             if (
@@ -510,13 +548,11 @@ async def execute_qualified_recurrent_objective(
             state = surface_decode.state
             surface_decode_receipt = surface_decode.receipt()
         else:
-            state = await asyncio.wait_for(
-                asyncio.to_thread(
-                    execute_semantic_neural_decode_state,
-                    prompt,
-                    admission.family,
-                ),
-                timeout=max(1.0, min(30.0, timeout_s)),
+            state = await _run_qualified_cpu_bound(
+                execute_semantic_neural_decode_state,
+                prompt,
+                admission.family,
+                timeout_s=max(1.0, min(30.0, timeout_s)),
             )
         text = render_semantic_neural_answer(state)
         if not isinstance(activation_receipt, Mapping):

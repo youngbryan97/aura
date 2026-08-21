@@ -1,5 +1,5 @@
 {
-  "activation_sha256": "5e07c6047b0631ba9333d608093862942f80a4422b248317db0ab48a23a32a91",
+  "activation_sha256": "e861b93fb419a969eaf0b3ec170d563b5864aa175ad743b0fa39ad7951ece850",
   "active_by_default": true,
   "allowed_families": [
     "frontier_calibration",
@@ -67,15 +67,15 @@
     "tag": "crsm-closeout-jul1"
   },
   "runtime_qualification": {
-    "candidate_activation_sha256": "e2b1e45ce06c56b5a806b97685b6802179fdea451699996bd4aa16cbebf0e48f",
+    "candidate_activation_sha256": "6b46e6f87ea6a31337da2aef577c522f3a456b155a1020a7cd6d2f57f46a5220",
     "exact_count": 120,
     "lesion_disruption_count": 120,
-    "max_latency_ms": 156.725,
+    "max_latency_ms": 317.796,
     "path": "artifacts/closeout/latent_cortex/cp568_semantic_neural_active_r1/runtime_verification.json",
-    "sha256": "1fae6ecb03f62898699887afa873c732598b70d5893fa0c09495b4a6452dd605",
+    "sha256": "b849f51481eef75f422a254ac3b9b688eb6ff0c4843d4e3d7d68f02f2e2e04e5",
     "task_count": 120,
     "unsupported_language_refused": true,
-    "verification_receipt_sha256": "e26412cef06da8d2abe6b9b134c38a780b5b7e0c2ca8eed1cc799e37173b9aaa"
+    "verification_receipt_sha256": "3209495c32303bfedc7f8d17e6c5ac614bae44985d2c709d2cd05e719d65eca1"
   },
   "schema": "aura.semantic_neural_serving.v2",
   "source_sha256s": {
@@ -86,7 +86,7 @@
     "core/brain/llm/latent_cortex/semantic_neural_decode_context.py": "affc4bc3cbf017454b50441e5c8fc7c9494f63bc8c72e0f8605f27c69c582abc",
     "core/brain/llm/latent_cortex/semantic_surface_adapter.py": "31cd151ea864449795c4fcc8751fe9eccdb771e520efb541709bacf066807b24",
     "core/brain/llm/latent_cortex/systematic_neural_alu.py": "141a3d16aa891be182b30c38707a3f15c208734574e5af32459a8f25ac105a72",
-    "core/brain/llm/qualified_recurrent_ingress.py": "9369d5fcc76a497a82a601a51c96bcf1ec03d8640334156acef28edf358a73e0",
+    "core/brain/llm/qualified_recurrent_ingress.py": "88ac400f127c659f63b9f53a49c32f1dd21f12115038098cebf92a0ed284f778",
     "core/learning/frontier_process_supervision.py": "f4beb455da1c3cb8e77a3c17afd2a3f5c6cee8d127b60e47c4e99e038d7902bf",
     "core/learning/public_frontier_action_compiler.py": "32da5f3169ea75003b1aeea0a7fdcb072a9ee138968eae42c0fb75f57f973592",
     "core/learning/recurrent_action_schema.py": "9e64dff7ac586c62bc3cc519694cd5b579a6fac020ad631ea31a5d7e6e0b0904",
