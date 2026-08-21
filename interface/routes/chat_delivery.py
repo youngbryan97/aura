@@ -599,7 +599,13 @@ async def _record_http_chat_delivery(
             )
 
     try:
-        await asyncio.to_thread(_record)
+        from core.runtime.executors import run_durable_receipt_io
+
+        await run_durable_receipt_io(
+            _record,
+            timeout_s=10.0,
+            label="chat_http_delivery_receipt",
+        )
     except _CHAT_RECOVERABLE_ERRORS as exc:
         record_degradation(
             "chat.http_delivery_receipt",

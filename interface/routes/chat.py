@@ -984,6 +984,7 @@ async def _emit_chat_output_receipt(
 ) -> None:
     """Record direct chat replies as durable output receipts."""
     try:
+        from core.runtime.executors import run_durable_receipt_io
         from core.runtime.receipts import OutputReceipt, get_receipt_store
 
         digest = digest_output_content(reply_text)
@@ -994,7 +995,12 @@ async def _emit_chat_output_receipt(
             digest=digest,
             metadata=dict(metadata or {}),
         )
-        await asyncio.to_thread(get_receipt_store().emit, receipt)
+        await run_durable_receipt_io(
+            get_receipt_store().emit,
+            receipt,
+            timeout_s=10.0,
+            label="chat_output_receipt",
+        )
         if str(target or "primary") == "primary":
             try:
                 from core.epistemics.epistemic_reach import (

@@ -156,6 +156,7 @@ class AutonomousOutputGate:
         metadata: dict[str, Any] | None = None,
     ) -> str | None:
         try:
+            from core.runtime.executors import run_durable_receipt_io
             from core.runtime.receipts import (
                 OutputReceipt,
                 digest_output_content,
@@ -189,7 +190,12 @@ class AutonomousOutputGate:
                     "recipient_principal_digest": recipient_principal_digest,
                 },
             )
-            stored = await asyncio.to_thread(get_receipt_store().emit, receipt)
+            stored = await run_durable_receipt_io(
+                get_receipt_store().emit,
+                receipt,
+                timeout_s=10.0,
+                label="output_gate_receipt",
+            )
             return str(stored.receipt_id or "") or None
         except (ImportError, AttributeError, RuntimeError, OSError, TypeError, ValueError) as exc:
             record_degradation('output_gate', exc)

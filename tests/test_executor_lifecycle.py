@@ -84,3 +84,11 @@ async def test_pools_self_heal_after_external_shutdown():
     assert await executors.run_heavy_cpu(lambda: "cpu", timeout_s=3.0) == "cpu"
     executors.HEAVY_CPU_POOL.shutdown(wait=False, cancel_futures=True)
     assert await executors.run_heavy_cpu(lambda: "cpu2", timeout_s=3.0) == "cpu2"
+
+    assert await executors.run_durable_receipt_io(
+        lambda: "receipt", timeout_s=3.0
+    ) == "receipt"
+    executors.DURABLE_RECEIPT_POOL.shutdown(wait=False, cancel_futures=True)
+    assert await executors.run_durable_receipt_io(
+        lambda: "receipt2", timeout_s=3.0
+    ) == "receipt2"

@@ -9,6 +9,7 @@ Verifies that:
 from __future__ import annotations
 
 import asyncio
+import threading
 import time
 
 import numpy as np
@@ -87,8 +88,38 @@ def test_pool_status():
     status = pool_status()
     assert "heavy_cpu" in status
     assert "blocking_io" in status
+    assert "durable_receipt" in status
     assert status["heavy_cpu"]["max_workers"] == 2
     assert status["blocking_io"]["max_workers"] == 4
+    assert status["durable_receipt"]["max_workers"] == 1
+
+
+@pytest.mark.asyncio
+async def test_durable_receipt_lane_isolated_from_saturated_blocking_io():
+    """User-visible delivery evidence cannot queue behind unrelated scans."""
+
+    from core.runtime import executors
+
+    blockers = []
+    release = threading.Event()
+
+    def occupy() -> None:
+        while not release.is_set():
+            time.sleep(0.005)
+
+    blocking_pool = executors._live_pool("blocking_io")
+    for _ in range(4):
+        blockers.append(blocking_pool.submit(occupy))
+    try:
+        result = await executors.run_durable_receipt_io(
+            lambda: "durable",
+            timeout_s=0.5,
+        )
+        assert result == "durable"
+    finally:
+        release.set()
+        for blocker in blockers:
+            blocker.result(timeout=1.0)
 
 
 @pytest.mark.asyncio

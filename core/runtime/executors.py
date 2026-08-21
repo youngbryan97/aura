@@ -50,6 +50,11 @@ BLOCKING_IO_POOL = ThreadPoolExecutor(
     thread_name_prefix="aura-blocking-io",
 )
 
+DURABLE_RECEIPT_POOL = ThreadPoolExecutor(
+    max_workers=1,
+    thread_name_prefix="aura-durable-receipt",
+)
+
 _POOL_REBUILD_LOCK = threading.Lock()
 
 
@@ -65,18 +70,35 @@ def _live_pool(kind: str) -> ThreadPoolExecutor:
     keeps running earns a fresh pool; real shutdown is still refused by the
     latch check in _register_pool.
     """
-    global HEAVY_CPU_POOL, BLOCKING_IO_POOL
-    pool = HEAVY_CPU_POOL if kind == "heavy_cpu" else BLOCKING_IO_POOL
+    global HEAVY_CPU_POOL, BLOCKING_IO_POOL, DURABLE_RECEIPT_POOL
+    pool = (
+        HEAVY_CPU_POOL
+        if kind == "heavy_cpu"
+        else DURABLE_RECEIPT_POOL
+        if kind == "durable_receipt"
+        else BLOCKING_IO_POOL
+    )
     if not getattr(pool, "_shutdown", False):
         return pool
     with _POOL_REBUILD_LOCK:
-        pool = HEAVY_CPU_POOL if kind == "heavy_cpu" else BLOCKING_IO_POOL
+        pool = (
+            HEAVY_CPU_POOL
+            if kind == "heavy_cpu"
+            else DURABLE_RECEIPT_POOL
+            if kind == "durable_receipt"
+            else BLOCKING_IO_POOL
+        )
         if getattr(pool, "_shutdown", False):
             if kind == "heavy_cpu":
                 HEAVY_CPU_POOL = ThreadPoolExecutor(
                     max_workers=2, thread_name_prefix="aura-heavy-cpu"
                 )
                 pool = HEAVY_CPU_POOL
+            elif kind == "durable_receipt":
+                DURABLE_RECEIPT_POOL = ThreadPoolExecutor(
+                    max_workers=1, thread_name_prefix="aura-durable-receipt"
+                )
+                pool = DURABLE_RECEIPT_POOL
             else:
                 BLOCKING_IO_POOL = ThreadPoolExecutor(
                     max_workers=4, thread_name_prefix="aura-blocking-io"
@@ -208,6 +230,44 @@ async def run_blocking_io[T](
         raise
 
 
+async def run_durable_receipt_io[T](
+    fn: Callable[..., T],
+    *args: Any,
+    timeout_s: float = 10.0,
+    label: str = "",
+    **kwargs: Any,
+) -> T:
+    """Serialize user-facing durable receipts outside shared I/O lanes.
+
+    A completed answer must not wait behind model probes, filesystem scans, or
+    other default-executor work before its audit receipt becomes durable. One
+    worker preserves receipt ordering; ReceiptStore still owns the database,
+    process lock, audit-chain append, and durability policy.
+    """
+
+    pool = _live_pool("durable_receipt")
+    _register_pool(pool, name="durable_receipt_thread_pool")
+    loop = asyncio.get_running_loop()
+    tag = label or getattr(fn, "__qualname__", str(fn))
+    started = time.monotonic()
+    try:
+        return await asyncio.wait_for(
+            loop.run_in_executor(
+                pool,
+                functools.partial(fn, *args, **kwargs),
+            ),
+            timeout=timeout_s,
+        )
+    except TimeoutError:
+        logger.warning(
+            "Durable receipt IO '%s' timed out after %.1f ms (budget %.0f ms)",
+            tag,
+            (time.monotonic() - started) * 1000.0,
+            timeout_s * 1000.0,
+        )
+        raise
+
+
 def submit_blocking_io[T](
     fn: Callable[..., T],
     *args: Any,
@@ -254,11 +314,13 @@ def pool_status() -> dict[str, Any]:
     return {
         "heavy_cpu": _stats(HEAVY_CPU_POOL, "heavy_cpu"),
         "blocking_io": _stats(BLOCKING_IO_POOL, "blocking_io"),
+        "durable_receipt": _stats(DURABLE_RECEIPT_POOL, "durable_receipt"),
     }
 
 
 def shutdown_pools(wait: bool = False) -> None:
-    """Gracefully shutdown both pools.  Called during runtime teardown."""
+    """Gracefully shut down all bounded runtime pools."""
     HEAVY_CPU_POOL.shutdown(wait=wait, cancel_futures=True)
     BLOCKING_IO_POOL.shutdown(wait=wait, cancel_futures=True)
+    DURABLE_RECEIPT_POOL.shutdown(wait=wait, cancel_futures=True)
     logger.info("Executor pools shut down (wait=%s).", wait)
