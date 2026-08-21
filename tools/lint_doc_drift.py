@@ -103,7 +103,7 @@ TEST_DEF = re.compile(r"^\s*(?:async\s+)?def\s+test_", re.M)
 #: the AURA_ namespace, which this repository owns.
 #: Three things read as an env name and are not one: a document filename
 #: (`AURA_MASTER_SPEC.md`), a documented family written with a wildcard
-#: (`AURA_LLM__*`), and a name a document mentions in order to say it does not
+#: (`AURA_LLM__*`), and a name a document names only to say it does not
 #: exist. The last is why the negation cue is here — OPERATOR_GUIDE.md warns
 #: readers off `AURA_MEM_THRESHOLDS`, and flagging that sentence would ask the
 #: author to delete a correction.
