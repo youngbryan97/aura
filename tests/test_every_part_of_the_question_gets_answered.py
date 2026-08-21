@@ -165,6 +165,21 @@ def test_each_numbered_obligation_is_proved_by_its_own_answer_section():
     assert any("correct alternative" in segment for segment in missed)
 
 
+def test_numbered_section_marker_satisfies_numbered_pseudocode_structure():
+    user = (
+        "Explain Dijkstra. Include: (1) its core invariant, (2) numbered pseudocode, "
+        "(3) a worked graph example."
+    )
+    reply = (
+        "Dijkstra computes shortest paths on nonnegative weighted graphs.\n"
+        "## (1) Core invariant\nThe core invariant finalizes the minimum unsettled distance.\n"
+        "## (2) Pseudocode\nInitialize every distance, select the minimum, and relax each edge.\n"
+        "## (3) Worked graph example\nThe worked graph example follows A -> B: 2."
+    )
+
+    assert not _unanswered_question_parts(reply, _Contract(analyze_prompt_shape(user)))
+
+
 def test_minimum_quantity_requires_a_real_count_witness():
     user = (
         "Explain Dijkstra. Include: (1) its invariant, (2) pseudocode, "

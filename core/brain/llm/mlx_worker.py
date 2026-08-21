@@ -3163,36 +3163,17 @@ def build_semantic_completion_terminal_guard(tokenizer: Any, job: dict[str, Any]
     terminal_ids = tuple(_first_token_suppression_ids(tokenizer))
     if not terminal_ids:
         return None
-    boundary = {"base": None, "last": 0}
-
     def semantic_continuation_terminal_guard(
         tokens,
         logits,
         terminal_ids=terminal_ids,
-        boundary=boundary,
     ):
-        token_count = len(tokens)
-        base = boundary["base"]
-        if base is None or (token_count <= base and boundary["last"] > token_count):
-            base = token_count
-            boundary["base"] = base
-        boundary["last"] = token_count
-        generated = tokens[int(base) :]
-        try:
-            generated_ids = generated.tolist()
-        except AttributeError:
-            generated_ids = list(generated)
-        try:
-            response_text = tokenizer.decode(generated_ids, skip_special_tokens=True)
-        except TypeError:
-            response_text = tokenizer.decode(generated_ids)
-        if _semantic_surface_stop_ready(
-            job,
-            response_text,
-            generated_tokens=len(generated_ids),
-        ):
-            return logits
-
+        del tokens
+        # The owning decode loop evaluates the assembled head+tail every eight
+        # tokens and stops generation once the semantic contract is satisfied.
+        # Re-decoding and re-grading the entire tail here made sampling O(n^2)
+        # while duplicating that owner. This processor has one job: prevent a
+        # premature terminal token between those bounded observer checks.
         mask = mx.zeros_like(logits)
         for token_id in terminal_ids:
             try:
@@ -7144,11 +7125,18 @@ def _mlx_worker_loop(
 
                                     attempt_logits_processors = list(logits_processors)
                                     if bool(job.get("semantic_completion_contract", False)):
-                                        logger.info(
-                                            "🧩 [WORKER] Semantic completion observer ACTIVE; "
-                                            "natural branch termination remains available while the "
-                                            "typed contract is measured."
-                                        )
+                                        if semantic_terminal_guard is not None:
+                                            logger.info(
+                                                "🧩 [WORKER] Semantic completion observer ACTIVE; "
+                                                "append-only continuation terminal held until the "
+                                                "assembled contract is satisfied."
+                                            )
+                                        else:
+                                            logger.info(
+                                                "🧩 [WORKER] Semantic completion observer ACTIVE; "
+                                                "natural initial-branch termination remains available "
+                                                "while the typed contract is measured."
+                                            )
                                     if attempt_logits_processors:
                                         kwargs["logits_processors"] = attempt_logits_processors
                                     else:

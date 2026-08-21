@@ -897,6 +897,11 @@ def unanswered_question_parts(body: Any, contract: object | None) -> list[str]:
                 missed.append(str(segment))
                 continue
             local_answered = coverage_tokens(local_body)
+            # The parsed section marker is itself the structural witness for
+            # "numbered". Requiring the section body to repeat that adjective
+            # made a natural heading such as ``## (2) Pseudocode`` impossible
+            # to satisfy even though the answer was visibly numbered.
+            local_answered.add("numbered")
         if not _strong_segment_obligations_are_covered(segment, local_body):
             missed.append(str(segment))
             continue
