@@ -2551,6 +2551,37 @@ class CognitiveEngine:
         )
         state.response_modifiers["model_tier"] = "tertiary" if is_background else "primary"
         state.response_modifiers["deep_handoff"] = False
+
+        # A promoted, grammar-qualified recurrent program is already a complete
+        # cognitive result.  It must own the turn before model-backed advisors,
+        # augmentors, or the ordinary response phases spend the resident lane
+        # and create competing drafts.  The result still enters the ordinary
+        # thinking loop as a direct thought so user memory, durable state,
+        # foreground closure, the turn ledger, and delivery all use the same
+        # machinery as every other accepted response.
+        context = context if isinstance(context, dict) else {}
+        qualified_reply = await self._qualified_recurrent_direct_reply(
+            state,
+            objective,
+            mode,
+            origin,
+            context,
+            is_background=is_background,
+            timeout_s=kwargs.get("timeout_s", kwargs.get("timeout")),
+        )
+        if qualified_reply is not None:
+            loop_kwargs = dict(kwargs)
+            loop_kwargs["is_background"] = is_background
+            loop_kwargs["precomputed_direct_reply"] = qualified_reply
+            return await self._run_thinking_loop(
+                state,
+                objective,
+                mode,
+                origin,
+                context,
+                **loop_kwargs,
+            )
+
         context = self._apply_spiking_active_inference(
             state,
             objective,
@@ -2730,6 +2761,148 @@ class CognitiveEngine:
 
         return thought
 
+    async def _qualified_recurrent_direct_reply(
+        self,
+        state: AuraState,
+        objective: str,
+        mode: ThinkingMode,
+        origin: str,
+        context: dict[str, Any],
+        *,
+        is_background: bool,
+        timeout_s: Any,
+    ) -> Thought | None:
+        """Return one certified recurrent answer before general generation."""
+
+        if is_background or not self._is_user_facing_origin(origin):
+            return None
+        if str(origin or "").strip().lower() in {
+            "proof",
+            "eval",
+            "evaluation",
+            "benchmark",
+        }:
+            return None
+        if bool(
+            context.get("proof_or_benchmark")
+            or context.get("proof_run")
+            or context.get("benchmark_run")
+        ):
+            return None
+
+        from core.brain.llm.qualified_recurrent_ingress import (
+            admit_qualified_recurrent_objective,
+        )
+        from core.conversation.user_surface_contract import (
+            bind_user_surface_prompt,
+            resolve_user_surface_prompt,
+        )
+
+        surface = resolve_user_surface_prompt(context, fallback=objective)
+        if surface.bound and not surface.valid:
+            record_degradation(
+                "cognitive_engine.qualified_recurrent_surface",
+                RuntimeError(surface.error or "user_surface_prompt_invalid"),
+                severity="warning",
+                action="continued through ordinary cognition after rejecting an invalid user-surface binding",
+                enforce_failure_policy=False,
+            )
+            return None
+        if not surface.bound:
+            bind_user_surface_prompt(
+                context,
+                surface.prompt or objective,
+                source="cognitive_engine.qualified_recurrent_ingress",
+                overwrite=True,
+            )
+            surface = resolve_user_surface_prompt(context, fallback=objective)
+        visible_objective = str(surface.prompt or "").strip()
+        if not visible_objective:
+            return None
+
+        # Admission is answer-blind and total over its supported public
+        # grammars.  Checking it here prevents unsupported conversation from
+        # touching the latent service or acquiring any model resource.
+        try:
+            admission = admit_qualified_recurrent_objective(visible_objective)
+        except _COGNITIVE_ENGINE_RECOVERABLE_ERRORS as exc:
+            record_degradation(
+                "cognitive_engine.qualified_recurrent_admission",
+                exc,
+                severity="warning",
+                action="continued through ordinary cognition after typed admission failed",
+                enforce_failure_policy=False,
+            )
+            return None
+        if admission is None:
+            return None
+
+        try:
+            requested_timeout = float(timeout_s) if timeout_s is not None else 8.0
+        except (TypeError, ValueError, OverflowError):
+            requested_timeout = 8.0
+        qualified_timeout = max(1.0, min(8.0, requested_timeout))
+
+        from core.brain.foreground_latent_runtime import (
+            run_foreground_latent_episode,
+        )
+
+        outcome = await run_foreground_latent_episode(
+            orchestrator=None,
+            messages=[],
+            visible_objective=visible_objective,
+            foreground=True,
+            desktop_required=bool(
+                context.get("desktop_cognitive_engine_required")
+                or context.get("cognitive_engine_required")
+            ),
+            cognitive_mode=str(mode.name).lower(),
+            request_timeout_s=qualified_timeout,
+            strict_output_contract=bool(context.get("strict_output_contract")),
+            incompatible_contract=bool(context.get("incompatible_output_contract")),
+            proof_or_benchmark=False,
+            tenant_id=str(context.get("tenant_id") or "local"),
+            user_id=str(context.get("principal_id") or context.get("user_id") or "owner"),
+            session_id=str(context.get("session_id") or "local"),
+            domain="desktop_conversation",
+        )
+        trace = dict(outcome.trace or {})
+        state.response_modifiers.update(trace)
+        if not str(outcome.text or "").strip():
+            if trace.get("qualified_recurrent_attempted"):
+                logger.warning(
+                    "Qualified recurrent ingress did not produce a serving answer: %s",
+                    trace.get("qualified_recurrent_reason") or "unknown",
+                )
+            return None
+
+        response_path = "cognitive_engine_qualified_recurrent"
+        state.response_modifiers["response_path"] = response_path
+        state.response_modifiers["model_tier"] = "certified_recurrent"
+        evidence = tuple(str(item) for item in outcome.evidence if str(item))
+        logger.info(
+            "Qualified recurrent ingress served family=%s path=%s",
+            getattr(admission, "family", "unknown"),
+            response_path,
+        )
+        return Thought(
+            id=str(uuid.uuid4()),
+            content=str(outcome.text).strip(),
+            mode=mode,
+            confidence=0.95,
+            reasoning=["Certified qualified recurrent execution completed."],
+            metadata={
+                **trace,
+                "response_path": response_path,
+                "qualified_recurrent_family": str(
+                    getattr(admission, "family", "unknown")
+                ),
+                "qualified_recurrent_evidence": evidence,
+                "live_mind_generation_required": False,
+                "model_generation_used": False,
+            },
+        )
+
     async def _run_thinking_loop(
         self,
         state: AuraState,
@@ -2813,13 +2986,15 @@ class CognitiveEngine:
             "modifiers": dict(getattr(state.cognition, "modifiers", {}) or {}),
         }
 
-        direct_quick_reply = await self._direct_desktop_quick_reply(
-            objective,
-            mode,
-            origin,
-            context,
-            timeout_s=cycle_timeout,
-        )
+        direct_quick_reply = kwargs.pop("precomputed_direct_reply", None)
+        if direct_quick_reply is None:
+            direct_quick_reply = await self._direct_desktop_quick_reply(
+                objective,
+                mode,
+                origin,
+                context,
+                timeout_s=cycle_timeout,
+            )
         if direct_quick_reply is not None:
             # The quick lane returned before any phase executed. Whether the
             # model was called depends on which branch inside it answered: the

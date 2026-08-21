@@ -540,6 +540,7 @@ async def test_qualified_semantic_neural_domain_is_observable_and_canonical(monk
         "qualified_semantic_neural_exact_domain"
     )
     assert outcome.evidence == ("qualified_semantic_neural_execution",)
+    assert service.qualified_calls[0][1]["timeout_s"] == pytest.approx(22.5)
 
 
 @pytest.mark.asyncio

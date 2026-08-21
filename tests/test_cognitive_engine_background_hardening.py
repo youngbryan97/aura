@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from core.brain.cognitive_engine import CognitiveEngine
+from core.brain.foreground_latent_runtime import ForegroundLatentOutcome
 from core.brain.types import ThinkingMode, Thought
 from core.runtime.errors import get_degradation_tracker
 from core.state.aura_state import AuraState
@@ -26,6 +27,118 @@ class StateRepositoryFixture:
         self.commits.append((state, args, kwargs))
         self.commit_snapshots.append(copy.deepcopy(state))
         self._current = state
+
+
+@pytest.mark.asyncio
+async def test_qualified_recurrent_answer_owns_turn_before_general_cognition(monkeypatch):
+    engine = CognitiveEngine()
+    repo = StateRepositoryFixture(AuraState.default())
+    engine.state_repository = repo
+    engine._phases = [
+        SimpleNamespace(
+            execute=lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                AssertionError("qualified recurrence must bypass general phases")
+            )
+        )
+    ]
+    visible = (
+        "Fresh calibration task. Before evidence E, hypothesis H has probability "
+        "1/2. The likelihood "
+        "of E is 4/5 if H is true and 1/10 if H is false. Using exact Bayes "
+        "updating, return the more probable choice (H wins ties), the reduced "
+        "posterior probability of H, and its band: below_50, 50_to_69, "
+        "70_to_89, or 90_to_100. You may reason before the answer. End with "
+        "exactly one line beginning "
+        "FINAL_ANSWER:, followed by one JSON object and no trailing text. "
+        "Required JSON keys and value types: choice (string), posterior "
+        "(reduced-fraction string), confidence_band (string)."
+    )
+    expected = (
+        'FINAL_ANSWER: {"choice":"H","confidence_band":"70_to_89",'
+        '"posterior":"8/9"}'
+    )
+
+    def _unexpected(*_args, **_kwargs):
+        raise AssertionError("qualified recurrence must run before cognitive advisors")
+
+    monkeypatch.setattr(engine, "_apply_spiking_active_inference", _unexpected)
+    monkeypatch.setattr(engine, "_apply_imagination_workspace", _unexpected)
+    monkeypatch.setattr(engine, "_apply_entity_memory", _unexpected)
+    monkeypatch.setattr(engine, "_apply_bicameral_advisory", _unexpected)
+    monkeypatch.setattr(engine, "_apply_cognitive_situation_frame", _unexpected)
+
+    async def _qualified_episode(**kwargs):
+        assert kwargs["visible_objective"] == visible
+        return ForegroundLatentOutcome(
+            text=expected,
+            trace={
+                "qualified_recurrent_eligible": True,
+                "qualified_recurrent_attempted": True,
+                "qualified_recurrent_succeeded": True,
+                "qualified_recurrent_reason": "qualified_semantic_neural_completed",
+                "qualified_recurrent_receipt": {"receipt_sha256": "signed"},
+                "latent_cortex_succeeded": True,
+            },
+            fallback_allowed=False,
+            evidence=("qualified_semantic_neural_execution",),
+        )
+
+    monkeypatch.setattr(
+        "core.brain.foreground_latent_runtime.run_foreground_latent_episode",
+        _qualified_episode,
+    )
+
+    thought = await engine.think(
+        visible,
+        mode=ThinkingMode.FAST,
+        origin="desktop_ui",
+        context={
+            "visible_user_message": visible,
+            "desktop_cognitive_engine_required": True,
+            "session_id": "live-test",
+        },
+        foreground_request=True,
+        timeout_s=30.0,
+    )
+
+    assert thought.content == expected
+    assert thought.metadata["response_path"] == "cognitive_engine_qualified_recurrent"
+    assert thought.metadata["model_generation_used"] is False
+    assert repo.commits
+    committed = repo.commits[-1][0]
+    assert committed.cognition.working_memory[-2]["content"] == visible
+    assert committed.cognition.working_memory[-1]["content"] == expected
+    assert committed.response_modifiers["qualified_recurrent_succeeded"] is True
+    assert committed.response_modifiers["response_path"] == (
+        "cognitive_engine_qualified_recurrent"
+    )
+
+
+@pytest.mark.asyncio
+async def test_unsupported_language_does_not_touch_qualified_recurrent_service(monkeypatch):
+    engine = CognitiveEngine()
+    state = AuraState.default()
+    engine.state_repository = StateRepositoryFixture(state)
+
+    async def _unexpected_episode(**_kwargs):
+        raise AssertionError("unsupported language must not touch recurrent service")
+
+    monkeypatch.setattr(
+        "core.brain.foreground_latent_runtime.run_foreground_latent_episode",
+        _unexpected_episode,
+    )
+
+    thought = await engine._qualified_recurrent_direct_reply(
+        state,
+        "How are you feeling right now?",
+        ThinkingMode.FAST,
+        "desktop_ui",
+        {"visible_user_message": "How are you feeling right now?"},
+        is_background=False,
+        timeout_s=30.0,
+    )
+
+    assert thought is None
 
 
 def test_cognitive_engine_treats_prefixed_user_origin_as_foreground():

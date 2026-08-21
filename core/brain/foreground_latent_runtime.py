@@ -421,11 +421,22 @@ async def run_foreground_latent_episode(
         runner = getattr(service, "qualified_recurrent_reason", None)
         if callable(runner):
             try:
+                requested_budget = max(0.0, float(request_timeout_s))
+                # Qualified execution does not allocate the general decoder,
+                # branch workspace, or fast-weight owner that need the full
+                # eight-second teardown reserve below. Reserving that whole
+                # amount made an eight-second qualified request arrive at the
+                # service with a zero-second deadline. Keep a proportional
+                # cleanup margin while preserving most of the caller's budget.
+                qualified_cleanup_reserve = min(
+                    _LATENT_CLEANUP_RESERVE_SECONDS,
+                    requested_budget * 0.25,
+                )
                 qualified = await runner(
                     visible_objective,
                     timeout_s=max(
-                        0.0,
-                        float(request_timeout_s) - _LATENT_CLEANUP_RESERVE_SECONDS,
+                        0.25,
+                        requested_budget - qualified_cleanup_reserve,
                     ),
                 )
             except Exception as exc:  # noqa: BLE001 - resident-owner safety boundary
