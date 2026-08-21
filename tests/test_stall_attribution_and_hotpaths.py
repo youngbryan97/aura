@@ -17,10 +17,7 @@ import time
 
 import pytest
 
-from core.observability.stall_dump import (
-    StallCulprit,
-    parse_stall_dump_text,
-)
+from core.observability.stall_dump import parse_stall_dump_text
 
 pytestmark = pytest.mark.unit
 
@@ -292,6 +289,37 @@ class TestLocalCorpusExistenceGuard:
 
         store = LocalCorpusStore(db_path=tmp_path / "never_created.db")
         assert store.has_documents() is False
+
+    @pytest.mark.asyncio
+    async def test_web_search_local_corpus_runs_off_event_loop(self, monkeypatch):
+        """The exact live stall anatomy: corpus FTS must execute in a worker."""
+        from core.skills.web_search import EnhancedWebSearchSkill
+
+        skill = EnhancedWebSearchSkill()
+        loop_thread = threading.get_ident()
+        observed_thread: list[int] = []
+
+        def local_first(_query, _limit):
+            observed_thread.append(threading.get_ident())
+            return {
+                "ok": True,
+                "provenance": "local_corpus",
+                "results": [{"title": "Solaris", "source": "wikipedia"}],
+            }
+
+        monkeypatch.setattr(
+            "core.skills.web_search.query_requires_source_reading",
+            lambda _query: False,
+        )
+        monkeypatch.setattr(
+            EnhancedWebSearchSkill,
+            "_local_corpus_first",
+            staticmethod(local_first),
+        )
+        result = await skill.execute({"query": "Who wrote Solaris?"}, context={})
+
+        assert result["ok"] is True
+        assert observed_thread and observed_thread[0] != loop_thread
 
     def test_research_retention_guard_is_off_loop(self):
         """The retention path must do ALL its sqlite (guard included) inside

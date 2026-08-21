@@ -51193,3 +51193,29 @@ and conversation-routing contracts pass `58/58`; canonical smoke passes
 hygiene pass. The live runtime remains on its pre-checkpoint source and was
 intentionally not restarted; live confirmation belongs to the next normal
 installed-app restart.
+
+## Checkpoint 2026-08-21-839: Keep Curiosity Persistence and Corpus Retrieval Off the Loop
+
+Live stall evidence separated two defects inside one autonomous curiosity run.
+The explorer held a checked async mutex across constitutional receipts, tool
+execution, model inference and durable heuristic persistence, so every
+intention or heuristic `fsync` was correctly reported as blocking work under a
+lock. The corresponding watchdog dump showed the event loop itself frozen for
+5.1 seconds in a synchronous SQLite FTS query from the web-search local-corpus
+fast path.
+
+Curiosity now models serialized exploration as a one-permit background work
+lane while its actual queue state remains protected by the existing short
+state lock. Execution and persistence therefore retain single-run admission
+without becoming one long critical section. Web search now offloads the entire
+local-corpus preference and fallback probes on every success, miss and network
+failure path, keeping both `has_documents()` and FTS retrieval outside the
+event-loop thread.
+
+Focused transactional and stall contracts pass `39/39` and prove execution and
+persistence observe no held curiosity locks while corpus retrieval executes on
+a worker thread. Adjacent curiosity, search, capability-expectation and
+ontology contracts pass `159/159`; canonical smoke passes `120/120` with one
+environment-dependent skip. Ruff, compilation and diff hygiene pass. The
+running pre-checkpoint process was intentionally not restarted, so live
+confirmation belongs to the next normal installed-app restart.

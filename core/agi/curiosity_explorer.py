@@ -14,7 +14,6 @@ import hashlib
 import inspect
 import json
 import logging
-import threading
 import time
 from dataclasses import dataclass, field
 from typing import Any
@@ -22,12 +21,12 @@ from urllib.parse import urlparse
 
 from core.runtime.background_policy import background_activity_allowed
 from core.runtime.errors import record_degradation
+from core.runtime.lockdep import checked_lock, checked_semaphore
 from core.runtime.principal_context import (
     current_relational_principal,
     relational_principal_scope_is_bound,
 )
 from core.security.structural_redaction import redact_structure, redact_text
-from core.runtime.lockdep import checked_async_lock, checked_lock
 
 logger = logging.getLogger("Aura.CuriosityExplorer")
 
@@ -244,7 +243,12 @@ class CuriosityExplorer:
         self._total_explorations = 0
         self._total_attempts = 0
         self._state_lock = checked_lock("curiosity_explorer", reentrant=True)
-        self._run_lock = checked_async_lock("curiosity_explorer")
+        # Exploration is a bounded work lane, not a state critical section.
+        # A checked lock here used to remain registered across constitutional
+        # receipts, search, model inference, and durable heuristic writes.  The
+        # queue state was already protected independently; what this outer
+        # primitive actually owns is admission of one expensive background run.
+        self._run_lane = checked_semaphore("curiosity_explorer.run", 1)
         logger.info("CuriosityExplorer online - curiosity now drives governed learning.")
 
     def tick(
@@ -312,7 +316,7 @@ class CuriosityExplorer:
         """Claim, execute, and commit one item; failures never become findings."""
         if not _background_learning_allowed(orchestrator):
             return []
-        async with self._run_lock:
+        async with self._run_lane:
             now = time.time()
             with self._state_lock:
                 pending = [

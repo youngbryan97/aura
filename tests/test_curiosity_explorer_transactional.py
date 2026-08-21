@@ -14,6 +14,7 @@ from core.agi.curiosity_explorer import (
     ExplorationItem,
     ExplorationOutcome,
 )
+from core.runtime.lockdep import assert_no_locks_held
 
 
 class _Recorder:
@@ -127,6 +128,30 @@ async def test_concurrent_runners_claim_one_item_once(explorer, monkeypatch):
     assert sorted((len(first), len(second))) == [0, 1]
     assert explorer.pending_count == 0
     assert explorer._total_explorations == 1
+
+
+@pytest.mark.asyncio
+async def test_serial_run_lane_does_not_hold_state_lock_across_effects(explorer, monkeypatch):
+    """Serialized background admission must not turn effects into a critical section."""
+    item = _item()
+    explorer._queue.append(item)
+    observed: list[tuple[str, ...]] = []
+
+    async def execute(*_args):
+        observed.append(tuple(assert_no_locks_held("curiosity execution", strict=True)))
+        return ExplorationOutcome(True, "success", "measured", "llm_synthesis")
+
+    async def synthesize(*_args):
+        observed.append(tuple(assert_no_locks_held("curiosity persistence", strict=True)))
+        return False
+
+    monkeypatch.setattr(explorer, "_execute_outcome", execute)
+    monkeypatch.setattr(explorer, "_synthesize_heuristic", synthesize)
+
+    completed = await explorer.run_exploration()
+
+    assert completed == [item]
+    assert observed == [(), ()]
 
 
 @pytest.mark.asyncio

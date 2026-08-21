@@ -1,6 +1,7 @@
 """Enhanced web search and research skill for Aura."""
 
 
+import asyncio
 import logging
 from typing import Any
 
@@ -284,7 +285,7 @@ class EnhancedWebSearchSkill(BaseSkill):
         # freshness_window_for_query already decides for the research pipeline —
         # reused here rather than restated.
         if not force_refresh and not source_reading:
-            local_first = self._local_corpus_first(query, num_results)
+            local_first = await self._local_corpus_first_async(query, num_results)
             if local_first is not None:
                 return self._finalize_result(query, local_first)
 
@@ -438,7 +439,7 @@ class EnhancedWebSearchSkill(BaseSkill):
                 "web_search", exc, severity="warning",
                 action="pipeline raised; degrading to local corpus",
             )
-            offline = self._local_corpus_fallback(query, num_results)
+            offline = await self._local_corpus_fallback_async(query, num_results)
             if offline is not None:
                 pipeline_error = str(exc)[:200]
                 offline["web_error"] = pipeline_error
@@ -468,7 +469,7 @@ class EnhancedWebSearchSkill(BaseSkill):
             # (6.5M offline reference docs) instead of returning empty-handed.
             # Provenance is explicit — a dated snapshot, never passed off as
             # live web results.
-            offline = self._local_corpus_fallback(query, num_results)
+            offline = await self._local_corpus_fallback_async(query, num_results)
             if offline is not None:
                 offline["web_error"] = str(
                     result.get("error") or result.get("message") or "web search failed"
@@ -526,6 +527,13 @@ class EnhancedWebSearchSkill(BaseSkill):
             "no network used). Ask again with force_refresh for live sources."
         )
         return answered
+
+    @classmethod
+    async def _local_corpus_first_async(
+        cls, query: str, num_results: int
+    ) -> dict[str, Any] | None:
+        """Run the complete SQLite-backed preference probe off the event loop."""
+        return await asyncio.to_thread(cls._local_corpus_first, query, num_results)
 
     @staticmethod
     def _query_wants_current_information(query: str) -> bool:
@@ -604,6 +612,17 @@ class EnhancedWebSearchSkill(BaseSkill):
                 action="local corpus fallback unavailable",
             )
             return None
+
+    @classmethod
+    async def _local_corpus_fallback_async(
+        cls, query: str, num_results: int
+    ) -> dict[str, Any] | None:
+        """Run fallback retrieval off-loop on success, miss, and timeout paths."""
+        return await asyncio.to_thread(
+            cls._local_corpus_fallback,
+            query,
+            num_results,
+        )
 
     async def on_stop_async(self):
         """Lifecycle hook retained for skill manager shutdown symmetry."""
