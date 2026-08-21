@@ -78,3 +78,32 @@ def test_a_retry_is_never_blind() -> None:
     body = source[source.index("def _remember_dispatch_state") :]
     body = body[: body.index("\n    async def ", 10)]
     assert "len(self._deferred_states) > 32" in body
+
+
+def test_a_deferral_is_its_own_outcome() -> None:
+    """Distinct from STARTED, which tells the person to wait, and from FAILED,
+    which tells them it broke."""
+    from core.agency.task_commitment_verifier import DispatchOutcome
+
+    assert DispatchOutcome.DEFERRED.value == "deferred"
+    assert DispatchOutcome.DEFERRED is not DispatchOutcome.STARTED
+    assert DispatchOutcome.DEFERRED is not DispatchOutcome.FAILED
+
+
+def test_nothing_launched_means_nothing_promised() -> None:
+    """LIVE: planning was deferred every time and by a different gate each
+    restart — foreground_chat_active, then foreground_quiet_window, then
+    welfare_memory_integrity_0.18. Background planning never ran, and the
+    person was told to wait for something that could not begin. Inline, the
+    same request produced the page in 33 seconds."""
+    unitary = Path(__file__).resolve().parents[1] / "core" / "phases" / "response_generation_unitary.py"
+    source = unitary.read_text(encoding="utf-8")
+    assert 'if last_task_outcome == "deferred":' in source
+    assert source.index('last_task_outcome == "deferred"') < source.index(
+        'last_task_outcome == "started"'
+    )
+
+
+def test_the_inline_dispatch_reports_a_deferral_as_one() -> None:
+    source = VERIFIER.read_text(encoding="utf-8")
+    assert "outcome = DispatchOutcome.DEFERRED" in source

@@ -4512,6 +4512,14 @@ class UnitaryResponsePhase(Phase):
         # Do NOT generate a normal response claiming actions are being taken;
         # instead acknowledge the background work and skip misleading LLM generation.
         last_task_outcome = new_state.response_modifiers.get("last_task_outcome", "")
+        if last_task_outcome == "deferred":
+            # Nothing was launched, so nothing is promised. The turn answers
+            # the way any other turn would, which for a request to build
+            # something means building it here.
+            logger.info(
+                "🎯 Background planning was deferred; answering inline rather than "
+                "promising work that has not started."
+            )
         if last_task_outcome == "started":
             last_task_payload = new_state.response_modifiers.get("last_task_result_payload", {})
             if isinstance(last_task_payload, dict):

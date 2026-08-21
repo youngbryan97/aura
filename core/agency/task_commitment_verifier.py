@@ -138,6 +138,18 @@ class DispatchOutcome(str, Enum):
     FAILED       = "failed"        # Task ran but execution failed
     CAPABILITY_GAP = "capability_gap"  # No skill/tool to fulfil this request
     DENIED       = "denied"        # Requires approval; pending human sign-off
+    # Planning could not start, so nothing was launched and nothing may be
+    # promised. Distinct from STARTED, which tells the person to wait, and
+    # from FAILED, which tells them it broke.
+    #
+    # LIVE, 2026-08-20/21. "build me a small web app" was answered "Task
+    # accepted into governed background execution… No completion is claimed
+    # yet." Planning was deferred every time and by a different gate each
+    # restart — foreground_chat_active, then foreground_quiet_window, then
+    # welfare_memory_integrity_0.18 — so background planning never ran at
+    # all, and the person was told to wait for something that could not
+    # begin. Inline, the same request produced the page in 33 seconds.
+    DEFERRED     = "deferred"      # Planning could not start; answer inline instead
 
 
 @dataclass
@@ -680,6 +692,8 @@ class TaskCommitmentVerifier:
                 )
             outcome = DispatchOutcome.COMPLETED if succeeded else DispatchOutcome.FAILED
             tracking_updates, evidence = self._extract_result_tracking_fields(result)
+            if deferred:
+                outcome = DispatchOutcome.DEFERRED
             self._update_task_entry(
                 task_id,
                 status="deferred" if deferred else outcome.value,
