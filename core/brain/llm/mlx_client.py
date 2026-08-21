@@ -6523,9 +6523,7 @@ class MLXLocalClient:
         maintenance_preempt_requested = False
 
         while loop.time() < wait_deadline:
-            if self._request_lock.acquire(False):
-                self._request_lock_owner_label = str(owner_label or "")
-                self._request_lock_acquired_at = time.time()
+            if self._try_acquire_request_lock(owner_label=owner_label):
                 return True
 
             now = loop.time()
@@ -6658,6 +6656,21 @@ class MLXLocalClient:
                         exc,
                     )
         return False
+
+    def _try_acquire_request_lock(self, *, owner_label: str) -> bool:
+        """Acquire the worker lane without waiting.
+
+        Optional background reads use this path because waiting behind model
+        work would turn a best-effort observation into queued inference.  The
+        ownership fields are updated in the same critical section as every
+        regular request, so diagnostics never report an ownerless held lock.
+        """
+
+        if not self._request_lock.acquire(False):
+            return False
+        self._request_lock_owner_label = str(owner_label or "")
+        self._request_lock_acquired_at = time.time()
+        return True
 
     def _release_request_lock_if_aborted(self, reason: str) -> None:
         """Release the request lane only when the aborted work owned it.
@@ -10252,25 +10265,72 @@ class MLXLocalClient:
             refusal = "worker_not_initialised"
         elif process is None or not process.is_alive():
             refusal = "worker_not_resident"
+        elif _foreground_owner_active():
+            refusal = "foreground_active"
         elif int(getattr(self, "_active_generations", 0) or 0) > 0:
             refusal = "foreground_busy"
+        elif getattr(self, "_warmup_in_flight", False):
+            refusal = "worker_warming"
         if refusal:
             # Naming the refusal, because "returned nothing" is the one
             # description that sends the next investigation somewhere else.
             logger.info("🔤 [ENCODE] declined: %s", refusal)
             return []
 
-        request_id = uuid.uuid4().hex
-        self._job_seq_counter += 1
-        request = {
-            "id": request_id,
-            "seq": self._job_seq_counter,
-            "action": "encode_hidden",
-            "texts": wanted[:64],
-        }
-        future = _new_shared_future()
-        self._pending_generations[request_id] = future
+        # The checks above are observations, not ownership.  Before this lock,
+        # two background readers (or a reader and a foreground generation)
+        # could both observe an idle worker and enqueue.  One then spent its
+        # entire deadline behind the other and logged a misleading worker
+        # failure.  Hidden-state reads are optional, so they never wait for the
+        # lane: either this read owns the worker now or it has no opinion.
+        if not self._try_acquire_request_lock(owner_label="model_hidden_features"):
+            logger.info("🔤 [ENCODE] declined: request_lane_busy")
+            return []
+
+        future: SharedFuture | None = None
+        request_id = ""
+        recycle_reason = ""
+        lane_protected = False
+        response: Any = None
         try:
+            # Recheck every mutable admission fact after taking ownership.
+            # A foreground turn may have arrived between the first observation
+            # and the non-blocking lock acquisition.
+            process = getattr(self, "_process", None)
+            if _foreground_owner_active():
+                logger.info("🔤 [ENCODE] declined: foreground_active_after_lane")
+                return []
+            if (
+                getattr(self, "_shutting_down", False)
+                or not getattr(self, "_init_done", False)
+                or process is None
+                or not process.is_alive()
+                or int(getattr(self, "_active_generations", 0) or 0) > 0
+                or getattr(self, "_warmup_in_flight", False)
+            ):
+                logger.info("🔤 [ENCODE] declined: worker_changed_after_lane")
+                return []
+            if not await self._set_durable_lane_preemptible(False):
+                logger.info("🔤 [ENCODE] declined: model_lane_fence_lost")
+                return []
+            lane_protected = True
+            if _foreground_owner_active():
+                logger.info("🔤 [ENCODE] declined: foreground_active_after_fence")
+                return []
+
+            request_id = uuid.uuid4().hex
+            self._job_seq_counter += 1
+            request = {
+                "id": request_id,
+                "seq": self._job_seq_counter,
+                "action": "encode_hidden",
+                "texts": wanted[:64],
+            }
+            future = _new_shared_future()
+            self._pending_generations[request_id] = future
+            self._current_gen_future = future
+            self._active_generations += 1
+            self._active_generation_started_at = time.time()
             await run_io_bound(
                 self._req_q.put,
                 self._authorize_job(request, principal="mlx_client.encode_hidden"),
@@ -10280,9 +10340,37 @@ class MLXLocalClient:
             response = await _await_shared_future(future, timeout_s=max(1.0, timeout_s))
         except (TimeoutError, OSError, RuntimeError, TypeError, ValueError) as exc:
             logger.info("🔤 [ENCODE] failed: %s: %s", type(exc).__name__, str(exc)[:160])
+            if isinstance(exc, TimeoutError):
+                # encode_hidden has no token loop to cancel cooperatively.  A
+                # timed-out command may still own the worker, so publishing it
+                # as idle would let foreground generation queue behind an
+                # invisible job.  Recycle only on this abnormal deadline path;
+                # ordinary contention was already declined before enqueue.
+                recycle_reason = "encode_hidden_deadline"
             return []
         finally:
-            self._pending_generations.pop(request_id, None)
+            try:
+                if future is not None:
+                    await asyncio.shield(
+                        self._finish_generation_ownership(
+                            request_id,
+                            future,
+                            None,
+                        )
+                    )
+                elif lane_protected:
+                    released = await asyncio.shield(
+                        self._set_durable_lane_preemptible(True)
+                    )
+                    if not released:
+                        self._durable_lane_release_owed = True
+            finally:
+                self._release_request_lock()
+                if recycle_reason:
+                    await self.reboot_worker(
+                        reason=recycle_reason,
+                        mark_failed=False,
+                    )
         if not isinstance(response, dict) or response.get("status") != "ok":
             logger.info(
                 "🔤 [ENCODE] worker said: %s",

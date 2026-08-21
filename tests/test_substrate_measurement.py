@@ -12,8 +12,12 @@ artifacts/language_substrate/measurement.json.
 
 from __future__ import annotations
 
+import asyncio
 import json
+import queue
+import threading
 from pathlib import Path
+from types import SimpleNamespace
 
 from core.language.substrate_measurement import (
     load_frozen_set,
@@ -22,6 +26,33 @@ from core.language.substrate_measurement import (
 )
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def _resident_encode_client(monkeypatch):
+    from core.brain.llm import mlx_client
+
+    client = object.__new__(mlx_client.MLXLocalClient)
+    client.model_path = "/tmp/resident-model"
+    client._shutting_down = False
+    client._init_done = True
+    client._process = SimpleNamespace(is_alive=lambda: True)
+    client._active_generations = 0
+    client._active_generation_started_at = 0.0
+    client._warmup_in_flight = False
+    client._request_lock = threading.Lock()
+    client._request_lock_owner_label = ""
+    client._request_lock_acquired_at = 0.0
+    client._pending_generations = {}
+    client._current_gen_future = None
+    client._current_request_id = ""
+    client._foreground_generation_watchdog = None
+    client._job_seq_counter = 0
+    client._model_lane_fencing_token = 0
+    client._model_lane_owner_id = ""
+    client._durable_lane_release_owed = False
+    client._authorize_job = lambda request, **_kwargs: request
+    monkeypatch.setattr(mlx_client, "_foreground_owner_active", lambda: False)
+    return client
 
 
 def test_the_area_is_right_at_the_edges() -> None:
@@ -134,3 +165,94 @@ def test_every_worker_action_that_answers_is_routed() -> None:
         if action in {"nonparametric_ingest", "encode_hidden"} or action in _TERMINAL_WORKER_ACTIONS:
             continue
         assert action in _TERMINAL_WORKER_ACTIONS, f"{action} answers but is never routed"
+
+
+def test_hidden_state_read_never_waits_behind_an_owned_worker_lane(monkeypatch) -> None:
+    client = _resident_encode_client(monkeypatch)
+    client._req_q = queue.Queue()
+    assert client._request_lock.acquire(False)
+    client._request_lock_owner_label = "foreground_generation"
+
+    assert asyncio.run(client.encode_hidden(["an optional observation"])) == []
+    assert client._req_q.empty()
+    assert client._active_generations == 0
+    assert client._request_lock_owner_label == "foreground_generation"
+
+
+def test_hidden_state_read_owns_and_releases_the_worker_atomically(monkeypatch) -> None:
+    client = _resident_encode_client(monkeypatch)
+
+    class ReplyingQueue:
+        def put(self, request, *_args):
+            future = client._pending_generations.pop(request["id"])
+            future.set_result(
+                {
+                    "id": request["id"],
+                    "action": "encode_hidden",
+                    "status": "ok",
+                    "vectors": [[0.25, -0.5]],
+                }
+            )
+
+    client._req_q = ReplyingQueue()
+    assert asyncio.run(client.encode_hidden(["a completed action"])) == [[0.25, -0.5]]
+    assert client._active_generations == 0
+    assert client._current_gen_future is None
+    assert client._pending_generations == {}
+    assert not client._request_lock.locked()
+    assert client._request_lock_owner_label == ""
+
+
+def test_hidden_state_read_yields_when_foreground_arrives_during_fence(
+    monkeypatch,
+) -> None:
+    from core.brain.llm import mlx_client
+
+    client = _resident_encode_client(monkeypatch)
+    client._req_q = queue.Queue()
+    foreground_observations = iter((False, False, True))
+    lane_states: list[bool] = []
+
+    async def set_preemptible(value):
+        lane_states.append(value)
+        return True
+
+    monkeypatch.setattr(
+        mlx_client,
+        "_foreground_owner_active",
+        lambda: next(foreground_observations),
+    )
+    client._set_durable_lane_preemptible = set_preemptible
+
+    assert asyncio.run(client.encode_hidden(["a background observation"])) == []
+    assert lane_states == [False, True]
+    assert client._req_q.empty()
+    assert client._active_generations == 0
+    assert not client._request_lock.locked()
+
+
+def test_hidden_state_deadline_recycles_before_worker_is_published_idle(
+    monkeypatch,
+) -> None:
+    from core.brain.llm import mlx_client
+
+    client = _resident_encode_client(monkeypatch)
+    client._req_q = queue.Queue()
+    recycled: list[tuple[str, bool]] = []
+
+    async def expire(_future, *, timeout_s):
+        assert timeout_s == 1.0
+        raise TimeoutError
+
+    async def reboot(*, reason, mark_failed):
+        # Cleanup and lock release happen before a potentially slow recycle.
+        assert client._active_generations == 0
+        assert not client._request_lock.locked()
+        recycled.append((reason, mark_failed))
+
+    monkeypatch.setattr(mlx_client, "_await_shared_future", expire)
+    client.reboot_worker = reboot
+
+    assert asyncio.run(client.encode_hidden(["a bounded observation"], timeout_s=1.0)) == []
+    assert recycled == [("encode_hidden_deadline", False)]
+    assert client._pending_generations == {}

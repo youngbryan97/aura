@@ -135,6 +135,7 @@ class TestCancellationAckIsBound:
                     "expected_input_tokens_sha256": "c" * 64,
                     "expected_worker_identity": self._identity(),
                     "expected_fast_weights_applied": False,
+                    "expected_fast_weights_attach_attempted": False,
                     "expected_checkpoint_fingerprint": "",
                     "expected_checkpoint_method": "",
                     "expected_checkpoint_file_count": 0,
