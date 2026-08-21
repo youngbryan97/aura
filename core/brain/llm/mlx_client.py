@@ -2910,6 +2910,13 @@ def _apply_memory_pressure_generation_controls(
     if bool(options.get("desktop_execution_contract", False)):
         plan_floor = int(options.get("desktop_plan_token_floor", 1024) or 1024)
         effective_cap = max(pressure_cap, plan_floor)
+    elif bool(options.get("document_output_contract", False)):
+        # A reply that must CARRY a document is not conversational prose, and
+        # the paragraph above applies to it word for word. Live 2026-08-20 an
+        # HTML page written into a reply stopped mid-attribute at
+        # `<script type=`, because a 4096-token default had been scaled to 970
+        # — a fair size for prose and half a page.
+        effective_cap = max(pressure_cap, requested_max_tokens)
     elif options.get("tools"):
         # A tool call is an execution turn, and the paragraph above applies to
         # it word for word: clamped below the size of a call, she cannot

@@ -1016,6 +1016,23 @@ def local_deep_solver_enabled(total_gb: float | None = None) -> bool:
     return detected_total >= float(_FLAG_LOCAL_DEEP_AUTO_MIN_TOTAL_GB.value())
 
 
+
+def _asks_for_a_document(user_message: Any) -> bool:
+    """Whether the reply has to contain a program or a page.
+
+    The same question the desktop router asks to keep a build off the screen
+    lane, so there is one notion of "this request produces a file" rather
+    than two.
+    """
+    try:
+        from core.runtime.desktop_objective_intent import asks_to_build_software
+
+        return bool(asks_to_build_software(str(user_message or "")))
+    except _INFERENCE_RECOVERABLE_ERRORS:
+        return False
+
+
+
 class InferenceGate:
     """Isolated inference gateway for Aura's managed local runtime."""
 
@@ -10264,6 +10281,21 @@ class InferenceGate:
 
         strict_answer_contract = bool(context.get("strict_answer_contract", False))
         strict_value_contract = bool(context.get("strict_value_contract", False))
+        # A reply that must CARRY a document is not a conversational reply.
+        #
+        # LIVE, 2026-08-20. "build me a small web app… one self-contained
+        # file" was answered with the page written into the reply, and the
+        # reply stopped mid-attribute at `<script type=` — a 4096-token
+        # default scaled to 970 by Phi control and pressure, which is a fair
+        # size for prose and half an HTML page.
+        #
+        # The plan lane already has a floor for the same reason: a turn that
+        # must emit a plan cannot be shrunk below the plan.
+        document_output_contract = bool(
+            context.get("document_output_contract", False)
+        ) or _asks_for_a_document(initial_visible_user_prompt)
+        if document_output_contract:
+            context["document_output_contract"] = True
         web_interlocutor_contract = bool(context.get("web_interlocutor_contract", False))
         # Source code is not prose, and the conversational pipeline exists to
         # shape prose for a person: it repairs sentences, normalises
@@ -10725,6 +10757,7 @@ class InferenceGate:
                     and not health_probe
                     and not isolated_generation_contract
                     and not benchmark_request
+                    and not document_output_contract
                 ):
                     phi_scale = max(0.6, 0.6 + 0.4 * (phi_val / 0.8))
                     max_tokens = max(512, int(max_tokens * phi_scale))
