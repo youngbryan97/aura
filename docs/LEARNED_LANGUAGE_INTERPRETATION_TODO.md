@@ -67,6 +67,11 @@ labels the later ones need.
 The protocol exists: `core/language/substrate_measurement.py`, frozen set in
 `config/`, receipt in `artifacts/language_substrate/`.
 
+It is an explicit experiment, run with
+`python -m core.language.substrate_measurement`; it is deliberately not a
+live boot heartbeat because evaluating the frozen set consumes the same
+resident-model lane that serves conversation.
+
 1. Fitted on declared examples only, by leave-one-out.
 2. Scored on held-out wordings that are never examples and sit near the
    boundary.

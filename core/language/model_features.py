@@ -29,9 +29,15 @@ __all__ = ["model_hidden_features"]
 
 _RECOVERABLE = (AttributeError, ImportError, OSError, RuntimeError, TypeError, ValueError)
 
-#: Sentences per request, and how long each is allowed to take.
-_CHUNK = 16
-_SECONDS_PER_SENTENCE = 2.0
+#: One sentence per worker lease.  A bulk request performs one full 32B
+#: forward per sentence while holding a single non-preemptible lane; measured
+#: live, sixteen sentences crossed the deadline after Aura had already
+#: advertised conversation readiness and forced a resident-worker recycle.
+#: Releasing ownership after each sentence lets a newly arriving foreground
+#: owner stop the batch mechanically.  Eight seconds is a per-forward fault
+#: ceiling, not a scaled allowance for an uninterruptible batch.
+_CHUNK = 1
+_SECONDS_PER_SENTENCE = 8.0
 
 
 def model_hidden_features(sentences: Iterable[str]) -> list[list[float]]:

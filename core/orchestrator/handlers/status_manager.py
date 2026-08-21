@@ -251,59 +251,37 @@ class StatusManagerMixin:
         finally:
             self._in_status_call = False
 
-    async def _measure_language_substrate(self) -> None:
-        """Run the frozen substrate measurement once per boot, off the loop.
-
-        It has to run here because reading a sentence off the resident model's
-        hidden states needs the worker, and a second model must never be
-        loaded to answer a question about the first.
-        """
-        import asyncio
-
-        if getattr(self, "_language_substrate_measured", False):
-            return
-        try:
-            from core.language.substrate_measurement import run_frozen_measurement
-
-            receipt = await asyncio.to_thread(run_frozen_measurement)
-            rows = receipt.get("results") if isinstance(receipt, dict) else None
-            if rows:
-                self._language_substrate_measured = True
-                for row in rows:
-                    logger.info(
-                        "📏 [SUBSTRATE] %s: auroc=%s f1=%s fpr=%s abstain=%.2f trusted=%s",
-                        row.get("feature_source"),
-                        row.get("auroc"),
-                        row.get("f1"),
-                        row.get("false_positive_rate"),
-                        float(row.get("abstain_rate") or 0.0),
-                        row.get("trustworthy"),
-                    )
-        except (AttributeError, ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
-            from core.runtime.errors import record_degradation
-
-            record_degradation(
-                "orchestrator.language_substrate_measurement",
-                exc,
-                severity="debug",
-                action="left the substrate unmeasured this boot",
-                enforce_failure_policy=False,
-            )
-
     async def _warm_language_matchers(self) -> None:
-        """Decide the phrasings a turn deferred, in a thread with no loop.
+        """Decide deferred phrasings only after the foreground is truly idle.
 
         A live turn answers from what it already knows and queues anything
-        new, because deciding costs a forward pass and the model is busy
-        answering. model_hidden_features refuses inside a running loop for
-        exactly that reason, so the work happens here, where blocking is free.
+        new.  A resident-model hidden read is still real 32B inference even
+        when it runs in a thread, so moving it off the event loop is not enough:
+        it also needs the organism's shared background admission contract.
         """
         import asyncio
 
         try:
+            from core.runtime.background_policy import (
+                IDLE_COGNITION_BACKGROUND_POLICY,
+                background_activity_reason,
+            )
+
+            blocker = background_activity_reason(
+                self,
+                profile=IDLE_COGNITION_BACKGROUND_POLICY,
+                require_conversation_ready=True,
+            )
+            if blocker:
+                logger.debug("Language matcher warm deferred: %s", blocker)
+                return
+
             from core.conversation.response_reliability import warm_language_matchers
 
-            settled = await asyncio.to_thread(warm_language_matchers, 8)
+            # One pending phrasing per surface. model_hidden_features yields
+            # worker ownership between every sentence, so a foreground owner
+            # arriving during this warm cycle takes the next slot.
+            settled = await asyncio.to_thread(warm_language_matchers, 1)
             if settled:
                 logger.info("🧠 Settled %d new phrasing(s) from use.", settled)
         except (AttributeError, ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:

@@ -196,6 +196,60 @@ def test_the_warmer_is_registered_to_run_off_the_critical_path() -> None:
     assert "asyncio.to_thread(warm_language_matchers" in status
 
 
+def test_frozen_measurement_is_not_a_live_runtime_heartbeat() -> None:
+    """A scientific sweep must never recycle the conversation model at boot."""
+    from pathlib import Path
+
+    main = Path("core/orchestrator/main.py").read_text(encoding="utf-8")
+    assert 'name="language_substrate_measurement"' not in main
+
+
+def test_warmer_obeys_shared_background_admission(monkeypatch) -> None:
+    import asyncio
+
+    from core.conversation import response_reliability
+    from core.orchestrator.handlers.status_manager import StatusManagerMixin
+    from core.runtime import background_policy
+
+    calls: list[int] = []
+    monkeypatch.setattr(
+        background_policy,
+        "background_activity_reason",
+        lambda *_args, **_kwargs: "recent_user_0",
+    )
+    monkeypatch.setattr(
+        response_reliability,
+        "warm_language_matchers",
+        lambda limit: calls.append(limit) or 0,
+    )
+
+    asyncio.run(StatusManagerMixin()._warm_language_matchers())
+    assert calls == []
+
+
+def test_warmer_limits_each_registered_surface_to_one_phrasing(monkeypatch) -> None:
+    import asyncio
+
+    from core.conversation import response_reliability
+    from core.orchestrator.handlers.status_manager import StatusManagerMixin
+    from core.runtime import background_policy
+
+    calls: list[int] = []
+    monkeypatch.setattr(
+        background_policy,
+        "background_activity_reason",
+        lambda *_args, **_kwargs: "",
+    )
+    monkeypatch.setattr(
+        response_reliability,
+        "warm_language_matchers",
+        lambda limit: calls.append(limit) or 0,
+    )
+
+    asyncio.run(StatusManagerMixin()._warm_language_matchers())
+    assert calls == [1]
+
+
 def test_what_was_learned_survives_a_restart(tmp_path, monkeypatch) -> None:
     """The difference between a cache and learning.
 

@@ -139,6 +139,28 @@ def test_the_receipt_records_both_feature_spaces_when_present() -> None:
     assert {"topical_embedding", "model_hidden_state"} <= sources
 
 
+def test_model_features_yield_worker_ownership_between_sentences(monkeypatch) -> None:
+    from core.brain.llm import mlx_client
+    from core.language import model_features
+
+    calls: list[tuple[list[str], float]] = []
+
+    class Client:
+        async def encode_hidden(self, texts, *, timeout_s):
+            calls.append((list(texts), timeout_s))
+            return [[float(len(texts[0]))]]
+
+    monkeypatch.setattr(mlx_client, "get_mlx_client", lambda: Client())
+    vectors = model_features.model_hidden_features(("first", "second", "third"))
+
+    assert vectors == [[5.0], [6.0], [5.0]]
+    assert calls == [
+        (["first"], model_features._SECONDS_PER_SENTENCE),
+        (["second"], model_features._SECONDS_PER_SENTENCE),
+        (["third"], model_features._SECONDS_PER_SENTENCE),
+    ]
+
+
 def test_a_worker_reply_reaches_the_caller_waiting_on_it() -> None:
     """encode_hidden timed out every time because a response is only handed
     to its future when its action is registered here — a third place a new

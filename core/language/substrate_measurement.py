@@ -23,6 +23,7 @@ actually do.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 
@@ -210,7 +211,6 @@ def run_frozen_measurement() -> dict[str, object]:
     needs the worker, and a second model must never be loaded to answer a
     question about the first.
     """
-    import json
     import time
 
     from core.conversation.response_reliability import _ACTION_CLAIM_MATCHER
@@ -276,8 +276,8 @@ def _measure_desktop_actuation() -> list[dict[str, object]]:
     """
     import hashlib
 
-    from core.language.learned_matcher import embed_sentences
     from core.language.label_mining import mine_desktop_actuation_labels
+    from core.language.learned_matcher import embed_sentences
     from core.language.model_features import model_hidden_features
 
     positives, negatives = mine_desktop_actuation_labels()
@@ -309,3 +309,13 @@ def _measure_desktop_actuation() -> list[dict[str, object]]:
         )
         measured.append(measurement.as_dict())
     return measured
+
+
+def main() -> int:
+    """Run the scientific measurement explicitly, outside Aura's boot path."""
+    print(json.dumps(run_frozen_measurement(), indent=2, sort_keys=True))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
