@@ -100,6 +100,24 @@ def embed_sentences(sentences: Iterable[str]) -> list[list[float]]:
         return []
 
 
+def _cache_key(sentence: str) -> str:
+    """What counts as the same sentence for the fast path.
+
+    Case, spacing and trailing punctuation are not the decision, and keying on
+    the raw string made "I saved it as report.csv" and "I saved it as
+    report.csv." two separate first sightings.
+
+    This is a partial fix and worth being exact about: it collapses spelling,
+    not wording. A genuine paraphrase is still a new sighting, because
+    deciding one needs its vector and computing that costs a forward pass the
+    turn cannot spend. What would close it properly is per-sentence hidden
+    states for text the model has just generated — it computed them to write
+    the sentence, and nothing keeps them.
+    """
+    folded = " ".join(str(sentence or "").lower().split())
+    return folded.strip(" .,;:!?\"'`")
+
+
 def _spread(values: Sequence[float]) -> float:
     """How much the scores vary, as a standard deviation."""
     if len(values) < 2:
@@ -412,9 +430,10 @@ class LearnedMatcher:
         if len(text) < _MIN_CHARS:
             return None
         self.load()
+        key = _cache_key(text)
         with self._lock:
-            if text in self._decided:
-                return self._decided[text]
+            if key in self._decided:
+                return self._decided[key]
             if text not in self._pending and len(self._pending) < _PENDING_CEILING:
                 self._pending.add(text)
                 self._dirty = True
@@ -436,7 +455,7 @@ class LearnedMatcher:
                 # decide, and it had to be met again to get another attempt.
                 if verdict is not None:
                     self._pending.discard(text)
-                    self._decided[text] = verdict
+                    self._decided[_cache_key(text)] = verdict
                     self._dirty = True
                     settled += 1
         if settled:

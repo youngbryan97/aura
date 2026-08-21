@@ -253,3 +253,26 @@ def test_a_phrase_the_model_could_not_decide_stays_queued() -> None:
     undecidable.decide_without_waiting("something new")
     assert undecidable.warm() == 0
     assert "something new" in undecidable._pending
+
+
+def test_spelling_is_not_a_new_sighting() -> None:
+    """Keying on the raw string made "I saved it as report.csv" and the same
+    sentence with a full stop two separate first sightings."""
+    matcher = _declared()
+    matcher.decide_without_waiting("I filed the report")
+    matcher.warm()
+
+    for variant in ("I filed the report.", "  i filed the report  ", "I FILED THE REPORT!"):
+        assert matcher.decide_without_waiting(variant) is True
+
+
+def test_a_real_paraphrase_is_still_a_new_sighting() -> None:
+    """Exact about what this does not fix: it collapses spelling, not wording.
+
+    Deciding a paraphrase needs its vector, and computing that costs a
+    forward pass the turn cannot spend.
+    """
+    matcher = _declared()
+    matcher.decide_without_waiting("I filed the report")
+    matcher.warm()
+    assert matcher.decide_without_waiting("The report has been filed.") is None

@@ -195,7 +195,7 @@ describe a system nobody runs.
 | # | Limitation | Where | Consequence |
 | :-- | :-- | :-- | :-- |
 | 1 | ~~Learned state is process-local~~ **fixed 2026-08-20** | writes through the governed gateway into `paths.data_dir/language`; verdicts deliberately not restored | phrasings now accumulate across restarts |
-| 2 | The fast path caches exact strings | `_decided` is keyed on the stripped sentence | a paraphrase is a first sighting again, even though the *decision* generalizes over vectors |
+| 2 | The fast path caches spelling, not wording — **partly fixed 2026-08-20** | the key folds case, spacing and trailing punctuation; a genuine paraphrase is still a first sighting | closing it properly needs per-sentence hidden states for text the model just generated: it computed them to write the sentence and nothing keeps them |
 | 3 | ~~`observe()` keeps stale verdicts~~ **fixed 2026-08-20** | `observe` now clears `_decided` with `_ready` | a new example retires the decisions it predates |
 | 4 | ~~The warmer drops what it could not decide~~ **fixed 2026-08-20** | only a settled phrase leaves `_pending` | a phrase deferred while the model was busy is retried |
 | 5 | ~~Representational claim unproven~~ **measured 2026-08-20** | `artifacts/language_substrate/measurement.json` | hidden states beat embeddings on held-out paraphrases (AUROC 0.771 vs 0.693) and neither boundary is usable yet at twelve examples |
