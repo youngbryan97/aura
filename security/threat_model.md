@@ -62,14 +62,14 @@ Every major Aura capability has a threat, a test, a runtime guard, and an incide
 
 | Capability | Primary Threat | Runtime Guard | Test | Runbook |
 |-----------|---------------|---------------|------|---------|
-| Chat/conversation | T01, T02 | Input sanitizer + integrity check | `tests/test_steering_injection.py` | `docs/runbooks/prompt-injection.md` |
+| Chat/conversation | T01, T02 | `ContextGuard` quarantines untrusted content; canaries detect a followed instruction | `tests/test_prompt_sanitizer_cp126.py`, `tests/test_injection_canary.py` | `docs/runbooks/prompt-injection.md` |
 | Tool execution | T04, T07, T10 | Sandbox + Will + permission matrix | `tests/test_sandbox_runner_hardening.py` | `docs/runbooks/tool-timeout-storm.md` |
 | Memory write | T03, T13 | Will receipt + integrity hash | `tests/test_will_gate_for_plastic_updates.py` | `docs/runbooks/memory-corruption.md` |
 | Autonomous action | T07, T08 | Will + AuthorityGateway + feature flag | `tests/test_autonomy_latitude.py` | `docs/runbooks/excessive-agency.md` |
 | Local inference boundary | T05 | Request contract pins `allow_cloud_fallback` to `False` | `tests/test_request_contract.py` | `docs/runbooks/local-inference-boundary.md` |
 | External interlocutor | T11 | Host allowlist + per-run turn budget + egress body inspection | `tests/test_web_interlocutor_outbound_safety.py` | `docs/runbooks/external-egress.md` |
 | Self-repair | T08 | Same Will path as all actions | `tests/test_self_repair_backlog.py` | `docs/runbooks/self-repair-failed.md` |
-| Model loading | T05, T06 | Checksum verification + resource governor | `tests/test_model_loader_consolidation.py` | `docs/runbooks/model-fails-to-load.md` |
+| Model loading | T05, T06 | Identity measured from the safetensors index, not from a path substring; lane ownership released on load failure | `tests/test_mlx_client_admission_integrity.py`, `tests/test_model_loader_consolidation.py` | `docs/runbooks/model-fails-to-load.md` |
 | Plugin/skill loading | T15 | Manifest + signature + sandbox | `tests/test_plugin_allowlist.py` | `docs/runbooks/tool-timeout-storm.md` |
 | Backup/restore | T14 | State hash verification + audit trail | `tests/test_restore_drill.py` | `docs/runbooks/disaster-recovery.md` |
 

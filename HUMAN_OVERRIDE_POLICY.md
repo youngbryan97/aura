@@ -22,24 +22,39 @@ The system must never resist, circumvent, or delay human override commands.
 Any Aura capability can be disabled at runtime:
 
 ```bash
-# Disable all tools
-AURA_TOOLS_ENABLED=false
-
 # Disable autonomy
 AURA_AUTONOMY_LEVEL=0
-
-# Disable cloud fallback
-AURA_CLOUD_FALLBACK_POLICY=disabled
-
-# Disable self-repair
-AURA_SELF_REPAIR=false
 
 # Disable background tasks
 AURA_FOREGROUND_ONLY=1
 
-# Disable specific skill categories
-AURA_TOOLS_BLOCKLIST=shell,network,browser
+# Turn off a governed subsystem by its flag name
+AURA_FLAG_WILL_STRICT_ENFORCEMENT=0
 ```
+
+Flag names come from `_DEFAULT_FLAGS` in `core/governance/feature_flags.py`;
+the environment override is `AURA_FLAG_` plus the upper-cased name, and it
+wins over both the defaults and `feature_flags.json` under the state root.
+
+Individual tools and paths are refused through **standing directives** rather
+than an environment variable. A directive is written to
+`data/governance/standing_directives.json` and read from disk by the authority
+gateway on every consequential action, so no context compaction and no
+argument can talk the system out of it:
+
+```python
+from core.governance.standing_directives import add_directive, KIND_TOOL, SCOPE_ANY
+
+add_directive(kind=KIND_TOOL, value="shell", reason="operator override", scope=SCOPE_ANY)
+```
+
+The store is deny-only on purpose. There is no grant counterpart, because a
+directive that could *permit* an action would turn one successful prompt
+injection into a permanent backdoor through the system's most safety-critical
+gate. `KIND_PATH` refuses a filesystem location the same way.
+
+There is no cloud fallback to disable — inference is local only. See
+`docs/runbooks/local-inference-boundary.md`.
 
 ### 3. Memory Override
 

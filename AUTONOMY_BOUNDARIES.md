@@ -84,8 +84,8 @@ warning and falls back to `production` — it does not fail open.
 | `AURA_MODE=safe` | All autonomous behavior disabled |
 | `AURA_AUTONOMY_LEVEL=0` | Same as safe mode |
 | `AURA_FOREGROUND_ONLY=1` | No background tasks |
-| `AURA_TOOLS_ENABLED=false` | No tool execution |
-| `AURA_CLOUD_FALLBACK_POLICY=disabled` | No cloud communication |
+| Standing directive, `kind=tool` | That tool is refused, durably and deny-only |
+| `AURA_FLAG_<NAME>=0` | The named feature flag is off for this run |
 | Process kill (SIGTERM) | Graceful shutdown with state save |
 | Process kill (SIGKILL) | Immediate stop; recovery on next boot |
 

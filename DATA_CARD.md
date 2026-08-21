@@ -48,8 +48,8 @@ User Input → Sanitizer → Working Memory → Model Context
 
 | Control | Mechanism |
 |---------|-----------|
-| Cloud fallback opt-in | `AURA_CLOUD_FALLBACK_POLICY` |
-| Prompt classification | Auto-classify before cloud send |
+| No remote inference | Every router lane is local; `allow_cloud_fallback` is pinned to `False` in `core/brain/request_contract.py` |
+| Outbound body inspection | `core/security/egress_privacy.py` reads what leaves before it leaves |
 | Memory export | `make memory-export` |
 | Memory delete | `make memory-purge` (all) / app memory panel `POST /memory/delete` (one) |
 | Log purge | `make log-purge` |

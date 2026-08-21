@@ -50,25 +50,31 @@ result = verify_model_integrity()
 print(f'Model integrity: {result}')
 "
 
-# Re-download if needed
+# Re-download whatever is missing (bounded, resumable)
 python -c "
-from core.brain.llm.model_registry import download_model
-download_model(force=True)
+from core.brain.llm.model_lifecycle import get_model_lifecycle_manager
+print(get_model_lifecycle_manager().ensure_present())
 "
 ```
+
+`ensure_present` checks free disk first, downloads only the models with a
+known source, and resumes a partial fetch rather than restarting it.
 
 ### 4. Failed Self-Repair
 
 **Symptoms**: Self-repair left system in inconsistent state
 
 ```bash
-# Disable self-repair
-export AURA_SELF_REPAIR=false
+# Refuse self-modification for this run. `production`, `live`, `safe`, `test`,
+# `simulated`, and `research` all set allows_self_modification=False; only
+# `dev` permits it (core/runtime/mode.py).
+export AURA_MODE=production
 
 # Check repair registry
 cat data/selfmod/pending_patch_registry.jsonl
 
-# If registry is corrupt: remove it
+# If registry is corrupt: remove it. AURA_PENDING_PATCH_REGISTRY overrides
+# this location; without it the path is data_dir/selfmod/ from core/config.py.
 rm data/selfmod/pending_patch_registry.jsonl
 
 # Restart

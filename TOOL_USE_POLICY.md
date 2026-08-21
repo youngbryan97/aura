@@ -88,24 +88,37 @@ tests: "tests/test_skill_name.py"
 
 ## Operator Controls
 
-Operators can configure tool access via environment variables or config file:
+Tool access is configured by writing a prohibition, not by listing what is
+allowed. A standing directive lives in
+`data/governance/standing_directives.json`, and the authority gateway reads it
+from disk on every consequential action:
 
-```bash
-# Disable all tool execution
-AURA_TOOLS_ENABLED=false
+```python
+from core.governance.standing_directives import (
+    add_directive, remove_directive, KIND_TOOL, KIND_PATH, SCOPE_ANY, SCOPE_WRITE,
+)
 
-# Allow specific tools only
-AURA_TOOLS_ALLOWLIST=clock,calculator,file_read
-
-# Block specific tools
-AURA_TOOLS_BLOCKLIST=shell,network
-
-# Set workspace boundary
-AURA_WORKSPACE_ROOT=/path/to/workspace
-
-# Require confirmation for high-risk tools
-AURA_TOOL_CONFIRM_HIGH_RISK=true
+add_directive(kind=KIND_TOOL, value="shell", reason="operator policy", scope=SCOPE_ANY)
+add_directive(kind=KIND_PATH, value="~/Documents", reason="off limits", scope=SCOPE_WRITE)
 ```
+
+`SCOPE_WRITE` refuses only the mutating use; `SCOPE_ANY` refuses reads too.
+`remove_directive(directive_id)` withdraws one.
+
+The store has no allowlist and no grant call, and that asymmetry is the design
+rather than an omission. A directive that could permit an action would give one
+successful prompt injection a permanent, audited-looking way through the gate.
+A prohibition can only tighten it, so a hostile write costs availability and
+nothing else.
+
+If the file is present but unreadable, the system refuses everything that is
+not read-only and records a degradation. It knows prohibitions were written and
+cannot tell what they said.
+
+Feature-level switches are separate: `AURA_FLAG_<NAME>` overrides any flag in
+`_DEFAULT_FLAGS` (`core/governance/feature_flags.py`) — `workspace_jail_enabled`
+is the path-traversal guard for file skills, `will_strict_enforcement` decides
+whether the Will is binding or advisory.
 
 ## Production Mode Rules
 

@@ -123,7 +123,7 @@ open items.
 | SBOM generation | ✅ Available | `tools/build_provenance.py` |
 | Governance bypass detection | ✅ Enforced | `tools/lint_governance.py` |
 | Prompt injection defenses | ✅ Multi-layer | Input sanitizer + integrity checks |
-| Cloud fallback privacy controls | ✅ Configurable | `AURA_CLOUD_FALLBACK_POLICY` |
+| Outbound egress privacy | ✅ Enforced | `core/security/egress_privacy.py`, `core/runtime/network_gateway.py` |
 
 ### Secure Defaults
 

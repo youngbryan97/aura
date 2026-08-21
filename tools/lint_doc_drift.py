@@ -72,6 +72,30 @@ PATH_CLAIM = re.compile(
     r"\.(?:py|md|json|ya?ml|toml|sh|txt|cfg|ini|js|ts|tsx|html|css|rs))(?::\d+)?$"
 )
 LINE_COUNT = re.compile(r"`([^`\n]+\.py)`\s*\((\d[\d,]*)\s+lines\)")
+#: A document that cites a test is claiming that test holds the thing it just
+#: said. The threat model cited `tests/test_steering_injection.py` as its proof
+#: of prompt-injection defence; that file tests activation steering, a
+#: different sense of the word. Whether a test proves the right claim is not
+#: decidable here, but a cited file with no tests in it is, and that is the
+#: state a rename leaves behind. Only files named `test_*` are read this way —
+#: a Locust file under tests/ collects `@task` methods and no `def test_`.
+TEST_DEF = re.compile(r"^\s*(?:async\s+)?def\s+test_", re.M)
+
+#: A documented environment variable that nothing reads is a lever with no
+#: cable attached. The operator sets it, the value is accepted, and the
+#: behaviour does not move — which reads as the setting being ineffective
+#: rather than absent. Only names written inside code are checked, and only
+#: the AURA_ namespace, which this repository owns.
+#: Three things read as an env name and are not one: a document filename
+#: (`AURA_MASTER_SPEC.md`), a documented family written with a wildcard
+#: (`AURA_LLM__*`), and a name a document mentions in order to say it does not
+#: exist. The last is why the negation cue is here — OPERATOR_GUIDE.md warns
+#: readers off `AURA_MEM_THRESHOLDS`, and flagging that sentence would ask the
+#: author to delete a correction.
+ENV_VAR = re.compile(r"\bAURA_[A-Z0-9_]{2,}\b(?![.*/])(?!_\*)")
+ENV_NEGATED = re.compile(
+    r"\b(no|not|never|does not exist|doesn't exist|removed|retired|"
+    r"unused|nothing reads)\b", re.I)
 MODULE_COUNT = re.compile(r"(\d[\d,]*)\s+modules? in\s+`([^`\n]+/)`")
 
 EXTERNAL = ("http://", "https://", "mailto:", "file:", "ftp:", "tel:")
@@ -130,6 +154,32 @@ def tracked_docs() -> list[str]:
     ]
 
 
+#: Sources of an env name, in order of how they are written:
+#: literally, or built from a prefix — `f"AURA_FLAG_{name.upper()}"` produces
+#: every flag override without any of them appearing in the tree.
+SOURCE_GLOBS = ("*.py", "*.sh", "*.yml", "*.yaml", "*.json", "*.toml",
+                "Makefile", "*.plist", "*.command", "*.js", "*.ts")
+
+
+def readable_env_names() -> tuple[set[str], tuple[str, ...]]:
+    """Literal AURA_* names in tracked source, and the prefixes built at runtime."""
+    literal = set(subprocess.run(
+        ["git", "grep", "-hoE", r"AURA_[A-Z0-9_]{2,}", "--", *SOURCE_GLOBS],
+        cwd=ROOT, capture_output=True, text=True,
+    ).stdout.split())
+    built = tuple(sorted({
+        prefix
+        for prefix in subprocess.run(
+            ["git", "grep", "-hoE", r"AURA_[A-Z0-9_]*\{", "--", *SOURCE_GLOBS],
+            cwd=ROOT, capture_output=True, text=True,
+        ).stdout.replace("{", "").split()
+        # `f"AURA_{service.upper()}_..."` yields the bare namespace, which
+        # would vouch for every name there is. A prefix has to narrow something.
+        if prefix != "AURA_"
+    }))
+    return literal, built
+
+
 def make_targets() -> set[str]:
     mk = (ROOT / "Makefile").read_text(errors="replace")
     return set(re.findall(r"^([A-Za-z0-9_.-]+):(?!=)", mk, re.M))
@@ -153,7 +203,8 @@ def _resolve(doc: Path, target: str) -> Path | None:
     return hit
 
 
-def scan(rel: str, targets: set[str], anchor_cache: dict[str, set[str]]) -> list[dict]:
+def scan(rel: str, targets: set[str], anchor_cache: dict[str, set[str]],
+         env_names: tuple[set[str], tuple[str, ...]]) -> list[dict]:
     doc = Path(rel)
     try:
         lines = (ROOT / rel).read_text(errors="replace").splitlines()
@@ -178,12 +229,29 @@ def scan(rel: str, targets: set[str], anchor_cache: dict[str, set[str]]) -> list
 
         spans = [m.group(1) for m in CODE_SPAN.finditer(line)]
 
+        # A lever the operator can set has to be a lever something reads.
+        if not ENV_NEGATED.search(line):
+            literal, built = env_names
+            for scope in ([line] if in_fence else []) + spans:
+                for m in ENV_VAR.finditer(scope):
+                    name = m.group(0)
+                    if name in literal or name.startswith(built):
+                        continue
+                    note(i, "env_var_has_no_reader", name, scope)
+
         # A path written as a path.
         for span in spans:
             claim = PATH_CLAIM.match(span.strip())
-            if claim and not (ROOT / claim.group(1)).exists():
-                if not is_output_path(claim.group(1)):
-                    note(i, "missing_path", claim.group(1), line)
+            if not claim:
+                continue
+            cited = claim.group(1)
+            if not (ROOT / cited).exists():
+                if not is_output_path(cited):
+                    note(i, "missing_path", cited, line)
+            elif cited.startswith("tests/") and Path(cited).name.startswith("test_"):
+                body = (ROOT / cited).read_text(errors="replace")
+                if not TEST_DEF.search(body):
+                    note(i, "cited_test_has_no_tests", cited, line)
 
         # `make` as a command, never as the verb.
         for scope in ([line] if in_fence else []) + spans:
@@ -266,11 +334,12 @@ def main() -> int:
 
     docs = args.files or tracked_docs()
     targets = make_targets()
+    env_names = readable_env_names()
     cache: dict[str, set[str]] = {}
 
     findings: list[dict] = []
     for rel in docs:
-        findings.extend(scan(rel, targets, cache))
+        findings.extend(scan(rel, targets, cache, env_names))
 
     per_doc: dict[str, int] = {}
     for f in findings:

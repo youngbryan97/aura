@@ -67,27 +67,35 @@ Every operator/user interaction with Aura is governed by these permissions.
 
 ## Operator Configuration
 
-Operators configure permissions via environment or config file:
+Permissions are configured in two places, neither of them an ad-hoc
+environment variable.
+
+**Prohibitions** are standing directives, written to
+`data/governance/standing_directives.json` and read from disk by the authority
+gateway on every consequential action. `kind=tool` refuses a tool; `kind=path`
+refuses a filesystem location; `scope=write` refuses only mutation, `scope=any`
+refuses reads as well. There is no grant counterpart — see
+[../TOOL_USE_POLICY.md](../TOOL_USE_POLICY.md).
+
+**Runtime posture** comes from the mode and the feature flags:
 
 ```bash
-# Set operator role
-AURA_ROLE=operator
+# Production posture: unsigned skills refused, self-modification off
+AURA_MODE=production
 
-# Configure workspace boundary
-AURA_WORKSPACE_ROOT=/Users/me/projects
+# No autonomous behaviour at all
+AURA_AUTONOMY_LEVEL=0
 
-# Tool allowlist (overrides defaults)
-AURA_TOOLS_ALLOWLIST=clock,calculator,file_read,file_write,browser_read
+# No background work
+AURA_FOREGROUND_ONLY=1
 
-# Tool blocklist (overrides allowlist)
-AURA_TOOLS_BLOCKLIST=shell_unrestricted,network_external
-
-# Require confirmation for risky actions
-AURA_CONFIRM_HIGH_RISK=true
-
-# Cloud fallback
-AURA_CLOUD_FALLBACK_POLICY=disabled
+# Any flag in core/governance/feature_flags.py, by name
+AURA_FLAG_WORKSPACE_JAIL_ENABLED=1
 ```
+
+Confirmation for a destructive effect is not configurable. The authority
+gateway sets `additional_confirmation_required` from the effect scope in code,
+so no setting and no amount of context compaction removes it.
 
 ## Capability Statements
 
