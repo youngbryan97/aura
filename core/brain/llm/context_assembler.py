@@ -36,6 +36,10 @@ from core.brain.llm.continuity_ledger import env_int
 from core.brain.llm.prompt_envelope import Trust, new_envelope
 from core.brain.llm.token_budget_evidence import chars_per_token
 from core.dialogue.referents import current_frame
+from core.runtime.cognitive_execution_scope import (
+    CognitiveExecutionScope,
+    bound_cognitive_execution_scope,
+)
 from core.runtime.conversation_support import build_conversational_context_blocks
 from core.runtime.errors import record_degradation
 from core.state.aura_state import AuraState
@@ -1709,6 +1713,14 @@ class ContextAssembler:
         # promising exact-grant eligibility that nothing checked here.
         bound_agent = ""
         hinted_agent = ""
+        execution_scope = bound_cognitive_execution_scope(state, objective)
+        request_origin = str(
+            getattr(getattr(state, "cognition", None), "current_origin", "") or ""
+        ).strip().lower()
+        internal_unbound_scope = (
+            execution_scope is CognitiveExecutionScope.REASONING_ONLY
+            or request_origin not in _USER_FACING_ORIGINS
+        )
         try:
             from core.runtime.principal_context import (
                 current_relational_principal,
@@ -1725,7 +1737,7 @@ class ContextAssembler:
                 hinted_agent = " ".join(
                     str(situation_frame.get("agent_id") or "").strip().split()
                 )[:160]
-            if not hinted_agent:
+            if not hinted_agent and not internal_unbound_scope:
                 hinted_agent = " ".join(
                     str(getattr(estimator, "active_agent_id", "") or "")
                     .strip()
@@ -1755,7 +1767,17 @@ class ContextAssembler:
         # is enough to model who she is talking to; it is not enough to hand
         # over what somebody else told her.
         relational_block = ""
-        if hinted_agent and not bound_agent:
+        if not bound_agent and internal_unbound_scope:
+            state_response_mods = getattr(state, "response_modifiers", None)
+            if isinstance(state_response_mods, dict):
+                state_response_mods["relational_scope_receipt"] = {
+                    "status": "unbound_internal",
+                    "principal_bound": False,
+                    "relational_memory_consulted": False,
+                    "ambient_agent_hint_consulted": False,
+                    "origin": request_origin or "unknown",
+                }
+        elif hinted_agent and not bound_agent:
             record_degradation(
                 "context_assembler.relational_scope",
                 RuntimeError(

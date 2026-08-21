@@ -1,5 +1,6 @@
 from core.brain.llm.context_assembler import ContextAssembler
 from core.container import ServiceContainer
+from core.runtime.errors import get_degradation_tracker
 from core.runtime.principal_context import relational_principal_scope
 from core.social.relational_memory import RelationalMemoryAuthority
 from core.state.aura_state import AuraState
@@ -135,6 +136,7 @@ def test_context_assembler_uses_exact_active_social_agent_without_intimacy_claim
         required=False,
     )
     state = AuraState.default()
+    state.cognition.current_origin = "user"
     state.cognition.current_objective = "Continue the architecture review."
 
     try:
@@ -150,6 +152,45 @@ def test_context_assembler_uses_exact_active_social_agent_without_intimacy_claim
     assert "be more personal" not in lowered
     assert "high rapport → lean in" not in lowered
     assert "relational register: intimate" not in lowered
+
+
+def test_internal_cognition_does_not_inherit_the_last_active_social_agent():
+    class AmbientEstimator:
+        active_agent_id = "bryan"
+
+        def __init__(self):
+            self.requested_agents = []
+
+        def context_injection(self, agent_id):
+            self.requested_agents.append(agent_id)
+            return f"AMBIENT_SOCIAL_MARKER agent={agent_id}"
+
+    tracker = get_degradation_tracker()
+    tracker.reset()
+    estimator = AmbientEstimator()
+    ServiceContainer.clear()
+    ServiceContainer.register_instance("other_agent_model", estimator, required=False)
+    state = AuraState.default()
+    state.cognition.current_origin = "curriculum_loop"
+    state.cognition.current_objective = "Evaluate an internal learning transition."
+
+    try:
+        prompt = ContextAssembler.build_system_prompt(state)
+        scope_failures = tracker.recent(subsystem="context_assembler.relational_scope")
+    finally:
+        ServiceContainer.clear()
+        tracker.reset()
+
+    assert estimator.requested_agents == []
+    assert "AMBIENT_SOCIAL_MARKER" not in prompt
+    assert scope_failures == []
+    assert state.response_modifiers["relational_scope_receipt"] == {
+        "status": "unbound_internal",
+        "principal_bound": False,
+        "relational_memory_consulted": False,
+        "ambient_agent_hint_consulted": False,
+        "origin": "curriculum_loop",
+    }
 
 
 def test_context_assembler_excludes_unscoped_legacy_relationship_memory():
