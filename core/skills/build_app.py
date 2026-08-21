@@ -16,7 +16,10 @@ from core.skills.base_skill import BaseSkill
 class BuildAppInput(BaseModel):
     spec: str = Field(..., description="What app to build, e.g. 'a playable checkers game'.")
     out_dir: str = Field("artifacts/live_apps", description="Where to write the app file.")
-    max_tokens: int = Field(9000, description="Generation budget for the app.")
+    # 0 means "whatever the code lane allows". A number here that the lane
+    # refuses is a skill that cannot run: 9000 against a policy ceiling of
+    # 2048 raised local_code_model_max_tokens_out_of_policy on every call.
+    max_tokens: int = Field(0, description="Generation budget; 0 uses the code lane's own ceiling.")
     max_iters: int = Field(3, description="Max research/build/test iterations (1-6).")
 
 
@@ -46,10 +49,19 @@ class BuildAppSkill(BaseSkill):
         # feed the exact failure back, persist, and retain the general lesson.
         from core.capabilities.self_taught_builder import build_app_verified
 
+        try:
+            from core.brain.llm.local_code_model import max_code_tokens
+
+            ceiling = int(max_code_tokens())
+        except (ImportError, AttributeError, TypeError, ValueError):
+            ceiling = 2048
+        requested_tokens = int(params.max_tokens or 0)
+        budget = min(requested_tokens, ceiling) if requested_tokens > 0 else ceiling
+
         result = await build_app_verified(
             params.spec,
             out_dir=params.out_dir,
-            max_tokens=params.max_tokens,
+            max_tokens=budget,
             max_iters=max(1, min(int(params.max_iters or 3), 6)),
         )
         payload = result.to_dict()

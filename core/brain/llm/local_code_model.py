@@ -39,6 +39,16 @@ logger = logging.getLogger(__name__)
 _DEFAULT_MODEL_REL = "training/fused-model/Aura-32B-20260510-151144"
 _TRUST_SCHEMA = "aura.local_code_model.trust.v1"
 _MAX_CODE_TOKENS = 2048
+
+
+def max_code_tokens() -> int:
+    """The largest generation this lane will accept.
+
+    Published so callers ask instead of guessing. build_app defaulted to 9000
+    against this 2048 and raised local_code_model_max_tokens_out_of_policy on
+    every single call — a skill whose own default made it impossible to run.
+    """
+    return _MAX_CODE_TOKENS
 _MAX_PROMPT_BYTES = 2 * 1024 * 1024
 _MAX_CONTEXT_TOKENS = 131_072
 _DEFAULT_TIMEOUT_S = 600.0
@@ -897,6 +907,7 @@ __all__ = [
     "UnloadReceipt",
     "build_model_trust_manifest",
     "get_local_code_model",
+    "max_code_tokens",
     "unload_local_code_model",
     "write_model_trust_manifest",
 ]
