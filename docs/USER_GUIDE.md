@@ -1,6 +1,6 @@
 # Aura — User Guide
 
-*Last reviewed against the tree: 2026-08-01.*
+*Last reviewed against the tree: 2026-08-21.*
 
 ## Install
 1. Download `Aura.dmg` from the releases page.
@@ -32,30 +32,38 @@ seconds. That's the model loading and thinking, not something being wrong.
 
 ## Manage Memory
 
-The Memory tab shows scars, narrative arcs, the episodic journal, and the
-Eternal Record.
+The Memory tab has three views: **Episodic** (what happened), **Semantic**
+(facts she has settled on), and **Goals**.
 
-Three things you can do there:
+Open a memory and you get six controls:
 
-- **Pin a memory** and it survives reaping. Nothing sweeps it later.
-- **Drop a topic** and she stops bringing it up.
-- **Export the whole record** as a tarball under Settings → Backup.
+- **Freeze** — it survives reaping. Nothing sweeps it later. Unfreeze puts it
+  back in the ordinary pool.
+- **Edit** — change the text.
+- **Delete** — remove that one memory.
+- **Contest** — mark it disputed without deleting it, so she knows the two of
+  you disagree about it rather than losing the record.
+- **Mark False** — say it is wrong. Different from contesting: this is a
+  verdict, not a dispute.
+- **Provenance** — where this memory came from and what it was derived from.
+
+**Export the whole record** from the memory panel's **Backup & Export** tab.
 
 It's her memory, but it's your data. All of it comes out in one file.
 
 ## Use Voice
 
-Voice input needs explicit permission each session — click the mic icon.
-The first time, macOS will ask for microphone access.
+Voice input needs explicit permission each session — click the mic button in
+the header. The first time, macOS will ask for microphone access.
 
-Voice output is on by default. Settings → Voice turns it off.
+Settings → Voice holds both toggles, input and output.
 
 ## Common Issues
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| Banner: "My local Cortex is offline" | 32B failed to load | Settings → Models → Reset cortex; check disk space. |
-| "I'm under load right now" replies | RAM pressure > 90% | Close memory-heavy apps; Settings → Memory → Compact. |
-| Voice button greyed out | Permission revoked | Settings → Permissions → grant microphone. |
+| Banner: "My local Cortex is offline" | 32B failed to load | Check disk space first — the weights are about 20 GB. Then relaunch; there is no in-app model reset. `docs/runbooks/model-fails-to-load.md` has the ordered procedure. |
+| "I'm under load right now" replies | RAM pressure over 90% | Close memory-heavy apps. Nothing in Settings compacts memory on demand; the runtime sheds load on its own. |
+| Voice button greyed out | Permission revoked | Grant microphone access in macOS Privacy & Security. Settings → Desktop Access covers Screen Recording, Accessibility, and Automation. |
 | Chat input stays disabled | Boot still warming | Check the boot screen at the top — wait for Cortex: Ready. |
 | Aura answers, but flatly | An organ was missing from the turn | The turn surface reports which cognitive organs engaged; a missing organ is treated as a defect, not a note. |
 | "I can't do that right now" | A capability exists but is unavailable | She distinguishes not having a capability from not being able to use it right now, and will say which. |
@@ -93,7 +101,7 @@ To remove that too:
 rm -rf ~/.aura
 ```
 
-That one is not reversible. Export from Settings → Backup first if there's
-any chance you want it later.
+That one is not reversible. Export from the memory panel's Backup & Export
+tab first if there's any chance you want it later.
 
 For deeper docs see `docs/OPERATOR_GUIDE.md` and `docs/RESEARCH_GUIDE.md`.
