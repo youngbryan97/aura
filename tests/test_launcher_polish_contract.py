@@ -118,6 +118,26 @@ def test_launcher_exposes_desktop_window_action_and_dock_presence():
     assert 'env["AURA_BACKGROUND_BOOT_GRACE_S"] = "60"' in swift
     assert 'env["AURA_EAGER_LOCAL_SENSORY_BOOT"] = "1"' in swift
     assert 'env.removeValue(forKey: "AURA_AUTO_LISTEN")' in swift
+
+
+def test_native_bridge_targets_input_effects_and_verifies_activation():
+    swift = (PROJECT_ROOT / "scripts" / "AuraLauncher.swift").read_text(
+        encoding="utf-8"
+    )
+
+    assert "bridgeActivateApplication" in swift
+    assert 'case "activate_application":' in swift
+    assert '"application_activation_not_observed"' in swift
+    assert '"interactive_session_unavailable"' in swift
+    assert '"foreground_verified": true' in swift
+    assert "bridgeExpectedForegroundRefusal" in swift
+    assert '"expected_frontmost_bundle_identifier"' in swift
+    assert '"expected_frontmost_process_identifier"' in swift
+    assert '"target_not_frontmost"' in swift
+
+    for command in ("move", "click", "write", "press", "hotkey", "scroll"):
+        body = swift.split(f'case "{command}":', 1)[1].split("case ", 1)[0]
+        assert "bridgeExpectedForegroundRefusal(payload)" in body
     assert 'env["AURA_AUTO_LISTEN"] = "1"' not in swift
     assert "AURA_EAGER_CORTEX_WARMUP" in swift
     assert "AURA_DEFERRED_CORTEX_PREWARM" in swift

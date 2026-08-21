@@ -7,6 +7,9 @@ import ScreenCaptureKit
 import WebKit
 
 private let nativeBridgeFlag = "--native-desktop-bridge"
+private let auraShowPrimaryWindowNotification = Notification.Name(
+    "com.aura.desktop.show-primary-window"
+)
 
 private func bridgeJSON(_ payload: [String: Any], status: Int32 = 0) -> Never {
     let data = (try? JSONSerialization.data(withJSONObject: payload, options: [])) ?? Data("{\"ok\":false,\"error\":\"json_encoding_failed\"}".utf8)
@@ -88,6 +91,195 @@ private func bridgeAutomationProbe() -> [String: Any] {
         "automation": true,
         "frontmost_app": descriptor.stringValue ?? "",
     ]
+}
+
+private struct BridgeForegroundApplication {
+    let name: String
+    let bundleIdentifier: String
+    let processIdentifier: pid_t
+
+    var receipt: [String: Any] {
+        [
+            "app": name,
+            "bundle_identifier": bundleIdentifier,
+            "process_identifier": Int(processIdentifier),
+        ]
+    }
+}
+
+private func bridgeForegroundApplication() -> BridgeForegroundApplication? {
+    guard let app = NSWorkspace.shared.frontmostApplication else { return nil }
+    return BridgeForegroundApplication(
+        name: app.localizedName ?? "",
+        bundleIdentifier: app.bundleIdentifier ?? "",
+        processIdentifier: app.processIdentifier
+    )
+}
+
+private func bridgeInteractiveSessionUnavailable(
+    _ foreground: BridgeForegroundApplication? = bridgeForegroundApplication()
+) -> Bool {
+    foreground?.bundleIdentifier == "com.apple.loginwindow"
+}
+
+/// Refuse an input effect when the caller named a target that does not own the
+/// foreground at the instant the effect would be emitted. Keyboard and pointer
+/// events have no intrinsic application address; a successful CGEvent post is
+/// not evidence that the intended application received it.
+private func bridgeExpectedForegroundRefusal(_ payload: [String: Any]) -> [String: Any]? {
+    let expectedBundle = String(
+        describing: payload["expected_frontmost_bundle_identifier"] ?? ""
+    ).trimmingCharacters(in: .whitespacesAndNewlines)
+    let expectedName = String(
+        describing: payload["expected_frontmost_app"] ?? ""
+    ).trimmingCharacters(in: .whitespacesAndNewlines)
+    let expectedPID = Int(bridgeNumber(
+        payload,
+        "expected_frontmost_process_identifier",
+        default: 0
+    ))
+    guard !expectedBundle.isEmpty || !expectedName.isEmpty || expectedPID > 0 else {
+        return nil
+    }
+    guard let foreground = bridgeForegroundApplication() else {
+        return [
+            "ok": false,
+            "error": "foreground_identity_unavailable",
+            "expected_bundle_identifier": expectedBundle,
+            "expected_app": expectedName,
+            "expected_process_identifier": expectedPID,
+        ]
+    }
+    if bridgeInteractiveSessionUnavailable(foreground) {
+        return [
+            "ok": false,
+            "error": "interactive_session_unavailable",
+            "session_locked": true,
+            "foreground": foreground.receipt,
+        ]
+    }
+    let bundleMatches = expectedBundle.isEmpty
+        || foreground.bundleIdentifier.caseInsensitiveCompare(expectedBundle) == .orderedSame
+    let pidMatches = expectedPID <= 0 || Int(foreground.processIdentifier) == expectedPID
+    let foldedExpectedName = expectedName.folding(
+        options: [.caseInsensitive, .diacriticInsensitive],
+        locale: .current
+    )
+    let foldedObservedName = foreground.name.folding(
+        options: [.caseInsensitive, .diacriticInsensitive],
+        locale: .current
+    )
+    let nameMatches = expectedName.isEmpty
+        || foldedObservedName == foldedExpectedName
+        || foldedObservedName.contains(foldedExpectedName)
+        || foldedExpectedName.contains(foldedObservedName)
+    guard bundleMatches && pidMatches && nameMatches else {
+        return [
+            "ok": false,
+            "error": "target_not_frontmost",
+            "expected_bundle_identifier": expectedBundle,
+            "expected_app": expectedName,
+            "expected_process_identifier": expectedPID,
+            "foreground": foreground.receipt,
+        ]
+    }
+    return nil
+}
+
+private func bridgeActivateApplication(_ payload: [String: Any]) -> ([String: Any], Int32) {
+    let requestedBundle = String(
+        describing: payload["bundle_identifier"] ?? ""
+    ).trimmingCharacters(in: .whitespacesAndNewlines)
+    let requestedName = String(
+        describing: payload["app"] ?? ""
+    ).trimmingCharacters(in: .whitespacesAndNewlines)
+    let requestedPID = Int(bridgeNumber(payload, "process_identifier", default: 0))
+    guard !requestedBundle.isEmpty || !requestedName.isEmpty || requestedPID > 0 else {
+        return (["ok": false, "error": "application_identity_required"], 2)
+    }
+
+    let initialForeground = bridgeForegroundApplication()
+    if bridgeInteractiveSessionUnavailable(initialForeground) {
+        return ([
+            "ok": false,
+            "error": "interactive_session_unavailable",
+            "session_locked": true,
+            "foreground": initialForeground?.receipt ?? [:],
+        ], 2)
+    }
+
+    let foldedRequestedName = requestedName.folding(
+        options: [.caseInsensitive, .diacriticInsensitive],
+        locale: .current
+    )
+    let candidates = NSWorkspace.shared.runningApplications.filter { app in
+        if requestedPID > 0 && Int(app.processIdentifier) != requestedPID { return false }
+        if !requestedBundle.isEmpty
+            && (app.bundleIdentifier ?? "").caseInsensitiveCompare(requestedBundle) != .orderedSame {
+            return false
+        }
+        if !requestedName.isEmpty {
+            let observed = (app.localizedName ?? "").folding(
+                options: [.caseInsensitive, .diacriticInsensitive],
+                locale: .current
+            )
+            if observed != foldedRequestedName
+                && !observed.contains(foldedRequestedName)
+                && !foldedRequestedName.contains(observed) {
+                return false
+            }
+        }
+        return true
+    }
+    guard let target = candidates.first else {
+        return ([
+            "ok": false,
+            "error": "application_not_running",
+            "bundle_identifier": requestedBundle,
+            "app": requestedName,
+            "process_identifier": requestedPID,
+        ], 2)
+    }
+
+    target.unhide()
+    if (target.bundleIdentifier ?? "") == "com.aura.desktop" {
+        DistributedNotificationCenter.default().postNotificationName(
+            auraShowPrimaryWindowNotification,
+            object: nil,
+            userInfo: ["target_pid": target.processIdentifier],
+            deliverImmediately: true
+        )
+    }
+    let activationAccepted = target.activate(options: [.activateAllWindows])
+    let deadline = Date().addingTimeInterval(2.0)
+    var observed = bridgeForegroundApplication()
+    while Date() < deadline && observed?.processIdentifier != target.processIdentifier {
+        Thread.sleep(forTimeInterval: 0.025)
+        observed = bridgeForegroundApplication()
+        if bridgeInteractiveSessionUnavailable(observed) { break }
+    }
+    guard observed?.processIdentifier == target.processIdentifier else {
+        return ([
+            "ok": false,
+            "error": bridgeInteractiveSessionUnavailable(observed)
+                ? "interactive_session_unavailable"
+                : "application_activation_not_observed",
+            "activation_accepted": activationAccepted,
+            "session_locked": bridgeInteractiveSessionUnavailable(observed),
+            "target": [
+                "app": target.localizedName ?? "",
+                "bundle_identifier": target.bundleIdentifier ?? "",
+                "process_identifier": Int(target.processIdentifier),
+            ],
+            "foreground": observed?.receipt ?? [:],
+        ], 2)
+    }
+    return ([
+        "ok": true,
+        "activation_accepted": activationAccepted,
+        "target": observed?.receipt ?? [:],
+        "foreground_verified": true,
+    ], 0)
 }
 
 private let bridgeScreenCapturePolicySchema = "aura.security.screen_capture_privacy_policy.v1"
@@ -544,6 +736,8 @@ private func nativeDesktopBridgeResult(payload: [String: Any]) -> ([String: Any]
     case "position":
         let location = CGEvent(source: nil)?.location ?? .zero
         return (["ok": true, "x": location.x, "y": location.y], 0)
+    case "activate_application":
+        return bridgeActivateApplication(payload)
     case "foreground_capture_admission":
         let admission = bridgeScreenCaptureAdmission()
         return ([
@@ -600,6 +794,9 @@ private func nativeDesktopBridgeResult(payload: [String: Any]) -> ([String: Any]
         }
         return (["ok": true, "path": path, "width": width, "height": height], 0)
     case "move":
+        if let refusal = bridgeExpectedForegroundRefusal(payload) {
+            return (refusal, 2)
+        }
         let point = CGPoint(x: bridgeNumber(payload, "x"), y: bridgeNumber(payload, "y"))
         guard let event = CGEvent(mouseEventSource: nil, mouseType: .mouseMoved, mouseCursorPosition: point, mouseButton: .left) else {
             return (["ok": false, "error": "mouse_event_unavailable"], 2)
@@ -607,6 +804,9 @@ private func nativeDesktopBridgeResult(payload: [String: Any]) -> ([String: Any]
         event.post(tap: .cghidEventTap)
         return (["ok": true, "x": point.x, "y": point.y], 0)
     case "click":
+        if let refusal = bridgeExpectedForegroundRefusal(payload) {
+            return (refusal, 2)
+        }
         let current = CGEvent(source: nil)?.location ?? .zero
         let point = CGPoint(
             x: bridgeNumber(payload, "x", default: current.x),
@@ -629,10 +829,16 @@ private func nativeDesktopBridgeResult(payload: [String: Any]) -> ([String: Any]
         }
         return (["ok": true, "x": point.x, "y": point.y, "clicks": clicks], 0)
     case "write":
+        if let refusal = bridgeExpectedForegroundRefusal(payload) {
+            return (refusal, 2)
+        }
         let text = String(describing: payload["text"] ?? "")
         let ok = bridgeTypeText(text, interval: max(0, bridgeNumber(payload, "interval")))
         return (["ok": ok, "characters": text.count], ok ? 0 : 2)
     case "press":
+        if let refusal = bridgeExpectedForegroundRefusal(payload) {
+            return (refusal, 2)
+        }
         let key = String(describing: payload["key"] ?? "")
         let presses = max(1, Int(bridgeNumber(payload, "presses", default: 1)))
         let interval = max(0, bridgeNumber(payload, "interval"))
@@ -644,6 +850,9 @@ private func nativeDesktopBridgeResult(payload: [String: Any]) -> ([String: Any]
         }
         return (["ok": true, "key": key, "presses": presses], 0)
     case "hotkey":
+        if let refusal = bridgeExpectedForegroundRefusal(payload) {
+            return (refusal, 2)
+        }
         let keys = (payload["keys"] as? [String]) ?? []
         guard let finalKey = keys.last else {
             return (["ok": false, "error": "hotkey_requires_key"], 2)
@@ -651,6 +860,9 @@ private func nativeDesktopBridgeResult(payload: [String: Any]) -> ([String: Any]
         let ok = bridgePostKey(finalKey, flags: bridgeModifierFlags(Array(keys.dropLast())))
         return (["ok": ok, "keys": keys], ok ? 0 : 2)
     case "scroll":
+        if let refusal = bridgeExpectedForegroundRefusal(payload) {
+            return (refusal, 2)
+        }
         let amount = Int32(bridgeNumber(payload, "amount"))
         guard let event = CGEvent(
             scrollWheelEvent2Source: nil,
@@ -1790,9 +2002,7 @@ final class TopStripPanGestureRecognizer: NSPanGestureRecognizer {
 
 final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
     WKScriptMessageHandler, NSWindowDelegate, WKUIDelegate {
-    private static let showPrimaryWindowNotification = Notification.Name(
-        "com.aura.desktop.show-primary-window"
-    )
+    private static let showPrimaryWindowNotification = auraShowPrimaryWindowNotification
 
     private enum BadgeStyle {
         case violet

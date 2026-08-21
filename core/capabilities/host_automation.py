@@ -816,7 +816,7 @@ class HostAutomationProvider:
         is a description of where it will land, never a check that it is the
         right place.
         """
-        refusal = await self._refuse_if_not_frontmost(expect_app, "type_text")
+        refusal = await self._ensure_input_target(expect_app, "type_text")
         if refusal is not None:
             self._log_receipt(refusal)
             return refusal
@@ -978,6 +978,92 @@ class HostAutomationProvider:
             ),
         )
 
+    async def _activate_input_target(self, expect_app: str) -> AutomationReceipt:
+        """Bring a named input target forward through the signed native bridge.
+
+        Focus loss is recoverable state, not an automatic task failure. The
+        bridge verifies the observed foreground after activation and reports a
+        locked login session distinctly from a missing application or failed
+        activation. AppleScript remains a compatibility fallback only when the
+        resident signed bridge itself is unavailable.
+        """
+        start = time.time()
+        native: dict[str, Any] = {}
+        try:
+            from core.security.native_desktop_bridge import (
+                invoke_native_desktop_bridge,
+            )
+
+            native = await asyncio.to_thread(
+                invoke_native_desktop_bridge,
+                "activate_application",
+                read_only=False,
+                timeout=3.0,
+                allow_one_shot=False,
+                app=expect_app,
+            )
+        except (
+            ImportError,
+            OSError,
+            RuntimeError,
+            TimeoutError,
+            TypeError,
+            ValueError,
+        ) as exc:
+            native = {"ok": False, "error": f"native_activation_error:{exc}"}
+
+        if native.get("ok") and native.get("bridge_transport") == "resident_ipc":
+            return AutomationReceipt(
+                action="focus_app",
+                target=expect_app,
+                adapter="resident_native_bridge",
+                success=True,
+                result=native,
+                duration_ms=(time.time() - start) * 1000,
+            )
+
+        error = str(native.get("error") or "")
+        if error not in {
+            "resident_bridge_unavailable",
+            "native_desktop_bridge_unavailable",
+        }:
+            return AutomationReceipt(
+                action="focus_app",
+                target=expect_app,
+                adapter="resident_native_bridge",
+                success=False,
+                result=native,
+                error=error or "native activation was not verified",
+                duration_ms=(time.time() - start) * 1000,
+            )
+
+        fallback = await self.focus_app(expect_app)
+        fallback.duration_ms = (time.time() - start) * 1000
+        return fallback
+
+    async def _ensure_input_target(
+        self, expect_app: str, action: str
+    ) -> AutomationReceipt | None:
+        """Recover target focus, then prove ownership before an input effect."""
+        refusal = await self._refuse_if_not_frontmost(expect_app, action)
+        if refusal is None or not str(expect_app or "").strip():
+            return refusal
+
+        activation = await self._activate_input_target(expect_app)
+        if activation.success:
+            refusal_after_activation = await self._refuse_if_not_frontmost(
+                expect_app,
+                action,
+            )
+            if refusal_after_activation is None:
+                self._log_receipt(activation)
+                return None
+            refusal = refusal_after_activation
+
+        activation_error = str(activation.error or "activation was not verified")
+        refusal.error = f"{refusal.error}; focus recovery failed: {activation_error}"
+        return refusal
+
     async def hotkey(self, *keys: str, expect_app: str = "") -> AutomationReceipt:
         """Press a keyboard shortcut. E.g., hotkey("command", "s").
 
@@ -985,7 +1071,7 @@ class HostAutomationProvider:
         press is refused unless that application is frontmost at the moment of
         sending — see _refuse_if_not_frontmost for the live defect this closes.
         """
-        refusal = await self._refuse_if_not_frontmost(expect_app, "hotkey")
+        refusal = await self._ensure_input_target(expect_app, "hotkey")
         if refusal is not None:
             self._log_receipt(refusal)
             return refusal

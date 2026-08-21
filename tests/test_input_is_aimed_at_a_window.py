@@ -28,9 +28,16 @@ from core.capabilities.host_automation import HostAutomationProvider
 class _Provider(HostAutomationProvider):
     """Real guard, fake frontmost reading."""
 
-    def __init__(self, frontmost: str, *, readable: bool = True) -> None:
+    def __init__(
+        self,
+        frontmost: str,
+        *,
+        readable: bool = True,
+        activation_succeeds: bool = False,
+    ) -> None:
         self._frontmost = frontmost
         self._readable = readable
+        self._activation_succeeds = activation_succeeds
         self.logged: list = []
 
     async def get_frontmost_window_context(self):  # type: ignore[override]
@@ -43,10 +50,31 @@ class _Provider(HostAutomationProvider):
     def _log_receipt(self, receipt):  # type: ignore[override]
         self.logged.append(receipt)
 
+    async def _activate_input_target(self, expect_app):  # type: ignore[override]
+        from core.capabilities.host_automation import AutomationReceipt
+
+        if self._activation_succeeds:
+            self._frontmost = f"{expect_app}|Recovered window"
+        return AutomationReceipt(
+            action="focus_app",
+            target=expect_app,
+            adapter="test_activation",
+            success=self._activation_succeeds,
+            error="" if self._activation_succeeds else "activation refused",
+        )
+
 
 def _guard(frontmost: str, expect: str, *, readable: bool = True):
     provider = _Provider(frontmost, readable=readable)
     return asyncio.run(provider._refuse_if_not_frontmost(expect, "hotkey"))
+
+
+def _ensure(frontmost: str, expect: str, *, activation_succeeds: bool):
+    provider = _Provider(
+        frontmost,
+        activation_succeeds=activation_succeeds,
+    )
+    return provider, asyncio.run(provider._ensure_input_target(expect, "hotkey"))
 
 
 def test_a_keystroke_aimed_at_the_frontmost_app_is_allowed():
@@ -96,6 +124,29 @@ def test_a_different_app_with_a_similar_title_is_still_refused():
     assert refusal is not None
 
 
+def test_wrong_focus_is_recovered_and_reverified_before_input():
+    provider, refusal = _ensure(
+        "Claude|Claude",
+        "Google Chrome",
+        activation_succeeds=True,
+    )
+
+    assert refusal is None
+    assert provider.logged[-1].adapter == "test_activation"
+
+
+def test_failed_focus_recovery_preserves_the_refusal():
+    _provider, refusal = _ensure(
+        "Claude|Claude",
+        "Google Chrome",
+        activation_succeeds=False,
+    )
+
+    assert refusal is not None
+    assert refusal.success is False
+    assert "focus recovery failed" in refusal.error
+
+
 @pytest.mark.parametrize("method", ["hotkey", "type_text"])
 def test_both_input_paths_take_a_target(method):
     """Typing into the wrong window is worse than a stray arrow key."""
@@ -115,7 +166,7 @@ def test_the_guard_runs_before_the_keystroke(method):
     """
     source = inspect.getsource(getattr(HostAutomationProvider, method))
     body = source[source.index('"""', source.index('"""') + 3) + 3 :]
-    guard = body.index("_refuse_if_not_frontmost")
+    guard = body.index("_ensure_input_target")
 
     for sender in ("run_applescript", "_run_script", "osascript"):
         if sender in body:
