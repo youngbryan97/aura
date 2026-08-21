@@ -5284,6 +5284,12 @@ def clear_stale_soft_cancel(cancel_seq: Any, job_seq: int) -> None:
         logger.debug("Stale soft-cancel clear failed; continuing.")
 
 
+#: One encoder per worker, built on first use. Constructing it reads the
+#: model's hidden size and nothing else, so it is cheap to hold and wrong to
+#: rebuild per request.
+_hidden_encoder: dict[str, Any] = {"encoder": None}
+
+
 def _run_nonparametric_ingest_job(
     model: Any,
     tokenizer: Any,
@@ -8982,6 +8988,36 @@ def _mlx_worker_loop(
                             logger.debug(
                                 "Non-parametric ingest soft-cancel acknowledgement failed."
                             )
+                ipc_writer.put(response)
+
+            elif action == "encode_hidden":
+                # The resident model's own representation of a sentence.
+                #
+                # A learned decision surface needs a feature space that
+                # carries who acts and whether it is asserted. Measured over
+                # every declaration in this runtime, a topical sentence
+                # embedder carries neither — it is trained to put "I saved it"
+                # and "you could save it" close together. This model does
+                # carry it, and encoding is one causal forward with no
+                # sampling, so there is nothing to steer and no text to write.
+                request_id = str(job.get("id") or "")
+                texts = [str(item or "") for item in (job.get("texts") or [])][:64]
+                response = {"id": request_id, "action": "encode_hidden"}
+                try:
+                    from core.brain.nonparametric_generation import MLXEncoder
+
+                    if _hidden_encoder["encoder"] is None:
+                        _hidden_encoder["encoder"] = MLXEncoder(model, tokenizer)
+                    encoder = _hidden_encoder["encoder"]
+                    with metal_semaphore:
+                        vectors = [
+                            [float(value) for value in encoder.encode_hidden(text[:2000])]
+                            for text in texts
+                            if text.strip()
+                        ]
+                    response.update({"status": "ok", "vectors": vectors})
+                except (AttributeError, IndexError, RuntimeError, TypeError, ValueError) as exc:
+                    response.update({"status": "error", "message": f"{type(exc).__name__}: {exc}"})
                 ipc_writer.put(response)
 
             elif action == "ping":

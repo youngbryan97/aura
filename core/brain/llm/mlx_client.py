@@ -10177,6 +10177,61 @@ class MLXLocalClient:
             self._set_lane_state("cold", "model_lane_fence_lost")
             self._listener_stop_generation = queue_generation
 
+    async def encode_hidden(
+        self, texts: Sequence[str], *, timeout_s: float = 8.0
+    ) -> list[list[float]]:
+        """The resident model's own representation of these sentences.
+
+        For a learned decision surface, not for generation: one causal forward
+        with no sampling, so there is nothing to steer.
+
+        Returns [] rather than waiting whenever the worker is not resident or
+        is busy with a foreground turn. Every caller treats [] as "no opinion",
+        which is what keeps this off the critical path.
+        """
+        wanted = [str(text or "") for text in (texts or []) if str(text or "").strip()]
+        if not wanted:
+            return []
+        # getattr throughout: this is called from matcher code that may hold a
+        # client constructed outside a running worker, and a missing attribute
+        # is the same answer as a busy one — no opinion.
+        process = getattr(self, "_process", None)
+        if (
+            getattr(self, "_shutting_down", False)
+            or not getattr(self, "_init_done", False)
+            or process is None
+            or not process.is_alive()
+            or int(getattr(self, "_active_generations", 0) or 0) > 0
+        ):
+            return []
+
+        request_id = uuid.uuid4().hex
+        self._job_seq_counter += 1
+        request = {
+            "id": request_id,
+            "seq": self._job_seq_counter,
+            "action": "encode_hidden",
+            "texts": wanted[:64],
+        }
+        future = _new_shared_future()
+        self._pending_generations[request_id] = future
+        try:
+            await run_io_bound(
+                self._req_q.put,
+                self._authorize_job(request, principal="mlx_client.encode_hidden"),
+                True,
+                2.0,
+            )
+            response = await _await_shared_future(future, timeout_s=max(1.0, timeout_s))
+        except (TimeoutError, OSError, RuntimeError, TypeError, ValueError):
+            return []
+        finally:
+            self._pending_generations.pop(request_id, None)
+        if not isinstance(response, dict) or response.get("status") != "ok":
+            return []
+        vectors = response.get("vectors")
+        return vectors if isinstance(vectors, list) else []
+
     def soft_cancel_active_generation(
         self, reason: str = "foreground_preemption"
     ) -> dict[str, Any]:

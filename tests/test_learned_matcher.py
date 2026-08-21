@@ -111,3 +111,36 @@ def test_it_never_decides_on_an_untrusted_boundary() -> None:
     report = matcher.report()
     if not report["trustworthy"]:
         assert matcher.decide("anything") is None
+
+
+def test_a_live_turn_never_waits_for_a_decision() -> None:
+    """The first sighting abstains and is remembered; the next is answered."""
+    matcher = _declared()
+    assert matcher.decide_without_waiting("I filed the report.") is None
+    assert matcher.report()["pending"] == 1
+
+    settled = matcher.warm()
+    assert settled == 1
+    assert matcher.decide_without_waiting("I filed the report.") is True
+    assert matcher.report()["pending"] == 0
+
+
+def test_the_queue_of_unseen_phrasings_is_bounded() -> None:
+    from core.language.learned_matcher import _PENDING_CEILING
+
+    matcher = _declared()
+    for index in range(_PENDING_CEILING + 40):
+        matcher.decide_without_waiting(f"I did thing number {index}.")
+    assert matcher.report()["pending"] <= _PENDING_CEILING
+
+
+def test_warming_something_undecidable_leaves_no_verdict() -> None:
+    muddled = LearnedMatcher(
+        name="muddled",
+        positives=("a", "b", "c"),
+        negatives=("d", "e", "f"),
+        features=lambda sentences: [[0.5] for _ in sentences],
+    )
+    muddled.decide_without_waiting("anything at all")
+    assert muddled.warm() == 0
+    assert muddled.decide_without_waiting("anything at all") is None

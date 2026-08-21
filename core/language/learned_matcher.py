@@ -56,6 +56,10 @@ _RECOVERABLE = (AttributeError, ImportError, OSError, RuntimeError, TypeError, V
 #: for empties anyway.
 _MIN_CHARS = 3
 
+#: How many unseen phrasings to remember for the warmer. Past this the queue
+#: is describing traffic rather than vocabulary.
+_PENDING_CEILING = 256
+
 
 def cosine(left: Sequence[float], right: Sequence[float]) -> float:
     """Cosine similarity, safe on zero vectors."""
@@ -174,6 +178,8 @@ class LearnedMatcher:
     _positive_vectors: list[list[float]] = field(default_factory=list, repr=False)
     _negative_vectors: list[list[float]] = field(default_factory=list, repr=False)
     _boundary: Boundary | None = field(default=None, repr=False)
+    _decided: dict[str, bool] = field(default_factory=dict, repr=False)
+    _pending: set[str] = field(default_factory=set, repr=False)
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
     _ready: bool = field(default=False, repr=False)
 
@@ -281,6 +287,45 @@ class LearnedMatcher:
         boundary = self._boundary
         return boundary.decide(self._score(vectors[0])) if boundary else None
 
+    def decide_without_waiting(self, sentence: str) -> bool | None:
+        """A decision only if one is already in hand.
+
+        A live turn cannot wait on a forward pass, so this never computes: it
+        answers from what has been decided before and records anything new for
+        the warmer. The first time a phrasing appears it abstains and the
+        caller's own rule stands; from then on the decision is there.
+
+        That is the shape of learning from use rather than from a list — the
+        cost is one missed novelty per phrasing, and the alternative is
+        holding up every turn to be sure.
+        """
+        text = str(sentence or "").strip()
+        if len(text) < _MIN_CHARS:
+            return None
+        with self._lock:
+            if text in self._decided:
+                return self._decided[text]
+            if len(self._pending) < _PENDING_CEILING:
+                self._pending.add(text)
+        return None
+
+    def warm(self, limit: int = 16) -> int:
+        """Decide what has been waiting. Call off the critical path.
+
+        Returns how many were settled, so a caller can log it or stop.
+        """
+        with self._lock:
+            waiting = sorted(self._pending)[: max(1, int(limit))]
+        settled = 0
+        for text in waiting:
+            verdict = self.decide(text)
+            with self._lock:
+                self._pending.discard(text)
+                if verdict is not None:
+                    self._decided[text] = verdict
+                    settled += 1
+        return settled
+
     def report(self) -> dict[str, object]:
         """What this matcher knows, for a health page or a test."""
         self._prepare()
@@ -293,4 +338,6 @@ class LearnedMatcher:
             "trustworthy": bool(boundary.trustworthy) if boundary else False,
             "gap": round(boundary.gap, 4) if boundary else None,
             "spread": round(boundary.spread, 4) if boundary else None,
+            "decided": len(self._decided),
+            "pending": len(self._pending),
         }
