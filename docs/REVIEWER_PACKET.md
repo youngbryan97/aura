@@ -55,7 +55,7 @@ make chaos       # optional, single random fault
    ``test.declare()`` *before* it accepts a verdict.
 
 8. **Full test surface** — `pytest tests/ --collect-only -q`. As of
-   2026-08-13 this collects **34,382 tests across 2,373 files**. Run them
+   2026-08-21 this collects **40,139 tests across 2,697 files**. Run them
    with `make test` (6 bounded chunks); a single pytest process over the
    whole suite gets OOM-killed around 83%.
 

@@ -850,8 +850,8 @@ Each is independently publishable. Together they're a research program.
   suites — null hypothesis defeat, causal exclusion, grounding, functional
   phenomenology, embodied dynamics, phenomenal convergence — plus the
   consciousness-conditions, technological-autonomy and stability suites.
-  Those sit inside a tree that collects **34,382 tests across 2,373 files**
-  as of 2026-08-01, covering kernel lifecycle, infrastructure, resilience,
+  Those sit inside a tree that collects **40,139 tests across 2,697 files**
+  as of 2026-08-21, covering kernel lifecycle, infrastructure, resilience,
   cognitive routing, and memory. Counts move; re-collect rather than
   trusting this sentence.
 - **Lock contention.** The affect system wraps `RobustLock`. Tick intervals

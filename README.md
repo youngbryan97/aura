@@ -163,7 +163,7 @@ from how confident the prose sounds.
   8-bipartition validation baseline.
 - `core/consciousness/hierarchical_phi.py` implements the 32-node hierarchical
   φ with K=8 overlapping subsystems and Bayesian-smoothed estimation.
-- `core/consciousness/affective_steering.py` (2,640 lines) is a real CAA
+- `core/consciousness/affective_steering.py` (2,642 lines) is a real CAA
   injection pipeline that hooks MLX transformer blocks and modifies the
   residual stream at generation time.
 - `training/caa_32b_validation.py` validates production-model CAA artifacts:
@@ -545,7 +545,7 @@ legacy compatibility layer for older imports. Every skill call carries a
 capability token and has to pass the Will gate.
 
 ### Orchestrator (`core/orchestrator/`)
-About 3,250 lines in `main.py` split across 11 mixins: message handling,
+About 3,300 lines in `main.py` split across 11 mixins: message handling,
 message pipeline, incoming logic, response processing, tool execution,
 autonomy, cognitive background, context streaming, learning and evolution,
 personality bridge, output formatting. Handlers under `orchestrator/handlers/`
@@ -703,7 +703,7 @@ pool; MLX Metal is used opportunistically where available.
 
 ## Consciousness modules
 
-There are 138 modules in `core/consciousness/`. The ones that do most of the
+There are 139 modules in `core/consciousness/`. The ones that do most of the
 load-bearing work:
 
 | Module | What it does | File |
@@ -926,9 +926,11 @@ make smoke     # ~100 contract tests, under 10s — the after-every-change gate
 make test      # full offline suite in 6 bounded process chunks
 ```
 
-As of 2026-08-13 the tree collects **34,382 tests across 2,373 test files**
-(`pytest tests/ --collect-only -q`). Counts move with the repo — re-collect
-rather than trusting this number.
+As of 2026-08-21 the tree collects **40,139 tests across 2,697 test files**
+(`pytest tests/ --collect-only -q`); `make test` runs the 40,123 that need
+neither hardware nor a network. The count lives in
+`config/test_inventory.json`, `make doc-drift` fails any document that
+disagrees with it, and `make test-inventory` refreshes it.
 
 `make test` runs `tools/run_test_chunks.py --chunks 6 --marker "not live and
 not network and not external"`. Use the chunk runner rather than a single

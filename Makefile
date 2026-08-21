@@ -291,6 +291,21 @@ claim-constants:
 	@echo "📐 Checking that every constant a claim cites still holds that value..."
 	@$(PYTHON) tools/verify_claim_constants.py
 
+doc-drift:
+	@echo "🔗 Checking that every file a document names is a file that exists..."
+	@$(PYTHON) tools/lint_doc_drift.py --quiet
+
+doc-drift-report:
+	@$(PYTHON) tools/lint_doc_drift.py --json /tmp/aura_doc_drift.json
+
+doc-drift-baseline:
+	@echo "🔗 Recording the current documentation drift baseline (it may only shrink)..."
+	@$(PYTHON) tools/lint_doc_drift.py --write-baseline
+
+test-inventory:
+	@echo "🧮 Recording how many tests the tree collects (slow: full collection)..."
+	@$(PYTHON) tools/record_test_inventory.py --write
+
 module-size:
 	@echo "📏 Checking that no module grew past its size baseline..."
 	@$(PYTHON) tools/lint_module_size.py
@@ -382,7 +397,7 @@ smoke:
 	@$(PYTHON) -m pytest $(SMOKE_TEST_TARGETS)
 	@echo "✅ Smoke suite passed"
 
-quality: source-hygiene enterprise-gate enterprise-collect production-gate frontend-contract cognitive-gate-audit shutdown-contract-audit gate-skill-closure-audit model-lane-contract-audit skill-catalog-audit skill-runtime-route-audit skill-portability-audit skill-readiness-audit model-load-audit resource-observation-audit integration-liveness architecture-map script-targets compile lint governance-lint security typecheck smoke layering module-size claim-constants writing evidence-integrity
+quality: source-hygiene enterprise-gate enterprise-collect production-gate frontend-contract cognitive-gate-audit shutdown-contract-audit gate-skill-closure-audit model-lane-contract-audit skill-catalog-audit skill-runtime-route-audit skill-portability-audit skill-readiness-audit model-load-audit resource-observation-audit integration-liveness architecture-map script-targets compile lint governance-lint security typecheck smoke layering module-size claim-constants writing doc-drift evidence-integrity
 	@echo "🏁 Quality gates passed"
 
 decisive:

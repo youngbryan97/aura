@@ -97,6 +97,14 @@ ENV_NEGATED = re.compile(
     r"\b(no|not|never|does not exist|doesn't exist|removed|retired|"
     r"unused|nothing reads)\b", re.I)
 MODULE_COUNT = re.compile(r"(\d[\d,]*)\s+modules? in\s+`([^`\n]+/)`")
+#: The size of the test suite, which eight documents stated and all eight got
+#: wrong together. config/test_inventory.json is the one recorded value;
+#: `make test-inventory` refreshes it.
+SUITE_SIZE = re.compile(
+    r"\*{0,2}([\d,]{4,})\*{0,2}\s+tests?\b[^.\n]{0,40}?\b(?:across|in)\s+"
+    r"\*{0,2}([\d,]{3,})\*{0,2}\s+(?:test\s+)?files?")
+QUOTED_COUNT = re.compile(r"[\"“][^\"”\n]*\d[\d,]{3,}[^\"”\n]*[\"”]")
+INVENTORY = ROOT / "config" / "test_inventory.json"
 
 EXTERNAL = ("http://", "https://", "mailto:", "file:", "ftp:", "tel:")
 
@@ -180,6 +188,14 @@ def readable_env_names() -> tuple[set[str], tuple[str, ...]]:
     return literal, built
 
 
+def recorded_suite_size() -> tuple[int, int] | None:
+    """(tests, files) as last recorded, or None when nothing has been."""
+    if not INVENTORY.exists():
+        return None
+    data = json.loads(INVENTORY.read_text())
+    return int(data["collected"]), int(data["files"])
+
+
 def make_targets() -> set[str]:
     mk = (ROOT / "Makefile").read_text(errors="replace")
     return set(re.findall(r"^([A-Za-z0-9_.-]+):(?!=)", mk, re.M))
@@ -204,7 +220,8 @@ def _resolve(doc: Path, target: str) -> Path | None:
 
 
 def scan(rel: str, targets: set[str], anchor_cache: dict[str, set[str]],
-         env_names: tuple[set[str], tuple[str, ...]]) -> list[dict]:
+         env_names: tuple[set[str], tuple[str, ...]],
+         suite: tuple[int, int] | None) -> list[dict]:
     doc = Path(rel)
     try:
         lines = (ROOT / rel).read_text(errors="replace").splitlines()
@@ -269,6 +286,18 @@ def scan(rel: str, targets: set[str], anchor_cache: dict[str, set[str]],
             actual = len(f.read_text(errors="replace").splitlines())
             if actual != claimed:
                 note(i, "stale_line_count", f"{path}: says {claimed:,}, is {actual:,}", line)
+
+        # How big the test suite is. A count inside quotation marks is a
+        # citation of what some document said, not a claim about the tree —
+        # DOC_STATUS.md's correction log quotes the numbers it replaced.
+        if suite is not None and not QUOTED_COUNT.search(line):
+            for m in SUITE_SIZE.finditer(line):
+                tests = int(m.group(1).replace(",", ""))
+                files = int(m.group(2).replace(",", ""))
+                if (tests, files) != suite:
+                    note(i, "stale_suite_size",
+                         f"says {tests:,} tests / {files:,} files, "
+                         f"recorded {suite[0]:,} / {suite[1]:,}", line)
 
         # How many modules a named directory holds.
         for m in MODULE_COUNT.finditer(line):
@@ -335,11 +364,12 @@ def main() -> int:
     docs = args.files or tracked_docs()
     targets = make_targets()
     env_names = readable_env_names()
+    suite = recorded_suite_size()
     cache: dict[str, set[str]] = {}
 
     findings: list[dict] = []
     for rel in docs:
-        findings.extend(scan(rel, targets, cache, env_names))
+        findings.extend(scan(rel, targets, cache, env_names, suite))
 
     per_doc: dict[str, int] = {}
     for f in findings:

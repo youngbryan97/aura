@@ -1,7 +1,9 @@
 # Testing
 
-As of 2026-08-13 the tree collects **34,382 tests across 2,373 files**.
-Re-collect rather than trusting that sentence:
+As of 2026-08-21 the tree collects **40,139 tests across 2,697 files**.
+That count is recorded in `config/test_inventory.json` and checked by
+`make doc-drift`; refresh it with `make test-inventory` rather than editing
+the sentence.
 
 ```bash
 pytest tests/ --collect-only -q     # the current number

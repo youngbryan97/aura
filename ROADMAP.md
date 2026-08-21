@@ -304,7 +304,7 @@ writing more code this week.
   never constructed and then cleared every turn, and fixed
   (`artifacts/closeout/endurance_ceiling/ROOT_CAUSE.md`).
 * Test-suite scale. The old target was 100,000 tests with >95% mutation
-  score; the tree now collects **34,382** across 2,373 files. Restating the
+  score; the tree now collects **40,139** across 2,697 files. Restating the
   target honestly: mutation scoring has not been run, and raw test count was
   never the right metric to chase.
 
