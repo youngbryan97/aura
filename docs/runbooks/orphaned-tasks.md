@@ -16,8 +16,9 @@ gone. Target MTTR: 60s.
 
 ## Manual diagnosis
 
-1. `GET /api/diagnostics/reliability` → degradation + fault sections show
-   which subsystem is spawning the orphans.
+1. `aura doctor --bundle` → `tasks.json` names every tracked task with its
+   done and cancelled state, and `health.json` carries the degradation
+   records that say which subsystem is spawning them.
 2. Check the reaper log lines for which task names it keeps cancelling —
    a task that gets re-orphaned every cycle means its spawner loops.
 3. For GPU-holding orphans, confirm the inference queue drained; a stuck

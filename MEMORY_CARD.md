@@ -217,9 +217,9 @@ by the memory API (`interface/routes/memory.py`).
 
 | Action | Command / mechanism | Effect |
 |--------|---------------------|--------|
-| List memories | App memory panel (`GET /memory/recent`, `/episodic`, `/semantic`) | Browse stored memories by store |
+| List memories | App memory panel (`GET /api/memory/recent`, `/episodic`, `/semantic`) | Browse stored memories by store |
 | Search / inspect | App memory panel | Find and open a specific memory |
-| Delete one | App memory panel (`POST /memory/delete`) | Remove a specific memory |
+| Delete one | App memory panel (`POST /api/memory/delete`) | Remove a specific memory |
 | Export all | `make memory-export` | JSON export of all memory |
 | Delete all | `make memory-purge` | Wipe all memories |
 | Backup | `make backup` | Full state backup |

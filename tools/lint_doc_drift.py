@@ -130,6 +130,13 @@ FOREIGN_SYMBOLS = frozenset({
     "PortAudio", "PyAudio", "OpenSSL", "PyTorch", "NumPy", "SwigPyObject",
 })
 
+#: An HTTP route a document tells a reader to call. Routes carry two prefixes
+#: — one on the APIRouter, one at include_router — and a document that drops
+#: either sends the reader to a 404. `POST /memory/delete` was documented in
+#: three places against a route mounted at `/api/memory/delete`.
+ROUTE_CLAIM = re.compile(
+    r"\b(GET|POST|PUT|DELETE|PATCH)\s+(/[A-Za-z0-9_/{}.-]{2,})")
+
 QUOTED_COUNT = re.compile(r"[\"“][^\"”\n]*\d[\d,]{3,}[^\"”\n]*[\"”]")
 
 #: Some documents name a file precisely because it is not there.
@@ -219,6 +226,48 @@ SOURCE_GLOBS = ("*.py", "*.sh", "*.yml", "*.yaml", "*.json", "*.toml",
                 "Makefile", "*.plist", "*.command", "*.js", "*.ts")
 
 
+def declared_routes() -> set[str]:
+    """Every route path the API serves, with both prefixes resolved.
+
+    A path is normalised by replacing each `{param}` with `{}`, so a document
+    is free to name the parameter whatever reads best.
+    """
+    routes_dir = ROOT / "interface" / "routes"
+    if not routes_dir.is_dir():
+        return set()
+    server = (ROOT / "interface" / "server.py")
+    server_src = server.read_text(errors="replace") if server.exists() else ""
+
+    alias: dict[str, str] = {}
+    for m in re.finditer(r"from interface\.routes import ([^\n]+)", server_src):
+        for part in m.group(1).split(","):
+            part = part.strip()
+            if " as " in part:
+                mod, name = (x.strip() for x in part.split(" as "))
+                alias[name] = mod
+            elif part:
+                alias[part] = part
+
+    mounts: dict[str, str] = {}
+    for m in re.finditer(
+        r"app\.include_router\(\s*([A-Za-z_0-9.]+)\s*(?:,\s*prefix=[\"']([^\"']*)[\"'])?",
+        server_src,
+    ):
+        mounts.setdefault(m.group(1).split(".")[0], m.group(2) or "")
+
+    found: set[str] = set()
+    for f in sorted(routes_dir.glob("*.py")):
+        body = f.read_text(errors="replace")
+        rp = re.search(r"APIRouter\((?:[^)]*?)prefix=[\"']([^\"']*)[\"']", body)
+        router_prefix = rp.group(1) if rp else ""
+        key = next((a for a, mod in alias.items() if mod == f.stem), f.stem)
+        mount = mounts.get(key, mounts.get(f.stem, ""))
+        for m in re.finditer(r"@router\.(?:get|post|put|delete|patch)\([\"']([^\"']*)[\"']", body):
+            path = (mount + router_prefix + m.group(1)) or "/"
+            found.add(re.sub(r"\{[^}]+\}", "{}", path))
+    return found
+
+
 def defined_symbols() -> set[str]:
     """Every class and function name bound at module or class level."""
     out = subprocess.run(
@@ -290,7 +339,8 @@ def _resolve(doc: Path, target: str) -> Path | None:
 
 def scan(rel: str, targets: set[str], anchor_cache: dict[str, set[str]],
          env_names: tuple[set[str], tuple[str, ...]],
-         suite: tuple[int, int] | None, symbols: set[str]) -> list[dict]:
+         suite: tuple[int, int] | None, symbols: set[str],
+         routes: set[str]) -> list[dict]:
     doc = Path(rel)
     try:
         lines = (ROOT / rel).read_text(errors="replace").splitlines()
@@ -346,6 +396,13 @@ def scan(rel: str, targets: set[str], anchor_cache: dict[str, set[str]],
                     if name in literal or name.startswith(built):
                         continue
                     note(i, "env_var_has_no_reader", name, scope)
+
+        # A route the document tells a reader to call.
+        if routes and not names_an_absence(i):
+            for m in ROUTE_CLAIM.finditer(line):
+                path = re.sub(r"\{[^}]+\}", "{}", m.group(2)).rstrip("/") or "/"
+                if path not in routes and path + "/" not in routes:
+                    note(i, "route_not_served", f"{m.group(1)} {m.group(2)}", line)
 
         # A class the document names in code voice.
         if not names_an_absence(i):
@@ -480,11 +537,12 @@ def main() -> int:
     env_names = readable_env_names()
     suite = recorded_suite_size()
     symbols = defined_symbols()
+    routes = declared_routes()
     cache: dict[str, set[str]] = {}
 
     findings: list[dict] = []
     for rel in docs:
-        findings.extend(scan(rel, targets, cache, env_names, suite, symbols))
+        findings.extend(scan(rel, targets, cache, env_names, suite, symbols, routes))
 
     per_doc: dict[str, int] = {}
     for f in findings:

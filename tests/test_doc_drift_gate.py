@@ -41,7 +41,7 @@ def scan(tmp_path, monkeypatch):
     monkeypatch.setattr(gate, "_published_cache", {})
 
     def run(body, *, targets=(), published=(), env=((), ()), suite=None,
-            ignored=(), files=(), symbols=()):
+            ignored=(), files=(), symbols=(), routes=()):
         for rel in files:
             f = tmp_path / rel
             f.parent.mkdir(parents=True, exist_ok=True)
@@ -55,7 +55,7 @@ def scan(tmp_path, monkeypatch):
                 p.startswith(rel.rstrip("/") + "/") for p in published),
         )
         found = gate.scan("DOC.md", set(targets), {}, (set(env[0]), tuple(env[1])),
-                          suite, set(symbols))
+                          suite, set(symbols), set(routes))
         return {f["kind"] for f in found}
 
     return run
@@ -277,6 +277,38 @@ def test_a_symbol_named_as_retired_is_left_alone(scan):
     assert scan(body, symbols={"EpisodeReceipt"}) == set()
 
 
+# ---- routes --------------------------------------------------------------
+
+
+def test_a_route_missing_its_mount_prefix_is_reported(scan):
+    """Three documents said POST /memory/delete for a route served at /api."""
+    body = "Delete one memory with `POST /memory/delete`."
+    assert "route_not_served" in scan(body, routes={"/api/memory/delete"})
+
+
+def test_the_served_path_passes(scan):
+    body = "Delete one memory with `POST /api/memory/delete`."
+    assert scan(body, routes={"/api/memory/delete"}) == set()
+
+
+def test_a_path_parameter_may_be_named_anything(scan):
+    body = "Fetch it with `GET /api/inner-state/will-receipt/{receipt_id}`."
+    assert scan(body, routes={"/api/inner-state/will-receipt/{}"}) == set()
+
+
+def test_a_route_recorded_as_removed_is_left_alone(scan):
+    body = "`GET /api/diagnostics/reliability` was removed; use the bundle."
+    assert scan(body, routes={"/api/health"}) == set()
+
+
+def test_routes_resolve_both_prefixes_from_the_real_tree():
+    """APIRouter(prefix=...) and include_router(prefix=...) both count."""
+    routes = gate.declared_routes()
+    assert "/api/memory/delete" in routes
+    assert "/api/allostasis/forecasts" in routes, "router-level prefix dropped"
+    assert "/api/devices/revoke-scope" in routes
+
+
 # ---- the tree itself -----------------------------------------------------
 
 
@@ -296,9 +328,11 @@ def test_every_current_document_still_resolves():
     env_names = gate.readable_env_names()
     suite = gate.recorded_suite_size()
     symbols = gate.defined_symbols()
+    routes = gate.declared_routes()
     cache: dict[str, set[str]] = {}
     for rel in gate.tracked_docs():
-        findings.extend(gate.scan(rel, targets, cache, env_names, suite, symbols))
+        findings.extend(
+            gate.scan(rel, targets, cache, env_names, suite, symbols, routes))
     assert findings == [], "\n".join(
         f"{f['doc']}:{f['line']} {f['kind']}: {f['detail']}" for f in findings
     )

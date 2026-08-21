@@ -63,7 +63,7 @@ There is no cloud fallback to disable — inference is local only. See
 make memory-export
 
 # Delete a specific memory — through the app's memory controls, which call the
-# POST /memory/delete API (interface/routes/memory.py)
+# POST /api/memory/delete API (interface/routes/memory.py)
 
 # Delete all memories
 make memory-purge
@@ -88,7 +88,7 @@ make governance-lint
 Will receipts are an append-only, integrity-hashed audit log — past receipts
 cannot be rewritten or revoked (that tamper-evidence is the point). To withdraw
 authority going *forward*, reset identity (`make identity-reset`) or revoke a
-paired device's granted scope through the app (`POST /devices/revoke-scope`).
+paired device's granted scope through the app (`POST /api/devices/revoke-scope`).
 
 ## Override Hierarchy
 

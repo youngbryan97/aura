@@ -51,7 +51,7 @@ User Input → Sanitizer → Working Memory → Model Context
 | No remote inference | Every router lane is local; `allow_cloud_fallback` is pinned to `False` in `core/brain/request_contract.py` |
 | Outbound body inspection | `core/security/egress_privacy.py` reads what leaves before it leaves |
 | Memory export | `make memory-export` |
-| Memory delete | `make memory-purge` (all) / app memory panel `POST /memory/delete` (one) |
+| Memory delete | `make memory-purge` (all) / app memory panel `POST /api/memory/delete` (one) |
 | Log purge | `make log-purge` |
 | Full data export | `make data-export` (GDPR-style) |
 | Full data delete | `make data-purge` |
