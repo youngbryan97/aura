@@ -112,6 +112,24 @@ DIR_LINK_COUNT = re.compile(
 SUITE_SIZE = re.compile(
     r"\*{0,2}([\d,]{4,})\*{0,2}\s+tests?\b[^.\n]{0,40}?\b(?:across|in)\s+"
     r"\*{0,2}([\d,]{3,})\*{0,2}\s+(?:test\s+)?files?")
+#: A class or dataclass a document names in code voice. Two humps or more, so
+#: `IIT` and `JSON` are not symbols and neither is a proper noun like `Baars`.
+#: This is the check that catches what a path check cannot: OWNERSHIP.md named
+#: `SelfModificationEngine` beside the file that holds
+#: `AutonomousSelfModificationEngine`, so the path resolved and the sentence
+#: was still wrong. Measured over this tree it flags 12 of 197 claimed names,
+#: which is a rate a reader can act on.
+SYMBOL = re.compile(r"^(?:[A-Z][a-z0-9]+){2,}$")
+
+#: Names that are real and are not defined here: Python builtins a runbook
+#: quotes from a traceback, and libraries named in their own voice.
+FOREIGN_SYMBOLS = frozenset({
+    "RuntimeError", "TimeoutError", "ValueError", "TypeError", "KeyError",
+    "AttributeError", "ImportError", "OSError", "ConnectionError",
+    "IndexError", "NotImplementedError", "StopIteration", "MemoryError",
+    "PortAudio", "PyAudio", "OpenSSL", "PyTorch", "NumPy", "SwigPyObject",
+})
+
 QUOTED_COUNT = re.compile(r"[\"“][^\"”\n]*\d[\d,]{3,}[^\"”\n]*[\"”]")
 
 #: Some documents name a file precisely because it is not there.
@@ -201,6 +219,25 @@ SOURCE_GLOBS = ("*.py", "*.sh", "*.yml", "*.yaml", "*.json", "*.toml",
                 "Makefile", "*.plist", "*.command", "*.js", "*.ts")
 
 
+def defined_symbols() -> set[str]:
+    """Every class and function name bound at module or class level."""
+    out = subprocess.run(
+        ["git", "grep", "-hoE",
+         r"^[[:space:]]*(class|def|async def)[[:space:]]+[A-Za-z_][A-Za-z0-9_]*",
+         "--", "*.py"],
+        cwd=ROOT, capture_output=True, text=True,
+    ).stdout
+    names = set(re.findall(r"(?:class|def)\s+([A-Za-z_][A-Za-z0-9_]*)", out))
+    # A name bound by assignment is still a name a document may cite —
+    # type aliases, enum members, module-level singletons.
+    bound = subprocess.run(
+        ["git", "grep", "-hoE", r"^[A-Za-z_][A-Za-z0-9_]*[[:space:]]*[:=]", "--", "*.py"],
+        cwd=ROOT, capture_output=True, text=True,
+    ).stdout
+    names |= set(re.findall(r"^([A-Za-z_][A-Za-z0-9_]*)", bound, re.M))
+    return names
+
+
 def readable_env_names() -> tuple[set[str], tuple[str, ...]]:
     """Literal AURA_* names in tracked source, and the prefixes built at runtime."""
     literal = set(subprocess.run(
@@ -253,7 +290,7 @@ def _resolve(doc: Path, target: str) -> Path | None:
 
 def scan(rel: str, targets: set[str], anchor_cache: dict[str, set[str]],
          env_names: tuple[set[str], tuple[str, ...]],
-         suite: tuple[int, int] | None) -> list[dict]:
+         suite: tuple[int, int] | None, symbols: set[str]) -> list[dict]:
     doc = Path(rel)
     try:
         lines = (ROOT / rel).read_text(errors="replace").splitlines()
@@ -309,6 +346,14 @@ def scan(rel: str, targets: set[str], anchor_cache: dict[str, set[str]],
                     if name in literal or name.startswith(built):
                         continue
                     note(i, "env_var_has_no_reader", name, scope)
+
+        # A class the document names in code voice.
+        if not names_an_absence(i):
+            for span in spans:
+                tok = span.strip()
+                if (SYMBOL.match(tok) and tok not in symbols
+                        and tok not in FOREIGN_SYMBOLS):
+                    note(i, "symbol_not_defined", tok, line)
 
         # A path written as a path.
         for span in spans:
@@ -434,11 +479,12 @@ def main() -> int:
     targets = make_targets()
     env_names = readable_env_names()
     suite = recorded_suite_size()
+    symbols = defined_symbols()
     cache: dict[str, set[str]] = {}
 
     findings: list[dict] = []
     for rel in docs:
-        findings.extend(scan(rel, targets, cache, env_names, suite))
+        findings.extend(scan(rel, targets, cache, env_names, suite, symbols))
 
     per_doc: dict[str, int] = {}
     for f in findings:

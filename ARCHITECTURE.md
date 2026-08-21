@@ -289,7 +289,7 @@ Returns a JSON object containing:
 - Last substrate token-generation decision
 - Online LoRA governor status
 - Overt action loop status: last skill run, verification result, receipts,
-  goal linkage, and LifeTrace event id
+  goal linkage, and `LifeTraceEvent` id
 
 Receipt verification: `GET /api/inner-state/will-receipt/{receipt_id}`
 confirms that a specific action passed through the Will.
@@ -318,7 +318,7 @@ external step:
    timeouts.
 5. Verify the actual return payload, not merely that the loop fired.
 6. Emit `ToolExecutionReceipt`, `AutonomyReceipt`, and a hash-chained
-   `LifeTrace` `action_executed` event.
+   `action_executed` event on the `LifeTraceLedger`.
 7. Add receipt evidence/progress back to the linked durable goal.
 
 This makes the answer to "what does Aura do?" concrete: after boot and an idle

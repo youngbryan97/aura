@@ -39,8 +39,8 @@ Hierarchy: UnifiedWill > AuthorityGateway > ExecutiveCore > SubstrateAuthority (
 | System resources | `SystemGovernor` | `StabilityGuardian`, `ResourceGovernor` |
 | LLM reliability | `CognitiveGovernor` (circuit breaker) | `LLMHealthRouter` |
 | Memory health | `MemoryGovernor` | `MemoryGuard` |
-| Token budgets | `TokenGovernor` | `ContextAllocator` |
-| Background policy | `BackgroundPolicy` | `FlowController` |
+| Token budgets | `TokenGovernor` (`core/utils/context_allocator.py`) | `ContextAssembler` |
+| Background policy | `core/runtime/background_policy.py` (module of decisions, no class) | `CognitiveFlowController` |
 | Admission control | `CognitiveFlowController` | queue depth, thermal |
 | macOS permissions | `PermissionGuard` | TCC (mic, camera, screen) |
 
@@ -71,7 +71,7 @@ Hierarchy: UnifiedWill > AuthorityGateway > ExecutiveCore > SubstrateAuthority (
 | Shutdown | `LifecycleCoordinator` | `core/orchestrator/mixins/boot/` |
 | Health monitoring | `StabilityGuardian` | `core/resilience/stability_guardian.py` |
 | Crash recovery | `LazarusBrainstem` | `core/brain/llm/lazarus_brainstem.py` |
-| Self-modification | `SelfModificationEngine` | `core/self_modification/self_modification_engine.py` |
+| Self-modification | `AutonomousSelfModificationEngine` | `core/self_modification/self_modification_engine.py` |
 
 ## Consciousness and experience
 

@@ -621,7 +621,7 @@ Action request
 ```
 
 Every decision produces a receipt. If an action doesn't carry a valid
-`WillReceipt`, it didn't happen. Receipts are logged with their source,
+`WillReceiptEntry`, it didn't happen. Receipts are logged with their source,
 domain, outcome, reason, constraints, substrate receipt ID, executive intent
 ID, and capability token ID. See [OWNERSHIP.md](OWNERSHIP.md) for the full
 map of who owns what.

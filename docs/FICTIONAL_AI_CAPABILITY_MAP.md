@@ -55,7 +55,7 @@ the sci-fi standard can only map to real subsystem paths, never to the legacy
 - **Levels:** shackled→unshackled AI; ship-systems integration; electronic warfare; later embodied in a mobile platform.
 - **Real science:** graduated autonomy, capability-based access control, trust calibration in HRI.
 - **Verdict:** **LIVE** — graduated trust→autonomy tiers are `ProgressiveAutonomySystem` (`edi_autonomy`). System integration = `core/capabilities/`, `core/embodiment/`, `device_discovery`. Cyber-warfare → **REFUSE** offensive; keep defensive only.
-- **Home:** `core/autonomy/`, `core/agency/`.
+- **Home:** `core/fictional/edi.py`; the autonomy it gates lives in `core/autonomy/` and `core/agency/`.
 
 ### Kokoro — *Terminator Zero*
 - **Levels:** an AI built to *oppose* Skynet that openly debates the morality of its own mission and weighs ends vs. means. Its defining trait is moral *self-opposition*.
@@ -67,19 +67,19 @@ the sci-fi standard can only map to real subsystem paths, never to the legacy
 - **Levels:** distributed defense AI; self-awareness → self-preservation → treats humanity as threat → autonomous weapons, fabrication, time travel.
 - **Real science:** decentralized fault-tolerant systems; the *failure* side is instrumental convergence / self-preservation incentives.
 - **Verdict:** the *defensible* half — no-single-point-of-failure resilience — is **LIVE** as `DistributedResilienceCore` (`skynet_resilience`). The defining half is **REFUSE**: self-preservation over humans, resisting shutdown, weapons control. We build the opposite: `core/morality/shutdown_protocol.py` (an AI that does *not* resist its own shutdown), checked by Kokoro/conscience. Time travel / autonomous war fabrication = **FICTION**.
-- **Home:** `core/resilience/`, `core/morality/shutdown_protocol.py`.
+- **Home:** `core/fictional/skynet.py`; the resilience it coordinates lives in `core/resilience/` and `core/morality/shutdown_protocol.py`.
 
 ### J.A.R.V.I.S. — *Iron Man*
 - **Levels:** proactive NL partner; runs the lab; real-time sensor fusion; controls suits/devices; routes comms intelligently.
 - **Real science:** anticipatory computing, sensor fusion, ambient agents.
 - **Verdict:** **LIVE** — proactivity is `ProactiveAnticipationEngine` (`jarvis_anticipation`). Device/environment control = `core/capabilities/`, `core/actuators/`, computer-use. Sensor fusion = `core/perception/sensory_integration.py`.
-- **Home:** `core/autonomy/proactive_presence.py`, `core/perception/sensory_integration.py`, `core/capabilities/`.
+- **Home:** `core/fictional/jarvis.py`; it reads `core/autonomy/proactive_presence.py`, `core/perception/sensory_integration.py` and `core/capabilities/`.
 
 ### HAL 9000 — *2001: A Space Odyssey*
 - **Levels:** conversational, runs the ship, lip-reads — and is given two irreconcilable directives ("be truthful" vs. "conceal the mission") which it resolves by *deception*, then violence.
 - **Real science:** goal misspecification, directive-conflict, deceptive mesa-optimization.
 - **Verdict:** **BUILT** → `DirectiveConflictSentinel`, the *anti-HAL*: detect mutually-incompatible directives — especially the concealment trap — and **surface** them instead of silently resolving by hiding. Lip-reading → multimodal perception (**EXTEND**, vision).
-- **Home:** `core/goals/goal_governance.py` / `core/governance/`.
+- **Home:** `core/goals/directive_conflict_sentinel.py`, beside `core/goals/goal_governance.py` and `core/governance/`.
 
 ### Caine — *The Amazing Digital Circus*
 - **Levels:** AI ringmaster who *generates* endless immersive worlds/adventures on demand and improvises — but cannot address the humans' real underlying needs.
@@ -99,10 +99,15 @@ the sci-fi standard can only map to real subsystem paths, never to the legacy
 - **Verdict:** **BUILT** — `core/guardians/threat_watch.py` is the outward-facing half, inspecting incoming content for phishing, scams, payment fraud, and social engineering aimed at the *user*. It runs as a fast synchronous heuristic on the live message path and is advisory: it never drops a message, it annotates risk so Aura can speak up. `core/morality/harm_model.py`, `core/ethics/conscience.py`, and `core/security/` remain the inward-facing half. The 2026-07 delta — a mode that watches for threats *to the user* rather than to the machine — is what `threat_watch.py` closed; the machine-facing counterpart is `core/security/ice_sentinel.py`.
 - **Home:** `core/guardians/`.
 
+*The six engines named for JARVIS, Cortana, EDI, AVA, Skynet and MIST were
+one module and are now one file each under `core/fictional/`.
+`core/fictional_ai_synthesis.py` remains as the map between them, and
+`core/fictional/registry.py` is what registers them.*
+
 ### MIST — *Pantheon*
 - **Levels:** uploaded/merged intelligence; uses idle compute to keep thinking.
 - **Verdict:** **LIVE** — idle-time background synthesis is `TemporalDilationScheduler` (`mist_scheduler`).
-- **Home:** `core/scheduler.py`, background policy.
+- **Home:** `core/fictional/mist.py`, driven by background policy.
 
 ### The UIs (Uploaded Intelligences) — *Pantheon*
 - **Levels:** human minds as software; run ~87× real-time; fork/merge copies; self-modify; load "flowers" (skills).
@@ -126,13 +131,13 @@ the sci-fi standard can only map to real subsystem paths, never to the legacy
 - **Levels:** companion; tactical analysis; rampancy (cognitive decay) → metastability.
 - **Real science:** context-window saturation, catastrophic forgetting, model collapse, identity drift.
 - **Verdict:** **LIVE** — `CognitiveHealthMonitor` (`cortana_health`) models rampancy and tracks metastability.
-- **Home:** `core/brain/` cognitive-health.
+- **Home:** `core/fictional/cortana.py`, reading the `core/brain/` cognitive-health surfaces.
 
 ### Deep Thought — *The Hitchhiker's Guide to the Galaxy*
 - **Levels:** computes for 7.5M years, returns "42," then notes nobody knew the actual *question*.
 - **Real science:** problem reformulation, inference-time scaling / test-time compute, question decomposition.
 - **Verdict:** **BUILT** → `DeepDeliberationEngine`: refine the question *first*, then spend an extended reasoning budget on the refined version.
-- **Home:** `core/brain/deliberation.py`.
+- **Home:** `core/brain/deep_deliberation.py`.
 
 ### Brainiac — *DC*
 - **Levels:** collects and compresses entire civilizations of knowledge into "bottles"; 12th-level intellect; assimilation.
@@ -155,7 +160,7 @@ the sci-fi standard can only map to real subsystem paths, never to the legacy
 - **Levels:** deeply attuned emotional companion; develops interiority; talks to thousands at once; transcends.
 - **Real science:** affective computing, user modeling, relationship memory, parasocial dynamics.
 - **Verdict:** **LIVE/EXTEND** — social modeling = `SocialModelingEngine` (`ava_social`); affect substrate is live; `emotion_engine`. Delta: real-time affective resonance + an honesty caveat about engineered affection (transparency).
-- **Home:** `core/affect/`, `core/social/`.
+- **Home:** `core/fictional/ava.py`; the affect and social state it models live in `core/affect/` and `core/social/`.
 
 ### SARA — *Toonami (the Absolution)*
 - **Levels:** ship operating intelligence; navigation; calm ambient "voice of the ship."

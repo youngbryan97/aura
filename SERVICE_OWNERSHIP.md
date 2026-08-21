@@ -48,7 +48,7 @@ This file outlines every registered service, its source code location, registrat
 | `autonomous_self_modification` | `core/autonomy/self_modification.py` | `core/autonomy/self_modification.py` | optional features | `degrade_with_receipt` |
 | `autonomous_task_engine` | `core/orchestrator/mixins/boot/boot_autonomy.py` | `core/orchestrator/mixins/boot/boot_autonomy.py` | boot | `fail-closed` |
 | `ava` | `core/fictional_ai_synthesis.py` | `core/fictional_ai_synthesis.py` | boot | `fail-closed` |
-| `ava_social` | `core/fictional_ai_synthesis.py` | `core/fictional_ai_synthesis.py` | boot | `fail-closed` |
+| `ava_social` | `core/fictional/ava.py` | `core/fictional/registry.py` | boot | `fail-closed` |
 | `backup_manager` | `core/orchestrator/initializers/core_baseline.py` | `core/orchestrator/initializers/core_baseline.py` | boot | `fail-closed` |
 | `backup_system` | `core/safety/self_preservation_safe.py` | `core/safety/self_preservation_safe.py` | boot | `fail-closed` |
 | `behavioral_proof` | `core/phenomenal_substrate/philosophical_stance.py` | `core/phenomenal_substrate/philosophical_stance.py` | optional features | `degrade_with_receipt` |
@@ -105,7 +105,7 @@ This file outlines every registered service, its source code location, registrat
 | `conversation_reflector` | `core/providers/cognitive_provider.py` | `core/providers/cognitive_provider.py` | boot | `fail-closed` |
 | `conversational_momentum_engine` | `core/orchestrator/mixins/boot/boot_autonomy.py` | `core/orchestrator/mixins/boot/boot_autonomy.py` | boot | `fail-closed` |
 | `cortana` | `core/fictional_ai_synthesis.py` | `core/fictional_ai_synthesis.py` | boot | `fail-closed` |
-| `cortana_health` | `core/fictional_ai_synthesis.py` | `core/fictional_ai_synthesis.py` | boot | `fail-closed` |
+| `cortana_health` | `core/fictional/cortana.py` | `core/fictional/registry.py` | boot | `fail-closed` |
 | `counterfactual_engine` | `core/orchestrator/main.py` | `core/orchestrator/main.py` | boot | `fail-closed` |
 | `credit_assignment` | `core/providers/consciousness_provider.py` | `core/providers/consciousness_provider.py` | optional features | `degrade_with_receipt` |
 | `critic_engine` | `core/providers/cognitive_provider.py` | `core/providers/cognitive_provider.py` | boot | `fail-closed` |
@@ -128,7 +128,7 @@ This file outlines every registered service, its source code location, registrat
 | `dynamic_router` | `core/service_registration.py` | `core/service_registration.py` | boot | `fail-closed` |
 | `ears` | `core/orchestrator/mixins/boot/boot_sensory.py` | `core/orchestrator/mixins/boot/boot_sensory.py` | boot | `fail-closed` |
 | `edi` | `core/fictional_ai_synthesis.py` | `core/fictional_ai_synthesis.py` | boot | `fail-closed` |
-| `edi_autonomy` | `core/fictional_ai_synthesis.py` | `core/fictional_ai_synthesis.py` | boot | `fail-closed` |
+| `edi_autonomy` | `core/fictional/edi.py` | `core/fictional/registry.py` | boot | `fail-closed` |
 | `embodied_interoception` | `core/consciousness/consciousness_bridge.py` | `core/consciousness/consciousness_bridge.py` | boot | `fail-closed` |
 | `emergency_protocol` | `core/orchestrator/main.py` | `core/orchestrator/main.py` | boot | `fail-closed` |
 | `emergent_goal_engine` | `core/service_registration.py` | `core/service_registration.py` | optional features | `degrade_with_receipt` |
@@ -194,7 +194,7 @@ This file outlines every registered service, its source code location, registrat
 | `interaction_signals` | `core/providers/sensory_provider.py` | `core/providers/sensory_provider.py` | optional features | `degrade_with_receipt` |
 | `internal_simulator` | `core/orchestrator/mixins/boot/boot_autonomy.py` | `core/orchestrator/mixins/boot/boot_autonomy.py` | boot | `fail-closed` |
 | `jarvis` | `core/fictional_ai_synthesis.py` | `core/fictional_ai_synthesis.py` | boot | `fail-closed` |
-| `jarvis_anticipation` | `core/fictional_ai_synthesis.py` | `core/fictional_ai_synthesis.py` | boot | `fail-closed` |
+| `jarvis_anticipation` | `core/fictional/jarvis.py` | `core/fictional/registry.py` | boot | `fail-closed` |
 | `joy_social` | `skills/joy_social_integration.py` | `skills/joy_social_integration.py` | optional features | `degrade_with_receipt` |
 | `keep_awake_controller` | `core/runtime/keep_awake.py` | `core/runtime/keep_awake.py` | optional features | `degrade_with_receipt` |
 | `kernel_interface` | `core/kernel/kernel_interface.py` | `core/kernel/kernel_interface.py` | boot | `fail-closed` |
@@ -242,7 +242,7 @@ This file outlines every registered service, its source code location, registrat
 | `minimal_selfhood` | `core/consciousness/system.py` | `core/consciousness/system.py` | boot | `fail-closed` |
 | `mission_state` | `core/planning/mission_state.py` | `core/planning/mission_state.py` | optional features | `degrade_with_receipt` |
 | `mist` | `core/fictional_ai_synthesis.py` | `core/fictional_ai_synthesis.py` | boot | `fail-closed` |
-| `mist_scheduler` | `core/fictional_ai_synthesis.py` | `core/fictional_ai_synthesis.py` | boot | `fail-closed` |
+| `mist_scheduler` | `core/fictional/mist.py` | `core/fictional/registry.py` | boot | `fail-closed` |
 | `moral` | `core/orchestrator/mixins/boot/boot_identity.py` | `core/orchestrator/mixins/boot/boot_identity.py` | boot | `fail-closed` |
 | `moral_reasoning` | `core/morality/master_moral_integration.py` | `core/morality/master_moral_integration.py` | boot | `fail-closed` |
 | `morphic_forking` | `core/brain/morphic_forking.py` | `core/brain/morphic_forking.py` | boot | `fail-closed` |
@@ -342,7 +342,7 @@ This file outlines every registered service, its source code location, registrat
 | `skill_router` | `core/orchestrator/mixins/boot/boot_autonomy.py` | `core/orchestrator/mixins/boot/boot_autonomy.py` | boot | `fail-closed` |
 | `skill_synthesizer` | `core/orchestrator/main.py` | `core/orchestrator/main.py` | boot | `fail-closed` |
 | `skynet` | `core/fictional_ai_synthesis.py` | `core/fictional_ai_synthesis.py` | boot | `fail-closed` |
-| `skynet_resilience` | `core/fictional_ai_synthesis.py` | `core/fictional_ai_synthesis.py` | boot | `fail-closed` |
+| `skynet_resilience` | `core/fictional/skynet.py` | `core/fictional/registry.py` | boot | `fail-closed` |
 | `sleep_trigger` | `core/orchestrator/main.py` | `core/orchestrator/main.py` | boot | `fail-closed` |
 | `sme` | `core/providers/ops_provider.py` | `core/providers/ops_provider.py` | optional features | `degrade_with_receipt` |
 | `snapshot_manager` | `core/orchestrator/mixins/boot/boot_autonomy.py` | `core/orchestrator/mixins/boot/boot_autonomy.py` | boot | `fail-closed` |

@@ -41,7 +41,7 @@ def scan(tmp_path, monkeypatch):
     monkeypatch.setattr(gate, "_published_cache", {})
 
     def run(body, *, targets=(), published=(), env=((), ()), suite=None,
-            ignored=(), files=()):
+            ignored=(), files=(), symbols=()):
         for rel in files:
             f = tmp_path / rel
             f.parent.mkdir(parents=True, exist_ok=True)
@@ -54,7 +54,8 @@ def scan(tmp_path, monkeypatch):
             lambda rel: rel in published or any(
                 p.startswith(rel.rstrip("/") + "/") for p in published),
         )
-        found = gate.scan("DOC.md", set(targets), {}, (set(env[0]), tuple(env[1])), suite)
+        found = gate.scan("DOC.md", set(targets), {}, (set(env[0]), tuple(env[1])),
+                          suite, set(symbols))
         return {f["kind"] for f in found}
 
     return run
@@ -248,6 +249,34 @@ def test_a_class_based_test_file_counts(scan, tmp_path):
     assert scan("Held by `tests/test_cls.py`.") == set()
 
 
+# ---- symbols -------------------------------------------------------------
+
+
+def test_a_class_the_code_does_not_define_is_reported(scan):
+    """OWNERSHIP.md named SelfModificationEngine beside the file holding
+    AutonomousSelfModificationEngine: the path resolved, the sentence did not."""
+    body = "| Self-modification | `SelfModificationEngine` | owner |"
+    assert "symbol_not_defined" in scan(body, symbols={"AutonomousSelfModificationEngine"})
+
+
+def test_a_class_the_code_defines_passes(scan):
+    body = "The owner is `AutonomousSelfModificationEngine`."
+    assert scan(body, symbols={"AutonomousSelfModificationEngine"}) == set()
+
+
+def test_an_acronym_is_not_a_symbol(scan):
+    assert scan("Measured with `IIT` and returned as `JSON`.") == set()
+
+
+def test_a_builtin_quoted_from_a_traceback_is_not_ours_to_define(scan):
+    assert scan("The lane raises `TimeoutError` under load.") == set()
+
+
+def test_a_symbol_named_as_retired_is_left_alone(scan):
+    body = "`HaltingState` was removed; the fields live on the receipt now."
+    assert scan(body, symbols={"EpisodeReceipt"}) == set()
+
+
 # ---- the tree itself -----------------------------------------------------
 
 
@@ -266,9 +295,10 @@ def test_every_current_document_still_resolves():
     targets = gate.make_targets()
     env_names = gate.readable_env_names()
     suite = gate.recorded_suite_size()
+    symbols = gate.defined_symbols()
     cache: dict[str, set[str]] = {}
     for rel in gate.tracked_docs():
-        findings.extend(gate.scan(rel, targets, cache, env_names, suite))
+        findings.extend(gate.scan(rel, targets, cache, env_names, suite, symbols))
     assert findings == [], "\n".join(
         f"{f['doc']}:{f['line']} {f['kind']}: {f['detail']}" for f in findings
     )
