@@ -12986,7 +12986,7 @@ class MLXLocalClient:
             call = None
             if body:
                 try:
-                    call = _normalize(json.loads(body))
+                    call = _normalize(_loads_tool_json(body))
                 except json.JSONDecodeError:
                     call = None
             if call is not None:
@@ -13030,7 +13030,7 @@ class MLXLocalClient:
         if candidate is None:
             return None
         try:
-            return _normalize(json.loads(candidate))
+            return _normalize(_loads_tool_json(candidate))
         except json.JSONDecodeError:
             return None
 
@@ -15929,6 +15929,56 @@ def _truncate_tool_result(result: Any, *, limit: int = 4000) -> str:
     if limit <= len(marker):
         return marker[:limit]
     return text[: limit - len(marker)] + marker
+
+
+def _json_with_control_characters_escaped(text: str) -> str:
+    """The same JSON with raw newlines inside strings escaped.
+
+    LIVE, 2026-08-20. Asked to build a single-file web app, the model emitted
+    a perfectly well-formed call whose `code` argument was a program:
+
+        {"name": "code_repl", "arguments": {"code": "html_content = \"<html>
+         <head>
+         <title>Sitting Timer</title>
+
+    Strict JSON forbids a literal newline inside a string, and that is how
+    every model writes multi-line code. The object was complete, the braces
+    balanced, the arguments right, and json.loads refused it — so the turn
+    reported "none called" and ended in an apology.
+
+    Only control characters INSIDE string literals are touched. Whitespace
+    between tokens is where it belongs, and a payload that was already valid
+    comes back unchanged.
+    """
+    out: list[str] = []
+    in_string = False
+    escaped = False
+    for character in text:
+        if escaped:
+            out.append(character)
+            escaped = False
+            continue
+        if character == "\\":
+            out.append(character)
+            escaped = in_string
+            continue
+        if character == '"':
+            in_string = not in_string
+            out.append(character)
+            continue
+        if in_string and character in "\n\r\t\b\f":
+            out.append({"\n": "\\n", "\r": "\\r", "\t": "\\t", "\b": "\\b", "\f": "\\f"}[character])
+            continue
+        out.append(character)
+    return "".join(out)
+
+
+def _loads_tool_json(body: str) -> Any:
+    """Parse a model-authored JSON object, tolerating how models write code."""
+    try:
+        return json.loads(body)
+    except json.JSONDecodeError:
+        return json.loads(_json_with_control_characters_escaped(body))
 
 
 def _balanced_json_object(text: str, start: int) -> str | None:
