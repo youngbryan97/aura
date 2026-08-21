@@ -35,6 +35,20 @@ jobs:
         with:
           python-version: '3.12'
 
+      # The two pytest steps below had no pytest. This job deliberately
+      # installs no runtime dependencies — the ratchets are pure AST and regex
+      # over tracked source — but `python -m pytest` still needs the package,
+      # so the classifier step could never have passed since it was added.
+      #
+      # `--noconftest` keeps that property. tests/conftest.py is stdlib at
+      # module level, but an autouse fixture imports core.config, which pulls
+      # in pydantic and from there the whole dependency set. Neither of these
+      # two suites uses an Aura fixture: one loads a linter by file path, the
+      # other loads a gate the same way. Skipping conftest is what lets them
+      # run here for the price of one package instead of the runtime set.
+      - name: Install the test runner
+        run: python -m pip install --disable-pip-version-check pytest
+
       # Every ratchet here is pure AST/regex over tracked source. None of them
       # import Aura, so none of them need the runtime dependency set — which is
       # also why they are cheap enough to gate every push.
@@ -56,8 +70,19 @@ jobs:
       - name: Phrase-pinned tests (only shrink)
         run: python tools/lint_phrase_pinned_tests.py
 
+      # Reads references, not prose: paths written as paths, `make` written as
+      # a command, relative links, heading anchors, AURA_* names, and four
+      # numeric claims. A link counts as broken when git does not publish its
+      # target, which is the condition a reader on github.com hits rather than
+      # the condition one working copy happens to be in.
+      - name: Documentation references (only shrink)
+        run: python tools/lint_doc_drift.py --quiet
+
       - name: The phrase-pin classifier itself
-        run: python -m pytest tests/test_phrase_pin_classifier.py -q
+        run: python -m pytest tests/test_phrase_pin_classifier.py -q --noconftest
+
+      - name: The documentation gate itself
+        run: python -m pytest tests/test_doc_drift_gate.py -q --noconftest
 
   # Reports, does not block. The baseline is deliberately NOT refreshed, so
   # the record keeps showing these ROSE rather than being levelled up to match
