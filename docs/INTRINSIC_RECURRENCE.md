@@ -147,27 +147,34 @@ checks the reconstructed step-zero controller hash.
 **A bounded resident-32B gain replicated, lesion-dependent (CP566).** On a
 frozen four-domain semantic cohort — coding, calibration, misleading premise,
 scientific inference, 15 tasks each — the trained controller answered 60/60
-exactly against 16/60 for ordinary decode. The two controls that matter both
-fell further: a matched wire base reached 7 and a coefficient lesion 5, and a
-matched wrong-state arm reached 0. Forty-four gains, no regressions in any
-family, paired one-sided exact *p* = 5.7 × 10⁻¹⁴. The adjudicator's verdict is
-`BOUNDED_WOW_SIGNAL`, and its own limitations line is part of the record:
-bounded executable families, not open-domain general reasoning, not static
-fusion, not frontier performance, not consciousness evidence.
+exactly against 16/60 for ordinary decode, over 300 decodes. The two controls
+that matter both fell further: a matched wire base reached 7 and a coefficient
+lesion 5, and a matched wrong-state arm reached 0. Forty-four gains, no
+regressions in any family, paired one-sided exact *p* = 5.7 × 10⁻¹⁴. The
+adjudicator's verdict is `BOUNDED_WOW_SIGNAL`, and its own limitations line is
+part of the record: bounded executable families, not open-domain general
+reasoning, not static fusion, not frontier performance, not consciousness
+evidence.
 
 The lesion result is what makes it a mechanism claim rather than a score.
 Every family separated under lesion, so the gain tracks the trained
 coefficients rather than the extra decode budget. One family — misleading
-premise — gained nothing at all, which the record keeps rather than averages
-away.
+premise — gained nothing at all, and the record keeps the reason rather than
+averaging it away: ordinary decode was already at ceiling there (15/15), and
+treatment preserved all fifteen instead of manufacturing a gain by regressing
+its own baseline. The 44 came from the other three families.
 
 **It runs in the live serving path (CP568, CP824).**
 `core/brain/llm/semantic_neural_serving.py` pins package
 `cp568-resident-semantic-neural-active-r1` and refuses to serve unless the
 activation record says `active_by_default`. Runtime verification over 120
 tasks — four domains, three difficulties, three scientific surface profiles —
-was 120/120 exact and 120/120 lesion-disrupted, at a median 47 ms and a
-maximum 318 ms, with unsupported language refused.
+was 120/120 exact and 120/120 lesion-disrupted, with unsupported language
+refused. Latency is per package, and each one carries its own measurement:
+the CP567 qualification ran a median 46.160 ms and a maximum 83.188 ms, the
+CP568 shadow 34.686 / 63.737 ms, and the active `r1` package that serves today
+5.325 / 14.910 ms. `make rlc-figures` recomputes every one of those from the
+retained verification files.
 
 CP824 removed the last thing keeping it out of reach: admission had been
 coupled to `desktop_required`, and ordinary sovereign chat does not set that,

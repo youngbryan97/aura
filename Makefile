@@ -1,4 +1,4 @@
-.PHONY: coverage coverage-check coverage-bless mutation update update-live rollback release-status lint test live-test typecheck compile quality smoke setup setup-dev setup-prod run demo demo-full demo-autonomy demo-learning triage contract-doc fmea-doc report bench courtroom baselines longevity longevity-24h longevity-4h chaos governance-lint guarded-imports lock-coverage phrase-pins lexical-debt method-size assumptions writing markers seams reachability layering layering-baseline reqproof-gate reqproof-release reqproof-progress reqproof-docket reqproof-capture checkpoint-hygiene-audit cognitive-gate-audit shutdown-contract-audit gate-skill-closure-audit model-lane-contract-audit lifecycle-ownership-audit skill-catalog-audit skill-runtime-route-audit skill-portability-audit skill-readiness-audit skill-readiness-ui-audit model-load-audit resource-observation-audit security enterprise-gate enterprise-collect enterprise-strict production-gate frontend-contract architecture-map provenance decisive proof-bundle behavioral-proof activation-audit source-hygiene clean-bench aletheia-validate final-proof person-box-proof sovereignty-proof doctor diagnostic-bundle backup restore restore-test memory-export memory-purge data-export data-purge log-purge closeout-audit closeout-semantic-status closeout-rubric identity-reset certify aletheia-live-proof aura-certify-boot evidence-integrity claim-constants module-size module-size-baseline
+.PHONY: coverage coverage-check coverage-bless mutation update update-live rollback release-status lint test live-test typecheck compile quality smoke setup setup-dev setup-prod run demo demo-full demo-autonomy demo-learning triage contract-doc fmea-doc report bench courtroom baselines longevity longevity-24h longevity-4h chaos governance-lint guarded-imports lock-coverage phrase-pins lexical-debt method-size assumptions writing markers seams reachability layering layering-baseline reqproof-gate reqproof-release reqproof-progress reqproof-docket reqproof-capture checkpoint-hygiene-audit cognitive-gate-audit shutdown-contract-audit gate-skill-closure-audit model-lane-contract-audit lifecycle-ownership-audit skill-catalog-audit skill-runtime-route-audit skill-portability-audit skill-readiness-audit skill-readiness-ui-audit model-load-audit resource-observation-audit security enterprise-gate enterprise-collect enterprise-strict production-gate frontend-contract architecture-map provenance decisive proof-bundle behavioral-proof activation-audit source-hygiene clean-bench aletheia-validate final-proof person-box-proof sovereignty-proof doctor diagnostic-bundle backup restore restore-test memory-export memory-purge data-export data-purge log-purge closeout-audit closeout-semantic-status closeout-rubric identity-reset certify aletheia-live-proof aura-certify-boot evidence-integrity claim-constants module-size module-size-baseline rlc-figures rlc-figures-report
 
 
 PYTHON ?= python
@@ -295,6 +295,13 @@ doc-drift:
 	@echo "🔗 Checking that every file a document names is a file that exists..."
 	@$(PYTHON) tools/lint_doc_drift.py --quiet
 
+rlc-figures:
+	@echo "🔬 Recomputing every RLC figure the documents quote from its evidence..."
+	@$(PYTHON) tools/verify_rlc_figures.py --quiet
+
+rlc-figures-report:
+	@$(PYTHON) tools/verify_rlc_figures.py --json /tmp/aura_rlc_figures.json
+
 doc-drift-report:
 	@$(PYTHON) tools/lint_doc_drift.py --json /tmp/aura_doc_drift.json
 
@@ -397,7 +404,7 @@ smoke:
 	@$(PYTHON) -m pytest $(SMOKE_TEST_TARGETS)
 	@echo "✅ Smoke suite passed"
 
-quality: source-hygiene enterprise-gate enterprise-collect production-gate frontend-contract cognitive-gate-audit shutdown-contract-audit gate-skill-closure-audit model-lane-contract-audit skill-catalog-audit skill-runtime-route-audit skill-portability-audit skill-readiness-audit model-load-audit resource-observation-audit integration-liveness architecture-map script-targets compile lint governance-lint security typecheck smoke layering module-size claim-constants writing doc-drift evidence-integrity
+quality: source-hygiene enterprise-gate enterprise-collect production-gate frontend-contract cognitive-gate-audit shutdown-contract-audit gate-skill-closure-audit model-lane-contract-audit skill-catalog-audit skill-runtime-route-audit skill-portability-audit skill-readiness-audit model-load-audit resource-observation-audit integration-liveness architecture-map script-targets compile lint governance-lint security typecheck smoke layering module-size claim-constants writing doc-drift rlc-figures evidence-integrity
 	@echo "🏁 Quality gates passed"
 
 decisive:

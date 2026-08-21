@@ -28,10 +28,12 @@ without evidence to back a claim yet.
   (`core/brain/llm/semantic_neural_serving.py`) — on a frozen four-domain
   cohort of 60 typed tasks, the trained recurrent controller answered 60/60
   exactly against 16/60 for ordinary decode, with a matched wire base at 7 and
-  a coefficient lesion at 5. No family regressed, one gained nothing, paired
+  a coefficient lesion at 5. No family regressed. One gained nothing because
+  ordinary decode was already at ceiling on it (15/15) and the controller
+  preserved all fifteen; the other three supplied the 44 conversions. Paired
   one-sided exact *p* = 5.7 × 10⁻¹⁴. Adjudicated `BOUNDED_WOW_SIGNAL`. It runs
   in the live path — 120/120 exact and 120/120 lesion-disrupted at a median
-  47 ms — and CP824 removed the `desktop_required` coupling that had kept an
+  5.325 ms — and CP824 removed the `desktop_required` coupling that had kept an
   active certified package unreachable from ordinary chat turns. It still
   cannot answer ordinary chat: `ordinary_chat_authorized` stays pinned
   `False`, and admission runs an answer-blind parser over the task grammar.

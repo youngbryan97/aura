@@ -237,56 +237,69 @@ The question: a frozen 32B checkpoint is a fixed-depth pipeline — 64 layers,
 once, per token. **Can you make it think longer on a hard problem without
 changing a single stored weight?**
 
-The machinery says yes. Thought slots are seeded beside the prompt, a window
-of middle layers runs over them repeatedly under a schedule program, and the
-refined slots' K/V persists so every generated token attends to them. Checkpoint
-bytes are hash-checked before and after every episode; episode-scoped fast
-weights are provably erased; equal-FLOP accounting is first-class so "more
-compute helped" can't be mistaken for "the architecture helped."
+Two mechanisms have now answered it, and they answered differently. The first
+was a **frozen loop**: thought slots seeded beside the prompt, a window of
+middle layers run over them repeatedly under a schedule program, the refined
+slots' K/V persisted so every generated token attends to them. Checkpoint bytes
+are hash-checked before and after every episode; episode-scoped fast weights are
+provably erased; equal-FLOP accounting is first-class so "more compute helped"
+can't be mistaken for "the architecture helped."
 
-Then the preregistered campaign ran — seed committed before any task was
-generated, n=24 per family, Holm-corrected — and returned this:
-
-| | |
-|---|---|
-| Mechanics (KV rewind, stability bounds, slot causality, erasure, invariants) | **PROVEN** on real MLX weights |
-| Live runtime integration on the resident 32B | **PROVEN** |
-| Capability gain, frozen loop, 1.5B | **REFUTED** — vanilla 21/72 beat every one of 7 latent arms (7–13/72) |
-| Capability gain, frozen loop, 32B | **CONJECTURE**, negative point estimate — latent 0.375 vs vanilla 0.417, overlapping intervals |
-| Broad reasoning gain, fusion, frontier performance | **NOT CLAIMED** |
-
-The headline the programme published about itself: *on an
-untrained-for-recurrence checkpoint at this scale, the frozen loop does not
-merely fail to help — it hurts.*
+The preregistered campaign — seed committed before any task was generated, n=24
+per family, Holm-corrected — refuted it. *On an untrained-for-recurrence
+checkpoint at this scale, the frozen loop does not merely fail to help — it
+hurts.*
 
 That produced an architectural explanation. The answer tokens had always
 traversed the middle block exactly once, so no depth was ever applied to the
-answer's own computation. Only the scratchpad was recurring. Hence the
-follow-on programme,
-[docs/INTRINSIC_RECURRENCE.md](docs/INTRINSIC_RECURRENCE.md) — which makes the
-real token stream re-enter the middle block, so a 64-layer checkpoint runs 160
-layers deep at T=4 with the same weights, and trains it on typed, exactly
-checkable program traces instead of answers.
+answer's own computation. Only the scratchpad was recurring. The second
+mechanism, **trained intrinsic recurrence**
+([docs/INTRINSIC_RECURRENCE.md](docs/INTRINSIC_RECURRENCE.md)), makes the real
+token stream re-enter the middle block, so a 64-layer checkpoint runs 160 layers
+deep at T=4 with the same weights, and trains it on typed, exactly checkable
+program traces instead of answers. That is where the gain came from.
 
-That follow-on has since returned a positive result, and the bounds on it
-matter more than the headline. On a frozen four-domain cohort of 60 typed
-tasks — coding, calibration, misleading premise, scientific inference — the
-trained controller answered 60/60 exactly against 16/60 for ordinary decode,
-with a matched wire base at 7 and a coefficient lesion at 5. No family
-regressed; one gained nothing. Paired one-sided exact *p* = 5.7 × 10⁻¹⁴, and
-the gain disappears under lesion, which is what makes it a claim about the
-trained coefficients rather than about extra decode budget. It runs in the
-live serving path today, verified 120/120 at a median 47 ms.
+| | |
+|---|---|
+| Mechanics (KV rewind, stability bounds, slot ablation moving the answer distribution, erasure, invariants) | **PROVEN** on real MLX weights |
+| Live runtime integration on the resident 32B | **PROVEN** |
+| Capability gain, **frozen** loop, 1.5B | **REFUTED** — vanilla 21/72 beat every one of 7 latent arms (7–13/72) |
+| Capability gain, **frozen** loop, 32B | **CONJECTURE**, negative point estimate — latent 0.375 vs vanilla 0.417, overlapping intervals |
+| Capability gain, **trained intrinsic** recurrence, 32B | **`BOUNDED_WOW_SIGNAL`** — 60/60 against 16/60 for ordinary decode, lesion-dependent, *p* = 5.7 × 10⁻¹⁴ |
+| Broad reasoning gain, fusion, frontier performance | **NOT CLAIMED** |
+
+`BOUNDED_WOW_SIGNAL` is the adjudicator's own verdict string, and *bounded* is
+load-bearing: the limitations line ships inside the same receipt as the verdict.
+
+On a frozen four-domain cohort of 60 typed tasks — coding, calibration,
+misleading premise, scientific inference — the trained controller answered 60/60
+exactly against 16/60 for ordinary decode, with a matched wire base at 7, a
+coefficient lesion at 5, and a wrong-state control at 0. Forty-four ordinary
+failures converted, none regressed, paired one-sided exact *p* = 5.7 × 10⁻¹⁴. The
+gain disappears under lesion, which is what makes it a claim about the trained
+coefficients rather than about extra decode budget.
+
+One family — misleading premise — gained nothing, and the reason is worth
+stating rather than averaging away: ordinary decode was already at ceiling there
+(15/15), and the controller preserved all fifteen instead of manufacturing a
+gain by regressing its own baseline. The other three families supplied the 44.
+
+It runs in the live serving path today. `semantic_neural_serving.py` pins the
+package `cp568-resident-semantic-neural-active-r1` and refuses to serve unless
+the activation record says `active_by_default`; that package's runtime
+verification is 120/120 exact and 120/120 lesion-disrupted at a median 5.3 ms.
 
 It is still not a broad reasoning gain, not static fusion, not frontier
 performance, and it still cannot answer ordinary chat — admission is decided
 by an answer-blind parser over the task grammar, and unsupported language
 never reaches the lane.
 
-Before you read either page: two clean negative results from early August were
-**void**, because the promotion gate had been wired to the one decode policy
-that removes the vanilla floor. A win had been structurally impossible. Every
-negative result up to that point measured a system that was never switched on.
+Before you read either page: the two negative results from the August
+reconciliation campaign — a 13-vs-5 and its 9-vs-4 reproduction — were **void**,
+because the promotion gate had been wired to the one decode policy that removes
+the vanilla floor. A win had been structurally impossible there, and those two
+runs measured a system that was never switched on. The July preregistration
+above is untouched by that defect and its verdicts stand.
 [docs/RLC_RECONCILIATION.md](docs/RLC_RECONCILIATION.md) has the fourteen
 defects in dependency order.
 

@@ -1,7 +1,7 @@
 # Recursive Latent Cortex (RLC)
 
-Status: Guide · Programme landing page · Reviewed against the tree 2026-08-13
-at CP409. Checkpoints land faster than this page tracks; the claims ladder
+Status: Guide · Programme landing page · Reviewed against the tree 2026-08-21
+at CP832. Checkpoints land faster than this page tracks; the claims ladder
 below changes slowly, and the append-only
 [ledger](RLC_SPARK_EXECUTION_LEDGER.md) is the live record.
 
@@ -11,8 +11,11 @@ Aura's largest research programme. The question:
 > token. Can you make it *think longer* on a hard problem without changing a
 > single stored weight?
 
-The machinery works. **The capability dividend has not appeared, and the
-programme's own preregistered campaign is what proved it hadn't.**
+The machinery works. **The frozen loop answered no, and the programme's own
+preregistered campaign is what proved it. Trained intrinsic recurrence then
+answered yes inside a narrow boundary — an adjudicated `BOUNDED_WOW_SIGNAL`
+(CP566), replicated and lesion-dependent, on four named executable families.**
+The two mechanisms are different, and the claims ladder below keeps them apart.
 
 Turn the frozen resident checkpoint from a fixed-depth 64-layer pipeline into
 a **programmable, stateful, self-configuring reasoning machine** — without
@@ -23,11 +26,13 @@ fast weights, adaptive halting, and a falsification harness that keeps every
 capability claim honest.
 
 Package: `core/brain/llm/latent_cortex/` (worker-side, pure MLX, lazy imports —
-150 modules)
+156 modules)
 Service: `ServiceNames.LATENT_CORTEX = "latent_cortex"` (orchestrator-side)
 Worker action: `latent_reason` (runs on the RESIDENT model, no reload)
-Surface: 68 `tools/` entry points, 163 test files, 204 frozen evidence
-artifacts under `artifacts/closeout/latent_cortex/`
+Surface, 2026-08-21: 55 `tools/` entry points and 231 test files naming the
+latent cortex or recurrence, over 250 frozen evidence entries under
+`artifacts/closeout/latent_cortex/`. These only grow; `make rlc-figures`
+holds them to a floor rather than an exact count.
 
 ---
 
@@ -70,8 +75,9 @@ preregistered campaigns with committed seeds.
 | **Runtime integration** | **PROVEN.** Live on the resident 32B through the signed installed app; deep deliberation routes DEEP passes through latent episodes. Kill switch `AURA_LATENT_CORTEX=0`. |
 | **Capability gain, frozen loop** | **REFUTED at 1.5B scale.** The 2026-07-17 preregistered campaign (seed committed first, n=24/family, Holm-corrected) returned: slot causality REFUTED at n=72; all 7 factorial ablation arms REFUTED — vanilla 21/72 beat every latent arm (7–13/72); self-consistency beat virtual width; gradient latent optimization was indistinguishable from its random control *and* from off. On an untrained-for-recurrence checkpoint at this scale, the frozen loop does not merely fail to help — **it hurts.** |
 | **Capability gain, 32B frozen loop** | **CONJECTURE (negative point estimate).** Template-parity sweep: latent 0.167→0.375 over 1→2 recurrent steps then plateau; vanilla 0.417 leads with fully overlapping Wilson intervals at n=24. Statistical parity. |
-| **Recurrence-native training** | **OPEN — the live front.** If the frozen loop hurts, the dividend has to come from training the checkpoint to use recurrence. Every CP-numbered checkpoint since is about that. |
-| **Broad reasoning gain, fusion, frontier performance** | **NOT CLAIMED.** No checkpoint in this programme authorizes any of them, and each entry in the ledger says so explicitly. |
+| **Capability gain, 32B trained intrinsic recurrence** | **`BOUNDED_WOW_SIGNAL` (CP566).** A different mechanism: the answer's own token stream re-enters the middle block, and the controller is trained on typed traces. On a frozen four-domain cohort of 60 typed tasks the trained controller answered 60/60 exactly against 16/60 for ordinary decode; matched wire base 7, coefficient lesion 5, wrong-state control 0; 44 gains, 0 regressions, paired one-sided exact *p* = 5.7 × 10⁻¹⁴. Adjudicated, replicated, lesion-dependent, and bounded to four named executable families. |
+| **Recurrence-native training** | **OPEN, and now partly answered.** The dividend did come from training the checkpoint to use recurrence, on the bounded families above. Broad transfer is still open, and every CP-numbered checkpoint since is about that. |
+| **Broad reasoning gain, fusion, frontier performance** | **NOT CLAIMED.** No checkpoint in this programme authorizes any of them, and each entry in the ledger says so explicitly — including CP566, whose adjudication ships its limitations line inside the same receipt as its verdict. |
 
 ### What the training front has established
 
@@ -98,6 +104,13 @@ Working on a 1.5B vehicle so the resident 32B stays live, at
   opcode vocabulary that executes causally, the proven narrow tissue recovered
   immutably from CP232, and a certified append-only migration that extends it
   to the new vocabulary while every other learned parameter stays byte-exact.
+- **The gain arrived, bounded (CP566–CP824).** 60/60 against 16/60 on the frozen
+  four-domain cohort, lesion-dependent, adjudicated `BOUNDED_WOW_SIGNAL`; then
+  qualified as a content-addressed runtime package and promoted to the live
+  serving path, where `ordinary_chat_authorized` stays pinned `False` and an
+  answer-blind parser over the public task grammar decides admission.
+  [INTRINSIC_RECURRENCE.md](INTRINSIC_RECURRENCE.md) carries the detail and the
+  two entries this retired from the "not established" list.
 
 Next bounded step: the 1.5B adaptation over train depths 1,3,4,5,6,8,10 with
 held-out 12,16, then the already-frozen four-arm behavioral canary.
@@ -111,7 +124,10 @@ policy that removes the vanilla floor, so no configuration could keep the
 floor *and* gain. The coupling existed in three places, and fixing fewer than
 all three left every receipt reporting `answer_replacement_unproven`.
 
-Every negative result measured a system that was never switched on.
+Those two runs measured a system that was never switched on. The 2026-07-17
+preregistration above never touched that gate — the coupling lives in the
+reconciliation engine, not in `experiments.py` — so its REFUTED and CONJECTURE
+verdicts stand unaffected.
 [RLC_RECONCILIATION.md](RLC_RECONCILIATION.md) has the fourteen defects in
 dependency order.
 

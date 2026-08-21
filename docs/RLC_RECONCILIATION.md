@@ -2,8 +2,14 @@
 
 Status: Guide
 
-Last updated 2026-08-08. Supersedes every earlier plan in this
-file's history.
+Last updated 2026-08-08, scope-annotated 2026-08-21. Supersedes every earlier
+plan in this file's history.
+
+**Read this page as the state of the *frozen-loop* reconciliation campaign on
+2026-08-08.** Its "remains false" lines were true that day and were overtaken by
+CP566–CP824, which measured a different mechanism: trained intrinsic recurrence,
+not the frozen loop this page reconciles. The fourteen defects below are the
+durable part. [INTRINSIC_RECURRENCE.md](INTRINSIC_RECURRENCE.md) is current.
 
 ## The one thing to understand
 
@@ -171,8 +177,16 @@ only on high-confidence evidence.
 Open empirical questions for the resident-32B battery: does the complete stack
 promote any independently verified answer, does it beat both controls under
 equal task and decode contracts, does that gain replicate on fresh tasks, and
-does it preserve every ordinary-decode success. Until then, reasoning gain,
-frontier performance, fusion, activation, and `WOW Signal` remain false.
+does it preserve every ordinary-decode success. As of 2026-08-08, for this
+frozen-loop stack, reasoning gain, frontier performance, fusion, activation, and
+`WOW Signal` were all false.
+
+Two of those five have since moved, and only for the other mechanism. CP566
+answered the last three questions in the affirmative for **trained intrinsic
+recurrence** on a frozen four-domain cohort — replicated, lesion-dependent,
+adjudicated `BOUNDED_WOW_SIGNAL` — and CP568 activated it as a qualified runtime
+package. Frontier performance and static fusion remain false. Nothing here
+changes the frozen-loop verdicts this page reconciles.
 
 ## Measured costs (32B, 2026-08-07)
 
@@ -217,7 +231,7 @@ fingerprint differs.
 3. Validate on the 1.5B rig before spending 32B time — a `--model` swap to
    `~/.cache/huggingface/hub/models--mlx-community--Qwen2.5-1.5B-Instruct-4bit/snapshots/*/`.
    Same `qwen2` architecture and tokenizer as the fused 32B, ~2 min for a full
-   protocol run, ~1GB. It found most of the ten defects above in minutes. Its
+   protocol run, ~1GB. It found most of the fourteen defects above in minutes. Its
    known limit: it validates plumbing, not capability — it never reaches the
    token cap, and its output contains nothing a deterministic router can check.
 4. Require every claimed cell to carry a canonical incumbent artifact, a
