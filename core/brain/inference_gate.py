@@ -6573,6 +6573,25 @@ class InferenceGate:
                         # for its safe actions without offering its
                         # dangerous ones.
                         "authorised_effect_scope": _ceiling,
+                        # Consent the request itself carries.
+                        #
+                        # The permission model already asks whether the person
+                        # pre-approved this class of action, and nothing ever
+                        # answered. So "build me a small web app, one
+                        # self-contained file" was refused with "Requires user
+                        # confirmation" — a confirmation prompt for the thing
+                        # that had just been asked for in those words.
+                        #
+                        # Deliberately narrow. This is set only when the
+                        # request raised the ceiling to writing an artifact,
+                        # which is the one effect it named. It does not
+                        # authorise external_io, privileged mutation, deleting
+                        # anything, sending anything, or spending anything —
+                        # those still require their own consent, because
+                        # nobody asked for them.
+                        "user_explicitly_authorized": (
+                            _ceiling == "read_write_artifacts"
+                        ),
                     },
                     # What the turn has already read. Without it the loop
                     # fetched the same document a second time, from a URL it
