@@ -100,28 +100,27 @@ def select_foreground_episode(
     question_parts = question_parts if type(question_parts) is int else 0
     extended = bool(shape.get("prefers_extended_answer"))
     single_reply_coverage = bool(shape.get("requires_single_reply_coverage"))
-    imperative_parts = shape.get("imperative_parts", 0)
-    imperative_parts = imperative_parts if type(imperative_parts) is int else 0
     mode = str(cognitive_mode or "").strip().lower()
-    depth_worthy = bool(
-        explicitly_required
-        or mode == "deliberate"
-        or extended
-        or single_reply_coverage
-        or question_parts > 1
+    shape_requests_depth = bool(
+        extended or single_reply_coverage or question_parts > 1
     )
-    # A compact conversation contract is an execution decision, not a weak
-    # hint.  Two natural clauses (report state + distinguish inference) do not
-    # justify spending an RLC episode before ordinary speech.  Only genuinely
-    # compound structure may override a stale compact classification; explicit
-    # RLC requests retain authority regardless of shape.
+    # Prompt complexity determines how much answer surface the ordinary
+    # decoder needs; it is not evidence that the general latent episode will
+    # improve that answer. Live 2026-08-21: a five-part Dijkstra request was
+    # selected solely because it was multipart. The unqualified 32B episode
+    # held the resident lane for 217 seconds, was soft-cancelled during branch
+    # selection, and only then let ordinary decoding begin. Certified typed
+    # recurrence is admitted above this selector through its public grammar.
+    # The broader, still-unproven episode therefore requires either an explicit
+    # request or a governed deliberate-mode decision; answer length alone may
+    # never preempt the canonical decoder.
+    depth_worthy = bool(explicitly_required or mode == "deliberate")
     exclusion = ""
-    compact_shape_override = question_parts >= 3 or imperative_parts >= 3
     if not foreground:
         exclusion = "not_foreground"
     elif not desktop_required:
         exclusion = "desktop_cognitive_engine_not_required"
-    elif compact_contract and not (explicitly_required or compact_shape_override):
+    elif compact_contract and not explicitly_required:
         exclusion = "compact_contract"
     elif strict_output_contract:
         exclusion = "strict_output_contract"
@@ -135,8 +134,8 @@ def select_foreground_episode(
         if selected and explicitly_required
         else "deliberate_cognitive_mode"
         if selected and mode == "deliberate"
-        else "multipart_or_extended_prompt"
-        if selected
+        else "unqualified_prompt_shape"
+        if not exclusion and shape_requests_depth
         else exclusion or "depth_threshold_not_met"
     )
     depth_signal = min(1.0, 0.55 + 0.10 * min(3, question_parts))
@@ -150,6 +149,7 @@ def select_foreground_episode(
         "latent_cortex_selected": selected,
         "latent_cortex_selection_reason": reason,
         "latent_cortex_depth_worthy": depth_worthy,
+        "latent_cortex_shape_requests_depth": shape_requests_depth,
         "latent_cortex_prompt_shape": shape,
         "latent_cortex_prompt_shape_rejected_keys": rejected_shape_keys,
         "stakes": round(max(0.55, depth_signal - 0.05), 3),

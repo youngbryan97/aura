@@ -3363,8 +3363,8 @@ def test_service_idle_state_is_explicitly_unproven_not_healthy(monkeypatch):
                 "incompatible_contract": False,
                 "proof_or_benchmark": False,
             },
-            True,
-            "multipart_or_extended_prompt",
+            False,
+            "unqualified_prompt_shape",
         ),
         (
             {
@@ -3418,7 +3418,7 @@ def test_explicit_proof_lane_requirement_selects_latent_episode():
     assert decision["latent_cortex_selection_reason"] == "explicit_requirement"
 
 
-def test_selection_recomputes_visible_compound_depth_when_caller_shape_is_stale():
+def test_visible_compound_shape_does_not_admit_unproven_general_latent_episode():
     objective = (
         "Compare optimistic and pessimistic locking for a hot task queue, choose "
         "which one you would use in a single-host async runtime, explain why, and "
@@ -3437,10 +3437,11 @@ def test_selection_recomputes_visible_compound_depth_when_caller_shape_is_stale(
         visible_objective=objective,
     )
 
-    assert decision["latent_cortex_selected"] is True
-    assert decision["latent_cortex_selection_reason"] == "multipart_or_extended_prompt"
+    assert decision["latent_cortex_selected"] is False
+    assert decision["latent_cortex_selection_reason"] == "compact_contract"
     assert decision["latent_cortex_prompt_shape"]["imperative_parts"] == 4
     assert decision["latent_cortex_prompt_shape"]["question_parts"] == 4
+    assert decision["latent_cortex_shape_requests_depth"] is True
 
 
 def test_compact_two_part_conversation_does_not_spend_a_latent_episode():
