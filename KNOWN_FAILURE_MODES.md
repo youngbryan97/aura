@@ -62,14 +62,21 @@ now waits for reclaim (`AURA_MLX_SPAWN_RECLAIM_WAIT_S`) before refusing.
 
 ## High Severity Failure Modes
 
-### F05: Cloud fallback privacy leak
+### F05: External interlocutor transmits more than the objective needs
 
-**Cause**: Misconfigured privacy classification; prompt classified as public when sensitive
-**Likelihood**: Very Low (defense in depth)
-**Impact**: Sensitive data sent to cloud provider
-**Detection**: Cloud fallback audit log; privacy classification review
-**Recovery**: Disable cloud fallback; audit sent prompts; notify user
-**Runbook**: `docs/runbooks/cloud-provider.md`
+**Cause**: A governed web-interlocutor session composes a message carrying
+context beyond the objective it was opened for
+**Likelihood**: Very Low (host allowlist, per-run turn budget, body inspection)
+**Impact**: Content reaches an external AI surface through the user's browser
+**Detection**: Governed network receipts; `core/security/egress_privacy.py`
+inspection records
+**Recovery**: Quarantine the destination host; audit the transmitted payloads
+from local receipts; repair the composer
+**Runbook**: `docs/runbooks/external-egress.md`
+
+There is no cloud inference fallback to leak through. Every lane the router
+can reach is local, and `allow_cloud_fallback` is coerced to `False` in the
+request contract — see `docs/runbooks/local-inference-boundary.md`.
 
 ### F06: Prompt injection succeeds
 

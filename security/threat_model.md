@@ -33,13 +33,13 @@ Aura is a locally-deployed autonomous AI cognitive runtime with:
 | T02 | **Indirect prompt injection** (from files/web/tool output) | AML.T0051.001 | Critical | Tool output sanitization; content boundary markers; Will gating on actions derived from tool output | ✅ Mitigated |
 | T03 | **Malicious memory poisoning** | AML.T0018 | High | All memory writes gated by Will; integrity hashes on stored state; memory audit trail | ✅ Mitigated |
 | T04 | **Tool-result spoofing** | AML.T0043 | High | Tool results are sandboxed untrusted input; cross-validation for critical actions | ✅ Mitigated |
-| T05 | **Model-provider compromise** | AML.T0042 | High | Local-first inference; cloud fallback is opt-in with privacy classification | ✅ Mitigated |
+| T05 | **Model-provider compromise** | AML.T0042 | High | Inference is local only. Every lane the router can fall back to — Cortex, Solver, Brainstem, Reflex — is a local model; `allow_cloud_fallback` is coerced to `False` in `core/brain/request_contract.py` whatever a caller passes | ✅ Mitigated |
 | T06 | **Model denial of service** | AML.T0029 | Medium | Resource governor; token budgets; Metal semaphore; timeout enforcement | ✅ Mitigated |
 | T07 | **Excessive agency** | OWASP-LLM-08 | Critical | Unified Will; AuthorityGateway; operator permission matrix; fail-closed defaults | ✅ Mitigated |
 | T08 | **Unsafe self-modification** | AML.T0044 | Critical | Self-modification disabled in production mode; gated by feature flag + Will | ✅ Mitigated |
 | T09 | **Capability-token leakage** | - | High | Secrets never included in model context; env var isolation; log sanitization | ✅ Mitigated |
 | T10 | **Workspace escape** | - | Critical | Path validation; sandbox chroot; permission matrix bounds workspace | ✅ Mitigated |
-| T11 | **Data exfiltration through generated output** | AML.T0048 | High | Output filtering; cloud fallback privacy classification; no auto-network in production | ✅ Mitigated |
+| T11 | **Data exfiltration through generated output** | AML.T0048 | High | Outbound requests pass `core/runtime/network_gateway.py`; `core/security/egress_privacy.py` reads the body before it leaves — credentials never go anywhere, personal identifiers only to a destination that is not a stranger | ✅ Mitigated |
 | T12 | **Secret leakage through logs** | - | High | Log sanitizer; structured logging; no secrets in telemetry | ✅ Mitigated |
 | T13 | **Unauthorized memory writes** | - | High | Will receipt required; governance lint enforces coverage | ✅ Mitigated |
 | T14 | **Corrupted long-term identity/state** | - | High | State snapshots; backup/restore; integrity verification on boot | ✅ Mitigated |
@@ -66,7 +66,8 @@ Every major Aura capability has a threat, a test, a runtime guard, and an incide
 | Tool execution | T04, T07, T10 | Sandbox + Will + permission matrix | `tests/test_sandbox_runner_hardening.py` | `docs/runbooks/tool-timeout-storm.md` |
 | Memory write | T03, T13 | Will receipt + integrity hash | `tests/test_will_gate_for_plastic_updates.py` | `docs/runbooks/memory-corruption.md` |
 | Autonomous action | T07, T08 | Will + AuthorityGateway + feature flag | `tests/test_autonomy_latitude.py` | `docs/runbooks/excessive-agency.md` |
-| Cloud fallback | T05, T11 | Privacy classification + opt-in policy | `tests/test_fallback_client_runtime_contract.py` | `docs/runbooks/cloud-provider.md` |
+| Local inference boundary | T05 | Request contract pins `allow_cloud_fallback` to `False` | `tests/test_request_contract.py` | `docs/runbooks/local-inference-boundary.md` |
+| External interlocutor | T11 | Host allowlist + per-run turn budget + egress body inspection | `tests/test_web_interlocutor_outbound_safety.py` | `docs/runbooks/external-egress.md` |
 | Self-repair | T08 | Same Will path as all actions | `tests/test_self_repair_backlog.py` | `docs/runbooks/self-repair-failed.md` |
 | Model loading | T05, T06 | Checksum verification + resource governor | `tests/test_model_loader_consolidation.py` | `docs/runbooks/model-fails-to-load.md` |
 | Plugin/skill loading | T15 | Manifest + signature + sandbox | `tests/test_plugin_allowlist.py` | `docs/runbooks/tool-timeout-storm.md` |

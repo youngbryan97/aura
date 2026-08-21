@@ -30,6 +30,7 @@ safe mitigation, unsafe mitigation, rollback, and verification.
 | Prompt injection | [prompt-injection.md](prompt-injection.md) |
 | Excessive agency | [excessive-agency.md](excessive-agency.md) |
 | External egress privacy incident | [external-egress.md](external-egress.md) |
+| Local inference boundary | [local-inference-boundary.md](local-inference-boundary.md) |
 | Research core stalled | [research-core-stalled.md](research-core-stalled.md) |
 | Disaster recovery | [disaster-recovery.md](disaster-recovery.md) |
 | Stale memory retrieval | [stale-memory-retrieval.md](stale-memory-retrieval.md) |
