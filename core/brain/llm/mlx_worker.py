@@ -3092,9 +3092,26 @@ def build_nonempty_start_processor(tokenizer: Any, *, positions: int = 1) -> Any
     if not banned:
         return None
     limit = max(1, int(positions))
+    boundary = {"base": None, "last": 0}
 
-    def nonempty_start_processor(tokens, logits, banned_ids=banned, limit=limit):
-        if len(tokens) >= limit:
+    def nonempty_start_processor(
+        tokens,
+        logits,
+        banned_ids=banned,
+        limit=limit,
+        boundary=boundary,
+    ):
+        token_count = len(tokens)
+        base = boundary["base"]
+        # mlx_lm includes the final prompt token in the first processor call.
+        # A replacement attempt reuses this processor and starts at that same
+        # one-token boundary, while speculative rewinds remain above it.
+        if base is None or (token_count <= base and boundary["last"] > token_count):
+            base = token_count
+            boundary["base"] = base
+        boundary["last"] = token_count
+        generated_count = max(0, token_count - int(base))
+        if generated_count >= limit:
             return logits
         mask = mx.zeros_like(logits)
         for token_id in banned_ids:
@@ -3110,6 +3127,39 @@ def build_nonempty_start_processor(tokenizer: Any, *, positions: int = 1) -> Any
         return logits + mask
 
     return nonempty_start_processor
+
+
+def build_semantic_completion_terminal_guard(tokenizer: Any, job: dict[str, Any]) -> Any:
+    """Keep structural termination unavailable until a typed answer is complete.
+
+    The generation loop proves completion from request coverage and surface
+    integrity contracts and stops the decode itself. This processor only keeps
+    EOS, role-boundary, and padding controls from overriding that proof before
+    it succeeds. It is independent of subject matter and phrasing.
+    """
+    if not (
+        bool(job.get("clean_user_surface_contract", False))
+        and bool(job.get("semantic_completion_contract", False))
+    ):
+        return None
+
+    import mlx.core as mx
+
+    banned = tuple(_first_token_suppression_ids(tokenizer))
+    if not banned:
+        return None
+
+    def semantic_terminal_guard(tokens, logits, banned_ids=banned):
+        del tokens
+        mask = mx.zeros_like(logits)
+        for token_id in banned_ids:
+            try:
+                mask[..., token_id] = -float("inf")
+            except (IndexError, TypeError, ValueError):
+                continue
+        return logits + mask
+
+    return semantic_terminal_guard
 
 
 def _schema_root_openers(schema: Any) -> tuple[str, ...]:
@@ -6614,30 +6664,11 @@ def _mlx_worker_loop(
 
                 if strict_answer_contract or strict_value_contract:
                     try:
-                        banned_start_ids = _first_token_suppression_ids(tokenizer)
-
-                        if banned_start_ids:
-                            def strict_nonempty_start_processor(
-                                tokens,
-                                logits,
-                                banned_ids=tuple(banned_start_ids),
-                            ):
-                                if len(tokens) < 3:
-                                    mask = mx.zeros_like(logits)
-                                    for token_id in banned_ids:
-                                        try:
-                                            # Last axis: see
-                                            # build_nonempty_start_processor.
-                                            mask[..., token_id] = -float("inf")
-                                        except (IndexError, TypeError, ValueError):
-                                            continue
-                                    return logits + mask
-                                return logits
-
-                            logits_processors.append(strict_nonempty_start_processor)
+                        strict_guard = build_nonempty_start_processor(tokenizer, positions=3)
+                        if strict_guard is not None:
+                            logits_processors.append(strict_guard)
                             logger.info(
-                                "🎯 [WORKER] Strict contract non-empty start guard ACTIVE (%d ids).",
-                                len(banned_start_ids),
+                                "🎯 [WORKER] Strict contract non-empty start guard ACTIVE."
                             )
                     except (AttributeError, RuntimeError, TypeError, ValueError) as e:
                         _record_mlx_degradation(
@@ -6663,6 +6694,24 @@ def _mlx_worker_loop(
                             action="continued generation without the non-empty start guard",
                             severity="warning",
                         )
+
+                try:
+                    semantic_terminal_guard = build_semantic_completion_terminal_guard(
+                        tokenizer,
+                        job,
+                    )
+                    if semantic_terminal_guard is not None:
+                        logits_processors.append(semantic_terminal_guard)
+                    logger.info(
+                        "🧩 [WORKER] Semantic terminal guard %s (generate path).",
+                        "ACTIVE" if semantic_terminal_guard is not None else "INACTIVE",
+                    )
+                except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as e:
+                    _record_mlx_degradation(
+                        e,
+                        action="continued generation without semantic terminal guard",
+                        severity="warning",
+                    )
 
                 # Foreground non-parametric memory (KV-cache-correct): the tap captures the
                 # hidden state the generation forward already computes, so the processor adds
@@ -7055,8 +7104,8 @@ def _mlx_worker_loop(
                                     if bool(job.get("semantic_completion_contract", False)):
                                         logger.info(
                                             "🧩 [WORKER] Semantic completion observer ACTIVE; "
-                                            "natural termination remains available and incomplete "
-                                            "segments use append-only continuation."
+                                            "structural termination remains masked until the typed "
+                                            "contract is complete."
                                         )
                                     if attempt_logits_processors:
                                         kwargs["logits_processors"] = attempt_logits_processors
@@ -8636,6 +8685,24 @@ def _mlx_worker_loop(
                             severity="warning",
                         )
 
+                try:
+                    semantic_terminal_guard = build_semantic_completion_terminal_guard(
+                        tokenizer,
+                        job,
+                    )
+                    if semantic_terminal_guard is not None:
+                        logits_processors.append(semantic_terminal_guard)
+                    logger.info(
+                        "🧩 [WORKER] Semantic terminal guard %s (stream path).",
+                        "ACTIVE" if semantic_terminal_guard is not None else "INACTIVE",
+                    )
+                except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as e:
+                    _record_mlx_degradation(
+                        e,
+                        action="continued streamed generation without semantic terminal guard",
+                        severity="warning",
+                    )
+
                 if logits_processors:
                     kwargs["logits_processors"] = logits_processors
 
@@ -8724,6 +8791,7 @@ def _mlx_worker_loop(
                                 watchdog.activity()
                                 sentinel_aborted = False
                                 abort_reason = ""
+                                semantic_contract_satisfied = False
                                 for response in stream_generate(model, tokenizer, prompt=prompt, **clean_kwargs):
                                     watchdog.activity()
                                     token_count += 1
@@ -8791,6 +8859,22 @@ def _mlx_worker_loop(
                                             stop_hit = True
                                             break
 
+                                    semantic_stop_ready = bool(
+                                        token_count % 8 == 0
+                                        and _semantic_surface_stop_ready(
+                                            job,
+                                            full_text,
+                                            generated_tokens=token_count,
+                                        )
+                                    )
+                                    if semantic_stop_ready:
+                                        semantic_contract_satisfied = True
+                                        logger.info(
+                                            "✅ [WORKER] Stream semantic completion contract "
+                                            "satisfied at token %d.",
+                                            token_count,
+                                        )
+
                                     # Absolute cap check precedes emission so the
                                     # 8193rd token is never visible.
                                     if token_count > 8192:
@@ -8839,7 +8923,7 @@ def _mlx_worker_loop(
                                             }
                                         )
 
-                                    if stop_hit:
+                                    if stop_hit or semantic_stop_ready:
                                         break
                             finally:
                                 watchdog.stop_job()
@@ -8867,6 +8951,16 @@ def _mlx_worker_loop(
                         "aborted": bool(locals().get("sentinel_aborted", False)),
                         "abort_reason": str(locals().get("abort_reason", "") or "")[:200],
                         "tokens_generated": int(locals().get("token_count", 0) or 0),
+                        "semantic_completion_contract": bool(
+                            job.get("semantic_completion_contract", False)
+                        ),
+                        "semantic_completion_satisfied": bool(
+                            locals().get("semantic_contract_satisfied", False)
+                        ),
+                        "semantic_completion_incomplete": bool(
+                            job.get("semantic_completion_contract", False)
+                            and not locals().get("semantic_contract_satisfied", False)
+                        ),
                         "prompt_tokenization": {
                             "chars": len(locals().get("_stream_prompt_text", "") or ""),
                             "tokens": int(locals().get("_stream_prompt_tokens", 0) or 0),

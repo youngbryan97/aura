@@ -86,7 +86,7 @@ def test_the_guard_only_constrains_the_opening_positions() -> None:
     source = WORKER.read_text(encoding="utf-8")
     body = source[source.index("def build_nonempty_start_processor(") :]
     body = body[: body.index("def _schema_root_openers(")]
-    assert "if len(tokens) >= limit:" in body
+    assert "generated_count >= limit" in body
     assert "positions: int = 1" in body
     assert "return None" in body
 
@@ -116,13 +116,15 @@ def test_the_mask_reaches_the_vocabulary_on_either_logits_shape() -> None:
     """
     mx = pytest.importorskip("mlx.core")
     guard = _build_guard()
-    empty = mx.array([], dtype=mx.int32)
+    # mlx_lm includes the final prompt token on its first processor call.
+    prompt_boundary = mx.array([99], dtype=mx.int32)
 
-    two_dimensional = guard(empty, mx.zeros((1, 152000)))
+    two_dimensional = guard(prompt_boundary, mx.zeros((1, 152000)))
     assert float(two_dimensional[0, 151644]) == float("-inf")
     assert float(two_dimensional[0, 5]) == 0.0
 
-    one_dimensional = guard(empty, mx.zeros((152000,)))
+    guard = _build_guard()
+    one_dimensional = guard(prompt_boundary, mx.zeros((152000,)))
     assert float(one_dimensional[151644]) == float("-inf")
     assert float(one_dimensional[5]) == 0.0
 
@@ -130,8 +132,68 @@ def test_the_mask_reaches_the_vocabulary_on_either_logits_shape() -> None:
 def test_the_guard_lets_go_after_the_first_token() -> None:
     mx = pytest.importorskip("mlx.core")
     guard = _build_guard()
-    after = guard(mx.array([7], dtype=mx.int32), mx.zeros((152000,)))
+    guard(mx.array([99], dtype=mx.int32), mx.zeros((152000,)))
+    after = guard(mx.array([99, 7], dtype=mx.int32), mx.zeros((152000,)))
     assert float(after[151644]) == 0.0
+
+
+def test_the_guard_resets_at_the_prompt_boundary_for_a_replacement_attempt() -> None:
+    mx = pytest.importorskip("mlx.core")
+    guard = _build_guard()
+    guard(mx.array([99], dtype=mx.int32), mx.zeros((152000,)))
+    released = guard(mx.array([99, 7], dtype=mx.int32), mx.zeros((152000,)))
+    assert float(released[151644]) == 0.0
+
+    replacement = guard(mx.array([42], dtype=mx.int32), mx.zeros((152000,)))
+    assert float(replacement[151644]) == float("-inf")
+
+
+def _build_semantic_guard(job):
+    tree = ast.parse(WORKER.read_text(encoding="utf-8"))
+    wanted = {
+        "_first_token_suppression_ids",
+        "build_semantic_completion_terminal_guard",
+    }
+    body = [
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef) and node.name in wanted
+    ]
+    namespace: dict[str, object] = {"Any": object}
+    exec(compile(ast.Module(body=body, type_ignores=[]), "<worker>", "exec"), namespace)
+    return namespace["build_semantic_completion_terminal_guard"](_Tokenizer(), job)
+
+
+def test_semantic_contract_masks_structural_termination_until_loop_proves_completion() -> None:
+    mx = pytest.importorskip("mlx.core")
+    guard = _build_semantic_guard(
+        {"clean_user_surface_contract": True, "semantic_completion_contract": True}
+    )
+    assert guard is not None
+    logits = guard(mx.array([99, 7, 8], dtype=mx.int32), mx.zeros((152000,)))
+    assert float(logits[151643]) == float("-inf")
+    assert float(logits[151644]) == float("-inf")
+    assert float(logits[151645]) == float("-inf")
+    assert float(logits[5]) == 0.0
+
+
+@pytest.mark.parametrize(
+    "job",
+    [
+        {},
+        {"clean_user_surface_contract": True},
+        {"semantic_completion_contract": True},
+    ],
+)
+def test_semantic_terminal_guard_requires_both_typed_surface_contracts(job) -> None:
+    assert _build_semantic_guard(job) is None
+
+
+def test_both_decode_loops_stop_when_the_typed_semantic_contract_is_complete() -> None:
+    source = WORKER.read_text(encoding="utf-8")
+    assert source.count("_semantic_surface_stop_ready(") >= 3
+    assert "Stream semantic completion contract" in source
+    assert "if stop_hit or semantic_stop_ready:" in source
 
 
 def test_no_mask_indexes_by_the_second_axis() -> None:

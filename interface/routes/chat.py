@@ -7104,7 +7104,7 @@ async def _run_cognitive_engine_chat_turn(
         ) or ("truncated_tail",)
         logger.warning(
             "CognitiveEngine marked the foreground draft incomplete (%s); "
-            "requiring a full same-worker replacement before it can become authoritative.",
+            "requiring append-only same-worker continuation before it can become authoritative.",
             thought_metadata.get("reply_generation_stop_reason") or "truncated_tail",
         )
         retry_reply = await _attempt_repair_retry(text, incomplete_reasons)
