@@ -257,20 +257,33 @@ def test_what_was_learned_survives_a_restart(tmp_path, monkeypatch) -> None:
     code change, a model swap, after a crash. Without a durable write every
     phrasing learned from use was discarded each time.
     """
-    from core.language import learned_matcher as module
+    from core.language.substrate_store import LanguageSubstrateStore
 
     store = tmp_path / "language" / "restart_test.json"
-    monkeypatch.setattr(
-        module.LearnedMatcher, "_store_path", lambda self: store, raising=False
+    substrate_store = LanguageSubstrateStore(
+        data_root=tmp_path,
+        project_root=tmp_path,
     )
 
-    first = LearnedMatcher(name="restart_test", positives=("I did it.",), negatives=("Did you?",), features=_mood)
+    first = LearnedMatcher(
+        name="restart_test",
+        positives=("I did it.",),
+        negatives=("Did you?",),
+        features=_mood,
+        _store=substrate_store,
+    )
     first.observe("I filed the report.", holds=True)
     first.decide_without_waiting("The notes are in meeting.md now.")
     assert first.save() is True
     assert store.is_file()
 
-    second = LearnedMatcher(name="restart_test", positives=(), negatives=(), features=_mood)
+    second = LearnedMatcher(
+        name="restart_test",
+        positives=(),
+        negatives=(),
+        features=_mood,
+        _store=substrate_store,
+    )
     second.load()
     assert "I filed the report." in second.positives
     assert "The notes are in meeting.md now." in second._pending
@@ -280,20 +293,29 @@ def test_a_verdict_is_not_restored_across_runs(tmp_path, monkeypatch) -> None:
     """Verdicts were reached against a boundary the new process has not
     measured. Re-deciding costs one warm cycle; keeping them means serving an
     answer nothing in this run can vouch for."""
-    from core.language import learned_matcher as module
+    from core.language.substrate_store import LanguageSubstrateStore
 
-    store = tmp_path / "language" / "verdicts.json"
-    monkeypatch.setattr(module.LearnedMatcher, "_store_path", lambda self: store, raising=False)
+    substrate_store = LanguageSubstrateStore(
+        data_root=tmp_path,
+        project_root=tmp_path,
+    )
 
     first = _declared()
     first.name = "verdicts"
+    first._store = substrate_store
     first.decide_without_waiting("I filed the report.")
     first.warm()
     assert first.decide_without_waiting("I filed the report.") is True
     first._dirty = True
     first.save()
 
-    second = LearnedMatcher(name="verdicts", positives=(), negatives=(), features=_mood)
+    second = LearnedMatcher(
+        name="verdicts",
+        positives=(),
+        negatives=(),
+        features=_mood,
+        _store=substrate_store,
+    )
     second.load()
     assert second._decided == {}
 

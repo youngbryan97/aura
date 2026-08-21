@@ -23,7 +23,7 @@ from urllib.parse import parse_qs, quote, quote_plus, unquote, urlparse, urlspli
 
 from core.container import ServiceContainer
 from core.runtime.errors import record_degradation
-from core.runtime.network_gateway import get_network_gateway
+from core.runtime.public_http_transport import request_public_http
 
 if TYPE_CHECKING:
     from core.capabilities.host_automation import AutomationReceipt
@@ -785,7 +785,7 @@ class BrowserController:
         """
         for name, template, read_results in SEARCH_SOURCES:
             try:
-                response = await get_network_gateway().request_async(
+                response = await request_public_http(
                     "GET",
                     template.format(q=quote_plus(query)),
                     headers={
@@ -794,9 +794,9 @@ class BrowserController:
                             "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36"
                         )
                     },
-                    timeout=10,
-                    read_only=True,
+                    timeout_s=10,
                     source=f"browser_controller.search.{name}",
+                    max_response_bytes=2 * 1024 * 1024,
                 )
                 if not response.get("ok"):
                     continue
@@ -816,30 +816,6 @@ class BrowserController:
                 )
         return []
 
-    async def _fetch_search_results_legacy(self, query: str, count: int = 5) -> list[dict[str, str]]:
-        """The single-source reader, kept for the tests that pin its parsing."""
-        url = f"https://lite.duckduckgo.com/lite/?q={quote_plus(query)}"
-        try:
-            response = await get_network_gateway().request_async(
-                "GET",
-                url,
-                headers={
-                    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"
-                },
-                timeout=10,
-                read_only=True,
-                source="browser_controller.fetch_search_results",
-            )
-            if not response.get("ok"):
-                raise RuntimeError(str(response.get("error") or response.get("status_code")))
-            html = bytes(response.get("content", b"")).decode("utf-8", errors="replace")
-
-            return _search_results_in(html, count)
-        except (OSError, RuntimeError, TypeError, ValueError) as e:
-            record_degradation("browser_controller.search_fetch", e)
-            logger.debug("Search fetch failed: %s", e)
-            return []
-
     async def extract_article_text(self, url: str) -> ArticleExtract:
         """Fetch a URL and return its text, labelled as untrusted.
 
@@ -855,15 +831,15 @@ class BrowserController:
         extract = ArticleExtract(url=url, source_domain=urlparse(url).netloc)
 
         try:
-            response = await get_network_gateway().request_async(
+            response = await request_public_http(
                 "GET",
                 url,
                 headers={
                     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"
                 },
-                timeout=15,
-                read_only=True,
+                timeout_s=15,
                 source="browser_controller.extract_article_text",
+                max_response_bytes=4 * 1024 * 1024,
             )
             extract.http_status = int(response.get("status_code") or 0)
             # Where the content actually came from, which redirects can make

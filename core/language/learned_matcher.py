@@ -42,6 +42,10 @@ from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from core.language.substrate_store import (
+    LanguageSubstrateStore,
+    get_language_substrate_store,
+)
 from core.runtime.errors import record_degradation
 
 __all__ = [
@@ -246,6 +250,7 @@ class LearnedMatcher:
     _loaded: bool = field(default=False, repr=False)
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
     _ready: bool = field(default=False, repr=False)
+    _store: LanguageSubstrateStore | None = field(default=None, repr=False)
 
     def observe(self, sentence: str, *, holds: bool) -> None:
         """Record a sentence whose truth something else settled.
@@ -367,9 +372,9 @@ class LearnedMatcher:
 
     def _store_path(self) -> Path | None:
         try:
-            from core.config import config
-
-            return Path(config.paths.data_dir) / "language" / f"{self.name}.json"
+            return (self._store or get_language_substrate_store()).matcher_path(
+                self.name
+            )
         except _RECOVERABLE:
             return None
 
@@ -432,18 +437,10 @@ class LearnedMatcher:
         if path is None:
             return False
         try:
-            from core.governance_context import local_internal_governed_scope
-            from core.runtime.file_write_gateway import get_file_write_gateway
-
-            path.parent.mkdir(parents=True, exist_ok=True)
-            with local_internal_governed_scope("language.learned_matcher.save"):
-                get_file_write_gateway().write_json(
-                    path,
-                    payload,
-                    schema_version=1,
-                    schema_name="aura.language.learned_matcher",
-                    source="language.learned_matcher",
-                )
+            (self._store or get_language_substrate_store()).write_matcher(
+                self.name,
+                payload,
+            )
         except _RECOVERABLE as exc:
             record_degradation(
                 "language.learned_matcher",

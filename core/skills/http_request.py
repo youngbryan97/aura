@@ -26,11 +26,12 @@ import json
 import logging
 import socket
 from typing import Any, Literal
-from urllib.parse import urlparse
+from urllib.parse import urlencode, urlparse, urlsplit, urlunsplit
 
 from pydantic import BaseModel, Field
 
 from core.runtime.errors import record_degradation
+from core.runtime.public_http_transport import request_public_http
 from core.skills.base_skill import BaseSkill
 
 #: Methods that only ask a server a question.
@@ -162,42 +163,64 @@ class HttpRequestSkill(BaseSkill):
         method = str(params.method or "GET").upper()
         timeout = min(float(params.timeout_seconds or 20.0), MAX_TIMEOUT_SECONDS)
 
-        try:
-            import httpx
-        except ImportError as exc:  # pragma: no cover - httpx ships with the runtime
-            record_degradation("http_request", exc, action="no HTTP client available")
-            return {"ok": False, "error": "no HTTP client available"}
-
         headers = {"User-Agent": "Aura/1.0 (+local research agent)"}
         headers.update({str(k): str(v) for k, v in (params.headers or {}).items()})
 
-        try:
-            async with httpx.AsyncClient(
-                timeout=timeout, follow_redirects=True, max_redirects=5
-            ) as client:
-                response = await client.request(
-                    method,
-                    url,
-                    params=params.params or None,
-                    headers=headers,
-                    json=params.json_body if method in WRITE_METHODS else None,
+        if params.params:
+            parsed = urlsplit(url)
+            query = urlencode(params.params, doseq=True)
+            url = urlunsplit(
+                (
+                    parsed.scheme,
+                    parsed.netloc,
+                    parsed.path,
+                    "&".join(part for part in (parsed.query, query) if part),
+                    parsed.fragment,
                 )
-                body = response.content[:MAX_BODY_BYTES]
-        except (httpx.HTTPError, OSError, ValueError) as exc:
+            )
+
+        body_payload: bytes | None = None
+        if method in WRITE_METHODS and params.json_body is not None:
+            body_payload = json.dumps(
+                params.json_body,
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ).encode("utf-8")
+            headers.setdefault("Content-Type", "application/json")
+
+        try:
+            response = await request_public_http(
+                method,
+                url,
+                headers=headers,
+                data=body_payload,
+                timeout_s=timeout,
+                source=f"skill.http_request.{method.casefold()}",
+                max_response_bytes=MAX_BODY_BYTES,
+            )
+            body = bytes(response.get("content", b""))
+        except (OSError, RuntimeError, TypeError, ValueError) as exc:
             record_degradation(
                 "http_request", exc, severity="info", action="the request did not complete"
             )
             return {"ok": False, "error": f"{type(exc).__name__}: {exc}", "url": url}
 
-        content_type = str(response.headers.get("content-type", "")).lower()
-        text = body.decode(response.encoding or "utf-8", errors="replace")
+        response_headers = {
+            str(key).casefold(): str(value)
+            for key, value in dict(response.get("headers") or {}).items()
+        }
+        content_type = response_headers.get("content-type", "").casefold()
+        text = body.decode("utf-8", errors="replace")
+        status = int(response.get("status_code") or 0)
+        final_url = str(response.get("url") or url)
+        bounded = str(response.get("error") or "").startswith("response_body_exceeds")
         result: dict[str, Any] = {
-            "ok": response.status_code < 400,
-            "url": str(response.url),
-            "status": response.status_code,
+            "ok": bool(response.get("ok")) and status < 400,
+            "url": final_url,
+            "status": status,
             "content_type": content_type,
-            "bytes": len(response.content),
-            "truncated": len(response.content) > len(body),
+            "bytes": len(body),
+            "truncated": bounded,
             "text": text,
         }
         if "json" in content_type or text.lstrip()[:1] in {"{", "["}:
@@ -206,7 +229,7 @@ class HttpRequestSkill(BaseSkill):
             except (json.JSONDecodeError, ValueError):
                 pass
         if not result["ok"]:
-            result["error"] = f"HTTP {response.status_code}"
+            result["error"] = str(response.get("error") or f"HTTP {status}")
             # What was actually requested. Without it a 400 is unattributable:
             # live 2026-08-20 the model narrated "something about the longitude
             # parameter" to the person because that was the only guess
@@ -214,8 +237,8 @@ class HttpRequestSkill(BaseSkill):
             logging.getLogger("Skills.http_request").warning(
                 "http_request %s %s -> %d; body begins %r",
                 method,
-                str(response.url)[:300],
-                response.status_code,
+                final_url[:300],
+                status,
                 text[:200],
             )
         return result

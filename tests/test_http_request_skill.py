@@ -49,6 +49,78 @@ def test_a_refused_url_never_reaches_the_network() -> None:
     assert "own network" in result["error"]
 
 
+@pytest.mark.asyncio
+async def test_request_uses_the_pinned_public_transport_with_query_and_json(
+    monkeypatch,
+) -> None:
+    from core.skills import http_request as module
+
+    calls: list[tuple[tuple, dict]] = []
+
+    async def transport(*args, **kwargs):
+        calls.append((args, kwargs))
+        return {
+            "ok": True,
+            "status_code": 201,
+            "url": "https://example.com/final",
+            "headers": {"Content-Type": "application/json"},
+            "content": b'{"accepted":true}',
+        }
+
+    monkeypatch.setattr(module, "check_url", lambda url: (url, ""))
+    monkeypatch.setattr(module, "request_public_http", transport)
+
+    result = await module.HttpRequestSkill().execute(
+        {
+            "url": "https://example.com/items?existing=1",
+            "method": "POST",
+            "params": {"kind": "orca", "tag": ["a", "b"]},
+            "json_body": {"enabled": True},
+        }
+    )
+
+    assert result["ok"] is True
+    assert result["json"] == {"accepted": True}
+    assert result["content_type"] == "application/json"
+    assert calls[0][0] == (
+        "POST",
+        "https://example.com/items?existing=1&kind=orca&tag=a&tag=b",
+    )
+    assert calls[0][1]["data"] == b'{"enabled":true}'
+    assert calls[0][1]["headers"]["Content-Type"] == "application/json"
+    assert calls[0][1]["max_response_bytes"] == module.MAX_BODY_BYTES
+
+
+@pytest.mark.asyncio
+async def test_response_limit_failure_is_reported_as_partial_not_complete(
+    monkeypatch,
+) -> None:
+    from core.skills import http_request as module
+
+    monkeypatch.setattr(module, "check_url", lambda url: (url, ""))
+
+    async def transport(*_args, **_kwargs):
+        return {
+            "ok": False,
+            "status_code": 200,
+            "url": "https://example.com/large",
+            "headers": {"content-type": "text/plain"},
+            "content": b"bounded prefix",
+            "error": "response_body_exceeds_limit",
+        }
+
+    monkeypatch.setattr(module, "request_public_http", transport)
+
+    result = await module.HttpRequestSkill().execute(
+        {"url": "https://example.com/large"}
+    )
+
+    assert result["ok"] is False
+    assert result["truncated"] is True
+    assert result["error"] == "response_body_exceeds_limit"
+    assert result["text"] == "bounded prefix"
+
+
 def test_reading_is_scoped_as_reading_and_writing_is_not() -> None:
     """The point of the per-action table: a GET is not an external effect."""
     assert resolve_execution_effect_scope("http_request", {"method": "GET"}) == "read_only"
@@ -83,7 +155,11 @@ def test_an_omitted_method_is_the_default_not_the_worst_case() -> None:
     skill's worst action — so the one call the turn was entitled to make was
     the one it was denied.
     """
-    from core.skills.action_scope import action_field_and_default, declared_action_name, skill_class_named
+    from core.skills.action_scope import (
+        action_field_and_default,
+        declared_action_name,
+        skill_class_named,
+    )
 
     target = skill_class_named("http_request")
     assert action_field_and_default(target) == ("method", "get")

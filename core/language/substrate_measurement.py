@@ -244,20 +244,10 @@ def run_frozen_measurement() -> dict[str, object]:
         "held_out": len(held_out),
         "results": results,
     }
-    target = _project_root() / _RECEIPT
     try:
-        from core.governance_context import local_internal_governed_scope
-        from core.runtime.file_write_gateway import get_file_write_gateway
+        from core.language.substrate_store import get_language_substrate_store
 
-        target.parent.mkdir(parents=True, exist_ok=True)
-        with local_internal_governed_scope("language.substrate_measurement"):
-            get_file_write_gateway().write_json(
-                target,
-                receipt,
-                schema_version=1,
-                schema_name="aura.language.substrate_measurement",
-                source="language.substrate_measurement",
-            )
+        get_language_substrate_store().write_measurement(receipt)
     except Exception:  # noqa: BLE001 - a measurement that cannot be filed is still a measurement
         pass
     return receipt

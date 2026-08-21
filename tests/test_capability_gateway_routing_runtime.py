@@ -100,13 +100,16 @@ async def test_browser_search_fetch_uses_network_gateway(monkeypatch) -> None:
 
     html = b'<a href="https://example.com/a" class="result-link">Example</a>'
     gateway = FakeNetworkGateway(html)
-    monkeypatch.setattr(module, "get_network_gateway", lambda: gateway)
+    async def request_public_http(method, url, **kwargs):
+        return await gateway.request_async(method, url, **kwargs)
+
+    monkeypatch.setattr(module, "request_public_http", request_public_http)
 
     results = await BrowserController()._fetch_search_results("climate news", count=1)
 
     assert results == [{"url": "https://example.com/a", "title": "Example"}]
-    assert gateway.calls[0]["read_only"] is True
-    assert gateway.calls[0]["source"] == "browser_controller.fetch_search_results"
+    assert gateway.calls[0]["source"] == "browser_controller.search.duckduckgo"
+    assert gateway.calls[0]["max_response_bytes"] == 2 * 1024 * 1024
 
 
 @pytest.mark.asyncio

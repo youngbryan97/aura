@@ -158,9 +158,22 @@ CANONICAL_PRIMITIVE_OWNERS: dict[str, frozenset[str]] = {
             "core/runtime/skill_catalog_probe.py",
         }
     ),
-    "network_gateway": frozenset({"core/runtime/action_executor.py"}),
+    "network_gateway": frozenset(
+        {
+            "core/runtime/action_executor.py",
+            # Public HTTP transport fixes method-derived mutability, response
+            # bounds, and private-address/redirect pinning before delegating to
+            # NetworkGateway. Callers cannot disable those constraints.
+            "core/runtime/public_http_transport.py",
+        }
+    ),
     "file_write_gateway": frozenset(
         {
+            # Learned-language persistence owns two fixed, schema-bound
+            # namespaces: matcher state beneath Aura's configured data root and
+            # the frozen measurement receipt beneath the repository artifact
+            # root. Callers provide records and identities, never paths.
+            "core/language/substrate_store.py",
             "core/agency/tool_orchestrator.py",
             "core/agency/self_repair_backlog.py",
             # Scientific preregistrations publish once beneath a fixed private

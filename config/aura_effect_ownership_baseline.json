@@ -4241,6 +4241,38 @@
       "scope": "<module>.CompiledUnderstandingService.export_reuse_evidence"
     },
     {
+      "callee": "<file_write_gateway>.ensure_directory",
+      "canonical_owner": true,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/language/substrate_store.py",
+      "scope": "<module>.LanguageSubstrateStore.write_matcher"
+    },
+    {
+      "callee": "<file_write_gateway>.write_json",
+      "canonical_owner": true,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/language/substrate_store.py",
+      "scope": "<module>.LanguageSubstrateStore.write_matcher"
+    },
+    {
+      "callee": "<file_write_gateway>.ensure_directory",
+      "canonical_owner": true,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/language/substrate_store.py",
+      "scope": "<module>.LanguageSubstrateStore.write_measurement"
+    },
+    {
+      "callee": "<file_write_gateway>.write_json",
+      "canonical_owner": true,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/language/substrate_store.py",
+      "scope": "<module>.LanguageSubstrateStore.write_measurement"
+    },
+    {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().append_text",
       "canonical_owner": false,
       "category": "file_write_gateway",
@@ -6372,22 +6404,6 @@
       "callee": "core.runtime.network_gateway.get_network_gateway().request_async",
       "canonical_owner": false,
       "category": "network_gateway",
-      "count": 1,
-      "path": "core/capabilities/browser_controller.py",
-      "scope": "<module>.BrowserController._fetch_search_results"
-    },
-    {
-      "callee": "core.runtime.network_gateway.get_network_gateway().request_async",
-      "canonical_owner": false,
-      "category": "network_gateway",
-      "count": 1,
-      "path": "core/capabilities/browser_controller.py",
-      "scope": "<module>.BrowserController.extract_article_text"
-    },
-    {
-      "callee": "core.runtime.network_gateway.get_network_gateway().request_async",
-      "canonical_owner": false,
-      "category": "network_gateway",
       "count": 2,
       "path": "core/capabilities/web_asset_handler.py",
       "scope": "<module>.WebAssetHandler._ddg_image_search"
@@ -6551,6 +6567,14 @@
       "count": 1,
       "path": "core/runtime/action_executor.py",
       "scope": "<module>.ActionExecutor.request_network_transport"
+    },
+    {
+      "callee": "core.runtime.network_gateway.get_network_gateway().request_async",
+      "canonical_owner": true,
+      "category": "network_gateway",
+      "count": 1,
+      "path": "core/runtime/public_http_transport.py",
+      "scope": "<module>.request_public_http"
     },
     {
       "callee": "core.runtime.network_gateway.get_network_gateway().request",
@@ -15858,6 +15882,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "b4c84f45419536298e1a752baa793a726f1b9d5c4e1344d2b5b4f0a07a109800",
+  "inventory_sha256": "b552cf7166a9d6570368ac2325330cc8f5a2e58e80f7f890a7cf58bbb22224c2",
   "schema_version": 1
 }
