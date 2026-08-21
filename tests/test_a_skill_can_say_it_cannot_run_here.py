@@ -36,17 +36,19 @@ def test_a_skill_that_cannot_answer_is_still_offered() -> None:
     assert "if available() is False:" in body
 
 
-def test_build_app_reports_from_the_model_s_own_receipt() -> None:
-    """The accessor hands back a lazy handle whether or not the model can ever
-    load, so asking whether it is None answered True on a host that refuses
-    it."""
+def test_build_app_no_longer_depends_on_a_code_model() -> None:
+    """It used to answer this question by asking a 21.5GB model whether it
+    could load beside a 25.3GB resident cortex. The answer was always no, so
+    the skill spent forty to seventy seconds failing on every request.
+
+    The runtime builds the app itself now, so the only model call is a short
+    plan and the skill runs anywhere.
+    """
     from core.skills.build_app import BuildAppSkill
 
-    assert callable(BuildAppSkill.available_here)
+    assert BuildAppSkill.available_here() is True
     source = Path("core/skills/build_app.py").read_text(encoding="utf-8")
-    assert "model.readiness()" in source
-    assert "ReadinessState.ABSENT" in source
-    assert "ReadinessState.FAILED" in source
+    assert "local_code_model" not in source
 
 
 def test_an_admission_refusal_marks_the_model_failed() -> None:

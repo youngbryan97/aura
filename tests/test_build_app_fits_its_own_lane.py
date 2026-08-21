@@ -28,16 +28,20 @@ def test_the_default_is_not_a_number_the_lane_refuses() -> None:
     assert BuildAppInput(spec="a timer page").max_tokens == 0
 
 
-def test_a_request_above_the_ceiling_is_clamped_not_refused() -> None:
+def test_the_build_no_longer_spends_a_code_lane_at_all() -> None:
+    """The clamp this file was written for is gone with the generator it fed.
+
+    The runtime compiles the app from a typed plan, so the only model call is
+    the plan itself and it carries its own small budget.
+    """
     from pathlib import Path
 
     source = Path("core/skills/build_app.py").read_text(encoding="utf-8")
-    assert "max_code_tokens()" in source
-    assert "min(requested_tokens, ceiling)" in source
-    # The old default appears only where the defect is recorded, never as a
-    # value the skill would send.
-    field = source[source.index("max_tokens: int = Field(") :]
-    assert field[: field.index(")")].startswith("max_tokens: int = Field(0")
+    assert "max_code_tokens" not in source
+    assert "min(requested_tokens, ceiling)" not in source
+    from core.construction.build_app_system import _PLAN_TOKENS
+
+    assert 0 < _PLAN_TOKENS <= 2048
 
 
 def test_the_policy_still_refuses_what_is_genuinely_out_of_bounds() -> None:
@@ -56,26 +60,39 @@ def test_the_policy_still_refuses_what_is_genuinely_out_of_bounds() -> None:
 
 def test_a_failed_build_says_why() -> None:
     """It ran for seventy-three seconds, failed, and came back as
-    "build_app reported failure without a cause" — while the result object
-    carried both an error and a status."""
-    from pathlib import Path
+    "build_app reported failure without a cause"."""
+    import asyncio
 
-    source = Path("core/skills/build_app.py").read_text(encoding="utf-8")
-    assert '"error": reason' in source
-    assert "str(result.error or \"\").strip()" in source
-    assert "str(result.status or \"\").strip()" in source
+    from core.construction.build_app_system import build_app
+
+    async def nothing_usable(_text: str) -> str:
+        return "I would be happy to help you build that!"
+
+    result = asyncio.run(
+        build_app("a tally counter", out_dir="/tmp/never_written", propose=nothing_usable)
+    )
+    assert not result.ok
+    assert result.problems and all(problem.strip() for problem in result.problems)
+    assert "Could not build" in result.summary()
 
 
 def test_a_failed_build_never_claims_a_path() -> None:
-    """The success summary reads "Built 'x' -> path", which is a completion
-    claim; a failure must not borrow it."""
+    """The success summary names a file, which is a completion claim; a
+    failure must not borrow it."""
+    import asyncio
     from pathlib import Path
 
-    source = Path("core/skills/build_app.py").read_text(encoding="utf-8")
-    failure = source[source.index("if not result.ok:") :]
-    failure = failure[: failure.index("return {\n            \"ok\": True")]
-    assert "Could not build" in failure
-    assert "Built '" not in failure
+    from core.construction.build_app_system import build_app
+
+    async def nothing_usable(_text: str) -> str:
+        return ""
+
+    target = "/tmp/build_app_failure_check"
+    result = asyncio.run(build_app("a tally counter", out_dir=target, propose=nothing_usable))
+    assert not result.ok
+    assert result.path == ""
+    assert "Built" not in result.summary()
+    assert not list(Path(target).glob("*.html")) if Path(target).is_dir() else True
 
 
 def test_a_model_invented_home_directory_cannot_escape() -> None:
