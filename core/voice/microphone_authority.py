@@ -128,6 +128,10 @@ class MicrophoneAuthority:
             rank=LockRank.RESOURCE,
         )
         self._leases: dict[str, MicrophoneLease] = {}
+        # Audio callbacks and browser ingress validate ownership at frame rate.
+        # Publish an immutable-by-convention table after each locked mutation so
+        # those reads cannot queue behind device arbitration or revocation work.
+        self._lease_snapshot: dict[str, MicrophoneLease] = {}
         self._generation = 0
         self._denials: dict[str, int] = {}
         self._preemptions = 0
@@ -221,6 +225,7 @@ class MicrophoneAuthority:
                 revoke_callback=revoke_callback,
             )
             self._leases[group] = lease
+            self._publish_lease_snapshot_locked()
 
         if displaced is not None:
             self._notify_revocation(displaced)
@@ -236,12 +241,12 @@ class MicrophoneAuthority:
     def heartbeat(self, lease: MicrophoneLease | None) -> bool:
         if lease is None or not lease.active:
             return False
-        with self._lock:
-            current = self._leases.get(lease.group)
-            if current is not lease or not lease.active:
-                return False
-            lease.last_seen = time.monotonic()
-            return True
+        if self._lease_snapshot.get(lease.group) is not lease:
+            return False
+        lease.last_seen = time.monotonic()
+        # A concurrent revocation marks the lease inactive before publishing
+        # the replacement snapshot. Recheck both facts before admitting audio.
+        return self._lease_snapshot.get(lease.group) is lease and lease.active
 
     def validate(self, lease: MicrophoneLease | None) -> tuple[bool, str]:
         if lease is None:
@@ -249,10 +254,9 @@ class MicrophoneAuthority:
         if not microphone_allowed():
             self.revoke(lease, reason="owner_disabled")
             return False, "owner_disabled"
-        with self._lock:
-            current = self._leases.get(lease.group)
-            if current is lease and lease.active:
-                return True, "active"
+        current = self._lease_snapshot.get(lease.group)
+        if current is lease and lease.active:
+            return True, "active"
         return False, lease.revoked_reason or "lease_not_authoritative"
 
     def release(self, lease: MicrophoneLease | None, *, reason: str = "released") -> bool:
@@ -261,12 +265,13 @@ class MicrophoneAuthority:
         with self._lock:
             current = self._leases.get(lease.group)
             was_current = current is lease and lease.active
-            if was_current:
-                self._leases.pop(lease.group, None)
             if lease.active:
                 lease._released = True
                 lease._revoked_reason = str(reason or "released")
+            if was_current:
+                self._leases.pop(lease.group, None)
             self._generation += 1
+            self._publish_lease_snapshot_locked()
             waiters = (
                 tuple(self._availability_waiters.pop(lease.group, {}).values())
                 if was_current
@@ -334,6 +339,7 @@ class MicrophoneAuthority:
             revoked = self._revoke_locked(lease, reason)
             self._revocations += 1
             self._generation += 1
+            self._publish_lease_snapshot_locked()
         self._notify_revocation(revoked)
         return True
 
@@ -348,6 +354,7 @@ class MicrophoneAuthority:
             if revoked:
                 self._revocations += len(revoked)
                 self._generation += 1
+                self._publish_lease_snapshot_locked()
         for lease in revoked:
             self._notify_revocation(lease)
         return {
@@ -357,11 +364,15 @@ class MicrophoneAuthority:
         }
 
     def _revoke_locked(self, lease: MicrophoneLease, reason: str) -> MicrophoneLease:
-        if self._leases.get(lease.group) is lease:
-            self._leases.pop(lease.group, None)
         lease._released = True
         lease._revoked_reason = str(reason or "revoked")
+        if self._leases.get(lease.group) is lease:
+            self._leases.pop(lease.group, None)
         return lease
+
+    def _publish_lease_snapshot_locked(self) -> None:
+        """Publish one coherent lease table after an authoritative mutation."""
+        self._lease_snapshot = dict(self._leases)
 
     @staticmethod
     def _notify_revocation(lease: MicrophoneLease) -> None:

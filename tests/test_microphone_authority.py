@@ -205,6 +205,63 @@ def test_ingress_broker_rejects_audio_without_current_lease(monkeypatch):
     assert status["rejected_frames"] == 1
 
 
+def test_frame_validation_never_waits_on_the_global_authority_lock(monkeypatch):
+    authority = _authority(monkeypatch)
+    broker = AudioIngressBroker(authority)
+    lease = authority.acquire(
+        "desktop",
+        principal="owner:local",
+        source="browser_duplex",
+        mode="focused",
+    )
+    assert isinstance(lease, MicrophoneLease)
+
+    class ForbiddenLock:
+        def __enter__(self):
+            raise AssertionError("frame admission acquired the global authority lock")
+
+        def __exit__(self, *_args):
+            return False
+
+    monkeypatch.setattr(authority, "_lock", ForbiddenLock())
+
+    assert authority.validate(lease) == (True, "active")
+    assert broker.admit(lease, 640) is True
+
+
+def test_published_lease_snapshot_tracks_preemption_release_and_revocation(monkeypatch):
+    authority = _authority(monkeypatch)
+    passive = authority.acquire(
+        "resident",
+        principal="owner:local",
+        source="sounddevice",
+        mode="passive",
+    )
+    focused = authority.acquire(
+        "desktop",
+        principal="owner:local",
+        source="browser_duplex",
+        mode="focused",
+    )
+    assert isinstance(passive, MicrophoneLease)
+    assert isinstance(focused, MicrophoneLease)
+    assert authority.validate(passive) == (False, "preempted_by:desktop:focused")
+    assert authority.validate(focused) == (True, "active")
+
+    assert authority.release(focused, reason="conversation_complete") is True
+    assert authority.validate(focused) == (False, "conversation_complete")
+
+    remote = authority.acquire(
+        "phone",
+        principal="paired:device-1",
+        source="browser_duplex",
+        mode="focused",
+    )
+    assert isinstance(remote, MicrophoneLease)
+    assert authority.revoke(remote, reason="owner_request") is True
+    assert authority.validate(remote) == (False, "owner_request")
+
+
 def test_native_voice_engine_never_touches_sounddevice_when_lease_is_denied(
     monkeypatch,
     tmp_path,

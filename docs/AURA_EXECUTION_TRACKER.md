@@ -51219,3 +51219,32 @@ ontology contracts pass `159/159`; canonical smoke passes `120/120` with one
 environment-dependent skip. Ruff, compilation and diff hygiene pass. The
 running pre-checkpoint process was intentionally not restarted, so live
 confirmation belongs to the next normal installed-app restart.
+
+## Checkpoint 2026-08-21-886: Keep Microphone Frame Admission Off the Arbitration Lock
+
+Live lock-dependency evidence showed high-frequency microphone lease validation
+waiting as long as 402 ms on the global authority mutex. The same mutex also
+guarded every audio-frame heartbeat. Although each read-side critical section
+was small, it could queue behind cross-thread acquisition, preemption,
+revocation, waiter and diagnostic work, directly blocking the event-loop or
+audio callback that only needed a point-in-time ownership decision.
+
+Microphone authority now publishes a copy-on-write lease-table snapshot after
+every locked ownership mutation. Validation and frame heartbeat read that
+snapshot without entering the arbitration lock; heartbeat rechecks authority
+and active state after updating liveness. Revocation and release mark a lease
+inactive before removing it and publishing the replacement table, so a
+concurrent reader cannot admit a displaced owner through a stale snapshot.
+Acquisition, priority preemption, revocation callbacks, counters, availability
+waiters and diagnostics retain their original serialized ownership semantics.
+
+Focused microphone authority, device-recovery and runtime-setting contracts pass
+`27/27`, including deterministic regressions that reject any global-lock access
+from validation or frame ingress and prove snapshot transitions across
+preemption, release and explicit revocation. Canonical smoke passes `120/120`
+with one environment-dependent skip; Ruff, compilation and diff hygiene pass.
+An exploratory broad voice sweep passed `224` contracts and exposed a separate
+TTS lifecycle-lock/dependency defect in six speech-engine-dependent cases; that
+is the next bounded repair rather than evidence against this authority change.
+The running pre-checkpoint process was intentionally not restarted, so live
+confirmation belongs to the next normal installed-app restart.
