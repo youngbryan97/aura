@@ -176,6 +176,39 @@ def test_semantic_stop_waits_for_every_compound_request_obligation():
     assert _semantic_surface_stop_ready(job, complete, generated_tokens=120)
 
 
+def test_continuation_quality_is_measured_on_the_assembled_answer(monkeypatch):
+    from core.brain.llm import mlx_worker
+
+    prompt = (
+        "Explain Dijkstra's algorithm in one complete response. Include: "
+        "(1) its core invariant, (2) numbered pseudocode, (3) a worked example, "
+        "(4) heap and array complexity, and (5) negative-weight failure and the alternative."
+    )
+    partial = (
+        "Dijkstra's algorithm computes shortest paths with nonnegative weights. "
+        "1. Its core invariant finalizes the minimum unsettled distance. "
+        "2. Numbered pseudocode initializes distances and relaxes every edge. "
+        "3. A worked example follows vertices A, B, C, and D. "
+        "4. Complexity is O((V+E) log V) with a heap and O(V^2) with an array."
+    )
+    tail = "5. Negative weights require Bellman-Ford instead."
+    job = {
+        "clean_user_surface_contract": True,
+        "semantic_completion_contract": True,
+        "user_surface_continuation_contract": True,
+        "user_surface_continuation_partial": partial,
+        "user_surface_validation_prompt": prompt,
+    }
+
+    monkeypatch.setattr(
+        mlx_worker,
+        "_surface_quality_failure_reasons",
+        lambda _job, response: [] if response != tail else ["fragment_only"],
+    )
+
+    assert _semantic_surface_stop_ready(job, tail, generated_tokens=24)
+
+
 def test_semantic_stop_rejects_shared_words_without_required_semantics():
     prompt = (
         "Explain Dijkstra's invariant, then give a worked example with vertices "

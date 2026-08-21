@@ -45,6 +45,10 @@ class _Tokenizer:
     def encode(self, text, add_special_tokens=False):
         return [self._vocab[text]] if text in self._vocab else [1, 2]
 
+    def decode(self, token_ids, skip_special_tokens=True):
+        del skip_special_tokens
+        return "unfinished continuation" if token_ids else ""
+
 
 def test_the_token_that_broke_the_live_turn_is_banned() -> None:
     banned = _suppression_ids()(_Tokenizer())
@@ -159,13 +163,16 @@ def _build_semantic_guard(job):
         for node in tree.body
         if isinstance(node, ast.FunctionDef) and node.name in wanted
     ]
-    namespace: dict[str, object] = {"Any": object}
+    namespace: dict[str, object] = {
+        "Any": object,
+        "_semantic_surface_stop_ready": lambda *_args, **_kwargs: False,
+    }
     exec(compile(ast.Module(body=body, type_ignores=[]), "<worker>", "exec"), namespace)
     return namespace["build_semantic_completion_terminal_guard"](_Tokenizer(), job)
 
 
-def test_semantic_contract_does_not_force_multiple_answers_into_one_branch() -> None:
-    """EOS closes the branch; completion is assessed outside token sampling."""
+def test_initial_semantic_contract_does_not_force_multiple_answers_into_one_branch() -> None:
+    """EOS closes the initial branch; only an append-only continuation is held open."""
 
     assert (
         _build_semantic_guard(
@@ -175,15 +182,33 @@ def test_semantic_contract_does_not_force_multiple_answers_into_one_branch() -> 
     )
 
 
+def test_incomplete_append_only_continuation_masks_terminal_tokens() -> None:
+    mx = pytest.importorskip("mlx.core")
+    guard = _build_semantic_guard(
+        {
+            "clean_user_surface_contract": True,
+            "semantic_completion_contract": True,
+            "user_surface_continuation_contract": True,
+        }
+    )
+    assert guard is not None
+    masked = guard(mx.array([99], dtype=mx.int32), mx.zeros((152000,)))
+    assert float(masked[151644]) == float("-inf")
+
+
 @pytest.mark.parametrize(
     "job",
     [
         {},
         {"clean_user_surface_contract": True},
         {"semantic_completion_contract": True},
+        {
+            "clean_user_surface_contract": True,
+            "semantic_completion_contract": True,
+        },
     ],
 )
-def test_semantic_terminal_guard_requires_both_typed_surface_contracts(job) -> None:
+def test_semantic_terminal_guard_requires_all_typed_continuation_contracts(job) -> None:
     assert _build_semantic_guard(job) is None
 
 

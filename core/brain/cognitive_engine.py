@@ -521,6 +521,10 @@ def _turn_needs_undistorted_computation(user_message: Any) -> bool:
     instead of subtracting eight from seventeen.
     """
     try:
+        from core.brain.executable_reasoning import (
+            ReasoningObjectiveRole,
+            classify_reasoning_objective_role,
+        )
         from core.conversation.response_reliability import (
             asks_for_a_number,
             requires_reasoning_lane,
@@ -528,6 +532,11 @@ def _turn_needs_undistorted_computation(user_message: Any) -> bool:
     except ImportError:
         return False
     try:
+        if (
+            classify_reasoning_objective_role(str(user_message or ""))
+            is ReasoningObjectiveRole.EXPOSITORY
+        ):
+            return False
         return bool(
             asks_for_a_number(user_message) or requires_reasoning_lane(user_message)
         )
@@ -5029,7 +5038,7 @@ class CognitiveEngine:
                 # One continuation owns the remaining surface. Keep enough
                 # capacity for any unserved obligations rather than splitting
                 # completion across a chain of progressively smaller decodes.
-                continuation_tokens = max(512, min(structural_answer_floor, 2048))
+                continuation_tokens = max(512, min(structural_answer_floor, 1024))
                 router_kwargs["max_tokens"] = continuation_tokens
                 router_kwargs["num_predict"] = continuation_tokens
                 router_kwargs["user_surface_completion_floor"] = continuation_tokens

@@ -1135,7 +1135,7 @@ def _semantic_surface_stop_ready(
             severity="warning",
         )
         return False
-    return not _surface_quality_failure_reasons(job, response_text)
+    return not _surface_quality_failure_reasons(job, candidate)
 
 
 def _semantic_completion_receipt_state(
@@ -3137,25 +3137,71 @@ def build_nonempty_start_processor(tokenizer: Any, *, positions: int = 1) -> Any
 
 
 def build_semantic_completion_terminal_guard(tokenizer: Any, job: dict[str, Any]) -> Any:
-    """Leave natural branch termination available during semantic observation.
+    """Hold a continuation open until the assembled answer is complete.
 
-    Semantic completeness is an output property, not a token-level grammar.
-    Masking EOS until the assessor accepted a draft forced the model to continue
-    *after it had ended its answer*. An incomplete first branch therefore grew a
-    second and third competing answer in the same sequence, then repeated prompt
-    material until the request deadline. The assessor could no longer recover
-    the original authored answer because the forced suffix made the whole draft
-    an integrity failure.
+    The initial branch keeps natural EOS. Masking its terminator caused a model
+    that had finished one answer to author a second and third answer in the same
+    sequence. An append-only continuation is different: it already owns an
+    incomplete assistant prefix, so accepting EOS before the *combined* prefix
+    and tail satisfy the request contract merely creates another tiny fragment
+    and another expensive prefill.
 
-    The generation loop still observes every eighth token and may stop early
-    when it can prove complete coverage. Natural EOS instead closes an
-    incomplete branch normally so downstream typed-evidence completion or a
-    fresh candidate can operate on an intact draft. This compatibility hook is
-    retained for diagnostics that import it directly; it intentionally returns
-    no logits processor.
+    This processor therefore exists only for typed continuation jobs. The
+    generation loop evaluates the same assembled candidate every eight tokens
+    and exits as soon as it is complete; the token cap remains the absolute
+    bound if the contract cannot be satisfied.
     """
-    del tokenizer, job
-    return None
+    if not (
+        bool(job.get("clean_user_surface_contract", False))
+        and bool(job.get("semantic_completion_contract", False))
+        and bool(job.get("user_surface_continuation_contract", False))
+    ):
+        return None
+
+    import mlx.core as mx
+
+    terminal_ids = tuple(_first_token_suppression_ids(tokenizer))
+    if not terminal_ids:
+        return None
+    boundary = {"base": None, "last": 0}
+
+    def semantic_continuation_terminal_guard(
+        tokens,
+        logits,
+        terminal_ids=terminal_ids,
+        boundary=boundary,
+    ):
+        token_count = len(tokens)
+        base = boundary["base"]
+        if base is None or (token_count <= base and boundary["last"] > token_count):
+            base = token_count
+            boundary["base"] = base
+        boundary["last"] = token_count
+        generated = tokens[int(base) :]
+        try:
+            generated_ids = generated.tolist()
+        except AttributeError:
+            generated_ids = list(generated)
+        try:
+            response_text = tokenizer.decode(generated_ids, skip_special_tokens=True)
+        except TypeError:
+            response_text = tokenizer.decode(generated_ids)
+        if _semantic_surface_stop_ready(
+            job,
+            response_text,
+            generated_tokens=len(generated_ids),
+        ):
+            return logits
+
+        mask = mx.zeros_like(logits)
+        for token_id in terminal_ids:
+            try:
+                mask[..., token_id] = -float("inf")
+            except (IndexError, TypeError, ValueError):
+                continue
+        return logits + mask
+
+    return semantic_continuation_terminal_guard
 
 
 def _schema_root_openers(schema: Any) -> tuple[str, ...]:

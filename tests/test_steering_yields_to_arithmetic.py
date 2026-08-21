@@ -68,6 +68,10 @@ def test_steering_stands_down_for_a_determinate_question(question: str) -> None:
         "How are you feeling right now?",
         "Tell me about your day.",
         "What is love?",
+        (
+            "Explain Dijkstra's algorithm with numbered pseudocode, a worked "
+            "example, five weighted edges, and both complexity bounds."
+        ),
         "",
     ],
 )
