@@ -189,6 +189,8 @@ _CHAT_TURN_CONSCIOUSNESS_UPDATE_TIMEOUT_S = 8.0
 
 _CHAT_TURN_MEMORY_LOG_LEASE_RECHECK_S = 61.0
 
+_CHAT_TURN_MEMORY_LOG_FOREGROUND_RECHECK_S = 0.25
+
 _CHAT_TURN_MEMORY_LOG_SHUTDOWN_HANDLER = "chat.durable_memory_log_outbox"
 
 _DURABLE_CONVERSATION_WRITE_TIMEOUT_S = _chat_memory_state._DURABLE_CONVERSATION_CONTEXT_TIMEOUT_S
@@ -791,13 +793,61 @@ async def _mark_chat_turn_memory_log_stage(operation_id: str, stage: str) -> Non
     await asyncio.to_thread(mark, operation_id, stage=stage)
 
 
-async def _drain_chat_turn_memory_log_queue() -> None:
+def _chat_turn_memory_log_foreground_delay() -> float | None:
+    """Return when durable post-turn learning may resume.
+
+    The transcript and outbox row are already durable before this worker is
+    scheduled.  Everything drained here is background learning fanout: an
+    episodic projection, profile/interpersonal updates, shared-ground work and
+    a consciousness update.  Running that fanout while a person is speaking
+    made the next HTTP turn compete with its predecessor's learning and, live,
+    delayed an otherwise 2.5s recurrent answer by 62s.
+
+    Use the process-wide foreground lease rather than a route-local flag so
+    voice, desktop chat and paired conversation all get the same priority.
+    """
+
+    try:
+        from core.runtime.foreground_guard import snapshot
+
+        guard = snapshot()
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        record_degradation(
+            "chat.memory_log_foreground_guard",
+            exc,
+            action="retained the durable learning item for a bounded retry",
+        )
+        return _CHAT_TURN_MEMORY_LOG_FOREGROUND_RECHECK_S
+
+    if bool(guard.get("active")):
+        return _CHAT_TURN_MEMORY_LOG_FOREGROUND_RECHECK_S
+    quiet_remaining = max(0.0, float(guard.get("quiet_remaining_s") or 0.0))
+    if quiet_remaining > 0.0:
+        return max(
+            _CHAT_TURN_MEMORY_LOG_FOREGROUND_RECHECK_S,
+            quiet_remaining + 0.05,
+        )
+    return None
+
+
+async def _drain_chat_turn_memory_log_queue(*, honor_foreground: bool = True) -> None:
     persistence = ServiceContainer.get("persistence", default=None)
     claim = getattr(persistence, "claim_memory_log_batch", None)
     settle = getattr(persistence, "settle_memory_log_item", None)
     status = getattr(persistence, "memory_log_outbox_status", None)
     if not callable(claim) or not callable(settle):
         return
+
+    if honor_foreground:
+        foreground_delay = _chat_turn_memory_log_foreground_delay()
+        if foreground_delay is not None:
+            logger.debug(
+                "Chat memory learning retained in its durable outbox for %.2fs "
+                "while foreground conversation has priority.",
+                foreground_delay,
+            )
+            _schedule_chat_turn_memory_log_retry(foreground_delay)
+            return
 
     processed = 0
     retry_delay_s: float | None = None
@@ -850,8 +900,23 @@ async def _drain_chat_turn_memory_log_queue() -> None:
 
 
 async def _retry_chat_turn_memory_log_after(delay_s: float) -> None:
-    await asyncio.sleep(max(0.01, float(delay_s)))
-    await _drain_chat_turn_memory_log_queue()
+    next_delay = max(0.01, float(delay_s))
+    while True:
+        await asyncio.sleep(next_delay)
+        foreground_delay = _chat_turn_memory_log_foreground_delay()
+        if foreground_delay is None:
+            break
+        next_delay = foreground_delay
+    # This retry task is the one durable owner of the deferred wake. Calling
+    # the regular foreground branch here would see itself in TaskTracker and
+    # decline to schedule a duplicate, then exit with no future wake at all.
+    await _drain_chat_turn_memory_log_queue(honor_foreground=False)
+
+
+async def _drain_chat_turn_memory_log_queue_on_shutdown() -> None:
+    """Flush durable learning during shutdown without a stale quiet-window delay."""
+
+    await _drain_chat_turn_memory_log_queue(honor_foreground=False)
 
 
 def _schedule_chat_turn_memory_log_retry(delay_s: float) -> bool:
@@ -885,7 +950,7 @@ def _ensure_chat_turn_memory_log_shutdown_handler() -> None:
     if _CHAT_TURN_MEMORY_LOG_SHUTDOWN_HANDLER in coordinator.handler_names("memory_commit"):
         return
     coordinator.register(
-        _drain_chat_turn_memory_log_queue,
+        _drain_chat_turn_memory_log_queue_on_shutdown,
         phase="memory_commit",
         name=_CHAT_TURN_MEMORY_LOG_SHUTDOWN_HANDLER,
         timeout=_CHAT_TURN_MEMORY_LOG_TIMEOUT_S + 5.0,

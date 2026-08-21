@@ -221,6 +221,7 @@ from interface.routes.chat_common import (  # noqa: E402
     _UNSET,  # noqa: F401
 )
 from interface.routes.chat_preflight import (  # noqa: E402
+    _CHAT_TURN_MEMORY_LOG_FOREGROUND_RECHECK_S,  # noqa: F401
     _CHAT_TURN_CONSCIOUSNESS_UPDATE_TIMEOUT_S,  # noqa: F401
     _CHAT_TURN_MEMORY_LOG_BATCH_MAX,  # noqa: F401
     _CHAT_TURN_MEMORY_LOG_DRAIN_TASK_NAME,  # noqa: F401
@@ -255,6 +256,7 @@ from interface.routes.chat_preflight import (  # noqa: E402
     _conversation_epochs,  # noqa: F401
     _conversation_session_id,  # noqa: F401
     _drain_chat_turn_memory_log_queue,  # noqa: F401
+    _drain_chat_turn_memory_log_queue_on_shutdown,  # noqa: F401
     _drain_durable_conversation_writes,  # noqa: F401
     _durable_conversation_payload_sha256,  # noqa: F401
     _durable_conversation_write_snapshot,  # noqa: F401

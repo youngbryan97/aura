@@ -5022,6 +5022,90 @@ async def test_chat_turn_memory_log_outbox_retries_transient_claim_failure(monke
 
 
 @pytest.mark.asyncio
+async def test_chat_turn_memory_log_outbox_defers_learning_while_user_is_active(
+    monkeypatch,
+):
+    from interface.routes import chat as chat_routes
+
+    class _Persistence:
+        def claim_memory_log_batch(self, **_kwargs):
+            raise AssertionError("background learning claimed work during a user turn")
+
+        def settle_memory_log_item(self, *_args, **_kwargs):
+            raise AssertionError("nothing should have been claimed")
+
+        def memory_log_outbox_status(self):
+            raise AssertionError("foreground deferral exits before status")
+
+    delays = []
+    monkeypatch.setattr(
+        chat_routes.ServiceContainer,
+        "get",
+        staticmethod(
+            lambda name, default=None: _Persistence()
+            if name == "persistence"
+            else default
+        ),
+    )
+    monkeypatch.setattr(
+        "core.runtime.foreground_guard.snapshot",
+        lambda: {
+            "active": True,
+            "quiet_remaining_s": 120.0,
+            "reason": "foreground_chat_active",
+        },
+    )
+    monkeypatch.setattr(
+        _chat_preflight,
+        "_schedule_chat_turn_memory_log_retry",
+        lambda delay_s: delays.append(delay_s) or True,
+    )
+
+    await chat_routes._drain_chat_turn_memory_log_queue()
+
+    assert delays == [chat_routes._CHAT_TURN_MEMORY_LOG_FOREGROUND_RECHECK_S]
+
+
+@pytest.mark.asyncio
+async def test_chat_turn_memory_log_shutdown_flush_ignores_stale_quiet_window(monkeypatch):
+    from interface.routes import chat as chat_routes
+
+    calls = []
+
+    async def _drain(*, honor_foreground=True):
+        calls.append(honor_foreground)
+
+    monkeypatch.setattr(_chat_preflight, "_drain_chat_turn_memory_log_queue", _drain)
+
+    await chat_routes._drain_chat_turn_memory_log_queue_on_shutdown()
+
+    assert calls == [False]
+
+
+@pytest.mark.asyncio
+async def test_chat_turn_memory_log_retry_waits_until_foreground_is_clear(monkeypatch):
+    from interface.routes import chat as chat_routes
+
+    delays = iter((0.001, 0.001, None))
+    drains = []
+
+    monkeypatch.setattr(
+        _chat_preflight,
+        "_chat_turn_memory_log_foreground_delay",
+        lambda: next(delays),
+    )
+
+    async def _drain(*, honor_foreground=True):
+        drains.append(honor_foreground)
+
+    monkeypatch.setattr(_chat_preflight, "_drain_chat_turn_memory_log_queue", _drain)
+
+    await chat_routes._retry_chat_turn_memory_log_after(0.001)
+
+    assert drains == [False]
+
+
+@pytest.mark.asyncio
 async def test_chat_turn_memory_log_outbox_rejects_permanent_local_filter(monkeypatch):
     from core.memory import chat_turn_logger
     from interface.routes import chat as chat_routes
