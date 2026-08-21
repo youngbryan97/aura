@@ -12984,13 +12984,31 @@ class MLXLocalClient:
         if native:
             body = _balanced_json_object(stripped, native.end())
             call = None
-            if body:
+            why = ""
+            if not body:
+                # Four separate causes have produced "none called" in one
+                # afternoon: a stop sequence eating the closing tag, a budget
+                # cutting the argument in half, strict JSON refusing a
+                # program, and a tool that was not offered. They need
+                # different fixes and looked identical from here.
+                why = "no complete JSON object after the tag"
+            else:
                 try:
-                    call = _normalize(_loads_tool_json(body))
-                except json.JSONDecodeError:
-                    call = None
+                    parsed = _loads_tool_json(body)
+                except json.JSONDecodeError as exc:
+                    why = f"json: {exc.msg} at position {exc.pos}"
+                    parsed = None
+                if parsed is not None:
+                    call = _normalize(parsed)
+                    if call is None:
+                        why = "the call named a tool that was not offered, or its arguments were not an object"
             if call is not None:
                 return call
+            logger.info(
+                "🔧 [TOOL CALL] refused a native envelope: %s (body %d chars)",
+                why or "unknown",
+                len(body or ""),
+            )
 
         # 2. A whole-response CODE fence, when a code tool is on offer.
         #

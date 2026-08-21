@@ -2209,16 +2209,14 @@ class CapabilityEngine(AuraBaseModule):
                 DEFAULT_CAPABILITY_SET,
                 select_capabilities,
             )
-            from core.phases.response_contract import (
-                _SELF_SERVICE_CEILING,
-                _SELF_SERVICE_EFFECT_SCOPES,
-            )
+            from core.phases.response_contract import requested_effect_ceiling
 
+            ceiling, scopes = requested_effect_ceiling(message)
             return select_capabilities(
                 message,
                 self.skills,
-                ceiling=_SELF_SERVICE_CEILING,
-                admissible_scopes=_SELF_SERVICE_EFFECT_SCOPES,
+                ceiling=ceiling,
+                admissible_scopes=scopes,
                 limit=DEFAULT_CAPABILITY_SET,
             )
         except Exception as exc:  # noqa: BLE001 - reported, never silent

@@ -1064,6 +1064,31 @@ _SELF_SERVICE_EFFECT_SCOPES = frozenset(
 #: nothing outside its own sandbox.
 _SELF_SERVICE_CEILING = "sandboxed_compute"
 
+#: What a turn may do when the person asked for a file to exist.
+_REQUESTED_ARTIFACT_CEILING = "read_write_artifacts"
+_REQUESTED_ARTIFACT_SCOPES = _SELF_SERVICE_EFFECT_SCOPES | {"read_write_artifacts"}
+
+
+def requested_effect_ceiling(objective: str) -> tuple[str, frozenset[str]]:
+    """How far this turn may reach, given what was actually asked for.
+
+    LIVE, 2026-08-20. "build me a small web app… tell me where you put it" ran
+    under the self-service ceiling, so the only capabilities offered were ones
+    that change nothing. The model reached for code_repl — the closest thing
+    available — and governance vetoed it: running arbitrary code needs
+    confirmation, correctly. Meanwhile build_app, whose entire description is
+    building a runnable single-file web app, sits at read_write_artifacts and
+    was never offered, on a turn whose whole point was to produce a file.
+
+    The ceiling above says what a turn may do WITHOUT the person having asked
+    for that effect. Asking for a page to exist is asking for that effect.
+    """
+    from core.runtime.desktop_objective_intent import asks_to_build_software
+
+    if asks_to_build_software(str(objective or "")):
+        return _REQUESTED_ARTIFACT_CEILING, frozenset(_REQUESTED_ARTIFACT_SCOPES)
+    return _SELF_SERVICE_CEILING, frozenset(_SELF_SERVICE_EFFECT_SCOPES)
+
 
 def derive_required_skill(objective: str) -> str | None:
     """The one capability this request needs, or None.
@@ -1115,11 +1140,12 @@ def derive_capability_set(objective: str, *, limit: int = _DEFAULT_CAPABILITY_SE
         skills = getattr(engine, "skills", None)
         if not skills:
             return []
+        ceiling, scopes = requested_effect_ceiling(text)
         return select_capabilities(
             text,
             skills,
-            ceiling=_SELF_SERVICE_CEILING,
-            admissible_scopes=_SELF_SERVICE_EFFECT_SCOPES,
+            ceiling=ceiling,
+            admissible_scopes=scopes,
             limit=limit,
         )
     except Exception as exc:  # noqa: BLE001 - reported, never silent

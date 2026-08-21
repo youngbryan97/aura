@@ -6482,9 +6482,16 @@ class InferenceGate:
         try:
             from core.brain.llm.runtime_wiring import build_agentic_tool_map
             from core.phases.response_contract import (
-                _SELF_SERVICE_CEILING,
                 derive_capability_set,
+                requested_effect_ceiling,
             )
+
+            # The same ceiling selection used. Offering a capability the
+            # dispatch then refuses is worse than not offering it: the turn
+            # spends itself reaching for something it was never allowed to
+            # use, which is how "build me a web app" ended in an executive
+            # veto on code_repl.
+            _ceiling, _ = requested_effect_ceiling(text)
 
             required = derive_capability_set(text)
             if not required:
@@ -6531,7 +6538,7 @@ class InferenceGate:
                         # action ranked above it, so a skill can be offered
                         # for its safe actions without offering its
                         # dangerous ones.
-                        "authorised_effect_scope": _SELF_SERVICE_CEILING,
+                        "authorised_effect_scope": _ceiling,
                     },
                     # What the turn has already read. Without it the loop
                     # fetched the same document a second time, from a URL it
