@@ -34,12 +34,91 @@ _SESSION_LOCK = threading.Lock()
 _SESSION_STARTED_AT: float | None = None
 _SESSION_ACTIVE = False
 _SESSION_GENERATION = 0
+_INCIDENT_LOCK = threading.Lock()
+_ACTIVE_CONCERN_COUNTS: dict[str, int] = {}
+_LAST_WARNED_CONCERN_COUNTS: dict[str, int] = {}
 
 # Degradations above this for a single subsystem are flagged as a concern.
 _DEGRADATION_CONCERN = 10
 # Concern verdicts look at a trailing window so the runtime can recover after
 # a degradation storm instead of staying "unhealthy" for its whole lifetime.
 _DEGRADATION_CONCERN_WINDOW_S = 1800.0
+# Individual degradation records already report each failure. The integrity
+# summary is a higher-level incident signal and only re-announces after another
+# full concern threshold accumulates for an affected subsystem.
+_DEGRADATION_CONCERN_RELOG_DELTA = _DEGRADATION_CONCERN
+
+
+def _reset_integrity_incident() -> None:
+    with _INCIDENT_LOCK:
+        _ACTIVE_CONCERN_COUNTS.clear()
+        _LAST_WARNED_CONCERN_COUNTS.clear()
+
+
+def _observe_integrity_incident(
+    current_counts: dict[str, int],
+) -> dict[str, Any]:
+    """Advance the runtime-concern incident and return its transition.
+
+    The health report remains level-triggered, while logs and counters are
+    edge-triggered. This prevents a read-model refresh from manufacturing a
+    fresh warning for the same already-recorded degradation history.
+    """
+
+    normalized = {
+        str(subsystem): max(0, int(count))
+        for subsystem, count in current_counts.items()
+        if str(subsystem) and int(count) >= _DEGRADATION_CONCERN
+    }
+    with _INCIDENT_LOCK:
+        previous = dict(_ACTIVE_CONCERN_COUNTS)
+        newly_active = sorted(set(normalized) - set(previous))
+        resolved = sorted(set(previous) - set(normalized))
+        materially_worsened = sorted(
+            subsystem
+            for subsystem, count in normalized.items()
+            if subsystem in previous
+            and count
+            >= _LAST_WARNED_CONCERN_COUNTS.get(subsystem, previous[subsystem])
+            + _DEGRADATION_CONCERN_RELOG_DELTA
+        )
+        warning_required = bool(newly_active or materially_worsened)
+        fully_recovered = bool(previous and not normalized)
+
+        _ACTIVE_CONCERN_COUNTS.clear()
+        _ACTIVE_CONCERN_COUNTS.update(normalized)
+        for subsystem in resolved:
+            _LAST_WARNED_CONCERN_COUNTS.pop(subsystem, None)
+        if warning_required:
+            _LAST_WARNED_CONCERN_COUNTS.update(normalized)
+        if fully_recovered:
+            _LAST_WARNED_CONCERN_COUNTS.clear()
+
+        return {
+            "active": bool(normalized),
+            "current_counts": dict(normalized),
+            "new_subsystems": newly_active,
+            "materially_worsened_subsystems": materially_worsened,
+            "resolved_subsystems": resolved,
+            "warning_required": warning_required,
+            "fully_recovered": fully_recovered,
+            "relog_delta": _DEGRADATION_CONCERN_RELOG_DELTA,
+        }
+
+
+def _integrity_incident_snapshot(current_counts: dict[str, int]) -> dict[str, Any]:
+    """Describe current pressure without consuming a logging transition."""
+
+    return {
+        "active": bool(current_counts),
+        "current_counts": dict(current_counts),
+        "new_subsystems": [],
+        "materially_worsened_subsystems": [],
+        "resolved_subsystems": [],
+        "warning_required": False,
+        "fully_recovered": False,
+        "relog_delta": _DEGRADATION_CONCERN_RELOG_DELTA,
+    }
 
 
 def _process_started_at() -> float:
@@ -88,7 +167,9 @@ def _begin_integrity_session(*, now: float | None = None) -> float:
             _SESSION_STARTED_AT = float(time.time() if now is None else now)
         _SESSION_GENERATION += 1
         _SESSION_ACTIVE = True
-        return float(_SESSION_STARTED_AT or 0.0)
+        session_started_at = float(_SESSION_STARTED_AT or 0.0)
+    _reset_integrity_incident()
+    return session_started_at
 
 
 def _end_integrity_session() -> None:
@@ -159,6 +240,7 @@ def run_integrity_audit(*, log: bool = True) -> dict[str, Any]:
     # runtime report "degraded"/not-ready.
     concerns: list[str] = []
     advisory: list[str] = []
+    concern_counts: dict[str, int] = {}
 
     degradations: dict[str, Any] = {}
     try:
@@ -182,6 +264,7 @@ def run_integrity_audit(*, log: bool = True) -> dict[str, Any]:
         for sub, sevs in recent_counts.items():
             total = sum(sevs.values())
             if total >= _DEGRADATION_CONCERN:
+                concern_counts[sub] = total
                 concerns.append(
                     f"{sub}: {total} degradations in the last "
                     f"{int(_DEGRADATION_CONCERN_WINDOW_S // 60)}m"
@@ -233,6 +316,11 @@ def run_integrity_audit(*, log: bool = True) -> dict[str, Any]:
     except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
         failure_state = {}
 
+    integrity_incident = (
+        _observe_integrity_incident(concern_counts)
+        if log
+        else _integrity_incident_snapshot(concern_counts)
+    )
     report = {
         # 'healthy' reflects RUNTIME health only — advisory operational facts never make
         # the runtime unhealthy. 'concerns' (the health-blocking list) holds runtime
@@ -245,6 +333,7 @@ def run_integrity_audit(*, log: bool = True) -> dict[str, Any]:
         "crsm_loop": crsm_loop,
         "caa_readiness": caa_readiness,
         "failure_state": failure_state,
+        "integrity_incident": integrity_incident,
         "at": time.time(),
     }
 
@@ -252,14 +341,26 @@ def run_integrity_audit(*, log: bool = True) -> dict[str, Any]:
     _last_report = report
 
     if log:
-        if concerns:
-            logger.warning("🩺 [Integrity] %d runtime concern(s): %s", len(concerns), " | ".join(concerns))
+        if concerns and integrity_incident["warning_required"]:
+            logger.warning(
+                "🩺 [Integrity] runtime concern incident opened or escalated "
+                "(%d active): %s",
+                len(concerns),
+                " | ".join(concerns),
+            )
             try:
                 from core.observability.metrics import get_metrics
 
                 get_metrics().increment_counter("integrity_concern_total")
             except (ImportError, AttributeError, RuntimeError, TypeError):
                 pass
+        if integrity_incident["resolved_subsystems"]:
+            remaining = sorted(concern_counts)
+            logger.info(
+                "🩺 [Integrity] runtime concern recovered for %s; remaining=%s",
+                ", ".join(integrity_incident["resolved_subsystems"]),
+                ", ".join(remaining) if remaining else "none",
+            )
         if advisory:
             logger.info("🩺 [Integrity] advisory (non-blocking): %s", " | ".join(advisory))
         if not concerns and not advisory and strict_mode():
@@ -277,6 +378,16 @@ def _integrity_snapshot_fallback() -> dict[str, Any]:
         "crsm_loop": {},
         "caa_readiness": {},
         "failure_state": {},
+        "integrity_incident": {
+            "active": False,
+            "current_counts": {},
+            "new_subsystems": [],
+            "materially_worsened_subsystems": [],
+            "resolved_subsystems": [],
+            "warning_required": False,
+            "fully_recovered": False,
+            "relog_delta": _DEGRADATION_CONCERN_RELOG_DELTA,
+        },
         "at": None,
     }
 
@@ -328,6 +439,7 @@ def reset_integrity_read_model_for_test() -> None:
         _SESSION_STARTED_AT = None
         _SESSION_ACTIVE = False
         _SESSION_GENERATION = 0
+    _reset_integrity_incident()
 
 
 def read_integrity_audit() -> dict[str, Any]:

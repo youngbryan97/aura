@@ -279,6 +279,177 @@ def test_concern_verdict_keeps_current_process_contract_violations(monkeypatch):
         tracker.reset()
 
 
+def test_integrity_concern_logs_one_incident_not_every_refresh(monkeypatch, caplog):
+    """A level-triggered health concern must not become a warning storm."""
+    import logging
+
+    from core.runtime.errors import DegradationRecord, get_degradation_tracker
+
+    tracker = get_degradation_tracker()
+    tracker.reset()
+    ia._reset_integrity_incident()
+    process_started_at = time.time() - 30.0
+    monkeypatch.setattr(ia, "_PROCESS_STARTED_AT", process_started_at)
+    increments: list[str] = []
+
+    class Metrics:
+        def increment_counter(self, name):
+            increments.append(name)
+
+    monkeypatch.setattr("core.observability.metrics.get_metrics", lambda: Metrics())
+    try:
+        for i in range(ia._DEGRADATION_CONCERN):
+            tracker.record(
+                DegradationRecord(
+                    subsystem="cognitive_engine",
+                    severity="warning",
+                    error_type="RuntimeError",
+                    error_message=f"failure {i}",
+                    action="recorded",
+                    timestamp=time.time(),
+                )
+            )
+
+        with caplog.at_level(logging.INFO, logger="Aura.IntegrityAudit"):
+            first = ia.run_integrity_audit()
+            second = ia.run_integrity_audit()
+            third = ia.run_integrity_audit()
+
+        warnings = [
+            record
+            for record in caplog.records
+            if record.levelno >= logging.WARNING
+            and "runtime concern incident" in record.getMessage()
+        ]
+        assert len(warnings) == 1
+        assert increments == ["integrity_concern_total"]
+        assert first["integrity_incident"]["warning_required"] is True
+        assert second["integrity_incident"]["warning_required"] is False
+        assert third["integrity_incident"]["warning_required"] is False
+        assert all(report["healthy"] is False for report in (first, second, third))
+        assert all(
+            report["integrity_incident"]["active"] is True
+            for report in (first, second, third)
+        )
+    finally:
+        tracker.reset()
+        ia._reset_integrity_incident()
+
+
+def test_integrity_incident_relogs_material_worsening_and_new_subsystem(
+    monkeypatch, caplog
+):
+    import logging
+
+    from core.runtime.errors import DegradationRecord, get_degradation_tracker
+
+    tracker = get_degradation_tracker()
+    tracker.reset()
+    ia._reset_integrity_incident()
+    process_started_at = time.time() - 30.0
+    monkeypatch.setattr(ia, "_PROCESS_STARTED_AT", process_started_at)
+
+    def add(subsystem: str, count: int) -> None:
+        for i in range(count):
+            tracker.record(
+                DegradationRecord(
+                    subsystem=subsystem,
+                    severity="warning",
+                    error_type="RuntimeError",
+                    error_message=f"{subsystem} failure {i}",
+                    action="recorded",
+                    timestamp=time.time(),
+                )
+            )
+
+    try:
+        add("cognitive_engine", ia._DEGRADATION_CONCERN)
+        with caplog.at_level(logging.WARNING, logger="Aura.IntegrityAudit"):
+            first = ia.run_integrity_audit()
+            add("cognitive_engine", ia._DEGRADATION_CONCERN - 1)
+            stable = ia.run_integrity_audit()
+            add("mlx_client", ia._DEGRADATION_CONCERN)
+            expanded = ia.run_integrity_audit()
+            add("cognitive_engine", ia._DEGRADATION_CONCERN)
+            worsened = ia.run_integrity_audit()
+
+        warnings = [
+            record
+            for record in caplog.records
+            if "runtime concern incident" in record.getMessage()
+        ]
+        assert len(warnings) == 3
+        assert first["integrity_incident"]["new_subsystems"] == ["cognitive_engine"]
+        assert stable["integrity_incident"]["warning_required"] is False
+        assert expanded["integrity_incident"]["new_subsystems"] == ["mlx_client"]
+        assert worsened["integrity_incident"]["materially_worsened_subsystems"] == [
+            "cognitive_engine"
+        ]
+    finally:
+        tracker.reset()
+        ia._reset_integrity_incident()
+
+
+def test_integrity_incident_reports_recovery_once_and_rearms(monkeypatch, caplog):
+    import logging
+
+    from core.runtime.errors import DegradationRecord, get_degradation_tracker
+
+    tracker = get_degradation_tracker()
+    tracker.reset()
+    ia._reset_integrity_incident()
+    process_started_at = time.time() - 30.0
+    monkeypatch.setattr(ia, "_PROCESS_STARTED_AT", process_started_at)
+    try:
+        for i in range(ia._DEGRADATION_CONCERN):
+            tracker.record(
+                DegradationRecord(
+                    subsystem="cognitive_engine",
+                    severity="warning",
+                    error_type="RuntimeError",
+                    error_message=f"failure {i}",
+                    action="recorded",
+                    timestamp=time.time(),
+                )
+            )
+        with caplog.at_level(logging.INFO, logger="Aura.IntegrityAudit"):
+            ia.run_integrity_audit()
+            tracker.reset()
+            recovered = ia.run_integrity_audit()
+            stable = ia.run_integrity_audit()
+            for i in range(ia._DEGRADATION_CONCERN):
+                tracker.record(
+                    DegradationRecord(
+                        subsystem="cognitive_engine",
+                        severity="warning",
+                        error_type="RuntimeError",
+                        error_message=f"recurrence {i}",
+                        action="recorded",
+                        timestamp=time.time(),
+                    )
+                )
+            recurrence = ia.run_integrity_audit()
+
+        recovery_messages = [
+            record.getMessage()
+            for record in caplog.records
+            if "runtime concern recovered" in record.getMessage()
+        ]
+        warning_messages = [
+            record.getMessage()
+            for record in caplog.records
+            if "runtime concern incident" in record.getMessage()
+        ]
+        assert len(recovery_messages) == 1
+        assert len(warning_messages) == 2
+        assert recovered["integrity_incident"]["fully_recovered"] is True
+        assert stable["integrity_incident"]["fully_recovered"] is False
+        assert recurrence["integrity_incident"]["warning_required"] is True
+    finally:
+        tracker.reset()
+        ia._reset_integrity_incident()
+
+
 def test_unavailable_process_epoch_does_not_hide_recent_violations(monkeypatch):
     """Missing epoch evidence falls back to the real trailing window."""
     from core.runtime.errors import DegradationRecord, get_degradation_tracker
@@ -332,14 +503,20 @@ def test_integrity_session_epoch_advances_only_after_lifespan_restart(monkeypatc
 
     assert ia.start_integrity_read_model() is True
     assert ia._runtime_epoch_started_at() == 100.0
+    ia._observe_integrity_incident({"cognitive_engine": ia._DEGRADATION_CONCERN})
+    assert ia._ACTIVE_CONCERN_COUNTS == {
+        "cognitive_engine": ia._DEGRADATION_CONCERN
+    }
 
     # A duplicate prewarm belongs to the same lifespan and keeps its evidence.
     assert ia.start_integrity_read_model() is True
     assert ia._runtime_epoch_started_at() == 100.0
+    assert ia._ACTIVE_CONCERN_COUNTS
 
     ia.stop_integrity_read_model()
     monkeypatch.setattr(ia.time, "time", lambda: 250.0)
     assert ia.start_integrity_read_model() is True
     assert ia._runtime_epoch_started_at() == 250.0
+    assert ia._ACTIVE_CONCERN_COUNTS == {}
     assert model.starts == 3
     assert model.closes == 1

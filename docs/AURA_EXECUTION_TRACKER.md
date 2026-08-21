@@ -51115,3 +51115,31 @@ that last caused action. Focused launcher, watchdog and desktop contracts pass
 skip. Ruff, shell syntax, Swift parsing and diff hygiene pass. The running
 pre-checkpoint process was intentionally not restarted, so live confirmation
 belongs to the next normal installed-app restart.
+
+## Checkpoint 2026-08-21-836: Make Integrity Pressure a Transition, Not a Poll
+
+The integrity read model correctly kept recent degradation pressure visible in
+every health snapshot, but it also logged and counted the same concern on every
+15-second refresh. A dozen already-recorded cognitive-engine degradations could
+therefore manufacture dozens of new warnings, rotate the warning stream, and
+look like continuing failure even when no additional subsystem event occurred.
+
+Runtime concern pressure now has explicit incident ownership. Health remains
+level-triggered and continues to report every active subsystem and count. The
+summary warning and metric are edge-triggered: they fire when a subsystem first
+crosses the concern threshold, when another subsystem joins the incident, or
+when another full threshold of degradations accumulates. Falling pressure does
+not erase the active concern, and recovery emits one transition before rearming
+future incidents. Embedded lifespan restarts reset incident identity together
+with the degradation evidence epoch.
+
+Focused integrity contracts pass `16/16` and prove repeated refreshes log and
+count once, material worsening and new subsystems re-announce, recovery is
+emitted once, a later recurrence opens a fresh incident, and an embedded
+lifespan restart clears the old incident identity. Adjacent health, read-model,
+runtime-contract and logging contracts pass `105/107`; the two failures are an
+independently reproduced pre-existing shell-asset export mismatch introduced by
+the remote-provider removal and are the next bounded repair. Canonical smoke
+passes `120/120` with one environment-dependent skip. The running pre-checkpoint
+process remains on its original source and was intentionally not restarted;
+live confirmation belongs to the next normal installed-app restart.
