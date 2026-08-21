@@ -512,6 +512,39 @@ _IS_A_QUESTION = re.compile(
 )
 
 
+#: Clauses that are doing the asking, rather than the describing.
+_ASKING_CLAUSE = re.compile(
+    r"^\s*(?:what|when|where|which|who|how|why|whats|what's|anything|any\s+more|"
+    r"is\s+there|are\s+there|do\s+you|did\s+you|have\s+you|will\s+you|can\s+you|"
+    r"got\s+anything|tell\s+me|list|show\s+me)\b",
+    re.IGNORECASE,
+)
+
+
+def _asking_part(text: str) -> str:
+    """The sentences that ask something, with the ones that describe removed.
+
+    LIVE, 2026-08-21. Someone explained the rules of a game they had invented
+    and asked who wins. The reply was her maintenance queue: "2 jobs waiting
+    to run", served as a computed answer. The rules contain the phrase "the
+    other piece is directly next to yours", and the queued-work pattern looks
+    for "you" within sixty characters of "next".
+
+    The word was never the defect. Whether the message is a question was
+    tested against the whole message and what it is about was tested against
+    the whole message, so a question at the end licensed a match anywhere —
+    including inside a sentence describing something else entirely. Topic and
+    question have to be found in the same breath to mean anything.
+    """
+    sentences = [part.strip() for part in re.split(r"(?<=[.?!])\s+", str(text or ""))]
+    asking = [
+        part
+        for part in sentences
+        if part and (part.endswith("?") or _ASKING_CLAUSE.match(part))
+    ]
+    return " ".join(asking) if asking else str(text or "")
+
+
 def _matches_queued_work(prompt: str) -> bool:
     text = str(prompt or "")
     if _PAST_TENSE.search(text):
@@ -520,7 +553,7 @@ def _matches_queued_work(prompt: str) -> bool:
         return True
     if not _IS_A_QUESTION.search(text):
         return False
-    return bool(_ASKS_QUEUED_WORK.search(text))
+    return bool(_ASKS_QUEUED_WORK.search(_asking_part(text)))
 
 
 async def _read_reminder_lines() -> list[str]:
@@ -914,6 +947,14 @@ def install_default_observables() -> None:
                 # nothing about it, and "after" appears in both.
                 "what did you do after the update?",
                 "what did I ask you earlier today?",
+                # Live 2026-08-21: the rules of an invented game were answered
+                # with the maintenance queue. "you cannot move at all (because
+                # the other piece is directly next" put "you" within sixty
+                # characters of "next", in a sentence that was describing the
+                # game rather than asking anything.
+                "If it's your turn and you cannot move at all (because the "
+                "other piece is directly next to yours), you lose. With "
+                "perfect play, who wins and what's the winning first move?",
             ),
         ),
         Observable(
