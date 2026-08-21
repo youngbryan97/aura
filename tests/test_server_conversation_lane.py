@@ -12881,6 +12881,20 @@ async def test_progressive_continuation_accepts_complete_deadline_segment(monkey
     assert trace["foreground_model_generation_count"] == 3
 
 
+def test_multipart_continuation_budget_tracks_parsed_obligations():
+    from interface.routes.chat_common import (
+        _MAX_USER_SURFACE_CONTINUATIONS,
+        _user_surface_continuation_budget,
+    )
+
+    assert _user_surface_continuation_budget(SimpleNamespace(question_parts=1)) == 2
+    assert _user_surface_continuation_budget(SimpleNamespace(question_parts=6)) == 7
+    assert (
+        _user_surface_continuation_budget(SimpleNamespace(numbered_parts=100))
+        == _MAX_USER_SURFACE_CONTINUATIONS
+    )
+
+
 @pytest.mark.asyncio
 async def test_continuation_handoff_preserves_long_structured_partial(monkeypatch):
     from core.brain import cognitive_engine as ce_module

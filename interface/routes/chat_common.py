@@ -296,11 +296,35 @@ _TOPIC_STOPWORDS = frozenset(
     }
 )
 
-# Two continuation segments let one admitted answer finish across a model
-# output boundary without restarting from token zero. Each segment must extend
-# the same authored state, and the route's original deadline remains the hard
-# wall, so this cannot become an unbounded regeneration cascade.
-_MAX_USER_SURFACE_CONTINUATIONS = 2
+# Absolute safety ceiling for append-only continuation. The per-request budget
+# is derived below from the parsed obligation count; a fixed two-segment budget
+# cut off multipart answers after making measurable progress, while applying
+# this ceiling to every request would waste work on ordinary conversation.
+_MAX_USER_SURFACE_CONTINUATIONS = 12
+
+
+def _user_surface_continuation_budget(prompt_shape: object | None) -> int:
+    """Return a finite continuation budget sized to independent obligations.
+
+    A natural EOS ends one authored branch. Some checkpoints reliably continue
+    only the current sentence or section when handed that open assistant state,
+    so a five-part request can require more than two branch boundaries even
+    though no branch is regenerated. Prompt-shape analysis already counts the
+    independent asks; use that typed contract rather than request wording.
+    """
+
+    def _nonnegative_int(name: str) -> int:
+        try:
+            return max(0, int(getattr(prompt_shape, name, 0) or 0))
+        except (TypeError, ValueError, OverflowError):
+            return 0
+
+    obligations = max(
+        1,
+        _nonnegative_int("question_parts"),
+        _nonnegative_int("numbered_parts"),
+    )
+    return min(_MAX_USER_SURFACE_CONTINUATIONS, max(2, obligations + 1))
 
 _ORGAN_ABSENCE_STREAKS: dict[str, int] = {}
 

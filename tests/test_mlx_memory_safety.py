@@ -85,6 +85,23 @@ def test_memory_pressure_preserves_depth_when_cap_does_not_reduce_budget():
     assert "recurrent_loops_reduced_by_pressure" not in controlled
 
 
+def test_memory_pressure_preserves_depth_for_a_minor_adaptive_trim():
+    from core.brain.llm.mlx_client import _apply_memory_pressure_generation_controls
+
+    controlled = _apply_memory_pressure_generation_controls(
+        {
+            "max_tokens": 2048,
+            "clean_user_surface_contract": True,
+            "clean_user_surface_recurrent_loops": 2,
+        },
+        SimpleNamespace(max_token_cap=1941),
+    )
+
+    assert controlled["max_tokens"] == 1941
+    assert controlled["clean_user_surface_recurrent_loops"] == 2
+    assert "recurrent_loops_reduced_by_pressure" not in controlled
+
+
 def test_memory_pressure_generation_controls_use_model_default_when_unspecified():
     from core.brain.llm.mlx_client import _apply_memory_pressure_generation_controls
 

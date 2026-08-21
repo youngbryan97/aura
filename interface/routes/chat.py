@@ -442,6 +442,7 @@ from interface.routes import chat_turn_contract as _chat_turn_contract  # noqa: 
 from interface.routes.chat_common import (  # noqa: E402
     _MAX_USER_SURFACE_CONTINUATIONS,  # noqa: F401
     _ORGAN_ABSENCE_STREAKS,  # noqa: F401
+    _user_surface_continuation_budget,
 )
 from interface.routes.chat_turn_contract import (  # noqa: E402
     _CHRONIC_ABSENCE_TURNS,  # noqa: F401
@@ -6346,6 +6347,7 @@ async def _run_cognitive_engine_chat_turn(
         logger.info("Foreground final-binding stages: %s", final_binding_stages)
 
     timeout_s = max(2.0, float(timeout_s if timeout_s is not None else 120.0))
+    continuation_attempt_budget = _user_surface_continuation_budget(shape)
     engine_cycle_timeout_s = _cognitive_cycle_timeout_for_request(
         timeout_s,
         require_engine=bool(require_engine),
@@ -6486,11 +6488,11 @@ async def _run_cognitive_engine_chat_turn(
             )
             return incumbent
 
-        if completion_only_retry and completion_attempt >= _MAX_USER_SURFACE_CONTINUATIONS:
+        if completion_only_retry and completion_attempt >= continuation_attempt_budget:
             logger.warning(
                 "CognitiveEngine exhausted %d bounded continuation attempts; "
                 "withholding the incomplete answer.",
-                _MAX_USER_SURFACE_CONTINUATIONS,
+                continuation_attempt_budget,
             )
             return _retain_completion_incumbent("continuation_attempt_limit")
         if require_engine:
@@ -6769,13 +6771,13 @@ async def _run_cognitive_engine_chat_turn(
             )
         if retry_still_incomplete:
             made_progress = len(retry_text.rstrip()) > len(str(rejected_reply or "").rstrip())
-            if made_progress and completion_attempt + 1 < _MAX_USER_SURFACE_CONTINUATIONS:
+            if made_progress and completion_attempt + 1 < continuation_attempt_budget:
                 next_reasons = tuple(sorted(retry_failure_reasons)) or ("truncated_tail",)
                 logger.warning(
                     "CognitiveEngine continuation %d/%d made progress but remained "
                     "incomplete; continuing from the new cutoff.",
                     completion_attempt + 1,
-                    _MAX_USER_SURFACE_CONTINUATIONS,
+                    continuation_attempt_budget,
                 )
                 return await _attempt_repair_retry(
                     retry_text,

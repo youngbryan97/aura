@@ -2988,7 +2988,6 @@ def _apply_memory_pressure_generation_controls(
         effective_cap,
         default_max_tokens,
     )
-    token_budget_was_capped = int(options["max_tokens"]) < requested_max_tokens
     if (
         clean_user_surface
         or "clean_user_surface_recurrent_loops" in options
@@ -3003,11 +3002,17 @@ def _apply_memory_pressure_generation_controls(
             requested_loops = int(options.get("clean_user_surface_recurrent_loops") or 1)
         except (TypeError, ValueError):
             requested_loops = 1
+        # A small adaptive trim is not evidence that recurrent execution no
+        # longer fits. Live, a 2048 -> 1941 token adjustment silently changed a
+        # requested two-loop turn to one loop, invalidating its worker receipt
+        # while saving negligible memory. Only a genuinely emergency-sized
+        # output budget may shed recurrence; otherwise preserve the selected
+        # execution architecture and let ordinary admission own the decision.
+        emergency_output_budget = int(options["max_tokens"]) <= 256
         reduce_recurrence = bool(
             requested_loops > 1
             and (
-                pressure_cap < 192
-                or (token_budget_was_capped and completion_floor <= 0)
+                emergency_output_budget
                 or int(options["max_tokens"]) < completion_floor
             )
         )
