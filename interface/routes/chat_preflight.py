@@ -568,12 +568,16 @@ async def _complete_logged_exchange(
             target["regenerated"] = True
         _trim_conversation_log_locked()
 
+    learning_owned_by_outbox = bool(
+        record_experience and _conversation_memory_outbox_available()
+    )
     durability_state = await _persist_completed_conversation_exchange(
         exchange_id=str(target.get("id") or exchange_id or ""),
         user_message=recorded_user,
         aura_response=final_response,
         session_id=str(target.get("session_id") or ""),
         user_already_persisted=bool(target.get("user_persisted")),
+        enqueue_memory_log=learning_owned_by_outbox,
     )
     user_write = _durable_conversation_write_snapshot(
         f"{str(target.get('id') or exchange_id or '')[:64]}:user"
@@ -591,16 +595,17 @@ async def _complete_logged_exchange(
         exchange_id=str(target.get("id") or exchange_id or ""),
     )
 
-    if not record_experience:
-        return durability_state
+    if record_experience and not learning_owned_by_outbox:
+        # Compatibility persistence implementations have no durable outbox.
+        # Preserve their historical semantics; the production implementation
+        # takes the supervised path above and does not hold up delivery.
+        try:
+            from core.runtime.conversation_support import record_conversation_experience
 
-    try:
-        from core.runtime.conversation_support import record_conversation_experience
-
-        await record_conversation_experience(recorded_user, final_response)
-    except _CHAT_RECOVERABLE_ERRORS as exc:
-        record_degradation("chat", exc)
-        logger.debug("Conversation experience recording skipped: %s", exc)
+            await record_conversation_experience(recorded_user, final_response)
+        except _CHAT_RECOVERABLE_ERRORS as exc:
+            record_degradation("chat", exc)
+            logger.debug("Conversation experience recording skipped: %s", exc)
     return durability_state
 
 
@@ -730,6 +735,17 @@ async def _run_chat_turn_memory_log_item(
         )
         if not logged:
             return "retry", "episodic_memory_did_not_commit"
+
+        # Keep the complete conversation-experience fanout under the same
+        # durable owner: semantic continuity, shared ground, coding-session
+        # memory and relationship state must not depend on HTTP response time.
+        from core.runtime.conversation_support import record_conversation_experience
+
+        await record_conversation_experience(
+            user_message,
+            aura_response,
+            principal_id=user_id or None,
+        )
 
         try:
             from core.consciousness.coordinator import get_consciousness_coordinator
@@ -900,6 +916,19 @@ def _schedule_chat_turn_memory_log(
         return False
 
 
+def _conversation_memory_outbox_available() -> bool:
+    try:
+        persistence = ServiceContainer.get("persistence", default=None)
+        return bool(
+            callable(getattr(persistence, "record_exchange", None))
+            and callable(getattr(persistence, "claim_memory_log_batch", None))
+            and callable(getattr(persistence, "settle_memory_log_item", None))
+        )
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        record_degradation("chat.memory_log_outbox_availability", exc)
+        return False
+
+
 def _chat_principal_scope_kwargs(
     *,
     principal_id: str = "",
@@ -921,8 +950,9 @@ async def _persist_completed_conversation_exchange(
     aura_response: str,
     session_id: str = "",
     user_already_persisted: bool = False,
+    enqueue_memory_log: bool = True,
 ) -> str:
-    """Synchronously commit a bounded live exchange before returning it to the UI."""
+    """Commit the transcript and optionally enqueue its post-turn learning."""
     try:
         persistence = ServiceContainer.get("persistence", default=None)
         record_exchange = getattr(persistence, "record_exchange", None)
@@ -944,7 +974,7 @@ async def _persist_completed_conversation_exchange(
                     origin="desktop_ui",
                     cid=safe_exchange_id,
                     session_id=safe_session_id or None,
-                    enqueue_memory_log=True,
+                    enqueue_memory_log=enqueue_memory_log,
                     **scope_kwargs,
                 )
                 return

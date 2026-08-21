@@ -11998,6 +11998,126 @@ async def test_desktop_chat_adopts_certified_recurrent_answer_without_fake_decod
 
 
 @pytest.mark.asyncio
+async def test_desktop_chat_delivers_certified_recurrent_answer_without_prose_pipeline(
+    monkeypatch,
+):
+    from core.brain.llm import qualified_recurrent_ingress as ingress
+    from core.learning.frontier_process_supervision import frontier_process_task_battery
+    from core.providers import engine_connection_pool as pool_module
+    from interface import server as server_module
+    from interface.routes import chat as chat_routes
+
+    task = frontier_process_task_battery(("calibration",), (1,), 1, seed=2026082104)[0]
+    admission = ingress.admit_qualified_recurrent_objective(task.prompt)
+    assert admission is not None
+    body = {
+        "schema": ingress.QUALIFIED_RECURRENT_RESULT_SCHEMA,
+        "admission": admission.receipt(),
+        "semantic_state_receipt": {"state_sha256": "s" * 64},
+        "surface_decode_receipt": None,
+        "activation_receipt": {
+            "promotion_mode": "active",
+            "activation_sha256": "a" * 64,
+        },
+        "serialization": "canonical_json_from_authenticated_semantic_state",
+        "answer_sha256": hashlib.sha256(task.answer.encode("utf-8")).hexdigest(),
+    }
+    receipt = {**body, "receipt_sha256": ingress._canonical_sha256(body)}
+    metadata = {
+        **_bound_live_mind_controls_metadata(),
+        "response_path": "cognitive_engine_qualified_recurrent",
+        "qualified_recurrent_eligible": True,
+        "qualified_recurrent_attempted": True,
+        "qualified_recurrent_succeeded": True,
+        "qualified_recurrent_family": task.family,
+        "qualified_recurrent_receipt": receipt,
+        "latent_cortex_selected": True,
+        "latent_cortex_attempted": True,
+        "latent_cortex_succeeded": True,
+        "model_generation_used": False,
+        "live_mind_generation_required": False,
+    }
+
+    class _FakeCognitiveEngine:
+        async def think(self, *_args, **_kwargs):
+            return SimpleNamespace(content=task.answer, metadata=metadata)
+
+    class _Pool:
+        async def acquire_engine_connection(self, *_args, **_kwargs):
+            return None
+
+        async def execute_with_retry(self, _name, operation, **_kwargs):
+            return await operation()
+
+    async def _fake_begin_exchange(*_args, **_kwargs):
+        return "qualified-exact-exchange"
+
+    async def _fake_complete_exchange(*_args, **_kwargs):
+        return "committed"
+
+    async def _fake_output_receipt(*_args, **_kwargs):
+        return None
+
+    async def _forbidden_stabilizer(*_args, **_kwargs):
+        raise AssertionError("receipt-bound exact output must not enter prose stabilization")
+
+    quality_calls = []
+
+    def _record_quality_call(*_args, **_kwargs):
+        quality_calls.append(True)
+        return False
+
+    def _fake_get(name, default=None):
+        if name == "cognitive_engine":
+            return _FakeCognitiveEngine()
+        return default
+
+    patch_chat_lane(monkeypatch, "_restore_owner_session_from_request", lambda *_a, **_k: None)
+    monkeypatch.setattr(chat_routes, "_notify_user_spoke", lambda *_a, **_k: None)
+    monkeypatch.setattr(_chat_preflight, "_begin_logged_exchange", _fake_begin_exchange)
+    monkeypatch.setattr(_chat_preflight, "_complete_logged_exchange", _fake_complete_exchange)
+    monkeypatch.setattr(chat_routes, "_emit_chat_output_receipt", _fake_output_receipt)
+    monkeypatch.setattr(chat_routes, "_stabilize_user_facing_reply", _forbidden_stabilizer)
+    monkeypatch.setattr(chat_routes, "_is_actionably_stale_response", _record_quality_call)
+    monkeypatch.setattr(chat_routes, "_is_same_answer_different_prompt", _record_quality_call)
+    monkeypatch.setattr(chat_routes.ServiceContainer, "get", staticmethod(_fake_get))
+    monkeypatch.setattr(pool_module, "get_engine_connection_pool", lambda: _Pool())
+    patch_chat_lane(
+        monkeypatch,
+        "_collect_conversation_lane_status",
+        lambda: {
+            "conversation_ready": True,
+            "state": "ready",
+            "desired_model": "Cortex (32B)",
+            "desired_endpoint": "Cortex",
+            "foreground_endpoint": "Cortex",
+            "background_endpoint": "Brainstem",
+        },
+    )
+    _force_full_mind_runtime(monkeypatch, chat_routes)
+
+    response = await server_module.api_chat(
+        server_module.ChatRequest(message=task.prompt, session_id="qualified-exact-session"),
+        SimpleNamespace(
+            headers={
+                "X-Aura-Surface": "desktop-ui",
+                "X-Aura-Require-CognitiveEngine": "true",
+            },
+            client=SimpleNamespace(host="test"),
+        ),
+        None,
+        None,
+    )
+
+    payload = json.loads(response.body)
+    assert response.status_code == 200
+    assert payload["response"] == task.answer
+    assert payload["live_turn_contract"]["qualified_recurrent_path_proven"] is True
+    assert payload["live_turn_contract"]["foreground_model_generation_count"] == 0
+    assert quality_calls == []
+
+
+@pytest.mark.asyncio
 async def test_truncated_completion_replacement_cannot_become_authoritative(monkeypatch):
     from core.providers import engine_connection_pool as pool_module
     from interface.routes import chat as chat_routes
@@ -12982,6 +13102,95 @@ async def test_chat_exchange_persists_user_then_converges_through_atomic_exchang
     )
     assert calls[1][3]["cid"] == exchange_id
     assert calls[1][3]["session_id"] == "desktop-client-session"
+    assert calls[1][3]["enqueue_memory_log"] is False
+
+
+@pytest.mark.asyncio
+async def test_completed_exchange_delegates_learning_to_durable_outbox(monkeypatch):
+    from interface.routes import chat as chat_routes
+
+    calls = []
+
+    class _Persistence:
+        def record_turn(self, role, content, **kwargs):
+            return f"{role}-turn"
+
+        def record_exchange(self, user, aura, **kwargs):
+            calls.append((user, aura, dict(kwargs)))
+            return ("user-turn", "aura-turn")
+
+        def claim_memory_log_batch(self, **_kwargs):
+            return []
+
+        def settle_memory_log_item(self, *_args, **_kwargs):
+            return "completed"
+
+    persistence = _Persistence()
+    monkeypatch.setattr(
+        chat_routes.ServiceContainer,
+        "get",
+        staticmethod(
+            lambda name, default=None: persistence if name == "persistence" else default
+        ),
+    )
+    async with chat_routes._get_convo_lock():
+        chat_routes._conversation_log.clear()
+
+    exchange_id = await chat_routes._begin_logged_exchange(
+        "Let this completed turn inform future cognition."
+    )
+    state = await chat_routes._complete_logged_exchange(
+        exchange_id,
+        "Let this completed turn inform future cognition.",
+        "The durable outbox owns post-turn learning after this reply is committed.",
+    )
+
+    assert state == "committed"
+    assert len(calls) == 1
+    assert calls[0][2]["enqueue_memory_log"] is True
+
+
+@pytest.mark.asyncio
+async def test_memory_outbox_applies_complete_conversation_experience_once(monkeypatch):
+    from core.memory import chat_turn_logger
+    from core.runtime import conversation_support
+    from interface.routes import chat as chat_routes
+
+    logged = AsyncCallFixture(return_value=True)
+    experience = AsyncCallFixture()
+
+    class _Coordinator:
+        async def on_chat_turn(self, *_args, **_kwargs):
+            return None
+
+    async def _coordinator():
+        return _Coordinator()
+
+    monkeypatch.setattr(chat_turn_logger, "log_chat_turn_auto", logged)
+    monkeypatch.setattr(conversation_support, "record_conversation_experience", experience)
+    monkeypatch.setattr(
+        "core.consciousness.coordinator.get_consciousness_coordinator",
+        _coordinator,
+    )
+
+    outcome, error = await chat_routes._run_chat_turn_memory_log_item(
+        {
+            "user_content": "Carry this turn into the rest of the system.",
+            "aura_content": "I will apply it through one durable post-turn owner.",
+            "session_id": "durable-effects",
+            "origin": "desktop_ui",
+            "principal_id": "bryan",
+            "principal_surface": "owner",
+            "operation_id": "durable-effects:exchange:r1",
+            "exchange_id": "exchange",
+            "revision": 1,
+        }
+    )
+
+    assert (outcome, error) == ("completed", "")
+    logged.assert_awaited_once()
+    experience.assert_awaited_once()
+    assert experience.await_args[1] == {"principal_id": "bryan"}
 
 
 @pytest.mark.asyncio

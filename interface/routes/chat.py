@@ -20557,12 +20557,23 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             _delivery_timing["engine_to_stabilizer_ms"] = (
                 _delivery_stage_started_at - _cognitive_reply_returned_at
             ) * 1000.0
-        reply_text = await _stabilize_user_facing_reply(
-            _semantic_user_message,
+        _qualified_exact_delivery = _bind_qualified_recurrent_public_answer(
+            _live_turn_trace,
             reply_text,
-            desktop_cognitive_engine_required=desktop_requires_cognitive_engine,
-            protected_foreground_lane=desktop_requires_cognitive_engine,
         )
+        if _qualified_exact_delivery:
+            # Exact recurrent output is a canonical serialization of
+            # authenticated semantic state. Prose stabilization cannot improve
+            # it: any byte change invalidates its receipt. Ordinary generated
+            # conversation remains on the full stabilization path.
+            _live_turn_trace["qualified_recurrent_prose_pipeline_bypassed"] = True
+        else:
+            reply_text = await _stabilize_user_facing_reply(
+                _semantic_user_message,
+                reply_text,
+                desktop_cognitive_engine_required=desktop_requires_cognitive_engine,
+                protected_foreground_lane=desktop_requires_cognitive_engine,
+            )
         _delivery_timing["stabilizer_ms"] = (
             time.monotonic() - _delivery_stage_started_at
         ) * 1000.0
@@ -20580,16 +20591,17 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             if attribution_repaired:
                 logger.info("Grounded recall repaired first-person user-quote attribution.")
         _delivery_stage_started_at = time.monotonic()
-        reply_text = await _reanswer_when_the_runtime_contradicts_her(
-            reply_text,
-            user_message=_semantic_user_message,
-            session_id=_chat_session_id,
-            lane=lane,
-            source="chat_api",
-            require_engine=bool(desktop_requires_cognitive_engine),
-            turn_sensory_evidence=_turn_sensory_evidence,
-            turn_trace=_live_turn_trace,
-        )
+        if not _qualified_exact_delivery:
+            reply_text = await _reanswer_when_the_runtime_contradicts_her(
+                reply_text,
+                user_message=_semantic_user_message,
+                session_id=_chat_session_id,
+                lane=lane,
+                source="chat_api",
+                require_engine=bool(desktop_requires_cognitive_engine),
+                turn_sensory_evidence=_turn_sensory_evidence,
+                turn_trace=_live_turn_trace,
+            )
         _delivery_timing["runtime_reconcile_ms"] = (
             time.monotonic() - _delivery_stage_started_at
         ) * 1000.0
@@ -20645,33 +20657,41 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
 
         _delivery_stage_started_at = time.monotonic()
         response_confidence = "high"
-        is_stale = _is_actionably_stale_response(_semantic_user_message, reply_text)
-        is_same_diff = _is_same_answer_different_prompt(_semantic_user_message, reply_text)
-        recent_user_messages = await _gather_recent_user_messages_for_relevance(
-            _semantic_user_message
-        )
-        is_off_topic, off_topic_reason = _evaluate_reply_topicality(
-            _semantic_user_message,
-            reply_text,
-            recent_user_messages=recent_user_messages,
-        )
-        semantic_glitch, semantic_glitch_reason = _looks_semantically_glitched(
-            _semantic_user_message, reply_text
-        )
-        try:
-            from core.conversation.response_reliability import assess_user_facing_reply
-
-            reply_assessment = assess_user_facing_reply(
+        if _qualified_exact_delivery:
+            is_stale = False
+            is_same_diff = False
+            recent_user_messages = []
+            is_off_topic, off_topic_reason = False, ""
+            semantic_glitch, semantic_glitch_reason = False, ""
+            reply_assessment = None
+        else:
+            is_stale = _is_actionably_stale_response(_semantic_user_message, reply_text)
+            is_same_diff = _is_same_answer_different_prompt(_semantic_user_message, reply_text)
+            recent_user_messages = await _gather_recent_user_messages_for_relevance(
+                _semantic_user_message
+            )
+            is_off_topic, off_topic_reason = _evaluate_reply_topicality(
                 _semantic_user_message,
                 reply_text,
                 recent_user_messages=recent_user_messages,
             )
-        except _CHAT_RECOVERABLE_ERRORS:
-            reply_assessment = None
+            semantic_glitch, semantic_glitch_reason = _looks_semantically_glitched(
+                _semantic_user_message, reply_text
+            )
+            try:
+                from core.conversation.response_reliability import assess_user_facing_reply
+
+                reply_assessment = assess_user_facing_reply(
+                    _semantic_user_message,
+                    reply_text,
+                    recent_user_messages=recent_user_messages,
+                )
+            except _CHAT_RECOVERABLE_ERRORS:
+                reply_assessment = None
         desktop_recall_contract_failed = False
         desktop_context_contract_failed = False
         desktop_memory_state_contract_failed = False
-        if desktop_requires_cognitive_engine:
+        if desktop_requires_cognitive_engine and not _qualified_exact_delivery:
             expected_recall_reply = await _chat_memory_state._build_conversation_recall_reply(
                 _semantic_user_message,
                 session_id=_chat_session_id,
@@ -20715,11 +20735,14 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
         # Every flag False, no assessment, no reason — a turn degraded on a
         # condition the runtime does not report. A gate that cannot say what it
         # did is the reason this took a restart and a log dive to find.
-        assessment_requires_repair = _reply_assessment_requires_repair_with_memory_evidence(
-            reply_assessment,
-            _semantic_user_message,
-            reply_text,
-            memory_state_evidence=desktop_memory_state_evidence,
+        assessment_requires_repair = bool(
+            not _qualified_exact_delivery
+            and _reply_assessment_requires_repair_with_memory_evidence(
+                reply_assessment,
+                _semantic_user_message,
+                reply_text,
+                memory_state_evidence=desktop_memory_state_evidence,
+            )
         )
         if (
             is_stale
@@ -20755,16 +20778,19 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             _set_conversation_degradation_streak(0)
 
         hard_final_quality_failed = bool(
-            is_off_topic
-            or semantic_glitch
-            or desktop_recall_contract_failed
-            or desktop_context_contract_failed
-            or desktop_memory_state_contract_failed
-            or _reply_assessment_requires_repair_with_memory_evidence(
-                reply_assessment,
-                _semantic_user_message,
-                reply_text,
-                memory_state_evidence=desktop_memory_state_evidence,
+            not _qualified_exact_delivery
+            and (
+                is_off_topic
+                or semantic_glitch
+                or desktop_recall_contract_failed
+                or desktop_context_contract_failed
+                or desktop_memory_state_contract_failed
+                or _reply_assessment_requires_repair_with_memory_evidence(
+                    reply_assessment,
+                    _semantic_user_message,
+                    reply_text,
+                    memory_state_evidence=desktop_memory_state_evidence,
+                )
             )
         )
         _delivery_timing["quality_classification_ms"] = (
@@ -21145,9 +21171,13 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
         # is 4,488 lines and 633 branches, and everything inside it could only
         # be exercised end to end.
         is_consistent, inconsistency_reason = (
-            _check_response_consistency(reply_text, _semantic_user_message)
-            if response_confidence == "high"
-            else (True, "")
+            (True, "")
+            if _qualified_exact_delivery
+            else (
+                _check_response_consistency(reply_text, _semantic_user_message)
+                if response_confidence == "high"
+                else (True, "")
+            )
         )
         _delivery_stage_started_at = time.monotonic()
         lane_status = _chat_preflight._collect_conversation_lane_status()
@@ -21181,7 +21211,8 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             )
 
         # 2. Extract new open loops (commitments/promises) made in this turn
-        _extract_and_register_commitments(reply_text, _semantic_user_message)
+        if not _qualified_exact_delivery:
+            _extract_and_register_commitments(reply_text, _semantic_user_message)
 
         # 3. Log comprehensive quality metrics
         _log_response_quality_metrics(
