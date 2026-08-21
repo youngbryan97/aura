@@ -16,7 +16,6 @@ from core.runtime.structured_input import analyze_prompt_shape
 
 logger = logging.getLogger("Aura.ForegroundLatentRuntime")
 
-_LATENT_OWNER_TIMEOUT_SECONDS = 165.0
 _LATENT_CLEANUP_RESERVE_SECONDS = 8.0
 _RECOVERABLE_ERRORS = (
     AttributeError,
@@ -184,6 +183,12 @@ class ForegroundLatentOutcome:
     def succeeded(self) -> bool:
         return self.trace.get("latent_cortex_succeeded") is True
 
+    @property
+    def answer_available(self) -> bool:
+        """Whether this attempt already owns a complete visible answer."""
+
+        return bool(self.text.strip())
+
 
 def latent_owner_exhausted(reason: str, receipt: dict[str, Any]) -> bool:
     """Return whether a failed episode can still own the resident model.
@@ -239,6 +244,46 @@ def latent_owner_exhausted(reason: str, receipt: dict[str, Any]) -> bool:
         str(receipt.get("episode_id") or "").strip()
         and (str(receipt.get("last_stage") or "").strip() or consumed_input)
     )
+
+
+def materialized_latent_incumbent(
+    result: Any,
+) -> tuple[str, dict[str, Any]] | None:
+    """Return a completed ordinary answer preserved by a failed episode.
+
+    A latent episode materializes its ordinary incumbent before adaptation. A
+    later optional-stage failure must not erase that answer or open a second
+    resident-model owner. Only the engine's causal receipt can authorize this
+    path; arbitrary text on a failed result remains non-servable.
+    """
+
+    if not isinstance(result, dict) or result.get("ok") is True:
+        return None
+    text = str(result.get("text") or "").strip()
+    receipt = result.get("receipt")
+    if not text or not isinstance(receipt, dict):
+        return None
+    raw_flags = receipt.get("honest_flags")
+    flags = (
+        {
+            str(flag or "").strip()
+            for flag in raw_flags
+            if str(flag or "").strip()
+        }
+        if isinstance(raw_flags, list)
+        else set()
+    )
+    required = {
+        "fallback_reused_materialized_incumbent",
+        "vanilla_incumbent_captured_before_adaptation",
+    }
+    if not required.issubset(flags):
+        return None
+    if receipt.get("resident_owner_released") is not True:
+        return None
+    if receipt.get("resident_state_reusable") is not True:
+        return None
+    return text, dict(receipt)
 
 
 def _resolve_service() -> Any:
@@ -314,6 +359,7 @@ async def run_foreground_latent_episode(
     recurrent_loops: int = 1,
     steering_alpha: float = 0.25,
     capability_modifiers: dict[str, Any] | None = None,
+    service: Any = None,
 ) -> ForegroundLatentOutcome:
     """Select and, when warranted, execute one full-stack latent episode."""
 
@@ -342,13 +388,16 @@ async def run_foreground_latent_episode(
     if qualified_admission is not None:
         trace["qualified_recurrent_eligible"] = True
         semantic_admission = str(qualified_admission.family).startswith("frontier_")
-        service = _resolve_service()
+        service = service or _resolve_service()
         runner = getattr(service, "qualified_recurrent_reason", None)
         if callable(runner):
             try:
                 qualified = await runner(
                     visible_objective,
-                    timeout_s=min(_LATENT_OWNER_TIMEOUT_SECONDS, request_timeout_s),
+                    timeout_s=max(
+                        0.0,
+                        float(request_timeout_s) - _LATENT_CLEANUP_RESERVE_SECONDS,
+                    ),
                 )
             except Exception as exc:  # noqa: BLE001 - resident-owner safety boundary
                 trace.update(
@@ -490,7 +539,7 @@ async def run_foreground_latent_episode(
         return ForegroundLatentOutcome(text="", trace=trace, fallback_allowed=True)
 
     trace["latent_cortex_attempted"] = True
-    service = _resolve_service()
+    service = service or _resolve_service()
     if service is None:
         trace.update(
             {
@@ -528,8 +577,10 @@ async def run_foreground_latent_episode(
                 evidence=("general_latent_service_circuit_open",),
             )
 
-    latent_timeout = min(_LATENT_OWNER_TIMEOUT_SECONDS, max(0.0, request_timeout_s))
-    latent_timeout = max(0.0, latent_timeout - _LATENT_CLEANUP_RESERVE_SECONDS)
+    latent_timeout = max(
+        0.0,
+        float(request_timeout_s) - _LATENT_CLEANUP_RESERVE_SECONDS,
+    )
     if latent_timeout < 15.0:
         trace.update(
             {
@@ -724,6 +775,22 @@ async def run_foreground_latent_episode(
             "latent_cortex_progress": progress,
         }
     )
+    incumbent = materialized_latent_incumbent(result)
+    if incumbent is not None:
+        incumbent_text, incumbent_receipt = incumbent
+        trace.update(
+            {
+                "latent_cortex_receipt": incumbent_receipt,
+                "latent_cortex_incumbent_fallback_served": True,
+                "response_path": "cognitive_engine_latent_incumbent_fallback",
+            }
+        )
+        return ForegroundLatentOutcome(
+            text=incumbent_text,
+            trace=trace,
+            fallback_allowed=False,
+            evidence=("materialized_ordinary_incumbent",),
+        )
     exhausted = latent_owner_exhausted(reason, receipt)
     return ForegroundLatentOutcome(text="", trace=trace, fallback_allowed=not exhausted)
 
@@ -731,6 +798,7 @@ async def run_foreground_latent_episode(
 __all__ = [
     "ForegroundLatentOutcome",
     "latent_owner_exhausted",
+    "materialized_latent_incumbent",
     "run_foreground_latent_episode",
     "select_foreground_episode",
 ]

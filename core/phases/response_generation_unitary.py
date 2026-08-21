@@ -6127,10 +6127,23 @@ class UnitaryResponsePhase(Phase):
                         if isinstance(raw_shadow_receipt, dict)
                         else {}
                     )
-                if latent_outcome.succeeded:
+                if latent_outcome.answer_available:
                     raw = latent_outcome.text
                     latent_path_committed = True
                     latent_evidence = list(latent_outcome.evidence)
+                    if not latent_outcome.succeeded:
+                        model_retry_suppressed = True
+                        new_state.response_modifiers.update(
+                            {
+                                "model_retry_suppressed": True,
+                                "generation_failure_class": str(
+                                    latent_outcome.trace.get(
+                                        "latent_cortex_failure_reason"
+                                    )
+                                    or "latent_episode_failed"
+                                )[:120],
+                            }
+                        )
                 elif latent_outcome.attempted and not latent_outcome.fallback_allowed:
                     model_retry_suppressed = True
                     new_state.response_modifiers.update(

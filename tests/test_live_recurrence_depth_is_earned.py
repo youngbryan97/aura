@@ -83,3 +83,39 @@ def test_an_explicit_ceiling_is_still_a_ceiling(monkeypatch) -> None:
     assert mlx_worker._surface_control_recurrent_loops(
         {"clean_user_surface_recurrent_loops": 9}
     ) == 2
+
+
+def test_surface_receipt_does_not_claim_a_clamped_depth_was_applied() -> None:
+    receipt = mlx_worker._surface_generation_control_receipt(
+        {
+            "clean_user_surface_recurrent_loops": 2,
+            "max_tokens": 256,
+        },
+        {
+            "enabled": True,
+            "recurrent_inner": object(),
+            "recurrent_runtime_loops_applied": 1,
+        },
+    )
+
+    assert receipt["recurrent_runtime_loops_requested"] == 2
+    assert receipt["recurrent_runtime_loops_applied"] == 1
+    assert receipt["recurrent_runtime_loops_applied_ok"] is False
+    assert receipt["applied"] is False
+
+
+def test_surface_receipt_proves_an_exact_depth_application() -> None:
+    receipt = mlx_worker._surface_generation_control_receipt(
+        {
+            "clean_user_surface_recurrent_loops": 1,
+            "max_tokens": 256,
+        },
+        {
+            "enabled": True,
+            "recurrent_inner": object(),
+            "recurrent_runtime_loops_applied": 1,
+        },
+    )
+
+    assert receipt["recurrent_runtime_loops_applied_ok"] is True
+    assert receipt["applied"] is True

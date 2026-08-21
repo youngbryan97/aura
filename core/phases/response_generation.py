@@ -1063,46 +1063,6 @@ class ResponseGenerationPhase(BasePhase):
         return latent_owner_exhausted(reason, receipt)
 
     @staticmethod
-    def _materialized_latent_incumbent(
-        result: Any,
-    ) -> tuple[str, dict[str, Any]] | None:
-        """Return the immutable ordinary answer captured by a failed episode.
-
-        The latent engine materializes the checkpoint's ordinary decode before
-        recurrence mutates any cache or attaches temporary weights.  If a later
-        optional phase fails, that answer is still the only completed resident
-        generation for the turn.  Treating the service's ``ok=False`` as if no
-        text existed opened a second owner after the first decode and discarded
-        the answer floor the engine had explicitly preserved.
-
-        This is deliberately keyed to the engine's causal receipt rather than
-        to a failure string or the presence of arbitrary text.  A worker cannot
-        smuggle an uncertified partial response through this path.
-        """
-
-        if not isinstance(result, dict) or result.get("ok") is True:
-            return None
-        text = str(result.get("text") or "").strip()
-        receipt = result.get("receipt")
-        if not text or not isinstance(receipt, dict):
-            return None
-        raw_flags = receipt.get("honest_flags")
-        flags = {
-            str(flag or "").strip()
-            for flag in raw_flags
-            if str(flag or "").strip()
-        } if isinstance(raw_flags, list) else set()
-        if "fallback_reused_materialized_incumbent" not in flags:
-            return None
-        if "vanilla_incumbent_captured_before_adaptation" not in flags:
-            return None
-        if receipt.get("resident_owner_released") is not True:
-            return None
-        if receipt.get("resident_state_reusable") is not True:
-            return None
-        return text, dict(receipt)
-
-    @staticmethod
     def _generation_metadata_snapshot(router: Any) -> dict[str, Any]:
         getter = getattr(router, "get_last_generation_metadata", None)
         if not callable(getter):
@@ -2032,13 +1992,30 @@ class ResponseGenerationPhase(BasePhase):
                     raise TimeoutError(
                         "cognitive cycle budget exhausted before response generation"
                     )
-                from core.brain.latent_cortex_service import LatentCortexService
+                from core.brain.foreground_latent_runtime import (
+                    run_foreground_latent_episode,
+                )
 
-                selection = LatentCortexService.select_foreground_episode(
+                service = self.container.get("latent_cortex", default=None)
+                orchestrator = self.container.get("orchestrator", default=None)
+                if orchestrator is None:
+                    orchestrator = getattr(self, "orchestrator", None)
+                latent_outcome = await run_foreground_latent_episode(
+                    orchestrator=orchestrator,
+                    service=service,
+                    messages=messages,
+                    visible_objective=str(
+                        runtime_context.get("visible_user_message") or objective or ""
+                    ),
                     foreground=not is_background,
                     desktop_required=desktop_cognitive_engine_required,
                     cognitive_mode=str(state.cognition.current_mode.value),
-                    prompt_shape=runtime_context.get("prompt_shape"),
+                    request_timeout_s=request_timeout,
+                    prompt_shape=(
+                        runtime_context.get("prompt_shape")
+                        if isinstance(runtime_context.get("prompt_shape"), dict)
+                        else None
+                    ),
                     compact_contract=bool(
                         runtime_context.get("compact_desktop_chat_contract", False)
                     ),
@@ -2054,322 +2031,95 @@ class ResponseGenerationPhase(BasePhase):
                     explicitly_required=bool(
                         runtime_context.get("latent_cortex_required", False)
                     ),
-                    visible_objective=str(
-                        runtime_context.get("visible_user_message") or objective or ""
+                    tenant_id=str(runtime_context.get("tenant_id") or "local"),
+                    user_id=str(
+                        runtime_context.get("user_id")
+                        or runtime_context.get("owner_id")
+                        or "owner"
                     ),
+                    session_id=str(
+                        runtime_context.get("session_id")
+                        or runtime_context.get("conversation_id")
+                        or "local"
+                    ),
+                    domain=str(
+                        runtime_context.get("latent_cortex_domain")
+                        or "desktop_conversation"
+                    ),
+                    decode_max_tokens=int(token_budget),
+                    decode_temperature=float(generation_temperature),
+                    decode_top_p=float(generation_top_p),
+                    recurrent_loops=int(
+                        live_mind_generation_controls.get(
+                            "clean_user_surface_recurrent_loops", 1
+                        )
+                    ),
+                    steering_alpha=self._safe_bias_float(
+                        live_mind_generation_controls.get(
+                            "clean_user_surface_steering_alpha"
+                        ),
+                        0.25,
+                    ),
+                    capability_modifiers=dict(state.response_modifiers),
                 )
-                latent_trace.update(
-                    {
-                        key: value
-                        for key, value in selection.items()
-                        if key.startswith("latent_cortex_")
-                    }
-                )
-                if selection.get("latent_cortex_selected") is True:
-                    latent_trace["latent_cortex_attempted"] = True
-                    service = self.container.get("latent_cortex", default=None)
-                    if service is None:
-                        try:
-                            from core.runtime.service_registry import get_runtime_service
-
-                            service = get_runtime_service("latent_cortex", default=None)
-                        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
-                            service = None
-                    if service is None:
-                        latent_result = {
-                            "ok": False,
-                            "reason": "latent_service_not_registered",
-                        }
-                    else:
-                        # The owner budget contains the complete compound
-                        # episode, including its answer floor. A fixed 165s
-                        # cap silently contradicted the structurally sized
-                        # token budget and forced five-part answers to stop
-                        # mid-sentence. The service performs its own measured
-                        # admission; pass the real remaining owner window.
-                        latent_timeout = self._bounded_request_timeout(
-                            runtime_context,
-                            request_timeout,
-                            reserve_s=8.0,
+                latent_trace = dict(latent_outcome.trace)
+                state.response_modifiers.update(latent_trace)
+                if latent_outcome.answer_available:
+                    response_text = latent_outcome.text
+                    latent_receipt = dict(
+                        latent_trace.get("latent_cortex_receipt") or {}
+                    )
+                    if not latent_outcome.succeeded:
+                        failure_reason = str(
+                            latent_trace.get("latent_cortex_failure_reason")
+                            or "latent_episode_failed"
                         )
-                        if latent_timeout < 15.0:
-                            latent_result = {
-                                "ok": False,
-                                "reason": "latent_cycle_budget_insufficient",
-                            }
-                        else:
-                            # Typed ingress: how much thought this episode
-                            # deserves comes from the organs that know
-                            # (memory familiarity, body pressure, goals,
-                            # Will, felt uncertainty, self-model, world
-                            # model), each receipted — never from prompt
-                            # punctuation. The prompt-shape gate above still
-                            # decides WHETHER the turn is depth-worthy.
-                            ingress_stakes = float(selection.get("stakes") or 0.75)
-                            ingress_uncertainty = float(selection.get("uncertainty") or 0.80)
-                            ingress_slot_items: list | None = None
-                            ingress_epistemic_genesis = None
-                            ingress_epistemic_state = None
-                            ingress_memory_result = None
-                            try:
-                                from core.brain.cognitive_ingress import (
-                                    assemble_cognitive_ingress_async,
-                                    cognitive_context_items,
-                                )
-
-                                ingress = await assemble_cognitive_ingress_async(
-                                    getattr(self, "orchestrator", None),
-                                    str(
-                                        runtime_context.get("visible_user_message")
-                                        or objective
-                                        or ""
-                                    ),
-                                    tenant_id=str(
-                                        runtime_context.get("tenant_id") or "local"
-                                    ),
-                                    user_id=str(
-                                        runtime_context.get("user_id")
-                                        or runtime_context.get("owner_id")
-                                        or "owner"
-                                    ),
-                                    session_id=str(
-                                        runtime_context.get("session_id")
-                                        or runtime_context.get("conversation_id")
-                                        or "local"
-                                    ),
-                                )
-                                ingress_stakes = max(ingress.stakes, ingress_stakes - 0.15)
-                                ingress_uncertainty = ingress.uncertainty
-                                # Slot ingress: the organs' CONTENT seeds
-                                # identifiable workspace slots inside the
-                                # episode — memory/goals/world model/
-                                # interoception reach her thoughts, not just
-                                # her compute budget.
-                                ingress_slot_items = cognitive_context_items(ingress) or None
-                                ingress_epistemic_genesis = ingress.epistemic_genesis
-                                ingress_epistemic_state = ingress.epistemic_state
-                                ingress_memory_result = ingress.memory_result
-                                latent_trace["latent_cortex_ingress"] = ingress.to_receipt()
-                            except (
-                                ImportError,
-                                AttributeError,
-                                RuntimeError,
-                                TypeError,
-                                ValueError,
-                            ) as ingress_exc:
-                                record_degradation(
-                                    "latent_cortex",
-                                    ingress_exc,
-                                    action=(
-                                        "allocated latent episode from prompt-shape "
-                                        "defaults after typed ingress failed"
-                                    ),
-                                )
-                            reasoner = getattr(
-                                service,
-                                "deep_reason_with_acquisition",
-                                None,
-                            )
-                            acquisition_kwargs = (
-                                {
-                                    "orchestrator": getattr(
-                                        self,
-                                        "orchestrator",
-                                        None,
-                                    ),
-                                    "tenant_id": str(
-                                        runtime_context.get("tenant_id") or "local"
-                                    ),
-                                    "user_id": str(
-                                        runtime_context.get("user_id")
-                                        or runtime_context.get("owner_id")
-                                        or "owner"
-                                    ),
-                                    "session_id": str(
-                                        runtime_context.get("session_id")
-                                        or runtime_context.get("conversation_id")
-                                        or "local"
-                                    ),
-                                }
-                                if callable(reasoner)
-                                else {}
-                            )
-                            if not callable(reasoner):
-                                reasoner = service.deep_reason
-                            latent_result = await reasoner(
-                                messages=messages,
-                                **acquisition_kwargs,
-                                stakes=ingress_stakes,
-                                uncertainty=ingress_uncertainty,
-                                domain=str(
-                                    runtime_context.get("latent_cortex_domain")
-                                    or "desktop_conversation"
-                                ),
-                                config_overrides={
-                                    "decode_max_tokens": int(token_budget),
-                                    "decode_temperature": float(generation_temperature),
-                                    "decode_top_p": float(generation_top_p),
-                                },
-                                runtime_controls={
-                                    "clean_user_surface_recurrent_loops": int(
-                                        live_mind_generation_controls.get(
-                                            "clean_user_surface_recurrent_loops", 1
-                                        )
-                                    ),
-                                    "clean_user_surface_steering_alpha": self._safe_bias_float(
-                                        live_mind_generation_controls.get(
-                                            "clean_user_surface_steering_alpha"
-                                        ),
-                                        0.25,
-                                    ),
-                                },
-                                timeout_s=latent_timeout,
-                                require_full_stack=True,
-                                foreground_request=True,
-                                cognitive_context=ingress_slot_items,
-                                epistemic_genesis=ingress_epistemic_genesis,
-                                epistemic_state=ingress_epistemic_state,
-                                selective_memory_result=ingress_memory_result,
-                            )
-                    if (
-                        isinstance(latent_result, dict)
-                        and latent_result.get("ok") is True
-                        and str(latent_result.get("text") or "").strip()
-                    ):
-                        latent_receipt = latent_result.get("receipt")
-                        latent_receipt = (
-                            dict(latent_receipt)
-                            if isinstance(latent_receipt, dict)
-                            else {}
-                        )
-                        runtime_identity = latent_receipt.get("runtime_identity")
-                        identity_bound = bool(
-                            isinstance(runtime_identity, dict)
-                            and runtime_identity.get("identity_bound") is True
-                        )
-                        latent_trace.update(
+                        state.response_modifiers.update(
                             {
-                                "latent_cortex_succeeded": True,
-                                "latent_cortex_identity_bound": identity_bound,
-                                "latent_cortex_receipt": latent_receipt,
-                                "latent_cortex_progress": (
-                                    dict(latent_result.get("progress") or {})
-                                    if isinstance(latent_result.get("progress"), dict)
-                                    else {}
-                                ),
-                                "response_path": "cognitive_engine_latent_cortex",
+                                "model_retry_suppressed": True,
+                                "generation_failure_class": failure_reason[:120],
                             }
                         )
-                        response_text = str(latent_result.get("text") or "")
-                        generation_metadata = {
-                            **latent_trace,
-                            "surface_control_receipt": self._latent_cortex_surface_receipt(
+                    generation_metadata = {
+                        **latent_trace,
+                        "model_retry_suppressed": bool(
+                            not latent_outcome.succeeded
+                        ),
+                        "surface_control_receipt": (
+                            self._latent_cortex_surface_receipt(
                                 latent_receipt,
                                 controls_bound=live_mind_controls_bound,
                                 generation_controls=live_mind_generation_controls,
                                 token_budget=token_budget,
-                                requested_output_contract=visible_output_contract_payload,
+                                requested_output_contract=(
+                                    visible_output_contract_payload
+                                ),
+                            )
+                        ),
+                    }
+                elif (
+                    latent_outcome.attempted
+                    and not latent_outcome.fallback_allowed
+                ):
+                    failure_reason = str(
+                        latent_trace.get("latent_cortex_failure_reason")
+                        or "latent_owner_exhausted"
+                    )
+                    state.response_modifiers.update(
+                        {
+                            "model_retry_suppressed": True,
+                            "generation_failure_class": failure_reason[:120],
+                            "response_path": (
+                                "cognitive_engine_latent_owner_exhausted"
                             ),
                         }
-                    else:
-                        failure_reason = (
-                            str(latent_result.get("reason") or "latent_episode_failed")
-                            if isinstance(latent_result, dict)
-                            else "invalid_latent_service_response"
-                        )
-                        latent_trace.update(
-                            {
-                                "latent_cortex_fallback_used": True,
-                                "latent_cortex_failure_reason": failure_reason,
-                                "latent_cortex_receipt": (
-                                    dict(latent_result.get("receipt") or {})
-                                    if isinstance(latent_result, dict)
-                                    and isinstance(latent_result.get("receipt"), dict)
-                                    else {}
-                                ),
-                                "latent_cortex_progress": (
-                                    dict(latent_result.get("progress") or {})
-                                    if isinstance(latent_result, dict)
-                                    and isinstance(latent_result.get("progress"), dict)
-                                    else {}
-                                ),
-                            }
-                        )
-                        state.response_modifiers.update(latent_trace)
-                        latent_receipt = latent_trace["latent_cortex_receipt"]
-                        materialized_incumbent = self._materialized_latent_incumbent(
-                            latent_result
-                        )
-                        if materialized_incumbent is not None:
-                            response_text, latent_receipt = materialized_incumbent
-                            latent_trace.update(
-                                {
-                                    "latent_cortex_receipt": latent_receipt,
-                                    "latent_cortex_incumbent_fallback_served": True,
-                                    "response_path": (
-                                        "cognitive_engine_latent_incumbent_fallback"
-                                    ),
-                                }
-                            )
-                            state.response_modifiers.update(
-                                {
-                                    **latent_trace,
-                                    "model_retry_suppressed": True,
-                                    "generation_failure_class": failure_reason[:120],
-                                }
-                            )
-                            generation_metadata = {
-                                **latent_trace,
-                                "model_retry_suppressed": True,
-                                "generation_failure_class": failure_reason[:120],
-                                "surface_control_receipt": (
-                                    self._latent_cortex_surface_receipt(
-                                        latent_receipt,
-                                        controls_bound=live_mind_controls_bound,
-                                        generation_controls=(
-                                            live_mind_generation_controls
-                                        ),
-                                        token_budget=token_budget,
-                                        requested_output_contract=(
-                                            visible_output_contract_payload
-                                        ),
-                                    )
-                                ),
-                            }
-                            logger.warning(
-                                "Recursive Latent Cortex did not earn answer "
-                                "replacement (%s); serving its immutable ordinary "
-                                "incumbent without opening another resident decode.",
-                                failure_reason,
-                            )
-                        elif self._latent_owner_exhausted(
-                            failure_reason,
-                            latent_receipt,
-                        ):
-                            state.response_modifiers.update(
-                                {
-                                    "model_retry_suppressed": True,
-                                    "generation_failure_class": failure_reason[:120],
-                                    "response_path": "cognitive_engine_latent_owner_exhausted",
-                                }
-                            )
-                            logger.error(
-                                "Recursive Latent Cortex exhausted the single resident "
-                                "owner (%s); refusing a late ordinary generation. "
-                                "stage=%s input_tokens=%s progress=%s",
-                                failure_reason,
-                                latent_receipt.get("last_stage") or "unknown",
-                                latent_receipt.get("input_token_count") or "unknown",
-                                latent_trace.get("latent_cortex_progress") or {},
-                            )
-                            return state
-                        else:
-                            logger.warning(
-                                "Recursive Latent Cortex declined the selected "
-                                "foreground turn (%s); using one ordinary resident "
-                                "generation.",
-                                failure_reason,
-                            )
+                    )
+                    logger.error(
+                        "Recursive Latent Cortex exhausted the single resident "
+                        "owner (%s); refusing a colliding ordinary generation.",
+                        failure_reason,
+                    )
+                    return state
 
                 if response_text is None:
                     ordinary_timeout = self._bounded_request_timeout(

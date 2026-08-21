@@ -17,6 +17,7 @@ from core.brain.llm.measured_admission import (
     ThroughputEstimator,
     admit,
     measured_slack_seconds,
+    recommended_completion_tokens,
     recommended_foreground_deadline,
 )
 
@@ -120,6 +121,43 @@ def test_foreground_deadline_converges_to_measured_throughput():
     )
 
     assert deadline == 112.0
+    assert confidence is Confidence.MEASURED
+    assert samples == 30
+
+
+def test_completion_length_uses_prior_until_observed() -> None:
+    tokens, confidence, samples = recommended_completion_tokens(
+        model="Qwen2.5-32B-Instruct-4bit",
+        prompt_tokens=2048,
+        maximum_tokens=1920,
+        prior_tokens=1280,
+    )
+
+    assert tokens == 1280
+    assert confidence is Confidence.NO_SAMPLES
+    assert samples == 0
+
+
+def test_completion_length_converges_to_observed_p90() -> None:
+    from core.brain.llm.measured_admission import record_generation
+
+    for generated in (*([420] * 28), 500, 540):
+        record_generation(
+            model="Qwen2.5-32B-Instruct-4bit",
+            prompt_tokens=2048,
+            generated_tokens=generated,
+            prefill_seconds=0.5,
+            decode_seconds=generated * 0.02,
+        )
+
+    tokens, confidence, samples = recommended_completion_tokens(
+        model="Qwen2.5-32B-Instruct-4bit",
+        prompt_tokens=2048,
+        maximum_tokens=1920,
+        prior_tokens=1280,
+    )
+
+    assert tokens == 420
     assert confidence is Confidence.MEASURED
     assert samples == 30
 

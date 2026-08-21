@@ -199,6 +199,87 @@ async def test_foreground_latent_runner_allows_fallback_after_terminal_receipt_f
 
 
 @pytest.mark.asyncio
+async def test_foreground_latent_runner_uses_complete_owner_window(monkeypatch):
+    service = _LatentService({"ok": False, "reason": "worker_not_ready"})
+    monkeypatch.setattr(
+        "core.brain.foreground_latent_runtime.select_foreground_episode",
+        _selected,
+    )
+    monkeypatch.setattr(
+        "core.brain.cognitive_ingress.assemble_cognitive_ingress_async",
+        _async_value(_Ingress()),
+    )
+    monkeypatch.setattr(
+        "core.brain.cognitive_ingress.cognitive_context_items",
+        lambda _ingress: [],
+    )
+
+    await run_foreground_latent_episode(
+        orchestrator=None,
+        messages=[{"role": "user", "content": "Compare all five designs."}],
+        visible_objective="Compare all five designs.",
+        foreground=True,
+        desktop_required=True,
+        cognitive_mode="deliberate",
+        request_timeout_s=480.0,
+        service=service,
+    )
+
+    assert service.calls[0]["timeout_s"] == 472.0
+
+
+@pytest.mark.asyncio
+async def test_failed_episode_serves_only_receipted_materialized_incumbent(monkeypatch):
+    incumbent = "The already completed ordinary answer remains authoritative."
+    service = _LatentService(
+        {
+            "ok": False,
+            "reason": "receipt_contract_failed:latent_optimization_budget_exhausted",
+            "text": incumbent,
+            "receipt": {
+                "episode_id": "ep-incumbent",
+                "last_stage": "latent_optimization",
+                "honest_flags": [
+                    "vanilla_incumbent_captured_before_adaptation",
+                    "fallback_reused_materialized_incumbent",
+                ],
+                "resident_owner_released": True,
+                "resident_state_reusable": True,
+            },
+        }
+    )
+    monkeypatch.setattr(
+        "core.brain.foreground_latent_runtime.select_foreground_episode",
+        _selected,
+    )
+    monkeypatch.setattr(
+        "core.brain.cognitive_ingress.assemble_cognitive_ingress_async",
+        _async_value(_Ingress()),
+    )
+    monkeypatch.setattr(
+        "core.brain.cognitive_ingress.cognitive_context_items",
+        lambda _ingress: [],
+    )
+
+    outcome = await run_foreground_latent_episode(
+        orchestrator=None,
+        messages=[{"role": "user", "content": "Compare both designs."}],
+        visible_objective="Compare both designs.",
+        foreground=True,
+        desktop_required=True,
+        cognitive_mode="deliberate",
+        request_timeout_s=180.0,
+        service=service,
+    )
+
+    assert outcome.succeeded is False
+    assert outcome.answer_available is True
+    assert outcome.text == incumbent
+    assert outcome.fallback_allowed is False
+    assert outcome.trace["latent_cortex_incumbent_fallback_served"] is True
+
+
+@pytest.mark.asyncio
 async def test_unchanged_terminal_bridge_failure_skips_the_expensive_general_episode(
     monkeypatch,
 ):

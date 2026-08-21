@@ -635,7 +635,7 @@ async def test_latent_timeout_preserves_attempt_and_suppresses_second_model_owne
     assert result.response_modifiers["model_retry_suppressed"] is True
     assert (
         result.response_modifiers["generation_failure_class"]
-        == "response_generation_deadline_exhausted"
+        == "latent_timeout:TimeoutError"
     )
 
 

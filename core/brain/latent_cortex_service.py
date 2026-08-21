@@ -4896,6 +4896,7 @@ class LatentCortexService:
             from core.brain.llm.latent_cortex.output_quality import request_facets
             from core.runtime.structured_input import (
                 analyze_prompt_shape,
+                answer_surface_planning_tokens,
                 answer_surface_token_floor,
             )
 
@@ -4969,19 +4970,32 @@ class LatentCortexService:
                 # written-down number. An unmeasured shape falls back to the
                 # module's own static prior, so the conservative behaviour
                 # survives exactly as long as there is nothing better.
-                target_decode_tokens = int(config["decode_max_tokens"])
-                required_wall_clock_s = 65.0 + (0.26 * target_decode_tokens)
+                capacity_decode_tokens = int(config["decode_max_tokens"])
+                target_decode_tokens = answer_surface_planning_tokens(
+                    visible_objective
+                )
                 try:
                     from core.brain.llm.measured_admission import (
+                        recommended_completion_tokens,
                         recommended_foreground_deadline,
                     )
                     from core.brain.llm.model_registry import ACTIVE_MODEL
 
+                    prompt_tokens = max(
+                        2048, 1800 + len(str(visible_objective or "")) // 4
+                    )
+                    target_decode_tokens, length_confidence, length_samples = (
+                        recommended_completion_tokens(
+                            model=ACTIVE_MODEL,
+                            prompt_tokens=prompt_tokens,
+                            maximum_tokens=capacity_decode_tokens,
+                            prior_tokens=target_decode_tokens,
+                        )
+                    )
+                    required_wall_clock_s = 65.0 + (0.26 * target_decode_tokens)
                     measured_s, _confidence, samples = recommended_foreground_deadline(
                         model=ACTIVE_MODEL,
-                        prompt_tokens=max(
-                            2048, 1800 + len(str(visible_objective or "")) // 4
-                        ),
+                        prompt_tokens=prompt_tokens,
                         decode_tokens=max(1, target_decode_tokens),
                         minimum_seconds=0.0,
                         maximum_seconds=float("inf"),
@@ -4991,7 +5005,16 @@ class LatentCortexService:
                     self._last_allocation[
                         "answer_surface_wall_clock_samples"
                     ] = int(samples)
+                    self._last_allocation.update(
+                        {
+                            "answer_surface_capacity_tokens": capacity_decode_tokens,
+                            "answer_surface_planning_tokens": target_decode_tokens,
+                            "answer_surface_length_confidence": length_confidence.value,
+                            "answer_surface_length_samples": int(length_samples),
+                        }
+                    )
                 except (ArithmeticError, ImportError, TypeError, ValueError) as exc:
+                    required_wall_clock_s = 65.0 + (0.26 * target_decode_tokens)
                     record_degradation(
                         "latent_cortex.answer_surface_admission",
                         exc,

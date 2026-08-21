@@ -3228,13 +3228,10 @@ def test_compound_objective_expands_answer_surface(monkeypatch):
             stakes=0.75,
             uncertainty=0.8,
             config_overrides={"decode_max_tokens": 256},
-            # Five numbered obligations plus pseudocode reserve 1920 tokens,
-            # which prices at roughly 570s. That is more than
-            # USER_FACING_COMPLETION_DEADLINE_MAX_S (480s) allows, so the LIVE
-            # path refuses this shape before executing and answers on the
-            # ordinary lane with the full surface — the designed behaviour, and
-            # the case the block below covers. The window here is the one that
-            # exercises the ALLOCATION, which is what this block is about.
+            # Capacity and expected completion are separate. The request keeps
+            # all 1920 tokens available, while admission prices its structural
+            # p90 completion prior and later replaces that prior with measured
+            # generated lengths.
             timeout_s=600.0,
             foreground_request=True,
         )
@@ -3245,6 +3242,35 @@ def test_compound_objective_expands_answer_surface(monkeypatch):
     inline_allocation = svc._last_allocation
     assert inline_allocation["compound_objective"] is True
     assert inline_allocation["objective_prompt_shape"]["numbered_parts"] == 5
+    assert inline_allocation["answer_surface_capacity_tokens"] == 1920
+    assert (
+        inline_allocation["answer_surface_planning_tokens"]
+        < inline_allocation["answer_surface_capacity_tokens"]
+    )
+
+    # The exact live failure shape now fits the bounded 480-second owner while
+    # retaining its full non-truncating capacity.
+    captured.clear()
+    live_dijkstra = (
+        "ChatGPT here. Explain Dijkstra's shortest-path invariant, then give me "
+        "a worked example with vertices A, B, C, and D using at least five "
+        "weighted edges. Include the binary-heap time complexity and explain "
+        "what algorithm should be used instead when negative edges are possible."
+    )
+    result = asyncio.run(
+        svc.deep_reason(
+            live_dijkstra,
+            stakes=0.75,
+            uncertainty=0.8,
+            config_overrides={"decode_max_tokens": 1920},
+            timeout_s=480.0,
+            foreground_request=True,
+        )
+    )
+    assert result["reason"] == "profile_observed"
+    assert captured["config"]["decode_max_tokens"] == 1920
+    assert svc._last_allocation["answer_surface_planning_tokens"] == 1024
+    assert svc._last_allocation["answer_surface_required_wall_clock_s"] < 472.0
 
     # An owner window that cannot physically hold the answer floor is rejected
     # before acquiring or spending the resident model. ResponseGeneration can

@@ -904,9 +904,16 @@ def _surface_generation_control_receipt(
         receipt["recurrent_runtime_loops_applied"] = state.get(
             "recurrent_runtime_loops_applied"
         )
-    receipt["recurrent_runtime_loops_applied_ok"] = (
-        "recurrent_runtime_loops_applied" in state
-        or state.get("recurrent_inner") is None
+    requested_loops = receipt.get("recurrent_runtime_loops_requested")
+    applied_loops = receipt.get("recurrent_runtime_loops_applied")
+    recurrence_not_applicable = state.get("recurrent_inner") is None
+    receipt["recurrent_runtime_loops_applied_ok"] = bool(
+        recurrence_not_applicable
+        or (
+            type(requested_loops) is int
+            and type(applied_loops) is int
+            and requested_loops == applied_loops
+        )
     )
     receipt["applied"] = bool(
         receipt.get("surface_alpha_applied_ok")

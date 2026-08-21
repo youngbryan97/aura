@@ -1,5 +1,6 @@
 from core.runtime.structured_input import (
     analyze_prompt_shape,
+    answer_surface_planning_tokens,
     answer_surface_token_floor,
 )
 
@@ -116,6 +117,17 @@ def test_live_dijkstra_wording_keeps_every_semantic_obligation() -> None:
         "explain what algorithm should be used instead when negative edges are possible",
     )
     assert answer_surface_token_floor(prompt) == 1920
+    assert answer_surface_planning_tokens(prompt) == 1024
+
+
+def test_completion_planning_never_reduces_available_answer_capacity() -> None:
+    prompt = (
+        "Explain Dijkstra. Include: (1) its invariant, (2) pseudocode, "
+        "(3) a worked example, (4) complexity, and (5) its failure case."
+    )
+
+    assert answer_surface_planning_tokens(prompt) < answer_surface_token_floor(prompt)
+    assert answer_surface_token_floor(prompt) == 2176
 
 
 def test_inline_parenthesized_obligations_are_first_class_request_parts() -> None:

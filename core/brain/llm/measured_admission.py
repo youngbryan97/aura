@@ -58,6 +58,7 @@ __all__ = [
     "TaskShape",
     "ThroughputEstimator",
     "get_throughput_estimator",
+    "recommended_completion_tokens",
     "recommended_foreground_deadline",
     "admit",
     "record_generation",
@@ -172,12 +173,20 @@ class _Samples:
     prefill_s_per_token: list[float] = field(default_factory=list)
     decode_s_per_token: list[float] = field(default_factory=list)
     overhead_s: list[float] = field(default_factory=list)
+    generated_tokens: list[float] = field(default_factory=list)
 
-    def add(self, prefill: float, decode: float, overhead: float) -> None:
+    def add(
+        self,
+        prefill: float,
+        decode: float,
+        overhead: float,
+        generated_tokens: int,
+    ) -> None:
         for series, value in (
             (self.prefill_s_per_token, prefill),
             (self.decode_s_per_token, decode),
             (self.overhead_s, overhead),
+            (self.generated_tokens, float(generated_tokens)),
         ):
             if value >= 0.0 and math.isfinite(value):
                 series.append(float(value))
@@ -269,6 +278,7 @@ class ThroughputEstimator:
                 max(0.0, prefill_seconds) / prompt_tokens,
                 max(0.0, decode_seconds) / max(1, int(generated_tokens)),
                 max(0.0, overhead_seconds),
+                generated_tokens,
             )
 
     def confidence(self, shape: TaskShape) -> tuple[Confidence, int]:
@@ -311,6 +321,25 @@ class ThroughputEstimator:
             predicted *= 1.5
         return predicted, confidence, count
 
+    def predict_completion_tokens(
+        self,
+        shape: TaskShape,
+        *,
+        maximum_tokens: int,
+        prior_tokens: int,
+    ) -> tuple[int, Confidence, int]:
+        """Return observed p90 completion length, bounded by granted capacity."""
+
+        confidence, count = self.confidence(shape)
+        maximum = max(1, int(maximum_tokens))
+        prior = max(1, min(maximum, int(prior_tokens)))
+        if confidence is Confidence.NO_SAMPLES:
+            return prior, confidence, 0
+        with self._lock:
+            observed = _percentile(self._shapes[shape.key()].generated_tokens, 0.90)
+        predicted = max(prior, int(math.ceil(observed))) if confidence is Confidence.SPARSE else int(math.ceil(observed))
+        return max(1, min(maximum, predicted)), confidence, count
+
     def report(self) -> dict[str, Any]:
         with self._lock:
             return {
@@ -324,6 +353,9 @@ class ThroughputEstimator:
                         ),
                         "decode_s_per_token_p90": round(
                             _percentile(samples.decode_s_per_token, 0.90), 6
+                        ),
+                        "generated_tokens_p90": int(
+                            _percentile(samples.generated_tokens, 0.90)
                         ),
                     }
                     for key, samples in self._shapes.items()
@@ -392,6 +424,34 @@ def recommended_foreground_deadline(
     needed = (predicted / max(0.01, 1.0 - _MIN_MARGIN)) + 4.0
     deadline = max(float(minimum_seconds), min(float(maximum_seconds), needed))
     return deadline, confidence, samples
+
+
+def recommended_completion_tokens(
+    *,
+    model: str,
+    prompt_tokens: int,
+    maximum_tokens: int,
+    prior_tokens: int,
+) -> tuple[int, Confidence, int]:
+    """Plan expected EOS length from observed foreground generations."""
+
+    estimator = get_throughput_estimator()
+    predictions = [
+        estimator.predict_completion_tokens(
+            TaskShape(
+                model=str(model or "unknown"),
+                prompt_bucket=TaskShape.bucket_for(prompt_tokens),
+                cache_warm=cache_warm,
+                foreground=True,
+            ),
+            maximum_tokens=maximum_tokens,
+            prior_tokens=prior_tokens,
+        )
+        for cache_warm in (False, True)
+    ]
+    measured = [item for item in predictions if item[1] is not Confidence.NO_SAMPLES]
+    candidates = measured or predictions
+    return max(candidates, key=lambda item: item[0])
 
 
 def _publish_to_runtime_registry(estimator: ThroughputEstimator) -> None:

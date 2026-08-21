@@ -402,6 +402,48 @@ def answer_surface_token_floor(text: str) -> int:
     return min(4096, max(384, ((required + block - 1) // block) * block))
 
 
+def answer_surface_planning_tokens(text: str) -> int:
+    """Conservative completion-length prior for deadline planning.
+
+    ``answer_surface_token_floor`` is capacity: it prevents truncation but EOS
+    may finish much earlier. Treating that ceiling as a guaranteed completion
+    length caused the deeper reasoning lane to reject exactly the compound
+    requests it exists to handle. This independently derives a p90-style prior
+    from the visible work units; runtime measurements replace it once available.
+    """
+
+    shape = analyze_prompt_shape(text)
+    obligations = max(
+        1,
+        int(shape.question_parts),
+        int(shape.numbered_parts),
+        int(shape.imperative_parts),
+        len(shape.question_segments),
+    )
+    capacity = answer_surface_token_floor(text)
+    if capacity <= 256:
+        return 192
+
+    lowered = str(text or "").lower()
+    planned = 192 + (96 * obligations)
+    if re.search(r"\b(?:pseudo\s*code|code|algorithm|procedure)\b", lowered):
+        planned += 192
+    if re.search(r"\b(?:worked|concrete|step[- ]by[- ]step)\s+example\b", lowered):
+        planned += 192
+    if re.search(
+        r"\b(?:at\s+least|minimum(?:\s+of)?|no\s+fewer\s+than)\s+"
+        r"(?:[a-z-]+|\d+)\b",
+        lowered,
+    ):
+        planned += 64
+    if re.search(r"\b(?:both|each\s+of|compare|contrast)\b", lowered):
+        planned += 64
+    if re.search(r"\b(?:correct|proper|recommended)\s+alternative\b", lowered):
+        planned += 64
+    block = 128
+    return min(capacity, max(256, ((planned + block - 1) // block) * block))
+
+
 #: Splits an utterance into the units a person would count as separate asks:
 #: sentence enders, and the line breaks / numbered items that carry a list.
 _ASK_SPLIT_RE = re.compile(r"(?<=[.?!])\s+|\n+")
