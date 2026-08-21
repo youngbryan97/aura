@@ -3137,36 +3137,25 @@ def build_nonempty_start_processor(tokenizer: Any, *, positions: int = 1) -> Any
 
 
 def build_semantic_completion_terminal_guard(tokenizer: Any, job: dict[str, Any]) -> Any:
-    """Keep structural termination unavailable until a typed answer is complete.
+    """Leave natural branch termination available during semantic observation.
 
-    The generation loop proves completion from request coverage and surface
-    integrity contracts and stops the decode itself. This processor only keeps
-    EOS, role-boundary, and padding controls from overriding that proof before
-    it succeeds. It is independent of subject matter and phrasing.
+    Semantic completeness is an output property, not a token-level grammar.
+    Masking EOS until the assessor accepted a draft forced the model to continue
+    *after it had ended its answer*. An incomplete first branch therefore grew a
+    second and third competing answer in the same sequence, then repeated prompt
+    material until the request deadline. The assessor could no longer recover
+    the original authored answer because the forced suffix made the whole draft
+    an integrity failure.
+
+    The generation loop still observes every eighth token and may stop early
+    when it can prove complete coverage. Natural EOS instead closes an
+    incomplete branch normally so downstream typed-evidence completion or a
+    fresh candidate can operate on an intact draft. This compatibility hook is
+    retained for diagnostics that import it directly; it intentionally returns
+    no logits processor.
     """
-    if not (
-        bool(job.get("clean_user_surface_contract", False))
-        and bool(job.get("semantic_completion_contract", False))
-    ):
-        return None
-
-    import mlx.core as mx
-
-    banned = tuple(_first_token_suppression_ids(tokenizer))
-    if not banned:
-        return None
-
-    def semantic_terminal_guard(tokens, logits, banned_ids=banned):
-        del tokens
-        mask = mx.zeros_like(logits)
-        for token_id in banned_ids:
-            try:
-                mask[..., token_id] = -float("inf")
-            except (IndexError, TypeError, ValueError):
-                continue
-        return logits + mask
-
-    return semantic_terminal_guard
+    del tokenizer, job
+    return None
 
 
 def _schema_root_openers(schema: Any) -> tuple[str, ...]:
@@ -7111,8 +7100,8 @@ def _mlx_worker_loop(
                                     if bool(job.get("semantic_completion_contract", False)):
                                         logger.info(
                                             "🧩 [WORKER] Semantic completion observer ACTIVE; "
-                                            "structural termination remains masked until the typed "
-                                            "contract is complete."
+                                            "natural branch termination remains available while the "
+                                            "typed contract is measured."
                                         )
                                     if attempt_logits_processors:
                                         kwargs["logits_processors"] = attempt_logits_processors
@@ -7945,7 +7934,7 @@ def _mlx_worker_loop(
                                             # the second one of these arrived
                                             # as a copy of the first branch,
                                             # so it is a table now.
-                                            _REPAIRS = {
+                                            repairs = {
                                                 "runtime_boilerplate": (
                                                     "repair_runtime_boilerplate",
                                                     "remove_matching_sentences_and_revalidate",
@@ -7958,7 +7947,7 @@ def _mlx_worker_loop(
                                             for _reason, (
                                                 _repair_name,
                                                 _method,
-                                            ) in _REPAIRS.items():
+                                            ) in repairs.items():
                                                 if _reason not in rejection_reasons:
                                                     continue
                                                 try:

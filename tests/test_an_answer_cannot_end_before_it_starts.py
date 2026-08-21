@@ -164,17 +164,15 @@ def _build_semantic_guard(job):
     return namespace["build_semantic_completion_terminal_guard"](_Tokenizer(), job)
 
 
-def test_semantic_contract_masks_structural_termination_until_loop_proves_completion() -> None:
-    mx = pytest.importorskip("mlx.core")
-    guard = _build_semantic_guard(
-        {"clean_user_surface_contract": True, "semantic_completion_contract": True}
+def test_semantic_contract_does_not_force_multiple_answers_into_one_branch() -> None:
+    """EOS closes the branch; completion is assessed outside token sampling."""
+
+    assert (
+        _build_semantic_guard(
+            {"clean_user_surface_contract": True, "semantic_completion_contract": True}
+        )
+        is None
     )
-    assert guard is not None
-    logits = guard(mx.array([99, 7, 8], dtype=mx.int32), mx.zeros((152000,)))
-    assert float(logits[151643]) == float("-inf")
-    assert float(logits[151644]) == float("-inf")
-    assert float(logits[151645]) == float("-inf")
-    assert float(logits[5]) == 0.0
 
 
 @pytest.mark.parametrize(
