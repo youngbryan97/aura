@@ -1679,6 +1679,7 @@ class _ChatPreflight:
     shown: Any = _UNSET
     status: Any = _UNSET
     turn_sensory_evidence: Any = None
+    timing_ms: dict[str, float] = dataclasses.field(default_factory=dict)
 
 
 async def _run_chat_preflight(
@@ -1706,6 +1707,16 @@ async def _run_chat_preflight(
     status = _UNSET
     _turn_sensory_evidence = None
     _wire_user_message = str(raw_user_message or _original_user_message or "")
+    _timing_started_at = time.perf_counter()
+    _timing_cursor = _timing_started_at
+    _timing_ms: dict[str, float] = {}
+
+    def _finish_timing(name: str) -> None:
+        nonlocal _timing_cursor
+        now = time.perf_counter()
+        _timing_ms[name] = round(max(0.0, now - _timing_cursor) * 1000.0, 3)
+        _timing_cursor = now
+
     try:
         from core.conversation.chat_preflight import (
             build_file_context_block,
@@ -1750,7 +1761,13 @@ async def _run_chat_preflight(
                             "response_confidence": "scoped",
                             "conversation_lane": _collect_conversation_lane_status(),
                         }
-                    )
+                    ),
+                    timing_ms={
+                        "scoped_surface": round(
+                            max(0.0, time.perf_counter() - _timing_started_at) * 1000.0,
+                            3,
+                        )
+                    },
                 )
 
         # Delayed model speech is never spliced into a later turn. The old
@@ -1785,6 +1802,7 @@ async def _run_chat_preflight(
             except _CHAT_RECOVERABLE_ERRORS as _file_exc:
                 record_degradation("chat", _file_exc)
                 logger.debug("Chat file-reference preflight skipped: %s", _file_exc)
+        _finish_timing("file_context")
 
         # 2) Directive injection
         if not is_benchmark:
@@ -1800,6 +1818,7 @@ async def _run_chat_preflight(
             except _CHAT_RECOVERABLE_ERRORS as _dir_exc:
                 record_degradation("chat", _dir_exc)
                 logger.debug("Chat directive preflight skipped: %s", _dir_exc)
+            _finish_timing("directive_context")
 
             # Media. "Play Kind of Blue" resolves against what is actually on
             # this machine, and the card goes out before the reply so the
@@ -1834,6 +1853,7 @@ async def _run_chat_preflight(
             except _CHAT_RECOVERABLE_ERRORS as _media_exc:
                 record_degradation("chat.media", _media_exc)
                 logger.debug("Chat media preflight skipped: %s", _media_exc)
+            _finish_timing("media_resolution")
 
             # Sight. "How many fingers am I holding up" is answerable only by
             # looking, now, at this resolution — the presence lane's thumbnail
@@ -1924,6 +1944,7 @@ async def _run_chat_preflight(
             except _CHAT_RECOVERABLE_ERRORS as _sight_exc:
                 record_degradation("chat.sight", _sight_exc)
                 logger.debug("Chat sight preflight skipped: %s", _sight_exc)
+            _finish_timing("sight")
 
             # Her own measured state, on every turn.
             #
@@ -1952,6 +1973,7 @@ async def _run_chat_preflight(
                     _self_exc,
                     action="answered without her measured self-state in context",
                 )
+            _finish_timing("self_knowledge")
 
             # Decidable arithmetic is COMPUTED, never predicted.
             #
@@ -1991,6 +2013,7 @@ async def _run_chat_preflight(
                     _calc_exc,
                     action="let the model answer the arithmetic unaided",
                 )
+            _finish_timing("arithmetic")
 
             # Grounded recall: positional/temporal questions ("what did I first
             # ask?") are answered from the ACTUAL earliest/most-recent turn in the
@@ -2036,6 +2059,7 @@ async def _run_chat_preflight(
             except _CHAT_RECOVERABLE_ERRORS as _grounded_exc:
                 record_degradation("chat", _grounded_exc)
                 logger.debug("Chat grounded-recall preflight skipped: %s", _grounded_exc)
+            _finish_timing("grounded_recall")
 
             # Inject learned user/Aura profiles for continuity across conversations
             try:
@@ -2048,6 +2072,7 @@ async def _run_chat_preflight(
             except _CHAT_RECOVERABLE_ERRORS as _profile_exc:
                 record_degradation("chat", _profile_exc)
                 logger.debug("Chat profile context preflight skipped: %s", _profile_exc)
+            _finish_timing("profile_context")
 
             # Inject evidence-bounded operational self context
             try:
@@ -2064,6 +2089,7 @@ async def _run_chat_preflight(
             except _CHAT_RECOVERABLE_ERRORS as _self_context_exc:
                 record_degradation("chat", _self_context_exc)
                 logger.debug("Chat operational self preflight skipped: %s", _self_context_exc)
+            _finish_timing("operational_self_context")
 
             # Inject the expressive-affordance menu so the mind reasons WITH its
             # own capabilities present — it decides, by context and judgment,
@@ -2096,14 +2122,21 @@ async def _run_chat_preflight(
             except _CHAT_RECOVERABLE_ERRORS as _affordance_exc:
                 record_degradation("chat", _affordance_exc)
                 logger.debug("Chat affordance-menu preflight skipped: %s", _affordance_exc)
+            _finish_timing("affordance_context")
 
             body.message = clamp_composed_chat_context(
                 body.message,
                 _original_user_message,
             )
+            _finish_timing("context_clamp")
     except _CHAT_RECOVERABLE_ERRORS as _preflight_outer:
         record_degradation("chat", _preflight_outer)
         logger.debug("Chat preflight (outer) skipped: %s", _preflight_outer)
+
+    _timing_ms["total"] = round(
+        max(0.0, time.perf_counter() - _timing_started_at) * 1000.0,
+        3,
+    )
 
     return _ChatPreflight(
         chat_session_id=_chat_session_id,
@@ -2112,4 +2145,5 @@ async def _run_chat_preflight(
         shown=_shown,
         status=status,
         turn_sensory_evidence=_turn_sensory_evidence,
+        timing_ms=_timing_ms,
     )

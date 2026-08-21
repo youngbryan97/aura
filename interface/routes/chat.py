@@ -16888,6 +16888,8 @@ def _json_safe_payload(value: Any, *, _depth: int = 0) -> Any:
 
 
 async def _api_chat_turn(body: ChatRequest, request: Request):
+    request_started_at = time.monotonic()
+    request_wall_started_at = time.time()
     # Reject oversized messages before processing
     if len(body.message.encode("utf-8", errors="replace")) > MAX_CHAT_MESSAGE_BYTES:
         raise HTTPException(status_code=413, detail="Message too large (max 64KB)")
@@ -17015,6 +17017,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
         _grounded_recall_context=_grounded_recall_context,
         raw_user_message=_original_user_message,
     )
+    logger.info("Chat preflight timing: %s", dict(_preflight.timing_ms))
     if _preflight.early_response is not None:
         return _preflight.early_response
     if _preflight.chat_session_id is not _UNSET:
@@ -17110,8 +17113,6 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
         lane,
         _semantic_user_message,
     )
-    request_started_at = time.monotonic()
-    request_wall_started_at = time.time()
     early_allow_chat_fastpaths = not is_benchmark and not desktop_requires_cognitive_engine
     pending_exchange_id: str | None = None
     foreground_slot_acquired = False
