@@ -2820,6 +2820,26 @@ _DOCUMENT_ARGUMENT_NAMES = frozenset(
 )
 
 
+def _tool_call_budget(requested: Any, configured: Any, tools: Any) -> int:
+    """How many tokens one tool call may take.
+
+    The reply's budget unless the call can carry a document, in which case the
+    client's configured ceiling — which is this runtime's own answer to how
+    large a single generation may be.
+    """
+    try:
+        asked = max(1, int(requested or 0))
+    except (TypeError, ValueError):
+        asked = 1
+    if not _tools_can_carry_a_document(tools):
+        return asked
+    try:
+        ceiling = max(1, int(configured or 0))
+    except (TypeError, ValueError):
+        ceiling = asked
+    return max(asked, ceiling)
+
+
 def _tools_can_carry_a_document(tools: Any) -> bool:
     """Whether any offered tool takes an argument the size of a file."""
     if not tools:
@@ -14317,7 +14337,24 @@ class MLXLocalClient:
                 "",
                 messages=messages,
                 tools=native_tools,
-                max_tokens=kwargs.get("max_tokens", self.max_tokens),
+                # A call is not a reply, and inheriting the reply's budget cut
+                # one in half.
+                #
+                # LIVE, 2026-08-20. The desktop lane planned 970 tokens for
+                # its answer — a fair size for a conversational reply — and
+                # the tool loop took the same number for a call whose argument
+                # was an HTML page. It stopped inside the string, an
+                # incomplete object is not a call, and the loop reported "none
+                # called" for the second time in one turn.
+                #
+                # Where the offered tools take a document, the call asks for
+                # what this client is configured to allow rather than what
+                # this turn's prose was budgeted at.
+                max_tokens=_tool_call_budget(
+                    kwargs.get("max_tokens", self.max_tokens),
+                    self.max_tokens,
+                    native_tools or tools,
+                ),
                 # A tool call is structured output, and affective steering
                 # destroys structured output.
                 #

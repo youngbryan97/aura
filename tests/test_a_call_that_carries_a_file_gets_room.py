@@ -76,3 +76,33 @@ def test_a_document_call_is_not_clamped_to_the_phrase_floor() -> None:
 
     assert int(with_document["max_tokens"]) >= int(with_phrase["max_tokens"])
     assert int(with_document["max_tokens"]) > mlx_client._TOOL_CALL_TOKEN_FLOOR
+
+
+def test_a_call_is_not_a_reply() -> None:
+    """LIVE: the desktop lane planned 970 tokens for its answer, and the tool
+    loop took the same number for a call whose argument was an HTML page."""
+    from core.brain.llm.mlx_client import _tool_call_budget
+
+    document = {"code_repl": {"parameters": {"properties": {"code": {"type": "string"}}}}}
+    phrase = {"web_search": {"parameters": {"properties": {"query": {"type": "string"}}}}}
+
+    assert _tool_call_budget(970, 8192, document) == 8192
+    assert _tool_call_budget(970, 8192, phrase) == 970
+
+
+def test_the_budget_never_shrinks_what_was_asked_for() -> None:
+    from core.brain.llm.mlx_client import _tool_call_budget
+
+    document = {"code_repl": {"parameters": {"properties": {"code": {"type": "string"}}}}}
+    assert _tool_call_budget(9000, 8192, document) == 9000
+    assert _tool_call_budget(970, None, document) == 970
+    assert _tool_call_budget(None, 8192, document) == 8192
+
+
+def test_the_loop_uses_it() -> None:
+    import inspect
+
+    from core.brain.llm.mlx_client import MLXLocalClient
+
+    source = inspect.getsource(MLXLocalClient.think_and_act)
+    assert "_tool_call_budget(" in source
