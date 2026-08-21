@@ -104,3 +104,34 @@ def test_betweenness_needs_the_middle_to_be_between() -> None:
     assert rules
     assert all(rule.test({"Ana": 0, "Bo": 1, "Cid": 2}, 3) for rule in rules)
     assert not all(rule.test({"Bo": 0, "Ana": 1, "Cid": 2}, 3) for rule in rules)
+
+
+def test_a_computed_answer_is_a_reason_not_to_generate() -> None:
+    """LIVE: the solver produced the answer at 22:42:45 and the turn spent
+    another 105 seconds generating text that was replaced by that same answer
+    at the end. An exact answer is not an improvement on a generated one — it
+    is a reason not to generate."""
+    from core.conversation.session_scope import set_user_question
+    from interface.routes.chat import _known_answer_for_this_turn
+
+    set_user_question(PUZZLE)
+    known = _known_answer_for_this_turn()
+    assert "not settled" in known
+    for seating in TRUTH:
+        assert ", ".join(seating) in known
+
+
+def test_the_exact_arithmetic_path_is_untouched() -> None:
+    from core.conversation.session_scope import set_user_question
+    from interface.routes.chat import _known_answer_for_this_turn
+
+    set_user_question("what is 7919 * 6367?")
+    assert _known_answer_for_this_turn() == "50,420,273."
+
+
+def test_conversation_is_still_the_model_s() -> None:
+    from core.conversation.session_scope import set_user_question
+    from interface.routes.chat import _known_answer_for_this_turn
+
+    set_user_question("how are you today?")
+    assert _known_answer_for_this_turn() == ""

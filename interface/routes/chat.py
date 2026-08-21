@@ -9599,6 +9599,23 @@ def _known_answer_for_this_turn() -> str:
         question = current_user_question()
         if not question:
             return ""
+
+        # A seating problem the enumeration settles.
+        #
+        # LIVE, 2026-08-21: the solver produced the answer at 22:42:45 —
+        # "took 1 reading(s): the seating, worked out" — and the turn then
+        # spent another 105 seconds generating text that was replaced by that
+        # same answer at the end. An exact answer is not an improvement on a
+        # generated one, it is a reason not to generate.
+        from core.reasoning.positional_constraints import (
+            answer_positional_problem,
+            describe_positional_answer,
+        )
+
+        seating = describe_positional_answer(answer_positional_problem(question))
+        if seating:
+            return seating
+
         value = requested_arithmetic_result(question)
         if value is None:
             return ""
