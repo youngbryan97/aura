@@ -416,6 +416,33 @@ def test_an_edited_row_is_refused_on_load(tmp_path):
     assert reloaded._history_load_errors == 1
 
 
+def test_a_truncated_history_does_not_accept_orphaned_chain_rows(tmp_path):
+    cycle = _cycle(tmp_path)
+    for index in range(2):
+        cycle._save_record(
+            ResearchRecord(
+                record_id=f"r{index}",
+                drive="curiosity",
+                goal=f"goal {index}",
+                findings=[f"finding {index}"],
+                identity_impact="",
+                affect_before={},
+                affect_after={},
+            )
+        )
+
+    rows = cycle._record_path.read_text().splitlines()
+    assert len(rows) == 2
+    cycle._record_path.write_text(rows[1] + "\n")
+
+    reloaded = _cycle(tmp_path)
+    reloaded._record_path = cycle._record_path
+    reloaded._load_history()
+
+    assert reloaded._history == []
+    assert reloaded._history_load_errors == 1
+
+
 def test_the_history_write_goes_through_the_gateway():
     import inspect
 

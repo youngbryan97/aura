@@ -3,8 +3,8 @@ from __future__ import annotations
 import asyncio
 import inspect
 import json
-import math
 import logging
+import math
 import os
 import time
 import uuid
@@ -17,9 +17,6 @@ from core.autonomy.research_goal_filter import (
     is_unresearchable_goal,
     research_query_for_goal,
 )
-from core.runtime import background_policy
-from core.runtime.errors import FallbackClassification, Severity, record_degradation
-from core.utils.task_tracker import get_task_tracker
 from core.autonomy.research_history import ResearchHistory
 from core.autonomy.research_text_policy import (
     MAX_NARRATIVE_CHARS,
@@ -29,7 +26,10 @@ from core.autonomy.research_text_policy import (
     label_findings,
     narrative_admits,
 )
+from core.runtime import background_policy
+from core.runtime.errors import FallbackClassification, Severity, record_degradation
 from core.runtime.state_ownership import state_root
+from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.ResearchCycle")
 
@@ -175,7 +175,7 @@ class ResearchRecord:
 # ── The Research Cycle ────────────────────────────────────────────────────────
 
 def _materialize_research_goal(
-    cycle: "ResearchCycle",
+    cycle: ResearchCycle,
     initiative: dict[str, Any],
     state: Any,
 ) -> dict[str, Any] | None:
@@ -210,7 +210,7 @@ def _generic_internal_goal(goal: str) -> bool:
         )
     )
 
-def _derive_autotelic_topic(cycle: "ResearchCycle", state: Any) -> str:
+def _derive_autotelic_topic(cycle: ResearchCycle, state: Any) -> str:
     """A topic worth researching, drawn from live state."""
     try:
         from core.autonomy.topic_selection import select_autonomous_topic
@@ -1404,6 +1404,7 @@ class ResearchCycle:
                 self._goal_failure_counts[goal] = self._goal_failure_counts.get(goal, 0) + 1
 
     def _load_history(self) -> None:
+        self._history_store.reset_reader()
         if not self._record_path.exists():
             return
         self._history.clear()

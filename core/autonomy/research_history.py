@@ -21,6 +21,7 @@ import threading
 from pathlib import Path
 from typing import Any
 
+from core.governance_context import local_internal_governed_scope
 from core.runtime.file_write_gateway import get_file_write_gateway
 
 __all__ = ["HISTORY_SCHEMA", "ResearchHistory"]
@@ -38,21 +39,39 @@ class ResearchHistory:
 
     def append(self, payload: dict[str, Any]) -> str:
         """Write one record chained to the last. Returns its digest."""
-        envelope = {
-            "schema": HISTORY_SCHEMA,
-            "previous_sha256": self.chain_head,
-            "record": payload,
-        }
-        line = json.dumps(envelope, sort_keys=True, separators=(",", ":"))
-        envelope["record_sha256"] = hashlib.sha256(line.encode("utf-8")).hexdigest()
         with self._lock:
-            get_file_write_gateway().append_text(
-                self.path,
-                json.dumps(envelope, sort_keys=True, separators=(",", ":")) + "\n",
-                source="autonomy.research_cycle.history",
-            )
+            envelope = {
+                "schema": HISTORY_SCHEMA,
+                "previous_sha256": self.chain_head,
+                "record": payload,
+            }
+            line = json.dumps(envelope, sort_keys=True, separators=(",", ":"))
+            envelope["record_sha256"] = hashlib.sha256(
+                line.encode("utf-8")
+            ).hexdigest()
+            with local_internal_governed_scope(
+                "autonomy.research_cycle.history",
+                domain="memory_write",
+                receipt_prefix="research-history-append",
+                constraints={
+                    "artifact": HISTORY_SCHEMA,
+                    "operation": "append_only",
+                    "record_sha256": envelope["record_sha256"],
+                },
+            ):
+                get_file_write_gateway().append_text(
+                    self.path,
+                    json.dumps(envelope, sort_keys=True, separators=(",", ":"))
+                    + "\n",
+                    source="autonomy.research_cycle.history",
+                )
             self.chain_head = envelope["record_sha256"]
         return envelope["record_sha256"]
+
+    def reset_reader(self) -> None:
+        """Reset chain verification before replaying this history from disk."""
+        with self._lock:
+            self.chain_head = ""
 
     def read_payload(self, line: str) -> dict[str, Any] | None:
         """One record from a stored line, or None when it does not verify.
@@ -70,9 +89,14 @@ class ResearchHistory:
         recomputed = hashlib.sha256(
             json.dumps(data, sort_keys=True, separators=(",", ":")).encode("utf-8")
         ).hexdigest()
-        if expected and expected != recomputed:
+        previous = data.get("previous_sha256")
+        if (
+            not expected
+            or expected != recomputed
+            or not isinstance(previous, str)
+            or previous != self.chain_head
+        ):
             return None
-        if expected:
-            self.chain_head = expected
+        self.chain_head = expected
         record = data.get("record")
         return record if isinstance(record, dict) else None

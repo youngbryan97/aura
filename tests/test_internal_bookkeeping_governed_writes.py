@@ -93,6 +93,40 @@ def test_learning_pipeline_record_is_governed_from_background_thread(monkeypatch
         assert record["_meta"]["quality"] == pytest.approx(0.95)
 
 
+def test_research_history_owns_a_narrow_governed_append(monkeypatch, tmp_path):
+    from core.autonomy.research_history import HISTORY_SCHEMA, ResearchHistory
+    from core.governance_context import GovernanceViolation, get_active_governance
+    from core.runtime.file_write_gateway import get_file_write_gateway
+
+    target = tmp_path / "research" / "cycle_history.jsonl"
+    observed = []
+    gateway = get_file_write_gateway()
+    real_append = gateway.append_text
+
+    def observing_append(path, text, **kwargs):
+        observed.append(get_active_governance())
+        return real_append(path, text, **kwargs)
+
+    monkeypatch.setattr(gateway, "append_text", observing_append)
+
+    with _governance_runtime_forced_active(monkeypatch):
+        with pytest.raises(GovernanceViolation):
+            real_append(target, "unguarded\n", source="test.unguarded")
+
+        digest = ResearchHistory(target).append({"record_id": "research-1"})
+
+    assert target.exists()
+    assert len(observed) == 1
+    token = observed[0]
+    assert token is not None
+    assert token.domain == "memory_write"
+    assert token.source == "autonomy.research_cycle.history"
+    constraints = dict(token.constraints)
+    assert constraints["artifact"] == HISTORY_SCHEMA
+    assert constraints["operation"] == "append_only"
+    assert constraints["record_sha256"] == digest
+
+
 def test_degradation_is_not_recorded_for_governed_bookkeeping(monkeypatch, tmp_path):
     """The live failure mode: refused writes spawned incidents every turn."""
     from core.meta.cognitive_trace import CognitiveTrace
