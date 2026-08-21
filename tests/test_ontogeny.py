@@ -46,6 +46,7 @@ from core.ontogeny.heads import PredictionHead
 from core.ontogeny.reservation import Decider, ExplorationReservation
 from core.ontogeny.resolution import ResolverRegistry
 from core.ontogeny.state import OntogeneticState
+from core.ontogeny.trainer import replay_design
 from core.ontogeny.wiring import SEALED_REASONS, admission_features, admission_stakes, is_sealed
 
 
@@ -374,6 +375,30 @@ class TestOntogeneticState:
         other = OntogeneticState(input_width=9, units=16, seed=7, path=path)
         assert not other.load()
 
+    def test_replay_cooperates_at_bounded_intervals(self):
+        schema = FeatureSchema("test.cp", ("a", "b"))
+        episodes = [
+            _episode(features={"a": float(index), "b": float(index % 3)})
+            for index in range(130)
+        ]
+        handoffs = 0
+
+        def _handoff() -> None:
+            nonlocal handoffs
+            handoffs += 1
+
+        rows, kept, _moments = replay_design(
+            episodes,
+            schema,
+            units=8,
+            seed=3,
+            washout=0,
+            cooperate=_handoff,
+        )
+
+        assert rows.shape[0] == len(kept) == 130
+        assert handoffs == 3
+
 
 class TestHeads:
     def _rows(self, n: int, seed: int = 0):
@@ -426,6 +451,27 @@ class TestHeads:
 
         assert evidence == {"fitted": False, "reason": "foreground_preempted"}
         assert head.version == 0
+
+    def test_batch_fit_cooperates_without_changing_the_learned_head(self):
+        baseline = PredictionHead("cp", ("failure", "success"), 4)
+        cooperative = PredictionHead("cp", ("failure", "success"), 4)
+        x, y = self._rows(600)
+        handoffs = 0
+
+        def _handoff() -> None:
+            nonlocal handoffs
+            handoffs += 1
+
+        baseline.fit(x, y)
+        cooperative.fit(x, y, cooperate=_handoff)
+
+        assert handoffs > 12
+        assert np.array_equal(cooperative.w, baseline.w)
+        assert np.array_equal(cooperative.b, baseline.b)
+        assert cooperative.temperature == baseline.temperature
+        assert cooperative.samples_seen == baseline.samples_seen
+        assert cooperative.version == baseline.version
+        assert cooperative.fit_evidence == baseline.fit_evidence
 
 
 # ── L4: calibration and the track record ────────────────────────────────────
@@ -718,6 +764,38 @@ class TestOrganEndToEnd:
         assert report["schema"] == "aura.ontogeny.health.v1"
         assert "executive.admission" in report["stages"]
         assert "observation_rate" in report
+        core.stop()
+
+    def test_maintenance_training_cooperates_with_the_runtime(
+        self,
+        sandbox: Path,
+        monkeypatch,
+    ):
+        from core.ontogeny import service as service_module
+        from core.ontogeny.trainer import TrainingResult
+
+        core = self._core(sandbox)
+        handoffs: list[float] = []
+        captured: dict[str, object] = {}
+
+        def _train(*_args, **kwargs):
+            captured.update(kwargs)
+            cooperate = kwargs.get("cooperate")
+            assert callable(cooperate)
+            cooperate()
+            return TrainingResult(
+                control_point="executive.admission",
+                fitted=False,
+                reason="no evidence",
+            )
+
+        monkeypatch.setattr(core._trainer, "train", _train)
+        monkeypatch.setattr(service_module.time, "sleep", handoffs.append)
+
+        core.train(yield_to_foreground=True)
+
+        assert callable(captured["should_stop"])
+        assert handoffs == [service_module.TRAIN_COOPERATIVE_YIELD_S]
         core.stop()
 
     def test_the_organ_defers_to_the_incumbent_before_it_has_learned(self, sandbox: Path):

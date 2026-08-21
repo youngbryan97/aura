@@ -87,6 +87,12 @@ TRAIN_INTERVAL_S = 1800.0
 #: New graded episodes required before a refit is worth the cycles.
 TRAIN_MIN_NEW_EVIDENCE = 50
 
+#: A zero-length sleep can immediately reschedule the calling worker on macOS
+#: and leave the event loop starved for the whole recurrent replay. A tenth of
+#: a millisecond is long enough to hand the core back without materially
+#: changing a half-hour maintenance fit.
+TRAIN_COOPERATIVE_YIELD_S = 0.0001
+
 #: How often the state checkpoint is written. The state is small; losing an
 #: hour of it to a crash would be a needless amputation.
 CHECKPOINT_INTERVAL_S = 300.0
@@ -735,10 +741,21 @@ class OntogenyCore(AuthorityObservationMixin):
             )
         results: dict[str, TrainingResult] = {}
         stop_callback = None
+        cooperate = None
         if yield_to_foreground:
-            stop_callback = (
-                lambda: foreground_activity_reason() == "foreground_chat_active"
-            )
+            def _foreground_active() -> bool:
+                return foreground_activity_reason() == "foreground_chat_active"
+
+            stop_callback = _foreground_active
+            # The maintenance lane is a native thread, but the recurrent replay
+            # and per-example AdaGrad loops execute thousands of small Python /
+            # NumPy operations. Explicit GIL handoffs keep those bounded loops
+            # from starving the asyncio control plane while preserving the
+            # exact fit and its chronological corpus contract.
+            def _cooperate() -> None:
+                time.sleep(TRAIN_COOPERATIVE_YIELD_S)
+
+            cooperate = _cooperate
         for cp in targets:
             if yield_to_foreground and foreground_activity_reason():
                 break
@@ -750,6 +767,7 @@ class OntogenyCore(AuthorityObservationMixin):
                     heads,
                     cp.actions,
                     should_stop=stop_callback,
+                    cooperate=cooperate,
                 )
             except (RuntimeError, ValueError, TypeError, MemoryError, np.linalg.LinAlgError) as exc:
                 record_degradation(

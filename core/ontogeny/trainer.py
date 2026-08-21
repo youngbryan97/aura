@@ -111,6 +111,7 @@ def replay_design(
     seed: int,
     washout: int = WASHOUT_STEPS,
     should_stop: Callable[[], bool] | None = None,
+    cooperate: Callable[[], None] | None = None,
 ) -> tuple[np.ndarray, list[Episode], RunningMoments]:
     """Rebuild the exact [features, presence, hidden] rows the heads see.
 
@@ -126,8 +127,11 @@ def replay_design(
     rows: list[np.ndarray] = []
     kept: list[Episode] = []
     for i, episode in enumerate(episodes):
-        if should_stop is not None and i % 64 == 0 and should_stop():
-            raise TrainingPreempted("foreground_preempted")
+        if i % 64 == 0:
+            if should_stop is not None and should_stop():
+                raise TrainingPreempted("foreground_preempted")
+            if cooperate is not None:
+                cooperate()
         vector = schema.vector(episode.features)
         base = design_row(vector, moments, update=True)
         reading = replay_state.step(base, learn_distribution=True)
@@ -176,6 +180,7 @@ class Trainer:
         *,
         limit: int = 50_000,
         should_stop: Callable[[], bool] | None = None,
+        cooperate: Callable[[], None] | None = None,
     ) -> TrainingResult:
         """One training pass over every action's head.
 
@@ -214,6 +219,7 @@ class Trainer:
                 units=self._units,
                 seed=self._seed,
                 should_stop=should_stop,
+                cooperate=cooperate,
             )
         except TrainingPreempted:
             return TrainingResult(
@@ -245,6 +251,8 @@ class Trainer:
         candidate_generation = max((head.version for head in heads.values()), default=0) + 1
 
         for action in actions:
+            if cooperate is not None:
+                cooperate()
             if should_stop is not None and should_stop():
                 return TrainingResult(
                     control_point=control_point,
@@ -291,6 +299,7 @@ class Trainer:
                 train_labels,
                 weights=weights,
                 should_stop=should_stop,
+                cooperate=cooperate,
             )
             if not evidence.get("fitted"):
                 if evidence.get("reason") == "foreground_preempted":

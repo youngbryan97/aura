@@ -51280,3 +51280,33 @@ passes `120/120` with one environment-dependent skip. Ruff, compilation and
 diff hygiene pass. The running pre-checkpoint process was intentionally not
 restarted, so live confirmation belongs to the next normal installed-app
 restart.
+
+## Checkpoint 2026-08-21-888: Make Ontogeny Training Cooperate With the Runtime
+
+Half-hour live-runtime stalls aligned exactly with completion of the
+`executive.admission` ontogeny fit. The fit was already assigned to a native
+maintenance thread, so another thread wrapper would not have repaired the
+failure: recurrent replay and per-example AdaGrad still monopolized host
+execution long enough to starve the asyncio control plane. A copied live corpus
+made that causal boundary measurable. Training over 24,290 episodes took 4.8
+seconds, while a 10 ms event-loop heartbeat suffered a 1.299-second maximum
+delay.
+
+Recurrent replay and prediction-head fitting now accept an explicit
+cooperation callback at bounded 64-example intervals. The maintenance owner
+supplies a real 100-microsecond scheduler handoff; a zero-length sleep was
+measured and rejected because macOS could immediately reschedule the same
+worker and preserve the full stall. Foreground preemption remains independent,
+and ordinary synchronous callers retain their prior execution contract. The
+cooperation path changes scheduling only: a deterministic regression proves
+the fitted weights, biases, temperature, sample count, generation and fit
+evidence remain bit-identical.
+
+On the same copied corpus and heartbeat probe, the production handoff reduced
+maximum event-loop delay from 1.299 seconds to 0.053 seconds while the
+half-hour fit rose only from 4.8 to 5.5 seconds. Replay, head and maintenance
+contracts pass `82/82`; the complete ontogeny neighborhood passes `144/144`;
+canonical smoke passes `120/120` with one environment-dependent skip. Ruff,
+compilation and diff hygiene pass. The running pre-checkpoint process remains
+on its original source and was intentionally not restarted; live confirmation
+belongs to the next normal installed-app restart.

@@ -203,6 +203,7 @@ class PredictionHead:
         epochs: int = 12,
         seed: int = 7,
         should_stop: Callable[[], bool] | None = None,
+        cooperate: Callable[[], None] | None = None,
     ) -> dict[str, Any]:
         """Batch-fit from the corpus. Returns the evidence, not just the model."""
         rows = np.asarray(rows, dtype=np.float64)
@@ -231,6 +232,8 @@ class PredictionHead:
         order = np.arange(len(y))
         losses: list[float] = []
         for _ in range(max(1, epochs)):
+            if cooperate is not None:
+                cooperate()
             if should_stop is not None and should_stop():
                 return {"fitted": False, "reason": "foreground_preempted"}
             rng.shuffle(order)
@@ -242,6 +245,8 @@ class PredictionHead:
                     and should_stop()
                 ):
                     return {"fitted": False, "reason": "foreground_preempted"}
+                if cooperate is not None and offset % 64 == 0:
+                    cooperate()
                 probs = _softmax(self.logits(rows[i]))
                 error = probs.copy()
                 error[y[i]] -= 1.0
