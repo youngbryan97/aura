@@ -164,6 +164,67 @@ class EnhancedWebSearchSkill(BaseSkill):
         normalized["message"] = self.pipeline._format_message(query, normalized)
         return normalized
 
+    @staticmethod
+    def _finalize_result(query: str, result: dict[str, Any]) -> dict[str, Any]:
+        """Return one evidence contract for every successful search lane.
+
+        Live search, retained artifacts, snippet-only retrieval, and the local
+        reference corpus all produce useful but materially different evidence.
+        Capability verification consumes ``sources``; no branch may therefore
+        return before its native evidence has been projected onto that field.
+        The projection preserves provenance rather than upgrading an offline
+        snapshot or search snippet into a page that was fetched and read.
+        """
+        finalized = dict(result or {})
+        finalized.setdefault("query", query)
+        finalized.setdefault(
+            "summary",
+            finalized.get("answer") or finalized.get("message") or "",
+        )
+        if not finalized.get("ok"):
+            return finalized
+
+        provenance = str(finalized.get("provenance") or "").strip()
+        native_sources = (
+            finalized.get("sources")
+            or finalized.get("citations")
+            or finalized.get("chunks")
+            or finalized.get("results")
+            or []
+        )
+        if isinstance(native_sources, dict):
+            native_sources = [native_sources]
+        elif not isinstance(native_sources, (list, tuple)):
+            native_sources = []
+
+        sources: list[dict[str, Any]] = []
+        for item in native_sources:
+            if not isinstance(item, dict):
+                continue
+            source = dict(item)
+            if provenance == "local_corpus" or source.get("provenance") == "local_corpus":
+                source["provenance"] = "local_corpus"
+                source.setdefault("evidence_kind", "offline_reference_snapshot")
+                source.setdefault("fetched", False)
+            sources.append(source)
+
+        source_ref = str(finalized.get("source") or "").strip()
+        if not sources and source_ref:
+            if source_ref.startswith(("http://", "https://")):
+                sources.append({"url": source_ref, "provenance": provenance or "live_web"})
+            else:
+                sources.append({"source": source_ref, "provenance": provenance or "declared"})
+
+        finalized["sources"] = sources
+        finalized.setdefault("count", len(sources))
+        if sources:
+            criteria_results = finalized.get("criteria_results")
+            if not isinstance(criteria_results, dict):
+                criteria_results = {}
+            criteria_results["sources gathered"] = True
+            finalized["criteria_results"] = criteria_results
+        return finalized
+
     async def execute(self, params: Any, context: dict[str, Any]) -> dict[str, Any]:
         # Who asked? Curiosity researching on its own is a feature and stays
         # one — it simply must not escalate onto the foreground lane, because
@@ -225,7 +286,7 @@ class EnhancedWebSearchSkill(BaseSkill):
         if not force_refresh and not source_reading:
             local_first = self._local_corpus_first(query, num_results)
             if local_first is not None:
-                return local_first
+                return self._finalize_result(query, local_first)
 
         logger.info(
             "🔍 WebSearch: '%s' (deep=%s, effective_deep=%s, retain=%s, force_refresh=%s)",
@@ -322,7 +383,7 @@ class EnhancedWebSearchSkill(BaseSkill):
                         )
                     except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
                         record_degradation("web_search", exc, severity="warning", action="continued without deep evidence deliberation")
-                    return normalized
+                    return self._finalize_result(query, normalized)
                 # "Empty answer" used to be the whole story, which read as
                 # "the research found nothing". Usually it found plenty and
                 # could not synthesize it — on 2026-07-25, because background
@@ -357,6 +418,7 @@ class EnhancedWebSearchSkill(BaseSkill):
             domain="network_research",
             action=f"web_search:{query[:80]}",
         )
+        pipeline_error = ""
         try:
             result = await self.pipeline.search(
                 query,
@@ -378,15 +440,15 @@ class EnhancedWebSearchSkill(BaseSkill):
             )
             offline = self._local_corpus_fallback(query, num_results)
             if offline is not None:
-                offline["web_error"] = str(exc)[:200]
-                _tx.complete(outcome="partial", error=str(exc)[:200])
-                offline.setdefault("summary", offline.get("message") or "")
-                return offline
-            _tx.complete(outcome="failure", error=str(exc)[:200])
-            raise
+                pipeline_error = str(exc)[:200]
+                offline["web_error"] = pipeline_error
+                result = offline
+            else:
+                _tx.complete(outcome="failure", error=str(exc)[:200])
+                raise
         _tx.complete(
-            outcome="success" if result.get("ok") else "failure",
-            error="" if result.get("ok") else str(result.get("error") or "")[:200],
+            outcome="partial" if pipeline_error else ("success" if result.get("ok") else "failure"),
+            error=pipeline_error or ("" if result.get("ok") else str(result.get("error") or "")[:200]),
         )
         if not result.get("ok") and force_refresh:
             logger.info(
@@ -412,21 +474,7 @@ class EnhancedWebSearchSkill(BaseSkill):
                     result.get("error") or result.get("message") or "web search failed"
                 )
                 result = offline
-        result.setdefault("summary", result.get("answer") or result.get("message") or "")
-        if result.get("ok"):
-            result.setdefault(
-                "sources",
-                result.get("citations")
-                or result.get("chunks")
-                or result.get("results")
-                or ([] if not result.get("source") else [{"url": result.get("source")}]),
-            )
-            if result.get("sources"):
-                criteria_results = result.get("criteria_results")
-                if not isinstance(criteria_results, dict):
-                    criteria_results = {}
-                criteria_results["sources gathered"] = True
-                result["criteria_results"] = criteria_results
+        result = self._finalize_result(query, result)
         try:
             from core.advanced_cognition import ExternalEvidenceDeliberator
 

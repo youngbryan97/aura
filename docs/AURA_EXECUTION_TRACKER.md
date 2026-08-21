@@ -51167,3 +51167,29 @@ The combined integrity, logging, health, provenance and shell boundary passes
 skip. Ruff, compilation and diff hygiene pass. The running pre-checkpoint
 process was intentionally not restarted, so live confirmation belongs to the
 next normal installed-app restart.
+
+## Checkpoint 2026-08-21-838: Preserve Search Evidence Across Every Retrieval Lane
+
+The source-backed action expectation correctly rejected autonomous research as
+shallow because the local-corpus fast path returned before the web skill's
+common result normalization. Live evidence showed four dated reference hits,
+followed by `missing=['sources']`, a failed intention and repeated failed causal
+links. The retrieval had succeeded; its native evidence was discarded at the
+skill boundary.
+
+Web search now has one evidence finalizer used by local-first answers, raised
+network fallbacks, returned network fallbacks and deep-research success. It
+projects native citations, chunks, results or declared source references onto
+the verifier's `sources` field without upgrading their provenance. Local-corpus
+entries are explicitly `offline_reference_snapshot`, remain unfetched, and are
+never given fabricated web URLs. The unchanged action expectation therefore
+accepts real offline evidence while still rejecting genuinely sourceless
+research.
+
+The exact research-cycle route passes its real source-and-summary expectation.
+Focused capability tests pass `29/29`; adjacent web, deep-research, curiosity
+and conversation-routing contracts pass `58/58`; canonical smoke passes
+`120/120` with one environment-dependent skip. Ruff, compilation and diff
+hygiene pass. The live runtime remains on its pre-checkpoint source and was
+intentionally not restarted; live confirmation belongs to the next normal
+installed-app restart.

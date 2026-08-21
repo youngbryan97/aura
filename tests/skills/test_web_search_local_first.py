@@ -91,16 +91,16 @@ def test_availability_guard_is_the_o1_check_not_a_table_scan() -> None:
 
 def test_local_first_is_skipped_for_current_queries(monkeypatch) -> None:
     """A live question must not be answered from a snapshot."""
-    from core.skills.web_search import EnhancedWebSearchSkill as skill
+    from core.skills.web_search import EnhancedWebSearchSkill as WebSearchSkill
 
     called: list[str] = []
     monkeypatch.setattr(
-        skill,
+        WebSearchSkill,
         "_local_corpus_fallback",
         classmethod(lambda cls, q, n: called.append(q) or {"ok": True}),
     )
 
-    assert skill._local_corpus_first("bitcoin price today", 3) is None
+    assert WebSearchSkill._local_corpus_first("bitcoin price today", 3) is None
     assert called == []
 
 
@@ -110,10 +110,10 @@ def test_local_first_labels_its_provenance(monkeypatch) -> None:
     This runtime has already made that mistake out loud — "I checked live web
     evidence" over a result that was not live.
     """
-    from core.skills.web_search import EnhancedWebSearchSkill as skill
+    from core.skills.web_search import EnhancedWebSearchSkill as WebSearchSkill
 
     monkeypatch.setattr(
-        skill,
+        WebSearchSkill,
         "_local_corpus_fallback",
         classmethod(
             lambda cls, q, n: {
@@ -126,7 +126,7 @@ def test_local_first_labels_its_provenance(monkeypatch) -> None:
         ),
     )
 
-    answered = skill._local_corpus_first("Kessler syndrome", 3)
+    answered = WebSearchSkill._local_corpus_first("Kessler syndrome", 3)
 
     assert answered is not None
     assert answered["provenance"] == "local_corpus"
@@ -136,21 +136,150 @@ def test_local_first_labels_its_provenance(monkeypatch) -> None:
     assert "no network used" in answered["summary"]
 
 
-def test_an_empty_corpus_falls_through_to_the_web(monkeypatch) -> None:
-    from core.skills.web_search import EnhancedWebSearchSkill as skill
+def test_local_first_projects_snapshot_evidence_onto_skill_contract(monkeypatch) -> None:
+    """Offline evidence remains evidence without being mislabeled as live web."""
+    from core.skills.web_search import EnhancedWebSearchSkill as WebSearchSkill
 
     monkeypatch.setattr(
-        skill, "_local_corpus_fallback", classmethod(lambda cls, q, n: None)
+        WebSearchSkill,
+        "_local_corpus_fallback",
+        classmethod(
+            lambda cls, q, n: {
+                "ok": True,
+                "provenance": "local_corpus",
+                "results": [
+                    {
+                        "title": "Solaris",
+                        "snippet": "Solaris is a novel by Stanislaw Lem.",
+                        "source": "enwiki:Solaris_(novel)",
+                        "provenance": "local_corpus",
+                    }
+                ],
+            }
+        ),
     )
 
-    assert skill._local_corpus_first("Kessler syndrome", 3) is None
+    answered = WebSearchSkill._finalize_result(
+        "who wrote Solaris",
+        WebSearchSkill._local_corpus_first("who wrote Solaris", 3) or {},
+    )
+
+    assert answered["criteria_results"]["sources gathered"] is True
+    assert answered["sources"] == [
+        {
+            "title": "Solaris",
+            "snippet": "Solaris is a novel by Stanislaw Lem.",
+            "source": "enwiki:Solaris_(novel)",
+            "provenance": "local_corpus",
+            "evidence_kind": "offline_reference_snapshot",
+            "fetched": False,
+        }
+    ]
+    assert "url" not in answered["sources"][0]
+
+
+@pytest.mark.asyncio
+async def test_local_first_result_passes_the_real_source_expectation(monkeypatch) -> None:
+    """Reproduce the live research-cycle route through its actual verifier."""
+    from core.capability_engine import CapabilityEngine
+    from core.runtime.skill_contract import apply_action_expectation_payload
+    from core.skills.web_search import EnhancedWebSearchSkill
+
+    skill = EnhancedWebSearchSkill()
+    monkeypatch.setattr(
+        skill,
+        "_local_corpus_first",
+        lambda q, n: {
+            "ok": True,
+            "provenance": "local_corpus",
+            "offline_preferred": True,
+            "results": [
+                {
+                    "title": "Biocomputing",
+                    "snippet": "A dated reference entry.",
+                    "source": "enwiki:Biocomputing",
+                    "provenance": "local_corpus",
+                }
+            ],
+            "summary": "Answered from the local reference snapshot.",
+        },
+    )
+
+    async def _network_must_not_run(*args, **kwargs):
+        raise AssertionError("timeless local-first query reached the network")
+
+    monkeypatch.setattr(skill.pipeline, "search", _network_must_not_run)
+    params = {"query": "the history and future of biocomputing"}
+    context = {"origin": "research_cycle", "requires_sources": True}
+
+    payload = await skill.execute(params, context)
+    expectation = CapabilityEngine.action_expectation_for("web_search", params, context)
+    checked = apply_action_expectation_payload("web_search", payload, expectation)
+
+    assert checked["ok"] is True
+    assert checked["status"] == "success_verified"
+    assert checked["expectation_verdict"]["passed"] is True
+    assert checked["expectation_verdict"]["present_evidence"] == ["sources", "summary"]
+    assert checked["sources"][0]["evidence_kind"] == "offline_reference_snapshot"
+
+
+@pytest.mark.asyncio
+async def test_raised_web_pipeline_fallback_keeps_sources_for_verification(monkeypatch) -> None:
+    """A raising network lane cannot bypass result finalization."""
+    from core.skills.web_search import EnhancedWebSearchSkill
+
+    skill = EnhancedWebSearchSkill()
+
+    async def _raise(*args, **kwargs):
+        raise OSError("network unavailable")
+
+    monkeypatch.setattr(skill.pipeline, "search", _raise)
+    monkeypatch.setattr(
+        skill,
+        "_local_corpus_fallback",
+        lambda q, n: {
+            "ok": True,
+            "provenance": "local_corpus",
+            "offline_fallback": True,
+            "results": [
+                {
+                    "title": "Biocomputing",
+                    "snippet": "A dated reference entry.",
+                    "source": "enwiki:Biocomputing",
+                    "provenance": "local_corpus",
+                }
+            ],
+            "summary": "Answered from the local reference snapshot.",
+        },
+    )
+
+    result = await skill.execute(
+        {"query": "research the history of biocomputing", "deep": False},
+        {"origin": "research_cycle"},
+    )
+
+    assert result["ok"] is True
+    assert result["web_error"] == "network unavailable"
+    assert result["sources"][0]["source"] == "enwiki:Biocomputing"
+    assert result["sources"][0]["evidence_kind"] == "offline_reference_snapshot"
+    assert result["criteria_results"]["sources gathered"] is True
+
+
+def test_an_empty_corpus_falls_through_to_the_web(monkeypatch) -> None:
+    from core.skills.web_search import EnhancedWebSearchSkill as WebSearchSkill
+
+    monkeypatch.setattr(
+        WebSearchSkill, "_local_corpus_fallback", classmethod(lambda cls, q, n: None)
+    )
+
+    assert WebSearchSkill._local_corpus_first("Kessler syndrome", 3) is None
 
 
 def test_unknown_freshness_prefers_the_network(monkeypatch) -> None:
     """If the policy cannot be consulted, the network is the safe answer."""
     import builtins
 
-    from core.skills.web_search import EnhancedWebSearchSkill as skill
+    from core.skills.web_search import EnhancedWebSearchSkill as WebSearchSkill
 
     real_import = builtins.__import__
 
@@ -161,4 +290,4 @@ def test_unknown_freshness_prefers_the_network(monkeypatch) -> None:
 
     monkeypatch.setattr(builtins, "__import__", _blocked)
 
-    assert skill._query_wants_current_information("Kessler syndrome") is True
+    assert WebSearchSkill._query_wants_current_information("Kessler syndrome") is True
