@@ -71,14 +71,6 @@ def _sha(value: Any) -> str:
     ).hexdigest()
 
 
-class _ResidentIdentityClient:
-    def __init__(self, model_path: str) -> None:
-        self.model_path = model_path
-
-    def unified_recurrent_qualified_serving_status(self) -> dict[str, Any]:
-        raise RuntimeError("semantic path attempted the legacy recurrent worker")
-
-
 def _mixed_runtime_tasks(*, seed: int, tasks_per_difficulty: int) -> list[Any]:
     tasks = frontier_process_task_battery(
         RUNTIME_DOMAINS,
@@ -136,7 +128,6 @@ async def _verify(*, seed: int, tasks_per_difficulty: int) -> dict[str, Any]:
         or activation_receipt.get("promotion_mode") != "active"
     ):
         raise RuntimeError("semantic neural serving activated the wrong runtime package")
-    client = _ResidentIdentityClient(model_path)
     tasks = _mixed_runtime_tasks(
         seed=seed,
         tasks_per_difficulty=tasks_per_difficulty,
@@ -150,7 +141,7 @@ async def _verify(*, seed: int, tasks_per_difficulty: int) -> dict[str, Any]:
     for task in tasks:
         started = time.perf_counter()
         result = await execute_qualified_recurrent_objective(
-            client,
+            None,
             task.prompt,
             timeout_s=30.0,
         )
@@ -215,7 +206,7 @@ async def _verify(*, seed: int, tasks_per_difficulty: int) -> dict[str, Any]:
             }
         )
     unsupported = await execute_qualified_recurrent_objective(
-        client,
+        None,
         "Please answer a general question.",
         timeout_s=5.0,
     )

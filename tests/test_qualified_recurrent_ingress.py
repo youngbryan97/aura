@@ -368,6 +368,47 @@ async def test_executor_serves_authenticated_semantic_state_without_model_copy(
 
 
 @pytest.mark.asyncio
+async def test_executor_serves_semantic_state_without_constructing_a_model_client(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    task = frontier_process_task_battery(
+        ("calibration",),
+        (2,),
+        1,
+        seed=2026081557,
+    )[0]
+
+    monkeypatch.setattr(
+        "core.brain.llm.semantic_neural_serving.semantic_neural_default_serving_status",
+        lambda: {
+            "active": True,
+            "reason": "semantic_neural_serving_active",
+            "receipt": {
+                "schema": "aura.semantic_neural_serving.v2",
+                "activation_sha256": "a" * 64,
+                "promotion_mode": "active",
+                "allowed_families": [
+                    "frontier_calibration",
+                    "frontier_coding",
+                    "frontier_misleading_premise",
+                    "frontier_scientific_inference",
+                ],
+            },
+        },
+    )
+
+    result = await ingress.execute_qualified_recurrent_objective(
+        None,
+        task.prompt,
+        timeout_s=5.0,
+    )
+
+    assert result["ok"] is True
+    assert result["text"] == task.answer
+    assert result["reason"] == "qualified_semantic_neural_completed"
+
+
+@pytest.mark.asyncio
 async def test_executor_refuses_recognized_semantic_family_before_activation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

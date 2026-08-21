@@ -4588,6 +4588,56 @@ def test_service_rejects_malformed_inputs_before_model_client_lookup(
     assert result["refusal_receipt"]["reason"] == result["reason"]
 
 
+def test_qualified_semantic_service_never_looks_up_the_resident_model_client(
+    monkeypatch,
+):
+    svc = LatentCortexService()
+    observed = {}
+
+    import core.brain.llm.mlx_client as mlx_client_mod
+    import core.brain.llm.qualified_recurrent_ingress as ingress_mod
+
+    monkeypatch.setattr(
+        ingress_mod,
+        "admit_qualified_recurrent_objective",
+        lambda _objective: SimpleNamespace(family="frontier_calibration"),
+    )
+
+    async def execute(client, objective, *, timeout_s):
+        observed.update(client=client, objective=objective, timeout_s=timeout_s)
+        return {
+            "eligible": True,
+            "attempted": True,
+            "ok": True,
+            "text": 'FINAL_ANSWER: {"choice":"H"}',
+            "reason": "qualified_semantic_neural_completed",
+        }
+
+    monkeypatch.setattr(
+        ingress_mod,
+        "execute_qualified_recurrent_objective",
+        execute,
+    )
+    monkeypatch.setattr(
+        mlx_client_mod,
+        "get_mlx_client",
+        lambda *args, **kwargs: pytest.fail(
+            "qualified semantic execution must not acquire the resident model"
+        ),
+    )
+
+    result = asyncio.run(
+        svc.qualified_recurrent_reason("semantic objective", timeout_s=8.0)
+    )
+
+    assert result["ok"] is True
+    assert observed == {
+        "client": None,
+        "objective": "semantic objective",
+        "timeout_s": 8.0,
+    }
+
+
 def test_service_propagates_background_lane_priority(monkeypatch):
     monkeypatch.delenv("AURA_LATENT_CORTEX", raising=False)
     svc = LatentCortexService()

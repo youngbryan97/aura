@@ -4410,17 +4410,29 @@ class LatentCortexService:
             )
 
             normalized = objective.strip()
-            if admit_qualified_recurrent_objective(normalized) is None:
+            admission = admit_qualified_recurrent_objective(normalized)
+            if admission is None:
                 return {
                     "eligible": False,
                     "attempted": False,
                     "ok": False,
                     "reason": "qualified_recurrent_objective_unsupported",
                 }
-            from core.brain.llm.mlx_client import get_mlx_client
+
+            # CP568 semantic tissue owns its model identity in the signed
+            # activation and executes without model generation.  Looking up
+            # the resident client here coupled that path to cold model startup
+            # and model-lane contention even though it never uses the client.
+            # Legacy typed families still require the worker and retain the
+            # existing client-bound authority checks.
+            client = None
+            if not str(admission.family).startswith("frontier_"):
+                from core.brain.llm.mlx_client import get_mlx_client
+
+                client = get_mlx_client()
 
             return await execute_qualified_recurrent_objective(
-                get_mlx_client(),
+                client,
                 normalized,
                 timeout_s=min(300.0, max(5.0, bounded_timeout)),
             )

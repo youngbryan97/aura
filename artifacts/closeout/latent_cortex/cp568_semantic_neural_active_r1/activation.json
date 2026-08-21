@@ -1,5 +1,5 @@
 {
-  "activation_sha256": "e861b93fb419a969eaf0b3ec170d563b5864aa175ad743b0fa39ad7951ece850",
+  "activation_sha256": "31693774790ca38ce88a3c66b6bd67e0179070bb352e065a3787bfb56171c0ab",
   "active_by_default": true,
   "allowed_families": [
     "frontier_calibration",
@@ -47,7 +47,7 @@
   },
   "integration_contract_sha256s": {
     "core/brain/foreground_latent_runtime.py::symbol:run_foreground_latent_episode": "af579df7f862ea56d0401f84778155cec1880f740356acfd3b074500a9f96482",
-    "core/brain/latent_cortex_service.py::symbol:LatentCortexService.qualified_recurrent_reason": "1e24081b64b57e16964c6988f08b4bbfebcb70a1d6e074329fe17f06dbcb30e5"
+    "core/brain/latent_cortex_service.py::symbol:LatentCortexService.qualified_recurrent_reason": "48d911ad1abb8a86ca326f672f787f04fefae79652b71c17b139ef0a53ebe8f5"
   },
   "mode": "qualified_exact_semantic_v1",
   "model_identity": {
@@ -67,15 +67,15 @@
     "tag": "crsm-closeout-jul1"
   },
   "runtime_qualification": {
-    "candidate_activation_sha256": "6b46e6f87ea6a31337da2aef577c522f3a456b155a1020a7cd6d2f57f46a5220",
+    "candidate_activation_sha256": "b0376918c09e5880fe6227c2de7b77250e95a90314e84c9c24db74ef1a6dde89",
     "exact_count": 120,
     "lesion_disruption_count": 120,
-    "max_latency_ms": 317.796,
+    "max_latency_ms": 90.732,
     "path": "artifacts/closeout/latent_cortex/cp568_semantic_neural_active_r1/runtime_verification.json",
-    "sha256": "b849f51481eef75f422a254ac3b9b688eb6ff0c4843d4e3d7d68f02f2e2e04e5",
+    "sha256": "6559ad49972076493111832e50878e0402e2e754025d7f37c3e04607aaef1778",
     "task_count": 120,
     "unsupported_language_refused": true,
-    "verification_receipt_sha256": "3209495c32303bfedc7f8d17e6c5ac614bae44985d2c709d2cd05e719d65eca1"
+    "verification_receipt_sha256": "0fa06a73094a52d9a7f55f94cd4acd494c6536058cf4f5b271ef638978e05c9a"
   },
   "schema": "aura.semantic_neural_serving.v2",
   "source_sha256s": {
@@ -86,7 +86,7 @@
     "core/brain/llm/latent_cortex/semantic_neural_decode_context.py": "affc4bc3cbf017454b50441e5c8fc7c9494f63bc8c72e0f8605f27c69c582abc",
     "core/brain/llm/latent_cortex/semantic_surface_adapter.py": "31cd151ea864449795c4fcc8751fe9eccdb771e520efb541709bacf066807b24",
     "core/brain/llm/latent_cortex/systematic_neural_alu.py": "141a3d16aa891be182b30c38707a3f15c208734574e5af32459a8f25ac105a72",
-    "core/brain/llm/qualified_recurrent_ingress.py": "88ac400f127c659f63b9f53a49c32f1dd21f12115038098cebf92a0ed284f778",
+    "core/brain/llm/qualified_recurrent_ingress.py": "b3d37413c752790e3cc05d734d6b47f0973d20d084ef28b7bcc22a06ac1fc357",
     "core/learning/frontier_process_supervision.py": "f4beb455da1c3cb8e77a3c17afd2a3f5c6cee8d127b60e47c4e99e038d7902bf",
     "core/learning/public_frontier_action_compiler.py": "32da5f3169ea75003b1aeea0a7fdcb072a9ee138968eae42c0fb75f57f973592",
     "core/learning/recurrent_action_schema.py": "9e64dff7ac586c62bc3cc519694cd5b579a6fac020ad631ea31a5d7e6e0b0904",

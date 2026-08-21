@@ -447,7 +447,7 @@ def render_qualified_recurrent_answer(
 
 
 async def execute_qualified_recurrent_objective(
-    client: Any,
+    client: Any | None,
     prompt: str,
     *,
     timeout_s: float,
@@ -468,13 +468,23 @@ async def execute_qualified_recurrent_objective(
             render_semantic_neural_answer,
         )
         from core.brain.llm.semantic_neural_serving import (
+            semantic_neural_default_serving_status,
             semantic_neural_serving_status,
         )
 
-        model_path = str(getattr(client, "model_path", "") or "")
-        if not model_path:
-            raise RuntimeError("qualified_recurrent_model_identity_unavailable")
-        status = semantic_neural_serving_status(model_path)
+        # The promoted semantic machine is an authenticated, CPU-bound state
+        # transition system.  It does not consume the resident decoder.  A
+        # foreground call must therefore be able to execute it without even
+        # constructing an MLX client: client construction can wait on model
+        # admission during cold boot and used to turn a sub-second exact
+        # program into a qualified-ingress timeout.
+        if client is None:
+            status = semantic_neural_default_serving_status()
+        else:
+            model_path = str(getattr(client, "model_path", "") or "")
+            if not model_path:
+                raise RuntimeError("qualified_recurrent_model_identity_unavailable")
+            status = semantic_neural_serving_status(model_path)
         if not isinstance(status, Mapping) or status.get("active") is not True:
             return {
                 "eligible": True,
