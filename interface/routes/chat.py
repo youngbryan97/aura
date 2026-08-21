@@ -14869,6 +14869,40 @@ def _serve_positional_solution(user_message: object, reply: object) -> object:
         return reply
 
 
+def _save_requested_artifact(user_message: object, reply: object) -> object:
+    """Write the file the reply contains, and say where it went.
+
+    LIVE, 2026-08-21. "build me a small web app… Keep it one self-contained
+    file. Tell me where you put it." The one thing that worked every time was
+    the plain turn: she writes a complete, correct page into the reply in
+    about thirty seconds. What never worked was saving it — a builder that
+    needs a second code model this host cannot load, called from inside the
+    turn whose cortex it needs.
+
+    So the file comes out of the answer she already gave. The sentence is
+    appended rather than replacing anything, because the page in the reply is
+    still the answer; the path is what was missing.
+    """
+    body = str(reply or "")
+    try:
+        from core.conversation.requested_artifact import save_requested_artifact
+
+        saved = save_requested_artifact(str(user_message or ""), body)
+        if saved is None:
+            return reply
+        logger.info("💾 Saved the requested file to %s.", saved.path)
+        return f"{body.rstrip()}\n\nSaved it to {saved.path}."
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        record_degradation(
+            "chat.requested_artifact",
+            exc,
+            severity="debug",
+            action="left the file in the reply rather than on disk",
+            enforce_failure_policy=False,
+        )
+        return reply
+
+
 def _serve_recent_activity(user_message: object, reply: object) -> object:
     """Answer "what have you been working on" from the record of doing it.
 
@@ -16655,6 +16689,7 @@ def _recorded_answer_corrections(user_message: object, reply: object) -> tuple[s
     corrected = str(_serve_earlier_conversation(user_message, corrected) or corrected)
     corrected = str(_serve_queued_work(user_message, corrected) or corrected)
     corrected = str(_serve_recent_activity(user_message, corrected) or corrected)
+    corrected = str(_save_requested_artifact(user_message, corrected) or corrected)
     corrected = str(_serve_positional_solution(user_message, corrected) or corrected)
     corrected = str(_serve_lifetime(user_message, corrected) or corrected)
     corrected = str(_serve_tabular_answer(user_message, corrected) or corrected)
