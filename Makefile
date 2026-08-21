@@ -339,8 +339,8 @@ frontend-contract:
 
 architecture-map:
 	@echo "🧭 Generating operational architecture dependency map..."
-	@$(PYTHON) tools/arch_map.py --write-latest --json > /tmp/aura_architecture_map.json
-	@echo "✅ Architecture map written to artifacts/architecture/latest.json and latest.md"
+	@$(PYTHON) tools/arch_map.py --write-latest --write-doc --json > /tmp/aura_architecture_map.json
+	@echo "✅ Architecture map written to artifacts/architecture/ and docs/ARCHITECTURE_MAP.md"
 
 provenance:
 	@echo "📦 Generating SBOM and release provenance..."

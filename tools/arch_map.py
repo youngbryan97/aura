@@ -13,6 +13,7 @@ Outputs:
 import ast
 import argparse
 import json
+from datetime import date
 import os
 import re
 import sys
@@ -915,6 +916,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Write artifacts/architecture/latest.json and latest.md.",
     )
+    parser.add_argument(
+        "--write-doc",
+        action="store_true",
+        help="Write docs/ARCHITECTURE_MAP.md, with the dated reading note.",
+    )
     args = parser.parse_args(argv)
 
     report = build_architecture_report()
@@ -929,6 +935,23 @@ def main(argv: list[str] | None = None) -> int:
         atomic_write_text(args.out_md, render_markdown_report(report), encoding="utf-8")
     if args.write_latest:
         write_report_artifacts(report, ROOT / "artifacts" / "architecture")
+    if args.write_doc:
+        # docs/DOC_STATUS.md tells a reader to regenerate this page with
+        # `make architecture-map`. Until this flag existed, that target wrote
+        # artifacts/ and /tmp and left the page alone, which is how the page
+        # came to report 153 subsystems against an actual 155.
+        body = render_markdown_report(report)
+        title, rest = body.split("\n", 1)
+        note = (
+            f"\n*Reviewed against the tree: {date.today().isoformat()}. "
+            "See [documentation status map](DOC_STATUS.md) for how to read "
+            "this file.*\n"
+        )
+        atomic_write_text(
+            ROOT / "docs" / "ARCHITECTURE_MAP.md",
+            f"{title}\n{note}{rest}",
+            encoding="utf-8",
+        )
 
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True, default=str))

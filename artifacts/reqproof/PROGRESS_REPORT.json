@@ -1,41 +1,41 @@
 {
   "checkpoint_inventory": {
-    "distinct_pushed_commits": 401,
-    "pushed_checkpoint_records": 419,
-    "records_in_tracker": 419,
-    "records_on_shared_commits": 31,
+    "distinct_pushed_commits": 783,
+    "pushed_checkpoint_records": 821,
+    "records_in_tracker": 821,
+    "records_on_shared_commits": 66,
     "unpushed_checkpoint_records": 0,
     "unpushed_record_ids": []
   },
   "completion": {
     "engineering_estimate_percent": "27.00",
     "engineering_estimate_status": "legacy_uncertified_not_used_for_release",
-    "machine_certified_percent": "7.33",
+    "machine_certified_percent": "0.33",
     "status": "provisional_evidence_backfill_incomplete",
-    "verified_basis_points": 733
+    "verified_basis_points": 33
   },
   "evidence_classes": [
     {
       "cells_total": 516,
-      "cells_verified": 49,
+      "cells_verified": 1,
       "evidence_class": "implementation",
       "weight": 2
     },
     {
       "cells_total": 516,
-      "cells_verified": 49,
+      "cells_verified": 4,
       "evidence_class": "test",
       "weight": 2
     },
     {
       "cells_total": 132,
-      "cells_verified": 3,
+      "cells_verified": 0,
       "evidence_class": "live",
       "weight": 3
     },
     {
       "cells_total": 37,
-      "cells_verified": 2,
+      "cells_verified": 0,
       "evidence_class": "gui",
       "weight": 3
     },
@@ -47,7 +47,7 @@
     },
     {
       "cells_total": 19,
-      "cells_verified": 2,
+      "cells_verified": 0,
       "evidence_class": "portability",
       "weight": 4
     },
@@ -69,13 +69,13 @@
     "confidence": "low",
     "conservative_weighted_points_per_checkpoint": 10,
     "optimistic_weighted_points_per_checkpoint": 30,
-    "remaining_checkpoint_records_high": 277,
-    "remaining_checkpoint_records_low": 93,
-    "total_checkpoint_records_high": 696,
-    "total_checkpoint_records_low": 512
+    "remaining_checkpoint_records_high": 298,
+    "remaining_checkpoint_records_low": 100,
+    "total_checkpoint_records_high": 1119,
+    "total_checkpoint_records_low": 921
   },
   "inputs": {
-    "evidence_ledger_sha256": "3a11ebac4a3dd7321f0ef7611f65268b3fe25815c08cd46f68032793452596f4",
+    "evidence_ledger_sha256": "1d859d519ce1e1b64454d8573019a58f0215e362f48a695734585afd5e4ee910",
     "progress_policy_sha256": "51b725d4ff7c375ae98cece8d7d6d4351739689b500450b67b836e7e37006a47",
     "registry_sha256": "cebc5b3b7743f8a8c53f3c91dd2e187e17df5f48a94512efa377823a72c08f32",
     "scope_baseline_sha256": "b6e9e3295b297e9a32223fa75322584e1f9d395225888924a38f9791205b7336"
@@ -86,7 +86,7 @@
     "Checkpoint records sharing one commit are counted as records and exposed separately from distinct commits.",
     "Parent and child requirements are both counted when each declares its own integration or proof burden."
   ],
-  "report_sha256": "f74add5cd7edca39dd14e97773b48f46030672afd25f2ff94fddc9769777d326",
+  "report_sha256": "3c20fa84e796f478f201802d396ce0f201a716e0c52599403af04ded85773bbc",
   "requirements": [
     {
       "acceptance_evidence_required": [
@@ -331,7 +331,7 @@
       ],
       "acceptance_units": 9,
       "cells_total": 22,
-      "cells_verified": 18,
+      "cells_verified": 0,
       "id": "ADDENDUM-21",
       "kind": "parent",
       "required_evidence_classes": [
@@ -343,7 +343,7 @@
       "state_claim": "open",
       "weight_provenance": "default",
       "weighted_points_total": "49.00",
-      "weighted_points_verified": "36.00"
+      "weighted_points_verified": "0.00"
     },
     {
       "acceptance_evidence_required": [
@@ -392,7 +392,7 @@
       ],
       "acceptance_units": 9,
       "cells_total": 24,
-      "cells_verified": 10,
+      "cells_verified": 0,
       "id": "ADDENDUM-22",
       "kind": "parent",
       "required_evidence_classes": [
@@ -405,7 +405,7 @@
       "state_claim": "in_progress",
       "weight_provenance": "default",
       "weighted_points_total": "56.00",
-      "weighted_points_verified": "20.00"
+      "weighted_points_verified": "0.00"
     },
     {
       "acceptance_evidence_required": [
@@ -436,7 +436,7 @@
       ],
       "acceptance_units": 5,
       "cells_total": 14,
-      "cells_verified": 14,
+      "cells_verified": 0,
       "id": "ADDENDUM-23",
       "kind": "parent",
       "required_evidence_classes": [
@@ -449,7 +449,7 @@
       "state_claim": "complete",
       "weight_provenance": "default",
       "weighted_points_total": "33.00",
-      "weighted_points_verified": "33.00"
+      "weighted_points_verified": "0.00"
     },
     {
       "acceptance_evidence_required": [
@@ -756,7 +756,7 @@
       ],
       "acceptance_units": 4,
       "cells_total": 8,
-      "cells_verified": 8,
+      "cells_verified": 0,
       "id": "ADDENDUM-32",
       "kind": "parent",
       "required_evidence_classes": [
@@ -766,7 +766,7 @@
       "state_claim": "complete",
       "weight_provenance": "default",
       "weighted_points_total": "16.00",
-      "weighted_points_verified": "16.00"
+      "weighted_points_verified": "0.00"
     },
     {
       "acceptance_evidence_required": [
@@ -1847,7 +1847,7 @@
       ],
       "acceptance_units": 1,
       "cells_total": 2,
-      "cells_verified": 2,
+      "cells_verified": 0,
       "id": "CTX2-GATE-001",
       "kind": "atomic",
       "required_evidence_classes": [
@@ -1857,7 +1857,7 @@
       "state_claim": "complete",
       "weight_provenance": "default",
       "weighted_points_total": "4.00",
-      "weighted_points_verified": "4.00"
+      "weighted_points_verified": "0.00"
     },
     {
       "acceptance_evidence_required": [
@@ -1868,7 +1868,7 @@
       ],
       "acceptance_units": 1,
       "cells_total": 2,
-      "cells_verified": 2,
+      "cells_verified": 0,
       "id": "CTX2-GATE-002",
       "kind": "atomic",
       "required_evidence_classes": [
@@ -1878,7 +1878,7 @@
       "state_claim": "complete",
       "weight_provenance": "default",
       "weighted_points_total": "4.00",
-      "weighted_points_verified": "4.00"
+      "weighted_points_verified": "0.00"
     },
     {
       "acceptance_evidence_required": [
@@ -2040,7 +2040,7 @@
       ],
       "acceptance_units": 1,
       "cells_total": 2,
-      "cells_verified": 2,
+      "cells_verified": 0,
       "id": "CTX2-LANE-001",
       "kind": "atomic",
       "required_evidence_classes": [
@@ -2050,7 +2050,7 @@
       "state_claim": "open",
       "weight_provenance": "default",
       "weighted_points_total": "4.00",
-      "weighted_points_verified": "4.00"
+      "weighted_points_verified": "0.00"
     },
     {
       "acceptance_evidence_required": [
@@ -2061,7 +2061,7 @@
       ],
       "acceptance_units": 1,
       "cells_total": 2,
-      "cells_verified": 2,
+      "cells_verified": 0,
       "id": "CTX2-LANE-002",
       "kind": "atomic",
       "required_evidence_classes": [
@@ -2071,7 +2071,7 @@
       "state_claim": "open",
       "weight_provenance": "default",
       "weighted_points_total": "4.00",
-      "weighted_points_verified": "4.00"
+      "weighted_points_verified": "0.00"
     },
     {
       "acceptance_evidence_required": [
@@ -2083,7 +2083,7 @@
       ],
       "acceptance_units": 1,
       "cells_total": 3,
-      "cells_verified": 2,
+      "cells_verified": 0,
       "id": "CTX2-LANE-003",
       "kind": "atomic",
       "required_evidence_classes": [
@@ -2094,7 +2094,7 @@
       "state_claim": "open",
       "weight_provenance": "default",
       "weighted_points_total": "7.00",
-      "weighted_points_verified": "4.00"
+      "weighted_points_verified": "0.00"
     },
     {
       "acceptance_evidence_required": [
@@ -2105,7 +2105,7 @@
       ],
       "acceptance_units": 1,
       "cells_total": 2,
-      "cells_verified": 2,
+      "cells_verified": 0,
       "id": "CTX2-LANE-004",
       "kind": "atomic",
       "required_evidence_classes": [
@@ -2115,7 +2115,7 @@
       "state_claim": "open",
       "weight_provenance": "default",
       "weighted_points_total": "4.00",
-      "weighted_points_verified": "4.00"
+      "weighted_points_verified": "0.00"
     },
     {
       "acceptance_evidence_required": [
@@ -2449,7 +2449,7 @@
       ],
       "acceptance_units": 1,
       "cells_total": 2,
-      "cells_verified": 2,
+      "cells_verified": 0,
       "id": "CTX2-SHUTDOWN-001",
       "kind": "atomic",
       "required_evidence_classes": [
@@ -2459,7 +2459,7 @@
       "state_claim": "complete",
       "weight_provenance": "default",
       "weighted_points_total": "4.00",
-      "weighted_points_verified": "4.00"
+      "weighted_points_verified": "0.00"
     },
     {
       "acceptance_evidence_required": [
@@ -2470,7 +2470,7 @@
       ],
       "acceptance_units": 1,
       "cells_total": 2,
-      "cells_verified": 2,
+      "cells_verified": 0,
       "id": "CTX2-SHUTDOWN-002",
       "kind": "atomic",
       "required_evidence_classes": [
@@ -2480,7 +2480,7 @@
       "state_claim": "complete",
       "weight_provenance": "default",
       "weighted_points_total": "4.00",
-      "weighted_points_verified": "4.00"
+      "weighted_points_verified": "0.00"
     },
     {
       "acceptance_evidence_required": [
@@ -2491,7 +2491,7 @@
       ],
       "acceptance_units": 1,
       "cells_total": 2,
-      "cells_verified": 2,
+      "cells_verified": 0,
       "id": "CTX2-SHUTDOWN-003",
       "kind": "atomic",
       "required_evidence_classes": [
@@ -2501,7 +2501,7 @@
       "state_claim": "complete",
       "weight_provenance": "default",
       "weighted_points_total": "4.00",
-      "weighted_points_verified": "4.00"
+      "weighted_points_verified": "0.00"
     },
     {
       "acceptance_evidence_required": [
@@ -2512,7 +2512,7 @@
       ],
       "acceptance_units": 1,
       "cells_total": 2,
-      "cells_verified": 2,
+      "cells_verified": 0,
       "id": "CTX2-SKILL-001",
       "kind": "atomic",
       "required_evidence_classes": [
@@ -2522,7 +2522,7 @@
       "state_claim": "complete",
       "weight_provenance": "default",
       "weighted_points_total": "4.00",
-      "weighted_points_verified": "4.00"
+      "weighted_points_verified": "0.00"
     },
     {
       "acceptance_evidence_required": [
@@ -2536,7 +2536,7 @@
       ],
       "acceptance_units": 1,
       "cells_total": 5,
-      "cells_verified": 5,
+      "cells_verified": 0,
       "id": "CTX2-SKILL-002",
       "kind": "atomic",
       "required_evidence_classes": [
@@ -2549,7 +2549,7 @@
       "state_claim": "complete",
       "weight_provenance": "default",
       "weighted_points_total": "14.00",
-      "weighted_points_verified": "14.00"
+      "weighted_points_verified": "0.00"
     },
     {
       "acceptance_evidence_required": [
@@ -2560,7 +2560,7 @@
       ],
       "acceptance_units": 1,
       "cells_total": 2,
-      "cells_verified": 2,
+      "cells_verified": 0,
       "id": "CTX2-TEST-001",
       "kind": "atomic",
       "required_evidence_classes": [
@@ -2570,7 +2570,7 @@
       "state_claim": "in_progress",
       "weight_provenance": "default",
       "weighted_points_total": "4.00",
-      "weighted_points_verified": "4.00"
+      "weighted_points_verified": "0.00"
     },
     {
       "acceptance_evidence_required": [
@@ -2582,7 +2582,7 @@
       ],
       "acceptance_units": 1,
       "cells_total": 3,
-      "cells_verified": 2,
+      "cells_verified": 0,
       "id": "CTX2-TEST-002",
       "kind": "atomic",
       "required_evidence_classes": [
@@ -2593,7 +2593,7 @@
       "state_claim": "in_progress",
       "weight_provenance": "default",
       "weighted_points_total": "7.00",
-      "weighted_points_verified": "4.00"
+      "weighted_points_verified": "0.00"
     },
     {
       "acceptance_evidence_required": [
@@ -2604,7 +2604,7 @@
       ],
       "acceptance_units": 1,
       "cells_total": 2,
-      "cells_verified": 2,
+      "cells_verified": 0,
       "id": "CTX2-TEST-003",
       "kind": "atomic",
       "required_evidence_classes": [
@@ -2614,7 +2614,7 @@
       "state_claim": "in_progress",
       "weight_provenance": "default",
       "weighted_points_total": "4.00",
-      "weighted_points_verified": "4.00"
+      "weighted_points_verified": "0.00"
     },
     {
       "acceptance_evidence_required": [
@@ -4066,7 +4066,7 @@
       ],
       "acceptance_units": 1,
       "cells_total": 4,
-      "cells_verified": 2,
+      "cells_verified": 0,
       "id": "LANE-001",
       "kind": "parent",
       "required_evidence_classes": [
@@ -4078,7 +4078,7 @@
       "state_claim": "in_progress",
       "weight_provenance": "default",
       "weighted_points_total": "11.00",
-      "weighted_points_verified": "4.00"
+      "weighted_points_verified": "0.00"
     },
     {
       "acceptance_evidence_required": [
@@ -4114,7 +4114,7 @@
       ],
       "acceptance_units": 1,
       "cells_total": 2,
-      "cells_verified": 2,
+      "cells_verified": 0,
       "id": "LIFECYCLE-001",
       "kind": "atomic",
       "required_evidence_classes": [
@@ -4124,7 +4124,7 @@
       "state_claim": "in_progress",
       "weight_provenance": "default",
       "weighted_points_total": "4.00",
-      "weighted_points_verified": "4.00"
+      "weighted_points_verified": "0.00"
     },
     {
       "acceptance_evidence_required": [
@@ -5618,7 +5618,7 @@
       ],
       "acceptance_units": 3,
       "cells_total": 6,
-      "cells_verified": 6,
+      "cells_verified": 0,
       "id": "PASSF-03",
       "kind": "atomic",
       "required_evidence_classes": [
@@ -5628,7 +5628,7 @@
       "state_claim": "complete",
       "weight_provenance": "default",
       "weighted_points_total": "12.00",
-      "weighted_points_verified": "12.00"
+      "weighted_points_verified": "0.00"
     },
     {
       "acceptance_evidence_required": [
@@ -6055,7 +6055,7 @@
       ],
       "acceptance_units": 1,
       "cells_total": 6,
-      "cells_verified": 2,
+      "cells_verified": 1,
       "id": "PROGRESS-CONTROL-001",
       "kind": "atomic",
       "required_evidence_classes": [
@@ -6069,7 +6069,7 @@
       "state_claim": "in_progress",
       "weight_provenance": "default",
       "weighted_points_total": "19.00",
-      "weighted_points_verified": "4.00"
+      "weighted_points_verified": "2.00"
     },
     {
       "acceptance_evidence_required": [
@@ -6221,7 +6221,7 @@
       ],
       "acceptance_units": 1,
       "cells_total": 3,
-      "cells_verified": 2,
+      "cells_verified": 0,
       "id": "RESOURCE-001",
       "kind": "parent",
       "required_evidence_classes": [
@@ -6232,7 +6232,7 @@
       "state_claim": "in_progress",
       "weight_provenance": "default",
       "weighted_points_total": "7.00",
-      "weighted_points_verified": "4.00"
+      "weighted_points_verified": "0.00"
     },
     {
       "acceptance_evidence_required": [
@@ -7104,7 +7104,7 @@
       ],
       "acceptance_units": 1,
       "cells_total": 3,
-      "cells_verified": 2,
+      "cells_verified": 1,
       "id": "SCOPE-001",
       "kind": "parent",
       "required_evidence_classes": [
@@ -7115,7 +7115,7 @@
       "state_claim": "in_progress",
       "weight_provenance": "default",
       "weighted_points_total": "8.00",
-      "weighted_points_verified": "4.00"
+      "weighted_points_verified": "2.00"
     },
     {
       "acceptance_evidence_required": [
@@ -7218,7 +7218,7 @@
       ],
       "acceptance_units": 1,
       "cells_total": 2,
-      "cells_verified": 2,
+      "cells_verified": 0,
       "id": "SHUTDOWN-001",
       "kind": "parent",
       "required_evidence_classes": [
@@ -7228,7 +7228,7 @@
       "state_claim": "complete",
       "weight_provenance": "default",
       "weighted_points_total": "4.00",
-      "weighted_points_verified": "4.00"
+      "weighted_points_verified": "0.00"
     },
     {
       "acceptance_evidence_required": [
@@ -7285,7 +7285,7 @@
       ],
       "acceptance_units": 1,
       "cells_total": 2,
-      "cells_verified": 2,
+      "cells_verified": 0,
       "id": "SKILLS-001",
       "kind": "parent",
       "required_evidence_classes": [
@@ -7295,7 +7295,7 @@
       "state_claim": "complete",
       "weight_provenance": "default",
       "weighted_points_total": "4.00",
-      "weighted_points_verified": "4.00"
+      "weighted_points_verified": "0.00"
     },
     {
       "acceptance_evidence_required": [
@@ -7627,7 +7627,7 @@
       ],
       "acceptance_units": 1,
       "cells_total": 2,
-      "cells_verified": 2,
+      "cells_verified": 1,
       "id": "STORAGE-GATEWAY-001",
       "kind": "atomic",
       "required_evidence_classes": [
@@ -7637,7 +7637,7 @@
       "state_claim": "in_progress",
       "weight_provenance": "default",
       "weighted_points_total": "4.00",
-      "weighted_points_verified": "4.00"
+      "weighted_points_verified": "2.00"
     },
     {
       "acceptance_evidence_required": [
@@ -7975,13 +7975,13 @@
   "schema_version": 1,
   "scope": {
     "acceptance_evidence_cells_total": 1305,
-    "acceptance_evidence_cells_verified": 105,
+    "acceptance_evidence_cells_verified": 5,
     "assigned_weight_requirements": 0,
     "mandatory_requirements": 312,
     "requirements_total": 313,
     "scope_baseline_cells": 1305,
-    "weighted_points_remaining": "2768.00",
+    "weighted_points_remaining": "2977.00",
     "weighted_points_total": "2987.00",
-    "weighted_points_verified": "219.00"
+    "weighted_points_verified": "10.00"
   }
 }
