@@ -52,3 +52,27 @@ def test_the_policy_still_refuses_what_is_genuinely_out_of_bounds() -> None:
         assert "out_of_policy" in str(exc)
     else:  # pragma: no cover - the bound would be gone
         raise AssertionError("the policy no longer refuses anything")
+
+
+def test_a_failed_build_says_why() -> None:
+    """It ran for seventy-three seconds, failed, and came back as
+    "build_app reported failure without a cause" — while the result object
+    carried both an error and a status."""
+    from pathlib import Path
+
+    source = Path("core/skills/build_app.py").read_text(encoding="utf-8")
+    assert '"error": reason' in source
+    assert "str(result.error or \"\").strip()" in source
+    assert "str(result.status or \"\").strip()" in source
+
+
+def test_a_failed_build_never_claims_a_path() -> None:
+    """The success summary reads "Built 'x' -> path", which is a completion
+    claim; a failure must not borrow it."""
+    from pathlib import Path
+
+    source = Path("core/skills/build_app.py").read_text(encoding="utf-8")
+    failure = source[source.index("if not result.ok:") :]
+    failure = failure[: failure.index("return {\n            \"ok\": True")]
+    assert "Could not build" in failure
+    assert "Built '" not in failure

@@ -65,8 +65,30 @@ class BuildAppSkill(BaseSkill):
             max_iters=max(1, min(int(params.max_iters or 3), 6)),
         )
         payload = result.to_dict()
+        if not result.ok:
+            # The result carries `error` and `status` and neither was passed
+            # on, so a build that ran for seventy-three seconds and failed
+            # came back as "build_app reported failure without a cause".
+            # Whatever went wrong, the person and the retry both need it.
+            reason = (
+                str(result.error or "").strip()
+                or str(result.status or "").strip()
+                or "the build finished without producing a working file"
+            )
+            return {
+                "ok": False,
+                "skill": self.name,
+                "error": reason,
+                "spec": result.spec,
+                "path": result.path,
+                "result": payload,
+                "summary": (
+                    f"Could not build '{result.spec}': {reason} "
+                    f"(after {result.iterations} iteration(s))."
+                ),
+            }
         return {
-            "ok": bool(result.ok),
+            "ok": True,
             "skill": self.name,
             "spec": result.spec,
             "path": result.path,
