@@ -853,6 +853,45 @@ class TaskCommitmentVerifier:
             )
         )
 
+        # Learn whether planning actually began before promising that it did.
+        #
+        # LIVE, 2026-08-20/21. This returned STARTED the instant the task was
+        # created, and the person was told "Task accepted into governed
+        # background execution… No completion is claimed yet." Planning then
+        # deferred every time, and by a different gate on each restart —
+        # foreground_chat_active, foreground_quiet_window,
+        # welfare_memory_integrity_0.18 — so the work never began and the
+        # promise was never true. Deferral takes about seventy milliseconds to
+        # discover, which is worth waiting for before speaking.
+        try:
+            await asyncio.wait_for(
+                asyncio.shield(execution_task), timeout=self.PLANNING_GRACE_S
+            )
+        except (asyncio.TimeoutError, asyncio.CancelledError):
+            pass  # Still running, which is what STARTED means.
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            pass  # A real failure is the finalizer's to record.
+        else:
+            if execution_task.done() and not execution_task.cancelled():
+                early = execution_task.exception() is None and execution_task.result()
+                deferral = self._deferral_reason(early) if early else ""
+                if deferral:
+                    logger.info(
+                        "TaskCommitmentVerifier: task %s never started (%s); "
+                        "answering inline instead of promising background work.",
+                        task_id,
+                        deferral,
+                    )
+                    return TaskAcceptance(
+                        outcome=DispatchOutcome.DEFERRED,
+                        task_id=task_id,
+                        commitment_id=commitment_id,
+                        objective=objective,
+                        requested_objective=requested_objective,
+                        summary=str(getattr(early, "summary", "") or deferral),
+                        elapsed_ms=(time.monotonic() - t0) * 1000,
+                    )
+
         elapsed = (time.monotonic() - t0) * 1000
         return TaskAcceptance(
             outcome=DispatchOutcome.STARTED,
@@ -923,6 +962,10 @@ class TaskCommitmentVerifier:
 
     #: How long to wait before asking again, and how many times. Admission
     #: clears when a foreground turn finishes, which is seconds to minutes.
+    #: How long to wait for planning to begin before promising it has.
+    #: Deferral is discovered in about seventy milliseconds.
+    PLANNING_GRACE_S = 1.5
+
     DEFERRED_RETRY_DELAY_S = 45.0
     DEFERRED_RETRY_LIMIT = 4
 

@@ -107,3 +107,27 @@ def test_nothing_launched_means_nothing_promised() -> None:
 def test_the_inline_dispatch_reports_a_deferral_as_one() -> None:
     source = VERIFIER.read_text(encoding="utf-8")
     assert "outcome = DispatchOutcome.DEFERRED" in source
+
+
+def test_the_async_path_learns_before_it_promises() -> None:
+    """It returned STARTED the instant the task was created, and planning then
+    deferred every time — so the promise was never true. Deferral takes about
+    seventy milliseconds to discover, which is worth waiting for."""
+    cls = _verifier_class()
+    assert 0 < cls.PLANNING_GRACE_S <= 5.0
+
+    source = VERIFIER.read_text(encoding="utf-8")
+    body = source[source.index("async def _dispatch_async") :]
+    body = body[: body.index("\n    def _get_cap_engine")]
+    assert "PLANNING_GRACE_S" in body
+    assert "outcome=DispatchOutcome.DEFERRED" in body
+    assert body.index("PLANNING_GRACE_S") < body.index("outcome=DispatchOutcome.STARTED")
+
+
+def test_a_task_still_running_is_still_a_start() -> None:
+    """The grace is a question, not a deadline: work that is genuinely under
+    way keeps its promise."""
+    source = VERIFIER.read_text(encoding="utf-8")
+    body = source[source.index("async def _dispatch_async") :]
+    body = body[: body.index("\n    def _get_cap_engine")]
+    assert "Still running, which is what STARTED means." in body
