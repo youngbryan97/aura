@@ -82,9 +82,7 @@ def _mixed_runtime_tasks(*, seed: int, tasks_per_difficulty: int) -> list[Any]:
     surface_index = 0
     for index, task in enumerate(tasks):
         if task.family == "frontier_scientific_inference":
-            profile = SEMANTIC_SURFACE_PROFILES[
-                surface_index % len(SEMANTIC_SURFACE_PROFILES)
-            ]
+            profile = SEMANTIC_SURFACE_PROFILES[surface_index % len(SEMANTIC_SURFACE_PROFILES)]
             surface_index += 1
             task = replace(
                 task,
@@ -135,6 +133,7 @@ async def _verify(*, seed: int, tasks_per_difficulty: int) -> dict[str, Any]:
     rows = []
     latencies = []
     lesion_disruptions = 0
+    measured_backend_receipt_equivalence_count = 0
     exact_by_domain = {domain: 0 for domain in RUNTIME_DOMAINS}
     lesions_by_domain = {domain: 0 for domain in RUNTIME_DOMAINS}
     surface_profiles = {profile: 0 for profile in SEMANTIC_SURFACE_PROFILES}
@@ -155,6 +154,11 @@ async def _verify(*, seed: int, tasks_per_difficulty: int) -> dict[str, Any]:
             raise RuntimeError(f"semantic runtime emitted an unexpected family: {task.family}")
         exact_by_domain[domain] += 1
         expected_state, expected_surface_receipt = _expected_state(task)
+        if result["receipt"].get("semantic_state_receipt") != expected_state.receipt():
+            raise RuntimeError(
+                f"semantic runtime backend differs from measured tissue for {task.task_id}"
+            )
+        measured_backend_receipt_equivalence_count += 1
         runtime_surface_receipt = result["receipt"].get("surface_decode_receipt")
         runtime_surface_receipt_sha = (
             runtime_surface_receipt.get("receipt_sha256")
@@ -162,15 +166,13 @@ async def _verify(*, seed: int, tasks_per_difficulty: int) -> dict[str, Any]:
             else None
         )
         if runtime_surface_receipt_sha != expected_surface_receipt:
-            raise RuntimeError(
-                f"semantic runtime surface receipt differs for {task.task_id}"
-            )
+            raise RuntimeError(f"semantic runtime surface receipt differs for {task.task_id}")
         parser_id = str(result["receipt"]["admission"]["parser_id"])
         surface_profile = None
         if expected_surface_receipt is not None:
-            surface_profile = parser_id.removeprefix(
-                "semantic_scientific_surface."
-            ).removesuffix(".v1")
+            surface_profile = parser_id.removeprefix("semantic_scientific_surface.").removesuffix(
+                ".v1"
+            )
             if surface_profile not in surface_profiles:
                 raise RuntimeError("semantic runtime used an unmeasured surface profile")
             surface_profiles[surface_profile] += 1
@@ -182,9 +184,7 @@ async def _verify(*, seed: int, tasks_per_difficulty: int) -> dict[str, Any]:
         except (RuntimeError, ValueError):
             lesion_disrupted = True
         else:
-            lesion_disrupted = (
-                lesion_state.semantic_result != expected_state.semantic_result
-            )
+            lesion_disrupted = lesion_state.semantic_result != expected_state.semantic_result
         lesion_disruptions += int(lesion_disrupted)
         lesions_by_domain[domain] += int(lesion_disrupted)
         rows.append(
@@ -193,13 +193,11 @@ async def _verify(*, seed: int, tasks_per_difficulty: int) -> dict[str, Any]:
                 "family": task.family,
                 "depth": task.depth,
                 "latency_ms": round(latency_ms, 3),
-                "answer_sha256": hashlib.sha256(
-                    str(result["text"]).encode("ascii")
-                ).hexdigest(),
+                "answer_sha256": hashlib.sha256(str(result["text"]).encode("ascii")).hexdigest(),
                 "runtime_receipt_sha256": result["receipt"]["receipt_sha256"],
-                "semantic_state_receipt_sha256": result["receipt"][
-                    "semantic_state_receipt"
-                ]["receipt_sha256"],
+                "semantic_state_receipt_sha256": result["receipt"]["semantic_state_receipt"][
+                    "receipt_sha256"
+                ],
                 "surface_profile": surface_profile,
                 "surface_decode_receipt_sha256": runtime_surface_receipt_sha,
                 "lesion_disrupted": lesion_disrupted,
@@ -240,6 +238,7 @@ async def _verify(*, seed: int, tasks_per_difficulty: int) -> dict[str, Any]:
         "exact_count": len(tasks),
         "exact_by_domain": exact_by_domain,
         "lesion_disruption_count": lesion_disruptions,
+        "measured_backend_receipt_equivalence_count": (measured_backend_receipt_equivalence_count),
         "lesion_disruptions_by_domain": lesions_by_domain,
         "scientific_surface_profiles": surface_profiles,
         "unsupported_language_refused": True,

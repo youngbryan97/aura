@@ -1,5 +1,5 @@
 {
-  "activation_sha256": "31693774790ca38ce88a3c66b6bd67e0179070bb352e065a3787bfb56171c0ab",
+  "activation_sha256": "6d0cb5c7815085a4cb40b56e6caf912b0110f07bb7ff189da85e9398d1a54561",
   "active_by_default": true,
   "allowed_families": [
     "frontier_calibration",
@@ -67,15 +67,16 @@
     "tag": "crsm-closeout-jul1"
   },
   "runtime_qualification": {
-    "candidate_activation_sha256": "b0376918c09e5880fe6227c2de7b77250e95a90314e84c9c24db74ef1a6dde89",
+    "candidate_activation_sha256": "18dde97baced592db536042c9a6126fb0ce1222767708630450e5032df6ff93a",
     "exact_count": 120,
     "lesion_disruption_count": 120,
-    "max_latency_ms": 90.732,
+    "max_latency_ms": 14.91,
+    "measured_backend_receipt_equivalence_count": 120,
     "path": "artifacts/closeout/latent_cortex/cp568_semantic_neural_active_r1/runtime_verification.json",
-    "sha256": "6559ad49972076493111832e50878e0402e2e754025d7f37c3e04607aaef1778",
+    "sha256": "65f3bd166eb7fcc434b84eaa52ebcfbfbfcd8907d4add6b80c190e86d417b82c",
     "task_count": 120,
     "unsupported_language_refused": true,
-    "verification_receipt_sha256": "0fa06a73094a52d9a7f55f94cd4acd494c6536058cf4f5b271ef638978e05c9a"
+    "verification_receipt_sha256": "a3ea66ab9a42d3c58b75f48a1e5a2fddd3713b92882c64656851b0bd899ed333"
   },
   "schema": "aura.semantic_neural_serving.v2",
   "source_sha256s": {
@@ -86,12 +87,13 @@
     "core/brain/llm/latent_cortex/semantic_neural_decode_context.py": "affc4bc3cbf017454b50441e5c8fc7c9494f63bc8c72e0f8605f27c69c582abc",
     "core/brain/llm/latent_cortex/semantic_surface_adapter.py": "31cd151ea864449795c4fcc8751fe9eccdb771e520efb541709bacf066807b24",
     "core/brain/llm/latent_cortex/systematic_neural_alu.py": "141a3d16aa891be182b30c38707a3f15c208734574e5af32459a8f25ac105a72",
-    "core/brain/llm/qualified_recurrent_ingress.py": "b3d37413c752790e3cc05d734d6b47f0973d20d084ef28b7bcc22a06ac1fc357",
+    "core/brain/llm/qualified_recurrent_ingress.py": "b6dfef8006e12f90ae9462ad56bab0ee8a655e86fffa0ed6e3c4c15995596b2b",
     "core/learning/frontier_process_supervision.py": "f4beb455da1c3cb8e77a3c17afd2a3f5c6cee8d127b60e47c4e99e038d7902bf",
     "core/learning/public_frontier_action_compiler.py": "32da5f3169ea75003b1aeea0a7fdcb072a9ee138968eae42c0fb75f57f973592",
     "core/learning/recurrent_action_schema.py": "9e64dff7ac586c62bc3cc519694cd5b579a6fac020ad631ea31a5d7e6e0b0904",
     "core/learning/recurrent_state_schema.py": "56101d04275a76bc4106b7c7d2365e60d777abc759e8734218885830b7a2b79d",
     "core/learning/semantic_neural_controls.py": "890305b703704de20d004f69cd2bd9a87cea29c3975c00bab3de5a90e8b3b689",
-    "core/learning/semantic_neural_machine.py": "c3defb6ca618f8617363cc16f8f311111c890eb10b331c6b3dfbec5479e6c382"
+    "core/learning/semantic_neural_machine.py": "c3defb6ca618f8617363cc16f8f311111c890eb10b331c6b3dfbec5479e6c382",
+    "core/learning/semantic_neural_runtime_machine.py": "8235ab2409a28437bfe5627964d7356e2ca2487cbd2ce3884069d606760ea441"
   }
 }

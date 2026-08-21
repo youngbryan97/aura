@@ -123,6 +123,45 @@ def test_admission_does_not_broaden_to_uncertified_or_tampered_language():
     assert ingress.admit_qualified_recurrent_objective(aliased) is None
 
 
+def test_semantic_machine_is_reused_only_within_its_executor_thread(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from core.learning import semantic_neural_runtime_machine
+
+    original_init = semantic_neural_runtime_machine.SemanticNeuralRuntimeMachine.__init__
+    calls = 0
+
+    def counted_init(self):
+        nonlocal calls
+        calls += 1
+        original_init(self)
+
+    monkeypatch.setattr(
+        semantic_neural_runtime_machine.SemanticNeuralRuntimeMachine,
+        "__init__",
+        counted_init,
+    )
+    monkeypatch.setattr(ingress, "_qualified_cpu_thread_state", threading.local())
+
+    first = ingress._thread_semantic_machine()
+    second = ingress._thread_semantic_machine()
+    observed: list[object] = []
+
+    thread = threading.Thread(
+        target=lambda: observed.extend(
+            (ingress._thread_semantic_machine(), ingress._thread_semantic_machine())
+        )
+    )
+    thread.start()
+    thread.join(timeout=5.0)
+
+    assert not thread.is_alive()
+    assert first is second
+    assert observed[0] is observed[1]
+    assert observed[0] is not first
+    assert calls == 2
+
+
 def test_result_receipt_binds_exact_answer_and_answer_blind_admission():
     task = frontier_process_task_battery(("calibration",), (1,), 1, seed=2026082101)[0]
     admission = ingress.admit_qualified_recurrent_objective(task.prompt)
@@ -141,11 +180,14 @@ def test_result_receipt_binds_exact_answer_and_answer_blind_admission():
     }
     receipt = {**body, "receipt_sha256": ingress._canonical_sha256(body)}
 
-    assert ingress.qualified_recurrent_result_receipt_errors(
-        receipt,
-        answer_text=task.answer,
-        expected_family=task.family,
-    ) == []
+    assert (
+        ingress.qualified_recurrent_result_receipt_errors(
+            receipt,
+            answer_text=task.answer,
+            expected_family=task.family,
+        )
+        == []
+    )
     assert "qualified_recurrent_answer_binding_invalid" in (
         ingress.qualified_recurrent_result_receipt_errors(
             receipt,
@@ -202,9 +244,7 @@ def test_admission_recognizes_every_measured_scientific_surface():
         assert admitted is not None
         assert admitted.family == "frontier_scientific_inference"
         assert admitted.parser_id == f"semantic_scientific_surface.{profile}.v1"
-        assert admitted.public_source_sha256 == hashlib.sha256(
-            prompt.encode("utf-8")
-        ).hexdigest()
+        assert admitted.public_source_sha256 == hashlib.sha256(prompt.encode("utf-8")).hexdigest()
 
 
 def test_admission_refuses_tampered_or_ambiguous_scientific_surfaces():
@@ -219,9 +259,12 @@ def test_admission_refuses_tampered_or_ambiguous_scientific_surfaces():
         profile="narrative",
         permutation_seed=2026081569,
     )
-    assert ingress.admit_qualified_recurrent_objective(
-        prompt.replace("there is no hidden common cause", "a hidden cause may exist")
-    ) is None
+    assert (
+        ingress.admit_qualified_recurrent_objective(
+            prompt.replace("there is no hidden common cause", "a hidden cause may exist")
+        )
+        is None
+    )
     lines = prompt.splitlines()
     lines[4] = lines[3]
     assert ingress.admit_qualified_recurrent_objective("\n".join(lines)) is None

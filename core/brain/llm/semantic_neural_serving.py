@@ -18,8 +18,7 @@ PACKAGE_ID: Final = "cp568-resident-semantic-neural-active-r1"
 PROMOTION_MODE: Final = "active"
 REPO_ROOT: Final = Path(__file__).resolve().parents[3]
 DEFAULT_ACTIVATION_PATH: Final = (
-    REPO_ROOT
-    / "artifacts/closeout/latent_cortex/cp568_semantic_neural_active_r1/activation.json"
+    REPO_ROOT / "artifacts/closeout/latent_cortex/cp568_semantic_neural_active_r1/activation.json"
 )
 RESIDENT_RESULT_PATH: Final = (
     REPO_ROOT
@@ -49,6 +48,7 @@ MEASURED_SOURCE_FILES: Final = (
 )
 ACTIVATION_SOURCE_FILES: Final = (
     *MEASURED_SOURCE_FILES,
+    "core/learning/semantic_neural_runtime_machine.py",
     "core/brain/llm/latent_cortex/persistence.py",
     "core/brain/llm/qualified_recurrent_ingress.py",
 )
@@ -57,9 +57,7 @@ ACTIVATION_SOURCE_FILES: Final = (
 # instead of disabling a proven machine when unrelated code in a large module
 # moves. A contract selector names either a function/method or a specific call.
 INTEGRATION_SOURCE_CONTRACTS: Final = {
-    "core/brain/foreground_latent_runtime.py": (
-        "symbol:run_foreground_latent_episode",
-    ),
+    "core/brain/foreground_latent_runtime.py": ("symbol:run_foreground_latent_episode",),
     "core/brain/latent_cortex_service.py": (
         "symbol:LatentCortexService.qualified_recurrent_reason",
     ),
@@ -262,9 +260,7 @@ def _verify_resident_evidence(
         key: value for key, value in verification.items() if key != "verification_receipt_sha256"
     }
     adjudication_body = {
-        key: value
-        for key, value in adjudication.items()
-        if key != "adjudication_receipt_sha256"
+        key: value for key, value in adjudication.items() if key != "adjudication_receipt_sha256"
     }
     exact_by_arm = verification.get("independent_exact_by_arm")
     task_count = verification.get("task_count")
@@ -279,10 +275,8 @@ def _verify_resident_evidence(
             "replicated lesion-dependent resident-32B effective reasoning gain over "
             "ordinary decode on the frozen four-domain semantic cohort"
         )
-        or "not open-domain general reasoning"
-        not in str(adjudication.get("limitations") or "")
-        or adjudication.get("input_receipts", {}).get("result")
-        != result.get("receipt_sha256")
+        or "not open-domain general reasoning" not in str(adjudication.get("limitations") or "")
+        or adjudication.get("input_receipts", {}).get("result") != result.get("receipt_sha256")
         or adjudication.get("input_receipts", {}).get("verification")
         != verification.get("verification_receipt_sha256")
         or verification.get("verified") is not True
@@ -380,9 +374,7 @@ def build_semantic_neural_activation(
             "verification_receipt_sha256": verification["verification_receipt_sha256"],
             "adjudication_path": _relative_evidence_path(root, adjudication_path),
             "adjudication_sha256": hashlib.sha256(adjudication_raw).hexdigest(),
-            "adjudication_receipt_sha256": adjudication[
-                "adjudication_receipt_sha256"
-            ],
+            "adjudication_receipt_sha256": adjudication["adjudication_receipt_sha256"],
             "adjudication_verdict": adjudication["verdict"],
             "adjudication_claim": adjudication["claim"],
             "adjudication_limitations": adjudication["limitations"],
@@ -415,9 +407,9 @@ def build_semantic_neural_activation(
             or runtime_verification.get("task_count") != 120
             or runtime_verification.get("exact_count") != 120
             or runtime_verification.get("lesion_disruption_count") != 120
+            or runtime_verification.get("measured_backend_receipt_equivalence_count") != 120
             or runtime_verification.get("unsupported_language_refused") is not True
-            or runtime_verification.get("verification_receipt_sha256")
-            != _sha(runtime_body)
+            or runtime_verification.get("verification_receipt_sha256") != _sha(runtime_body)
             or not isinstance(runtime_receipt, dict)
             or runtime_receipt.get("activation_sha256") != candidate_activation_sha256
             or runtime_receipt.get("package_id") != PACKAGE_ID
@@ -427,18 +419,15 @@ def build_semantic_neural_activation(
         body["runtime_qualification"] = {
             "path": _relative_evidence_path(root, runtime_verification_path),
             "sha256": hashlib.sha256(runtime_raw).hexdigest(),
-            "verification_receipt_sha256": runtime_verification[
-                "verification_receipt_sha256"
-            ],
+            "verification_receipt_sha256": runtime_verification["verification_receipt_sha256"],
             "candidate_activation_sha256": candidate_activation_sha256,
             "task_count": runtime_verification["task_count"],
             "exact_count": runtime_verification["exact_count"],
-            "lesion_disruption_count": runtime_verification[
-                "lesion_disruption_count"
+            "lesion_disruption_count": runtime_verification["lesion_disruption_count"],
+            "measured_backend_receipt_equivalence_count": runtime_verification[
+                "measured_backend_receipt_equivalence_count"
             ],
-            "unsupported_language_refused": runtime_verification[
-                "unsupported_language_refused"
-            ],
+            "unsupported_language_refused": runtime_verification["unsupported_language_refused"],
             "max_latency_ms": runtime_verification["max_latency_ms"],
         }
     return {**body, "activation_sha256": _sha(body)}
@@ -499,9 +488,7 @@ def semantic_neural_activation_errors(
             errors.append(f"source_drift:{','.join(drifted)}")
     contract_hashes = activation.get("integration_contract_sha256s")
     expected_contracts = _integration_contract_hashes(root)
-    if not isinstance(contract_hashes, dict) or set(contract_hashes) != set(
-        expected_contracts
-    ):
+    if not isinstance(contract_hashes, dict) or set(contract_hashes) != set(expected_contracts):
         errors.append("integration_contract_inventory")
     else:
         drifted_contracts = sorted(
@@ -531,20 +518,25 @@ def semantic_neural_activation_errors(
             }
             runtime_receipt = runtime_verification.get("activation_receipt")
             if (
-                hashlib.sha256(runtime_raw).hexdigest()
-                != runtime_qualification.get("sha256")
+                hashlib.sha256(runtime_raw).hexdigest() != runtime_qualification.get("sha256")
                 or runtime_verification.get("verification_receipt_sha256")
                 != runtime_qualification.get("verification_receipt_sha256")
-                or runtime_verification.get("verification_receipt_sha256")
-                != _sha(runtime_body)
+                or runtime_verification.get("verification_receipt_sha256") != _sha(runtime_body)
                 or not isinstance(runtime_receipt, dict)
                 or runtime_receipt.get("activation_sha256") != _sha(candidate_body)
-                or runtime_qualification.get("candidate_activation_sha256")
-                != _sha(candidate_body)
+                or runtime_qualification.get("candidate_activation_sha256") != _sha(candidate_body)
                 or runtime_verification.get("verified") is not True
                 or runtime_verification.get("task_count") != 120
                 or runtime_verification.get("exact_count") != 120
                 or runtime_verification.get("lesion_disruption_count") != 120
+                or runtime_verification.get(
+                    "measured_backend_receipt_equivalence_count"
+                )
+                != 120
+                or runtime_qualification.get(
+                    "measured_backend_receipt_equivalence_count"
+                )
+                != 120
                 or runtime_verification.get("unsupported_language_refused") is not True
             ):
                 errors.append("runtime_qualification_drift")
@@ -590,8 +582,7 @@ def semantic_neural_activation_errors(
                 != evidence.get("adjudication_receipt_sha256")
                 or adjudication.get("verdict") != evidence.get("adjudication_verdict")
                 or adjudication.get("claim") != evidence.get("adjudication_claim")
-                or adjudication.get("limitations")
-                != evidence.get("adjudication_limitations")
+                or adjudication.get("limitations") != evidence.get("adjudication_limitations")
             ):
                 errors.append("evidence_drift")
         except (KeyError, OSError, RuntimeError, TypeError, ValueError):
@@ -636,9 +627,7 @@ def semantic_neural_serving_status(model_path: str | Path) -> dict[str, Any]:
         selected_model = Path(model_path).expanduser().resolve(strict=True)
         runtime_qualification = activation.get("runtime_qualification")
         runtime_dependencies = (
-            (
-                _resolve_evidence_path(root, runtime_qualification["path"]),
-            )
+            (_resolve_evidence_path(root, runtime_qualification["path"]),)
             if isinstance(runtime_qualification, dict)
             else ()
         )
@@ -689,9 +678,7 @@ def semantic_neural_default_serving_status() -> dict[str, Any]:
             maximum_bytes=512 * 1024,
         )
         model_identity = activation.get("model_identity")
-        model_path = (
-            model_identity.get("path") if isinstance(model_identity, dict) else None
-        )
+        model_path = model_identity.get("path") if isinstance(model_identity, dict) else None
         if not isinstance(model_path, str) or not model_path.strip():
             raise RuntimeError("semantic neural model identity is unavailable")
         return semantic_neural_serving_status(model_path)
@@ -715,9 +702,7 @@ def _cached_semantic_neural_serving_status(
         activation,
         model_path=Path(model_path),
         require_runtime_qualification=(
-            str(os.getenv("AURA_SEMANTIC_NEURAL_QUALIFICATION_CANDIDATE", "0"))
-            .strip()
-            .lower()
+            str(os.getenv("AURA_SEMANTIC_NEURAL_QUALIFICATION_CANDIDATE", "0")).strip().lower()
             not in {"1", "true", "yes", "on"}
         ),
     )

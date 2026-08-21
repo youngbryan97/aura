@@ -27,6 +27,7 @@ _HEX: Final = frozenset("0123456789abcdef")
 _QUALIFIED_CPU_WORKERS: Final = 2
 _qualified_cpu_executor_instance: ThreadPoolExecutor | None = None
 _qualified_cpu_executor_lock = threading.Lock()
+_qualified_cpu_thread_state = threading.local()
 
 _TERMINAL = (
     r" You may reason before answering\. Finish with exactly one final line using the "
@@ -87,6 +88,49 @@ def _qualified_cpu_executor() -> ThreadPoolExecutor:
                     thread_name_prefix="aura-qualified-recurrent",
                 )
     return _qualified_cpu_executor_instance
+
+
+def _thread_semantic_machine() -> Any:
+    """Return one verified semantic machine owned by the current worker.
+
+    SemanticNeuralMachine resets its transition-local counters before every
+    action, but its MLX arrays are mutable objects. Keeping one instance per
+    dedicated executor thread removes repeated artifact loading without
+    sharing mutable tissue across concurrent foreground requests.
+    """
+
+    from core.learning.semantic_neural_runtime_machine import (
+        SemanticNeuralRuntimeMachine,
+    )
+
+    machine = getattr(_qualified_cpu_thread_state, "semantic_machine", None)
+    if not isinstance(machine, SemanticNeuralRuntimeMachine):
+        machine = SemanticNeuralRuntimeMachine()
+        _qualified_cpu_thread_state.semantic_machine = machine
+    return machine
+
+
+def _execute_semantic_neural_state_cached(prompt: str, family: str) -> Any:
+    from core.brain.llm.latent_cortex.semantic_neural_decode_context import (
+        execute_semantic_neural_decode_state,
+    )
+
+    return execute_semantic_neural_decode_state(
+        prompt,
+        family,
+        machine=_thread_semantic_machine(),
+    )
+
+
+def _execute_scientific_surface_cached(prompt: str) -> Any:
+    from core.brain.llm.latent_cortex.semantic_surface_adapter import (
+        execute_scientific_surface,
+    )
+
+    return execute_scientific_surface(
+        prompt,
+        machine=_thread_semantic_machine(),
+    )
 
 
 async def _run_qualified_cpu_bound(
@@ -171,9 +215,10 @@ def qualified_recurrent_result_receipt_errors(
     if value.get("receipt_sha256") != _canonical_sha256(body):
         errors.append("qualified_recurrent_result_seal_invalid")
     answer = str(answer_text or "").strip()
-    if not answer or value.get("answer_sha256") != hashlib.sha256(
-        answer.encode("utf-8")
-    ).hexdigest():
+    if (
+        not answer
+        or value.get("answer_sha256") != hashlib.sha256(answer.encode("utf-8")).hexdigest()
+    ):
         errors.append("qualified_recurrent_answer_binding_invalid")
 
     admission_value = value.get("admission")
@@ -189,17 +234,14 @@ def qualified_recurrent_result_receipt_errors(
                 family=str(admission_value.get("family") or ""),
                 task_depth=admission_value.get("task_depth"),
                 parser_id=str(admission_value.get("parser_id") or ""),
-                public_source_sha256=str(
-                    admission_value.get("public_source_sha256") or ""
-                ),
+                public_source_sha256=str(admission_value.get("public_source_sha256") or ""),
                 syntax_sha256=str(admission_value.get("syntax_sha256") or ""),
             )
         except (TypeError, ValueError):
             errors.append("qualified_recurrent_admission_identity_invalid")
         else:
             if (
-                admission_value.get("receipt_sha256")
-                != _canonical_sha256(admission_body)
+                admission_value.get("receipt_sha256") != _canonical_sha256(admission_body)
                 or dict(admission_value) != admission.receipt()
             ):
                 errors.append("qualified_recurrent_admission_seal_invalid")
@@ -213,8 +255,7 @@ def qualified_recurrent_result_receipt_errors(
     elif semantic_result:
         activation = value.get("activation_receipt")
         if (
-            value.get("serialization")
-            != "canonical_json_from_authenticated_semantic_state"
+            value.get("serialization") != "canonical_json_from_authenticated_semantic_state"
             or not isinstance(value.get("semantic_state_receipt"), Mapping)
             or not isinstance(activation, Mapping)
             or activation.get("promotion_mode") != "active"
@@ -464,7 +505,6 @@ async def execute_qualified_recurrent_objective(
         }
     if admission.family in _SEMANTIC_PARSER_IDS:
         from core.brain.llm.latent_cortex.semantic_neural_decode_context import (
-            execute_semantic_neural_decode_state,
             render_semantic_neural_answer,
         )
         from core.brain.llm.semantic_neural_serving import (
@@ -517,10 +557,6 @@ async def execute_qualified_recurrent_objective(
             }
         surface_decode_receipt: dict[str, Any] | None = None
         if admission.parser_id.startswith(_SCIENTIFIC_SURFACE_PARSER_PREFIX):
-            from core.brain.llm.latent_cortex.semantic_surface_adapter import (
-                execute_scientific_surface,
-            )
-
             surface_profile = admission.parser_id.removeprefix(
                 _SCIENTIFIC_SURFACE_PARSER_PREFIX
             ).removesuffix(".v1")
@@ -542,24 +578,22 @@ async def execute_qualified_recurrent_objective(
                     "admission": admission.receipt(),
                 }
             surface_decode = await _run_qualified_cpu_bound(
-                execute_scientific_surface,
+                _execute_scientific_surface_cached,
                 prompt,
                 timeout_s=max(1.0, min(30.0, timeout_s)),
             )
             surface_receipt = surface_decode.program.receipt()
             if (
                 surface_decode.program.profile != surface_profile
-                or surface_receipt.get("public_prompt_sha256")
-                != admission.public_source_sha256
-                or surface_receipt.get("public_fact_graph_sha256")
-                != admission.syntax_sha256
+                or surface_receipt.get("public_prompt_sha256") != admission.public_source_sha256
+                or surface_receipt.get("public_fact_graph_sha256") != admission.syntax_sha256
             ):
                 raise RuntimeError("semantic_neural_surface_admission_drift")
             state = surface_decode.state
             surface_decode_receipt = surface_decode.receipt()
         else:
             state = await _run_qualified_cpu_bound(
-                execute_semantic_neural_decode_state,
+                _execute_semantic_neural_state_cached,
                 prompt,
                 admission.family,
                 timeout_s=max(1.0, min(30.0, timeout_s)),
