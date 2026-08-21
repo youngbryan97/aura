@@ -152,6 +152,33 @@ excluded). Nine were genuinely dead; the rest of the corrections are factual.
 | 5 truncated paths (RLC_COMMITMENT_SEARCH) | Prefixed `core/brain/llm/` and `core/` — same defect class corrected on 2026-08-01 |
 | "Copy the directory, apply `patches/…snippet.py`" (MORPHOGENESIS_README) | Already booted from `aura_main.py`; that `patches/` tree never existed here |
 
+### Fabricated evidence found and removed
+
+The heaviest finding of this pass, and it was not a documentation defect at
+first — it became one.
+
+`aura_bench/ablations/runner.py` printed hardcoded dict literals (raw model
+0.42, full Aura 0.94) as an "ABLATION SUITE" result having executed nothing.
+It was deleted on 2026-07-15 and `tests/test_no_fabricated_benchmarks.py` was
+written to keep it gone. Deleting the source did not delete its output: six
+byte-identical copies of that dict survived under five names, and
+EVALUATE_AURA.md — the page written for external reviewers — linked one of
+them as proof that each module is causally load-bearing. Three
+`SOAK_LOG_*.json` files written by a `random.seed()` simulator sat beside
+them, offered in the same page for verifying resource stability.
+
+All ten are gone, along with the simulator. `make certify` had been invoking
+the deleted runner and failing that gate on a missing path every run; it runs
+`tools/ablation_runner.py` now. The guard test reads committed artifacts as
+well as Python source, because a test over source cannot see a JSON file —
+and on its first run it found a sixth copy under `artifacts/aletheia/` that
+nobody had gone looking for.
+
+The claim documents were checked for the same defect and are clean:
+`artifacts/ablation/affect_causality_scorecard_n160.json` carries 480
+attempts across three arms with a label-permutation null and a shuffled-state
+control at chance. That is what measured evidence looks like in this tree.
+
 ### Documents added
 
 | Document | Why it did not exist |
@@ -209,6 +236,11 @@ resolves. The baseline is zero and only shrinks.
 | "the nine patterns" (docs/README) | Eighteen, in both WRITING_RULES.md and the linter |
 | `latent_cortex/types.py`, `engine.py` (RLC handoff) | Prefixed `core/brain/llm/latent_cortex/` — the defect class corrected on 2026-08-01 and again on 08-13 |
 | `scratchpad/prod_soak_env.sh` (COHERENCE_LEVERS) | Never existed; the twelve variables are read at call time from the launching shell |
+| "Settings → Models → Cloud Fallback", "Settings → Performance" (OPERATOR_GUIDE), "Settings → Models → Reset cortex", "Settings → Memory → Compact", "Settings → Permissions", "Pin a memory", "Drop a topic" (USER_GUIDE) | None of these groups or controls exist. The real ones are Freeze / Edit / Delete / Contest / Mark False / Provenance, and Backup & Export |
+| `POST /memory/delete`, `POST /devices/revoke-scope`, `GET /memory/recent` | All served under `/api`; the documents dropped the mount prefix |
+| `GET /api/diagnostics/reliability` (orphaned-tasks runbook, step one of a live incident) | No diagnostics router exists. `aura doctor --bundle` emits `tasks.json` and `health.json` |
+| "signed, reproducible audit logs" (EVALUATE_AURA §4) | Nothing under `artifacts/certification/latest/` carries a signature or a content hash |
+| Six committed copies of a fabricated ablation scorecard, and three simulated soak logs | **Deleted.** See below |
 
 ### Documents added
 
