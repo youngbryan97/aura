@@ -41,7 +41,7 @@ def scan(tmp_path, monkeypatch):
     monkeypatch.setattr(gate, "_published_cache", {})
 
     def run(body, *, targets=(), published=(), env=((), ()), suite=None,
-            ignored=(), files=(), symbols=(), routes=(), labels=()):
+            ignored=(), files=(), symbols=(), routes=(), labels=(), lanes=None):
         for rel in files:
             f = tmp_path / rel
             f.parent.mkdir(parents=True, exist_ok=True)
@@ -55,7 +55,8 @@ def scan(tmp_path, monkeypatch):
                 p.startswith(rel.rstrip("/") + "/") for p in published),
         )
         found = gate.scan("DOC.md", set(targets), {}, (set(env[0]), tuple(env[1])),
-                          suite, set(symbols), set(routes), set(labels))
+                          suite, set(symbols), set(routes), set(labels),
+                          dict(lanes or {}))
         return {f["kind"] for f in found}
 
     return run
@@ -350,6 +351,33 @@ def test_an_arrow_between_pipeline_stages_is_not_navigation(scan):
     assert scan(body, labels={"voice"}) == set()
 
 
+# ---- model lanes ---------------------------------------------------------
+
+
+def test_a_stale_lane_size_is_reported(scan):
+    """Qwen3.5-9B replaced Qwen2.5-7B; five pages kept saying 7B for nine days."""
+    body = "The 7B Brainstem does not load at boot."
+    assert "stale_lane_size" in scan(body, lanes={"Brainstem": "9B"})
+
+
+def test_the_current_lane_size_passes(scan):
+    body = "The 9B Brainstem does not load at boot."
+    assert scan(body, lanes={"Brainstem": "9B"}) == set()
+
+
+def test_a_size_far_from_the_lane_name_is_not_attributed_to_it(scan):
+    body = "The 32B Cortex is the foreground lane, and elsewhere the Brainstem waits."
+    assert "stale_lane_size" not in scan(body, lanes={"Brainstem": "9B", "Cortex": "32B"})
+
+
+def test_the_registry_is_where_lane_sizes_come_from():
+    """Read from the code, so the gate moves when the lane does."""
+    lanes = gate.lane_sizes()
+    assert lanes.get("Cortex") == "32B"
+    assert lanes.get("Reflex") == "1.5B"
+    assert lanes.get("Brainstem"), "the Brainstem default is no longer readable"
+
+
 # ---- the tree itself -----------------------------------------------------
 
 
@@ -371,10 +399,12 @@ def test_every_current_document_still_resolves():
     symbols = gate.defined_symbols()
     routes = gate.declared_routes()
     labels = gate.ui_labels()
+    lanes = gate.lane_sizes()
     cache: dict[str, set[str]] = {}
     for rel in gate.tracked_docs():
         findings.extend(
-            gate.scan(rel, targets, cache, env_names, suite, symbols, routes, labels))
+            gate.scan(rel, targets, cache, env_names, suite, symbols, routes,
+                      labels, lanes))
     assert findings == [], "\n".join(
         f"{f['doc']}:{f['line']} {f['kind']}: {f['detail']}" for f in findings
     )

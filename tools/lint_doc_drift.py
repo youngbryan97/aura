@@ -81,6 +81,12 @@ LINE_COUNT = re.compile(r"`([^`\n]+\.py)`\s*\((\d[\d,]*)\s+lines\)")
 #: exactly one count, so there is nothing to guess about which belongs to which.
 LOOSE_PATH = re.compile(r"`([A-Za-z0-9_./-]+\.py)`")
 LOOSE_COUNT = re.compile(r"\(([\d,]{3,})\s+lines\)")
+
+#: A lane's parameter size, stated near the lane's name. Qwen3.5-9B replaced
+#: Qwen2.5-7B on 2026-08-12; the two documents that explained the change were
+#: updated and five that mentioned the lane in passing were not, so README,
+#: INSTALL and the system card each described a 7B Brainstem for nine days.
+LANE_SIZE_WINDOW = 18
 #: A document that cites a test is claiming that test holds the thing it just
 #: said. The threat model cited `tests/test_steering_injection.py` as its proof
 #: of prompt-injection defence; that file tests activation steering, a
@@ -240,6 +246,29 @@ SOURCE_GLOBS = ("*.py", "*.sh", "*.yml", "*.yaml", "*.json", "*.toml",
                 "Makefile", "*.plist", "*.command", "*.js", "*.ts")
 
 
+def lane_sizes() -> dict[str, str]:
+    """Lane name → parameter size, read from the model registry defaults."""
+    registry = ROOT / "core" / "brain" / "llm" / "model_registry.py"
+    if not registry.exists():
+        return {}
+    src = registry.read_text(errors="replace")
+    named = {
+        "Cortex": re.search(r'ACTIVE_MODEL = .*?or "([^"]+)"', src),
+        "Brainstem": re.search(
+            r'_FLAG_BRAINSTEM_MODEL[^)]*?default="([^"]+)"', src, re.S),
+        "Reflex": re.search(
+            r'_FLAG_FALLBACK_MODEL[^)]*?default="([^"]+)"', src, re.S),
+    }
+    sizes: dict[str, str] = {}
+    for lane, hit in named.items():
+        if not hit:
+            continue
+        size = re.search(r"(\d+(?:\.\d+)?)B", hit.group(1))
+        if size:
+            sizes[lane] = size.group(1) + "B"
+    return sizes
+
+
 def ui_labels() -> set[str]:
     """Every label the shipped interface renders, lower-cased."""
     found: set[str] = set()
@@ -369,7 +398,7 @@ def _resolve(doc: Path, target: str) -> Path | None:
 def scan(rel: str, targets: set[str], anchor_cache: dict[str, set[str]],
          env_names: tuple[set[str], tuple[str, ...]],
          suite: tuple[int, int] | None, symbols: set[str],
-         routes: set[str], labels: set[str]) -> list[dict]:
+         routes: set[str], labels: set[str], lanes: dict[str, str]) -> list[dict]:
     doc = Path(rel)
     try:
         lines = (ROOT / rel).read_text(errors="replace").splitlines()
@@ -485,6 +514,16 @@ def scan(rel: str, targets: set[str], anchor_cache: dict[str, set[str]],
             if actual != claimed:
                 note(i, "stale_line_count", f"{path}: says {claimed:,}, is {actual:,}", line)
 
+        # A lane's size, stated near the lane's name.
+        if not names_an_absence(i):
+            for lane, want in lanes.items():
+                near = rf"(\d+(?:\.\d+)?B)[^.\n]{{0,{LANE_SIZE_WINDOW}}}?{lane}|{lane}[^.\n]{{0,{LANE_SIZE_WINDOW}}}?\((\d+(?:\.\d+)?B)"
+                for m in re.finditer(near, line):
+                    got = m.group(1) or m.group(2)
+                    if got and got != want:
+                        note(i, "stale_lane_size",
+                             f"{lane}: says {got}, registry says {want}", line)
+
         # A module's length, stated away from its name.
         loose_paths, loose_counts = LOOSE_PATH.findall(line), LOOSE_COUNT.findall(line)
         if (len(loose_paths) == 1 and len(loose_counts) == 1
@@ -591,12 +630,13 @@ def main() -> int:
     symbols = defined_symbols()
     routes = declared_routes()
     labels = ui_labels()
+    lanes = lane_sizes()
     cache: dict[str, set[str]] = {}
 
     findings: list[dict] = []
     for rel in docs:
         findings.extend(
-            scan(rel, targets, cache, env_names, suite, symbols, routes, labels))
+            scan(rel, targets, cache, env_names, suite, symbols, routes, labels, lanes))
 
     per_doc: dict[str, int] = {}
     for f in findings:
