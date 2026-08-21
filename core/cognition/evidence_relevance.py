@@ -285,6 +285,37 @@ def _embed(text: str, *, as_query: bool = False) -> Any | None:
         return None
 
 
+def _embed_documents(texts: Sequence[str]) -> list[Any | None]:
+    """Encode document-side evidence anchors in one model invocation.
+
+    The routing catalogue is a fixed document cohort. Encoding each sentence
+    separately paid the transformer setup cost for every anchor and made chat
+    readiness wait tens of seconds. Keep result cardinality stable so callers
+    can bind each vector to the exact sentence that produced it.
+    """
+
+    wanted = [str(text or "") for text in texts]
+    if not wanted:
+        return []
+    embedder = _embedder()
+    if embedder is not None:
+        embed_batch = getattr(embedder, "embed_batch", None)
+        if callable(embed_batch):
+            try:
+                vectors = list(embed_batch(wanted))
+            except (RuntimeError, ValueError, TypeError, OSError) as exc:
+                logger.debug("Evidence relevance batch embedding failed: %s", exc)
+            else:
+                if len(vectors) == len(wanted):
+                    return vectors
+                logger.warning(
+                    "Evidence relevance batch cardinality mismatch: wanted=%d got=%d",
+                    len(wanted),
+                    len(vectors),
+                )
+    return [_embed(text) for text in wanted]
+
+
 def _cosine(left: Any, right: Any) -> float:
     try:
         dot = float(
@@ -304,10 +335,41 @@ def _anchor_vectors(key: str, sentences: Sequence[str]) -> list[Any]:
         cached = _ANCHOR_CACHE.get(key)
     if cached is not None:
         return cached
-    vectors = [vector for vector in (_embed(text) for text in sentences) if vector is not None]
+    vectors = [vector for vector in _embed_documents(sentences) if vector is not None]
     with _LOCK:
         _ANCHOR_CACHE[key] = vectors
     return vectors
+
+
+def _prewarm_anchor_vectors() -> int:
+    """Materialize every missing anchor cache from one deduplicated batch."""
+
+    cohorts: dict[str, tuple[str, ...]] = {}
+    for kind, anchors in _ANCHORS.items():
+        cohorts[kind] = tuple(anchors)
+        cohorts[f"__baseline__:{kind}"] = tuple(
+            _BASELINE_ANCHORS + _CONTRAST_ANCHORS.get(kind, ())
+        )
+    with _LOCK:
+        missing = {
+            key: sentences
+            for key, sentences in cohorts.items()
+            if key not in _ANCHOR_CACHE
+        }
+    if not missing:
+        return 0
+
+    unique_sentences = tuple(
+        dict.fromkeys(sentence for sentences in missing.values() for sentence in sentences)
+    )
+    vectors = _embed_documents(unique_sentences)
+    if len(vectors) != len(unique_sentences) or any(vector is None for vector in vectors):
+        raise RuntimeError("semantic evidence routing batch is incomplete")
+    by_sentence = dict(zip(unique_sentences, vectors, strict=True))
+    with _LOCK:
+        for key, sentences in missing.items():
+            _ANCHOR_CACHE.setdefault(key, [by_sentence[sentence] for sentence in sentences])
+    return len(unique_sentences)
 
 
 def _request_vector(request: str) -> Any | None:
@@ -361,6 +423,7 @@ def prewarm_evidence_relevance() -> dict[str, Any]:
     if not semantic_routing_available():
         raise RuntimeError("semantic evidence routing is unavailable")
 
+    encoded_documents = _prewarm_anchor_vectors()
     dimensions: dict[str, dict[str, int]] = {}
     for kind, anchors in _ANCHORS.items():
         concept = _anchor_vectors(kind, anchors)
@@ -382,6 +445,7 @@ def prewarm_evidence_relevance() -> dict[str, Any]:
         "elapsed_ms": round((time.perf_counter() - started) * 1000.0, 2),
         "families": dimensions,
         "query_dimensions": len(probe),
+        "encoded_documents": encoded_documents,
     }
 
 

@@ -118,6 +118,63 @@ def test_process_prewarm_is_idempotent_and_retained_until_close(monkeypatch) -> 
     assert runtime.snapshot()["engine_live"] is False
 
 
+def test_evidence_prewarm_batches_the_fixed_document_cohort_once(monkeypatch) -> None:
+    import core.cognition.evidence_relevance as evidence_relevance
+
+    class _BatchEngine:
+        def __init__(self) -> None:
+            self._model = object()
+            self.batch_calls: list[tuple[str, ...]] = []
+            self.query_calls: list[str] = []
+
+        def _checkout_model(self):
+            return object()
+
+        def _return_model(self) -> None:
+            return None
+
+        def embed_batch(self, texts):
+            cohort = tuple(texts)
+            self.batch_calls.append(cohort)
+            return [[float(index + 1), 1.0] for index, _text in enumerate(cohort)]
+
+        def embed_query(self, text, task=None):
+            self.query_calls.append(f"{task}:{text}")
+            return [1.0, 1.0]
+
+    engine = _BatchEngine()
+    monkeypatch.setattr(evidence_relevance, "_embedder", lambda: engine)
+    monkeypatch.setattr(evidence_relevance, "_ANCHOR_CACHE", {})
+    monkeypatch.setattr(evidence_relevance, "_REQUEST_CACHE", {})
+
+    receipt = evidence_relevance.prewarm_evidence_relevance()
+
+    assert len(engine.batch_calls) == 1
+    assert len(engine.batch_calls[0]) == receipt["encoded_documents"]
+    assert receipt["encoded_documents"] < sum(
+        row["concept_vectors"] + row["baseline_vectors"]
+        for row in receipt["families"].values()
+    )
+    assert engine.query_calls == ["evidence:How are you feeling today?"]
+
+
+def test_evidence_anchor_batch_cardinality_failure_never_misbinds_vectors(monkeypatch) -> None:
+    import core.cognition.evidence_relevance as evidence_relevance
+
+    class _ShortBatchEngine:
+        def embed_batch(self, _texts):
+            return [[1.0, 0.0]]
+
+        def embed(self, text):
+            return [float(len(text)), 1.0]
+
+    monkeypatch.setattr(evidence_relevance, "_embedder", lambda: _ShortBatchEngine())
+
+    vectors = evidence_relevance._embed_documents(("first", "second"))
+
+    assert vectors == [[5.0, 1.0], [6.0, 1.0]]
+
+
 def test_server_prewarm_waits_for_cortex_readiness(monkeypatch) -> None:
     import core.cognition.evidence_relevance as evidence_relevance_module
     import core.consciousness.unified_self as unified_self_module
