@@ -19321,6 +19321,8 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
 
         reply_text: str | None = None
         reply_source = ""
+        _delivery_timing: dict[str, float] = {}
+        _cognitive_reply_returned_at = 0.0
         if not is_benchmark and desktop_requires_cognitive_engine:
             if is_shutdown_requested():
                 return _runtime_shutdown_response(
@@ -19355,6 +19357,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                     turn_trace=_live_turn_trace,
                     referential_anchor=str(referential_anchor or ""),
                 )
+                _cognitive_reply_returned_at = time.monotonic()
                 if reply_text:
                     reply_text = _repair_required_search_reply_provenance(
                         reply_text,
@@ -20549,12 +20552,20 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 status_code=503 if is_benchmark else 200,
             )
 
+        _delivery_stage_started_at = time.monotonic()
+        if _cognitive_reply_returned_at > 0.0:
+            _delivery_timing["engine_to_stabilizer_ms"] = (
+                _delivery_stage_started_at - _cognitive_reply_returned_at
+            ) * 1000.0
         reply_text = await _stabilize_user_facing_reply(
             _semantic_user_message,
             reply_text,
             desktop_cognitive_engine_required=desktop_requires_cognitive_engine,
             protected_foreground_lane=desktop_requires_cognitive_engine,
         )
+        _delivery_timing["stabilizer_ms"] = (
+            time.monotonic() - _delivery_stage_started_at
+        ) * 1000.0
         if _grounded_recall_context:
             from core.conversation.grounded_recall import (
                 grounded_quote_from_context,
@@ -20568,6 +20579,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             )
             if attribution_repaired:
                 logger.info("Grounded recall repaired first-person user-quote attribution.")
+        _delivery_stage_started_at = time.monotonic()
         reply_text = await _reanswer_when_the_runtime_contradicts_her(
             reply_text,
             user_message=_semantic_user_message,
@@ -20578,6 +20590,9 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             turn_sensory_evidence=_turn_sensory_evidence,
             turn_trace=_live_turn_trace,
         )
+        _delivery_timing["runtime_reconcile_ms"] = (
+            time.monotonic() - _delivery_stage_started_at
+        ) * 1000.0
         if (
             allow_chat_fastpaths
             and _chat_preflight._is_explicit_capability_inventory_request(_semantic_user_message)
@@ -20628,6 +20643,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 logger.debug("Affordance intent parse skipped: %s", _aff_exc)
                 _pending_affordance_intents = []
 
+        _delivery_stage_started_at = time.monotonic()
         response_confidence = "high"
         is_stale = _is_actionably_stale_response(_semantic_user_message, reply_text)
         is_same_diff = _is_same_answer_different_prompt(_semantic_user_message, reply_text)
@@ -20751,6 +20767,9 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 memory_state_evidence=desktop_memory_state_evidence,
             )
         )
+        _delivery_timing["quality_classification_ms"] = (
+            time.monotonic() - _delivery_stage_started_at
+        ) * 1000.0
 
         if response_confidence == "degraded":
             (
@@ -21130,7 +21149,11 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             if response_confidence == "high"
             else (True, "")
         )
+        _delivery_stage_started_at = time.monotonic()
         lane_status = _chat_preflight._collect_conversation_lane_status()
+        _delivery_timing["lane_status_ms"] = (
+            time.monotonic() - _delivery_stage_started_at
+        ) * 1000.0
         try:
             actual_generation_at = float(lane_status.get("last_user_generation_at") or 0.0)
         except (TypeError, ValueError):
@@ -21169,6 +21192,11 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             same_diff=is_same_diff,
             off_topic=is_off_topic,
         )
+        logger.info(
+            "Foreground delivery timing before terminal shaping: %s",
+            {key: round(value, 2) for key, value in _delivery_timing.items()},
+        )
+        _terminal_shaping_started_at = time.monotonic()
 
         # Prepend any late-answered messages from prior turns so the user
         # sees what came back. The cortex was also given the continuity
@@ -21505,6 +21533,7 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             ]
 
         _record_recent_response(_final_reply or "…", _semantic_user_message)
+        _persistence_started_at = time.monotonic()
         if pending_exchange_id:
             await _chat_preflight._complete_logged_exchange(
                 pending_exchange_id,
@@ -21518,7 +21547,11 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 _final_reply or "…",
                 session_id=_chat_session_id,
             )
+        _delivery_timing["persistence_ms"] = (
+            time.monotonic() - _persistence_started_at
+        ) * 1000.0
 
+        _receipt_started_at = time.monotonic()
         await _emit_chat_output_receipt(
             _final_reply or "…",
             cause="chat_response",
@@ -21526,6 +21559,17 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 "response_confidence": response_confidence,
                 "path": _final_status or reply_source or "stabilized",
             },
+        )
+        _delivery_timing["receipt_ms"] = (time.monotonic() - _receipt_started_at) * 1000.0
+        _delivery_timing["terminal_shaping_ms"] = (
+            _persistence_started_at - _terminal_shaping_started_at
+        ) * 1000.0
+        _delivery_timing["request_total_ms"] = (
+            time.monotonic() - request_started_at
+        ) * 1000.0
+        logger.info(
+            "Foreground delivery timing complete: %s",
+            {key: round(value, 2) for key, value in _delivery_timing.items()},
         )
 
         return JSONResponse(response_data)
