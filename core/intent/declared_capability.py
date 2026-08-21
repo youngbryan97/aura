@@ -49,6 +49,7 @@ __all__ = [
     "foundational_capabilities",
     "looks_like_a_request",
     "rank_declaration_matches",
+    "requested_foundational_domains",
     "request_matches_declaration",
     "verb_class_of",
 ]
@@ -174,18 +175,35 @@ _VERB_CLASSES: tuple[frozenset[str], ...] = (
 #: "script" — which was half the live misses.
 _OBJECT_CLASSES: tuple[frozenset[str], ...] = (
     frozenset({"code", "script", "snippet", "program", "programme", "python",
-               "repl", "interpreter", "sandbox", "expression", "function"}),
+               "repl", "interpreter", "sandbox", "expression", "function",
+               "test", "tests", "testcase", "testcases"}),
     frozenset({"web", "online", "internet", "google", "browser", "site",
                "website", "url", "page"}),
     frozenset({"image", "images", "picture", "photo", "illustration",
                "artwork", "drawing", "painting", "diagram"}),
     frozenset({"screen", "display", "desktop", "window", "monitor"}),
-    frozenset({"file", "files", "document", "folder", "directory", "path"}),
+    frozenset({"file", "files", "document", "folder", "directory", "path",
+               "repo", "repository", "workspace", "filesystem"}),
     frozenset({"memory", "memories", "recollection", "note", "notes"}),
     frozenset({"time", "clock", "date", "hour", "day"}),
     frozenset({"email", "mail", "message", "messages", "text", "dm"}),
     frozenset({"voice", "speech", "audio", "sound", "microphone"}),
     frozenset({"package", "library", "dependency", "module"}),
+)
+
+_FOUNDATIONAL_DOMAIN_OBJECT = {
+    "code": "code",
+    "file": "file",
+    "web": "web",
+}
+
+# Concrete addresses carry their domain even when their noun is outside the
+# catalogue. ``README.md`` is a file without saying "file"; URLs do the same
+# for the web. These are syntax classes, not filenames maintained by hand.
+_WEB_ADDRESS_RE = re.compile(r"(?:https?://|www\.)\S+", re.IGNORECASE)
+_FILE_ADDRESS_RE = re.compile(
+    r"(?:^|\s)(?:~?/|\.{1,2}/|[A-Za-z]:[\\/])\S+"
+    r"|\b[A-Za-z0-9_-]+\.[A-Za-z][A-Za-z0-9]{0,11}\b"
 )
 
 #: Asking for a thing, rather than mentioning it.
@@ -227,14 +245,48 @@ _NEGATION = frozenset(
     }
 )
 
-_WORD_RE = re.compile(r"[a-z0-9_+#.]+")
+# Dots belong inside addresses and identifiers, never at a token boundary.
+# The former character class retained sentence punctuation (``tests.``), so a
+# domain named at the end of a clause failed to match the same word in a skill
+# declaration. Internal dots remain intact for names such as ``README.md``.
+_WORD_RE = re.compile(r"[a-z0-9_+#]+(?:\.[a-z0-9_+#]+)*")
 #: Sentence and clause boundaries. A verb in one clause does not govern an
 #: object in the next: "I ran a marathon, then wrote some code" is not a
 #: request to execute anything.
 # A colon introduces a clause: "do something for real instead of describing
 # it: run a tiny bit of code" puts the request after it, and without the
-# colon here the verb is buried mid-sentence and reads as narration.
-_CLAUSE_SPLIT_RE = re.compile(r"[.!?;:\n]+|,\s+(?:then|and then|after|before)\b|\bthen\b")
+# colon here the verb is buried mid-sentence and reads as narration. A
+# coordinated action does too: in "run Python and tell me the result", result
+# is the object of TELL, not RUN. Keeping both in one bag made every skill that
+# executes a "result" look like a Python interpreter.
+_COORDINATED_REPLY_HEADS = {
+    "describe",
+    "explain",
+    "give",
+    "report",
+    "show",
+    "summarise",
+    "summarize",
+    "synthesize",
+    "tell",
+}
+_ACTION_WORD_PATTERN = "|".join(
+    sorted(
+        (
+            re.escape(word)
+            for word in (
+                {member for members in _VERB_CLASSES for member in members}
+                | _COORDINATED_REPLY_HEADS
+            )
+        ),
+        key=len,
+        reverse=True,
+    )
+)
+_CLAUSE_SPLIT_RE = re.compile(
+    rf"[.!?;:\n]+|,\s+(?:then|and then|after|before)\b|\bthen\b|"
+    rf"\s+(?:and|but)\s+(?=(?:please\s+)?(?:{_ACTION_WORD_PATTERN})\b)"
+)
 
 
 @lru_cache(maxsize=4096)
@@ -516,11 +568,17 @@ def computation_capabilities(
         if "code" in members:
             wanted |= members
     folded = {_fold(word) for word in wanted}
+    execution_acts = set(verb_class_of("execute")) | {"test", "testing"}
     scored: list[tuple[int, str]] = []
-    for name, (_verbs, objects) in catalogue.items():
+    for name, (verbs, objects) in catalogue.items():
         overlap = len({_fold(word) for word in objects} & folded)
-        if overlap:
-            scored.append((-overlap, name))
+        # A code-shaped noun is insufficient: web search returns "snippets",
+        # package installation mentions Python, and self-repair mentions code.
+        # An exact problem needs a primitive that both owns code-like state and
+        # declares that it executes or tests it.
+        if overlap and set(verbs) & execution_acts:
+            named_overlap = len({_fold(word) for word in _words(name)} & folded)
+            scored.append((-(10 * named_overlap + overlap), name))
     scored.sort()
     return [name for _rank, name in scored]
 
@@ -548,20 +606,76 @@ def settles_by_computation(message: object) -> bool:
         return False
 
 
+def requested_foundational_domains(message: object) -> tuple[str, ...]:
+    """The machine domains materially named by a request.
+
+    A request's mood does not identify its execution surface. The previous
+    selector treated every imperative as evidence for file, code, and web
+    access, so a conversational revision such as "add one limitation" opened
+    all three domains. That is a category error: grammatical action is not
+    machine I/O.
+
+    Domain evidence comes from the object role already shared by declaration
+    matching, concrete resource syntax, or an independently computable exact
+    problem. This keeps nouns open-ended (``README.md`` needs no catalogue
+    entry) while requiring a causal reason before a tool enters the turn.
+    """
+    body = str(message or "").strip()
+    if not body or not looks_like_a_request(body):
+        return ()
+
+    present = {_fold(word) for word in _words(body)}
+    requested: list[str] = []
+    for domain, representative in _FOUNDATIONAL_DOMAIN_OBJECT.items():
+        members = object_class_of(representative)
+        if present & {_fold(member) for member in members}:
+            requested.append(domain)
+
+    if _WEB_ADDRESS_RE.search(body) and "web" not in requested:
+        requested.append("web")
+    if _FILE_ADDRESS_RE.search(body) and "file" not in requested:
+        requested.append("file")
+
+    # Exact arithmetic and finite constraint problems identify computation by
+    # structure rather than by the word "code". Reuse the readers that own
+    # those claims so routing cannot invent a second definition of arithmetic.
+    needs_compute = settles_by_computation(body)
+    if not needs_compute:
+        try:
+            from core.conversation.arithmetic_check import requested_arithmetic_result
+
+            needs_compute = requested_arithmetic_result(body) is not None
+        except (ImportError, AttributeError, TypeError, ValueError):
+            needs_compute = False
+    if needs_compute and "code" not in requested:
+        requested.append("code")
+    return tuple(requested)
+
+
 def foundational_capabilities(
     catalogue: Mapping[str, tuple[frozenset[str], frozenset[str]]],
+    domains: Iterable[str] | None = None,
 ) -> list[str]:
     """Skills that work in the domains every task passes through.
 
     Chosen by what each skill declares it acts on, so no skill is named here
     and one registered tomorrow joins the set by describing itself.
     """
-    # One primitive per domain, not a flat ranking. Ranked flat, the code
-    # domain declares four matching words and the file domain one, so every
-    # slot went to interpreters and the FILE READER fell off the end — on a
-    # task whose first step is reading a file.
-    best_per_domain: list[list[str]] = []
-    for domain in _FOUNDATIONAL_DOMAINS:
+    candidates = _FOUNDATIONAL_DOMAINS if domains is None else tuple(domains)
+    selected_domains = tuple(
+        domain for domain in candidates if domain in _FOUNDATIONAL_DOMAINS
+    )
+    # Exactly one primitive per domain. Returning every declaration that
+    # mentions a domain made a file read offer malware analysis and TTS, and a
+    # computation offer web search because it returns snippets. Specialized
+    # skills still enter through their own declaration match.
+    ordered: list[str] = []
+    for domain in selected_domains:
+        if domain == "code":
+            code_candidates = computation_capabilities(catalogue)
+            if code_candidates:
+                ordered.append(code_candidates[0])
+            continue
         wanted: set[str] = set()
         for members in _OBJECT_CLASSES:
             if domain in members:
@@ -571,16 +685,11 @@ def foundational_capabilities(
         for name, (_verbs, objects) in catalogue.items():
             overlap = len({_fold(word) for word in objects} & folded)
             if overlap:
-                scored.append((-overlap, name))
+                named_overlap = len({_fold(word) for word in _words(name)} & folded)
+                scored.append((-(10 * named_overlap + overlap), name))
         scored.sort()
-        best_per_domain.append([name for _rank, name in scored])
-
-    # Round-robin, so every domain is represented before any is doubled.
-    ordered: list[str] = []
-    for position in range(max((len(column) for column in best_per_domain), default=0)):
-        for column in best_per_domain:
-            if position < len(column) and column[position] not in ordered:
-                ordered.append(column[position])
+        if scored:
+            ordered.append(scored[0][1])
     return ordered
 
 

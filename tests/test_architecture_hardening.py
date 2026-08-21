@@ -429,7 +429,14 @@ def test_capability_engine_does_not_treat_conversational_add_as_arithmetic():
         "Stay with glass arithmetic. Add one limitation and connect it to the example."
     )
 
-    assert "run_code" not in matched
+    assert not set(matched) & {
+        "run_code",
+        "code_repl",
+        "internal_sandbox",
+        "file_operation",
+        "web_search",
+        "http_request",
+    }
 
 
 def test_capability_engine_still_detects_explicit_numeric_arithmetic():
@@ -437,6 +444,14 @@ def test_capability_engine_still_detects_explicit_numeric_arithmetic():
 
     assert "run_code" in engine.detect_intent("Add 41 and 1.")
     assert "run_code" in engine.detect_intent("Multiply 6 by 7.")
+
+
+def test_capability_engine_does_not_offer_weak_specialty_neighbors_for_python():
+    engine = CapabilityEngine()
+
+    matched = engine.detect_intent("Run some Python and tell me the result.")
+
+    assert set(matched) <= {"code_repl", "run_code", "internal_sandbox"}
 
 
 def _social_imagination_engine(tmp_path):

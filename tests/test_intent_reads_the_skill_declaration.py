@@ -197,3 +197,58 @@ def test_a_discourse_word_does_not_make_a_statement_a_request(conversation: str)
     from core.intent.declared_capability import looks_like_a_request
 
     assert not looks_like_a_request(conversation)
+
+
+@pytest.mark.parametrize(
+    "revision",
+    [
+        "Add one limitation and connect it to the example.",
+        "Include another caveat in that explanation.",
+        "Expand the second point with a concrete counterexample.",
+        "Tie the conclusion back to the opening claim.",
+    ],
+)
+def test_conversational_revisions_name_no_machine_domain(revision: str):
+    from core.intent.declared_capability import requested_foundational_domains
+
+    assert requested_foundational_domains(revision) == ()
+
+
+@pytest.mark.parametrize(
+    ("request_text", "expected"),
+    [
+        ("Read README.md and tell me what it says.", {"file"}),
+        ("Inspect /tmp/ledger and run its tests.", {"file", "code"}),
+        ("Search the web for current release notes.", {"web"}),
+        ("Run some Python and tell me the result.", {"code"}),
+        ("Add 41 and 1.", {"code"}),
+    ],
+)
+def test_machine_domains_come_from_the_requests_objects_or_structure(
+    request_text: str,
+    expected: set[str],
+):
+    from core.intent.declared_capability import requested_foundational_domains
+
+    assert set(requested_foundational_domains(request_text)) == expected
+
+
+def test_a_weak_semantic_neighbor_does_not_join_the_best_supported_skill():
+    from core.intent.declared_capability import rank_declaration_matches
+
+    declarations = {
+        "code_repl": declared_vocabulary(
+            "code_repl", "Execute Python code in a sandboxed REPL"
+        ),
+        "program_dna_equivalence_battery": declared_vocabulary(
+            "program_dna_equivalence_battery",
+            "Run a program equivalence battery across simulated applications",
+        ),
+    }
+    ranked = rank_declaration_matches(
+        "Run some Python and tell me the result.",
+        declarations,
+        distinctive_objects(declarations),
+    )
+
+    assert [name for name, _score in ranked] == ["code_repl"]

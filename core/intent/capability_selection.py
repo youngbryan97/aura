@@ -75,6 +75,7 @@ def select_capabilities(
         foundational_capabilities,
         looks_like_a_request,
         rank_declaration_matches,
+        requested_foundational_domains,
         settles_by_computation,
     )
     from core.skills.action_scope import resolve_skill_target, skill_has_action_within
@@ -87,14 +88,17 @@ def select_capabilities(
     if not catalogue:
         return []
 
-    ordered = [
-        name
-        for name, _score in rank_declaration_matches(
-            text, catalogue, distinctive_objects(catalogue)
-        )
-    ]
+    ranked = rank_declaration_matches(text, catalogue, distinctive_objects(catalogue))
+    # A semantic neighbour is not automatically a plausible tool. "Run
+    # Python" gave code_repl 1.75 but also admitted a program-DNA equivalence
+    # battery at 0.75 because program and Python share a domain class. Keep the
+    # strongest evidence class; materially different domains are added below
+    # from the request's objects, so compound tasks retain their working set.
+    strongest = ranked[0][1] if ranked else 0.0
+    ordered = [name for name, score in ranked if score == strongest]
     if looks_like_a_request(text):
-        for name in foundational_capabilities(catalogue):
+        domains = requested_foundational_domains(text)
+        for name in foundational_capabilities(catalogue, domains):
             if name not in ordered:
                 ordered.append(name)
     elif settles_by_computation(text):

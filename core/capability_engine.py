@@ -128,12 +128,12 @@ from core.security.structural_redaction import (  # noqa: E402
     redact_text,
     redaction_marker,
 )
-from core.skills.base_skill import (  # noqa: E402
-    SKILL_TIMEOUT_CONTEXT_KEY as _SKILL_TIMEOUT_CONTEXT_KEY,
-)
 from core.skill_management.forged_artifact import ArtifactError  # noqa: E402
 from core.skill_management.skill_verification import (  # noqa: E402
     ENTRYPOINT as FORGED_ENTRYPOINT,
+)
+from core.skills.base_skill import (  # noqa: E402
+    SKILL_TIMEOUT_CONTEXT_KEY as _SKILL_TIMEOUT_CONTEXT_KEY,
 )
 from core.skills.catalog_policy import resolve_skill_policy  # noqa: E402
 from core.utils.intent_normalization import normalize_memory_intent_text  # noqa: E402
@@ -2168,7 +2168,7 @@ class CapabilityEngine(AuraBaseModule):
         """Skills whose own declaration answers this request."""
         from core.intent.declared_capability import (
             distinctive_objects,
-            request_matches_declaration,
+            rank_declaration_matches,
         )
 
         try:
@@ -2179,13 +2179,9 @@ class CapabilityEngine(AuraBaseModule):
             if objects is None:
                 objects = distinctive_objects(vocabulary)
                 self._declaration_objects_cache = objects
-            return [
-                name
-                for name, (verbs, _declared) in vocabulary.items()
-                if request_matches_declaration(
-                    message, verbs=verbs, objects=objects.get(name, frozenset())
-                )
-            ]
+            ranked = rank_declaration_matches(message, vocabulary, objects)
+            strongest = ranked[0][1] if ranked else 0.0
+            return [name for name, score in ranked if score == strongest]
         except Exception as exc:  # noqa: BLE001 - reported, never silent
             record_degradation(
                 "capability_engine",
