@@ -61,7 +61,16 @@ def main():
         "Source Hygiene": ([sys.executable, "-m", "pytest", "tests/test_safe_mode_runtime.py", "-q"], "Source Hygiene & Test Compiling"),
         "Boot Certification": ([sys.executable, "tools/certify_boot.py"], "Headless Boot Gateway Probes"),
         "Aletheia Live Proof": ([sys.executable, "tools/run_aletheia_live_proof.py"], "leakage-Proof Aletheia Benchmarking"),
-        "Architecture Ablation": ([sys.executable, "aura_bench/ablations/runner.py"], "Quantitative Module Lesions")
+        # The old fabricated runner under aura_bench was deleted on 2026-07-15
+        # for printing hardcoded dict literals as an "ABLATION SUITE" result
+        # having run nothing (see tests/test_no_fabricated_benchmarks.py).
+        # This gate kept pointing at it, so it failed on a missing file every
+        # run. tools/ablation_runner.py drives real organs intact vs lesioned.
+        "Architecture Ablation": (
+            [sys.executable, "tools/ablation_runner.py", "--out",
+             str(PROJECT_ROOT / "artifacts" / "certification" / "latest" / "ABLATION_SUMMARY.json")],
+            "Quantitative Module Lesions",
+        ),
     }
 
     results = {}

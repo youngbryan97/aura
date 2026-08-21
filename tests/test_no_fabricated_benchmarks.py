@@ -57,6 +57,71 @@ def test_a_real_ablation_runner_exists_instead():
     )
 
 
+#: The numbers the deleted runner printed. Deleting the source that made them
+#: did not delete the JSON it had already written: five byte-identical copies
+#: of the same dict sat under artifacts/certification/latest/ for five weeks,
+#: and EVALUATE_AURA.md linked one of them to external reviewers as
+#: "quantitative baseline comparisons proving each module is causally
+#: load-bearing". A test over Python source cannot see a committed artifact.
+_FABRICATED_SCORES = {"raw_model": 0.42, "full_aura": 0.94}
+
+
+def test_no_committed_artifact_carries_the_fabricated_scorecard():
+    """The deleted runner's output must not survive the deleted runner."""
+    import json
+
+    offenders = []
+    for path in (ROOT / "artifacts").rglob("*.json"):
+        if path.stat().st_size > 2_000_000:
+            continue
+        try:
+            payload = json.loads(path.read_text(errors="replace"))
+        except (ValueError, OSError):
+            continue
+        blocks = payload.get("ablations") if isinstance(payload, dict) else None
+        if not isinstance(blocks, dict):
+            continue
+        for name, expected in _FABRICATED_SCORES.items():
+            entry = blocks.get(name)
+            if isinstance(entry, dict) and entry.get("aletheia_score") == expected:
+                offenders.append(f"{path.relative_to(ROOT)} ({name}={expected})")
+    assert not offenders, (
+        "fabricated ablation scorecard found in committed artifacts:\n  "
+        + "\n  ".join(sorted(offenders))
+    )
+
+
+def test_the_soak_simulator_is_gone():
+    """It wrote 4h, 24h and 72h "audit-grade telemetry" from random.seed().
+
+    All three completed within six milliseconds of each other, and
+    EVALUATE_AURA.md offered them for verifying resource stability.
+    tools/longevity/run_longevity_soak.py measures a real one.
+    """
+    assert not (ROOT / "tools" / "generate_soak_logs.py").exists(), (
+        "the soak simulator is back"
+    )
+    assert (ROOT / "tools" / "longevity" / "run_longevity_soak.py").exists(), (
+        "no real longevity soak — deleting the simulator removed the capability"
+    )
+    survivors = sorted(
+        p.relative_to(ROOT).as_posix()
+        for p in (ROOT / "artifacts").rglob("SOAK_LOG_*.json")
+    )
+    assert not survivors, f"simulated soak telemetry still committed: {survivors}"
+
+
+def test_certification_runs_the_real_ablation_runner():
+    """The gate pointed at the deleted file and failed on it every run."""
+    source = (ROOT / "tools" / "certify.py").read_text()
+    assert "aura_bench/ablations/runner.py" not in source, (
+        "certify.py still invokes the deleted fabricated runner"
+    )
+    assert "tools/ablation_runner.py" in source, (
+        "certify.py no longer runs any ablation gate"
+    )
+
+
 def _iter_benchmark_modules():
     for d in _BENCHMARK_DIRS:
         base = ROOT / d

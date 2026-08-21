@@ -48,13 +48,23 @@ and the runtime disagree, the runtime is right.
 
 ## 5. Indefinite Autonomy
 * **Status**: `not proven`
-* **Rationale**: The long-horizon operational stability of Aura over infinite horizons has not been established. Longevity soak runs (4h, 24h, 72h) demonstrate stable resource profiles under bounded conditions, but do not guarantee safety, correctness, or memory leak containment over arbitrary multi-week or multi-month execution windows.
+* **Rationale**: Long-horizon operational stability has not been established.
+  The longest measured windows are the dated soak verdicts, and each is a
+  single run rather than a trend: 2026-07-18 measured idle RSS *declining* at
+  −21 MB/h over 50 minutes and 100 samples, and 2026-07-25 measured idle RSS
+  rising 1.14 → 1.22 GB over the same window. Neither says anything about a
+  multi-week window.
+
+  Three files named for 4-hour, 24-hour and 72-hour runs were committed under
+  `artifacts/certification/latest/` until 2026-08-21 and were never evidence
+  for this. A simulator seeded on the duration wrote them, and all three
+  "completed" within six milliseconds of each other. Both the files and the
+  tool that made them have been removed.
 
   **What would change this status**: a multi-week continuous run with a flat
-  RSS trend line and no unexplained restarts, plus resolution of the open
-  soak finding — the 4h run FAILs memory at roughly 242MB/h linear, and
-  whether that is a real leak or proof machinery deferring reclamation is
-  still unsettled.
+  RSS trend line and no unexplained restarts. The 2026-07-07 figure of roughly
+  242 MB/h that this entry used to cite has been superseded twice; it should
+  not be quoted as the current number.
 
 ## 6. Real-World External Validation
 * **Status**: `not proven`
