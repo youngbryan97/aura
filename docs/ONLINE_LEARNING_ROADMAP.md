@@ -141,3 +141,62 @@ present, lift unproven."**
 | TreeLoRA forgetting isolation | partial | "interference-aware branching" |
 | Full-weight batch self-training | built, gated | "offline, eval-gated, hot-swap" |
 | Online core-weight learning | **research frontier** | **none** |
+
+---
+
+## 6. The learned language substrate (2026-08-20) — what is real, what is not
+
+`core/language/learned_matcher.py` decides what a sentence is from declared
+examples rather than from a word list, and `core/language/model_features.py`
+reads those sentences off the resident model's hidden states instead of a
+topical embedder. First consumer: whether a reply claims a completed action
+(`core/conversation/response_reliability.py`).
+
+**What is measured.** A topical sentence embedder was put behind all
+twenty-five declared matchers in the runtime. Eight separated their own
+examples and none by more than the spread inside its classes — zero usable
+boundaries. That is a real negative result and it is why the feature source
+is a parameter.
+
+**What is NOT yet measured, and is the important one.** No frozen measurement
+shows the resident model's hidden states separate the production action-claim
+examples. The classifier mechanics are tested against a synthetic feature
+function (first person, interrogative mood); the hidden-state path is exposed,
+fails safe, and is unproven. Before claiming representational superiority this
+needs AUROC, F1 and a false-positive rate on **held-out paraphrases** using the
+local model's own vectors, frozen and re-runnable, and it must clear
+`tools/proof_fabrication_guard.py` like any other claim here.
+
+Until then the honest classification is **"substrate present, representational
+generalization unproven."**
+
+### Known limitations, in the order they matter
+
+| # | Limitation | Where | Consequence |
+| :-- | :-- | :-- | :-- |
+| 1 | Learned state is process-local | `LearnedMatcher` holds positives, negatives, `_decided`, `_pending` in Python fields with no durable write | a restart discards every phrasing learned from use |
+| 2 | The fast path caches exact strings | `_decided` is keyed on the stripped sentence | a paraphrase is a first sighting again, even though the *decision* generalizes over vectors |
+| 3 | `observe()` reopens the boundary and keeps old verdicts | `observe` clears `_ready`, never `_decided` | examples that move the boundary do not revise decisions already cached |
+| 4 | The warmer drops what it could not decide | `warm()` discards from `_pending` before checking the verdict | a phrase deferred while the model was busy needs to be encountered again |
+| 5 | Representational claim unproven | above | the architecture, the online path and the first consumer are real; the superiority of hidden-state features over embeddings is not established |
+
+### Where this could go: the model as a representation organ
+
+The model's roles have been to understand, reason and generate. `encode_hidden`
+adds a fourth that does not require it to speak: a reusable representation,
+`f(x) → h(x)`, that other systems consume directly.
+
+If the measurement above succeeds, the same surface — independently
+calibrated, abstaining, trained on receipts rather than on a list — could
+decide request against statement, promise against completed action,
+observation against inference, hypothetical against factual, correction
+against new instruction, uncertainty, intent, whether a tool is required,
+relevance, contradiction, task state, and appraisal categories.
+
+Each of those is a lexical debt in the runtime today. Capability routing still
+carries explicit verb classes (run/execute/compute, search/find/browse,
+write/create/build) and object classes (code/script/python,
+file/document/path) with handcrafted mood logic; the positional solver still
+converts English into constraints with regular expressions. The accurate
+description of the system as it stands is **deterministic language rules plus
+one early learned semantic substrate** — not learned language interpretation.
