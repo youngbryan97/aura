@@ -527,7 +527,7 @@ async def test_qualified_semantic_neural_domain_is_observable_and_canonical(monk
         messages=[{"role": "user", "content": task.prompt}],
         visible_objective=task.prompt,
         foreground=True,
-        desktop_required=True,
+        desktop_required=False,
         cognitive_mode="reactive",
         request_timeout_s=30.0,
         strict_output_contract=True,

@@ -392,7 +392,13 @@ async def run_foreground_latent_episode(
     # exclusions, but only when an answer-blind parser recognizes the complete
     # public task grammar.  Unsupported language never acquires the model lane.
     qualified_admission = None
-    if foreground and desktop_required and not proof_or_benchmark:
+    # Qualified recurrence is an answer contract, not a desktop-control
+    # contract.  Ordinary sovereign chat normally has ``desktop_required``
+    # false, so coupling admission to that flag left a valid, active CP568
+    # package unreachable from the exact user surface it was promoted to
+    # serve.  Desktop ownership still governs effects elsewhere; this lane is
+    # pure typed reasoning and may run for every foreground user turn.
+    if foreground and not proof_or_benchmark:
         try:
             from core.brain.llm.qualified_recurrent_ingress import (
                 admit_qualified_recurrent_objective,
