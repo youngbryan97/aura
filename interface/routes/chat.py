@@ -110,7 +110,7 @@ from core.runtime.structured_input import (
 )
 from core.runtime.version import version_string
 from core.self.inner_language import say_focus
-from core.utils.injected_blocks import stamp_runtime_payload
+from core.utils.injected_blocks import is_stamped_runtime_payload, stamp_runtime_payload
 from core.utils.intent_normalization import normalize_memory_intent_text
 from core.utils.task_tracker import get_task_tracker
 from interface.auth import (
@@ -5831,6 +5831,12 @@ async def _run_cognitive_engine_chat_turn(
                 "live_mind_snapshot_ready": bool(mind_snapshot_quality.get("ready")),
                 "live_mind_snapshot_missing_services": list(
                     mind_snapshot_quality.get("missing_services") or []
+                ),
+                "live_mind_required_subsystems": dict(
+                    live_mind_context.get("required_subsystems") or {}
+                ),
+                "live_mind_required_subsystems_attested": bool(
+                    is_stamped_runtime_payload(live_mind_context)
                 ),
                 "live_mind_required_subsystems_ok": bool(
                     live_mind_context.get("required_subsystems_ok")

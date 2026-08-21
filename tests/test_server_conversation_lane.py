@@ -3756,6 +3756,95 @@ def test_live_turn_contract_allows_proven_generation_to_satisfy_inference(monkey
     assert payload["full_mind_path"] is True
 
 
+def test_live_turn_contract_reuses_attested_subsystems_without_runtime_resolution(monkeypatch):
+    from interface.routes import chat as chat_routes
+
+    def _must_not_probe(*_args, **_kwargs):
+        raise AssertionError("delivery contract re-resolved live services")
+
+    monkeypatch.setattr(
+        chat_routes,
+        "_collect_live_chat_required_subsystems",
+        _must_not_probe,
+    )
+    payload = chat_routes._build_live_turn_contract_payload(
+        desktop_required=True,
+        request_surface="desktop-ui",
+        lane_status={"conversation_ready": True, "state": "ready"},
+        response_confidence="high",
+        status="cognitive_engine",
+        reply_source="cognitive_engine",
+        turn_trace={
+            "engine_think_invoked": True,
+            "cognitive_engine_reply_accepted": True,
+            "live_mind_context_present": True,
+            "live_mind_snapshot_present": True,
+            "live_mind_snapshot_ready": True,
+            "live_mind_required_subsystems_ok": True,
+            "live_mind_required_subsystems_attested": True,
+            "live_mind_required_subsystems": {
+                "kernel": True,
+                "cognitive_engine": True,
+                "inference": True,
+                "memory": True,
+                "tool_governance": True,
+                "substrate_voice": True,
+            },
+            "response_path": "cognitive_engine",
+            **_bound_live_mind_controls_trace(),
+        },
+    )
+
+    assert payload["required_subsystems_source"] == "attested_preflight"
+    assert payload["required_subsystems_ok"] is True
+    assert payload["full_mind_path"] is True
+
+
+def test_live_turn_contract_rejects_self_asserted_subsystem_vector(monkeypatch):
+    from interface.routes import chat as chat_routes
+
+    measured = {
+        "kernel": True,
+        "cognitive_engine": True,
+        "inference": True,
+        "memory": True,
+        "tool_governance": False,
+        "substrate_voice": True,
+    }
+    monkeypatch.setattr(
+        chat_routes,
+        "_collect_live_chat_required_subsystems",
+        lambda *_args, **_kwargs: dict(measured),
+    )
+    payload = chat_routes._build_live_turn_contract_payload(
+        desktop_required=True,
+        request_surface="desktop-ui",
+        lane_status={"conversation_ready": True, "state": "ready"},
+        response_confidence="high",
+        status="cognitive_engine",
+        reply_source="cognitive_engine",
+        turn_trace={
+            "engine_think_invoked": True,
+            "cognitive_engine_reply_accepted": True,
+            "live_mind_context_present": True,
+            "live_mind_snapshot_present": True,
+            "live_mind_snapshot_ready": True,
+            "live_mind_required_subsystems_ok": True,
+            "live_mind_required_subsystems_attested": False,
+            "live_mind_required_subsystems": {
+                name: True for name in measured
+            },
+            "response_path": "cognitive_engine",
+            **_bound_live_mind_controls_trace(),
+        },
+    )
+
+    assert payload["required_subsystems_source"] == "compatibility_probe"
+    assert payload["required_subsystems"]["tool_governance"] is False
+    assert payload["required_subsystems_ok"] is False
+    assert payload["full_mind_path"] is False
+
+
 def test_live_turn_contract_preserves_stale_preflight_subsystem_state(monkeypatch):
     from interface.routes import chat as chat_routes
 

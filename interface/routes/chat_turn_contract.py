@@ -214,6 +214,49 @@ def _collect_live_chat_required_subsystems(
     }
 
 
+_LIVE_CHAT_REQUIRED_SUBSYSTEMS = frozenset(
+    {
+        "kernel",
+        "cognitive_engine",
+        "inference",
+        "memory",
+        "tool_governance",
+        "substrate_voice",
+    }
+)
+
+
+def _attested_live_chat_required_subsystems(
+    trace: dict[str, Any],
+    *,
+    generation_proven: bool = False,
+) -> dict[str, bool] | None:
+    """Reuse the runtime-stamped pre-generation snapshot without resolving services.
+
+    Contract construction is observational. Calling ``ServiceContainer.get``
+    here can initialize late services after an answer already exists, introducing
+    seconds of latency and governance side effects. The foreground route already
+    collects the complete subsystem vector inside a per-process stamped payload;
+    accept only that exact, boolean vector. Older/non-stamped callers fall back to
+    fresh compatibility probes instead of being trusted on a self-asserted flag.
+    """
+
+    if trace.get("live_mind_required_subsystems_attested") is not True:
+        return None
+    raw = trace.get("live_mind_required_subsystems")
+    if not isinstance(raw, dict) or set(raw) != _LIVE_CHAT_REQUIRED_SUBSYSTEMS:
+        return None
+    if any(type(raw[name]) is not bool for name in _LIVE_CHAT_REQUIRED_SUBSYSTEMS):
+        return None
+    observed = {name: raw[name] for name in sorted(_LIVE_CHAT_REQUIRED_SUBSYSTEMS)}
+    if generation_proven:
+        # A successfully delivered cognitive answer is direct evidence that the
+        # inference lane served this turn, even if the earlier lane snapshot was
+        # still transitioning from warming to ready.
+        observed["inference"] = True
+    return observed
+
+
 _RUNTIME_GROUNDING_RESPONSE_PATHS = frozenset(
     {
         "cognitive_engine_memory_state_grounding",
@@ -904,10 +947,17 @@ def _build_live_turn_contract_payload(
         and live_mind_snapshot_bound
         and live_mind_controls_structurally_bound
     )
-    subsystems = _collect_live_chat_required_subsystems(
-        lane,
+    subsystems = _attested_live_chat_required_subsystems(
+        trace,
         generation_proven=authentic_cognitive_reply,
     )
+    required_subsystems_source = "attested_preflight"
+    if subsystems is None:
+        required_subsystems_source = "compatibility_probe"
+        subsystems = _collect_live_chat_required_subsystems(
+            lane,
+            generation_proven=authentic_cognitive_reply,
+        )
     _expected_organs = _collect_expected_turn_organs()
     _note_organ_engagement(_expected_organs)
     required_subsystems_ok = all(subsystems.values())
@@ -1115,6 +1165,7 @@ def _build_live_turn_contract_payload(
         "architecture_context_bound": architecture_context_bound,
         "full_mind_path": full_mind_path,
         "required_subsystems": subsystems,
+        "required_subsystems_source": required_subsystems_source,
         "required_subsystems_ok": required_subsystems_ok,
         # Reported, never fatal. A persistent absence here is why a reply can
         # be technically correct and not sound like her.
