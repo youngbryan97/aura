@@ -507,12 +507,21 @@ suppresses the expensive phases outright. A healthy foreground turn is
 `GodModeToolPhase` runs on a priority tick **only** when the routed intent
 is SKILL or TASK — conditional, not part of the always-on set.
 
-Suppressed on a user-facing tick (18 phases): EternalMemory,
-EternalGrowthEngine, TrueEvolution, NativeMultimodalBridge,
-ShadowExecution, PerfectEmotion, **PhiConsciousness**,
-CognitiveIntegration, Inference, Bonding, Repair, MemoryConsolidation,
-IdentityReflection, InitiativeGeneration, Consciousness, SelfReview,
-Learning, Legacy.
+Suppressed on a user-facing tick (18 phases, in pipeline order):
+NativeMultimodalBridge, EternalMemoryPhase, PerfectEmotionPhase,
+**PhiConsciousnessPhase**, CognitiveIntegrationPhase, ShadowExecutionPhase,
+EternalGrowthEngine, TrueEvolutionPhase, InferencePhase, BondingPhase,
+GodModeToolPhase, RepairPhase, MemoryConsolidationPhase,
+IdentityReflectionPhase, InitiativeGenerationPhase, ConsciousnessPhase,
+SelfReviewPhase, LearningPhase.
+
+`GodModeToolPhase` is in that set and is the one member a priority tick can
+still admit, which is what "conditional" means above. This list is
+`pipeline_rate_report()["suppressed_on_priority_tick"]`; a test compares the
+two, because the previous version of this paragraph named a `Legacy` phase
+that is not in the pipeline at all — `LegacyPhase` is the orchestrator bridge
+in `core/kernel/bridge.py`, and it reached this page by way of the suppression
+set, where its name can never match.
 
 **Suppressed is not dormant.** `MindTick` obtains the live kernel and calls
 `kernel.tick(objective, priority=False)`. That background tick traverses

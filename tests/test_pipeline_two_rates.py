@@ -14,6 +14,7 @@ blueprint's length. These tests hold the mapping to the code.
 from __future__ import annotations
 
 import inspect
+import re
 
 from core.runtime.pipeline_blueprint import (
     BACKGROUND_ONLY_PHASES,
@@ -121,3 +122,41 @@ def test_the_report_says_what_it_means():
     assert len(report["suppressed_on_priority_tick"]) == len(
         background_only_phase_names()
     )
+
+
+def test_architecture_md_names_the_phases_the_report_names():
+    """The page and the code, held to the same list.
+
+    ARCHITECTURE.md §2 is what anyone reads to learn what a turn runs, and it
+    had been written from the blueprint rather than from the report — which is
+    how it came to name a `Legacy` phase. `LegacyPhase` is the orchestrator
+    bridge in core/kernel/bridge.py; it is in BACKGROUND_ONLY_PHASES, where
+    its name can never match a pipeline phase, and from there it reached the
+    page as a nineteenth thing a turn suppresses.
+    """
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent.parent
+    page = (root / "ARCHITECTURE.md").read_text(errors="replace")
+    marker = "Suppressed on a user-facing tick"
+    assert marker in page, "ARCHITECTURE.md §2 no longer names the suppressed set"
+    start = page.index(marker)
+    listed = page[start:].split(".\n\n", 1)[0]
+
+    report = pipeline_rate_report()
+    for phase in report["suppressed_on_priority_tick"]:
+        assert phase in listed, f"ARCHITECTURE.md §2 omits {phase}"
+
+    count_match = re.search(r"\((\d+) phases", listed)
+    assert count_match, "ARCHITECTURE.md §2 no longer states how many are suppressed"
+    counted = int(count_match.group(1))
+    assert counted == report["background_only_phases"], (
+        f"ARCHITECTURE.md says {counted} suppressed phases, "
+        f"the report says {report['background_only_phases']}"
+    )
+
+    foreground = page[page.index("A healthy foreground turn is") :][:200]
+    assert "eleven phases" in foreground, (
+        "the foreground count moved; ARCHITECTURE.md §2 still says eleven"
+    )
+    assert report["foreground_phases"] == 11

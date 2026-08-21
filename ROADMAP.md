@@ -17,7 +17,7 @@ measuring anything.
 
 | # | Dimension | Was | Now | Why |
 |---|---|---|---|---|
-| 1 | Architectural Coherence | A- | **A** | Engineering spine landed: taint register, lockdep, PSI, OOM shed ladder, telemetry dictionary, 45 `@invariant` checks in `core/verify/`, and a `make layering` gate whose baseline only shrinks |
+| 1 | Architectural Coherence | A- | **A** | Engineering spine landed: taint register, lockdep, PSI, OOM shed ladder, telemetry dictionary, 50 `@invariant` checks in `core/verify/`, and a `make layering` gate whose baseline only shrinks |
 | 2 | Agency | A- | **A-** | Held. Reality Reach widened the governed surface, but agency *capability* didn't deepen — and RR-10 is entirely open |
 | 3 | Memory & Narrative Self-Model | A- | **A** | Associative entity memory; recall is now measured as recall rather than as "the machinery is up" |
 | 4 | aLife / Organism | B+ | **A-** | Allostasis (`core/autonomic/allostasis.py`) makes interoception predictive rather than reactive; `core/ontogeny/` closes consequence→disposition |
@@ -53,6 +53,41 @@ The columns are:
   be claimed (e.g. metaphysical phenomenal consciousness).
 * **Closure plan** — concrete code/test/process work, with file paths.
 * **Status** — what shipped in the current pass and what is staged.
+
+## Since the 2026-08-01 re-score
+
+*Recorded 2026-08-21. Grades are deliberately **not** moved here.* Re-scoring
+is a judgement about the whole tree and it belongs to whoever makes the next
+pass; what this section does is stop the page reading as though nothing has
+happened for three weeks. Each entry below is evidence a re-score would have
+to weigh, and each names where to check it.
+
+**Bears on 2, Agency.** The browser gained a closed observe-decide-act loop
+(`core/skills/sovereign_browser.py`, `pursue` mode) that carries a standing
+understanding across rounds and bounds itself on progress rather than a clock;
+`core/skills/screen_pursuit.py` runs the same shape against the screen. Ten
+new modules under `core/agency/` including `plan_synthesis.py`,
+`replanning.py`, `stuck_detector.py` and `deliberate_action.py`. The August
+re-score held this dimension because "agency *capability* didn't deepen" —
+that is the sentence the next pass has to test.
+[docs/BROWSER_PURSUIT.md](docs/BROWSER_PURSUIT.md).
+
+**Bears on 5, Consciousness Proxies, or on a research line rather than a
+dimension.** The recurrence programme returned its first positive result:
+a replicated lesion-dependent gain on a frozen four-domain cohort, 60/60
+against 16/60 for ordinary decode, adjudicated `BOUNDED_WOW_SIGNAL`, live in
+the serving path. It is bounded to four executable families and is not a broad
+reasoning gain. [docs/INTRINSIC_RECURRENCE.md](docs/INTRINSIC_RECURRENCE.md).
+
+**Bears on nothing yet — still held.** Sovereignty: `WalletAdapter` remains
+abstract with `InMemoryAdapter` the only implementation. External
+Undeniability: still no independent replication. Runtime Survivability: F16 is
+still architecturally open, and `KNOWN_FAILURE_MODES.md` still says so.
+
+**Documentation, which no dimension scores.** `make doc-drift` now fails any
+document naming a file, route, symbol, environment variable, or count that the
+code does not have. What it found on first run is in
+[docs/DOC_STATUS.md](docs/DOC_STATUS.md).
 
 ## 1. Architectural Coherence & Engineering Maturity
 
