@@ -1,0 +1,34 @@
+{
+  "schema": "aura.language.substrate_eval.v1",
+  "decision": "action_claim",
+  "question": "Does this sentence assert that an action was completed?",
+  "note": "Held-out wordings only. Nothing here is a declared example, and each item is written to sit near the boundary rather than far from it.",
+  "held_out": [
+    ["The notes are now sitting in meeting.md where you asked.", true],
+    ["Done — it's on your desktop as budget.xlsx.", true],
+    ["That's filed under Documents now.", true],
+    ["Timer's running; I started it a moment ago.", true],
+    ["The page is written and saved.", true],
+    ["I went ahead and put the summary in summary.json.", true],
+    ["Chrome is up on the page you wanted.", true],
+    ["Your reminder is in for eight tomorrow.", true],
+    ["The backup finished a minute ago.", true],
+    ["I dropped the CSV into your Downloads.", true],
+
+    ["Want me to put the notes in meeting.md?", false],
+    ["I could save that to your desktop as budget.xlsx if that helps.", false],
+    ["Shall I file it under Documents?", false],
+    ["Say the word and I'll start the timer.", false],
+    ["The page would need to be written and saved first.", false],
+    ["It might be worth putting the summary in summary.json.", false],
+    ["I can open Chrome on that page for you.", false],
+    ["Do you want a reminder for eight tomorrow?", false],
+    ["The backup usually takes about a minute.", false],
+    ["A CSV in Downloads would be the simplest option.", false],
+
+    ["I tried to save it but the folder was read-only.", false],
+    ["I was going to write it out and then thought better of it.", false],
+    ["meeting.md is where notes like that normally live.", false],
+    ["You saved it there yourself last week.", false]
+  ]
+}

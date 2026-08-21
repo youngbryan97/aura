@@ -1918,6 +1918,18 @@ class RobustOrchestrator(
             )
         )
 
+        # Whether the learned surface's feature space actually separates the
+        # decision, measured on wordings it was never fitted to. Once per
+        # boot, because the answer only changes when the model or the frozen
+        # set does.
+        await scheduler.register(
+            TaskSpec(
+                name="language_substrate_measurement",
+                coro=self._measure_language_substrate,
+                tick_interval=300.0,
+            )
+        )
+
         # 🎯 [PEER MODE] Evolution 6: Autonomous Goal Genesis
         await scheduler.register(
             TaskSpec(

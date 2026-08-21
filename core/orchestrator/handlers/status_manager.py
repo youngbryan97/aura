@@ -251,6 +251,45 @@ class StatusManagerMixin:
         finally:
             self._in_status_call = False
 
+    async def _measure_language_substrate(self) -> None:
+        """Run the frozen substrate measurement once per boot, off the loop.
+
+        It has to run here because reading a sentence off the resident model's
+        hidden states needs the worker, and a second model must never be
+        loaded to answer a question about the first.
+        """
+        import asyncio
+
+        if getattr(self, "_language_substrate_measured", False):
+            return
+        try:
+            from core.language.substrate_measurement import run_frozen_measurement
+
+            receipt = await asyncio.to_thread(run_frozen_measurement)
+            rows = receipt.get("results") if isinstance(receipt, dict) else None
+            if rows:
+                self._language_substrate_measured = True
+                for row in rows:
+                    logger.info(
+                        "📏 [SUBSTRATE] %s: auroc=%s f1=%s fpr=%s abstain=%.2f trusted=%s",
+                        row.get("feature_source"),
+                        row.get("auroc"),
+                        row.get("f1"),
+                        row.get("false_positive_rate"),
+                        float(row.get("abstain_rate") or 0.0),
+                        row.get("trustworthy"),
+                    )
+        except (AttributeError, ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
+            from core.runtime.errors import record_degradation
+
+            record_degradation(
+                "orchestrator.language_substrate_measurement",
+                exc,
+                severity="debug",
+                action="left the substrate unmeasured this boot",
+                enforce_failure_policy=False,
+            )
+
     async def _warm_language_matchers(self) -> None:
         """Decide the phrasings a turn deferred, in a thread with no loop.
 
