@@ -37,7 +37,7 @@ from core.runtime.sqlite_support import connection_is_open, open_tracked
 logger = logging.getLogger("core.runtime.receipts")
 
 _HIGH_VOLUME_RECEIPT_KINDS = frozenset(
-    {"autonomy", "resource_admission", "workspace_gate"}
+    {"autonomy", "output", "resource_admission", "workspace_gate"}
 )
 _USER_FACING_OUTPUT_SINKS = frozenset(
     {

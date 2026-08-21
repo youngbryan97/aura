@@ -6,6 +6,7 @@ import sqlite3
 import pytest
 
 from core.runtime.receipts import (
+    OutputReceipt,
     ReceiptStore,
     ResourceAdmissionReceipt,
     StateMutationReceipt,
@@ -53,6 +54,32 @@ def test_high_volume_receipts_use_compact_ledger_and_bounded_hot_index(
     assert reloaded.reload_from_disk() == 64
     assert reloaded.get(oldest_id).request_id == "request-0"
     assert reloaded.coverage_stats()["resource_admission"] == 80
+    assert reloaded.verify_chain()["ok"] is True
+    reloaded.close()
+
+
+def test_output_receipts_use_compact_ledger_and_survive_restart(tmp_path):
+    root = tmp_path / "receipts"
+    store = ReceiptStore(root)
+    receipt = store.emit(
+        OutputReceipt(
+            cause="chat_response",
+            origin="api",
+            target="primary",
+            digest="sha256:" + "a" * 64,
+        )
+    )
+
+    assert store.storage_stats()["ledger_by_kind"]["output"] == 1
+    assert not (root / "output").exists()
+    assert store.get(receipt.receipt_id).digest == receipt.digest
+    assert store.verify_chain()["ok"] is True
+    store.close()
+
+    reloaded = ReceiptStore(root)
+    assert reloaded.reload_from_disk() == 1
+    assert reloaded.get(receipt.receipt_id).digest == receipt.digest
+    assert reloaded.coverage_stats()["output"] == 1
     assert reloaded.verify_chain()["ok"] is True
     reloaded.close()
 
