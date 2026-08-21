@@ -28,6 +28,37 @@ class BuildAppInput(BaseModel):
     max_iters: int = Field(3, description="Max research/build/test iterations (1-6).")
 
 
+def _the_code_model_would_fit(model_path: object) -> bool:
+    """Whether a second code model can be admitted beside what is resident.
+
+    Measured rather than predicted from a receipt that has not been tested:
+    the model is 17.2GB on disk here, the lane budget is 46.1GB, and the
+    resident cortex already holds about 25GB. Asking the two numbers is what
+    the lane itself does at load time, minus the forty seconds of loading
+    that ends in a refusal.
+
+    A host with room answers True, so nothing is hardcoded about this
+    machine.
+    """
+    try:
+        from core.brain.lane_admission import lane_budget_gb
+        from core.utils.memory_monitor import get_memory_pressure_snapshot
+
+        directory = Path(str(model_path or ""))
+        if not directory.is_dir():
+            return True  # Nothing measurable: let the lane decide.
+        size_gb = sum(
+            item.stat().st_size for item in directory.rglob("*") if item.is_file()
+        ) / float(1024**3)
+        budget_gb = float(lane_budget_gb())
+        committed_gb = float(getattr(get_memory_pressure_snapshot(), "process_rss_gb", 0.0))
+    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
+        return True
+    if budget_gb <= 0.0 or size_gb <= 0.0:
+        return True
+    return (size_gb + committed_gb) <= budget_gb
+
+
 class BuildAppSkill(BaseSkill):
     name = "build_app"
     description = (
@@ -64,11 +95,11 @@ class BuildAppSkill(BaseSkill):
             return False
         # The accessor hands back a lazy handle whether or not the model can
         # ever load, so asking whether it is None answered True on a host that
-        # refuses it. The receipt is the model's own account of itself.
-        return getattr(receipt, "state", None) not in {
-            ReadinessState.ABSENT,
-            ReadinessState.FAILED,
-        }
+        # refuses it. The receipt is the model's own account of itself — but
+        # it reads CONFIGURED until something tries, and a restart forgets.
+        if getattr(receipt, "state", None) in {ReadinessState.ABSENT, ReadinessState.FAILED}:
+            return False
+        return _the_code_model_would_fit(getattr(model, "model_path", ""))
     # The verified loop researches + generates + tests + repairs across several
     # iterations on the 32B, so it needs a generous budget.
     timeout_seconds = 1500.0
