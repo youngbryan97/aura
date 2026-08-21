@@ -68,19 +68,32 @@ def test_it_abstains_when_the_classes_overlap() -> None:
     assert muddled.report()["separable"] is False
 
 
-def test_a_gap_narrower_than_the_noise_is_not_trusted() -> None:
-    """The finding that made this rule: eight declarations separated and every
-    gap was smaller than the spread of the examples it was drawn from."""
-    assert Boundary(lower=0.0, upper=0.05, separable=True, spread=0.20).trustworthy is False
-    assert Boundary(lower=0.0, upper=0.05, separable=True, spread=0.20).decide(0.9) is None
-    assert Boundary(lower=0.0, upper=0.30, separable=True, spread=0.05).trustworthy is True
+def test_overlapping_classes_still_leave_decisive_regions() -> None:
+    """The rule this replaced demanded perfect separation and threw away a
+    decision with an AUROC of 0.979: a handful of overlapping examples made
+    the surface abstain on everything.
+
+    Above every negative only positives were seen; below every positive only
+    negatives. In between, both.
+    """
+    overlapping = Boundary(decide_true_above=0.8, decide_false_below=0.2, spread=0.3)
+    assert overlapping.trustworthy is True
+    assert overlapping.decide(0.9) is True
+    assert overlapping.decide(0.1) is False
+    assert overlapping.decide(0.5) is None
 
 
-def test_a_score_inside_the_gap_is_not_a_decision() -> None:
-    boundary = Boundary(lower=0.0, upper=1.0, separable=True, spread=0.1)
+def test_a_score_inside_the_overlap_is_not_a_decision() -> None:
+    boundary = Boundary(decide_true_above=1.0, decide_false_below=0.0, spread=0.1)
     assert boundary.decide(0.5) is None
-    assert boundary.decide(1.0) is True
-    assert boundary.decide(0.0) is False
+    assert boundary.decide(1.5) is True
+    assert boundary.decide(-0.5) is False
+
+
+def test_separation_is_reported_even_though_it_is_not_required() -> None:
+    clean = Boundary(decide_true_above=0.1, decide_false_below=0.9, spread=0.05, separable=True)
+    assert clean.gap > 0
+    assert clean.decide(0.5) is True
 
 
 def test_what_something_else_settled_becomes_an_example() -> None:

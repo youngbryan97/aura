@@ -129,37 +129,47 @@ def _spread(values: Sequence[float]) -> float:
 
 @dataclass(frozen=True, slots=True)
 class Boundary:
-    """Where the declared examples stop agreeing with each other."""
+    """Where one class is unambiguous, and where the two overlap.
 
-    lower: float
-    upper: float
-    separable: bool
+    The first version required the examples to separate perfectly: the worst
+    positive above the best negative, or no boundary at all. Measured on real
+    traffic that threw away a decision with an AUROC of 0.979 — the ranking
+    was nearly perfect and a handful of overlapping examples made the whole
+    surface abstain on everything. Demanding zero overlap is not caution, it
+    is a rule that cannot be met by data.
+
+    So the band is the overlap itself. Above every negative, only positives
+    were ever seen; below every positive, only negatives. In between both
+    occur, and that is where abstaining is the honest answer.
+    """
+
+    decide_true_above: float
+    decide_false_below: float
     spread: float = 0.0
+    separable: bool = False
 
     @property
     def gap(self) -> float:
-        return self.upper - self.lower
+        """Positive when the classes never overlapped at all."""
+        return self.decide_false_below - self.decide_true_above
 
     @property
     def trustworthy(self) -> bool:
-        """Whether the separation is bigger than the noise inside a class.
+        """Whether either decisive region exists.
 
-        Measured across the 25 declarations in this runtime, eight separated
-        and most of those by a hair — gaps of 0.003 to 0.117 while the
-        positives themselves varied by more than that. A boundary narrower
-        than the spread of the examples it was drawn from is describing
-        sampling noise, and acting on it is worse than the pattern it was
-        meant to improve on.
+        A boundary with no decisive region cannot say anything, which is the
+        one case where returning None for everything is not a policy but the
+        only available answer.
         """
-        return self.separable and self.gap > self.spread
+        return bool(self.decide_true_above > float("-inf"))
 
     def decide(self, score: float) -> bool | None:
-        """True, False, or None when the score falls in the gap."""
+        """True above every negative, False below every positive, else None."""
         if not self.trustworthy:
             return None
-        if score >= self.upper:
+        if score > self.decide_true_above:
             return True
-        if score <= self.lower:
+        if score < self.decide_false_below:
             return False
         return None
 
@@ -289,12 +299,11 @@ class LearnedMatcher:
             ]
             worst_positive = min(positive_scores)
             best_negative = max(negative_scores)
-            spread = _spread(positive_scores + negative_scores)
             self._boundary = Boundary(
-                lower=best_negative,
-                upper=worst_positive,
+                decide_true_above=best_negative,
+                decide_false_below=worst_positive,
+                spread=_spread(positive_scores + negative_scores),
                 separable=worst_positive > best_negative,
-                spread=spread,
             )
             return True
 

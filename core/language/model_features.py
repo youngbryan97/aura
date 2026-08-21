@@ -29,6 +29,10 @@ __all__ = ["model_hidden_features"]
 
 _RECOVERABLE = (AttributeError, ImportError, OSError, RuntimeError, TypeError, ValueError)
 
+#: Sentences per request, and how long each is allowed to take.
+_CHUNK = 16
+_SECONDS_PER_SENTENCE = 2.0
+
 
 def model_hidden_features(sentences: Iterable[str]) -> list[list[float]]:
     """Hidden-state vectors for these sentences, or [] when unavailable."""
@@ -47,7 +51,19 @@ def model_hidden_features(sentences: Iterable[str]) -> list[list[float]]:
         try:
             asyncio.get_running_loop()
         except RuntimeError:
-            vectors = list(asyncio.run(client.encode_hidden(texts)) or [])
+            # In chunks, because one request holding a hundred sentences is
+            # a hundred forwards behind a single deadline: measured live, the
+            # whole batch timed out and reported nothing rather than most of
+            # it. The deadline scales with what is being asked for.
+            vectors: list[list[float]] = []
+            for start in range(0, len(texts), _CHUNK):
+                chunk = texts[start : start + _CHUNK]
+                got = asyncio.run(
+                    client.encode_hidden(chunk, timeout_s=_SECONDS_PER_SENTENCE * len(chunk))
+                )
+                if not got or len(got) != len(chunk):
+                    return []
+                vectors.extend(got)
             if not vectors:
                 logging.getLogger("Aura.LanguageFeatures").info(
                     "🔤 [FEATURES] the worker returned no vectors for %d sentence(s).",

@@ -227,6 +227,8 @@ def run_frozen_measurement() -> dict[str, object]:
         )
         results.append(measurement.as_dict())
 
+    results.extend(_measure_desktop_actuation())
+
     receipt = {
         "schema": "aura.language.substrate_measurement.v1",
         "measured_at": time.time(),
@@ -252,3 +254,51 @@ def run_frozen_measurement() -> dict[str, object]:
     except Exception:  # noqa: BLE001 - a measurement that cannot be filed is still a measurement
         pass
     return receipt
+
+
+def _measure_desktop_actuation() -> list[dict[str, object]]:
+    """The decision that misrouted a build request, measured on real traffic.
+
+    `looks_like_desktop_objective` makes it with seventeen patterns. The
+    intention log holds what actually ran for a hundred and ten distinct
+    requests, so the same decision can be fitted and scored on what happened
+    rather than on what somebody enumerated.
+
+    Split by a stable hash of the request, so the held-out third is the same
+    third on every run and no request is ever both fitted and scored.
+    """
+    import hashlib
+
+    from core.language.learned_matcher import embed_sentences
+    from core.language.label_mining import mine_desktop_actuation_labels
+    from core.language.model_features import model_hidden_features
+
+    positives, negatives = mine_desktop_actuation_labels()
+    if len(positives) < 8 or len(negatives) < 8:
+        return []
+
+    def held_out(request: str) -> bool:
+        digest = hashlib.sha256(request.encode("utf-8")).hexdigest()
+        return int(digest[:4], 16) % 3 == 0
+
+    fit_positive = [row for row in positives if not held_out(row)]
+    fit_negative = [row for row in negatives if not held_out(row)]
+    evaluation = [(row, True) for row in positives if held_out(row)]
+    evaluation += [(row, False) for row in negatives if held_out(row)]
+    if len(fit_positive) < 4 or len(fit_negative) < 4 or len(evaluation) < 6:
+        return []
+
+    measured = []
+    for source, name in (
+        (embed_sentences, "topical_embedding"),
+        (model_hidden_features, "model_hidden_state"),
+    ):
+        measurement = measure_separation(
+            feature_source=source,
+            source_name=f"desktop_actuation::{name}",
+            positives=fit_positive,
+            negatives=fit_negative,
+            held_out=evaluation,
+        )
+        measured.append(measurement.as_dict())
+    return measured
