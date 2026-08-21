@@ -91,7 +91,7 @@ async def test_qualified_recurrent_answer_owns_turn_before_general_cognition(mon
     thought = await engine.think(
         visible,
         mode=ThinkingMode.FAST,
-        origin="desktop_ui",
+        origin="user",
         context={
             "visible_user_message": visible,
             "desktop_cognitive_engine_required": True,
@@ -111,6 +111,58 @@ async def test_qualified_recurrent_answer_owns_turn_before_general_cognition(mon
     assert committed.response_modifiers["qualified_recurrent_succeeded"] is True
     assert committed.response_modifiers["response_path"] == (
         "cognitive_engine_qualified_recurrent"
+    )
+
+
+@pytest.mark.asyncio
+async def test_admitted_inactive_recurrent_package_keeps_typed_disposition(monkeypatch):
+    engine = CognitiveEngine()
+    state = AuraState.default()
+    visible = (
+        "Fresh calibration task. Before evidence E, hypothesis H has probability "
+        "1/2. The likelihood of E is 4/5 if H is true and 1/10 if H is false. "
+        "Using exact Bayes updating, return the more probable choice (H wins ties), "
+        "the reduced posterior probability of H, and its band: below_50, 50_to_69, "
+        "70_to_89, or 90_to_100. You may reason before the answer. End with "
+        "exactly one line beginning FINAL_ANSWER:, followed by one JSON object and "
+        "no trailing text. Required JSON keys and value types: choice (string), "
+        "posterior (reduced-fraction string), confidence_band (string)."
+    )
+
+    async def _inactive_episode(**_kwargs):
+        return ForegroundLatentOutcome(
+            text="",
+            trace={
+                "qualified_recurrent_eligible": True,
+                "qualified_recurrent_attempted": False,
+                "qualified_recurrent_reason": (
+                    "semantic_neural_activation_invalid:source_drift"
+                ),
+            },
+            fallback_allowed=True,
+            evidence=("qualified_recurrent_declined_before_execution",),
+        )
+
+    monkeypatch.setattr(
+        "core.brain.foreground_latent_runtime.run_foreground_latent_episode",
+        _inactive_episode,
+    )
+
+    thought = await engine._qualified_recurrent_direct_reply(
+        state,
+        visible,
+        ThinkingMode.FAST,
+        "user",
+        {"visible_user_message": visible},
+        is_background=False,
+        timeout_s=30.0,
+    )
+
+    assert thought is None
+    assert state.response_modifiers["qualified_recurrent_eligible"] is True
+    assert state.response_modifiers["qualified_recurrent_attempted"] is False
+    assert state.response_modifiers["qualified_recurrent_reason"].startswith(
+        "semantic_neural_activation_invalid:"
     )
 
 

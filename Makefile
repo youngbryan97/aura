@@ -11,7 +11,7 @@ RUFF_TARGETS ?= core/conversation/apply_response_patches.py core/brain/llm/conte
 MYPY_TARGETS ?= $(shell grep -vE '^\s*(\#|$$)' config/mypy_strict_files.txt)
 MYPY_FLAGS ?= --follow-imports=skip --explicit-package-bases
 PYTEST_TARGETS ?= tests -q -m "not live and not network and not external"
-SMOKE_TEST_TARGETS ?= tests/test_response_contract.py tests/test_chat_format.py tests/test_effect_closure.py tests/test_retired_external_runtime.py tests/test_cognitive_pipeline_2026.py tests/test_safe_mode_runtime.py tests/test_response_patch_retirement.py tests/test_context_assembler_runtime.py tests/test_context_limit_runtime.py tests/test_consciousness_patch_retirement.py -q
+SMOKE_TEST_TARGETS ?= tests/test_response_contract.py tests/test_chat_format.py tests/test_effect_closure.py tests/test_retired_external_runtime.py tests/test_cognitive_pipeline_2026.py tests/test_safe_mode_runtime.py tests/test_response_patch_retirement.py tests/test_context_assembler_runtime.py tests/test_context_limit_runtime.py tests/test_consciousness_patch_retirement.py tests/brain/test_bounded_wow_surface_live.py -q
 ENTERPRISE_BASELINE ?= config/aura_enterprise_gate_baseline.json
 TEST_CHUNKS ?= 6
 

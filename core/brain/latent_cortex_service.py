@@ -5990,6 +5990,17 @@ class LatentCortexService:
             if self._last_success_at > 0.0
             else "idle_unproven"
         )
+        try:
+            from core.brain.llm.semantic_neural_serving import (
+                semantic_neural_default_serving_status,
+            )
+
+            qualified_recurrent_serving = semantic_neural_default_serving_status()
+        except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
+            qualified_recurrent_serving = {
+                "active": False,
+                "reason": f"qualified_recurrent_status_failed:{type(exc).__name__}",
+            }
         return {
             "enabled": enabled,
             "state": state,
@@ -6109,6 +6120,7 @@ class LatentCortexService:
                 )
                 if k in self._last_receipt
             },
+            "qualified_recurrent_serving": qualified_recurrent_serving,
             "healthy": state == "operational",
         }
 
@@ -6137,6 +6149,34 @@ def register_latent_cortex(orchestrator: Any = None) -> LatentCortexService:
         owner="core/brain/latent_cortex_service.py",
         registered_by="register_latent_cortex",
     )
+    try:
+        from core.brain.llm.semantic_neural_serving import (
+            semantic_neural_default_serving_status,
+        )
+
+        qualified_status = semantic_neural_default_serving_status()
+        qualified_reason = str(qualified_status.get("reason") or "unknown")
+        if qualified_status.get("active") is not True and qualified_reason != (
+            "semantic_neural_serving_disabled"
+        ):
+            record_degradation(
+                "latent_cortex.qualified_recurrent_serving",
+                RuntimeError(qualified_reason),
+                severity="warning",
+                action=(
+                    "kept the general latent cortex available while exposing the "
+                    "inactive certified qualified package"
+                ),
+                enforce_failure_policy=False,
+            )
+    except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        record_degradation(
+            "latent_cortex.qualified_recurrent_serving",
+            exc,
+            severity="warning",
+            action="exposed qualified-package status initialization failure",
+            enforce_failure_policy=False,
+        )
     # The selective-memory bridge resolves organs through the same runtime
     # registry as every other cognitive signal. Register the existing
     # playbook and reasoning-reflection stores as named organs; this does not

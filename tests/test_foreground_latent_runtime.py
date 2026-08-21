@@ -602,6 +602,42 @@ async def test_qualified_semantic_shadow_preserves_ordinary_authority(monkeypatc
 
 
 @pytest.mark.asyncio
+async def test_qualified_recurrent_service_absence_is_a_typed_disposition(monkeypatch):
+    from core.learning.frontier_process_supervision import (
+        frontier_process_task_battery,
+    )
+
+    task = frontier_process_task_battery(
+        ("calibration",),
+        (1,),
+        1,
+        seed=2026081582,
+    )[0]
+    monkeypatch.setattr(
+        "core.brain.foreground_latent_runtime._resolve_service",
+        lambda: None,
+    )
+
+    outcome = await run_foreground_latent_episode(
+        orchestrator=None,
+        messages=[],
+        visible_objective=task.prompt,
+        foreground=True,
+        desktop_required=False,
+        cognitive_mode="fast",
+        request_timeout_s=8.0,
+    )
+
+    assert outcome.text == ""
+    assert outcome.fallback_allowed is True
+    assert outcome.trace["qualified_recurrent_eligible"] is True
+    assert outcome.trace["qualified_recurrent_attempted"] is False
+    assert outcome.trace["qualified_recurrent_reason"] == (
+        "qualified_recurrent_service_not_registered"
+    )
+
+
+@pytest.mark.asyncio
 async def test_activated_qualified_failure_suppresses_uncertified_fallback(monkeypatch):
     from core.learning.recurrence_curriculum import khop_reachability
 

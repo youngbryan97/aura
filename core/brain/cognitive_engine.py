@@ -2869,10 +2869,16 @@ class CognitiveEngine:
         trace = dict(outcome.trace or {})
         state.response_modifiers.update(trace)
         if not str(outcome.text or "").strip():
-            if trace.get("qualified_recurrent_attempted"):
+            if trace.get("qualified_recurrent_eligible"):
+                reason = str(
+                    trace.get("qualified_recurrent_reason")
+                    or trace.get("latent_cortex_failure_reason")
+                    or "qualified_recurrent_disposition_missing"
+                )
                 logger.warning(
-                    "Qualified recurrent ingress did not produce a serving answer: %s",
-                    trace.get("qualified_recurrent_reason") or "unknown",
+                    "Qualified recurrent ingress admitted the user request but did not "
+                    "produce a serving answer: %s",
+                    reason,
                 )
             return None
 

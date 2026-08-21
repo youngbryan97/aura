@@ -418,7 +418,35 @@ async def run_foreground_latent_episode(
         trace["qualified_recurrent_eligible"] = True
         semantic_admission = str(qualified_admission.family).startswith("frontier_")
         service = service or _resolve_service()
+        if service is None:
+            trace.update(
+                {
+                    "qualified_recurrent_reason": "qualified_recurrent_service_not_registered",
+                    "latent_cortex_fallback_used": True,
+                    "latent_cortex_failure_reason": "qualified_recurrent_service_not_registered",
+                }
+            )
+            return ForegroundLatentOutcome(
+                text="",
+                trace=trace,
+                fallback_allowed=semantic_admission,
+                evidence=("qualified_recurrent_service_unavailable",),
+            )
         runner = getattr(service, "qualified_recurrent_reason", None)
+        if not callable(runner):
+            trace.update(
+                {
+                    "qualified_recurrent_reason": "qualified_recurrent_runner_unavailable",
+                    "latent_cortex_fallback_used": True,
+                    "latent_cortex_failure_reason": "qualified_recurrent_runner_unavailable",
+                }
+            )
+            return ForegroundLatentOutcome(
+                text="",
+                trace=trace,
+                fallback_allowed=semantic_admission,
+                evidence=("qualified_recurrent_runner_unavailable",),
+            )
         if callable(runner):
             try:
                 requested_budget = max(0.0, float(request_timeout_s))
@@ -559,6 +587,15 @@ async def run_foreground_latent_episode(
                         trace=trace,
                         fallback_allowed=semantic_admission,
                     )
+                # An admitted task whose promoted package is inactive is not
+                # equivalent to unsupported language. Preserve the exact
+                # disposition for the caller and service-health surface.
+                return ForegroundLatentOutcome(
+                    text="",
+                    trace=trace,
+                    fallback_allowed=semantic_admission,
+                    evidence=("qualified_recurrent_declined_before_execution",),
+                )
 
     selection = select_foreground_episode(
         foreground=foreground,

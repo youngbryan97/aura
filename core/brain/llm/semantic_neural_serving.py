@@ -680,6 +680,28 @@ def semantic_neural_serving_status(model_path: str | Path) -> dict[str, Any]:
         }
 
 
+def semantic_neural_default_serving_status() -> dict[str, Any]:
+    """Resolve the promoted model identity without constructing an LLM client."""
+
+    try:
+        activation, _raw = _read_bounded_json(
+            DEFAULT_ACTIVATION_PATH,
+            maximum_bytes=512 * 1024,
+        )
+        model_identity = activation.get("model_identity")
+        model_path = (
+            model_identity.get("path") if isinstance(model_identity, dict) else None
+        )
+        if not isinstance(model_path, str) or not model_path.strip():
+            raise RuntimeError("semantic neural model identity is unavailable")
+        return semantic_neural_serving_status(model_path)
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
+        return {
+            "active": False,
+            "reason": f"semantic_neural_activation_unavailable:{type(exc).__name__}",
+        }
+
+
 @lru_cache(maxsize=8)
 def _cached_semantic_neural_serving_status(
     model_path: str,
@@ -744,5 +766,6 @@ __all__ = [
     "SEMANTIC_NEURAL_SERVING_SCHEMA",
     "build_semantic_neural_activation",
     "semantic_neural_activation_errors",
+    "semantic_neural_default_serving_status",
     "semantic_neural_serving_status",
 ]

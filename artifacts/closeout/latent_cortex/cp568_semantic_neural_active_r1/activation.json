@@ -1,5 +1,5 @@
 {
-  "activation_sha256": "bcf76664094e55b38fadcd15368192f79c0a782d25c6591333856106e1a8ae21",
+  "activation_sha256": "9cd67dc1e7cec5d8b6583c3f8c916b397e9ac4d508cb6da977ad149e044d0184",
   "active_by_default": true,
   "allowed_families": [
     "frontier_calibration",
@@ -46,7 +46,7 @@
     "verification_sha256": "2fbe760ba0fdb8402ed4097eebcb4cc5ecedc7ac26416dbbe8edd0c3ae1ac2f4"
   },
   "integration_contract_sha256s": {
-    "core/brain/foreground_latent_runtime.py::symbol:run_foreground_latent_episode": "5439f25411fefc2597e78a74368f0d83a8152f2be5143e02013456af19b75d8b",
+    "core/brain/foreground_latent_runtime.py::symbol:run_foreground_latent_episode": "af579df7f862ea56d0401f84778155cec1880f740356acfd3b074500a9f96482",
     "core/brain/latent_cortex_service.py::symbol:LatentCortexService.qualified_recurrent_reason": "1e24081b64b57e16964c6988f08b4bbfebcb70a1d6e074329fe17f06dbcb30e5"
   },
   "mode": "qualified_exact_semantic_v1",
@@ -67,15 +67,15 @@
     "tag": "crsm-closeout-jul1"
   },
   "runtime_qualification": {
-    "candidate_activation_sha256": "aedc79e3c1ded8869b04979eee8e26c9fb5d9bc6a6995efcebd7d5600d315d2d",
+    "candidate_activation_sha256": "d2413ccefa2dad252a96fad21172bdd9b6a7e54dfd3e821761aab61bafa207d1",
     "exact_count": 120,
     "lesion_disruption_count": 120,
-    "max_latency_ms": 284.766,
+    "max_latency_ms": 272.274,
     "path": "artifacts/closeout/latent_cortex/cp568_semantic_neural_active_r1/runtime_verification.json",
-    "sha256": "ea090abdb91c71bce71c562cbbcd9e934f92cba5208e30b5f9559f645015ec1e",
+    "sha256": "f3baac44504b8036c07be4bee9ed1fff78ae5ea080e6f3a53db54332ba1547f7",
     "task_count": 120,
     "unsupported_language_refused": true,
-    "verification_receipt_sha256": "a379d89484caa9dbdb1874c6e22657bb310377c03d40cc8314a72c31b8be5150"
+    "verification_receipt_sha256": "81939fb83fa8a5446372e62bd04dde046f5a726ae3905cf25cb2b26c25ebd937"
   },
   "schema": "aura.semantic_neural_serving.v2",
   "source_sha256s": {
