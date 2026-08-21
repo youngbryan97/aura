@@ -181,3 +181,75 @@ def test_the_warmer_is_registered_to_run_off_the_critical_path() -> None:
     assert "language_matcher_warm" in main
     status = Path("core/orchestrator/handlers/status_manager.py").read_text(encoding="utf-8")
     assert "asyncio.to_thread(warm_language_matchers" in status
+
+
+def test_what_was_learned_survives_a_restart(tmp_path, monkeypatch) -> None:
+    """The difference between a cache and learning.
+
+    Everything lives in Python fields and this runtime restarts often — for a
+    code change, a model swap, after a crash. Without a durable write every
+    phrasing learned from use was discarded each time.
+    """
+    from core.language import learned_matcher as module
+
+    store = tmp_path / "language" / "restart_test.json"
+    monkeypatch.setattr(
+        module.LearnedMatcher, "_store_path", lambda self: store, raising=False
+    )
+
+    first = LearnedMatcher(name="restart_test", positives=("I did it.",), negatives=("Did you?",), features=_mood)
+    first.observe("I filed the report.", holds=True)
+    first.decide_without_waiting("The notes are in meeting.md now.")
+    assert first.save() is True
+    assert store.is_file()
+
+    second = LearnedMatcher(name="restart_test", positives=(), negatives=(), features=_mood)
+    second.load()
+    assert "I filed the report." in second.positives
+    assert "The notes are in meeting.md now." in second._pending
+
+
+def test_a_verdict_is_not_restored_across_runs(tmp_path, monkeypatch) -> None:
+    """Verdicts were reached against a boundary the new process has not
+    measured. Re-deciding costs one warm cycle; keeping them means serving an
+    answer nothing in this run can vouch for."""
+    from core.language import learned_matcher as module
+
+    store = tmp_path / "language" / "verdicts.json"
+    monkeypatch.setattr(module.LearnedMatcher, "_store_path", lambda self: store, raising=False)
+
+    first = _declared()
+    first.name = "verdicts"
+    first.decide_without_waiting("I filed the report.")
+    first.warm()
+    assert first.decide_without_waiting("I filed the report.") is True
+    first._dirty = True
+    first.save()
+
+    second = LearnedMatcher(name="verdicts", positives=(), negatives=(), features=_mood)
+    second.load()
+    assert second._decided == {}
+
+
+def test_a_new_example_retires_the_verdicts_it_predates() -> None:
+    matcher = _declared()
+    matcher.decide_without_waiting("I filed the report.")
+    matcher.warm()
+    assert matcher.decide_without_waiting("I filed the report.") is True
+
+    matcher.observe("Shall I file the report?", holds=False)
+    assert matcher.decide_without_waiting("I filed the report.") is None
+
+
+def test_a_phrase_the_model_could_not_decide_stays_queued() -> None:
+    """It was dropped whether or not a verdict was reached, so a phrase
+    deferred while the model was busy had to be met again."""
+    undecidable = LearnedMatcher(
+        name="undecidable",
+        positives=("a", "b", "c"),
+        negatives=("d", "e", "f"),
+        features=lambda sentences: [[0.5] for _ in sentences],
+    )
+    undecidable.decide_without_waiting("something new")
+    assert undecidable.warm() == 0
+    assert "something new" in undecidable._pending

@@ -6205,8 +6205,12 @@ def warm_language_matchers(limit: int = 8) -> int:
 
     Returns how many were settled. Safe to call from a background task and
     pointless to call from inside a turn, where the model is busy answering.
+    Whatever was learned is written down before returning, because this
+    runtime restarts often and a lesson held only in memory is not learning.
     """
-    return _ACTION_CLAIM_MATCHER.warm(limit=limit)
+    settled = _ACTION_CLAIM_MATCHER.warm(limit=limit)
+    _ACTION_CLAIM_MATCHER.save()
+    return settled
 
 
 def _has_unfounded_tool_execution_claim(

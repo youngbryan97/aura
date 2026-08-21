@@ -35,10 +35,12 @@ ones. The receipts are the labels; nobody has to write them down.
 
 from __future__ import annotations
 
+import json
 import math
 import threading
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from core.runtime.errors import record_degradation
 
@@ -180,6 +182,8 @@ class LearnedMatcher:
     _boundary: Boundary | None = field(default=None, repr=False)
     _decided: dict[str, bool] = field(default_factory=dict, repr=False)
     _pending: set[str] = field(default_factory=set, repr=False)
+    _dirty: bool = field(default=False, repr=False)
+    _loaded: bool = field(default=False, repr=False)
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
     _ready: bool = field(default=False, repr=False)
 
@@ -202,6 +206,12 @@ class LearnedMatcher:
             else:
                 self.negatives = (*self.negatives, text)
             self._ready = False
+            # Verdicts were reached against the OLD boundary. An example that
+            # moves the boundary makes them stale, and keeping them meant a
+            # sentence decided early could never be revised however much was
+            # learned afterwards.
+            self._decided.clear()
+            self._dirty = True
 
     def _score(self, vector: Sequence[float], *, skip_positive: int = -1, skip_negative: int = -1) -> float:
         """How much more this looks like a positive than a negative.
@@ -231,6 +241,7 @@ class LearnedMatcher:
 
     def _prepare(self) -> bool:
         """Embed the declaration and measure its boundary. Once."""
+        self.load()
         with self._lock:
             if self._ready:
                 return self._boundary is not None
@@ -287,6 +298,104 @@ class LearnedMatcher:
         boundary = self._boundary
         return boundary.decide(self._score(vectors[0])) if boundary else None
 
+    # ── durability ──────────────────────────────────────────────────────
+    #
+    # Everything above lives in Python fields, and the runtime restarts often
+    # — for a code change, for a model swap, after a crash. Without a durable
+    # write, every phrasing learned from use is discarded each time and the
+    # substrate can never accumulate anything. That is the difference between
+    # a cache and learning.
+
+    def _store_path(self) -> Path | None:
+        try:
+            from core.config import config
+
+            return Path(config.paths.data_dir) / "language" / f"{self.name}.json"
+        except _RECOVERABLE:
+            return None
+
+    def load(self) -> bool:
+        """Read what earlier runs learned. Once, and never fatal."""
+        with self._lock:
+            if self._loaded:
+                return False
+            self._loaded = True
+        path = self._store_path()
+        if path is None or not path.is_file():
+            return False
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            record_degradation(
+                "language.learned_matcher",
+                exc,
+                severity="debug",
+                action="started from the declared examples alone",
+                enforce_failure_policy=False,
+            )
+            return False
+        # The gateway writes a {schema, schema_version, payload} envelope, so
+        # the record is one level in. Reading the envelope as the record found
+        # no name and discarded everything the last run learned.
+        if isinstance(payload, dict) and isinstance(payload.get("payload"), dict):
+            payload = payload["payload"]
+        if not isinstance(payload, dict) or payload.get("name") != self.name:
+            return False
+        with self._lock:
+            for text in payload.get("positives") or ():
+                if isinstance(text, str) and text not in self.positives:
+                    self.positives = (*self.positives, text)
+            for text in payload.get("negatives") or ():
+                if isinstance(text, str) and text not in self.negatives:
+                    self.negatives = (*self.negatives, text)
+            for text in payload.get("pending") or ():
+                if isinstance(text, str) and len(self._pending) < _PENDING_CEILING:
+                    self._pending.add(text)
+            # Verdicts are NOT restored. They were reached against a boundary
+            # this process has not measured yet, and re-deciding them costs one
+            # warm cycle against keeping an answer nothing here can vouch for.
+            self._ready = False
+        return True
+
+    def save(self) -> bool:
+        """Write what this run learned, through the governed gateway."""
+        with self._lock:
+            if not self._dirty:
+                return False
+            payload = {
+                "name": self.name,
+                "positives": list(self.positives),
+                "negatives": list(self.negatives),
+                "pending": sorted(self._pending),
+            }
+            self._dirty = False
+        path = self._store_path()
+        if path is None:
+            return False
+        try:
+            from core.governance_context import local_internal_governed_scope
+            from core.runtime.file_write_gateway import get_file_write_gateway
+
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with local_internal_governed_scope("language.learned_matcher.save"):
+                get_file_write_gateway().write_json(
+                    path,
+                    payload,
+                    schema_version=1,
+                    schema_name="aura.language.learned_matcher",
+                    source="language.learned_matcher",
+                )
+        except _RECOVERABLE as exc:
+            record_degradation(
+                "language.learned_matcher",
+                exc,
+                severity="debug",
+                action="kept this run's phrasings in memory only",
+                enforce_failure_policy=False,
+            )
+            return False
+        return True
+
     def decide_without_waiting(self, sentence: str) -> bool | None:
         """A decision only if one is already in hand.
 
@@ -302,11 +411,13 @@ class LearnedMatcher:
         text = str(sentence or "").strip()
         if len(text) < _MIN_CHARS:
             return None
+        self.load()
         with self._lock:
             if text in self._decided:
                 return self._decided[text]
-            if len(self._pending) < _PENDING_CEILING:
+            if text not in self._pending and len(self._pending) < _PENDING_CEILING:
                 self._pending.add(text)
+                self._dirty = True
         return None
 
     def warm(self, limit: int = 16) -> int:
@@ -320,10 +431,16 @@ class LearnedMatcher:
         for text in waiting:
             verdict = self.decide(text)
             with self._lock:
-                self._pending.discard(text)
+                # Only what was actually settled leaves the queue. Discarding
+                # unconditionally lost every phrase the model was too busy to
+                # decide, and it had to be met again to get another attempt.
                 if verdict is not None:
+                    self._pending.discard(text)
                     self._decided[text] = verdict
+                    self._dirty = True
                     settled += 1
+        if settled:
+            self.save()
         return settled
 
     def report(self) -> dict[str, object]:
