@@ -1,72 +1,112 @@
-"""Aura's own consent gate declining was reported as a broken pipeline.
+"""Repair governance decisions must not masquerade as pipeline failures."""
 
-99 "Fix generation or sandbox testing failed: Vetoed by entity" in one
-sampled window, beside 57 "🚫 [GrowthLadder] Aura VETOED code repair".
-
-The Growth Ladder is her consent gate on modifying her own source. When it
-declines, repair_bug returns {"error": "Vetoed by entity"} and the engine
-reported that as a failure — describing the mechanism working exactly as
-designed. Nothing generated a bad fix and no sandbox failed. She said no.
-
-Reported as failure it is worse than noise: a healthy refusal looks identical
-to a broken repair pipeline, so the honest signal that the pipeline IS broken
-has nowhere left to stand out.
-"""
 from __future__ import annotations
 
-import inspect
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 
-from core.self_modification import self_modification_engine as engine
+from core.self_modification import code_repair
+from core.self_modification.mutation_tiers import MutationTier, classify_mutation_path
+from core.self_modification.self_modification_engine import (
+    AutonomousSelfModificationEngine,
+    _autonomous_cycle_failed,
+)
 
 
-def _failure_branch() -> str:
-    source = inspect.getsource(engine)
-    start = source.index("Fix generation or sandbox testing failed")
-    return source[max(0, start - 1400) : start + 200]
+@pytest.mark.asyncio
+async def test_code_repair_generates_evidence_before_governance_disposition(
+    tmp_path,
+    monkeypatch,
+):
+    target = tmp_path / "core" / "example.py"
+    target.parent.mkdir(parents=True)
+    target.write_text("value = 1\n", encoding="utf-8")
 
+    generator = SimpleNamespace(
+        code_base=tmp_path,
+        generate_fix=AsyncMock(return_value=None),
+    )
+    repair = object.__new__(code_repair.AutonomousCodeRepair)
+    repair.generator = generator
+    repair._deep_repair_after_patch_failure = AsyncMock(
+        return_value={"result": "deep_repair_deferred"}
+    )
+    gateway = SimpleNamespace(
+        run_async=AsyncMock(return_value=SimpleNamespace(returncode=0, stdout="", stderr=""))
+    )
+    monkeypatch.setattr(code_repair, "get_subprocess_gateway", lambda: gateway)
 
-def test_a_veto_is_not_logged_as_a_failure():
-    branch = _failure_branch()
-
-    assert '"veto" in reason.lower()' in branch, (
-        "a veto must be told apart from a fix that could not be generated"
+    success, fix, result = await repair.repair_bug(
+        "core/example.py",
+        1,
+        {"summary": "measured failure"},
     )
 
-
-def test_a_veto_is_reported_at_a_level_that_says_decision():
-    branch = _failure_branch()
-    veto_at = branch.index('"veto" in reason.lower()')
-    handled = branch[veto_at : veto_at + 320]
-
-    assert "logger.info" in handled
-    assert "declined" in handled.lower()
+    assert success is False
+    assert fix is None
+    assert result["error"] == "Fix generation failed"
+    generator.generate_fix.assert_awaited_once()
 
 
-def test_a_real_failure_is_still_a_warning():
-    """Silencing the refusal is only worth doing if the fault stays loud."""
-    branch = _failure_branch()
+def test_ordinary_core_repair_uses_canonical_shadow_validated_tier():
+    decision = classify_mutation_path("core/brain/cognitive/memory_management.py")
 
-    assert 'logger.warning("Fix generation or sandbox testing failed' in branch
+    assert decision.tier is MutationTier.SHADOW_VALIDATED_AUTO_FIX
+    assert decision.auto_apply_allowed is True
 
 
 @pytest.mark.parametrize(
-    ("reason", "is_veto"),
+    "disposition",
     [
-        ("Vetoed by entity", True),
-        ("VETOED by growth ladder", True),
-        ("sandbox timeout", False),
-        ("Unknown error", False),
+        "proposal_quarantined",
+        "proposal_refused_by_policy",
+        "proposal_decision_reused",
     ],
 )
-def test_the_discriminator_matches_the_string_repair_actually_returns(reason, is_veto):
-    """code_repair returns exactly "Vetoed by entity"; match must survive case."""
-    assert ("veto" in reason.lower()) is is_veto
+def test_completed_governance_disposition_does_not_trip_circuit_breaker(disposition):
+    assert (
+        _autonomous_cycle_failed(
+            {
+                "success": disposition != "proposal_refused_by_policy",
+                "bugs_found": 1,
+                "fixes_applied": 0,
+                "disposition": disposition,
+            }
+        )
+        is False
+    )
 
 
-def test_the_veto_string_still_comes_from_code_repair():
-    """If that literal changes, the classification silently stops working."""
-    from core.self_modification import code_repair
+def test_real_generation_and_application_failures_stay_failures():
+    assert _autonomous_cycle_failed(
+        {"success": False, "disposition": "fix_generation_failed"}
+    )
+    assert _autonomous_cycle_failed(
+        {"success": False, "disposition": "repair_application_failed"}
+    )
 
-    assert "Vetoed by entity" in inspect.getsource(code_repair)
+
+def test_repair_decision_identity_changes_when_the_source_changes(tmp_path):
+    target = tmp_path / "core" / "example.py"
+    target.parent.mkdir(parents=True)
+    target.write_text("value = 1\n", encoding="utf-8")
+    event = SimpleNamespace(
+        file_path="core/example.py",
+        line_number=1,
+        error_type="RuntimeError",
+        error_message="broken",
+    )
+    bug = {
+        "pattern": SimpleNamespace(fingerprint="fault-1", events=[event]),
+        "diagnosis": {"summary": "measured failure"},
+    }
+    engine = object.__new__(AutonomousSelfModificationEngine)
+    engine.code_base = tmp_path
+
+    first = engine._repair_decision_key(bug)
+    assert engine._repair_decision_key(bug) == first
+
+    target.write_text("value = 2\n", encoding="utf-8")
+    assert engine._repair_decision_key(bug) != first

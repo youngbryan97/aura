@@ -3,6 +3,8 @@ Orchestrates the complete self-improvement system.
 """
 
 import asyncio
+import hashlib
+import json
 import logging
 import os
 import threading
@@ -54,6 +56,23 @@ SELF_MOD_RECOVERABLE_ERRORS = (
     KeyError,
     IndexError,
 )
+
+_NON_FAILURE_REPAIR_DISPOSITIONS = frozenset(
+    {
+        "proposal_quarantined",
+        "proposal_refused_by_policy",
+        "proposal_decision_reused",
+    }
+)
+
+
+def _autonomous_cycle_failed(result: dict[str, Any]) -> bool:
+    """Distinguish a broken repair attempt from a completed policy decision."""
+
+    if result.get("disposition") in _NON_FAILURE_REPAIR_DISPOSITIONS:
+        return False
+    return result.get("success", True) is not True
+
 
 def _runtime_patch_promotion_enabled() -> bool:
     """Autonomous source promotion requires an isolated repair-lab opt-in.
@@ -221,6 +240,7 @@ class AutonomousSelfModificationEngine:
         self._last_cycle_error: dict[str, Any] | None = None
         self._last_refinement_error: dict[str, Any] | None = None
         self._last_proposal: dict[str, Any] | None = None
+        self._last_repair_decision: dict[str, Any] | None = None
 
         logger.info("✓ Autonomous Self-Modification Engine initialized")
 
@@ -360,6 +380,33 @@ class AutonomousSelfModificationEngine:
 
         logger.info("Found %d bugs that can be fixed", len(bugs))
         return bugs
+
+    def _repair_decision_key(self, bug: dict[str, Any]) -> str:
+        """Bind a repair decision to the fault and the source it evaluated."""
+
+        pattern = bug.get("pattern")
+        events = list(getattr(pattern, "events", ()) or ())
+        event = events[0] if events else None
+        file_path = str(getattr(event, "file_path", "") or "")
+        source_sha256 = "missing"
+        if file_path:
+            candidate = self.code_base / file_path
+            try:
+                source_sha256 = hashlib.sha256(candidate.read_bytes()).hexdigest()
+            except OSError:
+                source_sha256 = "unreadable"
+        payload = {
+            "fingerprint": str(getattr(pattern, "fingerprint", "") or ""),
+            "file_path": file_path,
+            "line_number": getattr(event, "line_number", None),
+            "error_type": str(getattr(event, "error_type", "") or ""),
+            "error_message": str(getattr(event, "error_message", "") or ""),
+            "diagnosis": bug.get("diagnosis"),
+            "source_sha256": source_sha256,
+        }
+        return hashlib.sha256(
+            json.dumps(payload, sort_keys=True, default=str).encode("utf-8")
+        ).hexdigest()
 
     async def propose_fix(self, bug: dict[str, Any]) -> dict[str, Any] | None:
         """Generate a fix proposal for a specific bug (Async).
@@ -894,6 +941,29 @@ class AutonomousSelfModificationEngine:
             # Step 2: Select top priority bug
             top_bug = bugs[0]
             logger.info("Targeting bug: %s", top_bug["pattern"].fingerprint)
+            repair_decision_key = self._repair_decision_key(top_bug)
+
+            prior_decision = self._last_repair_decision
+            if (
+                isinstance(prior_decision, dict)
+                and prior_decision.get("key") == repair_decision_key
+                and prior_decision.get("disposition")
+                in {"proposal_quarantined", "proposal_refused_by_policy"}
+            ):
+                disposition = str(prior_decision["disposition"])
+                logger.info(
+                    "Repair decision unchanged for %s; reusing %s receipt",
+                    top_bug["pattern"].fingerprint,
+                    disposition,
+                )
+                return {
+                    "success": True,
+                    "bugs_found": len(bugs),
+                    "fixes_applied": 0,
+                    "disposition": "proposal_decision_reused",
+                    "reused_disposition": disposition,
+                    "proposal": prior_decision.get("proposal"),
+                }
 
             # Check if learning system has suggestions
             error_type = top_bug["pattern"].events[0].error_type
@@ -913,6 +983,7 @@ class AutonomousSelfModificationEngine:
                     "bugs_found": len(bugs),
                     "fixes_applied": 0,
                     "error": "Fix generation failed",
+                    "disposition": "fix_generation_failed",
                 }
 
             # Step 4: Apply fix when repair-lab promotion is enabled or when
@@ -952,20 +1023,36 @@ class AutonomousSelfModificationEngine:
                     "cycle_time": cycle_time,
                     "auto_repair_mode": "safe_autonomous" if safe_auto_allowed else "repair_lab",
                     "auto_repair_reason": safe_auto_reason,
+                    "disposition": "repair_applied" if success else "repair_application_failed",
                 }
 
             quarantine = await self._quarantine_fix_proposal(fix_proposal)
             self._last_proposal = quarantine
+            if quarantine.get("validated") is True:
+                disposition = "proposal_quarantined"
+            elif quarantine.get("blocked_at") == "approval":
+                disposition = "proposal_refused_by_policy"
+            else:
+                disposition = "proposal_validation_failed"
+            cycle_succeeded = disposition != "proposal_validation_failed"
+            if cycle_succeeded:
+                self._last_repair_decision = {
+                    "key": repair_decision_key,
+                    "disposition": disposition,
+                    "proposal": quarantine,
+                }
             logger.info(
-                "Auto-fix disabled - validated proposal retained in quarantine (%s)",
+                "Repair proposal disposition=%s status=%s",
+                disposition,
                 quarantine.get("status", "unknown"),
             )
             return {
-                "success": bool(quarantine.get("validated", False)),
+                "success": cycle_succeeded,
                 "bugs_found": len(bugs),
                 "fixes_applied": 0,
                 "proposal": quarantine,
                 "auto_repair_reason": safe_auto_reason,
+                "disposition": disposition,
             }
         except SELF_MOD_RECOVERABLE_ERRORS as exc:
             duration = time.time() - cycle_start
@@ -1230,12 +1317,12 @@ class AutonomousSelfModificationEngine:
                     logger.info("✅ Autonomous fixes applied in background")
                     _consecutive_failures = 0
                     _backoff = self.monitor_interval
-                elif not result.get("success", True) or result.get("bugs_found", 0) > 0:
-                    _consecutive_failures += 1
-                    _backoff = min(600, _backoff * 2)  # Exponential backoff, max 10min
-                else:
+                elif not _autonomous_cycle_failed(result):
                     _consecutive_failures = 0
                     _backoff = self.monitor_interval
+                else:
+                    _consecutive_failures += 1
+                    _backoff = min(600, _backoff * 2)  # Exponential backoff, max 10min
 
                 # Circuit breaker: stop trying if we keep failing
                 if _consecutive_failures >= _max_failures:

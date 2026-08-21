@@ -15,7 +15,6 @@ from typing import Any
 
 from core.runtime.atomic_writer import async_atomic_write_text
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
-from core.runtime.service_registry import get_runtime_service
 from core.runtime.subprocess_gateway import get_subprocess_gateway
 
 from .ast_analyzer import ASTAnalyzer
@@ -835,22 +834,6 @@ class AutonomousCodeRepair:
             (success, fix_object, test_results)
 
         """
-        # v40: Growth Ladder Veto
-        ladder = get_runtime_service("growth_ladder", default=None)
-        if ladder:
-            proposal_id = f"repair_{file_path}_{line_number}"
-            # Level 2 or 3 depending on file path
-            level = 3 if "core/" in file_path else 2
-            consent = await ladder.propose_modification(
-                proposal_id=proposal_id,
-                modification_type="code_repair",
-                level=level,
-                description=f"Autonomous repair of {file_path}:{line_number}. Diagnosis: {diagnosis.get('summary', 'unknown')}"
-            )
-            if not consent:
-                logger.warning("🚫 [GrowthLadder] Aura VETOED code repair for %s", file_path)
-                return False, None, {"error": "Vetoed by entity"}
-
         # Step 1: Generate fix
         
         # v29.1: Mechanical Repair Layer (Ruff)
