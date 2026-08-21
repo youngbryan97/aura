@@ -48,6 +48,9 @@ EXCLUDE_PREFIX = (
     "docs/AURA_PROMPT_COVERAGE_AUDIT.md",
     "docs/RLC_SPARK_EXECUTION_LEDGER.md",
     "docs/evidence/",
+    # Proposals. docs/DOC_STATUS.md: "Several name modules that were never
+    # built; that is what a proposal is, not a broken reference."
+    "scoping/",
     "archive/",
     "dev_archive/",
     "scratch/",
@@ -104,6 +107,28 @@ SUITE_SIZE = re.compile(
     r"\*{0,2}([\d,]{4,})\*{0,2}\s+tests?\b[^.\n]{0,40}?\b(?:across|in)\s+"
     r"\*{0,2}([\d,]{3,})\*{0,2}\s+(?:test\s+)?files?")
 QUOTED_COUNT = re.compile(r"[\"“][^\"”\n]*\d[\d,]{3,}[^\"”\n]*[\"”]")
+
+#: Some documents name a file precisely because it is not there.
+#: docs/DOC_STATUS.md keeps the correction log and says so outright — "naming
+#: an absent file is the point" — and a scoping proposal names the modules it
+#: proposes building. The cue is read over the whole paragraph rather than the
+#: one line, because "these were never built" and the list that follows it are
+#: rarely the same line.
+ABSENT_CUE = re.compile(
+    r"\b(never (existed|built|shipped)|no such file|does not exist|do not exist|"
+    r"is absent|are absent|was absent|as deleted|retired|removed|deleted|"
+    r"not built|never had|no longer exists?|proposes? building|"
+    r"until something runs|runtime-created|generated outputs?)\b", re.I)
+
+#: A path with a placeholder in it names a shape, not a file:
+#: `frames/NNNNNNNN.json` is how the ghost substrate writes frame 42.
+PLACEHOLDER = re.compile(r"NNN|XXX|####|<[^>]+>|\{[^}]+\}|\*|\.\.\.|YYYY|MM_DD")
+
+#: A path introduced as somewhere output arrives is a destination, the same as
+#: a gitignored one — it is absent until the command that fills it has run.
+DESTINATION_CUE = re.compile(
+    r"\b(outputs? land|lands? at|written to|writes? to|will be written|"
+    r"results? land|report lands)\b", re.I)
 INVENTORY = ROOT / "config" / "test_inventory.json"
 
 EXTERNAL = ("http://", "https://", "mailto:", "file:", "ftp:", "tel:")
@@ -238,6 +263,28 @@ def scan(rel: str, targets: set[str], anchor_cache: dict[str, set[str]],
              "context": ctx.strip()[:180]}
         )
 
+    # Paragraph index: blank-line delimited, so a cue anywhere in the
+    # paragraph covers every path named in it.
+    paragraphs: list[str] = []
+    para_of: list[int] = []
+    current: list[str] = []
+    for raw in lines:
+        if raw.strip():
+            current.append(raw)
+        elif current:
+            paragraphs.append("\n".join(current))
+            current = []
+        para_of.append(len(paragraphs))
+    if current:
+        paragraphs.append("\n".join(current))
+
+    def names_an_absence(line_no: int) -> bool:
+        idx = para_of[line_no - 1]
+        if idx >= len(paragraphs):
+            return False
+        para = paragraphs[idx]
+        return bool(ABSENT_CUE.search(para) or DESTINATION_CUE.search(para))
+
     in_fence = False
     for i, line in enumerate(lines, 1):
         if line.lstrip().startswith("```"):
@@ -263,7 +310,9 @@ def scan(rel: str, targets: set[str], anchor_cache: dict[str, set[str]],
                 continue
             cited = claim.group(1)
             if not (ROOT / cited).exists():
-                if not is_output_path(cited):
+                if (not is_output_path(cited)
+                        and not PLACEHOLDER.search(cited)
+                        and not names_an_absence(i)):
                     note(i, "missing_path", cited, line)
             elif cited.startswith("tests/") and Path(cited).name.startswith("test_"):
                 body = (ROOT / cited).read_text(errors="replace")

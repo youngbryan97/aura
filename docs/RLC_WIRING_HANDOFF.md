@@ -44,8 +44,9 @@ result decides it. Original map below for the record.
 ## Next: call the halting bridge from the engine
 
 The engine halts on residual convergence. `HaltingState` lives in
-`latent_cortex/types.py:576` (`steps_taken`, `residual_trail`). The
-ensemble check is `engine.py:1236` (`ensemble.all_halted()`).
+`core/brain/llm/latent_cortex/types.py:576` (`steps_taken`,
+`residual_trail`). The ensemble check is
+`core/brain/llm/latent_cortex/engine.py:1236` (`ensemble.all_halted()`).
 
 1. Add `halting_mode: str = "residual"` to `RLCExecutionSpec`
    (`execution_spec.py`). Note `adaptive_halting: bool = False` already

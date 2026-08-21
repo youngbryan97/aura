@@ -96,7 +96,7 @@ the sci-fi standard can only map to real subsystem paths, never to the legacy
 ### Safe Surf — *Pantheon*
 - **Levels:** a protective guardian / content-safety + threat-watch layer for the human.
 - **Real science:** content moderation, anomaly/threat detection, parental-control architectures.
-- **Verdict:** **EXTEND** — mostly **LIVE** as `core/guardians/conversational_guard.py`, `core/morality/harm_model.py`, `core/ethics/conscience.py`, `core/security/`. Delta: a user-facing "guardian mode" that proactively watches for threats *to the user*.
+- **Verdict:** **BUILT** — `core/guardians/threat_watch.py` is the outward-facing half, inspecting incoming content for phishing, scams, payment fraud, and social engineering aimed at the *user*. It runs as a fast synchronous heuristic on the live message path and is advisory: it never drops a message, it annotates risk so Aura can speak up. `core/morality/harm_model.py`, `core/ethics/conscience.py`, and `core/security/` remain the inward-facing half. The 2026-07 delta — a mode that watches for threats *to the user* rather than to the machine — is what `threat_watch.py` closed; the machine-facing counterpart is `core/security/ice_sentinel.py`.
 - **Home:** `core/guardians/`.
 
 ### MIST — *Pantheon*

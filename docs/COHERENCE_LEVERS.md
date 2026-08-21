@@ -4,8 +4,9 @@ Every number governing how much of a conversation Aura can see is a named
 environment variable, read **at call time** — a live runtime picks up a change
 without a reboot, though the prompt cache will re-warm.
 
-Set them in the launcher environment (or `scratchpad/prod_soak_env.sh` for a
-soak instance).
+Set them in the launcher environment. For a soak instance, export them in
+the shell that starts the run — they are read at call time, so a value set
+after boot still takes effect.
 
 ## Why these exist
 
