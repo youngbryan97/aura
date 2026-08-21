@@ -116,9 +116,15 @@ def reducer_js(spec: AppSpec) -> str:
 def _view_html(view: View, spec: AppSpec) -> str:
     label = view.label or (spec.field_named(view.field).label if spec.field_named(view.field) else "") or view.field
     if view.kind == "list":
+        row = (
+            f' data-row-action="{_escape(view.row_action)}"'
+            f' data-row-label="{_escape(view.row_label)}"'
+            if view.row_action
+            else ""
+        )
         return (
             f'<section class="panel"><div class="label">{_escape(label)}</div>'
-            f'<ul data-list="{_escape(view.field)}"></ul></section>'
+            f'<ul data-list="{_escape(view.field)}"{row}></ul></section>'
         )
     return (
         f'<section class="panel"><div class="label">{_escape(label)}</div>'
@@ -217,10 +223,15 @@ function render() {{
       const text = document.createElement("span");
       text.textContent = typeof item === "object" ? JSON.stringify(item) : String(item);
       row.appendChild(text);
-      const drop = document.createElement("button");
-      drop.textContent = "Remove";
-      drop.addEventListener("click", function () {{ run("remove_item", {{ index: index }}); }});
-      row.appendChild(drop);
+      const rowAction = node.dataset.rowAction;
+      if (rowAction) {{
+        const drop = document.createElement("button");
+        drop.textContent = node.dataset.rowLabel || "Remove";
+        drop.setAttribute("data-row-action", rowAction);
+        drop.setAttribute("data-index", String(index));
+        drop.addEventListener("click", function () {{ run(rowAction, {{ index: index }}); }});
+        row.appendChild(drop);
+      }}
       node.appendChild(row);
     }});
   }});

@@ -25,7 +25,7 @@ from core.construction.app_model import (
     initial_state,
 )
 from core.construction.app_planner import plan_from_json, spec_from_plan
-from core.construction.app_verifier import node_available, verify_app
+from core.construction.app_verifier import dom_driver_available, node_available, verify_app
 
 
 def counter() -> AppSpec:
@@ -56,7 +56,10 @@ def reading_list() -> AppSpec:
             Control("text_input", input_name="entry", label="Title"),
             Control("button", "add", "Add"),
         ),
-        views=(View("list", "books", "Books"), View("value", "total", "Count")),
+        views=(
+            View("list", "books", "Books", row_action="remove_item"),
+            View("value", "total", "Count"),
+        ),
     )
 
 
@@ -169,3 +172,58 @@ def test_an_untitled_plan_takes_its_name_from_the_request():
     )
     assert planned.spec.title.strip()
     assert verify_app(planned.spec, compile_app(planned.spec)).ok
+
+
+@pytest.mark.skipif(not dom_driver_available(), reason="jsdom is not installed here")
+def test_the_page_is_clicked_through_in_a_real_dom():
+    spec = reading_list()
+    report = verify_app(spec, compile_app(spec))
+    assert report.driven_in_dom
+    assert report.ok, report.problems
+    assert any("real DOM" in check for check in report.checks)
+
+
+@pytest.mark.skipif(not dom_driver_available(), reason="jsdom is not installed here")
+def test_a_page_that_renders_the_wrong_thing_is_caught():
+    """The reducer can be right while the page shows nothing of it.
+
+    This breaks rendering only, which the state-machine comparison cannot
+    see — that is the whole reason the page is opened and clicked.
+    """
+    spec = reading_list()
+    html = compile_app(spec).replace(
+        "node.textContent = typeof value === \"boolean\"",
+        "node.textContent = \"0\"; void (typeof value === \"boolean\"",
+    ).replace(
+        "      : (typeof value === \"number\" ? String(Math.round(value * 100) / 100) : String(value ?? \"\"));",
+        "      : (typeof value === \"number\" ? String(Math.round(value * 100) / 100) : String(value ?? \"\")));",
+    )
+    report = verify_app(spec, html)
+    assert not report.ok
+    assert any("the page shows" in problem for problem in report.problems)
+
+
+@pytest.mark.skipif(not dom_driver_available(), reason="jsdom is not installed here")
+def test_a_row_action_is_planned_and_driven():
+    """A per-row button used to be written into the page with no name on it,
+    so nothing could bind, drive or check it — and the DOM check reported a
+    control that was missing from a page that was otherwise correct."""
+    planned = spec_from_plan(
+        {
+            "title": "Errands",
+            "fields": [{"name": "jobs", "kind": "list"}],
+            "actions": [
+                {"name": "add", "ops": [{"op": "append", "target": "jobs", "source": "job"}]},
+                {"name": "drop", "ops": [{"op": "remove", "target": "jobs", "source": "index"}]},
+            ],
+            "inputs": [{"name": "job", "kind": "text"}],
+        },
+        "a list of errands",
+    )
+    view = next(item for item in planned.spec.views if item.field == "jobs")
+    assert view.row_action == "drop"
+    # A row action does not also get a page button: there is no row to name.
+    assert not any(control.action == "drop" for control in planned.spec.controls)
+    report = verify_app(planned.spec, compile_app(planned.spec))
+    assert report.ok, report.problems
+    assert report.driven_in_dom

@@ -207,21 +207,32 @@ def spec_from_plan(plan: dict[str, Any], request: str = "") -> PlannedApp:
                 declared_inputs.add(op.source)
                 repairs.append(f"added a box for {op.source}, which {action.name} reads")
 
+    # An action that removes from a list by position is a row button, not a
+    # page button: it needs the row to say which one.
+    row_actions: dict[str, str] = {}
+    for action in actions:
+        for op in action.ops:
+            if op.op == "remove" and op.source in AMBIENT_INPUTS:
+                row_actions.setdefault(op.target, action.name)
+
+    on_a_row = set(row_actions.values())
     buttons = [
         Control(kind="button", action=action.name, label=action.label or action.name.replace("_", " "))
         for action in actions
-        if action.name != "tick"
+        if action.name != "tick" and action.name not in on_a_row
     ]
     if actions and not buttons:
         repairs.append("the app had nothing to press")
 
     views: list[View] = []
     for item in fields:
+        is_list = item.kind == "list"
         views.append(
             View(
-                kind="list" if item.kind == "list" else "value",
+                kind="list" if is_list else "value",
                 field=item.name,
                 label=item.label or item.name.replace("_", " "),
+                row_action=row_actions.get(item.name, "") if is_list else "",
             )
         )
     if not raw.get("fields"):

@@ -102,11 +102,20 @@ class Control:
 
 @dataclass(frozen=True, slots=True)
 class View:
-    """Something the person reads."""
+    """Something the person reads.
+
+    A list view can carry an action per row. Until it did, the compiler wrote
+    a Remove button into every row with no name on it, so nothing could bind
+    it, drive it or check it — and the page was the only place that knew the
+    action existed.
+    """
 
     kind: Literal["value", "list", "boolean"]
     field: str
     label: str = ""
+    #: An action run for one row, receiving that row's position as `index`.
+    row_action: str = ""
+    row_label: str = "Remove"
 
 
 @dataclass(frozen=True, slots=True)
@@ -150,6 +159,8 @@ class AppSpec:
         for view in self.views:
             if view.field not in names:
                 found.append(f"view shows unknown field {view.field}")
+            if view.row_action and not self.action_named(view.row_action):
+                found.append(f"a row button runs unknown action {view.row_action}")
         return tuple(dict.fromkeys(found))
 
 
