@@ -20,6 +20,7 @@ call returns nothing, and every caller treats nothing as "no opinion".
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections.abc import Iterable
 
 from core.runtime.errors import record_degradation
@@ -46,7 +47,16 @@ def model_hidden_features(sentences: Iterable[str]) -> list[list[float]]:
         try:
             asyncio.get_running_loop()
         except RuntimeError:
-            return list(asyncio.run(client.encode_hidden(texts)) or [])
+            vectors = list(asyncio.run(client.encode_hidden(texts)) or [])
+            if not vectors:
+                logging.getLogger("Aura.LanguageFeatures").info(
+                    "🔤 [FEATURES] the worker returned no vectors for %d sentence(s).",
+                    len(texts),
+                )
+            return vectors
+        logging.getLogger("Aura.LanguageFeatures").debug(
+            "🔤 [FEATURES] declined: a loop is running, so this is inside a turn."
+        )
         return []
     except _RECOVERABLE as exc:
         record_degradation(

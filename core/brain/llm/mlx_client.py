@@ -2802,6 +2802,28 @@ def _requested_output_contract_generation_floor(contract: Any) -> int:
         return 0
 
 
+#: Worker replies that END a request and must reach the caller waiting on it.
+#:
+#: LIVE, 2026-08-20. encode_hidden was added to the worker and to the client
+#: and timed out every time, because a response is only handed to its future
+#: when its action appears here — a third place a new action has to be
+#: registered, with a silent eight-second wait as the symptom. Kept as one
+#: named list so the registration is visible rather than buried in a tuple
+#: inside a loop.
+_TERMINAL_WORKER_ACTIONS: frozenset[str] = frozenset(
+    {
+        "encode_hidden",
+        "generate",
+        "generate_batch",
+        "latent_reason",
+        "nonparametric_ingest",
+        "set_expert_adapter",
+        "stream_done",
+        "unified_recurrent_qualified_decode",
+        "unified_recurrent_shadow_probe",
+    }
+)
+
 #: The smallest generation that can still contain a tool call.
 #:
 #: A native call is a name, an arguments object and its delimiters. Below this
@@ -10223,13 +10245,19 @@ class MLXLocalClient:
         # client constructed outside a running worker, and a missing attribute
         # is the same answer as a busy one — no opinion.
         process = getattr(self, "_process", None)
-        if (
-            getattr(self, "_shutting_down", False)
-            or not getattr(self, "_init_done", False)
-            or process is None
-            or not process.is_alive()
-            or int(getattr(self, "_active_generations", 0) or 0) > 0
-        ):
+        refusal = ""
+        if getattr(self, "_shutting_down", False):
+            refusal = "shutting_down"
+        elif not getattr(self, "_init_done", False):
+            refusal = "worker_not_initialised"
+        elif process is None or not process.is_alive():
+            refusal = "worker_not_resident"
+        elif int(getattr(self, "_active_generations", 0) or 0) > 0:
+            refusal = "foreground_busy"
+        if refusal:
+            # Naming the refusal, because "returned nothing" is the one
+            # description that sends the next investigation somewhere else.
+            logger.info("🔤 [ENCODE] declined: %s", refusal)
             return []
 
         request_id = uuid.uuid4().hex
@@ -10250,11 +10278,16 @@ class MLXLocalClient:
                 2.0,
             )
             response = await _await_shared_future(future, timeout_s=max(1.0, timeout_s))
-        except (TimeoutError, OSError, RuntimeError, TypeError, ValueError):
+        except (TimeoutError, OSError, RuntimeError, TypeError, ValueError) as exc:
+            logger.info("🔤 [ENCODE] failed: %s: %s", type(exc).__name__, str(exc)[:160])
             return []
         finally:
             self._pending_generations.pop(request_id, None)
         if not isinstance(response, dict) or response.get("status") != "ok":
+            logger.info(
+                "🔤 [ENCODE] worker said: %s",
+                str(response)[:200] if response is not None else "nothing",
+            )
             return []
         vectors = response.get("vectors")
         return vectors if isinstance(vectors, list) else []
@@ -11275,16 +11308,7 @@ class MLXLocalClient:
                         self._mark_progress()
                         _set_shared_future_result(self._init_future, res)
                         continue
-                elif action in (
-                    "generate",
-                    "generate_batch",
-                    "stream_done",
-                    "set_expert_adapter",
-                    "nonparametric_ingest",
-                    "unified_recurrent_shadow_probe",
-                    "unified_recurrent_qualified_decode",
-                    "latent_reason",
-                ):
+                elif action in _TERMINAL_WORKER_ACTIONS:
                     # Before routing: a terminal frame for a cancelled request
                     # is the acknowledgement, and it must be recorded even when
                     # the caller has already abandoned the future.

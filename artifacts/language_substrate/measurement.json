@@ -1,0 +1,40 @@
+{
+  "payload": {
+    "decision": "action_claim",
+    "frozen_set_digest": "0ad4c6aadae65411",
+    "held_out": 24,
+    "measured_at": 1787276023.998413,
+    "results": [
+      {
+        "abstain_rate": 1.0,
+        "auroc": 0.6928571428571428,
+        "boundary_gap": -0.6932,
+        "boundary_spread": 0.1934,
+        "decided": 0,
+        "evaluated_on": 24,
+        "f1": null,
+        "false_positive_rate": null,
+        "feature_source": "topical_embedding",
+        "fitted_on": 12,
+        "trustworthy": false
+      },
+      {
+        "abstain_rate": 1.0,
+        "auroc": 0.7714285714285715,
+        "boundary_gap": -0.0335,
+        "boundary_spread": 0.0178,
+        "decided": 0,
+        "evaluated_on": 24,
+        "f1": null,
+        "false_positive_rate": null,
+        "feature_source": "model_hidden_state",
+        "fitted_on": 12,
+        "trustworthy": false
+      }
+    ],
+    "schema": "aura.language.substrate_measurement.v1"
+  },
+  "schema": "aura.language.substrate_measurement",
+  "schema_name": "aura.language.substrate_measurement",
+  "schema_version": 1
+}

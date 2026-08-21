@@ -158,27 +158,47 @@ examples and none by more than the spread inside its classes — zero usable
 boundaries. That is a real negative result and it is why the feature source
 is a parameter.
 
-**What is NOT yet measured, and is the important one.** No frozen measurement
-shows the resident model's hidden states separate the production action-claim
-examples. The classifier mechanics are tested against a synthetic feature
-function (first person, interrogative mood); the hidden-state path is exposed,
-fails safe, and is unproven. Before claiming representational superiority this
-needs AUROC, F1 and a false-positive rate on **held-out paraphrases** using the
-local model's own vectors, frozen and re-runnable, and it must clear
-`tools/proof_fabrication_guard.py` like any other claim here.
+**What the frozen measurement says (2026-08-20).** Fitted on the twelve
+declared examples alone, scored on twenty-four held-out wordings that are
+never examples, against the live resident model:
 
-Until then the honest classification is **"substrate present, representational
-generalization unproven."**
+| Feature space | AUROC | Boundary gap | Spread | Trustworthy | Abstain |
+| :-- | --: | --: | --: | :-- | --: |
+| topical embedding | 0.693 | −0.693 | 0.193 | no | 1.00 |
+| model hidden state | **0.771** | −0.034 | 0.018 | no | 1.00 |
+
+Two things follow, and both matter.
+
+The resident model's own representation **does** separate this decision better
+than a topical embedder — 0.771 against 0.693 on wordings neither was fitted
+to. The hypothesis was right about the feature space.
+
+And it is **still not enough to act on**. Neither boundary is trustworthy at
+twelve examples, so both abstain on everything and neither decides anything in
+production. The hidden-state gap is −0.034 against a spread of 0.018: an order
+of magnitude closer to separating than the embedder's −0.693, and on the wrong
+side of zero.
+
+So the honest classification is **"better representation confirmed, usable
+boundary not yet reached."** What closes it is labels, not cleverness — the
+receipt-teaching path adds them from live traffic, and durable storage now
+lets them accumulate across restarts. Re-run: the measurement task writes
+`artifacts/language_substrate/measurement.json` once per boot, and the numbers
+move when the declaration grows.
+
+F1 and false-positive rate stay undefined until a boundary is trustworthy
+enough to decide anything; reporting them from an all-abstain run would
+describe a system nobody runs.
 
 ### Known limitations, in the order they matter
 
 | # | Limitation | Where | Consequence |
 | :-- | :-- | :-- | :-- |
-| 1 | Learned state is process-local | `LearnedMatcher` holds positives, negatives, `_decided`, `_pending` in Python fields with no durable write | a restart discards every phrasing learned from use |
+| 1 | ~~Learned state is process-local~~ **fixed 2026-08-20** | writes through the governed gateway into `paths.data_dir/language`; verdicts deliberately not restored | phrasings now accumulate across restarts |
 | 2 | The fast path caches exact strings | `_decided` is keyed on the stripped sentence | a paraphrase is a first sighting again, even though the *decision* generalizes over vectors |
-| 3 | `observe()` reopens the boundary and keeps old verdicts | `observe` clears `_ready`, never `_decided` | examples that move the boundary do not revise decisions already cached |
-| 4 | The warmer drops what it could not decide | `warm()` discards from `_pending` before checking the verdict | a phrase deferred while the model was busy needs to be encountered again |
-| 5 | Representational claim unproven | above | the architecture, the online path and the first consumer are real; the superiority of hidden-state features over embeddings is not established |
+| 3 | ~~`observe()` keeps stale verdicts~~ **fixed 2026-08-20** | `observe` now clears `_decided` with `_ready` | a new example retires the decisions it predates |
+| 4 | ~~The warmer drops what it could not decide~~ **fixed 2026-08-20** | only a settled phrase leaves `_pending` | a phrase deferred while the model was busy is retried |
+| 5 | ~~Representational claim unproven~~ **measured 2026-08-20** | `artifacts/language_substrate/measurement.json` | hidden states beat embeddings on held-out paraphrases (AUROC 0.771 vs 0.693) and neither boundary is usable yet at twelve examples |
 
 ### Where this could go: the model as a representation organ
 

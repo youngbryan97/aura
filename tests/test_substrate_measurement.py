@@ -106,3 +106,31 @@ def test_the_receipt_records_both_feature_spaces_when_present() -> None:
     payload = payload.get("payload", payload)
     sources = {row["feature_source"] for row in payload.get("results", [])}
     assert {"topical_embedding", "model_hidden_state"} <= sources
+
+
+def test_a_worker_reply_reaches_the_caller_waiting_on_it() -> None:
+    """encode_hidden timed out every time because a response is only handed
+    to its future when its action is registered here — a third place a new
+    action must appear, with a silent eight-second wait as the symptom."""
+    from core.brain.llm.mlx_client import _TERMINAL_WORKER_ACTIONS
+
+    assert "encode_hidden" in _TERMINAL_WORKER_ACTIONS
+    for action in ("generate", "generate_batch", "stream_done", "latent_reason"):
+        assert action in _TERMINAL_WORKER_ACTIONS
+
+
+def test_every_worker_action_that_answers_is_routed() -> None:
+    """The registration is visible, so a new action cannot be half-added."""
+    import re
+    from pathlib import Path
+
+    from core.brain.llm.mlx_client import _TERMINAL_WORKER_ACTIONS
+
+    worker = Path("core/brain/llm/mlx_worker.py").read_text(encoding="utf-8")
+    handled = set(re.findall(r'elif action == "([a-z_]+)"', worker))
+    # Actions that stream or acknowledge do not resolve a caller's future.
+    streaming = {"stream", "ping", "clear_cache", "memory_fuse"}
+    for action in handled - streaming:
+        if action in {"nonparametric_ingest", "encode_hidden"} or action in _TERMINAL_WORKER_ACTIONS:
+            continue
+        assert action in _TERMINAL_WORKER_ACTIONS, f"{action} answers but is never routed"
