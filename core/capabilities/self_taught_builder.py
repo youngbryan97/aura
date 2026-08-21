@@ -184,7 +184,7 @@ async def _generate(prompt: str, *, max_tokens: int) -> str:
 
         model = get_local_code_model()
         if model is not None:
-            return str(
+            generated = str(
                 await model.generate(
                     prompt,
                     system_prompt=(
@@ -196,17 +196,39 @@ async def _generate(prompt: str, *, max_tokens: int) -> str:
                     temperature=0.2,
                 )
             )
-    except (ImportError, RuntimeError, OSError) as exc:
-        logger.debug("local code model unavailable: %s", exc)
+            logger.info(
+                "🎓 build: local code model returned %d chars (budget %d).",
+                len(generated),
+                max_tokens,
+            )
+            if generated.strip():
+                return generated
+    except (ImportError, RuntimeError, OSError, ValueError) as exc:
+        # At debug this was invisible, so a build that produced no code three
+        # times in a row said nothing about which generator had failed or why
+        # — and the turn reported "the construction process didn't generate
+        # any code" with no way to find out.
+        logger.warning(
+            "🎓 build: local code model unavailable (%s: %s); trying the fallback generator.",
+            type(exc).__name__,
+            str(exc)[:160],
+        )
     try:
         from core.brain.llm.code_generator import LLMCodeGenerator
 
-        return str(
+        fallback = str(
             await LLMCodeGenerator(max_tokens=max_tokens, temperature=0.2).generate_async(
                 prompt, context={"origin": "self_taught_builder"}
             )
         )
+        logger.info("🎓 build: fallback generator returned %d chars.", len(fallback))
+        return fallback
     except (ImportError, RuntimeError, AttributeError, TypeError, ValueError, OSError) as exc:
+        logger.warning(
+            "🎓 build: fallback generator failed (%s: %s).",
+            type(exc).__name__,
+            str(exc)[:160],
+        )
         record_degradation("self_taught_builder.generate", exc, severity="warning",
                            action="build failed because no code model was available")
         return ""
@@ -319,13 +341,19 @@ async def build_app_verified(
         if test.get("playable") is True:
             result.playable = True
             break
-        # learn from the specific failure for the next attempt
+        # What the test measured, and nothing else.
+        #
+        # This carried three sentences of checkers-specific advice — "the
+        # click handler reads data-row/data-col from the clicked target…
+        # resolve to the enclosing square" — appended to EVERY failure in
+        # every domain. Building a sitting timer, that is noise about a board
+        # game, and steering a repair with a hint from somewhere else is
+        # worse than saying only what happened. The research call below is
+        # the general mechanism for finding a fix, and it already takes the
+        # domain from the spec.
         failure = (
             f"Functional test FAILED: {test.get('reason')}. "
-            f"Console errors: {test.get('console_errors')}. "
-            "Common cause: the click handler reads data-row/data-col from the clicked target, but "
-            "the clicked element may be the piece (no data attrs) — resolve to the enclosing square "
-            "(event.target.closest('[data-row]')) before reading coordinates."
+            f"Console errors: {test.get('console_errors')}."
         )
         research += await _research(f"fix {_domain_of(spec)}: {test.get('reason')} {test.get('console_errors')}")
 
