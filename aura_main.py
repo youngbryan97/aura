@@ -4272,6 +4272,8 @@ def main():
             os.environ.setdefault("AURA_PROCESS_RSS_LIMIT_GB", "40")
             os.environ.setdefault("AURA_DESKTOP_PROCESS_RSS_CAP_GB", "40")
             os.environ.setdefault("AURA_DESKTOP_MLX_MEMORY_CAP_GB", "34")
+            os.environ.setdefault("AURA_MEMWATCH_SOFT_MB", "37888")
+            os.environ.setdefault("AURA_MEMWATCH_HARD_MB", "41984")
             os.environ.setdefault("AURA_MEMWATCH_LETHAL_MB", "43008")
             os.environ.setdefault("AURA_MEMORY_SENTINEL_INTERVAL_S", "0.5")
             # The Memory Governor's prune/unload/critical thresholds are capped at
@@ -4286,7 +4288,7 @@ def main():
             # kill, while still leaving the ~35GB resident model under the prune line.
             os.environ.setdefault("AURA_GOVERNOR_PRUNE_MB", "37888")
             os.environ.setdefault("AURA_GOVERNOR_UNLOAD_MB", "39936")
-            os.environ.setdefault("AURA_GOVERNOR_CRITICAL_MB", "41984")
+            os.environ.setdefault("AURA_GOVERNOR_CRITICAL_MB", "40960")
             os.environ.setdefault("AURA_MLX_32B_PROJECTED_FOOTPRINT_GB", "auto")
             os.environ.setdefault("AURA_MLX_32B_PROCESS_RESERVE_GB", "3")
             os.environ.setdefault("AURA_MLX_72B_PROJECTED_FOOTPRINT_GB", "auto")

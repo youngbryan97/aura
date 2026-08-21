@@ -448,6 +448,16 @@ def terminate_heavy_child_workers(
 class MemoryWatchdog(threading.Thread):
     """Daemon thread enforcing hard memory ceilings independent of the loop."""
 
+    # Soft pressure is an incident, not a metronome. A resident model can remain
+    # near a policy boundary for hours; repeatedly kicking the same in-loop
+    # governor without new evidence only adds event-loop work and floods the
+    # operator stream. Rearm after recovery or material worsening. Hard and
+    # lethal tiers remain level-triggered and are never suppressed by this.
+    SOFT_REARM_GROWTH_MB = 1024.0
+    SOFT_REARM_SYSTEM_PERCENT = 3.0
+    SOFT_CLEAR_MARGIN_MB = 512.0
+    SOFT_CLEAR_SYSTEM_PERCENT = 90.0
+
     def __init__(
         self,
         *,
@@ -484,6 +494,9 @@ class MemoryWatchdog(threading.Thread):
         self._stop_event = threading.Event()
         self._started_at = time.monotonic()
         self._last_soft_action_at = 0.0
+        self._soft_incident_active = False
+        self._soft_incident_managed_mb = 0.0
+        self._soft_incident_system_percent = 0.0
         self._last_hard_action_at = 0.0
         self._spike_count = 0
         self._spike_dumps = 0
@@ -505,6 +518,11 @@ class MemoryWatchdog(threading.Thread):
             "thresholds": asdict(self.thresholds),
             "tick_failures": self._tick_failures,
             "lethal_streak": self._lethal_streak,
+            "soft_incident": {
+                "active": self._soft_incident_active,
+                "last_action_managed_mb": self._soft_incident_managed_mb,
+                "last_action_system_percent": self._soft_incident_system_percent,
+            },
             "last_sample": asdict(sample) if sample else None,
             "recent_actions": [asdict(a) for a in self._actions[-10:]],
         }
@@ -685,12 +703,33 @@ class MemoryWatchdog(threading.Thread):
         if managed >= t.soft_mb or sample.system_percent >= 92.0:
             return self._handle_soft(sample, now)
 
+        if (
+            self._soft_incident_active
+            and managed <= (t.soft_mb - self.SOFT_CLEAR_MARGIN_MB)
+            and sample.system_percent <= self.SOFT_CLEAR_SYSTEM_PERCENT
+        ):
+            self._soft_incident_active = False
+            self._soft_incident_managed_mb = 0.0
+            self._soft_incident_system_percent = 0.0
+
         return "none"
 
     def _handle_soft(self, sample: MemorySample, now: float) -> str:
+        materially_worse = (
+            not self._soft_incident_active
+            or sample.managed_rss_mb
+            >= self._soft_incident_managed_mb + self.SOFT_REARM_GROWTH_MB
+            or sample.system_percent
+            >= self._soft_incident_system_percent + self.SOFT_REARM_SYSTEM_PERCENT
+        )
+        if not materially_worse:
+            return "soft_stable"
         if (now - self._last_soft_action_at) < self.thresholds.soft_cooldown_s:
             return "soft_cooldown"
         self._last_soft_action_at = now
+        self._soft_incident_active = True
+        self._soft_incident_managed_mb = sample.managed_rss_mb
+        self._soft_incident_system_percent = sample.system_percent
         self._remember("soft", sample, "scheduled governor sweep")
         logger.warning(
             "⚠️ [MEMWATCH] Soft ceiling: managed RSS %.0fMB (sys %.1f%%). "

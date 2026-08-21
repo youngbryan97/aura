@@ -89,10 +89,39 @@ class TestEscalationLadder(unittest.TestCase):
         h = _Harness()
         self.assertEqual(h.dog._evaluate(_sample(core_mb=12_000.0), now=100.0), "soft")
         self.assertEqual(
-            h.dog._evaluate(_sample(core_mb=12_000.0), now=110.0), "soft_cooldown"
+            h.dog._evaluate(_sample(core_mb=12_000.0), now=110.0), "soft_stable"
         )
-        self.assertEqual(h.dog._evaluate(_sample(core_mb=12_000.0), now=200.0), "soft")
+        self.assertEqual(
+            h.dog._evaluate(_sample(core_mb=13_100.0), now=120.0), "soft_cooldown"
+        )
+        self.assertEqual(
+            h.dog._evaluate(_sample(core_mb=13_100.0), now=200.0), "soft"
+        )
         self.assertEqual(h.killed_calls, 0)
+
+    def test_soft_incident_rearms_after_real_recovery(self):
+        h = _Harness()
+
+        self.assertEqual(h.dog._evaluate(_sample(core_mb=12_000.0), now=100.0), "soft")
+        self.assertEqual(h.dog._evaluate(_sample(core_mb=9_000.0), now=140.0), "none")
+        self.assertFalse(h.dog.health_snapshot()["soft_incident"]["active"])
+        self.assertEqual(h.dog._evaluate(_sample(core_mb=12_000.0), now=180.0), "soft")
+
+    def test_soft_incident_rearms_when_host_pressure_materially_worsens(self):
+        h = _Harness()
+
+        self.assertEqual(
+            h.dog._evaluate(_sample(core_mb=5_000.0, sys_pct=93.0), now=100.0),
+            "soft",
+        )
+        self.assertEqual(
+            h.dog._evaluate(_sample(core_mb=5_000.0, sys_pct=94.0), now=140.0),
+            "soft_stable",
+        )
+        self.assertEqual(
+            h.dog._evaluate(_sample(core_mb=5_000.0, sys_pct=96.0), now=180.0),
+            "soft",
+        )
 
     def test_high_system_percent_triggers_soft_even_with_low_rss(self):
         h = _Harness()

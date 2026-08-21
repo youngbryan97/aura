@@ -585,11 +585,21 @@ def test_live_boot_proof_inherits_safe_desktop_mlx_limits(resource_observer):
     assert env["AURA_FOREGROUND_CHAT_MAX_TOKENS"] == "2048"
     assert env["AURA_MLX_MEMORY_LIMIT_GB"] == "34"
     assert env["AURA_PROCESS_RSS_LIMIT_GB"] == "40"
+    assert env["AURA_MEMWATCH_SOFT_MB"] == "37888"
+    assert env["AURA_MEMWATCH_HARD_MB"] == "41984"
     assert env["AURA_MEMWATCH_LETHAL_MB"] == "43008"
     assert env["AURA_MEMORY_SENTINEL_INTERVAL_S"] == "0.5"
     assert env["AURA_GOVERNOR_PRUNE_MB"] == "37888"
     assert env["AURA_GOVERNOR_UNLOAD_MB"] == "39936"
-    assert env["AURA_GOVERNOR_CRITICAL_MB"] == "41984"
+    assert env["AURA_GOVERNOR_CRITICAL_MB"] == "40960"
+    assert [
+        int(env["AURA_GOVERNOR_PRUNE_MB"]),
+        int(env["AURA_MEMWATCH_SOFT_MB"]),
+        int(env["AURA_GOVERNOR_UNLOAD_MB"]),
+        int(env["AURA_GOVERNOR_CRITICAL_MB"]),
+        int(env["AURA_MEMWATCH_HARD_MB"]),
+        int(env["AURA_MEMWATCH_LETHAL_MB"]),
+    ] == [37888, 37888, 39936, 40960, 41984, 43008]
     assert env["AURA_ENABLE_LOCAL_DEEP_SOLVER"] == "0"
     assert env["AURA_MLX_32B_PROJECTED_FOOTPRINT_GB"] == "auto"
     assert env["AURA_MLX_32B_PROCESS_RESERVE_GB"] == "3"

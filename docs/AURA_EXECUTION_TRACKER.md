@@ -51084,3 +51084,34 @@ configuration completed cleanly. These remain offline and route-level results;
 the next gate is still a graceful installed-app restart followed by repeated
 desktop turns with visible latency, terminal, neural-stream and stop receipts
 inspected end to end.
+
+## Checkpoint 2026-08-21-835: Make Resident Memory Pressure One Ordered Incident
+
+The desktop launch profile admitted a stable resident 32B process tree of about
+35 GB, configured the in-loop governor to begin pruning at 37 GB, but left the
+out-of-band watchdog on its generic 32 GB soft ceiling. Live evidence therefore
+showed the watchdog warning and scheduling a governor sweep every 30 seconds
+while the governor correctly took no action below its own first threshold. The
+same launch profile also left the watchdog hard tier implicit, so its computed
+value could precede the governor's configured critical tier. The safety ladder
+was not one policy.
+
+Every desktop entry point now carries the same explicit ordered envelope:
+governor prune/watchdog soft at 37 GB, governor unload at 39 GB, governor
+critical at 40 GB, out-of-band hard reclaim at 41 GB, and lethal protection at
+42 GB. This is applied in the packaged Swift launcher, terminal handoff, shell
+launcher, direct desktop boot and live-proof environment. Explicit operator
+overrides remain authoritative.
+
+Soft pressure is now an incident rather than a periodic alarm. One crossing
+schedules one graceful sweep; a stable resident footprint records stable
+pressure without repeated warnings or event-loop work. The incident rearms
+after genuine recovery, another 1 GB of managed growth, or a further three
+percentage points of host pressure. Hard and lethal enforcement remain
+level-triggered. Health exposes the active incident and the exact measurement
+that last caused action. Focused launcher, watchdog and desktop contracts pass
+`140/140`; adjacent pressure, sentinel, MLX reclaim and runaway suites pass
+`201/201`; canonical smoke passes `120/120` with one environment-dependent
+skip. Ruff, shell syntax, Swift parsing and diff hygiene pass. The running
+pre-checkpoint process was intentionally not restarted, so live confirmation
+belongs to the next normal installed-app restart.
