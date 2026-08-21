@@ -4568,9 +4568,19 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
     @discardableResult
     private func autoOpenDesktopWindowIfNeeded() -> Bool {
         if autoDesktopOpenTriggered {
+            // Readiness is a maintained user-surface invariant, not a one-shot
+            // launch event. AppKit or WebKit can discard a window after the
+            // initial handoff while the runtime remains healthy. If every Aura
+            // surface is gone, reconstruct the retained primary window on the
+            // next health poll instead of leaving a headless desktop runtime.
+            if !visibleInteractiveSurfaceExists() {
+                return frontPrimaryWindow()
+            }
             return true
         }
-        if terminalHandoffIsFresh() {
+        // A terminal handoff only owns runtime startup. Once the runtime is
+        // observable, it is not evidence that any GUI surface exists.
+        if terminalHandoffIsFresh() && !existingRuntimeIsObservable() {
             return true
         }
         if desktopWindowLaunchInProgress() {
@@ -4578,10 +4588,10 @@ final class AuraLauncherDelegate: NSObject, NSApplicationDelegate,
             if desktopWindowIsVisible() {
                 openNativeDesktopWindow()
             }
-            return true
+            return visibleInteractiveSurfaceExists() || frontPrimaryWindow()
         }
         openNativeDesktopWindow()
-        return true
+        return visibleInteractiveSurfaceExists()
     }
 }
 

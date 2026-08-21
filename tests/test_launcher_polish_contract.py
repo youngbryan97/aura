@@ -717,6 +717,22 @@ def test_packaged_launcher_uses_native_app_window_for_default_desktop_surface():
     assert 'desktop.title = "Aura Zenith"' in swift
 
 
+def test_ready_launcher_maintains_a_visible_interactive_surface():
+    swift = (PROJECT_ROOT / "scripts" / "AuraLauncher.swift").read_text(encoding="utf-8")
+
+    auto_body = swift.split("private func autoOpenDesktopWindowIfNeeded()", 1)[1].split(
+        "\n    }\n}",
+        1,
+    )[0]
+
+    assert "if autoDesktopOpenTriggered" in auto_body
+    assert "visibleInteractiveSurfaceExists()" in auto_body
+    assert "frontPrimaryWindow()" in auto_body
+    assert "terminalHandoffIsFresh() && !existingRuntimeIsObservable()" in auto_body
+    assert "return visibleInteractiveSurfaceExists()" in auto_body
+    assert "if autoDesktopOpenTriggered {\n            return true" not in auto_body
+
+
 def test_packaged_launcher_reopens_primary_desktop_without_resurrecting_monitor():
     swift = (PROJECT_ROOT / "scripts" / "AuraLauncher.swift").read_text(encoding="utf-8")
 
